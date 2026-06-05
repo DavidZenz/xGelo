@@ -1,2 +1,2 @@
 "fixture_id","home_team","away_team","date","venue","home_goals_expected","away_goals_expected","win_probability","draw_probability","loss_probability","model_version","timestamp"
-"Germany_vs_Netherlands_2026-06-11","Germany","Netherlands","2026-06-11","home",0.54986,0.84204,0.22854,0.42076,0.3507,"1.0","2026-06-03 21:29:41.799421"
+"Germany_vs_Netherlands_2026-06-11","Germany","Netherlands","2026-06-11","home",0.55764,0.83016,0.23434,0.41956,0.3461,"1.0","2026-06-04 07:38:49.574927"

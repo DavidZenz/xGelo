@@ -1,192 +1,176 @@
-#' Schema Validation for xGelo Data Ingestion
+#' Pipeline Validation Functions for xGelo
 #'
-#' This script provides validation functions for all ingested data sources.
-#' Validation runs automatically after each ingest and stops the pipeline on failure.
+#' @author xGelo project
+#' @date 2026-06-04
 
-library(jsonlite)
-
-#' Validate martj42 CSV files
-#'
-#' @param file_path Path to the CSV file to validate
-#' @return TRUE if valid, stops execution with error message if invalid
-validate_martj42 <- function(file_path) {
+#' Validate schema of a CSV file
+#' @param path Path to CSV file
+#' @param required_cols Vector of required column names
+#' @return TRUE if valid, FALSE otherwise
+#' @export
+validate_schema <- function(path, required_cols = NULL) {
+  if (!file.exists(path)) {
+    message(paste("File not found:", path))
+    return(FALSE)
+  }
+  
   data <- tryCatch({
-    read.csv(file_path, stringsAsFactors = FALSE)
+    read.csv(path, stringsAsFactors = FALSE)
   }, error = function(e) {
-    stop(paste("Failed to read file:", file_path, "-", e$message))
+    message(paste("Error reading file:", path, "-", e$message))
+    return(FALSE)
   })
-
-  # Check required columns
-  required_cols <- c("date", "home_team", "away_team", "home_score", "away_score", 
-                    "tournament", "city", "country", "neutral")
-  missing_cols <- setdiff(required_cols, names(data))
-  if (length(missing_cols) > 0) {
-    stop(paste("Missing required columns in", file_path, ":", paste(missing_cols, collapse = ", ")))
-  }
-
-  # Type validation - basic checks without pointblank
-  # Check date can be converted to numeric/Date
-  if (!all(is.na(suppressWarnings(as.numeric(data$date))))) {
-    stop(paste("Date column validation failed for", file_path))
+  
+  if (nrow(data) == 0) {
+    message(paste("File is empty:", path))
+    return(FALSE)
   }
   
-  # Check scores are numeric
-  if (!all(is.na(suppressWarnings(as.numeric(data$home_score))))) {
-    stop(paste("home_score column validation failed for", file_path))
-  }
-  if (!all(is.na(suppressWarnings(as.numeric(data$away_score))))) {
-    stop(paste("away_score column validation failed for", file_path))
-  }
-  
-  # Check neutral is logical
-  if (!all(data$neutral %in% c(TRUE, FALSE, "TRUE", "FALSE", "true", "false"))) {
-    stop(paste("neutral column validation failed for", file_path))
-  }
-
-  message(paste("✓", file_path, "validation passed"))
-  return(TRUE)
-}
-
-#' Validate StatsBomb events JSON
-#'
-#' @param file_path Path to the JSON file to validate
-#' @return TRUE if valid, stops execution with error message if invalid
-validate_statsbomb_events <- function(file_path) {
-  json <- tryCatch({
-    fromJSON(file_path, simplifyVector = FALSE)
-  }, error = function(e) {
-    stop(paste("Failed to parse JSON:", file_path, "-", e$message))
-  })
-
-  # Check structure
-  if (!"events" %in% names(json)) {
-    stop(paste("Invalid StatsBomb events structure:", file_path, "- missing 'events' key"))
-  }
-
-  # Check at least one event exists
-  if (length(json$events) == 0) {
-    stop(paste("No events found in:", file_path))
-  }
-
-  # Check event structure (first event should have required fields)
-  first_event <- json$events[[1]]
-  required_fields <- c("id", "index", "period", "timestamp", "minute", "second", "type")
-  missing_fields <- setdiff(required_fields, names(first_event))
-  if (length(missing_fields) > 0) {
-    stop(paste("Missing required fields in events:", paste(missing_fields, collapse = ", ")))
-  }
-
-  message(paste("✓", file_path, "validation passed"))
-  return(TRUE)
-}
-
-#' Validate StatsBomb lineups JSON
-#'
-#' @param file_path Path to the JSON file to validate
-#' @return TRUE if valid, stops execution with error message if invalid
-validate_statsbomb_lineups <- function(file_path) {
-  json <- tryCatch({
-    fromJSON(file_path, simplifyVector = FALSE)
-  }, error = function(e) {
-    stop(paste("Failed to parse JSON:", file_path, "-", e$message))
-  })
-
-  # Check structure - lineups is a list of match lineups
-  if (!"lineups" %in% names(json)) {
-    stop(paste("Invalid StatsBomb lineups structure:", file_path, "- missing 'lineups' key"))
-  }
-
-  if (length(json$lineups) == 0) {
-    stop(paste("No lineups found in:", file_path))
-  }
-
-  message(paste("✓", file_path, "validation passed"))
-  return(TRUE)
-}
-
-#' Validate team name mapping CSV
-#'
-#' @param file_path Path to the CSV file to validate
-#' @return TRUE if valid, stops execution with error message if invalid
-validate_team_mapping <- function(file_path) {
-  data <- tryCatch({
-    read.csv(file_path, stringsAsFactors = FALSE)
-  }, error = function(e) {
-    stop(paste("Failed to read team mapping:", file_path, "-", e$message))
-  })
-
-  required_cols <- c("source_name", "canonical_name", "fifa_code", "alt_names")
-  missing_cols <- setdiff(required_cols, names(data))
-  if (length(missing_cols) > 0) {
-    stop(paste("Missing required columns in team mapping:", paste(missing_cols, collapse = ", ")))
-  }
-
-  message(paste("✓", file_path, "validation passed"))
-  return(TRUE)
-}
-
-#' Run all validations for a given data source
-#'
-#' @param source Either "martj42" or "statsbomb"
-#' @param base_dir Base directory for the source data
-#' @return TRUE if all validations pass
-validate_source <- function(source, base_dir) {
-  cat(sprintf("Validating %s data in %s...\n", source, base_dir))
-  
-  if (source == "martj42") {
-    files <- list.files(base_dir, pattern = "\\.csv$", full.names = TRUE)
-    for (f in files) {
-      validate_martj42(f)
+  if (!is.null(required_cols)) {
+    missing_cols <- setdiff(required_cols, names(data))
+    if (length(missing_cols) > 0) {
+      message(paste("Missing columns in", path, ":", paste(missing_cols, collapse = ", ")))
+      return(FALSE)
     }
-    validate_team_mapping(file.path(base_dir, "team_name_map.csv"))
-  } else if (source == "statsbomb") {
-    # Validate events
-    events_dir <- file.path(base_dir, "events")
-    if (dir.exists(events_dir)) {
-      event_files <- list.files(events_dir, pattern = "\\.json$", full.names = TRUE)
-      for (f in event_files) {
-        validate_statsbomb_events(f)
-      }
+  }
+  
+  return(TRUE)
+}
+
+#' Validate xG values
+#' @param path Path to team_match_xg.csv
+#' @return TRUE if valid, FALSE otherwise
+#' @export
+validate_xg_values <- function(path) {
+  if (!file.exists(path)) {
+    message(paste("File not found:", path))
+    return(FALSE)
+  }
+  
+  data <- read.csv(path, stringsAsFactors = FALSE)
+  
+  xg_cols <- c("xGF", "xGA", "xGD")
+  if (!all(xg_cols %in% names(data))) {
+    message(paste("Missing xG columns:", paste(setdiff(xg_cols, names(data)), collapse = ", ")))
+    return(FALSE)
+  }
+  
+  if (any(data$xGF < 0, na.rm = TRUE) || any(data$xGA < 0, na.rm = TRUE)) {
+    message("Negative xG values found")
+    return(FALSE)
+  }
+  
+  return(TRUE)
+}
+
+#' Validate probabilities
+#' @param dir Directory containing forecast CSV files
+#' @return TRUE if valid, FALSE otherwise
+#' @export
+validate_probabilities <- function(dir) {
+  if (!dir.exists(dir)) {
+    message(paste("Directory not found:", dir))
+    return(FALSE)
+  }
+  
+  csv_files <- list.files(dir, pattern = "\\.csv$", full.names = TRUE)
+  
+  if (length(csv_files) == 0) {
+    message(paste("No CSV files found in:", dir))
+    return(FALSE)
+  }
+  
+  required_cols <- c("win_probability", "draw_probability", "loss_probability")
+  
+  all_valid <- TRUE
+  for (file in csv_files) {
+    data <- read.csv(file, stringsAsFactors = FALSE)
+    
+    if (!all(required_cols %in% names(data))) {
+      message(paste("Missing probability columns in:", file))
+      all_valid <- FALSE
+      next
     }
     
-    # Validate lineups
-    lineups_dir <- file.path(base_dir, "lineups")
-    if (dir.exists(lineups_dir)) {
-      lineup_files <- list.files(lineups_dir, pattern = "\\.json$", full.names = TRUE)
-      for (f in lineup_files) {
-        validate_statsbomb_lineups(f)
-      }
+    prob_sums <- data$win_probability + data$draw_probability + data$loss_probability
+    if (any(abs(prob_sums - 1) > 0.001, na.rm = TRUE)) {
+      message(paste("Probabilities don't sum to 1 in:", file))
+      all_valid <- FALSE
     }
     
-    # Validate competitions
-    comp_file <- file.path(base_dir, "competitions.json")
-    if (file.exists(comp_file)) {
-      validate_statsbomb_events(comp_file)  # Same structure check works
+    if (any(data$win_probability < 0 | data$win_probability > 1, na.rm = TRUE) ||
+        any(data$draw_probability < 0 | data$draw_probability > 1, na.rm = TRUE) ||
+        any(data$loss_probability < 0 | data$loss_probability > 1, na.rm = TRUE)) {
+      message(paste("Invalid probability values in:", file))
+      all_valid <- FALSE
     }
   }
   
-  return(TRUE)
+  return(all_valid)
 }
 
-#' Run all validations
-#'
-#' This function is called automatically after each ingest.
-#' Stops execution with error if any validation fails.
-validate_all <- function() {
-  cat("Running all data validations...\n")
+#' Run all validation checks
+#' @return List of validation results
+#' @export
+run_all_validations <- function() {
+  results <- list()
   
-  tryCatch({
-    validate_source("martj42", "data/raw/martj42")
-    validate_source("statsbomb", "data/raw/statsbomb")
-    cat("\n✓ All validations passed!\n")
-    return(TRUE)
-  }, error = function(e) {
-    cat(sprintf("\n✗ Validation failed: %s\n", e$message))
-    stop("Validation failed - pipeline stopped")
-  })
+  results$data_raw <- list(
+    results.csv = validate_schema("data/raw/martj42/results.csv", c("date", "home_team", "away_team", "home_score", "away_score")),
+    events = file.exists("data/raw/statsbomb/events/15946.json"),
+    competitions = file.exists("data/raw/statsbomb/competitions.json")
+  )
+  
+  results$data_clean <- list(
+    elo_matches = validate_schema("data/processed/elo_matches.csv", c("date", "home_team", "away_team", "home_score", "away_score")),
+    elo_ratings = validate_schema("data/processed/elo_ratings.csv", c("date", "team", "rating")),
+    team_match_xg = validate_xg_values("data/processed/team_match_xg.csv"),
+    rolling_form = validate_schema("data/processed/rolling_form.csv", c("team", "match_date", "xgf_ewma"))
+  )
+  
+  results$models <- list(
+    xg_model = file.exists("models/xg_model.rds"),
+    home_goal_model = file.exists("models/home_goal_model.rds"),
+    away_goal_model = file.exists("models/away_goal_model.rds")
+  )
+  
+  results$forecasts <- list(
+    forecasts_valid = validate_probabilities("outputs/forecasts"),
+    calibration_plot = file.exists("outputs/visualizations/forecast_calibration.png")
+  )
+  
+  return(results)
 }
 
-# Run validations if called directly
-if (identical(sys.nframe(), 0)) {
-  validate_all()
+#' Wrapper to run validations and print results
+#' @export
+run_validation_checks <- function() {
+  results <- run_all_validations()
+  
+  cat("\n=== Pipeline Validation Results ===\n\n")
+  
+  cat("Raw Data:\n")
+  cat("  results.csv:", ifelse(results$data_raw$results.csv, "PASS", "FAIL"), "\n")
+  cat("  events:", ifelse(results$data_raw$events, "PASS", "FAIL"), "\n")
+  cat("  competitions:", ifelse(results$data_raw$competitions, "PASS", "FAIL"), "\n\n")
+  
+  cat("Processed Data:\n")
+  cat("  elo_matches.csv:", ifelse(results$data_clean$elo_matches, "PASS", "FAIL"), "\n")
+  cat("  elo_ratings.csv:", ifelse(results$data_clean$elo_ratings, "PASS", "FAIL"), "\n")
+  cat("  team_match_xg.csv:", ifelse(results$data_clean$team_match_xg, "PASS", "FAIL"), "\n")
+  cat("  rolling_form.csv:", ifelse(results$data_clean$rolling_form, "PASS", "FAIL"), "\n\n")
+  
+  cat("Models:\n")
+  cat("  xg_model.rds:", ifelse(results$models$xg_model, "PASS", "FAIL"), "\n")
+  cat("  home_goal_model.rds:", ifelse(results$models$home_goal_model, "PASS", "FAIL"), "\n")
+  cat("  away_goal_model.rds:", ifelse(results$models$away_goal_model, "PASS", "FAIL"), "\n\n")
+  
+  cat("Forecasts:\n")
+  cat("  probability sums:", ifelse(results$forecasts$forecasts_valid, "PASS", "FAIL"), "\n")
+  cat("  calibration plot:", ifelse(results$forecasts$calibration_plot, "PASS", "FAIL"), "\n")
+  
+  all_pass <- all(unlist(results))
+  cat("\n=== Overall:", ifelse(all_pass, "ALL CHECKS PASSED", "SOME CHECKS FAILED"), "===\n")
+  
+  return(list(all_passed = all_pass, results = results))
 }

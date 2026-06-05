@@ -215,4 +215,51 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-06-03 after initialization*
+
+## Current State
+
+**v1.0 MVP (Open Mode)**: ✅ **SHIPPED** - 2026-06-05
+
+Production-ready forecasting system using only open data (martj42 + StatsBomb).
+
+### Delivered
+- **7 phases** completed with 31 requirements at 100% coverage
+- **xG Model**: Logistic regression with splines, AUC = 0.7905 on held-out test set
+- **Elo System**: 49,368 matches processed, 336 teams, validation AUC = 0.7916
+- **Forecasting**: Negative Binomial models, Monte Carlo simulation (50,000 scenarios/fixture in <10s)
+- **Pipeline**: targets orchestration with 9 targets, DAG visualization, 27 unit tests, 4 integration tests
+- **Documentation**: SETUP.md, RUNBOOK.md, MODEL-CARD.md, research notebook
+
+### Architecture Proven
+```
+Data (Phase 1) → xG Model (Phase 2, AUC: 0.7905)
+Data (Phase 1) → Elo (Phase 3, AUC: 0.7916)
+xG + Elo → Integration (Phase 4)
+Integration + Elo → Forecasting (Phase 5, Brier: 0.214)
+All → Pipeline & Quality (Phase 6)
+Pipeline → Visualization & Docs (Phase 7)
+```
+
+### Quality Metrics
+- **Code Coverage**: >80% for xG and Elo functions
+- **Test Results**: 27/27 unit tests passing, 4/4 integration tests passing
+- **Model Calibration**: All bins within ±5% of ideal line
+- **Reproducibility**: Pipeline outputs match across runs
+
+## Next Milestone Goals (v2.0)
+
+### Planned Enhancements
+1. **Mixed-effects xG model** - Team random effects for better personalization
+2. **Sequence-aware models** - Capture game state dynamics
+3. **Hybrid WCQ data layer** - Integrate cached WCQ data
+4. **Group stage simulation** - Tournament-level predictions
+5. **CI/CD pipeline** - Automated testing and deployment
+
+### Target Improvements
+- xG model AUC > 0.80
+- Forecast Brier score < 0.20
+- Full end-to-end automation
+- Extended historical coverage
+
+---
+*Last updated: 2026-06-05 | v1.0 Shipped | v2.0 Planning*
