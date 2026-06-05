@@ -162,11 +162,21 @@ compute_rolling_form <- function(xg_metrics_path = "data/processed/team_match_xg
     xgd_vec <- team_all_matches$xGD_team
     shots_vec <- team_all_matches$shots_team
     
-    # Compute EWMA
-    xgf_ewma <- compute_ewma_simple(xgf_vec, alpha)
-    xga_ewma <- compute_ewma_simple(xga_vec, alpha)
-    xgd_ewma <- compute_ewma_simple(xgd_vec, alpha)
-    shots_ewma <- compute_ewma_simple(shots_vec, alpha)
+    # Compute post-match EWMA, then lag it so row-level form is pre-match.
+    xgf_ewma_post <- compute_ewma_simple(xgf_vec, alpha)
+    xga_ewma_post <- compute_ewma_simple(xga_vec, alpha)
+    xgd_ewma_post <- compute_ewma_simple(xgd_vec, alpha)
+    shots_ewma_post <- compute_ewma_simple(shots_vec, alpha)
+    
+    lag_with_default <- function(values, default = NA_real_) {
+      if (length(values) == 0) return(values)
+      c(default, head(values, -1))
+    }
+    
+    xgf_ewma <- lag_with_default(xgf_ewma_post)
+    xga_ewma <- lag_with_default(xga_ewma_post)
+    xgd_ewma <- lag_with_default(xgd_ewma_post)
+    shots_ewma <- lag_with_default(shots_ewma_post)
     
     # Get Elo ratings for this team (simplified - use most recent before match)
     team_elo <- rep(1500, nrow(team_all_matches))  # Default to base rating
@@ -175,7 +185,7 @@ compute_rolling_form <- function(xg_metrics_path = "data/processed/team_match_xg
       for (i in 1:nrow(team_all_matches)) {
         match_date <- team_all_matches$match_date[i]
         # Find ratings for this team before the match date
-        team_ratings_before <- elo_ratings[elo_ratings$team == team & elo_ratings$date <= match_date, ]
+        team_ratings_before <- elo_ratings[elo_ratings$team == team & elo_ratings$date < match_date, ]
         if (nrow(team_ratings_before) > 0) {
           # Get the most recent rating
           most_recent <- team_ratings_before[which.max(team_ratings_before$date), ]
@@ -184,16 +194,18 @@ compute_rolling_form <- function(xg_metrics_path = "data/processed/team_match_xg
       }
       # Replace any remaining NA with 1500
       team_elo[is.na(team_elo)] <- 1500
-      elo_ewma <- compute_ewma_simple(team_elo, alpha)
+      elo_ewma_post <- compute_ewma_simple(team_elo, alpha)
+      elo_ewma <- lag_with_default(elo_ewma_post)
     } else {
       elo_ewma <- rep(NA, nrow(team_all_matches))
+      elo_ewma_post <- rep(NA, nrow(team_all_matches))
     }
     
     # Create form index (simple weighted combination of normalized metrics)
     # Normalize each metric by typical max values
-    xgf_norm <- pmin(xgf_ewma / 5, 1)
-    xga_norm <- pmin(xga_ewma / 5, 1)
-    shots_norm <- pmin(shots_ewma / 30, 1)
+    xgf_norm <- pmin(ifelse(is.na(xgf_ewma), 0, xgf_ewma) / 5, 1)
+    xga_norm <- pmin(ifelse(is.na(xga_ewma), 0, xga_ewma) / 5, 1)
+    shots_norm <- pmin(ifelse(is.na(shots_ewma), 0, shots_ewma) / 30, 1)
     
     # For xGA, lower is better (defensive strength), so invert
     xga_norm_inverted <- 1 - xga_norm
@@ -215,8 +227,13 @@ compute_rolling_form <- function(xg_metrics_path = "data/processed/team_match_xg
       xga_ewma = xga_ewma,
       xgd_ewma = xgd_ewma,
       shots_ewma = shots_ewma,
+      xgf_ewma_post = xgf_ewma_post,
+      xga_ewma_post = xga_ewma_post,
+      xgd_ewma_post = xgd_ewma_post,
+      shots_ewma_post = shots_ewma_post,
       elo = team_elo,
       elo_ewma = elo_ewma,
+      elo_ewma_post = elo_ewma_post,
       form_index = form_index,
       span = span,
       alpha = alpha,

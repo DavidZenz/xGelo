@@ -37,12 +37,31 @@ generate_forecast <- function(
     ...
   ))
   
+  sanitize_fixture_part <- function(value) {
+    cleaned <- gsub("[^A-Za-z0-9_-]+", "_", value)
+    cleaned <- gsub("_+", "_", cleaned)
+    gsub("^_|_$", "", cleaned)
+  }
+  
   # Create fixture ID
   if (!is.null(date)) {
     fixture_id <- paste(home_team, "vs", away_team, as.character(date), sep = "_")
+    file_fixture_id <- paste(
+      sanitize_fixture_part(home_team),
+      "vs",
+      sanitize_fixture_part(away_team),
+      sanitize_fixture_part(as.character(date)),
+      sep = "_"
+    )
     date_str <- as.character(date)
   } else {
     fixture_id <- paste(home_team, "vs", away_team, sep = "_")
+    file_fixture_id <- paste(
+      sanitize_fixture_part(home_team),
+      "vs",
+      sanitize_fixture_part(away_team),
+      sep = "_"
+    )
     date_str <- "unknown"
   }
   
@@ -69,7 +88,7 @@ generate_forecast <- function(
   }
   
   # Save to CSV
-  output_path <- file.path(output_dir, paste0(fixture_id, ".csv"))
+  output_path <- file.path(output_dir, paste0(file_fixture_id, ".csv"))
   write.csv(forecast, output_path, row.names = FALSE)
   
   message(paste("Forecast saved to", output_path))

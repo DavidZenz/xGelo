@@ -13,13 +13,17 @@
 #' @param competitions_path Path to StatsBomb competitions JSON file
 #' @param output_path Path to save output CSV
 #' @param use_own_model Logical whether to use our own xG model (TRUE) or StatsBomb's xG (FALSE)
+#' @param match_manifest_path Optional CSV with match_id, date, home_team, away_team, competition
+#' @param strict_metadata Logical whether to stop when a manifest row is unavailable
 #' @return Data frame with team-match xG metrics
 #' @export
 compute_team_match_xg <- function(events_dir = "data/raw/statsbomb/events/",
                                   model_path = "models/xg_model.rds",
                                   competitions_path = "data/raw/statsbomb/competitions.json",
                                   output_path = "data/processed/team_match_xg.csv",
-                                  use_own_model = TRUE) {
+                                  use_own_model = TRUE,
+                                  match_manifest_path = file.path(dirname(events_dir), "matches_manifest.csv"),
+                                  strict_metadata = FALSE) {
   
   suppressPackageStartupMessages({
     library(jsonlite)
@@ -53,6 +57,22 @@ compute_team_match_xg <- function(events_dir = "data/raw/statsbomb/events/",
   
   message(paste("Processing", length(event_files), "event files..."))
   
+  match_manifest <- NULL
+  if (file.exists(match_manifest_path)) {
+    match_manifest <- read.csv(match_manifest_path, stringsAsFactors = FALSE)
+    required_manifest_cols <- c("match_id", "date", "home_team", "away_team", "competition")
+    missing_manifest_cols <- setdiff(required_manifest_cols, names(match_manifest))
+    if (length(missing_manifest_cols) > 0) {
+      stop(paste("Match manifest missing required columns:", paste(missing_manifest_cols, collapse = ", ")))
+    }
+  } else {
+    warning(paste(
+      "Match manifest not found at",
+      match_manifest_path,
+      "- falling back to event-order team inference and file modification dates"
+    ))
+  }
+  
   # Pre-allocate results
   all_results <- list()
   
@@ -63,24 +83,32 @@ compute_team_match_xg <- function(events_dir = "data/raw/statsbomb/events/",
     # Load event data - StatsBomb files are flat JSON arrays
     events <- fromJSON(event_file, simplifyVector = FALSE)
     
-    # Get match info from filename (competition_id)
-    comp_id <- tools::file_path_sans_ext(basename(event_file))
-    
-    # Get competition name
-    comp_name <- if (!is.null(competitions) && !is.null(competitions$competitions) && comp_id %in% names(competitions$competitions)) {
-      comp_info <- competitions$competitions[[comp_id]]
-      if (!is.null(comp_info$competition_name)) {
-        comp_info$competition_name
-      } else {
-        paste("Unknown_Comp_", comp_id)
+    # Get match info from filename (StatsBomb match_id in sample data)
+    file_match_id <- tools::file_path_sans_ext(basename(event_file))
+    manifest_row <- NULL
+    if (!is.null(match_manifest)) {
+      matches <- match_manifest[as.character(match_manifest$match_id) == file_match_id, ]
+      if (nrow(matches) > 0) {
+        manifest_row <- matches[1, ]
+      } else if (strict_metadata) {
+        stop(paste("No manifest row found for event file:", basename(event_file)))
       }
-    } else {
-      paste("Unknown_Comp_", comp_id)
     }
     
-    # Extract match date - use file modification date as proxy for sample data
-    file_info <- file.info(event_file)
-    match_date <- as.Date(file_info$mtime)
+    # Get competition name
+    comp_name <- if (!is.null(manifest_row)) {
+      manifest_row$competition
+    } else {
+      paste("Unknown_Comp_", file_match_id)
+    }
+    
+    # Extract match date
+    match_date <- if (!is.null(manifest_row)) {
+      as.Date(manifest_row$date)
+    } else {
+      file_info <- file.info(event_file)
+      as.Date(file_info$mtime)
+    }
     
     # Try to get date from events if available (full StatsBomb files have match_date)
     if (length(events) > 0 && !is.null(events[[1]]$match_date)) {
@@ -107,13 +135,17 @@ compute_team_match_xg <- function(events_dir = "data/raw/statsbomb/events/",
       next
     }
     
-    # For now, use the first two unique teams as home and away
-    # Note: This may not always be correct - better to use possession or other indicators
-    home_team <- all_teams[1]
-    away_team <- all_teams[2]
+    if (!is.null(manifest_row)) {
+      home_team <- manifest_row$home_team
+      away_team <- manifest_row$away_team
+    } else {
+      # Fallback for checked-in sample data without match metadata.
+      home_team <- all_teams[1]
+      away_team <- all_teams[2]
+    }
     
     # Generate match_id
-    match_id <- paste(comp_id, "-", home_team, "vs", away_team, sep = "_")
+    match_id <- paste(file_match_id, "-", home_team, "vs", away_team, sep = "_")
     
     # Extract shot events
     shot_events <- events[sapply(events, function(e) {

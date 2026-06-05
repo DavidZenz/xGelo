@@ -1,2 +1,2 @@
 "fixture_id","home_team","away_team","date","venue","home_goals_expected","away_goals_expected","win_probability","draw_probability","loss_probability","model_version","timestamp"
-"France_vs_England_2026-06-12","France","England","2026-06-12","neutral",0.58522,0.8452,0.24176,0.40946,0.34878,"1.0","2026-06-04 07:38:49.878915"
+"France_vs_England_2026-06-12","France","England","2026-06-12","neutral",1.71182,0.9025,0.47272,0.2757,0.25158,"1.0","2026-06-05 11:13:35.350695"

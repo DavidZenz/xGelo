@@ -30,7 +30,7 @@ calibrate_xg_model <- function(model, test_data, output_dir = "outputs/visualiza
   
   # Generate predictions
   predictions <- predict_xg(model, test_data)
-  actuals <- as.numeric(test_data$goal)
+  actuals <- encode_goal_actuals(test_data$goal)
   
   # Create calibration data
   calib_data <- data.frame(
@@ -134,4 +134,19 @@ apply_calibration <- function(predictions, actuals, method = "isotonic") {
     calibration_function = calibration_function,
     calibration_object = calib_obj
   ))
+}
+
+#' Encode goal outcomes as 0/1
+#'
+#' @param goal Outcome vector from xG data
+#' @return Integer vector where Goal/TRUE/1 is 1 and all other known outcomes are 0
+encode_goal_actuals <- function(goal) {
+  if (is.logical(goal)) {
+    return(as.integer(goal))
+  }
+  if (is.numeric(goal)) {
+    return(as.integer(goal > 0))
+  }
+  goal_chr <- as.character(goal)
+  as.integer(tolower(goal_chr) %in% c("goal", "true", "1", "yes"))
 }

@@ -194,6 +194,9 @@ compute_elo_optimized <- function(matches_df, team_map_df, home_advantage = 60,
       # Update ratings using elo_update
       update <- elo_update(home_rating, away_rating, result, k_home, k_away, home_advantage, is_home)
       
+      previous_home_match_date <- last_match_dates[home_idx]
+      previous_away_match_date <- last_match_dates[away_idx]
+      
       # Update current ratings
       ratings[home_idx] <- update$rating_a
       ratings[away_idx] <- update$rating_b
@@ -203,14 +206,14 @@ compute_elo_optimized <- function(matches_df, team_map_df, home_advantage = 60,
       # Update match counts for k-factor calculation
       match_year <- as.integer(format(match_date, "%Y"))
       
-      if (is.na(last_match_dates[home_idx]) || as.integer(format(last_match_dates[home_idx], "%Y")) != match_year) {
+      if (is.na(previous_home_match_date) || as.integer(format(previous_home_match_date, "%Y")) != match_year) {
         matches_last_year[home_idx] <- matches_this_year[home_idx]
         matches_this_year[home_idx] <- 1
       } else {
         matches_this_year[home_idx] <- matches_this_year[home_idx] + 1
       }
       
-      if (is.na(last_match_dates[away_idx]) || as.integer(format(last_match_dates[away_idx], "%Y")) != match_year) {
+      if (is.na(previous_away_match_date) || as.integer(format(previous_away_match_date, "%Y")) != match_year) {
         matches_last_year[away_idx] <- matches_this_year[away_idx]
         matches_this_year[away_idx] <- 1
       } else {

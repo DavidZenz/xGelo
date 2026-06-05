@@ -11,11 +11,18 @@
 #' @param competitions_file Character string path to competitions.json file
 #' @param domestic_only Logical whether to filter to domestic leagues only (default: TRUE)
 #' @param competition_name Character string name to use for all events (for sample data without metadata)
+#' @param event_manifest_file Optional CSV mapping event files to competition metadata
+#' @param allow_unmapped_sample Logical whether to allow sample event files without metadata
 #' @return A data frame with columns: distance, angle, header, open_play, competition, goal
 #' @export
-prepare_training_data <- function(events_dir, competitions_file, domestic_only = TRUE, competition_name = "Sample League") {
+prepare_training_data <- function(events_dir, competitions_file, domestic_only = TRUE,
+                                  competition_name = "Sample League",
+                                  event_manifest_file = file.path(dirname(events_dir), "events_manifest.csv"),
+                                  allow_unmapped_sample = FALSE) {
   library(jsonlite)
   library(dplyr)
+  
+  domestic_competitions <- NULL
   
   # Load competition metadata (for filtering validation)
   if (file.exists(competitions_file)) {
@@ -32,6 +39,7 @@ prepare_training_data <- function(events_dir, competitions_file, domestic_only =
         !sapply(comps$competition_name, function(name) {
           any(sapply(exclude_keywords, function(kw) grepl(kw, name, ignore.case = TRUE)))
         })
+      domestic_competitions <- comps[is_domestic, ]
       
       if (sum(is_domestic) == 0) {
         warning("No domestic competitions found in competitions.json")
@@ -47,6 +55,47 @@ prepare_training_data <- function(events_dir, competitions_file, domestic_only =
     stop("No event files found in ", events_dir)
   }
   
+  event_competitions <- setNames(rep(competition_name, length(event_files)), basename(event_files))
+  
+  if (domestic_only) {
+    if (file.exists(event_manifest_file)) {
+      if (is.null(domestic_competitions)) {
+        stop("domestic_only=TRUE with an event manifest also requires competitions metadata")
+      }
+      manifest <- read.csv(event_manifest_file, stringsAsFactors = FALSE)
+      required_manifest_cols <- c("file", "competition_id", "competition_name")
+      missing_manifest_cols <- setdiff(required_manifest_cols, names(manifest))
+      if (length(missing_manifest_cols) > 0) {
+        stop(paste("Event manifest missing required columns:", paste(missing_manifest_cols, collapse = ", ")))
+      }
+      
+      domestic_ids <- unique(domestic_competitions$competition_id)
+      keep_files <- manifest$file[manifest$competition_id %in% domestic_ids]
+      event_files <- event_files[basename(event_files) %in% keep_files]
+      event_competitions <- setNames(
+        manifest$competition_name[match(basename(event_files), manifest$file)],
+        basename(event_files)
+      )
+      
+      if (length(event_files) == 0) {
+        stop("No domestic event files remained after applying ", event_manifest_file)
+      }
+    } else if (allow_unmapped_sample) {
+      warning(paste(
+        "domestic_only=TRUE but no event manifest found at",
+        event_manifest_file,
+        "- treating checked-in sample events as",
+        competition_name
+      ))
+    } else {
+      stop(paste(
+        "domestic_only=TRUE requires an event manifest mapping event files to competition_id.",
+        "Expected:", event_manifest_file,
+        "or set allow_unmapped_sample=TRUE for checked-in sample data."
+      ))
+    }
+  }
+  
   # Process each file
   all_features <- list()
   
@@ -56,8 +105,13 @@ prepare_training_data <- function(events_dir, competitions_file, domestic_only =
     tryCatch({
       events <- fromJSON(file)
       
-      # Extract features using the provided competition name
-      features <- extract_features_from_events(events, competition_name)
+      file_competition <- event_competitions[[basename(file)]]
+      if (is.null(file_competition) || is.na(file_competition)) {
+        file_competition <- competition_name
+      }
+      
+      # Extract features using the event's competition name
+      features <- extract_features_from_events(events, file_competition)
       
       if (nrow(features) > 0) {
         # Add file identifier for tracking

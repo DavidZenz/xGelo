@@ -13,6 +13,7 @@
 #' @param venue Match venue ("home", "away", "neutral")
 #' @param home_model_path Path to home goal model RDS
 #' @param away_model_path Path to away goal model RDS
+#' @param elo_ratings_path Path to historical Elo ratings CSV
 #' @param n_sim Number of simulations (default: 50000)
 #' @param seed Random seed for reproducibility
 #' @return List with win_prob, draw_prob, loss_prob, expected_home, expected_away
@@ -24,6 +25,7 @@ simulate_fixture <- function(
     venue = "home",
     home_model_path = "models/home_goal_model.rds",
     away_model_path = "models/away_goal_model.rds",
+    elo_ratings_path = "data/processed/elo_ratings.csv",
     n_sim = 50000,
     seed = NULL
 ) {
@@ -36,27 +38,50 @@ simulate_fixture <- function(
   # Load models
   if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
   if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
+  if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
   
   home_model <- readRDS(home_model_path)
   away_model <- readRDS(away_model_path)
+  elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+  elo_ratings$date <- as.Date(elo_ratings$date)
   
   # Set seed for reproducibility
   if (!is.null(seed)) set.seed(seed)
   
-  # For MVP, use placeholder Elo values since we don't have full feature computation
-  # In production, this would use actual Elo ratings and form metrics
-  home_elo <- 1500
-  away_elo <- 1500
+  match_date <- if (is.null(date)) {
+    max(elo_ratings$date, na.rm = TRUE) + 1
+  } else {
+    as.Date(date)
+  }
+  
+  get_pre_match_elo <- function(team_name) {
+    team_rows <- elo_ratings[
+      elo_ratings$team == team_name &
+        !is.na(elo_ratings$rating) &
+        elo_ratings$date < match_date,
+    ]
+    
+    if (nrow(team_rows) == 0) {
+      warning(paste("No pre-match Elo found for", team_name, "before", match_date, "- using 1500"))
+      return(1500)
+    }
+    
+    team_rows <- team_rows[order(team_rows$date, team_rows$is_post_match), ]
+    tail(team_rows$rating, 1)
+  }
+  
+  home_elo <- get_pre_match_elo(home_team)
+  away_elo <- get_pre_match_elo(away_team)
   
   # Add home advantage for non-neutral
   if (venue == "home") {
     home_elo <- home_elo + 60
   } else if (venue == "neutral") {
     # No home advantage
+  } else if (venue == "away") {
+    away_elo <- away_elo + 60
   } else {
-    # away venue - swap home and away
-    home_elo <- away_elo
-    away_elo <- 1500 + 60
+    stop("venue must be one of 'home', 'away', or 'neutral'")
   }
   
   elo_diff <- home_elo - away_elo
@@ -70,8 +95,8 @@ simulate_fixture <- function(
   away_theta <- if (inherits(away_model, "glm.nb")) away_model$theta else 1
   
   # Simulate goals
-  home_goals <- rnbinom(n_sim, size = home_theta, prob = home_lambda / (home_lambda + home_theta))
-  away_goals <- rnbinom(n_sim, size = away_theta, prob = away_lambda / (away_lambda + away_theta))
+  home_goals <- rnbinom(n_sim, size = home_theta, prob = home_theta / (home_theta + home_lambda))
+  away_goals <- rnbinom(n_sim, size = away_theta, prob = away_theta / (away_theta + away_lambda))
   
   # Compute outcomes
   outcomes <- ifelse(home_goals > away_goals, "win", 
@@ -79,9 +104,9 @@ simulate_fixture <- function(
   
   # Compute probabilities
   probs <- table(outcomes) / n_sim
-  win_prob <- ifelse("win" %in% names(probs), probs["win"], 0)
-  draw_prob <- ifelse("draw" %in% names(probs), probs["draw"], 0)
-  loss_prob <- ifelse("loss" %in% names(probs), probs["loss"], 0)
+  win_prob <- ifelse("win" %in% names(probs), as.numeric(probs["win"]), 0)
+  draw_prob <- ifelse("draw" %in% names(probs), as.numeric(probs["draw"]), 0)
+  loss_prob <- ifelse("loss" %in% names(probs), as.numeric(probs["loss"]), 0)
   
   # Verify sum
   total_prob <- win_prob + draw_prob + loss_prob

@@ -1,87 +1,49 @@
 # xGelo Unit Tests - xG Feature Calculations
-# Run with: testthat::test_dir('tests/testthat')
 
 context("xG Feature Calculations")
 
-# Test distance calculation
-# Note: These tests assume the xG feature functions exist in R/xg/features.R
-# For now, we'll create simple test cases that match the expected behavior
+project_root <- normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."))
+source(file.path(project_root, "R/xg/features.R"))
+source(file.path(project_root, "R/xg/data_prep.R"))
 
-# Load xG features if available
-if (file.exists("R/xg/features.R")) {
-  source("R/xg/features.R")
-  have_xg_features <- TRUE
-} else {
-  have_xg_features <- FALSE
-  message("R/xg/features.R not found, using mock functions for testing")
-  
-  # Create mock functions for testing
-  calculate_distance <- function(x, y) {
-    sqrt(x^2 + y^2)
-  }
-  
-  calculate_angle <- function(x, y) {
-    if (x == 0 && y == 0) return(0)
-    atan(abs(y) / max(abs(x), 0.0001))  # Simplified angle
-  }
-}
-
-# Test distance calculation
-test_that("distance calculation works", {
-  if (!exists("calculate_distance")) skip("calculate_distance not available")
-  
-  expect_equal(calculate_distance(0, 0), 0, tolerance = 0.001)
-  expect_equal(calculate_distance(10, 0), 10, tolerance = 0.001)
-  expect_equal(calculate_distance(0, 10), 10, tolerance = 0.001)
-  expect_equal(calculate_distance(10, 10), sqrt(200), tolerance = 0.001)
-  expect_equal(calculate_distance(3, 4), 5, tolerance = 0.001)  # 3-4-5 triangle
+test_that("distance calculation uses StatsBomb goal-center coordinates", {
+  expect_equal(calculate_distance(120, 40), 0, tolerance = 0.001)
+  expect_equal(calculate_distance(108, 40), 12, tolerance = 0.001)
+  expect_equal(calculate_distance(60, 40), 60, tolerance = 0.001)
+  expect_equal(calculate_distance(0, 0), sqrt(120^2 + 40^2), tolerance = 0.001)
 })
 
-# Test angle calculation
-test_that("angle calculation works", {
-  if (!exists("calculate_angle")) skip("calculate_angle not available")
-  
-  # Just verify the function exists and returns numeric
-  result <- tryCatch(calculate_angle(10, 10), error = function(e) NULL)
-  expect_true(!is.null(result))
+test_that("angle calculation returns bounded numeric values", {
+  result <- calculate_angle(c(108, 100, 60), c(40, 30, 40))
   expect_true(is.numeric(result))
+  expect_true(all(result >= 0 & result <= pi))
 })
 
-# Test edge cases
-test_that("edge cases handled correctly", {
-  if (!exists("calculate_distance")) skip("calculate_distance not available")
-  
-  # Very small values
-  expect_equal(calculate_distance(0.001, 0.001), sqrt(0.000002), tolerance = 0.0001)
-  
-  # Negative coordinates (should still work as distance is absolute)
-  expect_equal(calculate_distance(-10, 0), 10, tolerance = 0.001)
-  expect_equal(calculate_distance(0, -10), 10, tolerance = 0.001)
-  expect_equal(calculate_distance(-10, -10), sqrt(200), tolerance = 0.001)
+test_that("domestic filtering fails closed without event manifest", {
+  expect_error(
+    prepare_training_data(
+      events_dir = file.path(project_root, "data/raw/statsbomb/events"),
+      competitions_file = file.path(project_root, "data/raw/statsbomb/competitions.json"),
+      domestic_only = TRUE,
+      event_manifest_file = file.path(tempdir(), "missing-events-manifest.csv")
+    ),
+    "requires an event manifest"
+  )
 })
 
-# Test with realistic football field coordinates
-# StatsBomb coordinates: x from 0-120, y from 0-80 (approx)
-test_that("realistic field coordinates work", {
-  if (!exists("calculate_distance")) skip("calculate_distance not available")
-  
-  # Penalty spot (12 yards from goal, center)
-  # In StatsBomb, this would be approximately x=100, y=40
-  expect_gt(calculate_distance(100, 40), 0)
-  expect_lt(calculate_distance(100, 40), 150)
-  
-  # Halfway line center
-  expect_equal(calculate_distance(60, 40), sqrt(60^2 + 40^2), tolerance = 0.001)
-  
-  # Corner flag (0,0) is at the corner, distance from origin is 0
-  expect_equal(calculate_distance(0, 0), 0, tolerance = 0.001)
+test_that("sample-mode domestic override extracts real shot features", {
+  expect_warning(
+    data <- prepare_training_data(
+      events_dir = file.path(project_root, "data/raw/statsbomb/events"),
+      competitions_file = file.path(project_root, "data/raw/statsbomb/competitions.json"),
+      domestic_only = TRUE,
+      competition_name = "La Liga",
+      event_manifest_file = file.path(tempdir(), "missing-events-manifest.csv"),
+      allow_unmapped_sample = TRUE
+    ),
+    "treating checked-in sample events"
+  )
+  expect_gt(nrow(data), 0)
+  expect_true(all(c("distance", "angle", "header", "open_play", "competition", "goal") %in% names(data)))
+  expect_true(all(data$competition == "La Liga"))
 })
-
-# Test feature extraction (if available)
-if (exists("extract_shot_features") && have_xg_features) {
-  test_that("shot feature extraction works", {
-    # This would require actual event data
-    # For now, just test that the function exists
-    expect_true(TRUE)  # Placeholder
-  })
-}

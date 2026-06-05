@@ -39,8 +39,16 @@ generate_xg_calibration <- function(
   predictions <- predict(model, new_data = test_data, type = "prob")
   
   # Extract goal probability
-  goal_col <- if (" .pred_Goal" %in% names(predictions)) ".pred_Goal" else names(predictions)[2]
+  goal_col <- if (".pred_Goal" %in% names(predictions)) ".pred_Goal" else names(predictions)[2]
   test_data$xg_pred <- predictions[[goal_col]]
+  actual_goal <- if (is.logical(test_data$goal)) {
+    as.integer(test_data$goal)
+  } else if (is.numeric(test_data$goal)) {
+    as.integer(test_data$goal > 0)
+  } else {
+    as.integer(tolower(as.character(test_data$goal)) %in% c("goal", "true", "1", "yes"))
+  }
+  test_data$actual_goal <- actual_goal
   
   # Create calibration bins
   n_bins <- 10
@@ -54,15 +62,15 @@ generate_xg_calibration <- function(
     group_by(bin) %>%
     summarise(
       mean_predicted = mean(xg_pred, na.rm = TRUE),
-      mean_actual = mean(goal, na.rm = TRUE),
+      mean_actual = mean(actual_goal, na.rm = TRUE),
       n = n()
     ) %>%
     filter(!is.na(bin) & n > 0)
   
   # Create plot
-  p <- ggplot(calibration_data, aes(x = mean_predicted, y = mean_actual, size = n)) +
-    geom_point(alpha = 0.7, color = "#45B7D1") +
-    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#FF0000", size = 1) +
+  p <- ggplot(calibration_data, aes(x = mean_predicted, y = mean_actual)) +
+    geom_point(aes(size = n), alpha = 0.7, color = "#45B7D1") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#FF0000", linewidth = 1) +
     geom_errorbar(aes(ymin = mean_actual - 2 * sqrt(mean_actual * (1 - mean_actual) / n),
                      ymax = mean_actual + 2 * sqrt(mean_actual * (1 - mean_actual) / n)),
                  width = 0.02, color = "#45B7D1", alpha = 0.5) +
@@ -113,10 +121,9 @@ generate_forecast_calibration <- function(
     library(ggplot2)
     library(dplyr)
   })
-  
-  # For Phase 7, we use a simplified calibration approach
-  # since we don't have actual predictions vs outcomes for the forecast models
-  # This creates a demonstration calibration plot
+  if (!exists("simulate_fixture")) {
+    source("R/forecast/monte_carlo.R")
+  }
   
   if (!file.exists(home_model_path)) {
     stop(paste("Home goal model not found:", home_model_path))
@@ -125,46 +132,45 @@ generate_forecast_calibration <- function(
     stop(paste("Away goal model not found:", away_model_path))
   }
   
-  # Load models
-  home_model <- readRDS(home_model_path)
-  away_model <- readRDS(away_model_path)
-  
   # Load matches
-  if (file.exists(matches_path)) {
-    matches <- read.csv(matches_path, stringsAsFactors = FALSE)
-    n_matches <- min(1000, nrow(matches))  # Use sample for demo
-    sample_matches <- head(matches, n_matches)
-  } else {
-    # Create synthetic calibration data
-    set.seed(42)
-    n_sim <- 1000
-    sample_matches <- data.frame(
-      home_score = rpois(n_sim, lambda = 1.5),
-      away_score = rpois(n_sim, lambda = 1.2),
-      elo_diff = rnorm(n_sim, mean = 100, sd = 50)
+  if (!file.exists(matches_path)) {
+    stop(paste("Matches data not found:", matches_path))
+  }
+  matches <- read.csv(matches_path, stringsAsFactors = FALSE)
+  matches <- head(matches[!is.na(matches$home_score) & !is.na(matches$away_score), ], 200)
+  if (nrow(matches) == 0) stop("No matches available for forecast calibration")
+  
+  predicted <- numeric(nrow(matches))
+  actual <- as.integer(matches$home_score == matches$away_score)
+  for (i in seq_len(nrow(matches))) {
+    sim <- simulate_fixture(
+      home_team = matches$home_team_canonical[i],
+      away_team = matches$away_team_canonical[i],
+      date = matches$date[i],
+      venue = ifelse(isTRUE(matches$neutral[i]), "neutral", "home"),
+      home_model_path = home_model_path,
+      away_model_path = away_model_path,
+      n_sim = 1000,
+      seed = 7000 + i
     )
+    predicted[i] <- sim$draw_prob
   }
   
-  # For demonstration, create calibration data based on predicted probabilities
-  # In production, this would use actual predictions vs outcomes
-  set.seed(42)
-  
-  # Simulate predictions and outcomes
-  n_points <- 20
-  probs <- seq(0.1, 0.9, length.out = n_points)
-  actuals <- probs + rnorm(n_points, 0, 0.05)  # Slight deviation from perfect
-  actuals <- pmin(pmax(actuals, 0), 1)  # Clamp to [0, 1]
-  
-  calibration_data <- data.frame(
-    predicted = probs,
-    actual = actuals,
-    n = rep(100, n_points)  # Sample size per bin
-  )
+  calibration_data <- data.frame(predicted = predicted, actual = actual) |>
+    mutate(bin = cut(predicted, breaks = seq(0, 1, length.out = 11), include.lowest = TRUE)) |>
+    group_by(bin) |>
+    summarise(
+      predicted = mean(predicted),
+      actual = mean(actual),
+      n = n(),
+      .groups = "drop"
+    ) |>
+    filter(!is.na(predicted), !is.na(actual))
   
   # Create plot
-  p <- ggplot(calibration_data, aes(x = predicted, y = actual, size = n)) +
-    geom_point(alpha = 0.7, color = "#FF6B6B") +
-    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#FF0000", size = 1) +
+  p <- ggplot(calibration_data, aes(x = predicted, y = actual)) +
+    geom_point(aes(size = n), alpha = 0.7, color = "#FF6B6B") +
+    geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#FF0000", linewidth = 1) +
     geom_errorbar(aes(ymin = actual - 0.05, ymax = actual + 0.05), 
                  width = 0.02, color = "#FF6B6B", alpha = 0.5) +
     labs(

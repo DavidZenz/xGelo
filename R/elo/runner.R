@@ -127,6 +127,10 @@ get_k_factor <- function(matches_last_year, matches_this_year) {
 #'         - matches_processed: Data frame with processed match results
 #' @export
 compute_elo <- function(matches_df, team_map_df, home_advantage = 60, base_rating = 1500) {
+  suppressPackageStartupMessages({
+    library(dplyr)
+  })
+  
   # Input validation
   if (nrow(matches_df) == 0) {
     stop("matches_df must contain at least one match")
@@ -269,6 +273,9 @@ compute_elo <- function(matches_df, team_map_df, home_advantage = 60, base_ratin
     update <- elo_update(home_rating, away_rating, result, k_home, k_away, 
                          home_advantage, is_home)
     
+    previous_home_match_date <- current_ratings$last_match_date[home_idx]
+    previous_away_match_date <- current_ratings$last_match_date[away_idx]
+    
     # Update current ratings
     current_ratings$rating[home_idx] <- update$rating_a
     current_ratings$rating[away_idx] <- update$rating_b
@@ -279,16 +286,16 @@ compute_elo <- function(matches_df, team_map_df, home_advantage = 60, base_ratin
     match_year <- as.integer(format(match_date, "%Y"))
     
     # Reset yearly counts if year changed
-    if (is.na(current_ratings$last_match_date[home_idx]) || 
-        as.integer(format(current_ratings$last_match_date[home_idx], "%Y")) != match_year) {
+    if (is.na(previous_home_match_date) || 
+        as.integer(format(previous_home_match_date, "%Y")) != match_year) {
       current_ratings$matches_last_year[home_idx] <- current_ratings$matches_this_year[home_idx]
       current_ratings$matches_this_year[home_idx] <- 1
     } else {
       current_ratings$matches_this_year[home_idx] <- current_ratings$matches_this_year[home_idx] + 1
     }
     
-    if (is.na(current_ratings$last_match_date[away_idx]) ||
-        as.integer(format(current_ratings$last_match_date[away_idx], "%Y")) != match_year) {
+    if (is.na(previous_away_match_date) ||
+        as.integer(format(previous_away_match_date, "%Y")) != match_year) {
       current_ratings$matches_last_year[away_idx] <- current_ratings$matches_this_year[away_idx]
       current_ratings$matches_this_year[away_idx] <- 1
     } else {

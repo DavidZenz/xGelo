@@ -36,10 +36,12 @@ train_home_goal_model <- function(
   
   # Simple vectorized Elo lookup for a small sample
   # For each match, find Elo ratings
-  get_elo <- function(team, match_date) {
-    team_data <- elo_ratings %>% filter(team == team, date <= match_date)
+  get_elo <- function(requested_team, match_date) {
+    team_data <- elo_ratings[elo_ratings$team == requested_team & elo_ratings$date < match_date, ]
     if (nrow(team_data) > 0) {
-      return(max(team_data$rating, na.rm = TRUE))
+      team_data <- team_data[order(team_data$date), ]
+      ratings <- team_data$rating[!is.na(team_data$rating)]
+      if (length(ratings) > 0) return(tail(ratings, 1))
     }
     return(1500)
   }
@@ -82,7 +84,7 @@ train_home_goal_model <- function(
     })
   })
   
-  if (is.null(home_model)) return(NULL)
+  if (is.null(home_model)) stop("Home goal model training failed")
   
   message(paste("Trained on", nrow(training_data), "samples"))
   message(paste("Model type:", class(home_model)))
@@ -124,10 +126,12 @@ train_away_goal_model <- function(
   
   matches <- matches %>% mutate(date = as.Date(date))
   
-  get_elo <- function(team, match_date) {
-    team_data <- elo_ratings %>% filter(team == team, date <= match_date)
+  get_elo <- function(requested_team, match_date) {
+    team_data <- elo_ratings[elo_ratings$team == requested_team & elo_ratings$date < match_date, ]
     if (nrow(team_data) > 0) {
-      return(max(team_data$rating, na.rm = TRUE))
+      team_data <- team_data[order(team_data$date), ]
+      ratings <- team_data$rating[!is.na(team_data$rating)]
+      if (length(ratings) > 0) return(tail(ratings, 1))
     }
     return(1500)
   }
@@ -167,7 +171,7 @@ train_away_goal_model <- function(
     })
   })
   
-  if (is.null(away_model)) return(NULL)
+  if (is.null(away_model)) stop("Away goal model training failed")
   
   message(paste("Trained on", nrow(training_data), "samples"))
   message(paste("Model type:", class(away_model)))

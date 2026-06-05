@@ -14,22 +14,43 @@ generate_auc_chart <- function(output_path = "outputs/visualizations/auc_compari
   suppressPackageStartupMessages({
     library(ggplot2)
     library(dplyr)
+    library(pROC)
   })
   
-  # Define feature configurations and their AUC values
-  # Using actual values from Phase 2 and Phase 5
-  configs <- data.frame(
-    configuration = c(
-      "Elo only (baseline)",
-      "Elo + xG form",
-      "Elo + xG form + rest days",
-      "Full model (all features)"
-    ),
-    auc = c(0.7500, 0.7800, 0.7905, 0.8200),  # Phase 2 xG AUC = 0.7905
-    # Confidence intervals (estimated)
-    lower = c(0.7300, 0.7600, 0.7700, 0.8000),
-    upper = c(0.7700, 0.8000, 0.8100, 0.8400)
-  )
+  metric_rows <- list()
+  
+  xg_backtest_path <- "outputs/model_performance/xg_backtest.csv"
+  if (file.exists(xg_backtest_path)) {
+    xg_backtest <- read.csv(xg_backtest_path, stringsAsFactors = FALSE)
+    xg_auc <- xg_backtest$value[xg_backtest$metric == "auc" & xg_backtest$data_type == "overall"]
+    if (length(xg_auc) > 0) {
+      metric_rows[[length(metric_rows) + 1]] <- data.frame(
+        configuration = "xG model",
+        auc = as.numeric(xg_auc[1]),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  
+  elo_validation_path <- "outputs/model_performance/elo_validation.csv"
+  if (file.exists(elo_validation_path)) {
+    elo_validation <- read.csv(elo_validation_path, stringsAsFactors = FALSE)
+    if (all(c("actual_binary", "predicted_prob") %in% names(elo_validation)) &&
+        length(unique(elo_validation$actual_binary)) >= 2) {
+      auc_value <- as.numeric(pROC::auc(pROC::roc(elo_validation$actual_binary, elo_validation$predicted_prob, quiet = TRUE)))
+      metric_rows[[length(metric_rows) + 1]] <- data.frame(
+        configuration = "Elo home-win model",
+        auc = auc_value,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  
+  if (length(metric_rows) == 0) {
+    stop("No AUC metric artifacts found. Run xG/Elo backtests before generating AUC chart.")
+  }
+  
+  configs <- bind_rows(metric_rows)
   
   # Create color palette
   colors <- c("#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4")
@@ -37,9 +58,7 @@ generate_auc_chart <- function(output_path = "outputs/visualizations/auc_compari
   # Create plot
   p <- ggplot(configs, aes(x = reorder(configuration, auc), y = auc, fill = configuration)) +
     geom_bar(stat = "identity", width = 0.7) +
-    geom_errorbar(aes(ymin = lower, ymax = upper), 
-                 width = 0.2, color = "black", size = 0.5) +
-    geom_hline(yintercept = 0.75, linetype = "dashed", color = "#FF0000", size = 1) +
+    geom_hline(yintercept = 0.75, linetype = "dashed", color = "#FF0000", linewidth = 1) +
     geom_text(aes(label = sprintf("%.4f", auc)), 
               position = position_stack(vjust = 0.5), 
               size = 4, color = "white", fontface = "bold") +
@@ -62,7 +81,7 @@ generate_auc_chart <- function(output_path = "outputs/visualizations/auc_compari
       legend.position = "bottom",
       legend.text = element_text(size = 11),
       legend.title = element_text(size = 12, face = "bold"),
-      panel.grid.major.y = element_line(color = "#E0E0E0", size = 0.2)
+      panel.grid.major.y = element_line(color = "#E0E0E0", linewidth = 0.2)
     ) +
     annotate("text", x = 1, y = 0.74, label = "Minimum acceptable", 
              size = 3.5, color = "#666666", angle = 90, vjust = -0.5, hjust = 1)

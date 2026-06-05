@@ -34,7 +34,7 @@ backtest_xg_model <- function(model, test_data, output_dir = "outputs/model_perf
   
   # Generate predictions
   predictions <- predict_xg(model, test_data)
-  actuals <- as.numeric(test_data$goal)
+  actuals <- encode_goal_actuals(test_data$goal)
   
   # Calculate metrics
   
@@ -158,4 +158,19 @@ backtest_xg_model <- function(model, test_data, output_dir = "outputs/model_perf
   cat(sprintf("Backtest CSV saved to %s\n", file.path(output_dir, "xg_backtest.csv")))
   
   return(backtest_results)
+}
+
+#' Encode goal outcomes as 0/1 for metrics
+#'
+#' @param goal Outcome vector from xG data
+#' @return Integer vector where Goal/TRUE/1 is 1 and all other known outcomes are 0
+encode_goal_actuals <- function(goal) {
+  if (is.logical(goal)) {
+    return(as.integer(goal))
+  }
+  if (is.numeric(goal)) {
+    return(as.integer(goal > 0))
+  }
+  goal_chr <- as.character(goal)
+  as.integer(tolower(goal_chr) %in% c("goal", "true", "1", "yes"))
 }

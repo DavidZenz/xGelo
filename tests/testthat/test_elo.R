@@ -1,103 +1,89 @@
 # xGelo Unit Tests - Elo Calculation Logic
-# Run with: testthat::test_dir('tests/testthat')
 
 context("Elo Rating Calculations")
 
-# Load Elo functions if available
-if (file.exists("R/elo/runner.R")) {
-  source("R/elo/runner.R")
-  have_elo_functions <- TRUE
-} else {
-  have_elo_functions <- FALSE
-  message("R/elo/runner.R not found, using mock functions for testing")
-  
-  # Create mock Elo calculation function
-  compute_elo_single <- function(home_team, away_team, home_score, away_score, 
-                                 home_elo, away_elo, k_factor = 20, 
-                                 home_advantage = 60, is_neutral = FALSE) {
-    # Simplified Elo calculation
-    if (!is_neutral) {
-      home_elo <- home_elo + home_advantage
-    }
-    
-    expected_home <- 1 / (1 + 10^((away_elo - home_elo) / 400))
-    expected_away <- 1 - expected_home
-    
-    actual_home <- ifelse(home_score > away_score, 1, ifelse(home_score < away_score, 0, 0.5))
-    actual_away <- 1 - actual_home
-    
-    # Update ratings
-    new_home_elo <- home_elo + k_factor * (actual_home - expected_home)
-    new_away_elo <- away_elo + k_factor * (actual_away - expected_away)
-    
-    return(list(home = new_home_elo, away = new_away_elo))
-  }
-}
+project_root <- normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."))
+source(file.path(project_root, "R/elo/runner.R"))
+source(file.path(project_root, "R/elo/runner_optimized.R"))
 
-# Test basic win/loss
-test_that("Elo updates on win/loss", {
-  if (!exists("compute_elo_single")) skip("compute_elo_single not available")
-  
-  # Team A beats Team B
-  result <- compute_elo_single("A", "B", 2, 1, 1500, 1500, k_factor = 20)
-  expect_gt(result$home, 1500)
-  expect_lt(result$away, 1500)
+test_that("expected_result is symmetric for equal teams", {
+  expect_equal(expected_result(1500, 1500), 0.5, tolerance = 0.001)
+  expect_gt(expected_result(1600, 1500), 0.5)
+  expect_lt(expected_result(1400, 1500), 0.5)
 })
 
-# Test draw
-test_that("Elo handles draws", {
-  if (!exists("compute_elo_single")) skip("compute_elo_single not available")
+test_that("elo_update handles wins and draws", {
+  win <- elo_update(1500, 1500, actual_result = 1, k_factor_a = 20, k_factor_b = 20, home_advantage = 0)
+  expect_gt(win$rating_a, 1500)
+  expect_lt(win$rating_b, 1500)
   
-  # Draw without home advantage (neutral venue)
-  result <- compute_elo_single("A", "B", 1, 1, 1500, 1500, k_factor = 20, is_neutral = TRUE)
-  # In a draw at neutral venue, ratings should be equal and close to original
-  expect_equal(result$home, result$away, tolerance = 0.001)
-  expect_lt(abs(result$home - 1500), 50)  # Allow larger tolerance
+  draw <- elo_update(1500, 1500, actual_result = 0.5, k_factor_a = 20, k_factor_b = 20, home_advantage = 0)
+  expect_equal(draw$rating_a, 1500, tolerance = 0.001)
+  expect_equal(draw$rating_b, 1500, tolerance = 0.001)
 })
 
-# Test home advantage
-test_that("Home advantage applied", {
-  if (!exists("compute_elo_single")) skip("compute_elo_single not available")
-  
-  # Same match, different venue
-  result_home <- compute_elo_single("A", "B", 2, 1, 1500, 1500, k_factor = 20, is_neutral = FALSE)
-  result_neutral <- compute_elo_single("A", "B", 2, 1, 1500, 1500, k_factor = 20, is_neutral = TRUE)
-  
-  # With home advantage, home team should gain more
-  expect_gt(result_home$home - 1500, result_neutral$home - 1500)
+test_that("home advantage changes expected update", {
+  home <- elo_update(1500, 1500, actual_result = 1, k_factor_a = 20, k_factor_b = 20, home_advantage = 60)
+  neutral <- elo_update(1500, 1500, actual_result = 1, k_factor_a = 20, k_factor_b = 20, home_advantage = 0)
+  expect_lt(home$rating_a - 1500, neutral$rating_a - 1500)
 })
 
-# Test different k-factors
-test_that("K-factor affects rating changes", {
-  if (!exists("compute_elo_single")) skip("compute_elo_single not available")
+test_that("compute_elo processes small chronological fixture data", {
+  matches <- data.frame(
+    date = as.Date(c("2020-01-01", "2020-02-01")),
+    home_team = c("A", "B"),
+    away_team = c("B", "A"),
+    home_score = c(2, 1),
+    away_score = c(1, 1),
+    neutral = c(FALSE, TRUE),
+    stringsAsFactors = FALSE
+  )
+  team_map <- data.frame(
+    source_name = c("A", "B"),
+    canonical_name = c("A", "B"),
+    fifa_code = c("AAA", "BBB"),
+    stringsAsFactors = FALSE
+  )
   
-  # Higher k-factor = bigger rating changes
-  result_small_k <- compute_elo_single("A", "B", 2, 1, 1500, 1500, k_factor = 10)
-  result_large_k <- compute_elo_single("A", "B", 2, 1, 1500, 1500, k_factor = 40)
-  
-  expect_lt(abs(result_small_k$home - 1500), abs(result_large_k$home - 1500))
+  result <- compute_elo(matches, team_map, home_advantage = 60)
+  expect_equal(nrow(result$matches_processed), 2)
+  expect_equal(nrow(result$ratings_history), 8)
+  expect_true(all(c("A", "B") %in% result$current_ratings$team))
 })
 
-# Test rating ranges
-test_that("Elo ratings stay in reasonable range", {
-  if (!exists("compute_elo_single")) skip("compute_elo_single not available")
+test_that("Elo yearly match counters reset across calendar years", {
+  matches <- data.frame(
+    date = as.Date(c("2020-01-01", "2021-01-01")),
+    home_team = c("A", "A"),
+    away_team = c("B", "B"),
+    home_score = c(1, 1),
+    away_score = c(0, 0),
+    neutral = c(TRUE, TRUE),
+    stringsAsFactors = FALSE
+  )
+  team_map <- data.frame(
+    source_name = c("A", "B"),
+    canonical_name = c("A", "B"),
+    fifa_code = c("AAA", "BBB"),
+    stringsAsFactors = FALSE
+  )
   
-  # Extreme case: very strong team vs very weak team
-  result <- compute_elo_single("A", "B", 5, 0, 2000, 1000, k_factor = 20)
-  expect_lt(result$home, 2100)  # Shouldn't increase too much
-  expect_gt(result$away, 900)   # Shouldn't decrease too much
+  regular <- compute_elo(matches, team_map, home_advantage = 0)$current_ratings
+  expect_equal(regular$matches_last_year[regular$team == "A"], 1)
+  expect_equal(regular$matches_this_year[regular$team == "A"], 1)
+  expect_equal(regular$matches_last_year[regular$team == "B"], 1)
+  expect_equal(regular$matches_this_year[regular$team == "B"], 1)
+  
+  optimized_matches <- transform(
+    matches,
+    home_team_canonical = home_team,
+    away_team_canonical = away_team,
+    result = ifelse(home_score > away_score, 1, ifelse(home_score == away_score, 0.5, 0)),
+    is_home = !neutral
+  )
+  optimized <- compute_elo_optimized(optimized_matches, team_map, home_advantage = 0)$current_ratings
+  expect_equal(optimized$matches_last_year[optimized$team == "A"], 1)
+  expect_equal(optimized$matches_this_year[optimized$team == "A"], 1)
+  expect_equal(optimized$matches_last_year[optimized$team == "B"], 1)
+  expect_equal(optimized$matches_this_year[optimized$team == "B"], 1)
 })
-
-# Test with actual Elo runner if available
-if (exists("compute_elo") && have_elo_functions) {
-  test_that("Full Elo computation works", {
-    # Test with sample data
-    ratings <- data.frame(team = c("A", "B"), rating = c(1500, 1500))
-    result <- tryCatch(
-      compute_elo(home = "A", away = "B", home_score = 2, away_score = 1,
-                  ratings = ratings, k_factor = 20),
-      error = function(e) NULL
-    )
-    expect_not_null(result)
-  })
-}
