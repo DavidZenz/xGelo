@@ -1,0 +1,73 @@
+match_id,group,matchday,home_team,away_team,date,kickoff_local,venue_name,host_city,host_country,source
+GA01,A,1,Mexico,South Africa,2026-06-11,13:00,Estadio Azteca,Mexico City,Mexico,FourFourTwo 2026-06-05
+GA02,A,1,Korea Republic,Czech Republic,2026-06-11,20:00,Estadio Akron,Zapopan,Mexico,FourFourTwo 2026-06-05
+GA03,A,2,Czech Republic,South Africa,2026-06-18,12:00,Mercedes-Benz Stadium,Atlanta,United States,FourFourTwo 2026-06-05
+GA04,A,2,Mexico,Korea Republic,2026-06-18,19:00,Estadio Akron,Zapopan,Mexico,FourFourTwo 2026-06-05
+GA05,A,3,Czech Republic,Mexico,2026-06-24,19:00,Estadio Azteca,Mexico City,Mexico,FourFourTwo 2026-06-05
+GA06,A,3,South Africa,Korea Republic,2026-06-24,19:00,Estadio BBVA,Guadalupe,Mexico,FourFourTwo 2026-06-05
+GB01,B,1,Canada,Bosnia and Herzegovina,2026-06-12,15:00,BMO Field,Toronto,Canada,FourFourTwo 2026-06-05
+GB02,B,1,Qatar,Switzerland,2026-06-13,12:00,Levi's Stadium,Santa Clara,United States,FourFourTwo 2026-06-05
+GB03,B,2,Switzerland,Bosnia and Herzegovina,2026-06-18,12:00,SoFi Stadium,Inglewood,United States,FourFourTwo 2026-06-05
+GB04,B,2,Canada,Qatar,2026-06-18,15:00,BC Place,Vancouver,Canada,FourFourTwo 2026-06-05
+GB05,B,3,Switzerland,Canada,2026-06-24,12:00,BC Place,Vancouver,Canada,FourFourTwo 2026-06-05
+GB06,B,3,Bosnia and Herzegovina,Qatar,2026-06-24,12:00,Lumen Field,Seattle,United States,FourFourTwo 2026-06-05
+GC01,C,1,Brazil,Morocco,2026-06-13,18:00,Gillette Stadium,Foxborough,United States,FourFourTwo 2026-06-05
+GC02,C,1,Haiti,Scotland,2026-06-13,21:00,MetLife Stadium,East Rutherford,United States,FourFourTwo 2026-06-05
+GC03,C,2,Scotland,Morocco,2026-06-19,18:00,Lincoln Financial Field,Philadelphia,United States,FourFourTwo 2026-06-05
+GC04,C,2,Brazil,Haiti,2026-06-19,21:00,Gillette Stadium,Foxborough,United States,FourFourTwo 2026-06-05
+GC05,C,3,Scotland,Brazil,2026-06-24,18:00,Hard Rock Stadium,Miami Gardens,United States,FourFourTwo 2026-06-05
+GC06,C,3,Morocco,Haiti,2026-06-24,18:00,Mercedes-Benz Stadium,Atlanta,United States,FourFourTwo 2026-06-05
+GD01,D,1,United States,Paraguay,2026-06-12,18:00,SoFi Stadium,Inglewood,United States,FourFourTwo 2026-06-05
+GD02,D,1,Australia,Turkey,2026-06-13,21:00,BC Place,Vancouver,Canada,FourFourTwo 2026-06-05
+GD03,D,2,Turkey,Paraguay,2026-06-19,21:00,Levi's Stadium,Santa Clara,United States,FourFourTwo 2026-06-05
+GD04,D,2,United States,Australia,2026-06-19,12:00,Lumen Field,Seattle,United States,FourFourTwo 2026-06-05
+GD05,D,3,Turkey,United States,2026-06-25,19:00,SoFi Stadium,Inglewood,United States,FourFourTwo 2026-06-05
+GD06,D,3,Paraguay,Australia,2026-06-25,19:00,Levi's Stadium,Santa Clara,United States,FourFourTwo 2026-06-05
+GE01,E,1,Ivory Coast,Ecuador,2026-06-14,19:00,Lincoln Financial Field,Philadelphia,United States,FourFourTwo 2026-06-05
+GE02,E,1,Germany,Curaçao,2026-06-14,12:00,NRG Stadium,Houston,United States,FourFourTwo 2026-06-05
+GE03,E,2,Germany,Ivory Coast,2026-06-20,16:00,BMO Field,Toronto,Canada,FourFourTwo 2026-06-05
+GE04,E,2,Ecuador,Curaçao,2026-06-20,19:00,Arrowhead Stadium,Kansas City,United States,FourFourTwo 2026-06-05
+GE05,E,3,Curaçao,Ivory Coast,2026-06-25,16:00,Lincoln Financial Field,Philadelphia,United States,FourFourTwo 2026-06-05
+GE06,E,3,Ecuador,Germany,2026-06-25,16:00,MetLife Stadium,East Rutherford,United States,FourFourTwo 2026-06-05
+GF01,F,1,Netherlands,Japan,2026-06-14,15:00,AT&T Stadium,Arlington,United States,FourFourTwo 2026-06-05
+GF02,F,1,Sweden,Tunisia,2026-06-14,20:00,Estadio BBVA,Guadalupe,Mexico,FourFourTwo 2026-06-05
+GF03,F,2,Netherlands,Sweden,2026-06-20,12:00,NRG Stadium,Houston,United States,FourFourTwo 2026-06-05
+GF04,F,2,Tunisia,Japan,2026-06-20,22:00,Estadio BBVA,Guadalupe,Mexico,FourFourTwo 2026-06-05
+GF05,F,3,Japan,Sweden,2026-06-25,18:00,AT&T Stadium,Arlington,United States,FourFourTwo 2026-06-05
+GF06,F,3,Tunisia,Netherlands,2026-06-25,18:00,Arrowhead Stadium,Kansas City,United States,FourFourTwo 2026-06-05
+GG01,G,1,Iran,New Zealand,2026-06-15,18:00,SoFi Stadium,Inglewood,United States,FourFourTwo 2026-06-05
+GG02,G,1,Belgium,Egypt,2026-06-15,12:00,Lumen Field,Seattle,United States,FourFourTwo 2026-06-05
+GG03,G,2,Belgium,Iran,2026-06-21,12:00,SoFi Stadium,Inglewood,United States,FourFourTwo 2026-06-05
+GG04,G,2,New Zealand,Egypt,2026-06-21,18:00,BC Place,Vancouver,Canada,FourFourTwo 2026-06-05
+GG05,G,3,Egypt,Iran,2026-06-26,20:00,Lumen Field,Seattle,United States,FourFourTwo 2026-06-05
+GG06,G,3,New Zealand,Belgium,2026-06-26,20:00,BC Place,Vancouver,Canada,FourFourTwo 2026-06-05
+GH01,H,1,Saudi Arabia,Uruguay,2026-06-15,18:00,Hard Rock Stadium,Miami Gardens,United States,FourFourTwo 2026-06-05
+GH02,H,1,Spain,Cape Verde,2026-06-15,12:00,Mercedes-Benz Stadium,Atlanta,United States,FourFourTwo 2026-06-05
+GH03,H,2,Uruguay,Cape Verde,2026-06-21,18:00,Hard Rock Stadium,Miami Gardens,United States,FourFourTwo 2026-06-05
+GH04,H,2,Spain,Saudi Arabia,2026-06-21,12:00,Mercedes-Benz Stadium,Atlanta,United States,FourFourTwo 2026-06-05
+GH05,H,3,Cape Verde,Saudi Arabia,2026-06-26,19:00,NRG Stadium,Houston,United States,FourFourTwo 2026-06-05
+GH06,H,3,Uruguay,Spain,2026-06-26,18:00,Estadio Akron,Zapopan,Mexico,FourFourTwo 2026-06-05
+GI01,I,1,France,Senegal,2026-06-16,15:00,MetLife Stadium,East Rutherford,United States,FourFourTwo 2026-06-05
+GI02,I,1,Iraq,Norway,2026-06-16,18:00,Gillette Stadium,Foxborough,United States,FourFourTwo 2026-06-05
+GI03,I,2,Norway,Senegal,2026-06-22,20:00,MetLife Stadium,East Rutherford,United States,FourFourTwo 2026-06-05
+GI04,I,2,France,Iraq,2026-06-22,17:00,Lincoln Financial Field,Philadelphia,United States,FourFourTwo 2026-06-05
+GI05,I,3,Norway,France,2026-06-26,15:00,Gillette Stadium,Foxborough,United States,FourFourTwo 2026-06-05
+GI06,I,3,Senegal,Iraq,2026-06-26,15:00,BMO Field,Toronto,Canada,FourFourTwo 2026-06-05
+GJ01,J,1,Argentina,Algeria,2026-06-16,20:00,Arrowhead Stadium,Kansas City,United States,FourFourTwo 2026-06-05
+GJ02,J,1,Austria,Jordan,2026-06-16,21:00,Levi's Stadium,Santa Clara,United States,FourFourTwo 2026-06-05
+GJ03,J,2,Argentina,Austria,2026-06-22,12:00,AT&T Stadium,Arlington,United States,FourFourTwo 2026-06-05
+GJ04,J,2,Jordan,Algeria,2026-06-22,20:00,Levi's Stadium,Santa Clara,United States,FourFourTwo 2026-06-05
+GJ05,J,3,Algeria,Austria,2026-06-27,21:00,Arrowhead Stadium,Kansas City,United States,FourFourTwo 2026-06-05
+GJ06,J,3,Jordan,Argentina,2026-06-27,21:00,AT&T Stadium,Arlington,United States,FourFourTwo 2026-06-05
+GK01,K,1,Portugal,DR Congo,2026-06-17,12:00,NRG Stadium,Houston,United States,FourFourTwo 2026-06-05
+GK02,K,1,Uzbekistan,Colombia,2026-06-17,20:00,Estadio Azteca,Mexico City,Mexico,FourFourTwo 2026-06-05
+GK03,K,2,Portugal,Uzbekistan,2026-06-23,12:00,NRG Stadium,Houston,United States,FourFourTwo 2026-06-05
+GK04,K,2,Colombia,DR Congo,2026-06-23,20:00,Estadio Akron,Zapopan,Mexico,FourFourTwo 2026-06-05
+GK05,K,3,Colombia,Portugal,2026-06-27,19:30,Hard Rock Stadium,Miami Gardens,United States,FourFourTwo 2026-06-05
+GK06,K,3,DR Congo,Uzbekistan,2026-06-27,19:30,Mercedes-Benz Stadium,Atlanta,United States,FourFourTwo 2026-06-05
+GL01,L,1,Ghana,Panama,2026-06-17,19:00,BMO Field,Toronto,Canada,FourFourTwo 2026-06-05
+GL02,L,1,England,Croatia,2026-06-17,15:00,AT&T Stadium,Arlington,United States,FourFourTwo 2026-06-05
+GL03,L,2,England,Ghana,2026-06-23,16:00,Gillette Stadium,Foxborough,United States,FourFourTwo 2026-06-05
+GL04,L,2,Panama,Croatia,2026-06-23,19:00,BMO Field,Toronto,Canada,FourFourTwo 2026-06-05
+GL05,L,3,Panama,England,2026-06-27,17:00,MetLife Stadium,East Rutherford,United States,FourFourTwo 2026-06-05
+GL06,L,3,Croatia,Ghana,2026-06-27,17:00,Lincoln Financial Field,Philadelphia,United States,FourFourTwo 2026-06-05

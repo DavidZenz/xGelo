@@ -28,10 +28,12 @@ source("R/integration/rolling_form.R")
 source("R/forecast/poisson.R")
 source("R/forecast/monte_carlo.R")
 source("R/forecast/output.R")
+source("R/forecast/tournament.R")
 source("R/forecast/calibration.R")
 source("R/pipeline/validation.R")
 source("R/visualization/auc.R")
 source("R/visualization/calibration.R")
+source("R/visualization/worldcup_dashboard.R")
 
 list(
   tar_target(
@@ -153,5 +155,16 @@ list(
       xg_calibration
       run_calibration_plots()
     }
+  ),
+  tar_target(
+    worldcup_dashboard_file,
+    {
+      home_goal_model
+      away_goal_model
+      elo_ratings_file
+      dashboard <- build_worldcup_dashboard(n_match_sim = 500, n_tournaments = 500)
+      dashboard$paths$html
+    },
+    format = "file"
   )
 )
