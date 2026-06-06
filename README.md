@@ -16,6 +16,8 @@ Monte Carlo simulations for fixture forecasts.
 - Aggregates team-match xG and lagged rolling-form features.
 - Fits home and away negative-binomial goal models.
 - Simulates fixtures to estimate win, draw, loss, and expected goals.
+- Generates scoreline distributions, market-style summaries, and a static 2026
+  World Cup dashboard with group, match, team, and bracket views.
 - Produces validation outputs, calibration plots, and forecast CSV files.
 
 The current pipeline is defined in [`_targets.R`](_targets.R). It includes a
@@ -52,13 +54,14 @@ R/
   integration/     Team-match xG and rolling-form feature tables
   forecast/        Goal models, Monte Carlo simulation, forecast outputs
   pipeline/        Validation helpers and DAG visualization
-  visualization/   AUC and calibration plotting
+  visualization/   AUC, calibration, and World Cup dashboard rendering
 data/
   raw/             Source data caches
   processed/       Generated intermediate tables
 models/            Trained model artifacts
 outputs/
   forecasts/       Fixture forecast CSVs
+  dashboard/       Static 2026 World Cup dashboard and source data exports
   visualizations/  Calibration and performance plots
   notebooks/       Rendered reporting artifacts
 tests/testthat/    Unit and integration tests
@@ -118,6 +121,13 @@ source("_targets.R")
 targets::tar_make(names = validation, callr_function = NULL)
 ```
 
+Build the static 2026 World Cup dashboard:
+
+```r
+source("_targets.R")
+targets::tar_make(names = worldcup_dashboard_file)
+```
+
 ## Generate A Forecast
 
 After the pipeline has produced `models/home_goal_model.rds`,
@@ -153,7 +163,27 @@ fixtures <- data.frame(
 generate_batch_forecasts(fixtures, seed = 42)
 ```
 
-Forecast CSVs are written to `outputs/forecasts/`.
+Forecast CSVs are written to `outputs/forecasts/`. Scoreline distributions are
+written to `outputs/forecasts/scorelines/`.
+
+## World Cup Dashboard
+
+The dashboard at `outputs/dashboard/worldcup_forecast.html` is a static,
+self-contained forecast view for the 2026 World Cup. It uses the seeded group
+data in `data/raw/worldcup_2026_groups.csv` and the schedule-backed group-stage
+fixtures in `data/raw/worldcup_2026_group_fixtures.csv`.
+
+Dashboard views include:
+
+- Group tables with expected points and qualification probabilities.
+- Match cards with win/draw/loss probabilities, projected goals, modal
+  scorelines, over 2.5, and both-teams-to-score probabilities.
+- A connected bracket tree that projects the most likely path from Round of 32
+  through champion, with winner and title probabilities reflected in each round.
+- Team pages showing stage probabilities and group fixtures.
+
+The bracket is a presentation path estimate. It does not model extra time,
+penalties, injuries, lineups, or live state.
 
 ## Key Outputs
 
@@ -165,6 +195,10 @@ Forecast CSVs are written to `outputs/forecasts/`.
 - `models/home_goal_model.rds`: home-goal negative-binomial model
 - `models/away_goal_model.rds`: away-goal negative-binomial model
 - `outputs/forecasts/*.csv`: forecast probabilities and expected goals
+- `outputs/forecasts/scorelines/*.csv`: scoreline distributions by fixture
+- `outputs/dashboard/worldcup_forecast.html`: static World Cup dashboard
+- `outputs/dashboard/worldcup_dashboard_data.json`: dashboard source payload
+- `outputs/dashboard/worldcup_*_probabilities.csv`: dashboard probability exports
 - `outputs/visualizations/*.png`: AUC and calibration plots
 - `outputs/notebooks/model_performance.html`: rendered model report
 
@@ -175,6 +209,9 @@ xGelo uses open or locally cached data sources:
 - martj42 international football results for historical international matches.
 - StatsBomb Open Data for event-level shot data used to train the xG model.
 - Local team-name mappings in `data/raw/team_name_map.csv`.
+- Manually maintained 2026 World Cup group seeds and fixture schedule in
+  `data/raw/worldcup_2026_groups.csv` and
+  `data/raw/worldcup_2026_group_fixtures.csv`.
 
 StatsBomb Open Data is licensed under Creative Commons
 Attribution-NonCommercial-ShareAlike 4.0. Check upstream source licenses before
@@ -199,7 +236,8 @@ targets::tar_make(names = validation, callr_function = NULL)
 
 The test suite covers xG feature calculations, Elo counters, leakage-sensitive
 rolling-form behavior, forecast simulation sanity checks, calibration grouping,
-and pipeline validation helpers.
+pipeline validation helpers, World Cup fixture contracts, dashboard exports, and
+bracket projection contracts.
 
 ## Important Caveats
 

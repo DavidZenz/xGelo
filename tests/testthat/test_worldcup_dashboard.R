@@ -99,11 +99,35 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(all(payload$stage_probabilities$champion_probability <= 1))
   expect_equal(sum(payload$champion_probabilities$champion_probability), 1, tolerance = 0.001)
   expect_true(all(c("Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final", "Champion") %in% payload$bracket_paths$round))
+  expect_true(all(c(
+    "projected_winner",
+    "projected_winner_stage_probability",
+    "projected_winner_title_probability",
+    "next_match_id",
+    "projected_winner_continues"
+  ) %in% names(payload$bracket_paths)))
+  expect_false(any(is.na(payload$bracket_paths$projected_winner)))
+  expect_equal(payload$bracket_paths$next_match_id[payload$bracket_paths$match_id == "M104"], "Champion")
+  expect_true(payload$bracket_paths$projected_winner_continues[payload$bracket_paths$match_id == "M104"])
+  expect_equal(sum(!is.na(payload$bracket_paths$next_match_id)), 31)
+  expect_lt(sum(payload$bracket_paths$projected_winner_continues), 31)
+  expect_equal(
+    payload$bracket_paths$projected_winner[payload$bracket_paths$match_id == "Champion"],
+    payload$champion_probabilities$display_team[1]
+  )
+  round32 <- payload$bracket_paths[payload$bracket_paths$round == "Round of 32", ]
+  expect_true(all(round32$next_match_id %in% paste0("M", 89:96)))
 
   html <- paste(readLines(payload$paths$html, warn = FALSE), collapse = "\n")
   expect_true(grepl("xGelo 2026 World Cup Forecast", html, fixed = TRUE))
   expect_true(grepl("Most likely", html, fixed = TRUE))
   expect_true(grepl("Rounded xG", html, fixed = TRUE))
+  expect_true(grepl("Projected winner", html, fixed = TRUE))
+  expect_true(grepl("bracket-link-svg", html, fixed = TRUE))
+  expect_true(grepl("bracket-link-label", html, fixed = TRUE))
+  expect_true(grepl("data-projected-winner", html, fixed = TRUE))
+  expect_true(grepl("data-source-match-id", html, fixed = TRUE))
+  expect_true(grepl("bracket-slot-target", html, fixed = TRUE))
   expect_true(grepl("Estadio Azteca", html, fixed = TRUE))
   for (group_id in LETTERS[1:12]) {
     expect_true(grepl(paste0("Group ", group_id), html, fixed = TRUE))

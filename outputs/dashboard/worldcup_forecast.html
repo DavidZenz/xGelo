@@ -19,10 +19,10 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.scorelines{font-size:12px;color:#444;margin-top:8px}.scorelines span{display:inline-block;margin-right:8px}
-.bracket{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:10px;overflow-x:auto}.bracket-col h2{font-size:13px;margin:0 0 8px}.bracket-game{margin-bottom:8px;min-height:92px}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted)}
+.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,46px);column-gap:96px;min-width:2200px;padding:34px 16px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--red);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--red);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:82px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--red);background:#fffdf8}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
-@media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{grid-template-columns:repeat(6,220px)}}
+@media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{min-width:2200px}}
 @media(max-width:560px){main,header{padding-left:14px;padding-right:14px}.hero{grid-template-columns:1fr}h1{font-size:24px}}
 </style>
 </head>
@@ -33,14 +33,14 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button></div>
 <section id="groups" class="section active"><div class="grid-groups" id="groupsGrid"></div></section>
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
-<section id="bracket" class="section"><div class="bracket" id="bracketGrid"></div></section>
+<section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
 <details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples group outcomes. The most likely score is the modal simulated scoreline. The rounded expected score is only rounded decimal projected goals. Knockout and title probabilities in this dashboard are path estimates for presentation, not a separate extra-time or penalty model.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">{
   "metadata": {
     "title": "xGelo 2026 World Cup Forecast",
-    "generated_at": "2026-06-06 21:04:53.569283",
+    "generated_at": "2026-06-06 22:34:32.391168",
     "n_match_sim": 500,
     "n_tournaments": 500,
     "format_note": "48 teams, 12 groups of four, top two plus eight best third-place teams reach the Round of 32.",
@@ -8926,9 +8926,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group E",
       "slot2_label": "Best 3rd A/B/C/D/F",
       "slot1_team": "Germany",
+      "slot1_display": "Germany",
       "slot1_probability": 0.44,
       "slot2_team": "Qatar",
-      "slot2_probability": 0.224
+      "slot2_display": "Qatar",
+      "slot2_probability": 0.224,
+      "projected_winner_team": "Germany",
+      "projected_winner": "Germany",
+      "projected_winner_stage_probability": 0.894,
+      "projected_winner_title_probability": 0.0279375,
+      "next_match_id": "M89",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -8936,19 +8944,35 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group I",
       "slot2_label": "Best 3rd C/D/F/G/H",
       "slot1_team": "France",
+      "slot1_display": "France",
       "slot1_probability": 0.416,
       "slot2_team": "Cape Verde",
-      "slot2_probability": 0.204
+      "slot2_display": "Cape Verde",
+      "slot2_probability": 0.204,
+      "projected_winner_team": "France",
+      "projected_winner": "France",
+      "projected_winner_stage_probability": 0.832,
+      "projected_winner_title_probability": 0.026,
+      "next_match_id": "M90",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
       "match_id": "M75",
       "slot1_label": "Runner-up Group A",
       "slot2_label": "Runner-up Group B",
-      "slot1_team": "South Korea",
+      "slot1_team": "Korea Republic",
+      "slot1_display": "South Korea",
       "slot1_probability": 0.524,
       "slot2_team": "Canada",
-      "slot2_probability": 0.696
+      "slot2_display": "Canada",
+      "slot2_probability": 0.696,
+      "projected_winner_team": "Canada",
+      "projected_winner": "Canada",
+      "projected_winner_stage_probability": 0.854,
+      "projected_winner_title_probability": 0.0266875,
+      "next_match_id": "M91",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -8956,19 +8980,35 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group F",
       "slot2_label": "Runner-up Group C",
       "slot1_team": "Netherlands",
+      "slot1_display": "Netherlands",
       "slot1_probability": 0.398,
       "slot2_team": "Morocco",
-      "slot2_probability": 0.624
+      "slot2_display": "Morocco",
+      "slot2_probability": 0.624,
+      "projected_winner_team": "Netherlands",
+      "projected_winner": "Netherlands",
+      "projected_winner_stage_probability": 0.8,
+      "projected_winner_title_probability": 0.025,
+      "next_match_id": "M92",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
       "match_id": "M77",
       "slot1_label": "Winner Group D",
       "slot2_label": "Best 3rd B/E/F/I/J",
-      "slot1_team": "Turkiye",
+      "slot1_team": "Turkey",
+      "slot1_display": "Turkiye",
       "slot1_probability": 0.338,
-      "slot2_team": "Cote d'Ivoire",
-      "slot2_probability": 0.216
+      "slot2_team": "Ivory Coast",
+      "slot2_display": "Cote d'Ivoire",
+      "slot2_probability": 0.216,
+      "projected_winner_team": "Turkey",
+      "projected_winner": "Turkiye",
+      "projected_winner_stage_probability": 0.758,
+      "projected_winner_title_probability": 0.0236875,
+      "next_match_id": "M93",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -8976,9 +9016,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group G",
       "slot2_label": "Best 3rd A/E/H/I/J",
       "slot1_team": "Belgium",
+      "slot1_display": "Belgium",
       "slot1_probability": 0.402,
-      "slot2_team": "Cote d'Ivoire",
-      "slot2_probability": 0.216
+      "slot2_team": "Ivory Coast",
+      "slot2_display": "Cote d'Ivoire",
+      "slot2_probability": 0.216,
+      "projected_winner_team": "Belgium",
+      "projected_winner": "Belgium",
+      "projected_winner_stage_probability": 0.806,
+      "projected_winner_title_probability": 0.0251875,
+      "next_match_id": "M94",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -8986,9 +9034,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group H",
       "slot2_label": "Runner-up Group J",
       "slot1_team": "Spain",
+      "slot1_display": "Spain",
       "slot1_probability": 0.58,
       "slot2_team": "Algeria",
-      "slot2_probability": 0.45
+      "slot2_display": "Algeria",
+      "slot2_probability": 0.45,
+      "projected_winner_team": "Spain",
+      "projected_winner": "Spain",
+      "projected_winner_stage_probability": 0.914,
+      "projected_winner_title_probability": 0.0285625,
+      "next_match_id": "M95",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -8996,9 +9052,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Runner-up Group K",
       "slot2_label": "Runner-up Group L",
       "slot1_team": "Colombia",
+      "slot1_display": "Colombia",
       "slot1_probability": 0.712,
       "slot2_team": "England",
-      "slot2_probability": 0.706
+      "slot2_display": "England",
+      "slot2_probability": 0.706,
+      "projected_winner_team": "Colombia",
+      "projected_winner": "Colombia",
+      "projected_winner_stage_probability": 0.868,
+      "projected_winner_title_probability": 0.027125,
+      "next_match_id": "M96",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -9006,9 +9070,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group A",
       "slot2_label": "Best 3rd C/E/F/H/I",
       "slot1_team": "Mexico",
+      "slot1_display": "Mexico",
       "slot1_probability": 0.452,
-      "slot2_team": "Cote d'Ivoire",
-      "slot2_probability": 0.216
+      "slot2_team": "Ivory Coast",
+      "slot2_display": "Cote d'Ivoire",
+      "slot2_probability": 0.216,
+      "projected_winner_team": "Mexico",
+      "projected_winner": "Mexico",
+      "projected_winner_stage_probability": 0.874,
+      "projected_winner_title_probability": 0.0273125,
+      "next_match_id": "M89",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -9016,9 +9088,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group C",
       "slot2_label": "Best 3rd A/B/F/G/K",
       "slot1_team": "Brazil",
+      "slot1_display": "Brazil",
       "slot1_probability": 0.484,
       "slot2_team": "Qatar",
-      "slot2_probability": 0.224
+      "slot2_display": "Qatar",
+      "slot2_probability": 0.224,
+      "projected_winner_team": "Brazil",
+      "projected_winner": "Brazil",
+      "projected_winner_stage_probability": 0.892,
+      "projected_winner_title_probability": 0.027875,
+      "next_match_id": "M90",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -9026,9 +9106,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group B",
       "slot2_label": "Best 3rd E/F/G/I/J",
       "slot1_team": "Switzerland",
+      "slot1_display": "Switzerland",
       "slot1_probability": 0.468,
       "slot2_team": "Norway",
-      "slot2_probability": 0.196
+      "slot2_display": "Norway",
+      "slot2_probability": 0.196,
+      "projected_winner_team": "Switzerland",
+      "projected_winner": "Switzerland",
+      "projected_winner_stage_probability": 0.864,
+      "projected_winner_title_probability": 0.027,
+      "next_match_id": "M91",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -9036,9 +9124,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group J",
       "slot2_label": "Runner-up Group H",
       "slot1_team": "Argentina",
+      "slot1_display": "Argentina",
       "slot1_probability": 0.584,
       "slot2_team": "Uruguay",
-      "slot2_probability": 0.618
+      "slot2_display": "Uruguay",
+      "slot2_probability": 0.618,
+      "projected_winner_team": "Argentina",
+      "projected_winner": "Argentina",
+      "projected_winner_stage_probability": 0.916,
+      "projected_winner_title_probability": 0.028625,
+      "next_match_id": "M92",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -9046,9 +9142,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group K",
       "slot2_label": "Best 3rd A/B/D/E/I",
       "slot1_team": "Colombia",
+      "slot1_display": "Colombia",
       "slot1_probability": 0.416,
       "slot2_team": "Qatar",
-      "slot2_probability": 0.224
+      "slot2_display": "Qatar",
+      "slot2_probability": 0.224,
+      "projected_winner_team": "Colombia",
+      "projected_winner": "Colombia",
+      "projected_winner_stage_probability": 0.868,
+      "projected_winner_title_probability": 0.027125,
+      "next_match_id": "M93",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -9056,19 +9160,35 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Winner Group L",
       "slot2_label": "Best 3rd C/D/E/F/H",
       "slot1_team": "England",
+      "slot1_display": "England",
       "slot1_probability": 0.43,
-      "slot2_team": "Cote d'Ivoire",
-      "slot2_probability": 0.216
+      "slot2_team": "Ivory Coast",
+      "slot2_display": "Cote d'Ivoire",
+      "slot2_probability": 0.216,
+      "projected_winner_team": "England",
+      "projected_winner": "England",
+      "projected_winner_stage_probability": 0.83,
+      "projected_winner_title_probability": 0.0259375,
+      "next_match_id": "M94",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 32",
       "match_id": "M87",
       "slot1_label": "Runner-up Group D",
       "slot2_label": "Runner-up Group E",
-      "slot1_team": "Turkiye",
+      "slot1_team": "Turkey",
+      "slot1_display": "Turkiye",
       "slot1_probability": 0.59,
       "slot2_team": "Ecuador",
-      "slot2_probability": 0.71
+      "slot2_display": "Ecuador",
+      "slot2_probability": 0.71,
+      "projected_winner_team": "Ecuador",
+      "projected_winner": "Ecuador",
+      "projected_winner_stage_probability": 0.868,
+      "projected_winner_title_probability": 0.027125,
+      "next_match_id": "M95",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -9076,129 +9196,317 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Runner-up Group F",
       "slot2_label": "Runner-up Group G",
       "slot1_team": "Japan",
+      "slot1_display": "Japan",
       "slot1_probability": 0.532,
       "slot2_team": "Belgium",
-      "slot2_probability": 0.666
+      "slot2_display": "Belgium",
+      "slot2_probability": 0.666,
+      "projected_winner_team": "Belgium",
+      "projected_winner": "Belgium",
+      "projected_winner_stage_probability": 0.806,
+      "projected_winner_title_probability": 0.0251875,
+      "next_match_id": "M96",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 16",
       "match_id": "M89",
       "slot1_label": "Winner M73",
       "slot2_label": "Winner M81",
-      "slot1_team": "Winner M73",
-      "slot2_team": "Winner M81"
+      "slot1_team": "Germany",
+      "slot1_display": "Germany",
+      "slot1_probability": 0.894,
+      "slot1_source_match_id": "M73",
+      "slot2_team": "Mexico",
+      "slot2_display": "Mexico",
+      "slot2_probability": 0.874,
+      "slot2_source_match_id": "M81",
+      "projected_winner_team": "Germany",
+      "projected_winner": "Germany",
+      "projected_winner_stage_probability": 0.8046,
+      "projected_winner_title_probability": 0.0279375,
+      "next_match_id": "M97",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 16",
       "match_id": "M90",
       "slot1_label": "Winner M74",
       "slot2_label": "Winner M82",
-      "slot1_team": "Winner M74",
-      "slot2_team": "Winner M82"
+      "slot1_team": "France",
+      "slot1_display": "France",
+      "slot1_probability": 0.832,
+      "slot1_source_match_id": "M74",
+      "slot2_team": "Brazil",
+      "slot2_display": "Brazil",
+      "slot2_probability": 0.892,
+      "slot2_source_match_id": "M82",
+      "projected_winner_team": "Brazil",
+      "projected_winner": "Brazil",
+      "projected_winner_stage_probability": 0.8028,
+      "projected_winner_title_probability": 0.027875,
+      "next_match_id": "M98",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 16",
       "match_id": "M91",
       "slot1_label": "Winner M75",
       "slot2_label": "Winner M83",
-      "slot1_team": "Winner M75",
-      "slot2_team": "Winner M83"
+      "slot1_team": "Canada",
+      "slot1_display": "Canada",
+      "slot1_probability": 0.854,
+      "slot1_source_match_id": "M75",
+      "slot2_team": "Switzerland",
+      "slot2_display": "Switzerland",
+      "slot2_probability": 0.864,
+      "slot2_source_match_id": "M83",
+      "projected_winner_team": "Switzerland",
+      "projected_winner": "Switzerland",
+      "projected_winner_stage_probability": 0.7776,
+      "projected_winner_title_probability": 0.027,
+      "next_match_id": "M99",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 16",
       "match_id": "M92",
       "slot1_label": "Winner M76",
       "slot2_label": "Winner M84",
-      "slot1_team": "Winner M76",
-      "slot2_team": "Winner M84"
+      "slot1_team": "Netherlands",
+      "slot1_display": "Netherlands",
+      "slot1_probability": 0.8,
+      "slot1_source_match_id": "M76",
+      "slot2_team": "Argentina",
+      "slot2_display": "Argentina",
+      "slot2_probability": 0.916,
+      "slot2_source_match_id": "M84",
+      "projected_winner_team": "Argentina",
+      "projected_winner": "Argentina",
+      "projected_winner_stage_probability": 0.8244,
+      "projected_winner_title_probability": 0.028625,
+      "next_match_id": "M100",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 16",
       "match_id": "M93",
       "slot1_label": "Winner M77",
       "slot2_label": "Winner M85",
-      "slot1_team": "Winner M77",
-      "slot2_team": "Winner M85"
+      "slot1_team": "Turkey",
+      "slot1_display": "Turkiye",
+      "slot1_probability": 0.758,
+      "slot1_source_match_id": "M77",
+      "slot2_team": "Colombia",
+      "slot2_display": "Colombia",
+      "slot2_probability": 0.868,
+      "slot2_source_match_id": "M85",
+      "projected_winner_team": "Colombia",
+      "projected_winner": "Colombia",
+      "projected_winner_stage_probability": 0.7812,
+      "projected_winner_title_probability": 0.027125,
+      "next_match_id": "M97",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 16",
       "match_id": "M94",
       "slot1_label": "Winner M78",
       "slot2_label": "Winner M86",
-      "slot1_team": "Winner M78",
-      "slot2_team": "Winner M86"
+      "slot1_team": "Belgium",
+      "slot1_display": "Belgium",
+      "slot1_probability": 0.806,
+      "slot1_source_match_id": "M78",
+      "slot2_team": "England",
+      "slot2_display": "England",
+      "slot2_probability": 0.83,
+      "slot2_source_match_id": "M86",
+      "projected_winner_team": "England",
+      "projected_winner": "England",
+      "projected_winner_stage_probability": 0.747,
+      "projected_winner_title_probability": 0.0259375,
+      "next_match_id": "M98",
+      "projected_winner_continues": false
     },
     {
       "round": "Round of 16",
       "match_id": "M95",
       "slot1_label": "Winner M79",
       "slot2_label": "Winner M87",
-      "slot1_team": "Winner M79",
-      "slot2_team": "Winner M87"
+      "slot1_team": "Spain",
+      "slot1_display": "Spain",
+      "slot1_probability": 0.914,
+      "slot1_source_match_id": "M79",
+      "slot2_team": "Ecuador",
+      "slot2_display": "Ecuador",
+      "slot2_probability": 0.868,
+      "slot2_source_match_id": "M87",
+      "projected_winner_team": "Spain",
+      "projected_winner": "Spain",
+      "projected_winner_stage_probability": 0.8226,
+      "projected_winner_title_probability": 0.0285625,
+      "next_match_id": "M99",
+      "projected_winner_continues": true
     },
     {
       "round": "Round of 16",
       "match_id": "M96",
       "slot1_label": "Winner M80",
       "slot2_label": "Winner M88",
-      "slot1_team": "Winner M80",
-      "slot2_team": "Winner M88"
+      "slot1_team": "Colombia",
+      "slot1_display": "Colombia",
+      "slot1_probability": 0.868,
+      "slot1_source_match_id": "M80",
+      "slot2_team": "Belgium",
+      "slot2_display": "Belgium",
+      "slot2_probability": 0.806,
+      "slot2_source_match_id": "M88",
+      "projected_winner_team": "Colombia",
+      "projected_winner": "Colombia",
+      "projected_winner_stage_probability": 0.7812,
+      "projected_winner_title_probability": 0.027125,
+      "next_match_id": "M100",
+      "projected_winner_continues": false
     },
     {
       "round": "Quarter-finals",
       "match_id": "M97",
       "slot1_label": "Winner M89",
       "slot2_label": "Winner M93",
-      "slot1_team": "Winner M89",
-      "slot2_team": "Winner M93"
+      "slot1_team": "Germany",
+      "slot1_display": "Germany",
+      "slot1_probability": 0.8046,
+      "slot1_source_match_id": "M89",
+      "slot2_team": "Colombia",
+      "slot2_display": "Colombia",
+      "slot2_probability": 0.7812,
+      "slot2_source_match_id": "M93",
+      "projected_winner_team": "Germany",
+      "projected_winner": "Germany",
+      "projected_winner_stage_probability": 0.64368,
+      "projected_winner_title_probability": 0.0279375,
+      "next_match_id": "M101",
+      "projected_winner_continues": false
     },
     {
       "round": "Quarter-finals",
       "match_id": "M98",
       "slot1_label": "Winner M90",
       "slot2_label": "Winner M94",
-      "slot1_team": "Winner M90",
-      "slot2_team": "Winner M94"
+      "slot1_team": "Brazil",
+      "slot1_display": "Brazil",
+      "slot1_probability": 0.8028,
+      "slot1_source_match_id": "M90",
+      "slot2_team": "England",
+      "slot2_display": "England",
+      "slot2_probability": 0.747,
+      "slot2_source_match_id": "M94",
+      "projected_winner_team": "Brazil",
+      "projected_winner": "Brazil",
+      "projected_winner_stage_probability": 0.64224,
+      "projected_winner_title_probability": 0.027875,
+      "next_match_id": "M102",
+      "projected_winner_continues": false
     },
     {
       "round": "Quarter-finals",
       "match_id": "M99",
       "slot1_label": "Winner M91",
       "slot2_label": "Winner M95",
-      "slot1_team": "Winner M91",
-      "slot2_team": "Winner M95"
+      "slot1_team": "Switzerland",
+      "slot1_display": "Switzerland",
+      "slot1_probability": 0.7776,
+      "slot1_source_match_id": "M91",
+      "slot2_team": "Spain",
+      "slot2_display": "Spain",
+      "slot2_probability": 0.8226,
+      "slot2_source_match_id": "M95",
+      "projected_winner_team": "Spain",
+      "projected_winner": "Spain",
+      "projected_winner_stage_probability": 0.65808,
+      "projected_winner_title_probability": 0.0285625,
+      "next_match_id": "M101",
+      "projected_winner_continues": true
     },
     {
       "round": "Quarter-finals",
       "match_id": "M100",
       "slot1_label": "Winner M92",
       "slot2_label": "Winner M96",
-      "slot1_team": "Winner M92",
-      "slot2_team": "Winner M96"
+      "slot1_team": "Argentina",
+      "slot1_display": "Argentina",
+      "slot1_probability": 0.8244,
+      "slot1_source_match_id": "M92",
+      "slot2_team": "Colombia",
+      "slot2_display": "Colombia",
+      "slot2_probability": 0.7812,
+      "slot2_source_match_id": "M96",
+      "projected_winner_team": "Argentina",
+      "projected_winner": "Argentina",
+      "projected_winner_stage_probability": 0.65952,
+      "projected_winner_title_probability": 0.028625,
+      "next_match_id": "M102",
+      "projected_winner_continues": true
     },
     {
       "round": "Semi-finals",
       "match_id": "M101",
       "slot1_label": "Winner M97",
       "slot2_label": "Winner M99",
-      "slot1_team": "Winner M97",
-      "slot2_team": "Winner M99"
+      "slot1_team": "Germany",
+      "slot1_display": "Germany",
+      "slot1_probability": 0.64368,
+      "slot1_source_match_id": "M97",
+      "slot2_team": "Spain",
+      "slot2_display": "Spain",
+      "slot2_probability": 0.65808,
+      "slot2_source_match_id": "M99",
+      "projected_winner_team": "Spain",
+      "projected_winner": "Spain",
+      "projected_winner_stage_probability": 0.4803984,
+      "projected_winner_title_probability": 0.0285625,
+      "next_match_id": "M104",
+      "projected_winner_continues": false
     },
     {
       "round": "Semi-finals",
       "match_id": "M102",
       "slot1_label": "Winner M98",
       "slot2_label": "Winner M100",
-      "slot1_team": "Winner M98",
-      "slot2_team": "Winner M100"
+      "slot1_team": "Brazil",
+      "slot1_display": "Brazil",
+      "slot1_probability": 0.64224,
+      "slot1_source_match_id": "M98",
+      "slot2_team": "Argentina",
+      "slot2_display": "Argentina",
+      "slot2_probability": 0.65952,
+      "slot2_source_match_id": "M100",
+      "projected_winner_team": "Argentina",
+      "projected_winner": "Argentina",
+      "projected_winner_stage_probability": 0.4814496,
+      "projected_winner_title_probability": 0.028625,
+      "next_match_id": "M104",
+      "projected_winner_continues": true
     },
     {
       "round": "Final",
       "match_id": "M104",
       "slot1_label": "Winner M101",
       "slot2_label": "Winner M102",
-      "slot1_team": "Winner M101",
-      "slot2_team": "Winner M102"
+      "slot1_team": "Spain",
+      "slot1_display": "Spain",
+      "slot1_probability": 0.4803984,
+      "slot1_source_match_id": "M101",
+      "slot2_team": "Argentina",
+      "slot2_display": "Argentina",
+      "slot2_probability": 0.4814496,
+      "slot2_source_match_id": "M102",
+      "projected_winner_team": "Argentina",
+      "projected_winner": "Argentina",
+      "projected_winner_stage_probability": 0.028625,
+      "projected_winner_title_probability": 0.028625,
+      "next_match_id": "Champion",
+      "projected_winner_continues": true
     },
     {
       "round": "Champion",
@@ -9206,8 +9514,14 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_label": "Champion",
       "slot2_label": "",
       "slot1_team": "Argentina",
+      "slot1_display": "Argentina",
       "slot1_probability": 0.028625,
-      "slot2_team": ""
+      "slot1_source_match_id": "M104",
+      "projected_winner_team": "Argentina",
+      "projected_winner": "Argentina",
+      "projected_winner_stage_probability": 0.028625,
+      "projected_winner_title_probability": 0.028625,
+      "projected_winner_continues": false
     }
   ]
 }</script>
@@ -9226,7 +9540,8 @@ function renderHero(){
     const sorted = [...rows].sort((a,b)=>b.group_win_probability-a.group_win_probability);
     return {group: rows[0].group, margin: sorted[0].group_win_probability - sorted[1].group_win_probability};
   }).sort((a,b)=>a.margin-b.margin)[0];
-  const finalTeams = data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
+  const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
+  const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
   document.getElementById("hero").innerHTML = [
     ["Top title chances", champs, "Simulation-derived title view"],
     ["Likely final", finalTeams, "Highest final probabilities"],
@@ -9256,9 +9571,91 @@ function renderMatches(){
   }).join("");
 }
 function renderBracket(){
-  const rounds = by(data.bracket_paths, "round");
   const order = ["Round of 32","Round of 16","Quarter-finals","Semi-finals","Final","Champion"];
-  document.getElementById("bracketGrid").innerHTML = order.map(round => `<div class="bracket-col"><h2>${esc(round)}</h2>${(rounds[round] || []).map(g => `<div class="bracket-game"><strong>${esc(g.match_id)}</strong><div class="slot"><span>${esc(g.slot1_team || g.slot1_label)}</span><small>${pct(g.slot1_probability)}</small></div>${g.slot2_label ? `<div class="slot"><span>${esc(g.slot2_team || g.slot2_label)}</span><small>${pct(g.slot2_probability)}</small></div>` : ""}</div>`).join("")}</div>`).join("");
+  const col = Object.fromEntries(order.map((round, i) => [round, i + 1]));
+  const byId = Object.fromEntries(data.bracket_paths.map(row => [row.match_id, row]));
+  const childIds = match => [match.slot1_source_match_id, match.slot2_source_match_id].filter(Boolean);
+  const leafOrder = matchId => {
+    const match = byId[matchId];
+    if (!match) return [];
+    const children = childIds(match);
+    return children.length ? children.flatMap(leafOrder) : [matchId];
+  };
+  const leaves = leafOrder("M104");
+  const rows = {};
+  leaves.forEach((matchId, idx) => rows[matchId] = 2 * idx + 1);
+  const placeMatch = matchId => {
+    if (rows[matchId] != null) return rows[matchId];
+    const match = byId[matchId];
+    if (!match) return 1;
+    const children = childIds(match);
+    if (!children.length) {
+      rows[matchId] = 1;
+    } else {
+      const childRows = children.map(placeMatch);
+      rows[matchId] = childRows.reduce((sum, value) => sum + value, 0) / childRows.length;
+    }
+    return rows[matchId];
+  };
+  data.bracket_paths.forEach(row => {
+    if (row.match_id === "Champion") {
+      rows[row.match_id] = placeMatch("M104");
+    } else {
+      placeMatch(row.match_id);
+    }
+  });
+  const titles = order.map(round => `<div class="bracket-round-title" style="grid-column:${col[round]};grid-row:1;">${esc(round)}</div>`).join("");
+  const games = data.bracket_paths.map(g => {
+    const isChampion = g.round === "Champion";
+    const winnerLabel = isChampion ? "Projected champion" : "Projected winner";
+    const slot1Source = g.slot1_source_match_id || "";
+    const slot2Source = g.slot2_source_match_id || "";
+    const slot1Class = slot1Source ? " slot bracket-slot-target" : " slot";
+    const slot2Class = slot2Source ? " slot bracket-slot-target" : " slot";
+    const slot2 = g.slot2_label ? `<div class="${slot2Class}" data-source-match-id="${esc(slot2Source)}"><span>${esc(g.slot2_display || g.slot2_label)}</span><small>${pct(g.slot2_probability)}</small></div>` : "";
+    const championText = isChampion ? `<div class="bracket-champion">${esc(winnerLabel)}: ${esc(g.projected_winner)}</div><div class="bracket-prob">Title ${pct(g.projected_winner_title_probability)}</div>` : "";
+    return `<div class="bracket-game ${isChampion ? "champion" : "projected"}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-projected-winner="${esc(g.projected_winner || "")}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}"><span>${esc(g.slot1_display || g.slot1_label)}</span><small>${pct(g.slot1_probability)}</small></div>${slot2}`}</div>`;
+  }).join("");
+  document.getElementById("bracketGrid").innerHTML = `<svg class="bracket-link-svg" aria-hidden="true"></svg>${titles}${games}`;
+  requestAnimationFrame(drawBracketLinks);
+}
+function drawBracketLinks(){
+  const grid = document.getElementById("bracketGrid");
+  const svg = grid.querySelector(".bracket-link-svg");
+  if (!grid || !svg) return;
+  grid.querySelectorAll(".bracket-link-label").forEach(label => label.remove());
+  const width = grid.scrollWidth;
+  const height = grid.scrollHeight;
+  svg.setAttribute("width", width);
+  svg.setAttribute("height", height);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  const paths = [];
+  const labels = [];
+  grid.querySelectorAll(".bracket-game[data-next-match-id]").forEach(card => {
+    const nextId = card.dataset.nextMatchId;
+    if (!nextId) return;
+    const next = grid.querySelector(`.bracket-game[data-match-id="${CSS.escape(nextId)}"]`);
+    if (!next) return;
+    const x1 = card.offsetLeft + card.offsetWidth;
+    const y1 = card.offsetTop + card.offsetHeight / 2;
+    const targetSlot = next.querySelector(`[data-source-match-id="${CSS.escape(card.dataset.matchId)}"]`);
+    const x2 = next.offsetLeft;
+    const y2 = targetSlot
+      ? targetSlot.offsetTop + next.offsetTop + targetSlot.offsetHeight / 2
+      : next.offsetTop + next.offsetHeight / 2;
+    const mid = x1 + Math.max(18, (x2 - x1) / 2);
+    const projectedPath = card.dataset.winnerContinues === "true" ? " projected-path" : "";
+    const champion = nextId === "Champion" ? " champion" : "";
+    paths.push(`<path class="bracket-link${projectedPath}${champion}" d="M${x1} ${y1} H${mid} V${y2} H${x2}"></path>`);
+    const label = document.createElement("div");
+    label.className = `bracket-link-label${projectedPath}${champion}`;
+    label.style.left = `${x1 + 12}px`;
+    label.style.top = `${y1}px`;
+    label.textContent = `${card.dataset.projectedWinner} ${card.dataset.stageProbability}`;
+    labels.push(label);
+  });
+  svg.innerHTML = paths.join("");
+  labels.forEach(label => grid.appendChild(label));
 }
 function renderTeams(selected){
   const search = document.getElementById("teamSearch").value.toLowerCase();
@@ -9275,11 +9672,13 @@ document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
   document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   btn.classList.add("active"); document.getElementById(btn.dataset.tab).classList.add("active");
+  if (btn.dataset.tab === "bracket") requestAnimationFrame(drawBracketLinks);
 });
 for (const g of "ABCDEFGHIJKL") document.getElementById("groupFilter").innerHTML += `<option value="${g}">Group ${g}</option>`;
 document.getElementById("matchSearch").oninput = renderMatches;
 document.getElementById("groupFilter").onchange = renderMatches;
 document.getElementById("teamSearch").oninput = () => renderTeams();
+window.addEventListener("resize", drawBracketLinks);
 renderHero(); renderGroups(); renderMatches(); renderBracket(); renderTeams();
 </script>
 </body>

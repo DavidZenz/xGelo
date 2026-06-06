@@ -346,35 +346,92 @@ estimate_stage_probabilities <- function(groups, group_probabilities, elo_curren
   )
 }
 
-resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities) {
+stage_probability_column <- function(round) {
+  switch(
+    round,
+    "Round of 32" = "round_of_16_probability",
+    "Round of 16" = "quarterfinal_probability",
+    "Quarter-finals" = "semifinal_probability",
+    "Semi-finals" = "final_probability",
+    "Final" = "champion_probability",
+    "Champion" = "champion_probability",
+    "champion_probability"
+  )
+}
+
+team_stage_probability <- function(team, stage_probabilities, probability_col) {
+  if (is.na(team) || !nzchar(team) || !(probability_col %in% names(stage_probabilities))) {
+    return(NA_real_)
+  }
+  row <- stage_probabilities[stage_probabilities$team == team, ]
+  if (nrow(row) == 0) return(NA_real_)
+  row[[probability_col]][1]
+}
+
+resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities, projections = list()) {
   winner_match <- regmatches(slot, regexpr("^Winner M[0-9]+$", slot))
   if (length(winner_match) > 0 && nzchar(winner_match)) {
-    return(list(team = slot, probability = NA_real_))
+    source_match_id <- sub("^Winner ", "", slot)
+    prior <- projections[[source_match_id]]
+    if (is.null(prior)) {
+      return(list(
+        team = NA_character_,
+        display_team = slot,
+        probability = NA_real_,
+        source_match_id = source_match_id
+      ))
+    }
+    return(list(
+      team = prior$projected_winner_team,
+      display_team = prior$projected_winner,
+      probability = prior$projected_winner_stage_probability,
+      source_match_id = source_match_id
+    ))
   }
 
   group_letter <- sub(".*Group ([A-L]).*", "\\1", slot)
   if (grepl("^Winner Group [A-L]$", slot)) {
     candidates <- group_probabilities[group_probabilities$group == group_letter, ]
     row <- candidates[which.max(candidates$group_win_probability), ]
-    return(list(team = row$display_team, probability = row$group_win_probability))
+    return(list(
+      team = row$team,
+      display_team = row$display_team,
+      probability = row$group_win_probability,
+      source_match_id = NA_character_
+    ))
   }
   if (grepl("^Runner-up Group [A-L]$", slot)) {
     candidates <- group_probabilities[group_probabilities$group == group_letter, ]
     candidates$runner_up_score <- ifelse(candidates$most_likely_position == 2, 1, 0) + candidates$top_two_probability
     row <- candidates[which.max(candidates$runner_up_score), ]
-    return(list(team = row$display_team, probability = row$top_two_probability))
+    return(list(
+      team = row$team,
+      display_team = row$display_team,
+      probability = row$top_two_probability,
+      source_match_id = NA_character_
+    ))
   }
   if (grepl("^Best 3rd", slot)) {
     allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
     candidates <- group_probabilities[group_probabilities$group %in% allowed, ]
     row <- candidates[which.max(candidates$third_place_qual_probability), ]
-    return(list(team = row$display_team, probability = row$third_place_qual_probability))
+    return(list(
+      team = row$team,
+      display_team = row$display_team,
+      probability = row$third_place_qual_probability,
+      source_match_id = NA_character_
+    ))
   }
   if (slot == "Champion") {
     row <- stage_probabilities[which.max(stage_probabilities$champion_probability), ]
-    return(list(team = row$display_team, probability = row$champion_probability))
+    return(list(
+      team = row$team,
+      display_team = row$display_team,
+      probability = row$champion_probability,
+      source_match_id = "M104"
+    ))
   }
-  list(team = slot, probability = NA_real_)
+  list(team = NA_character_, display_team = slot, probability = NA_real_, source_match_id = NA_character_)
 }
 
 build_bracket_paths <- function(group_probabilities, stage_probabilities) {
@@ -403,12 +460,108 @@ build_bracket_paths <- function(group_probabilities, stage_probabilities) {
     data.frame(round = "Champion", match_id = "Champion", slot1_label = "Champion", slot2_label = "", stringsAsFactors = FALSE)
   )
   paths <- rbind(round32, later)
-  slot1 <- lapply(paths$slot1_label, resolve_bracket_slot, group_probabilities = group_probabilities, stage_probabilities = stage_probabilities)
-  slot2 <- lapply(paths$slot2_label, resolve_bracket_slot, group_probabilities = group_probabilities, stage_probabilities = stage_probabilities)
-  paths$slot1_team <- vapply(slot1, function(x) x$team, character(1))
-  paths$slot1_probability <- vapply(slot1, function(x) x$probability, numeric(1))
-  paths$slot2_team <- vapply(slot2, function(x) x$team, character(1))
-  paths$slot2_probability <- vapply(slot2, function(x) x$probability, numeric(1))
+  paths$slot1_team <- NA_character_
+  paths$slot1_display <- NA_character_
+  paths$slot1_probability <- NA_real_
+  paths$slot1_source_match_id <- NA_character_
+  paths$slot2_team <- NA_character_
+  paths$slot2_display <- NA_character_
+  paths$slot2_probability <- NA_real_
+  paths$slot2_source_match_id <- NA_character_
+  paths$projected_winner_team <- NA_character_
+  paths$projected_winner <- NA_character_
+  paths$projected_winner_stage_probability <- NA_real_
+  paths$projected_winner_title_probability <- NA_real_
+  paths$next_match_id <- NA_character_
+  paths$projected_winner_continues <- FALSE
+
+  projections <- list()
+  for (i in seq_len(nrow(paths))) {
+    slot1 <- resolve_bracket_slot(
+      paths$slot1_label[i],
+      group_probabilities = group_probabilities,
+      stage_probabilities = stage_probabilities,
+      projections = projections
+    )
+    slot2 <- if (nzchar(paths$slot2_label[i])) {
+      resolve_bracket_slot(
+        paths$slot2_label[i],
+        group_probabilities = group_probabilities,
+        stage_probabilities = stage_probabilities,
+        projections = projections
+      )
+    } else {
+      list(team = NA_character_, display_team = NA_character_, probability = NA_real_, source_match_id = NA_character_)
+    }
+
+    probability_col <- stage_probability_column(paths$round[i])
+    candidates <- data.frame(
+      team = c(slot1$team, slot2$team),
+      display_team = c(slot1$display_team, slot2$display_team),
+      stage_probability = c(
+        team_stage_probability(slot1$team, stage_probabilities, probability_col),
+        team_stage_probability(slot2$team, stage_probabilities, probability_col)
+      ),
+      stringsAsFactors = FALSE
+    )
+    candidates <- candidates[!is.na(candidates$team) & nzchar(candidates$team), ]
+    if (nrow(candidates) == 0 && paths$round[i] == "Champion") {
+      champion <- stage_probabilities[which.max(stage_probabilities$champion_probability), ]
+      candidates <- data.frame(
+        team = champion$team,
+        display_team = champion$display_team,
+        stage_probability = champion$champion_probability,
+        stringsAsFactors = FALSE
+      )
+    }
+    winner <- if (nrow(candidates) > 0) {
+      candidates[which.max(candidates$stage_probability), ]
+    } else {
+      data.frame(team = NA_character_, display_team = NA_character_, stage_probability = NA_real_)
+    }
+
+    paths$slot1_team[i] <- slot1$team
+    paths$slot1_display[i] <- slot1$display_team
+    paths$slot1_probability[i] <- slot1$probability
+    paths$slot1_source_match_id[i] <- slot1$source_match_id
+    paths$slot2_team[i] <- slot2$team
+    paths$slot2_display[i] <- slot2$display_team
+    paths$slot2_probability[i] <- slot2$probability
+    paths$slot2_source_match_id[i] <- slot2$source_match_id
+    paths$projected_winner_team[i] <- winner$team[1]
+    paths$projected_winner[i] <- winner$display_team[1]
+    paths$projected_winner_stage_probability[i] <- winner$stage_probability[1]
+    paths$projected_winner_title_probability[i] <- team_stage_probability(
+      winner$team[1],
+      stage_probabilities,
+      "champion_probability"
+    )
+    projections[[paths$match_id[i]]] <- as.list(paths[i, ])
+  }
+
+  for (i in seq_len(nrow(paths))) {
+    next_rows <- which(
+      paths$slot1_label == paste("Winner", paths$match_id[i]) |
+        paths$slot2_label == paste("Winner", paths$match_id[i])
+    )
+    if (length(next_rows) > 0) {
+      paths$next_match_id[i] <- paths$match_id[next_rows[1]]
+    } else if (paths$match_id[i] == "M104") {
+      paths$next_match_id[i] <- "Champion"
+    }
+  }
+  for (i in seq_len(nrow(paths))) {
+    next_match_id <- paths$next_match_id[i]
+    if (is.na(next_match_id) || !nzchar(next_match_id)) next
+    next_row <- paths[paths$match_id == next_match_id, ]
+    if (nrow(next_row) == 0) next
+    paths$projected_winner_continues[i] <- isTRUE(
+      !is.na(paths$projected_winner_team[i]) &&
+        !is.na(next_row$projected_winner_team[1]) &&
+        paths$projected_winner_team[i] == next_row$projected_winner_team[1]
+    )
+  }
+
   paths
 }
 
@@ -496,10 +649,10 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.scorelines{font-size:12px;color:#444;margin-top:8px}.scorelines span{display:inline-block;margin-right:8px}
-.bracket{display:grid;grid-template-columns:repeat(6,minmax(170px,1fr));gap:10px;overflow-x:auto}.bracket-col h2{font-size:13px;margin:0 0 8px}.bracket-game{margin-bottom:8px;min-height:92px}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted)}
+.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,46px);column-gap:96px;min-width:2200px;padding:34px 16px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--red);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--red);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:82px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--red);background:#fffdf8}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
-@media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{grid-template-columns:repeat(6,220px)}}
+@media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{min-width:2200px}}
 @media(max-width:560px){main,header{padding-left:14px;padding-right:14px}.hero{grid-template-columns:1fr}h1{font-size:24px}}
 </style>
 </head>
@@ -510,7 +663,7 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button></div>
 <section id="groups" class="section active"><div class="grid-groups" id="groupsGrid"></div></section>
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
-<section id="bracket" class="section"><div class="bracket" id="bracketGrid"></div></section>
+<section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
 <details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples group outcomes. The most likely score is the modal simulated scoreline. The rounded expected score is only rounded decimal projected goals. Knockout and title probabilities in this dashboard are path estimates for presentation, not a separate extra-time or penalty model.</p></details>
 </main>
@@ -530,7 +683,8 @@ function renderHero(){
     const sorted = [...rows].sort((a,b)=>b.group_win_probability-a.group_win_probability);
     return {group: rows[0].group, margin: sorted[0].group_win_probability - sorted[1].group_win_probability};
   }).sort((a,b)=>a.margin-b.margin)[0];
-  const finalTeams = data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
+  const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
+  const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
   document.getElementById("hero").innerHTML = [
     ["Top title chances", champs, "Simulation-derived title view"],
     ["Likely final", finalTeams, "Highest final probabilities"],
@@ -560,9 +714,91 @@ function renderMatches(){
   }).join("");
 }
 function renderBracket(){
-  const rounds = by(data.bracket_paths, "round");
   const order = ["Round of 32","Round of 16","Quarter-finals","Semi-finals","Final","Champion"];
-  document.getElementById("bracketGrid").innerHTML = order.map(round => `<div class="bracket-col"><h2>${esc(round)}</h2>${(rounds[round] || []).map(g => `<div class="bracket-game"><strong>${esc(g.match_id)}</strong><div class="slot"><span>${esc(g.slot1_team || g.slot1_label)}</span><small>${pct(g.slot1_probability)}</small></div>${g.slot2_label ? `<div class="slot"><span>${esc(g.slot2_team || g.slot2_label)}</span><small>${pct(g.slot2_probability)}</small></div>` : ""}</div>`).join("")}</div>`).join("");
+  const col = Object.fromEntries(order.map((round, i) => [round, i + 1]));
+  const byId = Object.fromEntries(data.bracket_paths.map(row => [row.match_id, row]));
+  const childIds = match => [match.slot1_source_match_id, match.slot2_source_match_id].filter(Boolean);
+  const leafOrder = matchId => {
+    const match = byId[matchId];
+    if (!match) return [];
+    const children = childIds(match);
+    return children.length ? children.flatMap(leafOrder) : [matchId];
+  };
+  const leaves = leafOrder("M104");
+  const rows = {};
+  leaves.forEach((matchId, idx) => rows[matchId] = 2 * idx + 1);
+  const placeMatch = matchId => {
+    if (rows[matchId] != null) return rows[matchId];
+    const match = byId[matchId];
+    if (!match) return 1;
+    const children = childIds(match);
+    if (!children.length) {
+      rows[matchId] = 1;
+    } else {
+      const childRows = children.map(placeMatch);
+      rows[matchId] = childRows.reduce((sum, value) => sum + value, 0) / childRows.length;
+    }
+    return rows[matchId];
+  };
+  data.bracket_paths.forEach(row => {
+    if (row.match_id === "Champion") {
+      rows[row.match_id] = placeMatch("M104");
+    } else {
+      placeMatch(row.match_id);
+    }
+  });
+  const titles = order.map(round => `<div class="bracket-round-title" style="grid-column:${col[round]};grid-row:1;">${esc(round)}</div>`).join("");
+  const games = data.bracket_paths.map(g => {
+    const isChampion = g.round === "Champion";
+    const winnerLabel = isChampion ? "Projected champion" : "Projected winner";
+    const slot1Source = g.slot1_source_match_id || "";
+    const slot2Source = g.slot2_source_match_id || "";
+    const slot1Class = slot1Source ? " slot bracket-slot-target" : " slot";
+    const slot2Class = slot2Source ? " slot bracket-slot-target" : " slot";
+    const slot2 = g.slot2_label ? `<div class="${slot2Class}" data-source-match-id="${esc(slot2Source)}"><span>${esc(g.slot2_display || g.slot2_label)}</span><small>${pct(g.slot2_probability)}</small></div>` : "";
+    const championText = isChampion ? `<div class="bracket-champion">${esc(winnerLabel)}: ${esc(g.projected_winner)}</div><div class="bracket-prob">Title ${pct(g.projected_winner_title_probability)}</div>` : "";
+    return `<div class="bracket-game ${isChampion ? "champion" : "projected"}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-projected-winner="${esc(g.projected_winner || "")}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}"><span>${esc(g.slot1_display || g.slot1_label)}</span><small>${pct(g.slot1_probability)}</small></div>${slot2}`}</div>`;
+  }).join("");
+  document.getElementById("bracketGrid").innerHTML = `<svg class="bracket-link-svg" aria-hidden="true"></svg>${titles}${games}`;
+  requestAnimationFrame(drawBracketLinks);
+}
+function drawBracketLinks(){
+  const grid = document.getElementById("bracketGrid");
+  const svg = grid.querySelector(".bracket-link-svg");
+  if (!grid || !svg) return;
+  grid.querySelectorAll(".bracket-link-label").forEach(label => label.remove());
+  const width = grid.scrollWidth;
+  const height = grid.scrollHeight;
+  svg.setAttribute("width", width);
+  svg.setAttribute("height", height);
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  const paths = [];
+  const labels = [];
+  grid.querySelectorAll(".bracket-game[data-next-match-id]").forEach(card => {
+    const nextId = card.dataset.nextMatchId;
+    if (!nextId) return;
+    const next = grid.querySelector(`.bracket-game[data-match-id="${CSS.escape(nextId)}"]`);
+    if (!next) return;
+    const x1 = card.offsetLeft + card.offsetWidth;
+    const y1 = card.offsetTop + card.offsetHeight / 2;
+    const targetSlot = next.querySelector(`[data-source-match-id="${CSS.escape(card.dataset.matchId)}"]`);
+    const x2 = next.offsetLeft;
+    const y2 = targetSlot
+      ? targetSlot.offsetTop + next.offsetTop + targetSlot.offsetHeight / 2
+      : next.offsetTop + next.offsetHeight / 2;
+    const mid = x1 + Math.max(18, (x2 - x1) / 2);
+    const projectedPath = card.dataset.winnerContinues === "true" ? " projected-path" : "";
+    const champion = nextId === "Champion" ? " champion" : "";
+    paths.push(`<path class="bracket-link${projectedPath}${champion}" d="M${x1} ${y1} H${mid} V${y2} H${x2}"></path>`);
+    const label = document.createElement("div");
+    label.className = `bracket-link-label${projectedPath}${champion}`;
+    label.style.left = `${x1 + 12}px`;
+    label.style.top = `${y1}px`;
+    label.textContent = `${card.dataset.projectedWinner} ${card.dataset.stageProbability}`;
+    labels.push(label);
+  });
+  svg.innerHTML = paths.join("");
+  labels.forEach(label => grid.appendChild(label));
 }
 function renderTeams(selected){
   const search = document.getElementById("teamSearch").value.toLowerCase();
@@ -579,11 +815,13 @@ document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
   document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
   btn.classList.add("active"); document.getElementById(btn.dataset.tab).classList.add("active");
+  if (btn.dataset.tab === "bracket") requestAnimationFrame(drawBracketLinks);
 });
 for (const g of "ABCDEFGHIJKL") document.getElementById("groupFilter").innerHTML += `<option value="${g}">Group ${g}</option>`;
 document.getElementById("matchSearch").oninput = renderMatches;
 document.getElementById("groupFilter").onchange = renderMatches;
 document.getElementById("teamSearch").oninput = () => renderTeams();
+window.addEventListener("resize", drawBracketLinks);
 renderHero(); renderGroups(); renderMatches(); renderBracket(); renderTeams();
 </script>
 </body>

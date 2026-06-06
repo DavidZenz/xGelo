@@ -1,33 +1,33 @@
-"round","match_id","slot1_label","slot2_label","slot1_team","slot1_probability","slot2_team","slot2_probability"
-"Round of 32","M73","Winner Group E","Best 3rd A/B/C/D/F","Germany",0.44,"Qatar",0.224
-"Round of 32","M74","Winner Group I","Best 3rd C/D/F/G/H","France",0.416,"Cape Verde",0.204
-"Round of 32","M75","Runner-up Group A","Runner-up Group B","South Korea",0.524,"Canada",0.696
-"Round of 32","M76","Winner Group F","Runner-up Group C","Netherlands",0.398,"Morocco",0.624
-"Round of 32","M77","Winner Group D","Best 3rd B/E/F/I/J","Turkiye",0.338,"Cote d'Ivoire",0.216
-"Round of 32","M78","Winner Group G","Best 3rd A/E/H/I/J","Belgium",0.402,"Cote d'Ivoire",0.216
-"Round of 32","M79","Winner Group H","Runner-up Group J","Spain",0.58,"Algeria",0.45
-"Round of 32","M80","Runner-up Group K","Runner-up Group L","Colombia",0.712,"England",0.706
-"Round of 32","M81","Winner Group A","Best 3rd C/E/F/H/I","Mexico",0.452,"Cote d'Ivoire",0.216
-"Round of 32","M82","Winner Group C","Best 3rd A/B/F/G/K","Brazil",0.484,"Qatar",0.224
-"Round of 32","M83","Winner Group B","Best 3rd E/F/G/I/J","Switzerland",0.468,"Norway",0.196
-"Round of 32","M84","Winner Group J","Runner-up Group H","Argentina",0.584,"Uruguay",0.618
-"Round of 32","M85","Winner Group K","Best 3rd A/B/D/E/I","Colombia",0.416,"Qatar",0.224
-"Round of 32","M86","Winner Group L","Best 3rd C/D/E/F/H","England",0.43,"Cote d'Ivoire",0.216
-"Round of 32","M87","Runner-up Group D","Runner-up Group E","Turkiye",0.59,"Ecuador",0.71
-"Round of 32","M88","Runner-up Group F","Runner-up Group G","Japan",0.532,"Belgium",0.666
-"Round of 16","M89","Winner M73","Winner M81","Winner M73",NA,"Winner M81",NA
-"Round of 16","M90","Winner M74","Winner M82","Winner M74",NA,"Winner M82",NA
-"Round of 16","M91","Winner M75","Winner M83","Winner M75",NA,"Winner M83",NA
-"Round of 16","M92","Winner M76","Winner M84","Winner M76",NA,"Winner M84",NA
-"Round of 16","M93","Winner M77","Winner M85","Winner M77",NA,"Winner M85",NA
-"Round of 16","M94","Winner M78","Winner M86","Winner M78",NA,"Winner M86",NA
-"Round of 16","M95","Winner M79","Winner M87","Winner M79",NA,"Winner M87",NA
-"Round of 16","M96","Winner M80","Winner M88","Winner M80",NA,"Winner M88",NA
-"Quarter-finals","M97","Winner M89","Winner M93","Winner M89",NA,"Winner M93",NA
-"Quarter-finals","M98","Winner M90","Winner M94","Winner M90",NA,"Winner M94",NA
-"Quarter-finals","M99","Winner M91","Winner M95","Winner M91",NA,"Winner M95",NA
-"Quarter-finals","M100","Winner M92","Winner M96","Winner M92",NA,"Winner M96",NA
-"Semi-finals","M101","Winner M97","Winner M99","Winner M97",NA,"Winner M99",NA
-"Semi-finals","M102","Winner M98","Winner M100","Winner M98",NA,"Winner M100",NA
-"Final","M104","Winner M101","Winner M102","Winner M101",NA,"Winner M102",NA
-"Champion","Champion","Champion","","Argentina",0.028625,"",NA
+"round","match_id","slot1_label","slot2_label","slot1_team","slot1_display","slot1_probability","slot1_source_match_id","slot2_team","slot2_display","slot2_probability","slot2_source_match_id","projected_winner_team","projected_winner","projected_winner_stage_probability","projected_winner_title_probability","next_match_id","projected_winner_continues"
+"Round of 32","M73","Winner Group E","Best 3rd A/B/C/D/F","Germany","Germany",0.44,NA,"Qatar","Qatar",0.224,NA,"Germany","Germany",0.894,0.0279375,"M89",TRUE
+"Round of 32","M74","Winner Group I","Best 3rd C/D/F/G/H","France","France",0.416,NA,"Cape Verde","Cape Verde",0.204,NA,"France","France",0.832,0.026,"M90",FALSE
+"Round of 32","M75","Runner-up Group A","Runner-up Group B","Korea Republic","South Korea",0.524,NA,"Canada","Canada",0.696,NA,"Canada","Canada",0.854,0.0266875,"M91",FALSE
+"Round of 32","M76","Winner Group F","Runner-up Group C","Netherlands","Netherlands",0.398,NA,"Morocco","Morocco",0.624,NA,"Netherlands","Netherlands",0.8,0.025,"M92",FALSE
+"Round of 32","M77","Winner Group D","Best 3rd B/E/F/I/J","Turkey","Turkiye",0.338,NA,"Ivory Coast","Cote d'Ivoire",0.216,NA,"Turkey","Turkiye",0.758,0.0236875,"M93",FALSE
+"Round of 32","M78","Winner Group G","Best 3rd A/E/H/I/J","Belgium","Belgium",0.402,NA,"Ivory Coast","Cote d'Ivoire",0.216,NA,"Belgium","Belgium",0.806,0.0251875,"M94",FALSE
+"Round of 32","M79","Winner Group H","Runner-up Group J","Spain","Spain",0.58,NA,"Algeria","Algeria",0.45,NA,"Spain","Spain",0.914,0.0285625,"M95",TRUE
+"Round of 32","M80","Runner-up Group K","Runner-up Group L","Colombia","Colombia",0.712,NA,"England","England",0.706,NA,"Colombia","Colombia",0.868,0.027125,"M96",TRUE
+"Round of 32","M81","Winner Group A","Best 3rd C/E/F/H/I","Mexico","Mexico",0.452,NA,"Ivory Coast","Cote d'Ivoire",0.216,NA,"Mexico","Mexico",0.874,0.0273125,"M89",FALSE
+"Round of 32","M82","Winner Group C","Best 3rd A/B/F/G/K","Brazil","Brazil",0.484,NA,"Qatar","Qatar",0.224,NA,"Brazil","Brazil",0.892,0.027875,"M90",TRUE
+"Round of 32","M83","Winner Group B","Best 3rd E/F/G/I/J","Switzerland","Switzerland",0.468,NA,"Norway","Norway",0.196,NA,"Switzerland","Switzerland",0.864,0.027,"M91",TRUE
+"Round of 32","M84","Winner Group J","Runner-up Group H","Argentina","Argentina",0.584,NA,"Uruguay","Uruguay",0.618,NA,"Argentina","Argentina",0.916,0.028625,"M92",TRUE
+"Round of 32","M85","Winner Group K","Best 3rd A/B/D/E/I","Colombia","Colombia",0.416,NA,"Qatar","Qatar",0.224,NA,"Colombia","Colombia",0.868,0.027125,"M93",TRUE
+"Round of 32","M86","Winner Group L","Best 3rd C/D/E/F/H","England","England",0.43,NA,"Ivory Coast","Cote d'Ivoire",0.216,NA,"England","England",0.83,0.0259375,"M94",TRUE
+"Round of 32","M87","Runner-up Group D","Runner-up Group E","Turkey","Turkiye",0.59,NA,"Ecuador","Ecuador",0.71,NA,"Ecuador","Ecuador",0.868,0.027125,"M95",FALSE
+"Round of 32","M88","Runner-up Group F","Runner-up Group G","Japan","Japan",0.532,NA,"Belgium","Belgium",0.666,NA,"Belgium","Belgium",0.806,0.0251875,"M96",FALSE
+"Round of 16","M89","Winner M73","Winner M81","Germany","Germany",0.894,"M73","Mexico","Mexico",0.874,"M81","Germany","Germany",0.8046,0.0279375,"M97",TRUE
+"Round of 16","M90","Winner M74","Winner M82","France","France",0.832,"M74","Brazil","Brazil",0.892,"M82","Brazil","Brazil",0.8028,0.027875,"M98",TRUE
+"Round of 16","M91","Winner M75","Winner M83","Canada","Canada",0.854,"M75","Switzerland","Switzerland",0.864,"M83","Switzerland","Switzerland",0.7776,0.027,"M99",FALSE
+"Round of 16","M92","Winner M76","Winner M84","Netherlands","Netherlands",0.8,"M76","Argentina","Argentina",0.916,"M84","Argentina","Argentina",0.8244,0.028625,"M100",TRUE
+"Round of 16","M93","Winner M77","Winner M85","Turkey","Turkiye",0.758,"M77","Colombia","Colombia",0.868,"M85","Colombia","Colombia",0.7812,0.027125,"M97",FALSE
+"Round of 16","M94","Winner M78","Winner M86","Belgium","Belgium",0.806,"M78","England","England",0.83,"M86","England","England",0.747,0.0259375,"M98",FALSE
+"Round of 16","M95","Winner M79","Winner M87","Spain","Spain",0.914,"M79","Ecuador","Ecuador",0.868,"M87","Spain","Spain",0.8226,0.0285625,"M99",TRUE
+"Round of 16","M96","Winner M80","Winner M88","Colombia","Colombia",0.868,"M80","Belgium","Belgium",0.806,"M88","Colombia","Colombia",0.7812,0.027125,"M100",FALSE
+"Quarter-finals","M97","Winner M89","Winner M93","Germany","Germany",0.8046,"M89","Colombia","Colombia",0.7812,"M93","Germany","Germany",0.64368,0.0279375,"M101",FALSE
+"Quarter-finals","M98","Winner M90","Winner M94","Brazil","Brazil",0.8028,"M90","England","England",0.747,"M94","Brazil","Brazil",0.64224,0.027875,"M102",FALSE
+"Quarter-finals","M99","Winner M91","Winner M95","Switzerland","Switzerland",0.7776,"M91","Spain","Spain",0.8226,"M95","Spain","Spain",0.65808,0.0285625,"M101",TRUE
+"Quarter-finals","M100","Winner M92","Winner M96","Argentina","Argentina",0.8244,"M92","Colombia","Colombia",0.7812,"M96","Argentina","Argentina",0.65952,0.028625,"M102",TRUE
+"Semi-finals","M101","Winner M97","Winner M99","Germany","Germany",0.64368,"M97","Spain","Spain",0.65808,"M99","Spain","Spain",0.4803984,0.0285625,"M104",FALSE
+"Semi-finals","M102","Winner M98","Winner M100","Brazil","Brazil",0.64224,"M98","Argentina","Argentina",0.65952,"M100","Argentina","Argentina",0.4814496,0.028625,"M104",TRUE
+"Final","M104","Winner M101","Winner M102","Spain","Spain",0.4803984,"M101","Argentina","Argentina",0.4814496,"M102","Argentina","Argentina",0.028625,0.028625,"Champion",TRUE
+"Champion","Champion","Champion","","Argentina","Argentina",0.028625,"M104",NA,NA,NA,NA,"Argentina","Argentina",0.028625,0.028625,NA,FALSE
