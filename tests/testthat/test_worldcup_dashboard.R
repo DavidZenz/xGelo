@@ -102,6 +102,57 @@ test_that("dynamic World Cup knockouts sample route probabilities, not Elo-only 
   expect_equal(reachers$champion, "E1")
 })
 
+test_that("World Cup tournament simulation chunks are deterministic across workers", {
+  source(file.path(project_root, "R/forecast/tournament.R"))
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  groups <- load_worldcup_2026_groups(file.path(project_root, "data/raw/worldcup_2026_groups.csv"))
+  fixtures <- make_worldcup_group_fixtures(
+    groups,
+    schedule_path = file.path(project_root, "data/raw/worldcup_2026_group_fixtures.csv")
+  )
+  scoreline_distributions <- do.call(rbind, lapply(fixtures$match_id, function(match_id) {
+    data.frame(
+      match_id = match_id,
+      home_goals = c(0L, 1L),
+      away_goals = c(0L, 0L),
+      probability = c(0.45, 0.55),
+      rank = 1:2,
+      stringsAsFactors = FALSE
+    )
+  }))
+  always_slot1_route <- function(team1, team2) {
+    list(
+      slot1_regulation_win_probability = 1,
+      slot2_regulation_win_probability = 0,
+      tiebreak_probability = 1
+    )
+  }
+
+  serial <- simulate_group_stage_dashboard(
+    groups,
+    fixtures,
+    scoreline_distributions,
+    n_tournaments = 8,
+    seed = 20260612,
+    knockout_route_estimator = always_slot1_route,
+    n_workers = 1
+  )
+  parallel <- simulate_group_stage_dashboard(
+    groups,
+    fixtures,
+    scoreline_distributions,
+    n_tournaments = 8,
+    seed = 20260612,
+    knockout_route_estimator = always_slot1_route,
+    n_workers = 2
+  )
+
+  expect_equal(parallel$group_probabilities, serial$group_probabilities)
+  expect_equal(parallel$expected_group_tables, serial$expected_group_tables)
+  expect_equal(parallel$stage_probabilities, serial$stage_probabilities)
+})
+
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/forecast/tournament.R"))
@@ -134,6 +185,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     n_match_sim = 20,
     n_tournaments = 10,
     seed = 7,
+    n_workers = 2,
     elo_current_path = elo_ratings_path,
     home_model_path = home_model_path,
     away_model_path = away_model_path,
@@ -157,6 +209,21 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_equal(nrow(payload$group_probabilities), 48)
   expect_equal(sum(payload$group_probabilities$round_of_32_probability), 32, tolerance = 0.001)
   expect_equal(sum(payload$group_probabilities$third_place_qual_probability), 8, tolerance = 0.001)
+  expect_true(all(c(
+    "fifa_code",
+    "position_1_probability",
+    "position_2_probability",
+    "position_3_probability",
+    "position_4_probability"
+  ) %in% names(payload$group_probabilities)))
+  expect_equal(
+    payload$group_probabilities$position_1_probability +
+      payload$group_probabilities$position_2_probability +
+      payload$group_probabilities$position_3_probability +
+      payload$group_probabilities$position_4_probability,
+    rep(1, nrow(payload$group_probabilities)),
+    tolerance = 0.001
+  )
   expect_true(all(payload$stage_probabilities$champion_probability >= 0))
   expect_true(all(payload$stage_probabilities$champion_probability <= 1))
   expect_gt(stats::sd(payload$stage_probabilities$rating), 0)
@@ -215,6 +282,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
       !is.na(payload$bracket_paths$slot2_team) &
       nzchar(payload$bracket_paths$slot2_team),
   ]
+  expect_equal(payload$metadata$n_workers, normalise_dashboard_workers(2, 10))
   expect_equal(
     knockout_paths$slot1_advancement_probability + knockout_paths$slot2_advancement_probability,
     rep(1, nrow(knockout_paths)),
@@ -284,6 +352,13 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Built from ${intFmt(data.metadata.n_match_sim)} match simulations", html, fixed = TRUE))
   expect_true(grepl("Created by <a href=\"https://github.com/DavidZenz\"", html, fixed = TRUE))
   expect_true(grepl("rel=\"noopener\"", html, fixed = TRUE))
+  expect_true(grepl("xPts<br>Avg", html, fixed = TRUE))
+  expect_true(grepl("3rd<br>Top 8", html, fixed = TRUE))
+  expect_true(grepl("heat-cell", html, fixed = TRUE))
+  expect_true(grepl("team-flag", html, fixed = TRUE))
+  expect_false(grepl("team-code", html, fixed = TRUE))
+  expect_true(grepl("--prob:", html, fixed = TRUE))
+  expect_true(grepl("position_1_probability", html, fixed = TRUE))
   expect_true(grepl("Closest group-win race", html, fixed = TRUE))
   expect_true(grepl("Leader margin", html, fixed = TRUE))
   expect_true(grepl("Win spread", html, fixed = TRUE))

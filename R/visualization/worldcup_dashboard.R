@@ -345,7 +345,6 @@ make_knockout_route_estimator <- function(
   elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
   elo_ratings$date <- as.Date(elo_ratings$date)
   match_date <- as.Date(date)
-  counter <- 0L
 
   model_has_side_context <- function(model) {
     inherits(model, c("glm", "lm", "negbin", "side_context_goal_model")) &&
@@ -420,14 +419,24 @@ make_knockout_route_estimator <- function(
     )
   }
 
+  stable_route_seed <- function(key) {
+    if (is.null(seed)) return(sample.int(.Machine$integer.max, 1))
+    codes <- utf8ToInt(key)
+    hash <- 0
+    for (code in codes) {
+      hash <- (hash * 131 + code) %% 1000000000
+    }
+    route_seed <- (seed + hash) %% .Machine$integer.max
+    as.integer(if (route_seed <= 0) route_seed + .Machine$integer.max else route_seed)
+  }
+
   function(team1, team2) {
     if ((is.na(team1) || !nzchar(team1)) || (is.na(team2) || !nzchar(team2))) {
       return(NULL)
     }
     key <- paste(team1, team2, sep = "\r")
     if (!exists(key, envir = cache, inherits = FALSE)) {
-      counter <<- counter + 1L
-      route_seed <- if (!is.null(seed)) seed + counter else sample.int(.Machine$integer.max, 1)
+      route_seed <- stable_route_seed(key)
       route <- preserve_random_state(estimate_uncached(team1, team2, route_seed))
       assign(key, route, envir = cache)
     }
@@ -500,6 +509,16 @@ simulate_knockout_bracket_once <- function(
   reachers
 }
 
+normalise_dashboard_workers <- function(n_workers, n_tournaments) {
+  n_workers <- suppressWarnings(as.integer(n_workers))
+  if (is.na(n_workers) || n_workers < 1L) n_workers <- 1L
+  n_workers <- min(n_workers, as.integer(n_tournaments))
+  if (.Platform$OS.type == "windows") {
+    return(1L)
+  }
+  n_workers
+}
+
 simulate_group_stage_dashboard <- function(
     groups,
     fixtures,
@@ -510,6 +529,7 @@ simulate_group_stage_dashboard <- function(
     knockout_date = NULL,
     n_knockout_sim = 1000,
     knockout_route_estimator = NULL,
+    n_workers = getOption("xgelo.dashboard_workers", 1L),
     ...
 ) {
   if (!exists("rank_group_table")) {
@@ -558,74 +578,95 @@ simulate_group_stage_dashboard <- function(
     )
   }
 
-  for (iteration in seq_len(n_tournaments)) {
-    stats <- data.frame(
-      team = team_names,
-      group = teams$group,
-      points = 0,
-      goals_for = 0,
-      goals_against = 0,
-      stringsAsFactors = FALSE
-    )
+  count_columns <- setdiff(names(counts), c("team", "group", "display_team"))
+  worker_count <- normalise_dashboard_workers(n_workers, n_tournaments)
+  iteration_seeds <- sample.int(.Machine$integer.max, n_tournaments)
+  seed_chunks <- split(iteration_seeds, rep(seq_len(worker_count), length.out = n_tournaments))
+  simulate_chunk <- function(chunk_seeds) {
+    chunk_counts <- counts
+    chunk_counts[count_columns] <- 0
 
-    for (i in seq_len(nrow(fixtures))) {
-      fixture <- fixtures[i, ]
-      dist <- dists[[fixture$match_id]]
-      sampled <- dist[sample(seq_len(nrow(dist)), size = 1, prob = dist$probability), ]
-      home_goals <- as.integer(sampled$home_goals)
-      away_goals <- as.integer(sampled$away_goals)
-      home_points <- if (home_goals > away_goals) 3 else if (home_goals == away_goals) 1 else 0
-      away_points <- if (away_goals > home_goals) 3 else if (home_goals == away_goals) 1 else 0
-      home_idx <- match(fixture$home_team, stats$team)
-      away_idx <- match(fixture$away_team, stats$team)
-      stats$points[home_idx] <- stats$points[home_idx] + home_points
-      stats$points[away_idx] <- stats$points[away_idx] + away_points
-      stats$goals_for[home_idx] <- stats$goals_for[home_idx] + home_goals
-      stats$goals_against[home_idx] <- stats$goals_against[home_idx] + away_goals
-      stats$goals_for[away_idx] <- stats$goals_for[away_idx] + away_goals
-      stats$goals_against[away_idx] <- stats$goals_against[away_idx] + home_goals
-    }
+    for (iteration_seed in chunk_seeds) {
+      set.seed(iteration_seed)
+      stats <- data.frame(
+        team = team_names,
+        group = teams$group,
+        points = 0,
+        goals_for = 0,
+        goals_against = 0,
+        stringsAsFactors = FALSE
+      )
 
-    ranked_groups <- list()
-    for (group_id in LETTERS[1:12]) {
-      table <- stats[stats$group == group_id, ]
-      table$goal_difference <- table$goals_for - table$goals_against
-      table$tie_breaker <- runif(nrow(table))
-      ranked <- rank_group_table(table)
-      ranked$finish_position <- seq_len(nrow(ranked))
-      ranked_groups[[group_id]] <- ranked
-
-      counts$group_win_count[match(ranked$team[1], counts$team)] <- counts$group_win_count[match(ranked$team[1], counts$team)] + 1
-      top_two <- ranked$team[1:2]
-      counts$top_two_count[match(top_two, counts$team)] <- counts$top_two_count[match(top_two, counts$team)] + 1
-      for (position in 1:4) {
-        col <- paste0("pos", position, "_count")
-        counts[[col]][match(ranked$team[position], counts$team)] <- counts[[col]][match(ranked$team[position], counts$team)] + 1
+      for (i in seq_len(nrow(fixtures))) {
+        fixture <- fixtures[i, ]
+        dist <- dists[[fixture$match_id]]
+        sampled <- dist[sample(seq_len(nrow(dist)), size = 1, prob = dist$probability), ]
+        home_goals <- as.integer(sampled$home_goals)
+        away_goals <- as.integer(sampled$away_goals)
+        home_points <- if (home_goals > away_goals) 3 else if (home_goals == away_goals) 1 else 0
+        away_points <- if (away_goals > home_goals) 3 else if (home_goals == away_goals) 1 else 0
+        home_idx <- match(fixture$home_team, stats$team)
+        away_idx <- match(fixture$away_team, stats$team)
+        stats$points[home_idx] <- stats$points[home_idx] + home_points
+        stats$points[away_idx] <- stats$points[away_idx] + away_points
+        stats$goals_for[home_idx] <- stats$goals_for[home_idx] + home_goals
+        stats$goals_against[home_idx] <- stats$goals_against[home_idx] + away_goals
+        stats$goals_for[away_idx] <- stats$goals_for[away_idx] + away_goals
+        stats$goals_against[away_idx] <- stats$goals_against[away_idx] + home_goals
       }
+
+      ranked_groups <- list()
+      for (group_id in LETTERS[1:12]) {
+        table <- stats[stats$group == group_id, ]
+        table$goal_difference <- table$goals_for - table$goals_against
+        table$tie_breaker <- runif(nrow(table))
+        ranked <- rank_group_table(table)
+        ranked$finish_position <- seq_len(nrow(ranked))
+        ranked_groups[[group_id]] <- ranked
+
+        chunk_counts$group_win_count[match(ranked$team[1], chunk_counts$team)] <- chunk_counts$group_win_count[match(ranked$team[1], chunk_counts$team)] + 1
+        top_two <- ranked$team[1:2]
+        chunk_counts$top_two_count[match(top_two, chunk_counts$team)] <- chunk_counts$top_two_count[match(top_two, chunk_counts$team)] + 1
+        for (position in 1:4) {
+          col <- paste0("pos", position, "_count")
+          chunk_counts[[col]][match(ranked$team[position], chunk_counts$team)] <- chunk_counts[[col]][match(ranked$team[position], chunk_counts$team)] + 1
+        }
+      }
+
+      all_ranked <- do.call(rbind, ranked_groups)
+      third_place <- all_ranked[all_ranked$finish_position == 3, ]
+      third_place <- third_place[order(-third_place$points, -third_place$goal_difference, -third_place$goals_for, third_place$tie_breaker), ]
+      best_third_rows <- head(third_place, 8)
+      best_thirds <- best_third_rows$team
+      round_of_32 <- union(all_ranked$team[all_ranked$finish_position <= 2], best_thirds)
+      chunk_counts$third_qual_count[match(best_thirds, chunk_counts$team)] <- chunk_counts$third_qual_count[match(best_thirds, chunk_counts$team)] + 1
+      chunk_counts$round_of_32_count[match(round_of_32, chunk_counts$team)] <- chunk_counts$round_of_32_count[match(round_of_32, chunk_counts$team)] + 1
+      knockout_reachers <- simulate_knockout_bracket_once(
+        ranked_groups,
+        best_third_rows,
+        rating_by_team,
+        knockout_route_estimator = knockout_route_estimator
+      )
+      chunk_counts$round_of_16_count[match(knockout_reachers$round_of_16, chunk_counts$team)] <- chunk_counts$round_of_16_count[match(knockout_reachers$round_of_16, chunk_counts$team)] + 1
+      chunk_counts$quarterfinal_count[match(knockout_reachers$quarterfinal, chunk_counts$team)] <- chunk_counts$quarterfinal_count[match(knockout_reachers$quarterfinal, chunk_counts$team)] + 1
+      chunk_counts$semifinal_count[match(knockout_reachers$semifinal, chunk_counts$team)] <- chunk_counts$semifinal_count[match(knockout_reachers$semifinal, chunk_counts$team)] + 1
+      chunk_counts$final_count[match(knockout_reachers$final, chunk_counts$team)] <- chunk_counts$final_count[match(knockout_reachers$final, chunk_counts$team)] + 1
+      chunk_counts$champion_count[match(knockout_reachers$champion, chunk_counts$team)] <- chunk_counts$champion_count[match(knockout_reachers$champion, chunk_counts$team)] + 1
+      chunk_counts$points_sum[team_index] <- chunk_counts$points_sum[team_index] + stats$points
+      chunk_counts$goals_for_sum[team_index] <- chunk_counts$goals_for_sum[team_index] + stats$goals_for
+      chunk_counts$goals_against_sum[team_index] <- chunk_counts$goals_against_sum[team_index] + stats$goals_against
     }
 
-    all_ranked <- do.call(rbind, ranked_groups)
-    third_place <- all_ranked[all_ranked$finish_position == 3, ]
-    third_place <- third_place[order(-third_place$points, -third_place$goal_difference, -third_place$goals_for, third_place$tie_breaker), ]
-    best_third_rows <- head(third_place, 8)
-    best_thirds <- best_third_rows$team
-    round_of_32 <- union(all_ranked$team[all_ranked$finish_position <= 2], best_thirds)
-    counts$third_qual_count[match(best_thirds, counts$team)] <- counts$third_qual_count[match(best_thirds, counts$team)] + 1
-    counts$round_of_32_count[match(round_of_32, counts$team)] <- counts$round_of_32_count[match(round_of_32, counts$team)] + 1
-    knockout_reachers <- simulate_knockout_bracket_once(
-      ranked_groups,
-      best_third_rows,
-      rating_by_team,
-      knockout_route_estimator = knockout_route_estimator
-    )
-    counts$round_of_16_count[match(knockout_reachers$round_of_16, counts$team)] <- counts$round_of_16_count[match(knockout_reachers$round_of_16, counts$team)] + 1
-    counts$quarterfinal_count[match(knockout_reachers$quarterfinal, counts$team)] <- counts$quarterfinal_count[match(knockout_reachers$quarterfinal, counts$team)] + 1
-    counts$semifinal_count[match(knockout_reachers$semifinal, counts$team)] <- counts$semifinal_count[match(knockout_reachers$semifinal, counts$team)] + 1
-    counts$final_count[match(knockout_reachers$final, counts$team)] <- counts$final_count[match(knockout_reachers$final, counts$team)] + 1
-    counts$champion_count[match(knockout_reachers$champion, counts$team)] <- counts$champion_count[match(knockout_reachers$champion, counts$team)] + 1
-    counts$points_sum[team_index] <- counts$points_sum[team_index] + stats$points
-    counts$goals_for_sum[team_index] <- counts$goals_for_sum[team_index] + stats$goals_for
-    counts$goals_against_sum[team_index] <- counts$goals_against_sum[team_index] + stats$goals_against
+    chunk_counts
+  }
+  chunk_counts <- if (worker_count > 1L) {
+    parallel::mclapply(seed_chunks, simulate_chunk, mc.cores = worker_count, mc.preschedule = TRUE)
+  } else {
+    lapply(seed_chunks, simulate_chunk)
+  }
+  counts[count_columns] <- 0
+  for (chunk in chunk_counts) {
+    counts[count_columns] <- counts[count_columns] + chunk[count_columns]
   }
 
   position_counts <- counts[, c("pos1_count", "pos2_count", "pos3_count", "pos4_count")]
@@ -650,10 +691,15 @@ simulate_group_stage_dashboard <- function(
     group = counts$group,
     team = counts$team,
     display_team = counts$display_team,
+    fifa_code = teams$fifa_code,
     group_win_probability = counts$group_win_count / n_tournaments,
     top_two_probability = counts$top_two_count / n_tournaments,
     third_place_qual_probability = counts$third_qual_count / n_tournaments,
     round_of_32_probability = counts$round_of_32_count / n_tournaments,
+    position_1_probability = counts$pos1_count / n_tournaments,
+    position_2_probability = counts$pos2_count / n_tournaments,
+    position_3_probability = counts$pos3_count / n_tournaments,
+    position_4_probability = counts$pos4_count / n_tournaments,
     most_likely_position = most_likely_position,
     projected_position = projected_position,
     stringsAsFactors = FALSE
@@ -1083,6 +1129,7 @@ build_worldcup_dashboard_data <- function(
     n_match_sim = 1000,
     n_tournaments = 1000,
     seed = 20260611,
+    n_workers = getOption("xgelo.dashboard_workers", 1L),
     elo_ratings_path = "data/processed/elo_ratings.csv",
     elo_current_path = "data/processed/elo_current.csv",
     ...
@@ -1128,7 +1175,8 @@ build_worldcup_dashboard_data <- function(
     knockout_ratings = knockout_ratings,
     knockout_date = tournament_knockout_date,
     n_knockout_sim = n_match_sim,
-    knockout_route_estimator = knockout_route_estimator
+    knockout_route_estimator = knockout_route_estimator,
+    n_workers = n_workers
   )
   stage_probabilities <- group_data$stage_probabilities
   champion_probabilities <- stage_probabilities[order(-stage_probabilities$champion_probability), c("team", "display_team", "group", "champion_probability")]
@@ -1149,6 +1197,7 @@ build_worldcup_dashboard_data <- function(
       generated_at = as.character(Sys.time()),
       n_match_sim = n_match_sim,
       n_tournaments = n_tournaments,
+      n_workers = normalise_dashboard_workers(n_workers, n_tournaments),
       format_note = "48 teams, 12 groups of four, top two plus eight best third-place teams reach the Round of 32.",
       fixture_source = "FIFA World Cup 2026 group-stage fixture schedule, cross-checked against FourFourTwo listing updated 2026-06-05.",
       caveat = "Pre-match forecast only. No injuries, lineups, or live state. Knockout ET/pens routes are an Elo tiebreak allocation of drawn 90-minute simulations."
@@ -1182,22 +1231,23 @@ dashboard_html_template <- function(json_text) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>xGelo 2026 World Cup Forecast</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%231d1d1f%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279%27 fill=%27%23fff%27/%3E%3Cpath d=%27M16 7v18M7 16h18%27 stroke=%27%23c84b42%27 stroke-width=%272%27/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 fill=%27%231d1d1f%27/%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%279%27 fill=%27%23fff%27/%3E%3Cpath d=%27M16 7v18M7 16h18%27 stroke=%27%233573a8%27 stroke-width=%272%27/%3E%3C/svg%3E">
 <style>
-:root{--ink:#1d1d1f;--muted:#666;--line:#d8d8d8;--paper:#f7f6f2;--panel:#fff;--red:#c84b42;--blue:#3573a8;--gold:#d29d2b;--green:#3b8754}
+:root{--ink:#1d1d1f;--muted:#666;--line:#d8d8d8;--paper:#f7f6f2;--panel:#fff;--blue:#3573a8;--blue-dark:#24577e;--blue-soft:#eef6fb;--gold:#d29d2b;--green:#3b8754}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4}
 header{padding:22px 24px 14px;border-bottom:1px solid var(--line);background:#fff}
-h1{margin:0;font-family:Georgia,serif;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
+h1{margin:0;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
 .subhead{margin-top:8px;max-width:980px;color:#444}.subhead a{color:var(--blue);font-weight:700;text-decoration:none}.subhead a:hover{text-decoration:underline}.meta{margin-top:10px;color:var(--muted);font-size:12px}
 main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
-.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--red);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .note{font-size:12px;color:var(--muted)}
-.section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}
-.group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
+.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .note{font-size:12px;color:var(--muted)}
+.section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}
+.group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
+.group-table th,.group-table td{border-bottom:0}.group-table th{text-align:center}.group-table th:first-child{text-align:left}.group-table th.xpts-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:9px;font-weight:700}.team-flag{font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-variant-numeric:tabular-nums}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
-.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--red);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--red);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--red);background:#fffdf8}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-tooltip{cursor:help}.bracket-game.has-tooltip:hover,.bracket-link-label.has-tooltip:hover{z-index:120}.has-tooltip::after{content:attr(data-tooltip);display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:130;width:310px;max-width:360px;padding:8px 9px;background:#1d1d1f;color:#fff;border:1px solid #000;font-size:12px;line-height:1.35;font-weight:400;white-space:pre-line;box-shadow:0 6px 16px rgba(0,0,0,.22);pointer-events:none}.has-tooltip:hover::after{display:block}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
+.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-tooltip{cursor:help}.bracket-game.has-tooltip:hover,.bracket-link-label.has-tooltip:hover{z-index:120}.has-tooltip::after{content:attr(data-tooltip);display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:130;width:310px;max-width:360px;padding:8px 9px;background:#1d1d1f;color:#fff;border:1px solid #000;font-size:12px;line-height:1.35;font-weight:400;white-space:pre-line;box-shadow:0 6px 16px rgba(0,0,0,.22);pointer-events:none}.has-tooltip:hover::after{display:block}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
 @media(max-width:1180px){.hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -1226,6 +1276,26 @@ const num = v => Number(v).toFixed(2);
 const maybeNum = v => v == null || Number.isNaN(Number(v)) ? "" : Number(v).toFixed(2);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"\']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","\'":"&#39;"}[c]));
 const by = (rows, key) => rows.reduce((acc, row) => ((acc[row[key]] ||= []).push(row), acc), {});
+const pctNum = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1);
+const fifaToIso2 = {
+  ALG:"DZ", ARG:"AR", AUS:"AU", AUT:"AT", BEL:"BE", BIH:"BA", BRA:"BR", CAN:"CA",
+  CIV:"CI", COD:"CD", COL:"CO", CPV:"CV", CRO:"HR", CUW:"CW", CZE:"CZ", ECU:"EC",
+  EGY:"EG", ENG:"GB", ESP:"ES", FRA:"FR", GER:"DE", GHA:"GH", HAI:"HT", IRN:"IR",
+  IRQ:"IQ", JOR:"JO", JPN:"JP", KOR:"KR", KSA:"SA", MAR:"MA", MEX:"MX", NED:"NL",
+  NOR:"NO", NZL:"NZ", PAN:"PA", PAR:"PY", POR:"PT", QAT:"QA", RSA:"ZA", SCO:"GB",
+  SEN:"SN", SUI:"CH", SWE:"SE", TUN:"TN", TUR:"TR", URU:"UY", USA:"US", UZB:"UZ"
+};
+function flagEmoji(code){
+  const iso = fifaToIso2[code] || code;
+  if (!/^[A-Z]{2}$/.test(iso)) return "";
+  return String.fromCodePoint(...[...iso].map(c => 127397 + c.charCodeAt(0)));
+}
+function heatCell(value, className = ""){
+  const prob = Number(value);
+  const heat = Math.max(0.10, Math.min(0.92, 0.12 + prob * 0.78));
+  const strong = prob >= 0.55 ? " strong" : "";
+  return `<td class="heat-cell ${className}${strong}" style="--heat:${heat.toFixed(3)};--prob:${Math.max(0, Math.min(1, prob)).toFixed(3)}"><span class="heat-val">${pctNum(prob)}</span></td>`;
+}
 document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
 document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
@@ -1255,9 +1325,10 @@ function renderGroups(){
   const exp = by(data.expected_group_tables, "team");
   document.getElementById("groupsGrid").innerHTML = Object.keys(probs).sort().map(g => {
     const rows = probs[g].slice().sort((a,b)=>(a.projected_position ?? a.most_likely_position)-(b.projected_position ?? b.most_likely_position));
-    return `<div class="group-box"><h2>Group ${g}</h2><table><thead><tr><th>Team</th><th class="num">Pts</th><th class="num">Qual</th><th class="num">Win</th></tr></thead><tbody>${rows.map(r => {
-      const e = exp[r.team][0];
-      return `<tr><td>${esc(r.display_team)}<div class="probbar"><span style="width:${100*r.round_of_32_probability}%"></span></div></td><td class="num">${num(e.expected_points)}</td><td class="num">${pct(r.round_of_32_probability)}</td><td class="num">${pct(r.group_win_probability)}</td></tr>`;
+    return `<div class="group-box"><h2>Group ${g}</h2><table class="group-table"><thead><tr><th>Team</th><th class="num xpts-head">xPts<br>Avg</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">R32</th><th class="num">3rd<br>Top 8</th></tr></thead><tbody>${rows.map(r => {
+      const e = (exp[r.team] && exp[r.team][0]) || {};
+      const code = r.fifa_code || "";
+      return `<tr><td class="team-cell"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(r.display_team)}</span></div></td><td class="xpts-cell">${Number(e.expected_points).toFixed(1)}</td>${heatCell(r.position_1_probability)}${heatCell(r.position_2_probability)}${heatCell(r.position_3_probability)}${heatCell(r.position_4_probability)}${heatCell(r.round_of_32_probability, "qual")}${heatCell(r.third_place_qual_probability, "third")}</tr>`;
     }).join("")}</tbody></table></div>`;
   }).join("");
 }
@@ -1455,6 +1526,7 @@ build_worldcup_dashboard <- function(
     n_match_sim = 1000,
     n_tournaments = 1000,
     seed = 20260611,
+    n_workers = getOption("xgelo.dashboard_workers", 1L),
     elo_ratings_path = "data/processed/elo_ratings.csv",
     elo_current_path = "data/processed/elo_current.csv",
     ...
@@ -1466,6 +1538,7 @@ build_worldcup_dashboard <- function(
     n_match_sim = n_match_sim,
     n_tournaments = n_tournaments,
     seed = seed,
+    n_workers = n_workers,
     elo_ratings_path = elo_ratings_path,
     elo_current_path = elo_current_path,
     ...

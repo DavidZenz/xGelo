@@ -225,7 +225,8 @@ the generated static HTML.
 
 Dashboard views include:
 
-- Group tables with expected points and qualification probabilities.
+- Group matrices with expected points, finish-position probabilities,
+  Round-of-32 qualification, and best-third probabilities.
 - Match cards with win/draw/loss probabilities, projected goals, modal
   scorelines, over 2.5, and both-teams-to-score probabilities.
 - A connected bracket tree that projects the most likely path from Round of 32
@@ -238,6 +239,12 @@ The bracket is a presentation path estimate derived from full tournament
 simulations. Knockout games do not allow draws: each matchup advances one team
 through either a 90-minute win or the combined ET/pens tiebreak bucket. The
 dashboard does not model injuries, lineups, or live state.
+
+The dashboard tournament simulation can run in deterministic parallel chunks on
+Unix-like systems by passing `n_workers` to `build_worldcup_dashboard()` or by
+setting `options(xgelo.dashboard_workers = N)`. Each tournament draw receives
+its own seed, so a seeded run is reproducible across serial and parallel worker
+counts. Windows falls back to serial execution.
 
 ## Key Outputs
 
