@@ -54,6 +54,10 @@ related but not identical:
 - Group-stage matches use 90-minute scoreline simulations directly. Each sampled
   score produces points, goals for, goals against, group ranks, and the best
   third-place qualifiers.
+- Group tables are ordered by projected rank from expected points, expected goal
+  difference, and expected goals for. The modal finishing position is retained in
+  the dashboard data as a diagnostic summary, but it is not used for the visible
+  table order because it can disagree with expected points for close teams.
 - Knockout matches first sample a 90-minute outcome from the same neutral
   goal-model route. If the 90-minute score is not drawn, that winner advances.
   If it is drawn, the drawn bucket is allocated through an Elo tiebreak share as

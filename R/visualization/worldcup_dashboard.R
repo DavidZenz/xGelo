@@ -630,6 +630,22 @@ simulate_group_stage_dashboard <- function(
 
   position_counts <- counts[, c("pos1_count", "pos2_count", "pos3_count", "pos4_count")]
   most_likely_position <- max.col(position_counts, ties.method = "first")
+  expected_points <- counts$points_sum / n_tournaments
+  expected_goals_for <- counts$goals_for_sum / n_tournaments
+  expected_goals_against <- counts$goals_against_sum / n_tournaments
+  expected_goal_difference <- (counts$goals_for_sum - counts$goals_against_sum) / n_tournaments
+  projected_position <- integer(nrow(counts))
+  for (group_id in unique(counts$group)) {
+    idx <- which(counts$group == group_id)
+    projected_order <- idx[order(
+      -expected_points[idx],
+      -expected_goal_difference[idx],
+      -expected_goals_for[idx],
+      -counts$group_win_count[idx] / n_tournaments,
+      counts$display_team[idx]
+    )]
+    projected_position[projected_order] <- seq_along(projected_order)
+  }
   group_probabilities <- data.frame(
     group = counts$group,
     team = counts$team,
@@ -639,21 +655,23 @@ simulate_group_stage_dashboard <- function(
     third_place_qual_probability = counts$third_qual_count / n_tournaments,
     round_of_32_probability = counts$round_of_32_count / n_tournaments,
     most_likely_position = most_likely_position,
+    projected_position = projected_position,
     stringsAsFactors = FALSE
   )
   expected_group_tables <- data.frame(
     group = counts$group,
     team = counts$team,
     display_team = counts$display_team,
-    expected_points = counts$points_sum / n_tournaments,
-    expected_goals_for = counts$goals_for_sum / n_tournaments,
-    expected_goals_against = counts$goals_against_sum / n_tournaments,
-    expected_goal_difference = (counts$goals_for_sum - counts$goals_against_sum) / n_tournaments,
+    expected_points = expected_points,
+    expected_goals_for = expected_goals_for,
+    expected_goals_against = expected_goals_against,
+    expected_goal_difference = expected_goal_difference,
     most_likely_position = most_likely_position,
+    projected_position = projected_position,
     stringsAsFactors = FALSE
   )
   group_probabilities <- group_probabilities[order(group_probabilities$group, -group_probabilities$round_of_32_probability), ]
-  expected_group_tables <- expected_group_tables[order(expected_group_tables$group, expected_group_tables$most_likely_position), ]
+  expected_group_tables <- expected_group_tables[order(expected_group_tables$group, expected_group_tables$projected_position), ]
   ratings <- knockout_ratings[match(team_names, knockout_ratings$team), ]
   ratings$rating[is.na(ratings$rating)] <- 1500
   stage_probabilities <- data.frame(
@@ -762,9 +780,9 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
     candidates <- group_probabilities[group_probabilities$group == group_letter, ]
     available <- candidates[!(candidates$team %in% used_teams), ]
     if (nrow(available) > 0) candidates <- available
-    preferred <- candidates[candidates$most_likely_position == 2, ]
+    preferred <- candidates[candidates$projected_position == 2, ]
     if (nrow(preferred) > 0) candidates <- preferred
-    candidates$runner_up_score <- ifelse(candidates$most_likely_position == 2, 1, 0) + candidates$top_two_probability
+    candidates$runner_up_score <- ifelse(candidates$projected_position == 2, 1, 0) + candidates$top_two_probability
     row <- candidates[which.max(candidates$runner_up_score), ]
     return(list(
       team = row$team,
@@ -778,9 +796,9 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
     candidates <- group_probabilities[group_probabilities$group %in% allowed, ]
     available <- candidates[!(candidates$team %in% used_teams), ]
     if (nrow(available) > 0) candidates <- available
-    preferred <- candidates[candidates$most_likely_position == 3, ]
+    preferred <- candidates[candidates$projected_position == 3, ]
     if (nrow(preferred) > 0) candidates <- preferred
-    candidates$third_score <- ifelse(candidates$most_likely_position == 3, 1, 0) + candidates$third_place_qual_probability
+    candidates$third_score <- ifelse(candidates$projected_position == 3, 1, 0) + candidates$third_place_qual_probability
     row <- candidates[which.max(candidates$third_score), ]
     return(list(
       team = row$team,
@@ -1195,7 +1213,7 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Group outcomes are sampled from match scoreline distributions. Knockout rounds resolve each simulated bracket directly from that tournament table, sample 90-minute goal-model outcomes, and allocate drawn 90-minute simulations to ET/pens advancement by Elo tiebreak share. The top exact score is the modal simulated scoreline; it can differ from the most likely match outcome because each outcome sums many scorelines. The rounded expected score is only rounded decimal projected goals.</p></details>
+<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. Knockout rounds resolve each simulated bracket directly from that tournament table, sample 90-minute goal-model outcomes, and allocate drawn 90-minute simulations to ET/pens advancement by Elo tiebreak share. The top exact score is the modal simulated scoreline; it can differ from the most likely match outcome because each outcome sums many scorelines. The rounded expected score is only rounded decimal projected goals.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">', json_text, '</script>
 <script>
@@ -1227,7 +1245,7 @@ function renderGroups(){
   const probs = by(data.group_probabilities, "group");
   const exp = by(data.expected_group_tables, "team");
   document.getElementById("groupsGrid").innerHTML = Object.keys(probs).sort().map(g => {
-    const rows = probs[g].slice().sort((a,b)=>a.most_likely_position-b.most_likely_position);
+    const rows = probs[g].slice().sort((a,b)=>(a.projected_position ?? a.most_likely_position)-(b.projected_position ?? b.most_likely_position));
     return `<div class="group-box"><h2>Group ${g}</h2><table><thead><tr><th>Team</th><th class="num">Pts</th><th class="num">Qual</th><th class="num">Win</th></tr></thead><tbody>${rows.map(r => {
       const e = exp[r.team][0];
       return `<tr><td>${esc(r.display_team)}<div class="probbar"><span style="width:${100*r.round_of_32_probability}%"></span></div></td><td class="num">${num(e.expected_points)}</td><td class="num">${pct(r.round_of_32_probability)}</td><td class="num">${pct(r.group_win_probability)}</td></tr>`;

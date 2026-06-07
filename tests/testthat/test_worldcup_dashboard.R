@@ -196,6 +196,17 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     "slot2_tiebreak_probability",
     "draw_after_regulation_probability"
   ) %in% names(payload$bracket_paths)))
+  expect_true("projected_position" %in% names(payload$group_probabilities))
+  expect_true("projected_position" %in% names(payload$expected_group_tables))
+  for (group_id in unique(payload$group_probabilities$group)) {
+    expect_equal(
+      sort(payload$group_probabilities$projected_position[payload$group_probabilities$group == group_id]),
+      1:4
+    )
+    group_table <- payload$expected_group_tables[payload$expected_group_tables$group == group_id, ]
+    expect_equal(group_table$projected_position, 1:4)
+    expect_true(all(diff(group_table$expected_points) <= 0))
+  }
   expect_false(any(is.na(payload$bracket_paths$projected_winner)))
   knockout_paths <- payload$bracket_paths[
     payload$bracket_paths$round != "Champion" &
@@ -276,6 +287,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("scoreline-bar", html, fixed = TRUE))
   expect_true(grepl("scoreline-fill", html, fixed = TRUE))
   expect_true(grepl("Projected winner", html, fixed = TRUE))
+  expect_true(grepl("projected_position", html, fixed = TRUE))
+  expect_true(grepl("Group tables are ordered by projected rank", html, fixed = TRUE))
   expect_true(grepl("data-match-probability", html, fixed = TRUE))
   expect_true(grepl("data-route-label", html, fixed = TRUE))
   expect_true(grepl("data-tooltip-detail", html, fixed = TRUE))
