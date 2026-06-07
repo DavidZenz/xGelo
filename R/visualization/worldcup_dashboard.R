@@ -201,7 +201,317 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
   )
 }
 
-simulate_group_stage_dashboard <- function(groups, fixtures, scoreline_distributions, n_tournaments = 1000, seed = 20260612) {
+worldcup_bracket_template <- function(include_champion = TRUE) {
+  round32 <- data.frame(
+    round = "Round of 32",
+    match_id = paste0("M", 73:88),
+    slot1_label = c(
+      "Winner Group E", "Winner Group I", "Runner-up Group A", "Winner Group F",
+      "Winner Group D", "Winner Group G", "Winner Group H", "Runner-up Group K",
+      "Winner Group A", "Winner Group C", "Winner Group B", "Winner Group J",
+      "Winner Group K", "Winner Group L", "Runner-up Group D", "Runner-up Group F"
+    ),
+    slot2_label = c(
+      "Best 3rd A/B/C/D/F", "Best 3rd C/D/F/G/H", "Runner-up Group B", "Runner-up Group C",
+      "Best 3rd B/E/F/I/J", "Best 3rd A/E/H/I/J", "Runner-up Group J", "Runner-up Group L",
+      "Best 3rd C/E/F/H/I", "Best 3rd A/B/F/G/K", "Best 3rd E/F/G/I/J", "Runner-up Group H",
+      "Best 3rd A/B/D/E/I", "Best 3rd C/D/E/F/H", "Runner-up Group E", "Runner-up Group G"
+    ),
+    stringsAsFactors = FALSE
+  )
+  later <- rbind(
+    data.frame(round = "Round of 16", match_id = paste0("M", 89:96), slot1_label = paste0("Winner M", 73:80), slot2_label = paste0("Winner M", 81:88)),
+    data.frame(round = "Quarter-finals", match_id = paste0("M", 97:100), slot1_label = paste0("Winner M", 89:92), slot2_label = paste0("Winner M", 93:96)),
+    data.frame(round = "Semi-finals", match_id = paste0("M", 101:102), slot1_label = paste0("Winner M", 97:98), slot2_label = paste0("Winner M", 99:100)),
+    data.frame(round = "Final", match_id = "M104", slot1_label = "Winner M101", slot2_label = "Winner M102"),
+    stringsAsFactors = FALSE
+  )
+  bracket <- rbind(round32, later)
+  if (include_champion) {
+    bracket <- rbind(
+      bracket,
+      data.frame(round = "Champion", match_id = "Champion", slot1_label = "Winner M104", slot2_label = "", stringsAsFactors = FALSE)
+    )
+  }
+  bracket
+}
+
+resolve_simulated_bracket_slot <- function(slot, ranked_groups, remaining_thirds, match_winners) {
+  winner_match <- regmatches(slot, regexpr("^Winner M[0-9]+$", slot))
+  if (length(winner_match) > 0 && nzchar(winner_match)) {
+    source_match_id <- sub("^Winner ", "", slot)
+    return(list(team = match_winners[[source_match_id]], remaining_thirds = remaining_thirds))
+  }
+
+  group_letter <- sub(".*Group ([A-L]).*", "\\1", slot)
+  if (grepl("^Winner Group [A-L]$", slot)) {
+    return(list(team = ranked_groups[[group_letter]]$team[1], remaining_thirds = remaining_thirds))
+  }
+  if (grepl("^Runner-up Group [A-L]$", slot)) {
+    return(list(team = ranked_groups[[group_letter]]$team[2], remaining_thirds = remaining_thirds))
+  }
+  if (grepl("^Best 3rd", slot)) {
+    allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
+    candidate_idx <- which(remaining_thirds$group %in% allowed)
+    chosen_idx <- if (length(candidate_idx) > 0) candidate_idx[1] else 1
+    team <- remaining_thirds$team[chosen_idx]
+    remaining_thirds <- remaining_thirds[-chosen_idx, , drop = FALSE]
+    return(list(team = team, remaining_thirds = remaining_thirds))
+  }
+
+  list(team = NA_character_, remaining_thirds = remaining_thirds)
+}
+
+knockout_advancement_probability <- function(team1, team2, rating_by_team) {
+  if ((is.na(team1) || !nzchar(team1)) && !is.na(team2) && nzchar(team2)) return(0)
+  if ((is.na(team2) || !nzchar(team2)) && !is.na(team1) && nzchar(team1)) return(1)
+  rating1 <- if (!is.na(team1) && team1 %in% names(rating_by_team)) rating_by_team[[team1]] else 1500
+  rating2 <- if (!is.na(team2) && team2 %in% names(rating_by_team)) rating_by_team[[team2]] else 1500
+  if (is.null(rating1) || is.na(rating1)) rating1 <- 1500
+  if (is.null(rating2) || is.na(rating2)) rating2 <- 1500
+  1 / (1 + 10^((rating2 - rating1) / 400))
+}
+
+summarise_knockout_scorelines <- function(slot1_goals, slot2_goals, top_n_scorelines = 5) {
+  n_sim <- length(slot1_goals)
+  scorelines <- aggregate(
+    count ~ slot1_goals + slot2_goals,
+    data = data.frame(slot1_goals = slot1_goals, slot2_goals = slot2_goals, count = 1L),
+    FUN = sum
+  )
+  scorelines$scoreline <- paste(scorelines$slot1_goals, scorelines$slot2_goals, sep = "-")
+  scorelines$outcome <- ifelse(
+    scorelines$slot1_goals > scorelines$slot2_goals,
+    "slot1_win",
+    ifelse(scorelines$slot1_goals == scorelines$slot2_goals, "draw", "slot2_win")
+  )
+  scorelines$probability <- scorelines$count / n_sim
+  scorelines$total_goals <- scorelines$slot1_goals + scorelines$slot2_goals
+  scorelines <- scorelines[order(-scorelines$probability, scorelines$total_goals, scorelines$slot1_goals, scorelines$slot2_goals), ]
+  top_scorelines <- head(scorelines, top_n_scorelines)
+  list(
+    most_likely_score = top_scorelines$scoreline[1],
+    most_likely_score_probability = top_scorelines$probability[1],
+    rounded_expected_score = paste(round(mean(slot1_goals)), round(mean(slot2_goals)), sep = "-"),
+    over_2_5_probability = mean(slot1_goals + slot2_goals > 2.5),
+    both_teams_to_score_probability = mean(slot1_goals > 0 & slot2_goals > 0),
+    top_scorelines_label = paste(
+      sprintf("%s %.1f%%", top_scorelines$scoreline, 100 * top_scorelines$probability),
+      collapse = " | "
+    )
+  )
+}
+
+sample_knockout_winner_from_route <- function(team1, team2, route) {
+  if ((is.na(team1) || !nzchar(team1)) && !is.na(team2) && nzchar(team2)) return(team2)
+  if ((is.na(team2) || !nzchar(team2)) && !is.na(team1) && nzchar(team1)) return(team1)
+  if (is.null(route)) stop("knockout route probabilities are required for two-team knockout matches")
+  u <- runif(1)
+  if (u <= route$slot1_regulation_win_probability) return(team1)
+  if (u <= route$slot1_regulation_win_probability + route$slot2_regulation_win_probability) return(team2)
+  if (runif(1) <= route$tiebreak_probability) team1 else team2
+}
+
+preserve_random_state <- function(expr) {
+  had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  old_seed <- if (had_seed) get(".Random.seed", envir = .GlobalEnv, inherits = FALSE) else NULL
+  on.exit({
+    if (had_seed) {
+      assign(".Random.seed", old_seed, envir = .GlobalEnv)
+    } else if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      rm(".Random.seed", envir = .GlobalEnv)
+    }
+  }, add = TRUE)
+  force(expr)
+}
+
+make_knockout_route_estimator <- function(
+    rating_by_team,
+    date,
+    n_sim = 1000,
+    seed = NULL,
+    home_model_path = "models/home_goal_model.rds",
+    away_model_path = "models/away_goal_model.rds",
+    elo_ratings_path = "data/processed/elo_ratings.csv",
+    top_n_scorelines = 5,
+    cache = new.env(parent = emptyenv())
+) {
+  if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
+  if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
+  if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
+
+  home_model <- readRDS(home_model_path)
+  away_model <- readRDS(away_model_path)
+  elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+  elo_ratings$date <- as.Date(elo_ratings$date)
+  match_date <- as.Date(date)
+  counter <- 0L
+
+  model_has_side_context <- function(model) {
+    inherits(model, c("glm", "lm", "negbin", "side_context_goal_model")) &&
+      !inherits(model, "constant_goal_model")
+  }
+  get_negative_binomial_theta <- function(model) {
+    theta <- model$theta
+    if (!is.null(theta) && is.numeric(theta) && length(theta) == 1 && is.finite(theta) && theta > 0) {
+      return(theta)
+    }
+    1
+  }
+  get_pre_match_elo <- function(team_name) {
+    team_rows <- elo_ratings[
+      elo_ratings$team == team_name &
+        !is.na(elo_ratings$rating) &
+        elo_ratings$date < match_date,
+    ]
+    if (nrow(team_rows) > 0) {
+      team_rows <- team_rows[order(team_rows$date, team_rows$is_post_match), ]
+      return(tail(team_rows$rating, 1))
+    }
+    fallback <- if (!is.na(team_name) && team_name %in% names(rating_by_team)) rating_by_team[[team_name]] else 1500
+    if (is.null(fallback) || is.na(fallback)) 1500 else fallback
+  }
+  estimate_uncached <- function(team1, team2, route_seed) {
+    tiebreak_probability <- knockout_advancement_probability(team1, team2, rating_by_team)
+    elo_diff <- get_pre_match_elo(team1) - get_pre_match_elo(team2)
+    if (model_has_side_context(home_model) || model_has_side_context(away_model)) {
+      slot1_lambda <- mean(c(
+        predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response"),
+        predict(away_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
+      ))
+      slot2_lambda <- mean(c(
+        predict(home_model, newdata = data.frame(elo_diff = -elo_diff), type = "response"),
+        predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+      ))
+    } else {
+      slot1_lambda <- predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
+      slot2_lambda <- predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+    }
+    if (!is.null(route_seed)) set.seed(route_seed)
+    slot1_goals <- rnbinom(n_sim, size = get_negative_binomial_theta(home_model), prob = get_negative_binomial_theta(home_model) / (get_negative_binomial_theta(home_model) + slot1_lambda))
+    slot2_goals <- rnbinom(n_sim, size = get_negative_binomial_theta(away_model), prob = get_negative_binomial_theta(away_model) / (get_negative_binomial_theta(away_model) + slot2_lambda))
+    slot1_regulation <- mean(slot1_goals > slot2_goals)
+    draw_after_regulation <- mean(slot1_goals == slot2_goals)
+    slot2_regulation <- mean(slot2_goals > slot1_goals)
+    slot1_extra <- draw_after_regulation * tiebreak_probability
+    slot2_extra <- draw_after_regulation * (1 - tiebreak_probability)
+    scoreline_summary <- summarise_knockout_scorelines(
+      slot1_goals,
+      slot2_goals,
+      top_n_scorelines = top_n_scorelines
+    )
+    list(
+      slot1_regulation_win_probability = slot1_regulation,
+      slot1_extra_time_penalty_probability = slot1_extra,
+      slot1_advancement_probability = slot1_regulation + slot1_extra,
+      slot2_regulation_win_probability = slot2_regulation,
+      slot2_extra_time_penalty_probability = slot2_extra,
+      slot2_advancement_probability = slot2_regulation + slot2_extra,
+      draw_after_regulation_probability = draw_after_regulation,
+      tiebreak_probability = tiebreak_probability,
+      slot1_expected_goals = mean(slot1_goals),
+      slot2_expected_goals = mean(slot2_goals),
+      most_likely_score = scoreline_summary$most_likely_score,
+      most_likely_score_probability = scoreline_summary$most_likely_score_probability,
+      rounded_expected_score = scoreline_summary$rounded_expected_score,
+      over_2_5_probability = scoreline_summary$over_2_5_probability,
+      both_teams_to_score_probability = scoreline_summary$both_teams_to_score_probability,
+      top_scorelines_label = scoreline_summary$top_scorelines_label
+    )
+  }
+
+  function(team1, team2) {
+    if ((is.na(team1) || !nzchar(team1)) || (is.na(team2) || !nzchar(team2))) {
+      return(NULL)
+    }
+    key <- paste(team1, team2, sep = "\r")
+    if (!exists(key, envir = cache, inherits = FALSE)) {
+      counter <<- counter + 1L
+      route_seed <- if (!is.null(seed)) seed + counter else sample.int(.Machine$integer.max, 1)
+      route <- preserve_random_state(estimate_uncached(team1, team2, route_seed))
+      assign(key, route, envir = cache)
+    }
+    get(key, envir = cache, inherits = FALSE)
+  }
+}
+
+estimate_knockout_route_probabilities <- function(
+    team1,
+    team2,
+    rating_by_team,
+    date,
+    n_sim = 1000,
+    seed = NULL,
+    ...
+) {
+  estimator <- make_knockout_route_estimator(
+    rating_by_team = rating_by_team,
+    date = date,
+    n_sim = n_sim,
+    seed = seed,
+    ...
+  )
+  estimator(team1, team2)
+}
+
+simulate_knockout_bracket_once <- function(
+    ranked_groups,
+    best_thirds,
+    rating_by_team,
+    knockout_route_estimator = NULL
+) {
+  if (is.null(knockout_route_estimator)) {
+    stop("knockout_route_estimator is required so knockouts use 90-minute goal-model routes")
+  }
+  bracket <- worldcup_bracket_template(include_champion = FALSE)
+  remaining_thirds <- best_thirds
+  match_winners <- list()
+  reachers <- list(
+    round_of_16 = character(),
+    quarterfinal = character(),
+    semifinal = character(),
+    final = character(),
+    champion = character()
+  )
+
+  for (i in seq_len(nrow(bracket))) {
+    slot1 <- resolve_simulated_bracket_slot(bracket$slot1_label[i], ranked_groups, remaining_thirds, match_winners)
+    remaining_thirds <- slot1$remaining_thirds
+    slot2 <- resolve_simulated_bracket_slot(bracket$slot2_label[i], ranked_groups, remaining_thirds, match_winners)
+    remaining_thirds <- slot2$remaining_thirds
+
+    route <- knockout_route_estimator(slot1$team, slot2$team)
+    winner <- sample_knockout_winner_from_route(slot1$team, slot2$team, route)
+    match_winners[[bracket$match_id[i]]] <- winner
+
+    if (bracket$round[i] == "Round of 32") {
+      reachers$round_of_16 <- c(reachers$round_of_16, winner)
+    } else if (bracket$round[i] == "Round of 16") {
+      reachers$quarterfinal <- c(reachers$quarterfinal, winner)
+    } else if (bracket$round[i] == "Quarter-finals") {
+      reachers$semifinal <- c(reachers$semifinal, winner)
+    } else if (bracket$round[i] == "Semi-finals") {
+      reachers$final <- c(reachers$final, winner)
+    } else if (bracket$round[i] == "Final") {
+      reachers$champion <- c(reachers$champion, winner)
+    }
+  }
+
+  reachers
+}
+
+simulate_group_stage_dashboard <- function(
+    groups,
+    fixtures,
+    scoreline_distributions,
+    n_tournaments = 1000,
+    seed = 20260612,
+    knockout_ratings = NULL,
+    knockout_date = NULL,
+    n_knockout_sim = 1000,
+    knockout_route_estimator = NULL,
+    ...
+) {
   if (!exists("rank_group_table")) {
     source("R/forecast/tournament.R")
   }
@@ -217,6 +527,11 @@ simulate_group_stage_dashboard <- function(groups, fixtures, scoreline_distribut
     top_two_count = 0,
     third_qual_count = 0,
     round_of_32_count = 0,
+    round_of_16_count = 0,
+    quarterfinal_count = 0,
+    semifinal_count = 0,
+    final_count = 0,
+    champion_count = 0,
     points_sum = 0,
     goals_for_sum = 0,
     goals_against_sum = 0,
@@ -227,6 +542,21 @@ simulate_group_stage_dashboard <- function(groups, fixtures, scoreline_distribut
     stringsAsFactors = FALSE
   )
   dists <- split(scoreline_distributions, scoreline_distributions$match_id)
+  if (is.null(knockout_ratings)) {
+    knockout_ratings <- data.frame(team = team_names, rating = 1500, stringsAsFactors = FALSE)
+  }
+  knockout_ratings <- knockout_ratings[knockout_ratings$team %in% team_names, c("team", "rating")]
+  rating_by_team <- stats::setNames(knockout_ratings$rating, knockout_ratings$team)
+  if (is.null(knockout_date)) knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
+  if (is.null(knockout_route_estimator)) {
+    knockout_route_estimator <- make_knockout_route_estimator(
+      rating_by_team = rating_by_team,
+      date = knockout_date,
+      n_sim = n_knockout_sim,
+      seed = if (!is.null(seed)) seed + 100000L else NULL,
+      ...
+    )
+  }
 
   for (iteration in seq_len(n_tournaments)) {
     stats <- data.frame(
@@ -277,10 +607,22 @@ simulate_group_stage_dashboard <- function(groups, fixtures, scoreline_distribut
     all_ranked <- do.call(rbind, ranked_groups)
     third_place <- all_ranked[all_ranked$finish_position == 3, ]
     third_place <- third_place[order(-third_place$points, -third_place$goal_difference, -third_place$goals_for, third_place$tie_breaker), ]
-    best_thirds <- head(third_place$team, 8)
+    best_third_rows <- head(third_place, 8)
+    best_thirds <- best_third_rows$team
     round_of_32 <- union(all_ranked$team[all_ranked$finish_position <= 2], best_thirds)
     counts$third_qual_count[match(best_thirds, counts$team)] <- counts$third_qual_count[match(best_thirds, counts$team)] + 1
     counts$round_of_32_count[match(round_of_32, counts$team)] <- counts$round_of_32_count[match(round_of_32, counts$team)] + 1
+    knockout_reachers <- simulate_knockout_bracket_once(
+      ranked_groups,
+      best_third_rows,
+      rating_by_team,
+      knockout_route_estimator = knockout_route_estimator
+    )
+    counts$round_of_16_count[match(knockout_reachers$round_of_16, counts$team)] <- counts$round_of_16_count[match(knockout_reachers$round_of_16, counts$team)] + 1
+    counts$quarterfinal_count[match(knockout_reachers$quarterfinal, counts$team)] <- counts$quarterfinal_count[match(knockout_reachers$quarterfinal, counts$team)] + 1
+    counts$semifinal_count[match(knockout_reachers$semifinal, counts$team)] <- counts$semifinal_count[match(knockout_reachers$semifinal, counts$team)] + 1
+    counts$final_count[match(knockout_reachers$final, counts$team)] <- counts$final_count[match(knockout_reachers$final, counts$team)] + 1
+    counts$champion_count[match(knockout_reachers$champion, counts$team)] <- counts$champion_count[match(knockout_reachers$champion, counts$team)] + 1
     counts$points_sum[team_index] <- counts$points_sum[team_index] + stats$points
     counts$goals_for_sum[team_index] <- counts$goals_for_sum[team_index] + stats$goals_for
     counts$goals_against_sum[team_index] <- counts$goals_against_sum[team_index] + stats$goals_against
@@ -312,38 +654,52 @@ simulate_group_stage_dashboard <- function(groups, fixtures, scoreline_distribut
   )
   group_probabilities <- group_probabilities[order(group_probabilities$group, -group_probabilities$round_of_32_probability), ]
   expected_group_tables <- expected_group_tables[order(expected_group_tables$group, expected_group_tables$most_likely_position), ]
+  ratings <- knockout_ratings[match(team_names, knockout_ratings$team), ]
+  ratings$rating[is.na(ratings$rating)] <- 1500
+  stage_probabilities <- data.frame(
+    team = team_names,
+    display_team = teams$display_team,
+    group = teams$group,
+    rating = ratings$rating,
+    round_of_32_probability = counts$round_of_32_count / n_tournaments,
+    round_of_16_probability = counts$round_of_16_count / n_tournaments,
+    quarterfinal_probability = counts$quarterfinal_count / n_tournaments,
+    semifinal_probability = counts$semifinal_count / n_tournaments,
+    final_probability = counts$final_count / n_tournaments,
+    champion_probability = counts$champion_count / n_tournaments,
+    stringsAsFactors = FALSE
+  )
   list(
     group_probabilities = group_probabilities,
-    expected_group_tables = expected_group_tables
+    expected_group_tables = expected_group_tables,
+    stage_probabilities = stage_probabilities
   )
 }
 
-estimate_stage_probabilities <- function(groups, group_probabilities, elo_current_path = "data/processed/elo_current.csv") {
+latest_elo_before_date <- function(
+    teams,
+    cutoff_date,
+    elo_ratings_path = "data/processed/elo_ratings.csv",
+    elo_current_path = "data/processed/elo_current.csv"
+) {
+  if (file.exists(elo_ratings_path)) {
+    elo_history <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+    elo_history$date <- as.Date(elo_history$date)
+    valid <- elo_history[
+      elo_history$team %in% teams &
+        !is.na(elo_history$rating) &
+        elo_history$date < as.Date(cutoff_date),
+    ]
+    if (nrow(valid) > 0) {
+      valid <- valid[order(valid$team, valid$date, valid$is_post_match), ]
+      latest <- do.call(rbind, lapply(split(valid, valid$team), function(rows) rows[nrow(rows), ]))
+      return(latest[, c("team", "rating")])
+    }
+  }
+
   elo <- read.csv(elo_current_path, stringsAsFactors = FALSE)
-  elo <- elo[, intersect(c("team", "rating"), names(elo))]
-  stages <- merge(group_probabilities, elo, by = "team", all.x = TRUE)
-  stages$rating[is.na(stages$rating)] <- 1500
-  strength <- exp((stages$rating - mean(stages$rating, na.rm = TRUE)) / 400)
-  stages$round_of_16_probability <- pmin(stages$round_of_32_probability * (0.25 + 0.75 * strength / max(strength)), 1)
-  stages$quarterfinal_probability <- pmin(stages$round_of_16_probability * (0.25 + 0.65 * strength / max(strength)), 1)
-  stages$semifinal_probability <- pmin(stages$quarterfinal_probability * (0.20 + 0.60 * strength / max(strength)), 1)
-  stages$final_probability <- pmin(stages$semifinal_probability * (0.18 + 0.55 * strength / max(strength)), 1)
-  champion_raw <- stages$final_probability * strength
-  stages$champion_probability <- if (sum(champion_raw) > 0) champion_raw / sum(champion_raw) else 1 / nrow(stages)
-  stages <- merge(stages, groups[, c("team", "display_team", "group", "fifa_code")], by = "team", all.x = TRUE, suffixes = c("", "_seed"))
-  data.frame(
-    team = stages$team,
-    display_team = ifelse(is.na(stages$display_team_seed), stages$display_team, stages$display_team_seed),
-    group = ifelse(is.na(stages$group_seed), stages$group, stages$group_seed),
-    rating = stages$rating,
-    round_of_32_probability = stages$round_of_32_probability,
-    round_of_16_probability = stages$round_of_16_probability,
-    quarterfinal_probability = stages$quarterfinal_probability,
-    semifinal_probability = stages$semifinal_probability,
-    final_probability = stages$final_probability,
-    champion_probability = stages$champion_probability,
-    stringsAsFactors = FALSE
-  )
+  elo <- elo[elo$team %in% teams & !is.na(elo$rating), intersect(c("team", "rating"), names(elo))]
+  elo
 }
 
 stage_probability_column <- function(round) {
@@ -368,7 +724,7 @@ team_stage_probability <- function(team, stage_probabilities, probability_col) {
   row[[probability_col]][1]
 }
 
-resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities, projections = list()) {
+resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities, projections = list(), used_teams = character()) {
   winner_match <- regmatches(slot, regexpr("^Winner M[0-9]+$", slot))
   if (length(winner_match) > 0 && nzchar(winner_match)) {
     source_match_id <- sub("^Winner ", "", slot)
@@ -392,6 +748,8 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
   group_letter <- sub(".*Group ([A-L]).*", "\\1", slot)
   if (grepl("^Winner Group [A-L]$", slot)) {
     candidates <- group_probabilities[group_probabilities$group == group_letter, ]
+    available <- candidates[!(candidates$team %in% used_teams), ]
+    if (nrow(available) > 0) candidates <- available
     row <- candidates[which.max(candidates$group_win_probability), ]
     return(list(
       team = row$team,
@@ -402,6 +760,10 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
   }
   if (grepl("^Runner-up Group [A-L]$", slot)) {
     candidates <- group_probabilities[group_probabilities$group == group_letter, ]
+    available <- candidates[!(candidates$team %in% used_teams), ]
+    if (nrow(available) > 0) candidates <- available
+    preferred <- candidates[candidates$most_likely_position == 2, ]
+    if (nrow(preferred) > 0) candidates <- preferred
     candidates$runner_up_score <- ifelse(candidates$most_likely_position == 2, 1, 0) + candidates$top_two_probability
     row <- candidates[which.max(candidates$runner_up_score), ]
     return(list(
@@ -414,7 +776,12 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
   if (grepl("^Best 3rd", slot)) {
     allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
     candidates <- group_probabilities[group_probabilities$group %in% allowed, ]
-    row <- candidates[which.max(candidates$third_place_qual_probability), ]
+    available <- candidates[!(candidates$team %in% used_teams), ]
+    if (nrow(available) > 0) candidates <- available
+    preferred <- candidates[candidates$most_likely_position == 3, ]
+    if (nrow(preferred) > 0) candidates <- preferred
+    candidates$third_score <- ifelse(candidates$most_likely_position == 3, 1, 0) + candidates$third_place_qual_probability
+    row <- candidates[which.max(candidates$third_score), ]
     return(list(
       team = row$team,
       display_team = row$display_team,
@@ -434,67 +801,137 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
   list(team = NA_character_, display_team = slot, probability = NA_real_, source_match_id = NA_character_)
 }
 
-build_bracket_paths <- function(group_probabilities, stage_probabilities) {
-  round32 <- data.frame(
-    round = "Round of 32",
-    match_id = paste0("M", 73:88),
-    slot1_label = c(
-      "Winner Group E", "Winner Group I", "Runner-up Group A", "Winner Group F",
-      "Winner Group D", "Winner Group G", "Winner Group H", "Runner-up Group K",
-      "Winner Group A", "Winner Group C", "Winner Group B", "Winner Group J",
-      "Winner Group K", "Winner Group L", "Runner-up Group D", "Runner-up Group F"
-    ),
-    slot2_label = c(
-      "Best 3rd A/B/C/D/F", "Best 3rd C/D/F/G/H", "Runner-up Group B", "Runner-up Group C",
-      "Best 3rd B/E/F/I/J", "Best 3rd A/E/H/I/J", "Runner-up Group J", "Runner-up Group L",
-      "Best 3rd C/E/F/H/I", "Best 3rd A/B/F/G/K", "Best 3rd E/F/G/I/J", "Runner-up Group H",
-      "Best 3rd A/B/D/E/I", "Best 3rd C/D/E/F/H", "Runner-up Group E", "Runner-up Group G"
-    ),
-    stringsAsFactors = FALSE
-  )
-  later <- rbind(
-    data.frame(round = "Round of 16", match_id = paste0("M", 89:96), slot1_label = paste0("Winner M", 73:80), slot2_label = paste0("Winner M", 81:88)),
-    data.frame(round = "Quarter-finals", match_id = paste0("M", 97:100), slot1_label = paste0("Winner M", 89:92), slot2_label = paste0("Winner M", 93:96)),
-    data.frame(round = "Semi-finals", match_id = paste0("M", 101:102), slot1_label = paste0("Winner M", 97:98), slot2_label = paste0("Winner M", 99:100)),
-    data.frame(round = "Final", match_id = "M104", slot1_label = "Winner M101", slot2_label = "Winner M102"),
-    data.frame(round = "Champion", match_id = "Champion", slot1_label = "Champion", slot2_label = "", stringsAsFactors = FALSE)
-  )
-  paths <- rbind(round32, later)
+build_bracket_paths <- function(
+    group_probabilities,
+    stage_probabilities,
+    knockout_date = NULL,
+    n_knockout_sim = 1000,
+    seed = 20260628,
+    knockout_route_estimator = NULL,
+    ...
+) {
+  paths <- worldcup_bracket_template(include_champion = TRUE)
   paths$slot1_team <- NA_character_
   paths$slot1_display <- NA_character_
   paths$slot1_probability <- NA_real_
+  paths$slot1_advancement_probability <- NA_real_
+  paths$slot1_regulation_win_probability <- NA_real_
+  paths$slot1_extra_time_penalty_probability <- NA_real_
+  paths$slot1_tiebreak_probability <- NA_real_
   paths$slot1_source_match_id <- NA_character_
   paths$slot2_team <- NA_character_
   paths$slot2_display <- NA_character_
   paths$slot2_probability <- NA_real_
+  paths$slot2_advancement_probability <- NA_real_
+  paths$slot2_regulation_win_probability <- NA_real_
+  paths$slot2_extra_time_penalty_probability <- NA_real_
+  paths$slot2_tiebreak_probability <- NA_real_
   paths$slot2_source_match_id <- NA_character_
+  paths$draw_after_regulation_probability <- NA_real_
   paths$projected_winner_team <- NA_character_
   paths$projected_winner <- NA_character_
+  paths$projected_winner_match_probability <- NA_real_
+  paths$projected_winner_regulation_probability <- NA_real_
+  paths$projected_winner_extra_time_penalty_probability <- NA_real_
+  paths$projected_winner_tiebreak_probability <- NA_real_
+  paths$projected_winner_route_label <- NA_character_
+  paths$slot1_expected_goals <- NA_real_
+  paths$slot2_expected_goals <- NA_real_
+  paths$most_likely_score <- NA_character_
+  paths$most_likely_score_probability <- NA_real_
+  paths$rounded_expected_score <- NA_character_
+  paths$over_2_5_probability <- NA_real_
+  paths$both_teams_to_score_probability <- NA_real_
+  paths$top_scorelines_label <- NA_character_
   paths$projected_winner_stage_probability <- NA_real_
   paths$projected_winner_title_probability <- NA_real_
   paths$next_match_id <- NA_character_
   paths$projected_winner_continues <- FALSE
 
   projections <- list()
+  used_group_stage_teams <- character()
+  rating_by_team <- stats::setNames(stage_probabilities$rating, stage_probabilities$team)
   for (i in seq_len(nrow(paths))) {
     slot1 <- resolve_bracket_slot(
       paths$slot1_label[i],
       group_probabilities = group_probabilities,
       stage_probabilities = stage_probabilities,
-      projections = projections
+      projections = projections,
+      used_teams = used_group_stage_teams
     )
     slot2 <- if (nzchar(paths$slot2_label[i])) {
       resolve_bracket_slot(
         paths$slot2_label[i],
         group_probabilities = group_probabilities,
         stage_probabilities = stage_probabilities,
-        projections = projections
+        projections = projections,
+        used_teams = c(used_group_stage_teams, slot1$team)
       )
     } else {
       list(team = NA_character_, display_team = NA_character_, probability = NA_real_, source_match_id = NA_character_)
     }
+    if (paths$round[i] == "Round of 32") {
+      used_group_stage_teams <- unique(c(used_group_stage_teams, slot1$team, slot2$team))
+      used_group_stage_teams <- used_group_stage_teams[!is.na(used_group_stage_teams) & nzchar(used_group_stage_teams)]
+    }
 
     probability_col <- stage_probability_column(paths$round[i])
+    slot1_advancement_probability <- NA_real_
+    slot2_advancement_probability <- NA_real_
+    slot1_regulation_win_probability <- NA_real_
+    slot2_regulation_win_probability <- NA_real_
+    slot1_extra_time_penalty_probability <- NA_real_
+    slot2_extra_time_penalty_probability <- NA_real_
+    slot1_tiebreak_probability <- NA_real_
+    slot2_tiebreak_probability <- NA_real_
+    draw_after_regulation_probability <- NA_real_
+    slot1_expected_goals <- NA_real_
+    slot2_expected_goals <- NA_real_
+    most_likely_score <- NA_character_
+    most_likely_score_probability <- NA_real_
+    rounded_expected_score <- NA_character_
+    over_2_5_probability <- NA_real_
+    both_teams_to_score_probability <- NA_real_
+    top_scorelines_label <- NA_character_
+    route <- NULL
+    if (!is.na(slot1$team) && nzchar(slot1$team) && !is.na(slot2$team) && nzchar(slot2$team)) {
+      slot1_advancement_probability <- knockout_advancement_probability(slot1$team, slot2$team, rating_by_team)
+      slot2_advancement_probability <- 1 - slot1_advancement_probability
+      if (!is.null(knockout_route_estimator)) {
+        route <- knockout_route_estimator(slot1$team, slot2$team)
+      } else if (!is.null(knockout_date)) {
+        route <- estimate_knockout_route_probabilities(
+          team1 = slot1$team,
+          team2 = slot2$team,
+          rating_by_team = rating_by_team,
+          date = knockout_date,
+          n_sim = n_knockout_sim,
+          seed = seed + i,
+          ...
+        )
+      }
+      if (!is.null(route)) {
+        slot1_advancement_probability <- route$slot1_advancement_probability
+        slot2_advancement_probability <- route$slot2_advancement_probability
+        slot1_regulation_win_probability <- route$slot1_regulation_win_probability
+        slot2_regulation_win_probability <- route$slot2_regulation_win_probability
+        slot1_extra_time_penalty_probability <- route$slot1_extra_time_penalty_probability
+        slot2_extra_time_penalty_probability <- route$slot2_extra_time_penalty_probability
+        slot1_tiebreak_probability <- route$tiebreak_probability
+        slot2_tiebreak_probability <- 1 - route$tiebreak_probability
+        draw_after_regulation_probability <- route$draw_after_regulation_probability
+        slot1_expected_goals <- if (is.null(route$slot1_expected_goals)) NA_real_ else route$slot1_expected_goals
+        slot2_expected_goals <- if (is.null(route$slot2_expected_goals)) NA_real_ else route$slot2_expected_goals
+        most_likely_score <- if (is.null(route$most_likely_score)) NA_character_ else route$most_likely_score
+        most_likely_score_probability <- if (is.null(route$most_likely_score_probability)) NA_real_ else route$most_likely_score_probability
+        rounded_expected_score <- if (is.null(route$rounded_expected_score)) NA_character_ else route$rounded_expected_score
+        over_2_5_probability <- if (is.null(route$over_2_5_probability)) NA_real_ else route$over_2_5_probability
+        both_teams_to_score_probability <- if (is.null(route$both_teams_to_score_probability)) NA_real_ else route$both_teams_to_score_probability
+        top_scorelines_label <- if (is.null(route$top_scorelines_label)) NA_character_ else route$top_scorelines_label
+      }
+    } else if (!is.na(slot1$team) && nzchar(slot1$team) && paths$round[i] == "Champion") {
+      slot1_advancement_probability <- team_stage_probability(slot1$team, stage_probabilities, "champion_probability")
+    }
     candidates <- data.frame(
       team = c(slot1$team, slot2$team),
       display_team = c(slot1$display_team, slot2$display_team),
@@ -502,6 +939,7 @@ build_bracket_paths <- function(group_probabilities, stage_probabilities) {
         team_stage_probability(slot1$team, stage_probabilities, probability_col),
         team_stage_probability(slot2$team, stage_probabilities, probability_col)
       ),
+      match_probability = c(slot1_advancement_probability, slot2_advancement_probability),
       stringsAsFactors = FALSE
     )
     candidates <- candidates[!is.na(candidates$team) & nzchar(candidates$team), ]
@@ -511,25 +949,77 @@ build_bracket_paths <- function(group_probabilities, stage_probabilities) {
         team = champion$team,
         display_team = champion$display_team,
         stage_probability = champion$champion_probability,
+        match_probability = champion$champion_probability,
         stringsAsFactors = FALSE
       )
     }
     winner <- if (nrow(candidates) > 0) {
-      candidates[which.max(candidates$stage_probability), ]
+      ranking_probability <- ifelse(is.na(candidates$match_probability), candidates$stage_probability, candidates$match_probability)
+      candidates[which.max(ranking_probability), ]
     } else {
-      data.frame(team = NA_character_, display_team = NA_character_, stage_probability = NA_real_)
+      data.frame(team = NA_character_, display_team = NA_character_, stage_probability = NA_real_, match_probability = NA_real_)
     }
 
     paths$slot1_team[i] <- slot1$team
     paths$slot1_display[i] <- slot1$display_team
     paths$slot1_probability[i] <- slot1$probability
+    paths$slot1_advancement_probability[i] <- slot1_advancement_probability
+    paths$slot1_regulation_win_probability[i] <- slot1_regulation_win_probability
+    paths$slot1_extra_time_penalty_probability[i] <- slot1_extra_time_penalty_probability
+    paths$slot1_tiebreak_probability[i] <- slot1_tiebreak_probability
     paths$slot1_source_match_id[i] <- slot1$source_match_id
     paths$slot2_team[i] <- slot2$team
     paths$slot2_display[i] <- slot2$display_team
     paths$slot2_probability[i] <- slot2$probability
+    paths$slot2_advancement_probability[i] <- slot2_advancement_probability
+    paths$slot2_regulation_win_probability[i] <- slot2_regulation_win_probability
+    paths$slot2_extra_time_penalty_probability[i] <- slot2_extra_time_penalty_probability
+    paths$slot2_tiebreak_probability[i] <- slot2_tiebreak_probability
     paths$slot2_source_match_id[i] <- slot2$source_match_id
+    paths$draw_after_regulation_probability[i] <- draw_after_regulation_probability
+    paths$slot1_expected_goals[i] <- slot1_expected_goals
+    paths$slot2_expected_goals[i] <- slot2_expected_goals
+    paths$most_likely_score[i] <- most_likely_score
+    paths$most_likely_score_probability[i] <- most_likely_score_probability
+    paths$rounded_expected_score[i] <- rounded_expected_score
+    paths$over_2_5_probability[i] <- over_2_5_probability
+    paths$both_teams_to_score_probability[i] <- both_teams_to_score_probability
+    paths$top_scorelines_label[i] <- top_scorelines_label
     paths$projected_winner_team[i] <- winner$team[1]
     paths$projected_winner[i] <- winner$display_team[1]
+    paths$projected_winner_match_probability[i] <- winner$match_probability[1]
+    if (!is.na(winner$team[1]) && winner$team[1] == slot1$team) {
+      paths$projected_winner_regulation_probability[i] <- slot1_regulation_win_probability
+      paths$projected_winner_extra_time_penalty_probability[i] <- slot1_extra_time_penalty_probability
+    } else if (!is.na(winner$team[1]) && winner$team[1] == slot2$team) {
+      paths$projected_winner_regulation_probability[i] <- slot2_regulation_win_probability
+      paths$projected_winner_extra_time_penalty_probability[i] <- slot2_extra_time_penalty_probability
+    }
+    if (
+      !is.na(draw_after_regulation_probability) &&
+        draw_after_regulation_probability > 0 &&
+        !is.na(paths$projected_winner_extra_time_penalty_probability[i])
+    ) {
+      paths$projected_winner_tiebreak_probability[i] <-
+        paths$projected_winner_extra_time_penalty_probability[i] / draw_after_regulation_probability
+    }
+    if (
+      !is.na(paths$projected_winner_regulation_probability[i]) &&
+        !is.na(paths$projected_winner_extra_time_penalty_probability[i]) &&
+        !is.na(paths$projected_winner_tiebreak_probability[i])
+    ) {
+      paths$projected_winner_route_label[i] <- paste0(
+        "90' win ",
+        sprintf("%.1f%%", 100 * paths$projected_winner_regulation_probability[i]),
+        " + (90' draw ",
+        sprintf("%.1f%%", 100 * draw_after_regulation_probability),
+        " x ET/pens share ",
+        sprintf("%.1f%%", 100 * paths$projected_winner_tiebreak_probability[i]),
+        " = ",
+        sprintf("%.1f%%", 100 * paths$projected_winner_extra_time_penalty_probability[i]),
+        ")"
+      )
+    }
     paths$projected_winner_stage_probability[i] <- winner$stage_probability[1]
     paths$projected_winner_title_probability[i] <- team_stage_probability(
       winner$team[1],
@@ -575,25 +1065,65 @@ build_worldcup_dashboard_data <- function(
     n_match_sim = 1000,
     n_tournaments = 1000,
     seed = 20260611,
+    elo_ratings_path = "data/processed/elo_ratings.csv",
     elo_current_path = "data/processed/elo_current.csv",
     ...
 ) {
   suppressPackageStartupMessages({
     library(jsonlite)
   })
+  extra_args <- list(...)
+  home_model_path <- if (!is.null(extra_args$home_model_path)) extra_args$home_model_path else "models/home_goal_model.rds"
+  away_model_path <- if (!is.null(extra_args$away_model_path)) extra_args$away_model_path else "models/away_goal_model.rds"
   groups <- load_worldcup_2026_groups(groups_path)
   fixtures <- make_worldcup_group_fixtures(groups, schedule_path = schedule_path)
-  match_data <- forecast_dashboard_matches(fixtures, n_match_sim = n_match_sim, seed = seed, ...)
+  match_data <- forecast_dashboard_matches(
+    fixtures,
+    n_match_sim = n_match_sim,
+    seed = seed,
+    elo_ratings_path = elo_ratings_path,
+    ...
+  )
+  tournament_start_date <- min(fixtures$date, na.rm = TRUE)
+  knockout_ratings <- latest_elo_before_date(
+    teams = groups$team,
+    cutoff_date = tournament_start_date,
+    elo_ratings_path = elo_ratings_path,
+    elo_current_path = elo_current_path
+  )
+  tournament_knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
+  knockout_route_estimator <- make_knockout_route_estimator(
+    rating_by_team = stats::setNames(knockout_ratings$rating, knockout_ratings$team),
+    date = tournament_knockout_date,
+    n_sim = n_match_sim,
+    seed = seed + 100000L,
+    home_model_path = home_model_path,
+    away_model_path = away_model_path,
+    elo_ratings_path = elo_ratings_path
+  )
   group_data <- simulate_group_stage_dashboard(
     groups,
     fixtures,
     match_data$scoreline_distributions,
     n_tournaments = n_tournaments,
-    seed = seed + 1
+    seed = seed + 1,
+    knockout_ratings = knockout_ratings,
+    knockout_date = tournament_knockout_date,
+    n_knockout_sim = n_match_sim,
+    knockout_route_estimator = knockout_route_estimator
   )
-  stage_probabilities <- estimate_stage_probabilities(groups, group_data$group_probabilities, elo_current_path = elo_current_path)
+  stage_probabilities <- group_data$stage_probabilities
   champion_probabilities <- stage_probabilities[order(-stage_probabilities$champion_probability), c("team", "display_team", "group", "champion_probability")]
-  bracket_paths <- build_bracket_paths(group_data$group_probabilities, stage_probabilities)
+  bracket_paths <- build_bracket_paths(
+    group_data$group_probabilities,
+    stage_probabilities,
+    knockout_date = tournament_knockout_date,
+    n_knockout_sim = n_match_sim,
+    seed = seed + 2,
+    knockout_route_estimator = knockout_route_estimator,
+    elo_ratings_path = elo_ratings_path,
+    ...
+  )
   top_scorelines <- match_data$scoreline_distributions[match_data$scoreline_distributions$rank <= 5, ]
   payload <- list(
     metadata = list(
@@ -603,7 +1133,7 @@ build_worldcup_dashboard_data <- function(
       n_tournaments = n_tournaments,
       format_note = "48 teams, 12 groups of four, top two plus eight best third-place teams reach the Round of 32.",
       fixture_source = "FIFA World Cup 2026 group-stage fixture schedule, cross-checked against FourFourTwo listing updated 2026-06-05.",
-      caveat = "Pre-match forecast only. No injuries, lineups, live state, extra-time model, or penalty model."
+      caveat = "Pre-match forecast only. No injuries, lineups, or live state. Knockout ET/pens routes are an Elo tiebreak allocation of drawn 90-minute simulations."
     ),
     groups = groups,
     fixtures = fixtures,
@@ -648,11 +1178,11 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.scorelines{font-size:12px;color:#444;margin-top:8px}.scorelines span{display:inline-block;margin-right:8px}
-.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,46px);column-gap:96px;min-width:2200px;padding:34px 16px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--red);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--red);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:82px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--red);background:#fffdf8}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
+.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--red);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--red);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--red);background:#fffdf8}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-tooltip{cursor:help}.bracket-game.has-tooltip:hover,.bracket-link-label.has-tooltip:hover{z-index:120}.has-tooltip::after{content:attr(data-tooltip);display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:130;width:310px;max-width:360px;padding:8px 9px;background:#1d1d1f;color:#fff;border:1px solid #000;font-size:12px;line-height:1.35;font-weight:400;white-space:pre-line;box-shadow:0 6px 16px rgba(0,0,0,.22);pointer-events:none}.has-tooltip:hover::after{display:block}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
-@media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{min-width:2200px}}
+@media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{min-width:2720px}}
 @media(max-width:560px){main,header{padding-left:14px;padding-right:14px}.hero{grid-template-columns:1fr}h1{font-size:24px}}
 </style>
 </head>
@@ -665,16 +1195,17 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples group outcomes. The most likely score is the modal simulated scoreline. The rounded expected score is only rounded decimal projected goals. Knockout and title probabilities in this dashboard are path estimates for presentation, not a separate extra-time or penalty model.</p></details>
+<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Group outcomes are sampled from match scoreline distributions. Knockout rounds resolve each simulated bracket directly from that tournament table, sample 90-minute goal-model outcomes, and allocate drawn 90-minute simulations to ET/pens advancement by Elo tiebreak share. The top exact score is the modal simulated scoreline; it can differ from the most likely match outcome because each outcome sums many scorelines. The rounded expected score is only rounded decimal projected goals.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">', json_text, '</script>
 <script>
 const data = JSON.parse(document.getElementById("dashboard-data").textContent);
 const pct = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1) + "%";
 const num = v => Number(v).toFixed(2);
+const maybeNum = v => v == null || Number.isNaN(Number(v)) ? "" : Number(v).toFixed(2);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"\']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","\'":"&#39;"}[c]));
 const by = (rows, key) => rows.reduce((acc, row) => ((acc[row[key]] ||= []).push(row), acc), {});
-document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${data.metadata.n_match_sim} match sims | ${data.metadata.n_tournaments} group-stage sims | ${data.metadata.caveat}`;
+document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${data.metadata.n_match_sim} match sims | ${data.metadata.n_tournaments} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
   const groupRows = data.group_probabilities;
@@ -686,7 +1217,7 @@ function renderHero(){
   const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
   const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
   document.getElementById("hero").innerHTML = [
-    ["Top title chances", champs, "Simulation-derived title view"],
+    ["Top title chances", champs, "Full tournament simulations"],
     ["Likely final", finalTeams, "Highest final probabilities"],
     ["Strongest group favorite", `${topGroup.display_team} (${topGroup.group})`, pct(topGroup.group_win_probability)],
     ["Most open group", `Group ${uncertain.group}`, `Leader margin ${pct(uncertain.margin)}`]
@@ -709,8 +1240,13 @@ function renderMatches(){
   const scorelines = by(data.scoreline_distributions, "match_id");
   const rows = data.match_forecasts.filter(r => (!group || r.group === group) && (`${r.home_display} ${r.away_display}`.toLowerCase().includes(search)));
   document.getElementById("matchesGrid").innerHTML = rows.map(r => {
-    const tops = (scorelines[r.match_id] || []).slice(0,5).map(s => `<span>${esc(s.scoreline)} ${pct(s.probability)}</span>`).join("");
-    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div><div class="chips"><span class="chip">Projected ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Most likely ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span><span class="chip">Rounded xG ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div><div class="scorelines">${tops}</div></div>`;
+    const topRows = (scorelines[r.match_id] || []).slice(0,5);
+    const maxProb = Math.max(...topRows.map(s => Number(s.probability)), 0.01);
+    const topBars = topRows.map(s => {
+      const relWidth = Math.max(4, 100 * Number(s.probability) / maxProb);
+      return `<div class="scoreline-row"><div class="scoreline-score">${esc(s.scoreline)}</div><div class="scoreline-bar"><span class="scoreline-fill ${esc(s.outcome)}" style="width:${relWidth}%"></span></div><div class="scoreline-prob">${pct(s.probability)}</div></div>`;
+    }).join("");
+    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div><div class="chips"><span class="chip">Projected ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span><span class="chip">Rounded xG ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div><div class="scorelines"><div class="scoreline-heading">Top exact scorelines</div>${topBars}</div></div>`;
   }).join("");
 }
 function renderBracket(){
@@ -753,11 +1289,37 @@ function renderBracket(){
     const winnerLabel = isChampion ? "Projected champion" : "Projected winner";
     const slot1Source = g.slot1_source_match_id || "";
     const slot2Source = g.slot2_source_match_id || "";
-    const slot1Class = slot1Source ? " slot bracket-slot-target" : " slot";
-    const slot2Class = slot2Source ? " slot bracket-slot-target" : " slot";
-    const slot2 = g.slot2_label ? `<div class="${slot2Class}" data-source-match-id="${esc(slot2Source)}"><span>${esc(g.slot2_display || g.slot2_label)}</span><small>${pct(g.slot2_probability)}</small></div>` : "";
+    const slot1Probability = g.slot1_advancement_probability ?? g.slot1_probability;
+    const slot2Probability = g.slot2_advancement_probability ?? g.slot2_probability;
+    const projectedWinnerProbability = g.projected_winner_match_probability ?? g.projected_winner_stage_probability;
+    const tiebreakTooltip = g.slot2_label && g.slot1_tiebreak_probability != null && g.slot2_tiebreak_probability != null
+      ? (() => {
+          const first = g.projected_winner_team === g.slot2_team
+            ? [g.slot2_display || g.slot2_label, g.slot2_tiebreak_probability, g.slot1_display || g.slot1_label, g.slot1_tiebreak_probability]
+            : [g.slot1_display || g.slot1_label, g.slot1_tiebreak_probability, g.slot2_display || g.slot2_label, g.slot2_tiebreak_probability];
+          return `If ET/pens: ${first[0]} ${pct(first[1])} / ${first[2]} ${pct(first[3])}`;
+        })()
+      : "";
+    const routeTooltip = g.projected_winner_route_label
+      ? `Advance ${pct(projectedWinnerProbability)}\n${g.projected_winner_route_label}${tiebreakTooltip ? `\n${tiebreakTooltip}` : ""}`
+      : "";
+    const scoringTooltip = g.most_likely_score
+      ? [
+          "90-minute scoring",
+          `Projected goals ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)} | Rounded ${esc(g.rounded_expected_score || "")}`,
+          `Top exact score ${esc(g.most_likely_score)} (${pct(g.most_likely_score_probability)})`,
+          g.top_scorelines_label ? `Top scorelines ${g.top_scorelines_label}` : "",
+          `O2.5 ${pct(g.over_2_5_probability)} | BTTS ${pct(g.both_teams_to_score_probability)}`
+        ].filter(Boolean).join("\\n")
+      : "";
+    const tooltipDetail = [routeTooltip, scoringTooltip].filter(Boolean).join("\\n\\n");
+    const tooltipAttr = tooltipDetail ? ` data-tooltip="${esc(tooltipDetail)}"` : "";
+    const tooltipClass = tooltipDetail ? " has-tooltip" : "";
+    const slot1Class = slot1Source ? "slot bracket-slot-target" : "slot";
+    const slot2Class = slot2Source ? "slot bracket-slot-target" : "slot";
+    const slot2 = g.slot2_label ? `<div class="${slot2Class}" data-source-match-id="${esc(slot2Source)}"><span>${esc(g.slot2_display || g.slot2_label)}</span><small>${pct(slot2Probability)}</small></div>` : "";
     const championText = isChampion ? `<div class="bracket-champion">${esc(winnerLabel)}: ${esc(g.projected_winner)}</div><div class="bracket-prob">Title ${pct(g.projected_winner_title_probability)}</div>` : "";
-    return `<div class="bracket-game ${isChampion ? "champion" : "projected"}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-projected-winner="${esc(g.projected_winner || "")}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}"><span>${esc(g.slot1_display || g.slot1_label)}</span><small>${pct(g.slot1_probability)}</small></div>${slot2}`}</div>`;
+    return `<div class="bracket-game ${isChampion ? "champion" : `projected${tooltipClass}`}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-projected-winner="${esc(g.projected_winner || "")}" data-match-probability="${pct(projectedWinnerProbability)}" data-route-label="${esc(g.projected_winner_route_label || "")}" data-tooltip-detail="${esc(tooltipDetail)}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}"${tooltipAttr} style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}"><span>${esc(g.slot1_display || g.slot1_label)}</span><small>${pct(slot1Probability)}</small></div>${slot2}`}</div>`;
   }).join("");
   document.getElementById("bracketGrid").innerHTML = `<svg class="bracket-link-svg" aria-hidden="true"></svg>${titles}${games}`;
   requestAnimationFrame(drawBracketLinks);
@@ -786,15 +1348,18 @@ function drawBracketLinks(){
     const y2 = targetSlot
       ? targetSlot.offsetTop + next.offsetTop + targetSlot.offsetHeight / 2
       : next.offsetTop + next.offsetHeight / 2;
-    const mid = x1 + Math.max(18, (x2 - x1) / 2);
+    const mid = x1 + Math.max(48, (x2 - x1) / 2);
     const projectedPath = card.dataset.winnerContinues === "true" ? " projected-path" : "";
     const champion = nextId === "Champion" ? " champion" : "";
     paths.push(`<path class="bracket-link${projectedPath}${champion}" d="M${x1} ${y1} H${mid} V${y2} H${x2}"></path>`);
     const label = document.createElement("div");
-    label.className = `bracket-link-label${projectedPath}${champion}`;
-    label.style.left = `${x1 + 12}px`;
+    label.className = `bracket-link-label${projectedPath}${champion}${card.dataset.tooltipDetail ? " has-tooltip" : ""}`;
+    label.style.left = `${x1 + 24}px`;
     label.style.top = `${y1}px`;
-    label.textContent = `${card.dataset.projectedWinner} ${card.dataset.stageProbability}`;
+    if (card.dataset.tooltipDetail) {
+      label.dataset.tooltip = card.dataset.tooltipDetail;
+    }
+    label.textContent = `${card.dataset.projectedWinner} ${card.dataset.matchProbability}`;
     labels.push(label);
   });
   svg.innerHTML = paths.join("");
@@ -849,6 +1414,7 @@ build_worldcup_dashboard <- function(
     n_match_sim = 1000,
     n_tournaments = 1000,
     seed = 20260611,
+    elo_ratings_path = "data/processed/elo_ratings.csv",
     elo_current_path = "data/processed/elo_current.csv",
     ...
 ) {
@@ -859,6 +1425,7 @@ build_worldcup_dashboard <- function(
     n_match_sim = n_match_sim,
     n_tournaments = n_tournaments,
     seed = seed,
+    elo_ratings_path = elo_ratings_path,
     elo_current_path = elo_current_path,
     ...
   )

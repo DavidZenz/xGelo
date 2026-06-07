@@ -92,13 +92,39 @@ simulate_fixture <- function(
 
   elo_diff <- home_elo - away_elo
 
-  # Predict lambdas
-  home_lambda <- predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
-  away_lambda <- predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+  model_has_side_context <- function(model) {
+    inherits(model, c("glm", "lm", "negbin", "side_context_goal_model")) &&
+      !inherits(model, "constant_goal_model")
+  }
 
-  # Get theta (dispersion) from models
-  home_theta <- if (inherits(home_model, "glm.nb")) home_model$theta else 1
-  away_theta <- if (inherits(away_model, "glm.nb")) away_model$theta else 1
+  # Predict lambdas. Neutral fixtures should not inherit an arbitrary
+  # first-listed-team boost from separate home/away model intercepts.
+  if (venue == "neutral" && (model_has_side_context(home_model) || model_has_side_context(away_model))) {
+    home_lambda <- mean(c(
+      predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response"),
+      predict(away_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
+    ))
+    away_lambda <- mean(c(
+      predict(home_model, newdata = data.frame(elo_diff = -elo_diff), type = "response"),
+      predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+    ))
+  } else {
+    home_lambda <- predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
+    away_lambda <- predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+  }
+
+  get_negative_binomial_theta <- function(model) {
+    theta <- model$theta
+    if (!is.null(theta) && is.numeric(theta) && length(theta) == 1 && is.finite(theta) && theta > 0) {
+      return(theta)
+    }
+    1
+  }
+
+  # Get theta (dispersion) from models. MASS::glm.nb models are classed as
+  # "negbin", so use the fitted theta field rather than a class-name shortcut.
+  home_theta <- get_negative_binomial_theta(home_model)
+  away_theta <- get_negative_binomial_theta(away_model)
 
   # Simulate goals
   home_goals <- rnbinom(n_sim, size = home_theta, prob = home_theta / (home_theta + home_lambda))

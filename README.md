@@ -18,6 +18,9 @@ Monte Carlo simulations for fixture forecasts.
 - Simulates fixtures to estimate win, draw, loss, and expected goals.
 - Generates scoreline distributions, market-style summaries, and a static 2026
   World Cup dashboard with group, match, team, and bracket views.
+- Simulates the 2026 World Cup group stage from sampled scorelines, then
+  simulates knockout advancement from 90-minute goal-model outcomes plus an
+  Elo tiebreak allocation for matches drawn after regulation.
 - Produces validation outputs, calibration plots, and forecast CSV files.
 
 The current pipeline is defined in [`_targets.R`](_targets.R). It includes a
@@ -44,6 +47,30 @@ martj42 international results        StatsBomb event data
 
 The forecast layer uses negative-binomial goal simulation to allow overdispersed
 football scores instead of assuming Poisson variance.
+
+For the 2026 World Cup dashboard, group-stage and knockout-stage simulations are
+related but not identical:
+
+- Group-stage matches use 90-minute scoreline simulations directly. Each sampled
+  score produces points, goals for, goals against, group ranks, and the best
+  third-place qualifiers.
+- Knockout matches first sample a 90-minute outcome from the same neutral
+  goal-model route. If the 90-minute score is not drawn, that winner advances.
+  If it is drawn, the drawn bucket is allocated through an Elo tiebreak share as
+  a combined extra-time/penalty path.
+- The dashboard bracket displays both the total two-outcome advancement
+  probability and the projected winner route split, for example
+  `Advance 75.4% = 90' win 59.0% + (90' draw 21.8% x ET/pens share 75.2% = 16.4%)`.
+  It also shows the conditional tiebreak matchup, for example
+  `If ET/pens: Germany 75.2% / Scotland 24.8%`.
+- Bracket tooltips also include the projected knockout matchup's 90-minute
+  scoring view: expected goals, rounded score, top exact scorelines, over 2.5,
+  and both-teams-to-score probabilities. Drawn 90-minute scores remain possible
+  in that scoring view even though knockout advancement itself has no draw
+  outcome.
+
+The current model does not yet split extra time and penalties into separate
+sub-models; `ET/pens` is one combined tiebreak bucket.
 
 ## Repository Layout
 
@@ -179,11 +206,15 @@ Dashboard views include:
 - Match cards with win/draw/loss probabilities, projected goals, modal
   scorelines, over 2.5, and both-teams-to-score probabilities.
 - A connected bracket tree that projects the most likely path from Round of 32
-  through champion, with winner and title probabilities reflected in each round.
+  through champion, with two-outcome advancement probabilities, connector paths,
+  projected winner route splits, 90-minute scoring summaries, and title
+  probabilities reflected in each round.
 - Team pages showing stage probabilities and group fixtures.
 
-The bracket is a presentation path estimate. It does not model extra time,
-penalties, injuries, lineups, or live state.
+The bracket is a presentation path estimate derived from full tournament
+simulations. Knockout games do not allow draws: each matchup advances one team
+through either a 90-minute win or the combined ET/pens tiebreak bucket. The
+dashboard does not model injuries, lineups, or live state.
 
 ## Key Outputs
 
@@ -237,7 +268,8 @@ targets::tar_make(names = validation, callr_function = NULL)
 The test suite covers xG feature calculations, Elo counters, leakage-sensitive
 rolling-form behavior, forecast simulation sanity checks, calibration grouping,
 pipeline validation helpers, World Cup fixture contracts, dashboard exports, and
-bracket projection contracts.
+bracket projection contracts, including knockout route probabilities that sum to
+one winner per matchup.
 
 ## Important Caveats
 
@@ -257,5 +289,8 @@ bracket projection contracts.
 - [`RUNBOOK.md`](RUNBOOK.md): operational commands and troubleshooting
 - [`MODEL-CARD.md`](MODEL-CARD.md): intended use, model assumptions, metrics
 - [`DATA-INVENTORY.md`](DATA-INVENTORY.md): data sources, coverage, and licenses
+- [`.planning/research/SPI_MODEL_EVOLUTION.md`](.planning/research/SPI_MODEL_EVOLUTION.md):
+  notes on how professional forecasting systems such as SPI can inform future
+  model evolution
 - [`open_data_elo_xg_wcq_research_memo.md`](open_data_elo_xg_wcq_research_memo.md):
   research background and design rationale

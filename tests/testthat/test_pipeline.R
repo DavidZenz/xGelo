@@ -8,6 +8,10 @@ predict.constant_goal_model <- function(object, newdata, type = "response", ...)
   rep(object$lambda, nrow(newdata))
 }
 
+predict.side_context_goal_model <- function(object, newdata, type = "response", ...) {
+  exp(log(object$base_lambda) + object$elo_slope * newdata$elo_diff)
+}
+
 predict.two_bin_xg_model <- function(object, new_data, type = "prob", ...) {
   data.frame(
     ".pred_No Goal" = 1 - object$probabilities,
@@ -16,6 +20,7 @@ predict.two_bin_xg_model <- function(object, new_data, type = "prob", ...) {
   )
 }
 assign("predict.constant_goal_model", predict.constant_goal_model, envir = .GlobalEnv)
+assign("predict.side_context_goal_model", predict.side_context_goal_model, envir = .GlobalEnv)
 assign("predict.two_bin_xg_model", predict.two_bin_xg_model, envir = .GlobalEnv)
 
 test_that("all source files parse and source cleanly", {
@@ -90,6 +95,95 @@ test_that("negative-binomial simulation preserves predicted goal means", {
   expect_equal(result$expected_home, 1.4, tolerance = 0.08)
   expect_equal(result$expected_away, 0.7, tolerance = 0.08)
   expect_equal(result$total_prob, 1, tolerance = 0.001)
+})
+
+test_that("negative-binomial theta prevents scoreline distributions from becoming too zero-heavy", {
+  source(file.path(project_root, "R/forecast/monte_carlo.R"))
+
+  home_model_path <- tempfile(fileext = ".rds")
+  away_model_path <- tempfile(fileext = ".rds")
+  elo_ratings_path <- tempfile(fileext = ".csv")
+
+  saveRDS(structure(list(lambda = 2.8, theta = 100), class = c("constant_goal_model", "negbin")), home_model_path)
+  saveRDS(structure(list(lambda = 0.5, theta = 100), class = c("constant_goal_model", "negbin")), away_model_path)
+  write.csv(
+    data.frame(
+      date = as.Date(c("2020-01-01", "2020-01-01")),
+      team = c("A", "B"),
+      rating = c(1500, 1500),
+      is_post_match = c(TRUE, TRUE),
+      stringsAsFactors = FALSE
+    ),
+    elo_ratings_path,
+    row.names = FALSE
+  )
+
+  result <- simulate_fixture(
+    "A",
+    "B",
+    date = as.Date("2020-02-01"),
+    venue = "neutral",
+    home_model_path = home_model_path,
+    away_model_path = away_model_path,
+    elo_ratings_path = elo_ratings_path,
+    n_sim = 50000,
+    seed = 777
+  )
+
+  expect_equal(result$expected_home, 2.8, tolerance = 0.08)
+  expect_equal(result$expected_away, 0.5, tolerance = 0.08)
+  expect_false(result$most_likely_score == "0-0")
+  expect_true(result$most_likely_home_goals > result$most_likely_away_goals)
+})
+
+test_that("neutral fixtures do not depend on nominal home-team ordering", {
+  source(file.path(project_root, "R/forecast/monte_carlo.R"))
+
+  home_model_path <- tempfile(fileext = ".rds")
+  away_model_path <- tempfile(fileext = ".rds")
+  elo_ratings_path <- tempfile(fileext = ".csv")
+
+  saveRDS(structure(list(base_lambda = 1.6, elo_slope = 0.001, theta = 100), class = "side_context_goal_model"), home_model_path)
+  saveRDS(structure(list(base_lambda = 0.9, elo_slope = 0.001, theta = 100), class = "side_context_goal_model"), away_model_path)
+  write.csv(
+    data.frame(
+      date = as.Date(c("2020-01-01", "2020-01-01")),
+      team = c("A", "B"),
+      rating = c(1600, 1500),
+      is_post_match = c(TRUE, TRUE),
+      stringsAsFactors = FALSE
+    ),
+    elo_ratings_path,
+    row.names = FALSE
+  )
+
+  ab <- simulate_fixture(
+    "A",
+    "B",
+    date = as.Date("2020-02-01"),
+    venue = "neutral",
+    home_model_path = home_model_path,
+    away_model_path = away_model_path,
+    elo_ratings_path = elo_ratings_path,
+    n_sim = 80000,
+    seed = 1001
+  )
+  ba <- simulate_fixture(
+    "B",
+    "A",
+    date = as.Date("2020-02-01"),
+    venue = "neutral",
+    home_model_path = home_model_path,
+    away_model_path = away_model_path,
+    elo_ratings_path = elo_ratings_path,
+    n_sim = 80000,
+    seed = 1001
+  )
+
+  expect_equal(ab$expected_home, ba$expected_away, tolerance = 0.03)
+  expect_equal(ab$expected_away, ba$expected_home, tolerance = 0.03)
+  expect_equal(ab$win_prob, ba$loss_prob, tolerance = 0.02)
+  expect_equal(ab$loss_prob, ba$win_prob, tolerance = 0.02)
 })
 
 test_that("scoreline distribution and derived forecast summaries are coherent", {

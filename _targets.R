@@ -162,7 +162,7 @@ list(
       home_goal_model
       away_goal_model
       elo_ratings_file
-      dashboard <- build_worldcup_dashboard(n_match_sim = 500, n_tournaments = 500)
+      dashboard <- build_worldcup_dashboard(n_match_sim = 5000, n_tournaments = 5000)
       dashboard$paths$html
     },
     format = "file"

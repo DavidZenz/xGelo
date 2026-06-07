@@ -64,6 +64,7 @@ Free, open-data forecasting system combining Elo ratings with expected goals (xG
 3. **WCQ Hybrid Mode**: Manual cache of FotMob shot data for WCQ matches
 4. **Group stage simulation**: Full group table simulation, not just single matches
 5. **Advanced validation**: Rolling-origin time-series CV, concept drift detection
+6. **SPI-inspired rating evolution**: See `SPI_MODEL_EVOLUTION.md` for notes on offensive/defensive ratings, xG-based updates, and non-shot threat proxies.
 
 ### Phase 3: Production Readiness
 1. **Performance**: Optimize Monte Carlo (target <10s per fixture)
