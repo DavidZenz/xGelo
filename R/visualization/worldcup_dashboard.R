@@ -1188,10 +1188,10 @@ dashboard_html_template <- function(json_text) {
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.4}
 header{padding:22px 24px 14px;border-bottom:1px solid var(--line);background:#fff}
 h1{margin:0;font-family:Georgia,serif;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
-.subhead{margin-top:8px;max-width:920px;color:#444}.meta{margin-top:10px;color:var(--muted);font-size:12px}
+.subhead{margin-top:8px;max-width:980px;color:#444}.subhead a{color:var(--blue);font-weight:700;text-decoration:none}.subhead a:hover{text-decoration:underline}.meta{margin-top:10px;color:var(--muted);font-size:12px}
 main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
-.hero{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--red);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .note{font-size:12px;color:var(--muted)}
+.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--red);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .note{font-size:12px;color:var(--muted)}
 .section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}
 .group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
@@ -1200,12 +1200,13 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--red);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--red);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--red);background:#fffdf8}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-tooltip{cursor:help}.bracket-game.has-tooltip:hover,.bracket-link-label.has-tooltip:hover{z-index:120}.has-tooltip::after{content:attr(data-tooltip);display:none;position:absolute;left:0;top:calc(100% + 8px);z-index:130;width:310px;max-width:360px;padding:8px 9px;background:#1d1d1f;color:#fff;border:1px solid #000;font-size:12px;line-height:1.35;font-weight:400;white-space:pre-line;box-shadow:0 6px 16px rgba(0,0,0,.22);pointer-events:none}.has-tooltip:hover::after{display:block}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
+@media(max-width:1180px){.hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{min-width:2720px}}
 @media(max-width:560px){main,header{padding-left:14px;padding-right:14px}.hero{grid-template-columns:1fr}h1{font-size:24px}}
 </style>
 </head>
 <body>
-<header><h1>xGelo 2026 World Cup Forecast</h1><div class="subhead">Probabilities are the forecast. Modal scores and predicted outcomes are summaries of the simulated score distribution, not certainty.</div><div class="meta" id="meta"></div></header>
+<header><h1>xGelo 2026 World Cup Forecast</h1><div class="subhead" id="subhead"></div><div class="meta" id="meta"></div></header>
 <main>
 <div class="hero" id="hero"></div>
 <div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button></div>
@@ -1213,22 +1214,28 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. Knockout rounds resolve each simulated bracket directly from that tournament table, sample 90-minute goal-model outcomes, and allocate drawn 90-minute simulations to ET/pens advancement by Elo tiebreak share. The top exact score is the modal simulated scoreline; it can differ from the most likely match outcome because each outcome sums many scorelines. The rounded expected score is only rounded decimal projected goals.</p></details>
+<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. The closest group-win race uses the top-two leader margin; the open-group headline uses the spread between the highest and lowest group-win probabilities, so it reflects whether all four teams are close. Knockout rounds resolve each simulated bracket directly from that tournament table, sample 90-minute goal-model outcomes, and allocate drawn 90-minute simulations to ET/pens advancement by Elo tiebreak share. The top exact score is the modal simulated scoreline; it can differ from the most likely match outcome because each outcome sums many scorelines. The rounded expected score is only rounded decimal projected goals.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">', json_text, '</script>
 <script>
 const data = JSON.parse(document.getElementById("dashboard-data").textContent);
 const pct = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1) + "%";
+const pp = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1) + " pp";
 const num = v => Number(v).toFixed(2);
 const maybeNum = v => v == null || Number.isNaN(Number(v)) ? "" : Number(v).toFixed(2);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"\']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","\'":"&#39;"}[c]));
 const by = (rows, key) => rows.reduce((acc, row) => ((acc[row[key]] ||= []).push(row), acc), {});
+document.getElementById("subhead").innerHTML = `Built from ${data.metadata.n_match_sim} match simulations and ${data.metadata.n_tournaments} full tournament simulations. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
 document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${data.metadata.n_match_sim} match sims | ${data.metadata.n_tournaments} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
   const groupRows = data.group_probabilities;
   const topGroup = [...groupRows].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
-  const uncertain = Object.values(by(groupRows,"group")).map(rows => {
+  const open = Object.values(by(groupRows,"group")).map(rows => {
+    const winProbs = rows.map(row => Number(row.group_win_probability));
+    return {group: rows[0].group, spread: Math.max(...winProbs) - Math.min(...winProbs)};
+  }).sort((a,b)=>a.spread-b.spread)[0];
+  const closestRace = Object.values(by(groupRows,"group")).map(rows => {
     const sorted = [...rows].sort((a,b)=>b.group_win_probability-a.group_win_probability);
     return {group: rows[0].group, margin: sorted[0].group_win_probability - sorted[1].group_win_probability};
   }).sort((a,b)=>a.margin-b.margin)[0];
@@ -1238,7 +1245,8 @@ function renderHero(){
     ["Top title chances", champs, "Full tournament simulations"],
     ["Likely final", finalTeams, "Highest final probabilities"],
     ["Strongest group favorite", `${topGroup.display_team} (${topGroup.group})`, pct(topGroup.group_win_probability)],
-    ["Most open group", `Group ${uncertain.group}`, `Leader margin ${pct(uncertain.margin)}`]
+    ["Closest group-win race", `Group ${closestRace.group}`, `Leader margin ${pp(closestRace.margin)}`],
+    ["Most open group", `Group ${open.group}`, `Win spread ${pp(open.spread)}`]
   ].map(m => `<div class="metric"><div class="label">${esc(m[0])}</div><div class="value">${esc(m[1])}</div><div class="note">${esc(m[2])}</div></div>`).join("");
 }
 function renderGroups(){
