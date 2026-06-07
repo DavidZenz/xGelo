@@ -1404,6 +1404,20 @@ render_worldcup_dashboard <- function(data_json_path = "outputs/dashboard/worldc
   output_path
 }
 
+#' Publish the World Cup dashboard into the GitHub Pages tree
+#'
+#' @export
+publish_worldcup_dashboard_pages <- function(
+    data_json_path = "outputs/dashboard/worldcup_dashboard_data.json",
+    pages_dir = "docs/wc2026"
+) {
+  output_path <- file.path(pages_dir, "index.html")
+  site_root <- dirname(pages_dir)
+  if (!dir.exists(site_root)) dir.create(site_root, recursive = TRUE)
+  writeLines("", file.path(site_root, ".nojekyll"))
+  render_worldcup_dashboard(data_json_path = data_json_path, output_path = output_path)
+}
+
 #' Build data and render the World Cup dashboard
 #'
 #' @export

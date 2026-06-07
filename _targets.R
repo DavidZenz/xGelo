@@ -166,5 +166,13 @@ list(
       dashboard$paths$html
     },
     format = "file"
+  ),
+  tar_target(
+    worldcup_pages_file,
+    {
+      worldcup_dashboard_file
+      publish_worldcup_dashboard_pages()
+    },
+    format = "file"
   )
 )

@@ -142,6 +142,15 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
 
   expect_true(file.exists(payload$paths$data_json))
   expect_true(file.exists(payload$paths$html))
+  pages_dir <- file.path(output_dir, "docs", "wc2026")
+  pages_file <- publish_worldcup_dashboard_pages(
+    data_json_path = payload$paths$data_json,
+    pages_dir = pages_dir
+  )
+  expect_equal(normalizePath(pages_file), normalizePath(file.path(pages_dir, "index.html")))
+  expect_true(file.exists(pages_file))
+  expect_true(file.exists(file.path(output_dir, "docs", ".nojekyll")))
+  expect_true(grepl("xGelo 2026 World Cup Forecast", paste(readLines(pages_file, warn = FALSE), collapse = "\n"), fixed = TRUE))
   expect_equal(nrow(payload$match_forecasts), 72)
   expect_true(all(c("kickoff_local", "venue_name", "host_city", "host_country") %in% names(payload$match_forecasts)))
   expect_equal(length(unique(payload$scoreline_distributions$match_id)), 72)

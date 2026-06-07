@@ -155,6 +155,18 @@ source("_targets.R")
 targets::tar_make(names = worldcup_dashboard_file)
 ```
 
+Prepare the GitHub Pages copy at `docs/wc2026/index.html`:
+
+```r
+source("_targets.R")
+targets::tar_make(names = worldcup_pages_file)
+```
+
+The repository includes a GitHub Actions Pages workflow in
+`.github/workflows/deploy-pages.yml`. After GitHub Pages is configured to use
+**GitHub Actions** as its source, pushes to `master` deploy the contents of
+`docs/`.
+
 ## Generate A Forecast
 
 After the pipeline has produced `models/home_goal_model.rds`,
@@ -200,6 +212,13 @@ self-contained forecast view for the 2026 World Cup. It uses the seeded group
 data in `data/raw/worldcup_2026_groups.csv` and the schedule-backed group-stage
 fixtures in `data/raw/worldcup_2026_group_fixtures.csv`.
 
+For GitHub Pages, the dashboard is published under its own route rather than at
+the xGelo site root. The Pages copy is written to `docs/wc2026/index.html`, so
+with the Pages workflow enabled it is available at
+`https://davidzenz.github.io/xGelo/wc2026/` after deployment. The
+`docs/.nojekyll` marker keeps GitHub Pages from applying Jekyll processing to
+the generated static HTML.
+
 Dashboard views include:
 
 - Group tables with expected points and qualification probabilities.
@@ -230,6 +249,7 @@ dashboard does not model injuries, lineups, or live state.
 - `outputs/dashboard/worldcup_forecast.html`: static World Cup dashboard
 - `outputs/dashboard/worldcup_dashboard_data.json`: dashboard source payload
 - `outputs/dashboard/worldcup_*_probabilities.csv`: dashboard probability exports
+- `docs/wc2026/index.html`: GitHub Pages copy of the World Cup dashboard
 - `outputs/visualizations/*.png`: AUC and calibration plots
 - `outputs/notebooks/model_performance.html`: rendered model report
 
