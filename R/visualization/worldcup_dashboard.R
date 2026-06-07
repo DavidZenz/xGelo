@@ -1221,12 +1221,13 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 const data = JSON.parse(document.getElementById("dashboard-data").textContent);
 const pct = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1) + "%";
 const pp = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1) + " pp";
+const intFmt = v => v == null || Number.isNaN(Number(v)) ? "" : Number(v).toLocaleString("en-US");
 const num = v => Number(v).toFixed(2);
 const maybeNum = v => v == null || Number.isNaN(Number(v)) ? "" : Number(v).toFixed(2);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"\']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","\'":"&#39;"}[c]));
 const by = (rows, key) => rows.reduce((acc, row) => ((acc[row[key]] ||= []).push(row), acc), {});
-document.getElementById("subhead").innerHTML = `Built from ${data.metadata.n_match_sim} match simulations and ${data.metadata.n_tournaments} full tournament simulations. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
-document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${data.metadata.n_match_sim} match sims | ${data.metadata.n_tournaments} full tournament sims | ${data.metadata.caveat}`;
+document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
+document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
   const groupRows = data.group_probabilities;

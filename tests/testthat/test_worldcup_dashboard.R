@@ -281,7 +281,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
 
   html <- paste(readLines(payload$paths$html, warn = FALSE), collapse = "\n")
   expect_true(grepl("xGelo 2026 World Cup Forecast", html, fixed = TRUE))
-  expect_true(grepl("Built from ${data.metadata.n_match_sim} match simulations", html, fixed = TRUE))
+  expect_true(grepl("Built from ${intFmt(data.metadata.n_match_sim)} match simulations", html, fixed = TRUE))
   expect_true(grepl("Created by <a href=\"https://github.com/DavidZenz\"", html, fixed = TRUE))
   expect_true(grepl("rel=\"noopener\"", html, fixed = TRUE))
   expect_true(grepl("Closest group-win race", html, fixed = TRUE))
