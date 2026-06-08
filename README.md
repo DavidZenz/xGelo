@@ -268,14 +268,18 @@ counts. Windows falls back to serial execution.
 
 xGelo uses open or locally cached data sources:
 
-- martj42 international football results for historical international matches.
-- StatsBomb Open Data for event-level shot data used to train the xG model.
+- [martj42/international_results](https://github.com/martj42/international_results)
+  for historical men's full international match results, including
+  `results.csv`, `shootouts.csv`, and `goalscorers.csv`.
+- [StatsBomb Open Data](https://github.com/statsbomb/open-data) for
+  event-level shot data used to train the xG model.
 - Local team-name mappings in `data/raw/team_name_map.csv`.
 - Manually maintained 2026 World Cup group seeds and fixture schedule in
   `data/raw/worldcup_2026_groups.csv` and
   `data/raw/worldcup_2026_group_fixtures.csv`.
 
-StatsBomb Open Data is licensed under Creative Commons
+Please credit those upstream projects when using or publishing outputs derived
+from this repository. StatsBomb Open Data is licensed under Creative Commons
 Attribution-NonCommercial-ShareAlike 4.0. Check upstream source licenses before
 redistributing data or using the project commercially.
 
