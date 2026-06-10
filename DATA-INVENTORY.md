@@ -156,6 +156,36 @@ This document catalogs all data sources used in the xGelo project, including the
 - ✅ Internal use only
 - ✅ Can be extended as needed
 
+#### 4. Transfermarkt Dataset Snapshot (Optional)
+
+| Field | Value |
+|-------|-------|
+| **Name** | dcaribou/transfermarkt-datasets |
+| **Type** | Player metadata, dated market valuations, appearances, lineups |
+| **Source URL** | https://github.com/dcaribou/transfermarkt-datasets |
+| **Access Method** | Local DuckDB snapshot only |
+| **License** | CC0-1.0 in upstream repository |
+| **Coverage Scope** | Club and player data with dated player valuations |
+| **Update Frequency** | Upstream refresh cadence varies; snapshot locally |
+
+**xGelo Usage:**
+- Optional, default-off squad-strength features
+- Local file: `data/raw/transfermarkt/transfermarkt-datasets.duckdb`
+- Processed output: `data/processed/transfermarkt_squad_strength.csv`
+
+**Leakage Rules:**
+- Use only player valuations with `valuation_date < match_date`
+- For frozen benchmarks, use only source rows before the benchmark cutoff
+- Same-day rows are treated as unavailable
+- Missing pre-match values are excluded from aggregates and surfaced through
+  `missing_value_share`
+
+**Usage Rules:**
+- ✅ Can be used from a local snapshot
+- ✅ Snapshot metadata/checksums may be committed
+- ❌ Raw DuckDB snapshots are not committed or redistributed by this repo
+- ⚠️ Check upstream source terms before publishing derived datasets
+
 ---
 
 ## Data Directory Structure
@@ -207,6 +237,7 @@ Validation runs automatically after each ingest and stops the pipeline on failur
 | martj42 | ✅ Open | Elo backbone (historical results) | ✅ Ingested |
 | StatsBomb | ✅ Open (NC) | xG model training data | ✅ Sample ingested |
 | Team Mapping | Internal | Cross-source team matching | ✅ Created |
+| Transfermarkt snapshot | ✅ Open upstream / local optional | Squad-strength features and EURO 2024 benchmark | ⏳ Optional |
 | FotMob | ⚠️ Restricted | WCQ shot data | ⏳ Not yet ingested |
 | UEFA/FIFA | ✅ Open | WCQ fixtures, line-ups | ⏳ Not yet ingested |
 

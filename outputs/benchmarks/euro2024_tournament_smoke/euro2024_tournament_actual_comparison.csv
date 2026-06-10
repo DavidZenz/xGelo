@@ -1,0 +1,3 @@
+"model","actual_champion_probability","actual_champion_rank","mean_actual_finalist_probability","mean_actual_semifinalist_probability","mean_actual_quarterfinalist_probability","mean_actual_ro16_probability","most_likely_champion","most_likely_champion_probability","n_sim"
+"baseline",0.09,3,0.14,0.3425,0.47625,0.705625,"Germany",0.21,100
+"hybrid",0.13,3,0.27,0.38,0.50375,0.699375,"England",0.19,100

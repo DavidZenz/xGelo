@@ -1,3 +1,9 @@
 data/raw/wcq_cache/
 data/cache/
+data/raw/transfermarkt/*.duckdb
+data/raw/transfermarkt/*.duckdb.wal
+outputs/dashboard_smoke*/
+outputs/dashboard_parallel_smoke/
+outputs/dashboard_precompute_smoke/
+outputs/dashboard_bench_*/
 _targets/

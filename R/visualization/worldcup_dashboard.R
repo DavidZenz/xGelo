@@ -121,6 +121,149 @@ load_worldcup_2026_group_fixtures <- function(
   )]
 }
 
+dashboard_model_predictors <- function(model) {
+  predictors <- attr(model, "xgelo_predictors")
+  if (is.null(predictors) || length(predictors) == 0) {
+    predictors <- tryCatch(attr(stats::terms(model), "term.labels"), error = function(e) character())
+  }
+  if (length(predictors) == 0) predictors <- "elo_diff"
+  predictors
+}
+
+dashboard_reverse_feature_frame <- function(data) {
+  reversed <- data
+  diff_cols <- grep("(^elo_diff$|_diff$)", names(reversed), value = TRUE)
+  for (col in diff_cols) reversed[[col]] <- -reversed[[col]]
+  reversed
+}
+
+dashboard_model_uses_home_perspective <- function(model) {
+  identical(attr(model, "xgelo_feature_perspective"), "home")
+}
+
+dashboard_get_negative_binomial_theta <- function(model) {
+  if (!is.list(model)) return(1)
+  theta <- model$theta
+  if (!is.null(theta) && is.numeric(theta) && length(theta) == 1 && is.finite(theta) && theta > 0) {
+    return(theta)
+  }
+  1
+}
+
+precompute_dashboard_fixture_lambdas <- function(fixtures, home_model, away_model, forecast_features) {
+  if (!is.data.frame(forecast_features) || nrow(forecast_features) == 0 || !all(c("date", "home_team", "away_team") %in% names(forecast_features))) {
+    return(NULL)
+  }
+  if (inherits(home_model, "constant_goal_model") || inherits(away_model, "constant_goal_model")) {
+    return(NULL)
+  }
+  normalise_team <- if (exists("feature_team_match_key")) feature_team_match_key else if (exists("canonicalise_feature_team_name")) canonicalise_feature_team_name else identity
+  forecast_features$date <- as.Date(forecast_features$date)
+  feature_keys <- paste(
+    as.character(forecast_features$date),
+    normalise_team(forecast_features$home_team),
+    normalise_team(forecast_features$away_team),
+    sep = "\r"
+  )
+  feature_index <- split(seq_len(nrow(forecast_features)), feature_keys)
+  fixture_keys <- paste(
+    as.character(as.Date(fixtures$date)),
+    normalise_team(fixtures$home_team),
+    normalise_team(fixtures$away_team),
+    sep = "\r"
+  )
+  match_idx <- vapply(fixture_keys, function(key) {
+    idx <- feature_index[[key]]
+    if (length(idx) == 0) NA_integer_ else idx[1]
+  }, integer(1))
+  if (any(is.na(match_idx))) return(NULL)
+
+  features <- forecast_features[match_idx, , drop = FALSE]
+  predictors <- unique(c(dashboard_model_predictors(home_model), dashboard_model_predictors(away_model)))
+  for (predictor in predictors) {
+    if (!predictor %in% names(features)) features[[predictor]] <- 0
+  }
+  newdata <- features[, predictors, drop = FALSE]
+  for (predictor in predictors) {
+    newdata[[predictor]] <- suppressWarnings(as.numeric(newdata[[predictor]]))
+    newdata[[predictor]][!is.finite(newdata[[predictor]])] <- 0
+  }
+  reversed <- dashboard_reverse_feature_frame(newdata)
+  neutral <- fixtures$venue == "neutral"
+  home_lambda <- numeric(nrow(fixtures))
+  away_lambda <- numeric(nrow(fixtures))
+  if (all(neutral) && (dashboard_model_uses_home_perspective(home_model) || dashboard_model_uses_home_perspective(away_model))) {
+    home_lambda <- rowMeans(cbind(
+      as.numeric(predict(home_model, newdata = newdata, type = "response")),
+      as.numeric(predict(away_model, newdata = reversed, type = "response"))
+    ))
+    away_lambda <- rowMeans(cbind(
+      as.numeric(predict(home_model, newdata = reversed, type = "response")),
+      as.numeric(predict(away_model, newdata = newdata, type = "response"))
+    ))
+  } else {
+    home_lambda <- as.numeric(predict(home_model, newdata = newdata, type = "response"))
+    away_lambda <- as.numeric(predict(away_model, newdata = reversed, type = "response"))
+  }
+  data.frame(
+    match_id = fixtures$match_id,
+    home_lambda = pmax(home_lambda, 1e-6),
+    away_lambda = pmax(away_lambda, 1e-6),
+    stringsAsFactors = FALSE
+  )
+}
+
+simulate_fixture_from_lambdas <- function(
+    home_lambda,
+    away_lambda,
+    home_theta,
+    away_theta,
+    n_sim = 1000,
+    top_n_scorelines = 5,
+    max_goals = 10
+) {
+  goals <- 0:max_goals
+  home_probs <- stats::dnbinom(goals, size = home_theta, mu = home_lambda)
+  away_probs <- stats::dnbinom(goals, size = away_theta, mu = away_lambda)
+  grid <- outer(home_probs, away_probs)
+  grid <- grid / sum(grid)
+  scorelines <- expand.grid(home_goals = goals, away_goals = goals, KEEP.OUT.ATTRS = FALSE)
+  scorelines$probability <- as.vector(grid)
+  scorelines$count <- scorelines$probability * n_sim
+  scorelines$scoreline <- paste(scorelines$home_goals, scorelines$away_goals, sep = "-")
+  scorelines$outcome <- ifelse(scorelines$home_goals > scorelines$away_goals, "home_win",
+                               ifelse(scorelines$home_goals == scorelines$away_goals, "draw", "away_win"))
+  scorelines$total_goals <- scorelines$home_goals + scorelines$away_goals
+  scorelines <- scorelines[order(-scorelines$probability, scorelines$total_goals, scorelines$home_goals, scorelines$away_goals), ]
+  home_marginal <- rowSums(grid)
+  away_marginal <- colSums(grid)
+  win_prob <- sum(grid[row(grid) > col(grid)])
+  draw_prob <- sum(diag(grid))
+  loss_prob <- sum(grid[row(grid) < col(grid)])
+  top_scorelines <- head(scorelines, top_n_scorelines)
+  list(
+    win_prob = win_prob,
+    draw_prob = draw_prob,
+    loss_prob = loss_prob,
+    expected_home = sum(goals * home_marginal),
+    expected_away = sum(goals * away_marginal),
+    home_lambda = home_lambda,
+    away_lambda = away_lambda,
+    total_prob = win_prob + draw_prob + loss_prob,
+    predicted_outcome = names(which.max(c(home_win = win_prob, draw = draw_prob, away_win = loss_prob))),
+    most_likely_score = top_scorelines$scoreline[1],
+    most_likely_home_goals = top_scorelines$home_goals[1],
+    most_likely_away_goals = top_scorelines$away_goals[1],
+    most_likely_score_probability = top_scorelines$probability[1],
+    rounded_expected_score = paste(round(sum(goals * home_marginal)), round(sum(goals * away_marginal)), sep = "-"),
+    over_2_5_probability = sum(scorelines$probability[scorelines$total_goals > 2.5]),
+    under_2_5_probability = sum(scorelines$probability[scorelines$total_goals <= 2.5]),
+    both_teams_to_score_probability = sum(scorelines$probability[scorelines$home_goals > 0 & scorelines$away_goals > 0]),
+    scoreline_distribution = scorelines[, c("home_goals", "away_goals", "scoreline", "outcome", "count", "probability")],
+    n_sim = n_sim
+  )
+}
+
 #' Load 72 World Cup group-stage fixtures
 #'
 #' Compatibility wrapper for existing dashboard code.
@@ -144,23 +287,66 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
     source("R/forecast/monte_carlo.R")
   }
   if (!is.null(seed)) set.seed(seed)
+  extra_args <- list(...)
+  get_extra_arg <- function(name) extra_args[[name, exact = TRUE]]
+  if (is.null(get_extra_arg("home_model"))) {
+    home_model_path <- if (!is.null(get_extra_arg("home_model_path"))) get_extra_arg("home_model_path") else "models/home_goal_model.rds"
+    if (file.exists(home_model_path)) extra_args$home_model <- readRDS(home_model_path)
+  }
+  if (is.null(get_extra_arg("away_model"))) {
+    away_model_path <- if (!is.null(get_extra_arg("away_model_path"))) get_extra_arg("away_model_path") else "models/away_goal_model.rds"
+    if (file.exists(away_model_path)) extra_args$away_model <- readRDS(away_model_path)
+  }
+  if (is.null(get_extra_arg("elo_ratings"))) {
+    elo_ratings_path <- if (!is.null(get_extra_arg("elo_ratings_path"))) get_extra_arg("elo_ratings_path") else "data/processed/elo_ratings.csv"
+    if (file.exists(elo_ratings_path)) extra_args$elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+  }
+  fixture_lambdas <- if (!is.null(get_extra_arg("home_model")) && !is.null(get_extra_arg("away_model")) && !is.null(get_extra_arg("forecast_features"))) {
+    precompute_dashboard_fixture_lambdas(
+      fixtures = fixtures,
+      home_model = get_extra_arg("home_model"),
+      away_model = get_extra_arg("away_model"),
+      forecast_features = get_extra_arg("forecast_features")
+    )
+  } else {
+    NULL
+  }
+  home_theta <- if (!is.null(get_extra_arg("home_model"))) dashboard_get_negative_binomial_theta(get_extra_arg("home_model")) else NULL
+  away_theta <- if (!is.null(get_extra_arg("away_model"))) dashboard_get_negative_binomial_theta(get_extra_arg("away_model")) else NULL
   fixture_seeds <- sample.int(.Machine$integer.max, nrow(fixtures))
   match_rows <- list()
   scoreline_rows <- list()
 
   for (i in seq_len(nrow(fixtures))) {
     fixture <- fixtures[i, ]
-    sim <- simulate_fixture(
-      home_team = fixture$home_team,
-      away_team = fixture$away_team,
-      date = fixture$date,
-      venue = fixture$venue,
-      n_sim = n_match_sim,
-      seed = fixture_seeds[i],
-      top_n_scorelines = 5,
-      include_scoreline_distribution = TRUE,
-      ...
-    )
+    if (!is.null(fixture_lambdas)) {
+      lambda_row <- fixture_lambdas[fixture_lambdas$match_id == fixture$match_id, , drop = FALSE]
+      sim <- simulate_fixture_from_lambdas(
+        home_lambda = lambda_row$home_lambda[1],
+        away_lambda = lambda_row$away_lambda[1],
+        home_theta = home_theta,
+        away_theta = away_theta,
+        n_sim = n_match_sim,
+        top_n_scorelines = 5
+      )
+    } else {
+      sim <- do.call(
+        simulate_fixture,
+        c(
+          list(
+            home_team = fixture$home_team,
+            away_team = fixture$away_team,
+            date = fixture$date,
+            venue = fixture$venue,
+            n_sim = n_match_sim,
+            seed = fixture_seeds[i],
+            top_n_scorelines = 5,
+            include_scoreline_distribution = TRUE
+          ),
+          extra_args
+        )
+      )
+    }
     match_rows[[i]] <- data.frame(
       match_id = fixture$match_id,
       stage = fixture$stage,
@@ -302,6 +488,37 @@ summarise_knockout_scorelines <- function(slot1_goals, slot2_goals, top_n_scorel
   )
 }
 
+summarise_knockout_scoreline_grid <- function(score_grid, goals, top_n_scorelines = 5) {
+  scorelines <- expand.grid(
+    slot1_goals = goals,
+    slot2_goals = goals,
+    KEEP.OUT.ATTRS = FALSE
+  )
+  scorelines$probability <- as.vector(score_grid)
+  scorelines$scoreline <- paste(scorelines$slot1_goals, scorelines$slot2_goals, sep = "-")
+  scorelines$outcome <- ifelse(
+    scorelines$slot1_goals > scorelines$slot2_goals,
+    "slot1_win",
+    ifelse(scorelines$slot1_goals == scorelines$slot2_goals, "draw", "slot2_win")
+  )
+  scorelines$total_goals <- scorelines$slot1_goals + scorelines$slot2_goals
+  scorelines <- scorelines[order(-scorelines$probability, scorelines$total_goals, scorelines$slot1_goals, scorelines$slot2_goals), ]
+  top_scorelines <- head(scorelines, top_n_scorelines)
+  slot1_marginal <- rowSums(score_grid)
+  slot2_marginal <- colSums(score_grid)
+  list(
+    most_likely_score = top_scorelines$scoreline[1],
+    most_likely_score_probability = top_scorelines$probability[1],
+    rounded_expected_score = paste(round(sum(goals * slot1_marginal)), round(sum(goals * slot2_marginal)), sep = "-"),
+    over_2_5_probability = sum(scorelines$probability[scorelines$total_goals > 2.5]),
+    both_teams_to_score_probability = sum(scorelines$probability[scorelines$slot1_goals > 0 & scorelines$slot2_goals > 0]),
+    top_scorelines_label = paste(
+      sprintf("%s %.1f%%", top_scorelines$scoreline, 100 * top_scorelines$probability),
+      collapse = " | "
+    )
+  )
+}
+
 sample_knockout_winner_from_route <- function(team1, team2, route) {
   if ((is.na(team1) || !nzchar(team1)) && !is.na(team2) && nzchar(team2)) return(team2)
   if ((is.na(team2) || !nzchar(team2)) && !is.na(team1) && nzchar(team1)) return(team1)
@@ -333,9 +550,18 @@ make_knockout_route_estimator <- function(
     home_model_path = "models/home_goal_model.rds",
     away_model_path = "models/away_goal_model.rds",
     elo_ratings_path = "data/processed/elo_ratings.csv",
+    forecast_features = NULL,
+    forecast_features_path = NULL,
+    require_forecast_features = FALSE,
+    model_version = NULL,
     top_n_scorelines = 5,
+    precompute_teams = NULL,
+    precompute_workers = 1,
+    route_method = c("analytic", "simulation"),
+    route_max_goals = 10,
     cache = new.env(parent = emptyenv())
 ) {
+  route_method <- match.arg(route_method)
   if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
   if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
   if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
@@ -345,10 +571,49 @@ make_knockout_route_estimator <- function(
   elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
   elo_ratings$date <- as.Date(elo_ratings$date)
   match_date <- as.Date(date)
+  if (is.null(model_version)) {
+    model_version <- attr(home_model, "xgelo_model_version")
+    if (is.null(model_version)) model_version <- "unknown"
+  }
+  if (
+    is.null(forecast_features) &&
+      is.character(forecast_features_path) &&
+      length(forecast_features_path) == 1 &&
+      !is.na(forecast_features_path) &&
+      file.exists(forecast_features_path)
+  ) {
+    forecast_features <- read.csv(forecast_features_path, stringsAsFactors = FALSE)
+  }
+  if (!is.null(forecast_features) && "date" %in% names(forecast_features)) {
+    forecast_features$date <- as.Date(forecast_features$date)
+  }
+  normalise_team <- if (exists("feature_team_match_key")) feature_team_match_key else if (exists("canonicalise_feature_team_name")) canonicalise_feature_team_name else identity
+  forecast_feature_index <- NULL
+  if (is.data.frame(forecast_features) && nrow(forecast_features) > 0 && all(c("home_team", "away_team") %in% names(forecast_features))) {
+    feature_dates <- if ("date" %in% names(forecast_features)) as.character(as.Date(forecast_features$date)) else rep("__any__", nrow(forecast_features))
+    feature_keys <- paste(
+      feature_dates,
+      normalise_team(forecast_features$home_team),
+      normalise_team(forecast_features$away_team),
+      sep = "\r"
+    )
+    forecast_feature_index <- split(seq_len(nrow(forecast_features)), feature_keys)
+  }
 
   model_has_side_context <- function(model) {
     inherits(model, c("glm", "lm", "negbin", "side_context_goal_model")) &&
       !inherits(model, "constant_goal_model")
+  }
+  model_uses_home_perspective <- function(model) {
+    identical(attr(model, "xgelo_feature_perspective"), "home")
+  }
+  model_predictors <- function(model) {
+    predictors <- attr(model, "xgelo_predictors")
+    if (is.null(predictors) || length(predictors) == 0) {
+      predictors <- tryCatch(attr(stats::terms(model), "term.labels"), error = function(e) character())
+    }
+    if (length(predictors) == 0) predictors <- "elo_diff"
+    predictors
   }
   get_negative_binomial_theta <- function(model) {
     theta <- model$theta
@@ -364,27 +629,212 @@ make_knockout_route_estimator <- function(
         elo_ratings$date < match_date,
     ]
     if (nrow(team_rows) > 0) {
+      if (!"is_post_match" %in% names(team_rows)) team_rows$is_post_match <- TRUE
       team_rows <- team_rows[order(team_rows$date, team_rows$is_post_match), ]
       return(tail(team_rows$rating, 1))
     }
     fallback <- if (!is.na(team_name) && team_name %in% names(rating_by_team)) rating_by_team[[team_name]] else 1500
     if (is.null(fallback) || is.na(fallback)) 1500 else fallback
   }
+  lookup_feature_row <- function(team1, team2, elo_diff) {
+    predictors <- unique(c(model_predictors(home_model), model_predictors(away_model)))
+    row <- as.data.frame(as.list(stats::setNames(rep(0, length(predictors)), predictors)))
+    if ("elo_diff" %in% predictors) row$elo_diff <- elo_diff
+
+    if (!is.null(forecast_feature_index)) {
+      lookup_dates <- if ("date" %in% names(forecast_features)) as.character(match_date) else "__any__"
+      lookup_key <- paste(lookup_dates, normalise_team(team1), normalise_team(team2), sep = "\r")
+      match_idx <- forecast_feature_index[[lookup_key]]
+      if (length(match_idx) > 0) {
+        matched <- forecast_features[match_idx[1], , drop = FALSE]
+        for (predictor in intersect(predictors, names(matched))) {
+          row[[predictor]] <- matched[[predictor]][1]
+        }
+        for (predictor in names(row)) {
+          row[[predictor]] <- suppressWarnings(as.numeric(row[[predictor]]))
+          if (!is.finite(row[[predictor]])) row[[predictor]] <- 0
+        }
+        return(row)
+      }
+    }
+
+    non_elo_predictors <- setdiff(predictors, "elo_diff")
+    if (isTRUE(require_forecast_features) && length(non_elo_predictors) > 0) {
+      available_rows <- if (is.data.frame(forecast_features) && nrow(forecast_features) > 0 && all(c("date", "home_team", "away_team") %in% names(forecast_features))) {
+        date_rows <- forecast_features[as.Date(forecast_features$date) == match_date, c("home_team", "away_team"), drop = FALSE]
+        nearby <- date_rows[
+          normalise_team(date_rows$home_team) == normalise_team(team1) |
+            normalise_team(date_rows$away_team) == normalise_team(team2),
+          ,
+          drop = FALSE
+        ]
+        paste(head(paste(nearby$home_team, nearby$away_team, sep = " vs "), 5), collapse = " | ")
+      } else {
+        "no forecast feature rows loaded"
+      }
+      stop(paste(
+        "Missing required knockout forecast features for",
+        team1,
+        "vs",
+        team2,
+        "on",
+        as.character(match_date),
+        sprintf(
+          "(keys: %s vs %s; nearby: %s)",
+          normalise_team(team1),
+          normalise_team(team2),
+          available_rows
+        )
+      ))
+    }
+    row
+  }
+  reverse_feature_row <- function(row) {
+    reversed <- row
+    diff_cols <- grep("(^elo_diff$|_diff$)", names(reversed), value = TRUE)
+    for (col in diff_cols) reversed[[col]] <- -reversed[[col]]
+    reversed
+  }
+  route_lambda_cache <- new.env(parent = emptyenv())
+  build_predict_newdata <- function(features) {
+    predictors <- unique(c(model_predictors(home_model), model_predictors(away_model)))
+    if (length(predictors) == 0) predictors <- "elo_diff"
+    for (predictor in predictors) {
+      if (!predictor %in% names(features)) features[[predictor]] <- 0
+    }
+    newdata <- features[, predictors, drop = FALSE]
+    for (predictor in predictors) {
+      newdata[[predictor]] <- suppressWarnings(as.numeric(newdata[[predictor]]))
+      newdata[[predictor]][!is.finite(newdata[[predictor]])] <- 0
+    }
+    newdata
+  }
+  precompute_route_lambdas <- function() {
+    if (!is.data.frame(forecast_features) || nrow(forecast_features) == 0 || !"date" %in% names(forecast_features)) {
+      return(invisible(0L))
+    }
+    route_features <- forecast_features[forecast_features$date == match_date, , drop = FALSE]
+    if (nrow(route_features) == 0 || !all(c("home_team", "away_team") %in% names(route_features))) {
+      return(invisible(0L))
+    }
+    feature_newdata <- build_predict_newdata(route_features)
+    feature_newdata_reversed <- reverse_feature_row(feature_newdata)
+    if (model_uses_home_perspective(home_model) || model_uses_home_perspective(away_model)) {
+      slot1_lambda <- rowMeans(cbind(
+        as.numeric(predict(home_model, newdata = feature_newdata, type = "response")),
+        as.numeric(predict(away_model, newdata = feature_newdata_reversed, type = "response"))
+      ))
+      slot2_lambda <- rowMeans(cbind(
+        as.numeric(predict(home_model, newdata = feature_newdata_reversed, type = "response")),
+        as.numeric(predict(away_model, newdata = feature_newdata, type = "response"))
+      ))
+    } else if (model_has_side_context(home_model) || model_has_side_context(away_model)) {
+      slot1_lambda <- rowMeans(cbind(
+        as.numeric(predict(home_model, newdata = feature_newdata, type = "response")),
+        as.numeric(predict(away_model, newdata = feature_newdata, type = "response"))
+      ))
+      slot2_lambda <- rowMeans(cbind(
+        as.numeric(predict(home_model, newdata = feature_newdata_reversed, type = "response")),
+        as.numeric(predict(away_model, newdata = feature_newdata_reversed, type = "response"))
+      ))
+    } else {
+      slot1_lambda <- as.numeric(predict(home_model, newdata = feature_newdata, type = "response"))
+      slot2_lambda <- as.numeric(predict(away_model, newdata = feature_newdata_reversed, type = "response"))
+    }
+    route_keys <- paste(
+      as.character(match_date),
+      normalise_team(route_features$home_team),
+      normalise_team(route_features$away_team),
+      sep = "\r"
+    )
+    for (i in seq_along(route_keys)) {
+      assign(
+        route_keys[i],
+        c(
+          slot1_lambda = max(slot1_lambda[i], 1e-6, na.rm = TRUE),
+          slot2_lambda = max(slot2_lambda[i], 1e-6, na.rm = TRUE)
+        ),
+        envir = route_lambda_cache
+      )
+    }
+    invisible(length(route_keys))
+  }
+  precompute_route_lambdas()
+
   estimate_uncached <- function(team1, team2, route_seed) {
     tiebreak_probability <- knockout_advancement_probability(team1, team2, rating_by_team)
     elo_diff <- get_pre_match_elo(team1) - get_pre_match_elo(team2)
-    if (model_has_side_context(home_model) || model_has_side_context(away_model)) {
-      slot1_lambda <- mean(c(
-        predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response"),
-        predict(away_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
-      ))
-      slot2_lambda <- mean(c(
-        predict(home_model, newdata = data.frame(elo_diff = -elo_diff), type = "response"),
-        predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
-      ))
+    lambda_key <- paste(as.character(match_date), normalise_team(team1), normalise_team(team2), sep = "\r")
+    route_lambdas <- if (exists(lambda_key, envir = route_lambda_cache, inherits = FALSE)) {
+      get(lambda_key, envir = route_lambda_cache, inherits = FALSE)
     } else {
-      slot1_lambda <- predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
-      slot2_lambda <- predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+      NULL
+    }
+    if (!is.null(route_lambdas)) {
+      slot1_lambda <- route_lambdas[["slot1_lambda"]]
+      slot2_lambda <- route_lambdas[["slot2_lambda"]]
+    } else {
+      feature_newdata <- lookup_feature_row(team1, team2, elo_diff)
+      feature_newdata_reversed <- reverse_feature_row(feature_newdata)
+      if (model_uses_home_perspective(home_model) || model_uses_home_perspective(away_model)) {
+        slot1_lambda <- mean(c(
+          predict(home_model, newdata = feature_newdata, type = "response"),
+          predict(away_model, newdata = feature_newdata_reversed, type = "response")
+        ))
+        slot2_lambda <- mean(c(
+          predict(home_model, newdata = feature_newdata_reversed, type = "response"),
+          predict(away_model, newdata = feature_newdata, type = "response")
+        ))
+      } else if (model_has_side_context(home_model) || model_has_side_context(away_model)) {
+        slot1_lambda <- mean(c(
+          predict(home_model, newdata = feature_newdata, type = "response"),
+          predict(away_model, newdata = feature_newdata, type = "response")
+        ))
+        slot2_lambda <- mean(c(
+          predict(home_model, newdata = feature_newdata_reversed, type = "response"),
+          predict(away_model, newdata = feature_newdata_reversed, type = "response")
+        ))
+      } else {
+        slot1_lambda <- predict(home_model, newdata = feature_newdata, type = "response")
+        slot2_lambda <- predict(away_model, newdata = feature_newdata_reversed, type = "response")
+      }
+    }
+    if (route_method == "analytic") {
+      goals <- 0:route_max_goals
+      home_theta <- get_negative_binomial_theta(home_model)
+      away_theta <- get_negative_binomial_theta(away_model)
+      slot1_probs <- stats::dnbinom(goals, size = home_theta, mu = slot1_lambda)
+      slot2_probs <- stats::dnbinom(goals, size = away_theta, mu = slot2_lambda)
+      score_grid <- outer(slot1_probs, slot2_probs)
+      score_grid <- score_grid / sum(score_grid)
+      slot1_regulation <- sum(score_grid[row(score_grid) > col(score_grid)])
+      draw_after_regulation <- sum(diag(score_grid))
+      slot2_regulation <- sum(score_grid[row(score_grid) < col(score_grid)])
+      slot1_extra <- draw_after_regulation * tiebreak_probability
+      slot2_extra <- draw_after_regulation * (1 - tiebreak_probability)
+      scoreline_summary <- summarise_knockout_scoreline_grid(
+        score_grid,
+        goals,
+        top_n_scorelines = top_n_scorelines
+      )
+      return(list(
+        slot1_regulation_win_probability = slot1_regulation,
+        slot1_extra_time_penalty_probability = slot1_extra,
+        slot1_advancement_probability = slot1_regulation + slot1_extra,
+        slot2_regulation_win_probability = slot2_regulation,
+        slot2_extra_time_penalty_probability = slot2_extra,
+        slot2_advancement_probability = slot2_regulation + slot2_extra,
+        draw_after_regulation_probability = draw_after_regulation,
+        tiebreak_probability = tiebreak_probability,
+        slot1_expected_goals = sum(goals * rowSums(score_grid)),
+        slot2_expected_goals = sum(goals * colSums(score_grid)),
+        most_likely_score = scoreline_summary$most_likely_score,
+        most_likely_score_probability = scoreline_summary$most_likely_score_probability,
+        rounded_expected_score = scoreline_summary$rounded_expected_score,
+        over_2_5_probability = scoreline_summary$over_2_5_probability,
+        both_teams_to_score_probability = scoreline_summary$both_teams_to_score_probability,
+        top_scorelines_label = scoreline_summary$top_scorelines_label
+      ))
     }
     if (!is.null(route_seed)) set.seed(route_seed)
     slot1_goals <- rnbinom(n_sim, size = get_negative_binomial_theta(home_model), prob = get_negative_binomial_theta(home_model) / (get_negative_binomial_theta(home_model) + slot1_lambda))
@@ -430,11 +880,15 @@ make_knockout_route_estimator <- function(
     as.integer(if (route_seed <= 0) route_seed + .Machine$integer.max else route_seed)
   }
 
-  function(team1, team2) {
+  route_cache_key <- function(team1, team2) {
+    paste(model_version, as.character(match_date), team1, team2, sep = "\r")
+  }
+
+  estimate_route_cached <- function(team1, team2) {
     if ((is.na(team1) || !nzchar(team1)) || (is.na(team2) || !nzchar(team2))) {
       return(NULL)
     }
-    key <- paste(team1, team2, sep = "\r")
+    key <- route_cache_key(team1, team2)
     if (!exists(key, envir = cache, inherits = FALSE)) {
       route_seed <- stable_route_seed(key)
       route <- preserve_random_state(estimate_uncached(team1, team2, route_seed))
@@ -442,6 +896,51 @@ make_knockout_route_estimator <- function(
     }
     get(key, envir = cache, inherits = FALSE)
   }
+
+  precompute_route_cache <- function(teams) {
+    teams <- unique(as.character(teams))
+    teams <- teams[!is.na(teams) & nzchar(teams)]
+    if (length(teams) < 2) return(invisible(0L))
+    pair_grid <- expand.grid(team1 = teams, team2 = teams, stringsAsFactors = FALSE)
+    pair_grid <- pair_grid[pair_grid$team1 != pair_grid$team2, , drop = FALSE]
+    pair_grid$key <- mapply(route_cache_key, pair_grid$team1, pair_grid$team2, USE.NAMES = FALSE)
+    pair_grid <- pair_grid[!vapply(pair_grid$key, exists, logical(1), envir = cache, inherits = FALSE), , drop = FALSE]
+    if (nrow(pair_grid) == 0) return(invisible(0L))
+
+    worker_count <- suppressWarnings(as.integer(precompute_workers))
+    if (is.na(worker_count) || worker_count < 1L) worker_count <- 1L
+    worker_count <- min(worker_count, nrow(pair_grid))
+    if (.Platform$OS.type == "windows") worker_count <- 1L
+    chunks <- split(pair_grid, rep(seq_len(worker_count), length.out = nrow(pair_grid)))
+
+    estimate_chunk <- function(rows) {
+      out <- vector("list", nrow(rows))
+      names(out) <- rows$key
+      for (i in seq_len(nrow(rows))) {
+        route_seed <- stable_route_seed(rows$key[i])
+        out[[i]] <- preserve_random_state(estimate_uncached(rows$team1[i], rows$team2[i], route_seed))
+      }
+      out
+    }
+
+    route_chunks <- if (worker_count > 1L) {
+      parallel::mclapply(chunks, estimate_chunk, mc.cores = worker_count, mc.preschedule = TRUE)
+    } else {
+      lapply(chunks, estimate_chunk)
+    }
+    for (route_chunk in route_chunks) {
+      for (key in names(route_chunk)) {
+        assign(key, route_chunk[[key]], envir = cache)
+      }
+    }
+    invisible(nrow(pair_grid))
+  }
+
+  if (!is.null(precompute_teams)) {
+    precompute_route_cache(precompute_teams)
+  }
+
+  estimate_route_cached
 }
 
 estimate_knockout_route_probabilities <- function(
@@ -519,6 +1018,14 @@ normalise_dashboard_workers <- function(n_workers, n_tournaments) {
   n_workers
 }
 
+default_dashboard_workers <- function(max_workers = 4L) {
+  configured <- getOption("xgelo.dashboard_workers", NULL)
+  if (!is.null(configured)) return(configured)
+  detected <- tryCatch(parallel::detectCores(), error = function(e) 1L)
+  if (is.na(detected) || detected < 1L) detected <- 1L
+  min(as.integer(max_workers), max(1L, as.integer(detected) - 1L))
+}
+
 simulate_group_stage_dashboard <- function(
     groups,
     fixtures,
@@ -529,7 +1036,7 @@ simulate_group_stage_dashboard <- function(
     knockout_date = NULL,
     n_knockout_sim = 1000,
     knockout_route_estimator = NULL,
-    n_workers = getOption("xgelo.dashboard_workers", 1L),
+    n_workers = default_dashboard_workers(),
     ...
 ) {
   if (!exists("rank_group_table")) {
@@ -1119,6 +1626,101 @@ build_bracket_paths <- function(
   paths
 }
 
+#' Read compact Transfermarkt snapshot metadata for dashboard provenance
+#' @keywords internal
+read_transfermarkt_dashboard_metadata <- function(
+    metadata_path = "data/raw/transfermarkt/SNAPSHOT-METADATA.csv",
+    snapshot_path = "data/raw/transfermarkt/transfermarkt-datasets.duckdb"
+) {
+  if (file.exists(metadata_path)) {
+    meta <- read.csv(metadata_path, stringsAsFactors = FALSE)
+    if (nrow(meta) > 0) {
+      return(list(
+        snapshot_path = meta$snapshot_path[1],
+        snapshot_md5 = if ("md5" %in% names(meta)) meta$md5[1] else NA_character_,
+        snapshot_modified_time = if ("modified_time" %in% names(meta)) meta$modified_time[1] else NA_character_
+      ))
+    }
+  }
+  if (file.exists(snapshot_path)) {
+    checksum <- if (requireNamespace("tools", quietly = TRUE)) unname(tools::md5sum(snapshot_path)) else NA_character_
+    return(list(
+      snapshot_path = snapshot_path,
+      snapshot_md5 = checksum,
+      snapshot_modified_time = as.character(file.info(snapshot_path)$mtime)
+    ))
+  }
+  list(snapshot_path = NA_character_, snapshot_md5 = NA_character_, snapshot_modified_time = NA_character_)
+}
+
+#' Read compact EURO 2024 benchmark summary for dashboard provenance
+#' @keywords internal
+read_euro2024_benchmark_summary <- function(metrics_path = "outputs/benchmarks/euro2024_transfermarkt_expanded/euro2024_metrics.csv") {
+  if (!file.exists(metrics_path)) {
+    return(list(available = FALSE))
+  }
+  metrics <- read.csv(metrics_path, stringsAsFactors = FALSE)
+  baseline <- metrics[metrics$model == "baseline", , drop = FALSE]
+  hybrid <- metrics[metrics$model == "hybrid", , drop = FALSE]
+  if (nrow(baseline) == 0 || nrow(hybrid) == 0) {
+    return(list(available = FALSE))
+  }
+  list(
+    available = TRUE,
+    baseline_brier = baseline$multiclass_brier[1],
+    hybrid_brier = hybrid$multiclass_brier[1],
+    baseline_log_loss = baseline$log_loss[1],
+    hybrid_log_loss = hybrid$log_loss[1],
+    baseline_rps = baseline$ranked_probability_score[1],
+    hybrid_rps = hybrid$ranked_probability_score[1],
+    hybrid_pass = if ("hybrid_pass" %in% names(metrics)) any(as.logical(metrics$hybrid_pass), na.rm = TRUE) else NA
+  )
+}
+
+#' Compute baseline-vs-hybrid dashboard diagnostics
+#' @keywords internal
+compute_worldcup_model_comparison <- function(primary_payload, baseline_payload) {
+  primary_stage <- primary_payload$stage_probabilities
+  baseline_stage <- baseline_payload$stage_probabilities
+  team_cols <- c(
+    "team", "display_team", "group", "round_of_32_probability",
+    "round_of_16_probability", "quarterfinal_probability",
+    "semifinal_probability", "final_probability", "champion_probability"
+  )
+  team_comparison <- merge(
+    primary_stage[, team_cols, drop = FALSE],
+    baseline_stage[, team_cols, drop = FALSE],
+    by = c("team", "display_team", "group"),
+    suffixes = c("_hybrid", "_baseline"),
+    all = FALSE
+  )
+  probability_cols <- setdiff(team_cols, c("team", "display_team", "group"))
+  for (col in probability_cols) {
+    team_comparison[[paste0(col, "_delta")]] <-
+      team_comparison[[paste0(col, "_hybrid")]] - team_comparison[[paste0(col, "_baseline")]]
+  }
+  team_comparison <- team_comparison[order(-team_comparison$champion_probability_hybrid), , drop = FALSE]
+
+  primary_matches <- primary_payload$match_forecasts
+  baseline_matches <- baseline_payload$match_forecasts
+  match_cols <- c(
+    "match_id", "group", "date", "home_team", "away_team", "home_display", "away_display",
+    "home_goals_expected", "away_goals_expected", "win_probability", "draw_probability", "loss_probability"
+  )
+  match_comparison <- merge(
+    primary_matches[, match_cols, drop = FALSE],
+    baseline_matches[, match_cols, drop = FALSE],
+    by = c("match_id", "group", "date", "home_team", "away_team", "home_display", "away_display"),
+    suffixes = c("_hybrid", "_baseline"),
+    all = FALSE
+  )
+  for (col in c("home_goals_expected", "away_goals_expected", "win_probability", "draw_probability", "loss_probability")) {
+    match_comparison[[paste0(col, "_delta")]] <-
+      match_comparison[[paste0(col, "_hybrid")]] - match_comparison[[paste0(col, "_baseline")]]
+  }
+  list(team_deltas = team_comparison, match_deltas = match_comparison)
+}
+
 #' Build dashboard-ready World Cup forecast data
 #'
 #' @export
@@ -1129,25 +1731,63 @@ build_worldcup_dashboard_data <- function(
     n_match_sim = 1000,
     n_tournaments = 1000,
     seed = 20260611,
-    n_workers = getOption("xgelo.dashboard_workers", 1L),
+    n_workers = default_dashboard_workers(),
     elo_ratings_path = "data/processed/elo_ratings.csv",
     elo_current_path = "data/processed/elo_current.csv",
+    model_version = "baseline",
+    feature_cutoff_date = Sys.Date(),
+    require_forecast_features = FALSE,
+    forecast_features = NULL,
+    forecast_features_path = NULL,
+    precompute_knockout_routes = NULL,
+    precompute_route_workers = n_workers,
+    route_method = c("analytic", "simulation"),
+    route_max_goals = 10,
+    transfermarkt_metadata_path = "data/raw/transfermarkt/SNAPSHOT-METADATA.csv",
+    transfermarkt_snapshot_path = "data/raw/transfermarkt/transfermarkt-datasets.duckdb",
+    euro2024_metrics_path = "outputs/benchmarks/euro2024_transfermarkt_expanded/euro2024_metrics.csv",
+    baseline_comparison = FALSE,
+    baseline_home_model_path = "models/home_goal_model.rds",
+    baseline_away_model_path = "models/away_goal_model.rds",
     ...
 ) {
   suppressPackageStartupMessages({
     library(jsonlite)
   })
   extra_args <- list(...)
+  route_method <- match.arg(route_method)
   home_model_path <- if (!is.null(extra_args$home_model_path)) extra_args$home_model_path else "models/home_goal_model.rds"
   away_model_path <- if (!is.null(extra_args$away_model_path)) extra_args$away_model_path else "models/away_goal_model.rds"
+  dashboard_forecast_features <- forecast_features
+  dashboard_forecast_features_path <- forecast_features_path
+  if (
+    is.null(dashboard_forecast_features) &&
+      is.character(dashboard_forecast_features_path) &&
+      length(dashboard_forecast_features_path) == 1 &&
+      !is.na(dashboard_forecast_features_path) &&
+      file.exists(dashboard_forecast_features_path)
+  ) {
+    dashboard_forecast_features <- read.csv(dashboard_forecast_features_path, stringsAsFactors = FALSE)
+  }
+  feature_cutoff_date <- as.Date(feature_cutoff_date)
   groups <- load_worldcup_2026_groups(groups_path)
   fixtures <- make_worldcup_group_fixtures(groups, schedule_path = schedule_path)
-  match_data <- forecast_dashboard_matches(
-    fixtures,
-    n_match_sim = n_match_sim,
-    seed = seed,
-    elo_ratings_path = elo_ratings_path,
-    ...
+  if (is.null(precompute_knockout_routes)) {
+    precompute_knockout_routes <- FALSE
+  }
+  forecast_args <- extra_args
+  forecast_args$forecast_features <- dashboard_forecast_features
+  match_data <- do.call(
+    forecast_dashboard_matches,
+    c(
+      list(
+        fixtures = fixtures,
+        n_match_sim = n_match_sim,
+        seed = seed,
+        elo_ratings_path = elo_ratings_path
+      ),
+      forecast_args
+    )
   )
   tournament_start_date <- min(fixtures$date, na.rm = TRUE)
   knockout_ratings <- latest_elo_before_date(
@@ -1164,7 +1804,15 @@ build_worldcup_dashboard_data <- function(
     seed = seed + 100000L,
     home_model_path = home_model_path,
     away_model_path = away_model_path,
-    elo_ratings_path = elo_ratings_path
+    elo_ratings_path = elo_ratings_path,
+    forecast_features = dashboard_forecast_features,
+    forecast_features_path = dashboard_forecast_features_path,
+    require_forecast_features = require_forecast_features,
+    model_version = model_version,
+    precompute_teams = if (isTRUE(precompute_knockout_routes)) groups$team else NULL,
+    precompute_workers = precompute_route_workers,
+    route_method = route_method,
+    route_max_goals = route_max_goals
   )
   group_data <- simulate_group_stage_dashboard(
     groups,
@@ -1191,10 +1839,29 @@ build_worldcup_dashboard_data <- function(
     ...
   )
   top_scorelines <- match_data$scoreline_distributions[match_data$scoreline_distributions$rank <= 5, ]
+  tm_metadata <- read_transfermarkt_dashboard_metadata(
+    metadata_path = transfermarkt_metadata_path,
+    snapshot_path = transfermarkt_snapshot_path
+  )
+  benchmark_summary <- read_euro2024_benchmark_summary(euro2024_metrics_path)
   payload <- list(
     metadata = list(
       title = "xGelo 2026 World Cup Forecast",
       generated_at = as.character(Sys.time()),
+      model_version = model_version,
+      feature_cutoff_date = as.character(feature_cutoff_date),
+      precompute_knockout_routes = isTRUE(precompute_knockout_routes),
+      precompute_route_workers = if (isTRUE(precompute_knockout_routes)) {
+        normalise_dashboard_workers(precompute_route_workers, length(groups$team) * (length(groups$team) - 1))
+      } else {
+        0L
+      },
+      knockout_route_method = route_method,
+      knockout_route_max_goals = route_max_goals,
+      transfermarkt_snapshot_path = tm_metadata$snapshot_path,
+      transfermarkt_snapshot_checksum = tm_metadata$snapshot_md5,
+      transfermarkt_snapshot_modified_time = tm_metadata$snapshot_modified_time,
+      euro2024_benchmark_summary = benchmark_summary,
       n_match_sim = n_match_sim,
       n_tournaments = n_tournaments,
       n_workers = normalise_dashboard_workers(n_workers, n_tournaments),
@@ -1213,6 +1880,36 @@ build_worldcup_dashboard_data <- function(
     bracket_paths = bracket_paths
   )
 
+  if (isTRUE(baseline_comparison) && identical(model_version, "hybrid")) {
+    baseline_payload <- build_worldcup_dashboard_data(
+      groups_path = groups_path,
+      schedule_path = schedule_path,
+      output_dir = file.path(output_dir, "baseline"),
+      n_match_sim = n_match_sim,
+      n_tournaments = n_tournaments,
+      seed = seed,
+      n_workers = n_workers,
+      elo_ratings_path = elo_ratings_path,
+      elo_current_path = elo_current_path,
+      model_version = "baseline",
+      feature_cutoff_date = feature_cutoff_date,
+      require_forecast_features = FALSE,
+      forecast_features = NULL,
+      forecast_features_path = NULL,
+      precompute_knockout_routes = precompute_knockout_routes,
+      precompute_route_workers = precompute_route_workers,
+      route_method = route_method,
+      route_max_goals = route_max_goals,
+      transfermarkt_metadata_path = transfermarkt_metadata_path,
+      transfermarkt_snapshot_path = transfermarkt_snapshot_path,
+      euro2024_metrics_path = euro2024_metrics_path,
+      baseline_comparison = FALSE,
+      home_model_path = baseline_home_model_path,
+      away_model_path = baseline_away_model_path
+    )
+    payload$model_comparison <- compute_worldcup_model_comparison(payload, baseline_payload)
+  }
+
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   json_path <- file.path(output_dir, "worldcup_dashboard_data.json")
   jsonlite::write_json(payload, json_path, pretty = TRUE, auto_unbox = TRUE, digits = 10)
@@ -1220,6 +1917,10 @@ build_worldcup_dashboard_data <- function(
   write.csv(group_data$group_probabilities, file.path(output_dir, "worldcup_group_probabilities.csv"), row.names = FALSE)
   write.csv(stage_probabilities, file.path(output_dir, "worldcup_stage_probabilities.csv"), row.names = FALSE)
   write.csv(bracket_paths, file.path(output_dir, "worldcup_bracket_paths.csv"), row.names = FALSE)
+  if (!is.null(payload$model_comparison)) {
+    write.csv(payload$model_comparison$team_deltas, file.path(output_dir, "worldcup_team_model_deltas.csv"), row.names = FALSE)
+    write.csv(payload$model_comparison$match_deltas, file.path(output_dir, "worldcup_match_model_deltas.csv"), row.names = FALSE)
+  }
   payload$paths <- list(data_json = json_path)
   payload
 }
@@ -1264,8 +1965,8 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. The closest group-win race uses the top-two leader margin; the open-group headline uses the spread between the highest and lowest group-win probabilities, so it reflects whether all four teams are close. Knockout rounds resolve each simulated bracket directly from that tournament table, sample 90-minute goal-model outcomes, and allocate drawn 90-minute simulations to ET/pens advancement by Elo tiebreak share. The top exact score is the modal simulated scoreline; it can differ from the most likely match outcome because each outcome sums many scorelines. The rounded expected score is only rounded decimal projected goals.</p></details>
-<details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
+<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. The default 2026 forecast uses the hybrid goal model, combining Elo, rolling form, leakage-safe Transfermarkt squad strength, and weighted historical goal ability; baseline Elo/xG exports are retained for audit. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. The closest group-win race uses the top-two leader margin; the open-group headline uses the spread between the highest and lowest group-win probabilities, so it reflects whether all four teams are close. Knockout rounds resolve each simulated bracket directly from that tournament table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share. Hybrid promotion is gated by the EURO 2024 benchmark, where it improved Brier score, log loss, and ranked probability score without a material calibration penalty.</p></details>
+<details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. Squad valuation features use a local snapshot of <a href="https://github.com/dcaribou/transfermarkt-datasets" target="_blank" rel="noopener">dcaribou/transfermarkt-datasets</a>. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">', json_text, '</script>
 <script>
@@ -1349,8 +2050,8 @@ function bracketTooltipHtml(g, projectedWinnerProbability){
     : "";
   return `<div class="bracket-tooltip" role="tooltip"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}<div class="tooltip-winner"><strong>Most likely advances: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div><div class="tooltip-section"><div class="tooltip-section-title">Advance probability</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Adv</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min xG ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
 }
-document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
-document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
+document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations using the ${esc(data.metadata.model_version || "baseline")} model. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
+document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
   const groupRows = data.group_probabilities;
@@ -1559,11 +2260,18 @@ build_worldcup_dashboard <- function(
     n_match_sim = 1000,
     n_tournaments = 1000,
     seed = 20260611,
-    n_workers = getOption("xgelo.dashboard_workers", 1L),
+    n_workers = default_dashboard_workers(),
     elo_ratings_path = "data/processed/elo_ratings.csv",
     elo_current_path = "data/processed/elo_current.csv",
+    forecast_features = NULL,
+    forecast_features_path = NULL,
+    precompute_knockout_routes = NULL,
+    precompute_route_workers = n_workers,
+    route_method = c("analytic", "simulation"),
+    route_max_goals = 10,
     ...
 ) {
+  route_method <- match.arg(route_method)
   payload <- build_worldcup_dashboard_data(
     groups_path = groups_path,
     schedule_path = schedule_path,
@@ -1574,6 +2282,12 @@ build_worldcup_dashboard <- function(
     n_workers = n_workers,
     elo_ratings_path = elo_ratings_path,
     elo_current_path = elo_current_path,
+    forecast_features = forecast_features,
+    forecast_features_path = forecast_features_path,
+    precompute_knockout_routes = precompute_knockout_routes,
+    precompute_route_workers = precompute_route_workers,
+    route_method = route_method,
+    route_max_goals = route_max_goals,
     ...
   )
   output_path <- render_worldcup_dashboard(

@@ -119,6 +119,7 @@ install.packages(c(
   "yardstick",
   "ggplot2",
   "calibrate",
+  "duckdb",
   "testthat",
   "knitr",
   "rmarkdown",
@@ -129,6 +130,10 @@ install.packages(c(
 
 There is not currently a project-level `renv.lock` or package `DESCRIPTION`.
 See [`SETUP.md`](SETUP.md) for longer environment notes.
+
+`duckdb` is only required when the optional Transfermarkt feature block is
+enabled. The default pipeline and checked-in validation path do not require a
+Transfermarkt snapshot.
 
 ## Quick Start
 
@@ -244,7 +249,15 @@ The dashboard tournament simulation can run in deterministic parallel chunks on
 Unix-like systems by passing `n_workers` to `build_worldcup_dashboard()` or by
 setting `options(xgelo.dashboard_workers = N)`. Each tournament draw receives
 its own seed, so a seeded run is reproducible across serial and parallel worker
-counts. Windows falls back to serial execution.
+counts. When no option is set, dashboard builds use up to four local workers.
+Hybrid dashboard builds reuse loaded model objects, vectorize group-fixture
+goal predictions, and derive knockout routes from analytic score grids by
+default (`route_method = "analytic"`). The older route Monte Carlo remains
+available with `route_method = "simulation"`. Knockout route estimates are
+cached lazily by matchup; all-pair route precomputation is available with
+`precompute_knockout_routes = TRUE`, but it is opt-in because a 48-team
+ordered-pair cache is expensive for quick smoke runs.
+Windows falls back to serial execution.
 
 ## Key Outputs
 
@@ -260,6 +273,10 @@ counts. Windows falls back to serial execution.
 - `outputs/dashboard/worldcup_forecast.html`: static World Cup dashboard
 - `outputs/dashboard/worldcup_dashboard_data.json`: dashboard source payload
 - `outputs/dashboard/worldcup_*_probabilities.csv`: dashboard probability exports
+- `outputs/benchmarks/euro2024/euro2024_metrics.csv`: frozen EURO 2024
+  baseline-vs-hybrid benchmark metrics
+- `outputs/benchmarks/euro2024/euro2024_predictions.csv`: match-grain EURO 2024
+  benchmark probabilities
 - `docs/wc2026/index.html`: GitHub Pages copy of the World Cup dashboard
 - `outputs/visualizations/*.png`: AUC and calibration plots
 - `outputs/notebooks/model_performance.html`: rendered model report
@@ -277,6 +294,14 @@ xGelo uses open or locally cached data sources:
 - Manually maintained 2026 World Cup group seeds and fixture schedule in
   `data/raw/worldcup_2026_groups.csv` and
   `data/raw/worldcup_2026_group_fixtures.csv`.
+- Optional local
+  [dcaribou/transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets)
+  DuckDB snapshot for squad-strength features. Put it at
+  `data/raw/transfermarkt/transfermarkt-datasets.duckdb`; raw snapshots are not
+  committed. The optional feature block uses dated player valuations to derive
+  squad value, top-11/top-15/top-23 value, positional value by goalkeeper /
+  defense / midfield / attack, depth concentration, age profile, and 6-/12-month
+  valuation momentum.
 
 Please credit those upstream projects when using or publishing outputs derived
 from this repository. StatsBomb Open Data is licensed under Creative Commons
@@ -286,6 +311,13 @@ redistributing data or using the project commercially.
 The project intentionally avoids automated scraping of restricted sources. If
 manually cached World Cup Qualifier data is used, keep it local and do not
 redistribute it unless the upstream terms allow that use.
+
+Transfermarkt-derived features are strictly as-of-date: valuation and squad
+feature source dates must be before the match or benchmark cutoff date. Same-day
+records are treated as unavailable. Current player profile fields such as
+current club, current national team, current market value, and current caps are
+not valid for historical benchmarks unless they are reconstructed from dated
+records.
 
 See [`DATA-INVENTORY.md`](DATA-INVENTORY.md) for source-level details.
 
@@ -311,6 +343,10 @@ one winner per matchup.
 - Forecasts are pre-match model outputs, not betting advice.
 - The model does not currently account for confirmed lineups, injuries,
   suspensions, travel disruption, or in-play match state.
+- Transfermarkt squad-strength features are optional and default-off. The EURO
+  2024 benchmark reports whether the hybrid feature set improves match-level
+  Brier score, log loss, ranked probability score, and calibration versus the
+  baseline path.
 - xG training is domestic-only to reduce target leakage into international
   forecasts. The checked-in development pipeline uses an explicit sample
   override for the included StatsBomb data.

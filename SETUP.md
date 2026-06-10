@@ -57,6 +57,7 @@ install.packages(c(
   "targets",       # Pipeline orchestration
   "ggplot2",        # Visualization
   "MASS",          # Negative Binomial models
+  "duckdb",        # Optional Transfermarkt snapshot reader
   "knitr",         # Notebook rendering
   "rmarkdown",      # Notebook support
   "visNetwork",     # DAG visualization
@@ -194,6 +195,17 @@ xGelo/
 - **Location**: `data/raw/statsbomb/`
 - **Sample data**: The project includes sample files in `data/raw/statsbomb/`
 
+#### Optional Transfermarkt Snapshot
+- **Source**: [https://github.com/dcaribou/transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets)
+- **File needed**: `transfermarkt-datasets.duckdb`
+- **Location**: `data/raw/transfermarkt/transfermarkt-datasets.duckdb`
+- **Usage**: Optional, default-off squad-strength feature block
+- **Features**: Dated valuation aggregates, top-N squad value, positional value,
+  depth concentration, age profile, and 6-/12-month valuation momentum
+- **Leakage rule**: valuation and squad feature source dates must be strictly
+  before the match date or benchmark cutoff date. Current player profile fields
+  must not be used for historical benchmarks unless rebuilt from dated records.
+
 ### 2. Verify Data Files
 
 ```r
@@ -203,6 +215,9 @@ file.exists("data/raw/martj42/results.csv")
 # Check StatsBomb data
 dir.exists("data/raw/statsbomb/events")
 file.exists("data/raw/statsbomb/competitions.json")
+
+# Optional Transfermarkt snapshot
+file.exists("data/raw/transfermarkt/transfermarkt-datasets.duckdb")
 ```
 
 ---

@@ -11,7 +11,9 @@ tar_option_set(
     "MASS",
     "pROC",
     "tidymodels",
-    "ggplot2"
+    "ggplot2",
+    "DBI",
+    "duckdb"
   )
 )
 
@@ -25,11 +27,16 @@ source("R/xg/backtest.R")
 source("R/xg/calibration.R")
 source("R/integration/team_match_xg.R")
 source("R/integration/rolling_form.R")
+source("R/transfermarkt/squad_strength.R")
+source("R/forecast/features.R")
+source("R/forecast/goal_ability.R")
 source("R/forecast/poisson.R")
 source("R/forecast/monte_carlo.R")
 source("R/forecast/output.R")
 source("R/forecast/tournament.R")
 source("R/forecast/calibration.R")
+source("R/benchmark/euro2024.R")
+source("R/benchmark/euro2024_tournament.R")
 source("R/pipeline/validation.R")
 source("R/visualization/auc.R")
 source("R/visualization/calibration.R")
@@ -99,6 +106,28 @@ list(
     format = "file"
   ),
   tar_target(
+    transfermarkt_squad_strength_file,
+    {
+      snapshot_path <- "data/raw/transfermarkt/transfermarkt-datasets.duckdb"
+      use_transfermarkt <- isTRUE(getOption("xgelo.use_transfermarkt", file.exists(snapshot_path)))
+      if (!use_transfermarkt || !file.exists(snapshot_path)) {
+        NA_character_
+      } else {
+        compute_transfermarkt_squad_strength_snapshots(
+          snapshot_path = snapshot_path,
+          as_of_dates = sort(unique(c(
+            seq(as.Date("2000-01-01"), Sys.Date(), by = "6 months"),
+            as.Date("2024-06-14"),
+            Sys.Date()
+          ))),
+          output_path = "data/processed/transfermarkt_squad_strength.csv"
+        )
+        write_transfermarkt_snapshot_metadata()
+        "data/processed/transfermarkt_squad_strength.csv"
+      }
+    }
+  ),
+  tar_target(
     home_goal_model,
     {
       elo_ratings_file
@@ -111,6 +140,105 @@ list(
       elo_ratings_file
       train_away_goal_model()
     }
+  ),
+  tar_target(
+    hybrid_goal_training_features_file,
+    {
+      if (is.na(transfermarkt_squad_strength_file) || !file.exists(transfermarkt_squad_strength_file)) {
+        NA_character_
+      } else {
+        matches <- read.csv("data/processed/elo_matches.csv", stringsAsFactors = FALSE)
+        matches$date <- as.Date(matches$date)
+        training <- matches[
+          matches$date < Sys.Date() &
+            !is.na(matches$home_score) &
+            !is.na(matches$away_score) &
+            !is.na(matches$home_team_canonical) &
+            !is.na(matches$away_team_canonical),
+          ,
+          drop = FALSE
+        ]
+        elo <- read.csv("data/processed/elo_ratings.csv", stringsAsFactors = FALSE)
+        rolling <- if (file.exists("data/processed/rolling_form.csv")) read.csv("data/processed/rolling_form.csv", stringsAsFactors = FALSE) else NULL
+        squad <- read.csv(transfermarkt_squad_strength_file, stringsAsFactors = FALSE)
+        ability <- suppressWarnings(compute_goal_ability_features(training, matches))
+        features <- build_forecast_feature_table(
+          matches = training,
+          elo_ratings = elo,
+          rolling_form = rolling,
+          squad_strength = squad,
+          goal_ability = ability
+        )
+        assert_no_feature_leakage(features)
+        output_path <- "data/processed/goal_training_features_hybrid.csv"
+        write.csv(features, output_path, row.names = FALSE)
+        output_path
+      }
+    },
+    format = "file"
+  ),
+  tar_target(
+    home_goal_model_hybrid,
+    {
+      if (is.na(hybrid_goal_training_features_file) || !file.exists(hybrid_goal_training_features_file)) {
+        NA_character_
+      } else {
+        train_home_goal_model(
+          feature_table_path = hybrid_goal_training_features_file,
+          model_path = "models/home_goal_model_hybrid.rds",
+          predictors = hybrid_goal_predictors(),
+          model_version = "hybrid"
+        )
+      }
+    }
+  ),
+  tar_target(
+    away_goal_model_hybrid,
+    {
+      if (is.na(hybrid_goal_training_features_file) || !file.exists(hybrid_goal_training_features_file)) {
+        NA_character_
+      } else {
+        train_away_goal_model(
+          feature_table_path = hybrid_goal_training_features_file,
+          model_path = "models/away_goal_model_hybrid.rds",
+          predictors = hybrid_goal_predictors(),
+          model_version = "hybrid"
+        )
+      }
+    }
+  ),
+  tar_target(
+    worldcup_forecast_features_file,
+    {
+      if (is.na(transfermarkt_squad_strength_file) || !file.exists(transfermarkt_squad_strength_file)) {
+        NA_character_
+      } else {
+        groups <- load_worldcup_2026_groups()
+        fixtures <- make_worldcup_group_fixtures(groups)
+        matches <- read.csv("data/processed/elo_matches.csv", stringsAsFactors = FALSE)
+        elo <- read.csv("data/processed/elo_ratings.csv", stringsAsFactors = FALSE)
+        rolling <- if (file.exists("data/processed/rolling_form.csv")) read.csv("data/processed/rolling_form.csv", stringsAsFactors = FALSE) else NULL
+        squad <- read.csv(transfermarkt_squad_strength_file, stringsAsFactors = FALSE)
+        features <- build_worldcup_forecast_feature_table(
+          groups = groups,
+          fixtures = fixtures,
+          history_matches = matches,
+          elo_ratings = elo,
+          rolling_form = rolling,
+          squad_strength = squad,
+          feature_cutoff_date = Sys.Date(),
+          output_path = "data/processed/worldcup_2026_forecast_features_hybrid.csv"
+        )
+        assert_worldcup_forecast_features(
+          features,
+          fixtures = fixtures,
+          teams = groups$team,
+          predictors = hybrid_goal_predictors()
+        )
+        "data/processed/worldcup_2026_forecast_features_hybrid.csv"
+      }
+    },
+    format = "file"
   ),
   tar_target(
     forecasts,
@@ -132,6 +260,15 @@ list(
     {
       forecasts
       calibrate_model(n_sample = 100, n_sim = 1000)
+    }
+  ),
+  tar_target(
+    euro2024_benchmark,
+    {
+      elo_ratings_file
+      rolling_form_file
+      transfermarkt_squad_strength_file
+      run_euro2024_benchmark()
     }
   ),
   tar_target(
@@ -161,8 +298,27 @@ list(
     {
       home_goal_model
       away_goal_model
+      home_goal_model_hybrid
+      away_goal_model_hybrid
       elo_ratings_file
-      dashboard <- build_worldcup_dashboard(n_match_sim = 5000, n_tournaments = 5000)
+      worldcup_forecast_features_file
+      hybrid_available <- !is.na(worldcup_forecast_features_file) &&
+        file.exists(worldcup_forecast_features_file) &&
+        file.exists("models/home_goal_model_hybrid.rds") &&
+        file.exists("models/away_goal_model_hybrid.rds")
+      dashboard <- build_worldcup_dashboard(
+        n_match_sim = 5000,
+        n_tournaments = 5000,
+        model_version = if (hybrid_available) "hybrid" else "baseline",
+        feature_cutoff_date = Sys.Date(),
+        require_forecast_features = hybrid_available,
+        baseline_comparison = hybrid_available,
+        home_model_path = if (hybrid_available) "models/home_goal_model_hybrid.rds" else "models/home_goal_model.rds",
+        away_model_path = if (hybrid_available) "models/away_goal_model_hybrid.rds" else "models/away_goal_model.rds",
+        forecast_features_path = if (hybrid_available) worldcup_forecast_features_file else NULL,
+        baseline_home_model_path = "models/home_goal_model.rds",
+        baseline_away_model_path = "models/away_goal_model.rds"
+      )
       dashboard$paths$html
     },
     format = "file"

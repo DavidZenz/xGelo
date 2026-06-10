@@ -28,10 +28,15 @@ simulate_fixture <- function(
     home_model_path = "models/home_goal_model.rds",
     away_model_path = "models/away_goal_model.rds",
     elo_ratings_path = "data/processed/elo_ratings.csv",
+    home_model = NULL,
+    away_model = NULL,
+    elo_ratings = NULL,
     n_sim = 50000,
     seed = NULL,
     top_n_scorelines = 10,
-    include_scoreline_distribution = TRUE
+    include_scoreline_distribution = TRUE,
+    forecast_features = NULL,
+    forecast_features_path = NULL
 ) {
 
   suppressPackageStartupMessages({
@@ -41,14 +46,19 @@ simulate_fixture <- function(
   if (n_sim <= 0) stop("n_sim must be positive")
   if (top_n_scorelines <= 0) stop("top_n_scorelines must be positive")
 
-  # Load models
-  if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
-  if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
-  if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
-
-  home_model <- readRDS(home_model_path)
-  away_model <- readRDS(away_model_path)
-  elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+  # Load models unless the caller supplies already-loaded objects.
+  if (is.null(home_model)) {
+    if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
+    home_model <- readRDS(home_model_path)
+  }
+  if (is.null(away_model)) {
+    if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
+    away_model <- readRDS(away_model_path)
+  }
+  if (is.null(elo_ratings)) {
+    if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
+    elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+  }
   elo_ratings$date <- as.Date(elo_ratings$date)
 
   # Set seed for reproducibility
@@ -92,25 +102,96 @@ simulate_fixture <- function(
 
   elo_diff <- home_elo - away_elo
 
+  if (
+    is.null(forecast_features) &&
+      is.character(forecast_features_path) &&
+      length(forecast_features_path) == 1 &&
+      !is.na(forecast_features_path) &&
+      file.exists(forecast_features_path)
+  ) {
+    forecast_features <- read.csv(forecast_features_path, stringsAsFactors = FALSE)
+  }
+
+  model_predictors <- function(model) {
+    predictors <- attr(model, "xgelo_predictors")
+    if (is.null(predictors) || length(predictors) == 0) {
+      predictors <- tryCatch(attr(stats::terms(model), "term.labels"), error = function(e) character())
+    }
+    if (length(predictors) == 0) predictors <- "elo_diff"
+    predictors
+  }
+
+  lookup_feature_row <- function() {
+    predictors <- unique(c(model_predictors(home_model), model_predictors(away_model)))
+    row <- as.data.frame(as.list(stats::setNames(rep(0, length(predictors)), predictors)))
+    if ("elo_diff" %in% predictors) row$elo_diff <- elo_diff
+
+    if (is.data.frame(forecast_features) && nrow(forecast_features) > 0) {
+      feature_rows <- forecast_features
+      if ("date" %in% names(feature_rows)) feature_rows$date <- as.Date(feature_rows$date)
+      date_match <- if ("date" %in% names(feature_rows)) feature_rows$date == match_date else rep(TRUE, nrow(feature_rows))
+      normalise_team <- if (exists("feature_team_match_key")) feature_team_match_key else if (exists("canonicalise_feature_team_name")) canonicalise_feature_team_name else identity
+      team_match <- normalise_team(feature_rows$home_team) == normalise_team(home_team) &
+        normalise_team(feature_rows$away_team) == normalise_team(away_team)
+      matches <- feature_rows[date_match & team_match, , drop = FALSE]
+      if (nrow(matches) > 0) {
+        matched <- matches[1, , drop = FALSE]
+        for (predictor in intersect(predictors, names(matched))) {
+          row[[predictor]] <- matched[[predictor]][1]
+        }
+      }
+    }
+    for (predictor in names(row)) {
+      row[[predictor]] <- suppressWarnings(as.numeric(row[[predictor]]))
+      if (!is.finite(row[[predictor]])) row[[predictor]] <- 0
+    }
+    row
+  }
+
+  reverse_feature_row <- function(row) {
+    reversed <- row
+    diff_cols <- grep("(^elo_diff$|_diff$)", names(reversed), value = TRUE)
+    for (col in diff_cols) reversed[[col]] <- -reversed[[col]]
+    reversed
+  }
+
+  feature_newdata <- lookup_feature_row()
+  feature_newdata_reversed <- reverse_feature_row(feature_newdata)
+
   model_has_side_context <- function(model) {
     inherits(model, c("glm", "lm", "negbin", "side_context_goal_model")) &&
       !inherits(model, "constant_goal_model")
   }
+  model_uses_home_perspective <- function(model) {
+    identical(attr(model, "xgelo_feature_perspective"), "home")
+  }
 
   # Predict lambdas. Neutral fixtures should not inherit an arbitrary
   # first-listed-team boost from separate home/away model intercepts.
-  if (venue == "neutral" && (model_has_side_context(home_model) || model_has_side_context(away_model))) {
+  if (venue == "neutral" && (model_uses_home_perspective(home_model) || model_uses_home_perspective(away_model))) {
     home_lambda <- mean(c(
-      predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response"),
-      predict(away_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
+      predict(home_model, newdata = feature_newdata, type = "response"),
+      predict(away_model, newdata = feature_newdata_reversed, type = "response")
     ))
     away_lambda <- mean(c(
-      predict(home_model, newdata = data.frame(elo_diff = -elo_diff), type = "response"),
-      predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+      predict(home_model, newdata = feature_newdata_reversed, type = "response"),
+      predict(away_model, newdata = feature_newdata, type = "response")
     ))
+  } else if (venue == "neutral" && (model_has_side_context(home_model) || model_has_side_context(away_model))) {
+    home_lambda <- mean(c(
+      predict(home_model, newdata = feature_newdata, type = "response"),
+      predict(away_model, newdata = feature_newdata, type = "response")
+    ))
+    away_lambda <- mean(c(
+      predict(home_model, newdata = feature_newdata_reversed, type = "response"),
+      predict(away_model, newdata = feature_newdata_reversed, type = "response")
+    ))
+  } else if (model_uses_home_perspective(home_model) || model_uses_home_perspective(away_model)) {
+    home_lambda <- predict(home_model, newdata = feature_newdata, type = "response")
+    away_lambda <- predict(away_model, newdata = feature_newdata, type = "response")
   } else {
-    home_lambda <- predict(home_model, newdata = data.frame(elo_diff = elo_diff), type = "response")
-    away_lambda <- predict(away_model, newdata = data.frame(elo_diff = -elo_diff), type = "response")
+    home_lambda <- predict(home_model, newdata = feature_newdata, type = "response")
+    away_lambda <- predict(away_model, newdata = feature_newdata_reversed, type = "response")
   }
 
   get_negative_binomial_theta <- function(model) {
