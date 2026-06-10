@@ -2243,7 +2243,30 @@ function renderTeams(selected){
   const team = data.stage_probabilities.find(t => t.team === current) || teams[0];
   if (!team) return;
   const matches = data.match_forecasts.filter(m => m.home_team === team.team || m.away_team === team.team);
-  document.getElementById("teamDetail").innerHTML = `<h2>${esc(team.display_team)}</h2><p>Group ${esc(team.group)} | Title ${pct(team.champion_probability)} | Final ${pct(team.final_probability)} | Quarter-final ${pct(team.quarterfinal_probability)} | Round of 32 ${pct(team.round_of_32_probability)}</p><h3 class="panel-title">Group matches</h3>${matches.map(m => `<div class="slot"><span>${esc(m.home_display)} vs ${esc(m.away_display)}<br><small>${esc(m.date)} ${esc(m.kickoff_local)} local | ${esc(m.host_city)}</small></span><small>${esc(m.most_likely_score)}</small></div>`).join("")}`;
+  const roundOrder = {"Round of 32": 1, "Round of 16": 2, "Quarter-finals": 3, "Semi-finals": 4, "Final": 5, "Champion": 6};
+  const routeRows = data.bracket_paths
+    .filter(r => r.round !== "Champion" && (r.slot1_team === team.team || r.slot2_team === team.team))
+    .sort((a,b) => (roundOrder[a.round] || 99) - (roundOrder[b.round] || 99));
+  const isProjectedTeam = value => value === team.display_team || value === team.team;
+  const teamScore = (score, isSlot1) => {
+    if (!score || isSlot1) return score || "";
+    const parts = String(score).split("-");
+    return parts.length === 2 ? `${parts[1]}-${parts[0]}` : score;
+  };
+  const championRow = data.bracket_paths.find(r => r.round === "Champion" && isProjectedTeam(r.projected_winner));
+  const routeHtml = routeRows.length > 0
+    ? routeRows.map(r => {
+      const isSlot1 = r.slot1_team === team.team;
+      const opponent = isSlot1 ? (r.slot2_display || r.slot2_label) : (r.slot1_display || r.slot1_label);
+      const advance = isSlot1 ? r.slot1_advancement_probability : r.slot2_advancement_probability;
+      const regulation = isSlot1 ? r.slot1_regulation_win_probability : r.slot2_regulation_win_probability;
+      const late = isSlot1 ? r.slot1_extra_time_penalty_probability : r.slot2_extra_time_penalty_probability;
+      const projectedAdvance = isProjectedTeam(r.projected_winner);
+      const status = projectedAdvance ? "Projected advance" : "Projected exit";
+      return `<div class="slot"><span><strong>${esc(r.round)}</strong>: ${esc(team.display_team)} vs ${esc(opponent)}<br><small>${esc(status)} | 90 min win ${pct(regulation)} | ET/pens ${pct(late)} | rounded goals ${esc(teamScore(r.rounded_expected_score, isSlot1))}</small></span><small>${pct(advance)}</small></div>`;
+    }).join("") + (championRow ? `<div class="slot"><span><strong>Champion</strong>: ${esc(team.display_team)}<br><small>Projected champion in the displayed bracket path</small></span><small>${pct(team.champion_probability)}</small></div>` : "")
+    : `<div class="slot"><span>No projected knockout route in the displayed bracket path<br><small>Simulations still give ${esc(team.display_team)} a ${pct(team.round_of_32_probability)} Round-of-32 chance.</small></span><small>${pct(team.champion_probability)}</small></div>`;
+  document.getElementById("teamDetail").innerHTML = `<h2>${esc(team.display_team)}</h2><p>Group ${esc(team.group)} | Title ${pct(team.champion_probability)} | Final ${pct(team.final_probability)} | Quarter-final ${pct(team.quarterfinal_probability)} | Round of 32 ${pct(team.round_of_32_probability)}</p><h3 class="panel-title">Group matches</h3>${matches.map(m => `<div class="slot"><span>${esc(m.home_display)} vs ${esc(m.away_display)}<br><small>${esc(m.date)} ${esc(m.kickoff_local)} local | ${esc(m.host_city)}</small></span><small>${esc(m.most_likely_score)}</small></div>`).join("")}<h3 class="panel-title">Projected tournament path</h3>${routeHtml}`;
   document.querySelectorAll(".team-row").forEach(row => row.onclick = () => renderTeams(row.dataset.team));
 }
 document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
