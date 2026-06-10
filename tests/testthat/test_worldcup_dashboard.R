@@ -369,6 +369,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Win spread", html, fixed = TRUE))
   expect_true(grepl("closest group-win race uses the top-two leader margin", html, fixed = TRUE))
   expect_true(grepl("open-group headline uses the spread", html, fixed = TRUE))
+  expect_true(grepl("Expected goals", html, fixed = TRUE))
+  expect_true(grepl("chip primary", html, fixed = TRUE))
   expect_true(grepl("Rounded goals", html, fixed = TRUE))
   expect_true(grepl("Top exact scorelines", html, fixed = TRUE))
   expect_true(grepl("Top exact score", html, fixed = TRUE))
