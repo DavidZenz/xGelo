@@ -87,3 +87,29 @@ test_that("Elo yearly match counters reset across calendar years", {
   expect_equal(optimized$matches_last_year[optimized$team == "B"], 1)
   expect_equal(optimized$matches_this_year[optimized$team == "B"], 1)
 })
+
+test_that("optimized Elo skips unscored future fixtures", {
+  matches <- data.frame(
+    date = as.Date(c("2026-06-01", "2026-06-12")),
+    home_team_canonical = c("A", "A"),
+    away_team_canonical = c("B", "B"),
+    home_score = c(2, NA),
+    away_score = c(1, NA),
+    neutral = c(TRUE, TRUE),
+    result = c(1, NA),
+    is_home = c(FALSE, FALSE),
+    stringsAsFactors = FALSE
+  )
+  team_map <- data.frame(
+    source_name = c("A", "B"),
+    canonical_name = c("A", "B"),
+    fifa_code = c("AAA", "BBB"),
+    stringsAsFactors = FALSE
+  )
+
+  result <- compute_elo_optimized(matches, team_map, home_advantage = 0)
+
+  expect_equal(nrow(result$matches_processed), 1)
+  expect_true(all(is.finite(result$current_ratings$rating)))
+  expect_equal(max(result$current_ratings$last_match_date), as.Date("2026-06-01"))
+})

@@ -48,6 +48,12 @@ martj42 international results        StatsBomb event data
 The forecast layer uses negative-binomial goal simulation to allow overdispersed
 football scores instead of assuming Poisson variance.
 
+Current WC2026 dashboard forecasts use Elo, Transfermarkt player-pool strength,
+and weighted historical goal ability as active goal-model predictors. The
+shot-level xG model and rolling xG/form tables remain in the pipeline, but the
+publication dashboard audits those candidate rolling predictors and leaves them
+inactive when the available international rolling-form coverage is insufficient.
+
 For the 2026 World Cup dashboard, group-stage and knockout-stage simulations are
 related but not identical:
 
@@ -171,6 +177,29 @@ source("_targets.R")
 targets::tar_make(names = worldcup_pages_file)
 ```
 
+Update the publication-scale hybrid dashboard from the current local processed
+data and publish the GitHub Pages HTML in one command:
+
+```bash
+Rscript scripts/update_worldcup_dashboard.R
+```
+
+The script defaults to 100,000 match simulations, 100,000 tournament
+simulations, four dashboard workers, the hybrid goal models,
+`outputs/dashboard_100k/`, and
+`docs/wc2026/index.html`. It does not download upstream data; refresh the
+local targets first if new international results or Transfermarkt snapshots
+should be included. Before and after building, it audits all 48 World Cup teams
+against the local Elo, Transfermarkt player-pool, forecast-feature, and
+dashboard outputs, while reporting raw Transfermarkt national-team table gaps
+and xG/form predictor usage as diagnostics. For a quick smoke run:
+
+```bash
+XGELO_MATCH_SIMS=100 XGELO_TOURNAMENT_SIMS=100 XGELO_DASHBOARD_WORKERS=1 \
+XGELO_OUTPUT_DIR=/tmp/xgelo-dashboard-smoke XGELO_PUBLISH=false \
+Rscript scripts/update_worldcup_dashboard.R
+```
+
 The repository includes a GitHub Actions Pages workflow in
 `.github/workflows/deploy-pages.yml`. After GitHub Pages is configured to use
 **GitHub Actions** as its source, pushes to `master` deploy the contents of
@@ -259,12 +288,21 @@ cached lazily by matchup; all-pair route precomputation is available with
 ordered-pair cache is expensive for quick smoke runs.
 Windows falls back to serial execution.
 
+For publication updates, use `Rscript scripts/update_worldcup_dashboard.R`.
+Environment variables supported by that script include `XGELO_MATCH_SIMS`,
+`XGELO_TOURNAMENT_SIMS`, `XGELO_DASHBOARD_WORKERS`, `XGELO_OUTPUT_DIR`,
+`XGELO_PAGES_DIR`, `XGELO_PUBLISH`, `XGELO_BASELINE_COMPARISON`,
+`XGELO_FEATURE_CUTOFF_DATE`, `XGELO_ROUTE_METHOD`, and
+`XGELO_TRANSFERMARKT_SNAPSHOT`.
+
 ## Key Outputs
 
 - `data/processed/elo_ratings.csv`: historical team Elo ratings
 - `data/processed/elo_current.csv`: latest team Elo ratings
 - `data/processed/team_match_xg.csv`: team-level xG by match
 - `data/processed/rolling_form.csv`: lagged rolling-form features
+- `data/processed/xg_feature_usage_audit.csv`: candidate xG/form predictor
+  coverage and fitted-model usage diagnostic
 - `models/xg_model.rds`: trained shot-level xG model
 - `models/home_goal_model.rds`: home-goal negative-binomial model
 - `models/away_goal_model.rds`: away-goal negative-binomial model
@@ -296,12 +334,11 @@ xGelo uses open or locally cached data sources:
   `data/raw/worldcup_2026_group_fixtures.csv`.
 - Optional local
   [dcaribou/transfermarkt-datasets](https://github.com/dcaribou/transfermarkt-datasets)
-  DuckDB snapshot for squad-strength features. Put it at
+  DuckDB snapshot for player-pool valuation features. Put it at
   `data/raw/transfermarkt/transfermarkt-datasets.duckdb`; raw snapshots are not
   committed. The optional feature block uses dated player valuations to derive
-  squad value, top-11/top-15/top-23 value, positional value by goalkeeper /
-  defense / midfield / attack, depth concentration, age profile, and 6-/12-month
-  valuation momentum.
+  player-pool value, top-11/top-15/top-23 value, positional depth, value shares,
+  depth concentration, age profile, and 6-/12-month valuation momentum.
 
 Please credit those upstream projects when using or publishing outputs derived
 from this repository. StatsBomb Open Data is licensed under Creative Commons
@@ -343,13 +380,16 @@ one winner per matchup.
 - Forecasts are pre-match model outputs, not betting advice.
 - The model does not currently account for confirmed lineups, injuries,
   suspensions, travel disruption, or in-play match state.
-- Transfermarkt squad-strength features are optional and default-off. The EURO
-  2024 benchmark reports whether the hybrid feature set improves match-level
-  Brier score, log loss, ranked probability score, and calibration versus the
-  baseline path.
+- Transfermarkt player-pool features are optional and default-off. The EURO 2024
+  benchmark reports whether the hybrid feature set improves match-level Brier
+  score, log loss, ranked probability score, and calibration versus the baseline
+  path.
 - xG training is domestic-only to reduce target leakage into international
   forecasts. The checked-in development pipeline uses an explicit sample
   override for the included StatsBomb data.
+- Rolling xG/form candidate features are currently audited but inactive in the
+  WC2026 dashboard unless coverage and fitted-model retention justify using
+  them.
 - Model quality depends on the freshness and coverage of the local data cache.
 - No project-level software license file is currently included; data sources
   retain their own licenses.

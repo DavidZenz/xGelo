@@ -99,6 +99,62 @@ test_that("Transfermarkt aggregation derives positional, depth, age, and momentu
   expect_true("value_weighted_avg_age" %in% names(features))
 })
 
+test_that("Transfermarkt value audit flags divergences without failing missing raw teams", {
+  source(file.path(project_root, "R/transfermarkt/squad_strength.R"))
+
+  squad <- data.frame(
+    team = c("A", "B", "C", "D"),
+    feature_source_date = as.Date(rep("2026-06-09", 4)),
+    squad_value = c(100, 250, 20, 80),
+    top11_value = c(90, 200, 18, 70),
+    top23_value = c(95, 230, 19, 75),
+    num_players_with_value = c(20, 30, 8, 12),
+    missing_value_share = c(0, 0.1, 0.5, 0.4),
+    stringsAsFactors = FALSE
+  )
+  national <- data.frame(
+    team = c("A", "B", "C"),
+    national_team_value = c(100, 100, 100),
+    national_team_squad_size = c(23, 23, 23),
+    stringsAsFactors = FALSE
+  )
+
+  audit <- audit_transfermarkt_value_divergence(
+    squad_strength = squad,
+    national_team_values = national,
+    teams = c("A", "B", "C", "D", "E"),
+    cutoff_date = as.Date("2026-06-10")
+  )
+
+  expect_equal(audit$status[audit$team == "A"], "ok")
+  expect_equal(audit$status[audit$team == "B"], "warn")
+  expect_equal(audit$status[audit$team == "C"], "review")
+  expect_equal(audit$status[audit$team == "D"], "missing_raw_national_team")
+  expect_equal(audit$status[audit$team == "E"], "missing_player_pool")
+  expect_equal(audit$pool_to_national_ratio[audit$team == "B"], 2.5)
+  expect_true("abs_log_divergence" %in% names(audit))
+})
+
+test_that("regularized hybrid predictors exclude raw positional totals", {
+  source(file.path(project_root, "R/forecast/poisson.R"))
+
+  predictors <- hybrid_goal_predictors()
+
+  expect_false(any(c(
+    "log_goalkeeper_value_diff",
+    "log_defense_value_diff",
+    "log_midfield_value_diff",
+    "log_attack_value_diff"
+  ) %in% predictors))
+  expect_true(all(c(
+    "log_top1_goalkeeper_value_diff",
+    "log_top4_defense_value_diff",
+    "log_top4_midfield_value_diff",
+    "log_top3_attack_value_diff",
+    "attack_value_share_diff"
+  ) %in% predictors))
+})
+
 test_that("goal ability excludes matches on or after the cutoff", {
   source(file.path(project_root, "R/forecast/goal_ability.R"))
 
@@ -194,6 +250,7 @@ test_that("synthetic EURO benchmark outputs baseline and hybrid metrics", {
   expect_true(all(c("multiclass_brier", "log_loss", "ranked_probability_score") %in% names(result$metrics)))
   expect_true(all(as.Date(result$predictions$feature_source_date) < as.Date("2024-06-14")))
   expect_true(file.exists(file.path(out_dir, "euro2024_metrics.csv")))
+  expect_true(file.exists(file.path(out_dir, "euro2024_metric_comparison.csv")))
 })
 
 test_that("WC2026 feature builder creates group and ordered knockout rows without leakage", {
@@ -289,6 +346,67 @@ test_that("WC2026 squad lookup canonicalizes Transfermarkt country aliases", {
   )
 
   expect_equal(features$log_squad_value_diff, 2)
+})
+
+test_that("team source coverage audit catches canonical aliases and gaps", {
+  source(file.path(project_root, "R/forecast/features.R"))
+
+  teams <- c(
+    "Korea Republic", "Ivory Coast", "Bosnia and Herzegovina",
+    "Turkey", "Czech Republic", "Cape Verde", "DR Congo", "Cura\u00e7ao"
+  )
+  sources <- list(
+    complete = c(
+      "Korea, South", "Cote d'Ivoire", "Bosnia-Herzegovina",
+      "Turkiye", "Czechia", "Cabo Verde", "Democratic Republic of the Congo",
+      "Curacao"
+    ),
+    incomplete = c("Korea, South")
+  )
+
+  coverage <- audit_team_source_coverage(teams, sources)
+
+  expect_true(all(coverage$complete))
+  expect_false(all(coverage$incomplete))
+  expect_error(
+    assert_team_source_coverage(coverage, sources = c("incomplete")),
+    "Team coverage gaps detected"
+  )
+  expect_silent(assert_team_source_coverage(coverage, sources = c("complete")))
+})
+
+test_that("xG feature usage audit reports coverage and retained active predictors", {
+  source(file.path(project_root, "R/forecast/xg_usage_audit.R"))
+
+  feature_table <- data.frame(
+    home_team = c("A", "B", "A"),
+    away_team = c("B", "A", "C"),
+    xgf_ewma_diff = c(0.1, -0.2, 0.3),
+    xga_ewma_diff = c(0, 0, 0),
+    stringsAsFactors = FALSE
+  )
+  rolling_form <- data.frame(team = c("A", "B"), xgf_ewma = c(1.2, 0.8), stringsAsFactors = FALSE)
+  forecast_features <- data.frame(home_team = "A", away_team = "C", stringsAsFactors = FALSE)
+  model <- glm(goals ~ xgf_ewma_diff, data = transform(feature_table, goals = c(1, 0, 2)), family = poisson)
+
+  audit_path <- tempfile(fileext = ".csv")
+  audit <- audit_xg_feature_usage(
+    feature_table = feature_table,
+    home_model = model,
+    away_model = NULL,
+    rolling_form = rolling_form,
+    forecast_features = forecast_features,
+    predictors = c("xgf_ewma_diff", "xga_ewma_diff", "xgd_ewma_diff"),
+    output_path = audit_path
+  )
+
+  expect_true(file.exists(audit_path))
+  expect_true(audit$active_in_model[audit$predictor == "xgf_ewma_diff"])
+  expect_false(audit$active_in_model[audit$predictor == "xga_ewma_diff"])
+  expect_equal(audit$audit_note[audit$predictor == "xga_ewma_diff"], "zero variance in feature table")
+  expect_equal(audit$audit_note[audit$predictor == "xgd_ewma_diff"], "missing feature column")
+  expect_equal(audit$training_teams_with_rolling_form[1], 2)
+  expect_equal(audit$forecast_teams_with_rolling_form[1], 1)
 })
 
 test_that("knockout route estimator uses supplied hybrid forecast features", {

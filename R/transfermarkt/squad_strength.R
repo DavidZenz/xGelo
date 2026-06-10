@@ -41,6 +41,189 @@ log_value_growth <- function(current, previous) {
   log1p(current) - log1p(previous)
 }
 
+#' Canonicalize team names for Transfermarkt diagnostics
+#' @keywords internal
+transfermarkt_canonical_team <- function(team) {
+  canonicaliser <- get0("canonicalise_feature_team_name", mode = "function")
+  if (is.function(canonicaliser)) return(canonicaliser(team))
+  aliases <- c(
+    "Korea, South" = "Korea Republic",
+    "South Korea" = "Korea Republic",
+    "Bosnia-Herzegovina" = "Bosnia and Herzegovina",
+    "Bosnia Herzegovina" = "Bosnia and Herzegovina",
+    "Curacao" = "Cura\u00e7ao",
+    "Cote d'Ivoire" = "Ivory Coast",
+    "C\u00f4te d'Ivoire" = "Ivory Coast",
+    "Cote d Ivoire" = "Ivory Coast",
+    "Türkiye" = "Turkey",
+    "Turkiye" = "Turkey",
+    "Czechia" = "Czech Republic",
+    "Cape Verde Islands" = "Cape Verde",
+    "Cabo Verde" = "Cape Verde",
+    "Democratic Republic of the Congo" = "DR Congo",
+    "Congo DR" = "DR Congo",
+    "Congo, DR" = "DR Congo"
+  )
+  out <- as.character(team)
+  matched <- out %in% names(aliases)
+  out[matched] <- unname(aliases[out[matched]])
+  out
+}
+
+#' Read current Transfermarkt national-team value diagnostics
+#'
+#' @param snapshot_path Local Transfermarkt DuckDB file
+#' @return Data frame with canonical team, raw name, and national-team value
+#' @export
+read_transfermarkt_national_team_values <- function(
+    snapshot_path = "data/raw/transfermarkt/transfermarkt-datasets.duckdb"
+) {
+  validate_transfermarkt_snapshot(snapshot_path)
+  con <- DBI::dbConnect(duckdb::duckdb(), dbdir = snapshot_path, read_only = TRUE)
+  on.exit(DBI::dbDisconnect(con, shutdown = TRUE), add = TRUE)
+  tables <- DBI::dbListTables(con)
+  if (!"national_teams" %in% tables) {
+    return(data.frame())
+  }
+  national_teams <- normalise_transfermarkt_columns(DBI::dbReadTable(con, "national_teams"))
+  required <- c("name", "total_market_value")
+  missing <- setdiff(required, names(national_teams))
+  if (length(missing) > 0) {
+    stop(paste("national_teams missing required columns:", paste(missing, collapse = ", ")))
+  }
+  out <- data.frame(
+    team = transfermarkt_canonical_team(national_teams$name),
+    raw_national_team_name = national_teams$name,
+    raw_country_name = if ("country_name" %in% names(national_teams)) national_teams$country_name else NA_character_,
+    national_team_value = suppressWarnings(as.numeric(national_teams$total_market_value)),
+    national_team_squad_size = if ("squad_size" %in% names(national_teams)) suppressWarnings(as.numeric(national_teams$squad_size)) else NA_real_,
+    national_team_fifa_ranking = if ("fifa_ranking" %in% names(national_teams)) suppressWarnings(as.numeric(national_teams$fifa_ranking)) else NA_real_,
+    stringsAsFactors = FALSE
+  )
+  out <- out[!is.na(out$team) & nzchar(out$team), , drop = FALSE]
+  out <- out[order(out$team, -out$national_team_value), , drop = FALSE]
+  out[!duplicated(out$team), , drop = FALSE]
+}
+
+#' Compare player-pool values against current Transfermarkt national-team totals
+#'
+#' This is a current-snapshot diagnostic only. It is intentionally not used to
+#' rescale historical features because the raw national-team table is not dated.
+#'
+#' @param squad_strength Data frame or path to generated squad-strength features
+#' @param national_team_values Optional data frame with national-team totals
+#' @param snapshot_path Local Transfermarkt DuckDB file used when national_team_values is NULL
+#' @param teams Optional canonical teams to include, including raw-table missing rows
+#' @param cutoff_date Latest player-pool feature source date must be before this date
+#' @param warn_ratio Non-blocking warning threshold; defaults to outside 0.5x..2x
+#' @param review_ratio Stronger non-blocking review threshold; defaults to outside 0.33x..3x
+#' @param output_path Optional CSV output path
+#' @return Audit data frame
+#' @export
+audit_transfermarkt_value_divergence <- function(
+    squad_strength = "data/processed/transfermarkt_squad_strength.csv",
+    national_team_values = NULL,
+    snapshot_path = "data/raw/transfermarkt/transfermarkt-datasets.duckdb",
+    teams = NULL,
+    cutoff_date = Sys.Date(),
+    warn_ratio = 2,
+    review_ratio = 3,
+    output_path = NULL
+) {
+  if (is.character(squad_strength) && length(squad_strength) == 1) {
+    if (!file.exists(squad_strength)) stop(paste("Squad-strength file not found:", squad_strength))
+    squad_strength <- read.csv(squad_strength, stringsAsFactors = FALSE)
+  }
+  squad_strength <- normalise_transfermarkt_columns(squad_strength)
+  required_squad_cols <- c("team", "squad_value")
+  missing_squad_cols <- setdiff(required_squad_cols, names(squad_strength))
+  if (length(missing_squad_cols) > 0) {
+    stop(paste("Squad-strength data missing required columns:", paste(missing_squad_cols, collapse = ", ")))
+  }
+
+  date_col <- if ("feature_source_date" %in% names(squad_strength)) "feature_source_date" else "as_of_date"
+  if (!date_col %in% names(squad_strength)) {
+    stop("Squad-strength data must include feature_source_date or as_of_date")
+  }
+  cutoff_date <- as.Date(cutoff_date)
+  squad_strength[[date_col]] <- as.Date(squad_strength[[date_col]])
+  squad_strength$team <- transfermarkt_canonical_team(squad_strength$team)
+  squad_strength$squad_value <- suppressWarnings(as.numeric(squad_strength$squad_value))
+  available <- squad_strength[
+    !is.na(squad_strength$team) &
+      !is.na(squad_strength[[date_col]]) &
+      squad_strength[[date_col]] < cutoff_date,
+    ,
+    drop = FALSE
+  ]
+  latest_pool <- if (nrow(available) > 0) {
+    available <- available[order(available$team, available[[date_col]]), , drop = FALSE]
+    do.call(rbind, lapply(split(available, available$team), function(rows) rows[nrow(rows), , drop = FALSE]))
+  } else {
+    available[0, , drop = FALSE]
+  }
+  latest_pool <- data.frame(
+    team = latest_pool$team,
+    player_pool_feature_source_date = latest_pool[[date_col]],
+    player_pool_value = latest_pool$squad_value,
+    player_pool_top11_value = if ("top11_value" %in% names(latest_pool)) latest_pool$top11_value else NA_real_,
+    player_pool_top23_value = if ("top23_value" %in% names(latest_pool)) latest_pool$top23_value else NA_real_,
+    player_pool_num_players_with_value = if ("num_players_with_value" %in% names(latest_pool)) latest_pool$num_players_with_value else NA_real_,
+    player_pool_missing_value_share = if ("missing_value_share" %in% names(latest_pool)) latest_pool$missing_value_share else NA_real_,
+    stringsAsFactors = FALSE
+  )
+
+  if (is.null(national_team_values)) {
+    national_team_values <- read_transfermarkt_national_team_values(snapshot_path)
+  } else {
+    national_team_values <- normalise_transfermarkt_columns(national_team_values)
+    value_col <- intersect(c("national_team_value", "total_market_value"), names(national_team_values))[1]
+    if (is.na(value_col)) {
+      stop("national_team_values must include national_team_value or total_market_value")
+    }
+    national_team_values$team <- transfermarkt_canonical_team(national_team_values$team)
+    national_team_values$national_team_value <- suppressWarnings(as.numeric(national_team_values[[value_col]]))
+    if (!"raw_national_team_name" %in% names(national_team_values)) national_team_values$raw_national_team_name <- national_team_values$team
+    if (!"national_team_squad_size" %in% names(national_team_values)) national_team_values$national_team_squad_size <- NA_real_
+    if (!"national_team_fifa_ranking" %in% names(national_team_values)) national_team_values$national_team_fifa_ranking <- NA_real_
+    national_team_values <- national_team_values[
+      ,
+      c("team", "raw_national_team_name", "national_team_value", "national_team_squad_size", "national_team_fifa_ranking"),
+      drop = FALSE
+    ]
+  }
+
+  if (is.null(teams)) {
+    teams <- sort(unique(c(latest_pool$team, national_team_values$team)))
+  } else {
+    teams <- transfermarkt_canonical_team(teams)
+  }
+  base <- data.frame(team = unique(teams), stringsAsFactors = FALSE)
+  out <- merge(base, latest_pool, by = "team", all.x = TRUE)
+  out <- merge(out, national_team_values, by = "team", all.x = TRUE)
+  out$pool_to_national_ratio <- out$player_pool_value / out$national_team_value
+  out$log_pool_minus_national <- log1p(out$player_pool_value) - log1p(out$national_team_value)
+  out$abs_log_divergence <- abs(out$log_pool_minus_national)
+  out$status <- "ok"
+  out$status[is.na(out$national_team_value)] <- "missing_raw_national_team"
+  out$status[is.na(out$player_pool_value)] <- "missing_player_pool"
+  comparable <- !is.na(out$pool_to_national_ratio) & is.finite(out$pool_to_national_ratio)
+  out$status[comparable & (out$pool_to_national_ratio > warn_ratio | out$pool_to_national_ratio < 1 / warn_ratio)] <- "warn"
+  out$status[comparable & (out$pool_to_national_ratio > review_ratio | out$pool_to_national_ratio < 1 / review_ratio)] <- "review"
+  out <- out[order(
+    match(out$status, c("review", "warn", "missing_raw_national_team", "missing_player_pool", "ok")),
+    -out$abs_log_divergence,
+    out$team
+  ), , drop = FALSE]
+  rownames(out) <- NULL
+
+  if (!is.null(output_path)) {
+    if (!dir.exists(dirname(output_path))) dir.create(dirname(output_path), recursive = TRUE)
+    write.csv(out, output_path, row.names = FALSE)
+  }
+  out
+}
+
 #' Validate a local Transfermarkt DuckDB snapshot
 #'
 #' @param snapshot_path Path to local transfermarkt-datasets DuckDB file

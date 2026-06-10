@@ -13,15 +13,71 @@ canonicalise_feature_team_name <- function(team) {
     "Korea, South" = "Korea Republic",
     "South Korea" = "Korea Republic",
     "Bosnia-Herzegovina" = "Bosnia and Herzegovina",
+    "Bosnia Herzegovina" = "Bosnia and Herzegovina",
     "Curacao" = "Cura\u00e7ao",
+    "Cura\u00e7ao" = "Cura\u00e7ao",
     "Cote d'Ivoire" = "Ivory Coast",
     "C\u00f4te d'Ivoire" = "Ivory Coast",
-    "Türkiye" = "Turkey"
+    "Cote d Ivoire" = "Ivory Coast",
+    "Ivory Coast" = "Ivory Coast",
+    "Türkiye" = "Turkey",
+    "Turkiye" = "Turkey",
+    "Czechia" = "Czech Republic",
+    "Cape Verde Islands" = "Cape Verde",
+    "Cabo Verde" = "Cape Verde",
+    "Democratic Republic of the Congo" = "DR Congo",
+    "Congo DR" = "DR Congo",
+    "Congo, DR" = "DR Congo",
+    "DR Congo" = "DR Congo"
   )
   out <- as.character(team)
   matched <- out %in% names(aliases)
   out[matched] <- unname(aliases[out[matched]])
   out
+}
+
+#' Audit team coverage across local forecast sources
+#'
+#' @param teams Canonical teams that must be covered
+#' @param sources Named list of team-name vectors, one per source
+#' @return Data frame with one row per team and one logical column per source
+#' @export
+audit_team_source_coverage <- function(teams, sources) {
+  if (is.null(names(sources)) || any(names(sources) == "")) {
+    stop("sources must be a named list")
+  }
+  out <- data.frame(team = as.character(teams), stringsAsFactors = FALSE)
+  required <- canonicalise_feature_team_name(teams)
+  for (source_name in names(sources)) {
+    source_teams <- unique(canonicalise_feature_team_name(sources[[source_name]]))
+    out[[source_name]] <- required %in% source_teams
+  }
+  out
+}
+
+#' Assert complete team coverage for selected sources
+#'
+#' @param coverage Coverage data frame from audit_team_source_coverage()
+#' @param sources Source columns that must be complete
+#' @return Invisibly returns coverage when all required sources are complete
+#' @export
+assert_team_source_coverage <- function(coverage, sources = setdiff(names(coverage), "team")) {
+  missing_sources <- setdiff(sources, names(coverage))
+  if (length(missing_sources) > 0) {
+    stop(paste("Coverage missing source columns:", paste(missing_sources, collapse = ", ")))
+  }
+  gaps <- lapply(sources, function(source_name) coverage$team[!coverage[[source_name]]])
+  names(gaps) <- sources
+  gaps <- gaps[lengths(gaps) > 0]
+  if (length(gaps) > 0) {
+    details <- vapply(
+      names(gaps),
+      function(source_name) paste0(source_name, ": ", paste(gaps[[source_name]], collapse = ", ")),
+      character(1)
+    )
+    stop(paste("Team coverage gaps detected:", paste(details, collapse = " | ")))
+  }
+  invisible(coverage)
 }
 
 #' Build a tolerant team key for cross-source feature joins

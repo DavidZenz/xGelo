@@ -29,6 +29,7 @@ source("R/integration/team_match_xg.R")
 source("R/integration/rolling_form.R")
 source("R/transfermarkt/squad_strength.R")
 source("R/forecast/features.R")
+source("R/forecast/xg_usage_audit.R")
 source("R/forecast/goal_ability.R")
 source("R/forecast/poisson.R")
 source("R/forecast/monte_carlo.R")
@@ -128,6 +129,30 @@ list(
     }
   ),
   tar_target(
+    transfermarkt_value_audit_file,
+    {
+      snapshot_path <- "data/raw/transfermarkt/transfermarkt-datasets.duckdb"
+      if (
+        is.na(transfermarkt_squad_strength_file) ||
+          !file.exists(transfermarkt_squad_strength_file) ||
+          !file.exists(snapshot_path)
+      ) {
+        NA_character_
+      } else {
+        groups <- read.csv("data/raw/worldcup_2026_groups.csv", stringsAsFactors = FALSE)
+        audit_transfermarkt_value_divergence(
+          squad_strength = transfermarkt_squad_strength_file,
+          snapshot_path = snapshot_path,
+          teams = groups$team,
+          cutoff_date = Sys.Date(),
+          output_path = "data/processed/transfermarkt_value_audit.csv"
+        )
+        "data/processed/transfermarkt_value_audit.csv"
+      }
+    },
+    format = "file"
+  ),
+  tar_target(
     home_goal_model,
     {
       elo_ratings_file
@@ -208,6 +233,34 @@ list(
     }
   ),
   tar_target(
+    xg_feature_usage_audit_file,
+    {
+      if (
+        is.na(hybrid_goal_training_features_file) ||
+          !file.exists(hybrid_goal_training_features_file) ||
+          !file.exists("models/home_goal_model_hybrid.rds") ||
+          !file.exists("models/away_goal_model_hybrid.rds")
+      ) {
+        NA_character_
+      } else {
+        audit_xg_feature_usage(
+          feature_table = hybrid_goal_training_features_file,
+          home_model = "models/home_goal_model_hybrid.rds",
+          away_model = "models/away_goal_model_hybrid.rds",
+          rolling_form = "data/processed/rolling_form.csv",
+          forecast_features = if (file.exists("data/processed/worldcup_2026_forecast_features_hybrid.csv")) {
+            "data/processed/worldcup_2026_forecast_features_hybrid.csv"
+          } else {
+            NULL
+          },
+          output_path = "data/processed/xg_feature_usage_audit.csv"
+        )
+        "data/processed/xg_feature_usage_audit.csv"
+      }
+    },
+    format = "file"
+  ),
+  tar_target(
     worldcup_forecast_features_file,
     {
       if (is.na(transfermarkt_squad_strength_file) || !file.exists(transfermarkt_squad_strength_file)) {
@@ -268,7 +321,7 @@ list(
       elo_ratings_file
       rolling_form_file
       transfermarkt_squad_strength_file
-      run_euro2024_benchmark()
+      run_euro2024_benchmark(output_dir = "outputs/benchmarks/euro2024_transfermarkt_regularized")
     }
   ),
   tar_target(
@@ -300,6 +353,8 @@ list(
       away_goal_model
       home_goal_model_hybrid
       away_goal_model_hybrid
+      transfermarkt_value_audit_file
+      xg_feature_usage_audit_file
       elo_ratings_file
       worldcup_forecast_features_file
       hybrid_available <- !is.na(worldcup_forecast_features_file) &&

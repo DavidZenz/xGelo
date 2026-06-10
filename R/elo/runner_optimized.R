@@ -77,6 +77,18 @@ compute_elo_optimized <- function(matches_df, team_map_df, home_advantage = 60,
   
   # Sort by date
   matches_df <- matches_df[order(matches_df$date), ]
+
+  scored_rows <- is.finite(matches_df$result) &
+    is.finite(matches_df$home_score) &
+    is.finite(matches_df$away_score)
+  skipped_unscored <- sum(!scored_rows)
+  if (skipped_unscored > 0) {
+    message(paste("Skipping", skipped_unscored, "unscored matches for Elo rating updates"))
+    matches_df <- matches_df[scored_rows, , drop = FALSE]
+  }
+  if (nrow(matches_df) == 0) {
+    stop("matches_df must contain at least one scored match")
+  }
   
   # Create team mapping
   all_teams <- unique(c(matches_df$home_team_canonical, matches_df$away_team_canonical))

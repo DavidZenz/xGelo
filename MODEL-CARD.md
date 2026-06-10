@@ -18,6 +18,13 @@
 
 ---
 
+**Current WC2026 deployment note**: the published hybrid World Cup dashboard
+uses Elo, leakage-safe Transfermarkt player-pool strength, and weighted
+historical goal ability in the fitted goal models. The shot-level xG model and
+rolling xG/form tables remain available in the pipeline, but those rolling
+candidate predictors are audited and currently inactive for WC2026 because the
+usable international rolling-form coverage is insufficient.
+
 ## Intended Use
 
 ### Primary Use Case
@@ -243,6 +250,12 @@ ewma[i] <- alpha * value[i] + (1 - alpha) * ewma[i-1]
 | `xga_ewma` | Numeric | Home team's rolling xGA (from Phase 4) |
 | `non_neutral_home` | Logical | TRUE if not at neutral venue |
 | `rest_diff` | Numeric | Days since last match (home - away) |
+
+The WC2026 hybrid dashboard uses the fitted predictor set retained in the
+model artifacts. In the current regularized hybrid run, rolling xG/form
+candidate predictors are documented by
+`data/processed/xg_feature_usage_audit.csv` and are inactive unless they show
+non-zero coverage and are retained by the fitted home or away goal model.
 
 ---
 

@@ -1655,7 +1655,7 @@ read_transfermarkt_dashboard_metadata <- function(
 
 #' Read compact EURO 2024 benchmark summary for dashboard provenance
 #' @keywords internal
-read_euro2024_benchmark_summary <- function(metrics_path = "outputs/benchmarks/euro2024_transfermarkt_expanded/euro2024_metrics.csv") {
+read_euro2024_benchmark_summary <- function(metrics_path = "outputs/benchmarks/euro2024_transfermarkt_regularized/euro2024_metrics.csv") {
   if (!file.exists(metrics_path)) {
     return(list(available = FALSE))
   }
@@ -1674,6 +1674,38 @@ read_euro2024_benchmark_summary <- function(metrics_path = "outputs/benchmarks/e
     baseline_rps = baseline$ranked_probability_score[1],
     hybrid_rps = hybrid$ranked_probability_score[1],
     hybrid_pass = if ("hybrid_pass" %in% names(metrics)) any(as.logical(metrics$hybrid_pass), na.rm = TRUE) else NA
+  )
+}
+
+#' Read compact xG/form feature usage summary for dashboard provenance
+#' @keywords internal
+read_xg_feature_usage_summary <- function(audit_path = "data/processed/xg_feature_usage_audit.csv") {
+  if (!file.exists(audit_path)) {
+    return(list(available = FALSE))
+  }
+  audit <- read.csv(audit_path, stringsAsFactors = FALSE)
+  if (nrow(audit) == 0) {
+    return(list(available = FALSE))
+  }
+  active <- as.logical(audit$active_in_model)
+  active[is.na(active)] <- FALSE
+  nonzero <- suppressWarnings(as.numeric(audit$nonzero_count))
+  sd_values <- suppressWarnings(as.numeric(audit$sd))
+  list(
+    available = TRUE,
+    candidate_predictors = audit$predictor,
+    active_predictors = audit$predictor[active],
+    any_active = any(active),
+    max_nonzero_count = if (all(is.na(nonzero))) NA_real_ else max(nonzero, na.rm = TRUE),
+    max_sd = if (all(is.na(sd_values))) NA_real_ else max(sd_values, na.rm = TRUE),
+    rolling_form_rows = audit$rolling_form_rows[1],
+    training_team_coverage = audit$training_team_coverage[1],
+    forecast_team_coverage = audit$forecast_team_coverage[1],
+    summary = if (any(as.logical(audit$active_in_model), na.rm = TRUE)) {
+      "Rolling xG/form predictors are active in at least one fitted goal model."
+    } else {
+      "Rolling xG/form predictors are audited but inactive in the current WC2026 goal models because usable rolling-form coverage is insufficient."
+    }
   )
 }
 
@@ -1745,7 +1777,8 @@ build_worldcup_dashboard_data <- function(
     route_max_goals = 10,
     transfermarkt_metadata_path = "data/raw/transfermarkt/SNAPSHOT-METADATA.csv",
     transfermarkt_snapshot_path = "data/raw/transfermarkt/transfermarkt-datasets.duckdb",
-    euro2024_metrics_path = "outputs/benchmarks/euro2024_transfermarkt_expanded/euro2024_metrics.csv",
+    euro2024_metrics_path = "outputs/benchmarks/euro2024_transfermarkt_regularized/euro2024_metrics.csv",
+    xg_feature_usage_audit_path = "data/processed/xg_feature_usage_audit.csv",
     baseline_comparison = FALSE,
     baseline_home_model_path = "models/home_goal_model.rds",
     baseline_away_model_path = "models/away_goal_model.rds",
@@ -1844,6 +1877,7 @@ build_worldcup_dashboard_data <- function(
     snapshot_path = transfermarkt_snapshot_path
   )
   benchmark_summary <- read_euro2024_benchmark_summary(euro2024_metrics_path)
+  xg_usage_summary <- read_xg_feature_usage_summary(xg_feature_usage_audit_path)
   payload <- list(
     metadata = list(
       title = "xGelo 2026 World Cup Forecast",
@@ -1862,6 +1896,7 @@ build_worldcup_dashboard_data <- function(
       transfermarkt_snapshot_checksum = tm_metadata$snapshot_md5,
       transfermarkt_snapshot_modified_time = tm_metadata$snapshot_modified_time,
       euro2024_benchmark_summary = benchmark_summary,
+      xg_feature_usage_summary = xg_usage_summary,
       n_match_sim = n_match_sim,
       n_tournaments = n_tournaments,
       n_workers = normalise_dashboard_workers(n_workers, n_tournaments),
@@ -1965,8 +2000,8 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. The default 2026 forecast uses the hybrid goal model, combining Elo, rolling form, leakage-safe Transfermarkt squad strength, and weighted historical goal ability; baseline Elo/xG exports are retained for audit. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. The closest group-win race uses the top-two leader margin; the open-group headline uses the spread between the highest and lowest group-win probabilities, so it reflects whether all four teams are close. Knockout rounds resolve each simulated bracket directly from that tournament table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share. Hybrid promotion is gated by the EURO 2024 benchmark, where it improved Brier score, log loss, and ranked probability score without a material calibration penalty.</p></details>
-<details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. Squad valuation features use a local snapshot of <a href="https://github.com/dcaribou/transfermarkt-datasets" target="_blank" rel="noopener">dcaribou/transfermarkt-datasets</a>. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
+<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. The 2026 forecast uses three pre-match signal families: team Elo strength, leakage-safe Transfermarkt player-pool valuation, and weighted historical goal ability. xG/form is currently not used because international rolling-form coverage is too sparse. The combined model is the default because it improved EURO 2024 Brier score, log loss, and ranked probability score without materially hurting draw calibration. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. The closest group-win race uses the top-two leader margin; the open-group headline uses the spread between the highest and lowest group-win probabilities, so it reflects whether all four teams are close. Knockout rounds resolve each simulated bracket directly from that tournament table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share.</p></details>
+<details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. Player-pool valuation features use a local snapshot of <a href="https://github.com/dcaribou/transfermarkt-datasets" target="_blank" rel="noopener">dcaribou/transfermarkt-datasets</a>. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">', json_text, '</script>
 <script>
@@ -2048,9 +2083,12 @@ function bracketTooltipHtml(g, projectedWinnerProbability){
   const conditional = drawAfter90 != null && drawAfter90 > 0 && g.slot1_tiebreak_probability != null && g.slot2_tiebreak_probability != null
     ? `<span class="tooltip-pill et-split">If ET/pens: <span class="tooltip-et-dot slot1"></span><span class="tooltip-et-team slot1">${esc(slot1Name)} ${pct(g.slot1_tiebreak_probability)}</span> / <span class="tooltip-et-dot slot2"></span><span class="tooltip-et-team slot2">${esc(slot2Name)} ${pct(g.slot2_tiebreak_probability)}</span></span>`
     : "";
-  return `<div class="bracket-tooltip" role="tooltip"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}<div class="tooltip-winner"><strong>Most likely advances: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div><div class="tooltip-section"><div class="tooltip-section-title">Advance probability</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Adv</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min xG ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
+  return `<div class="bracket-tooltip" role="tooltip"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}<div class="tooltip-winner"><strong>Most likely advances: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div><div class="tooltip-section"><div class="tooltip-section-title">Advance probability</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Adv</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min mean goals ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
 }
-document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations using the ${esc(data.metadata.model_version || "baseline")} model. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
+const modelDescription = (data.metadata.model_version || "baseline") === "hybrid"
+  ? "using a combined Elo, Transfermarkt player-pool valuation, and historical goal-ability model"
+  : "using the baseline Elo model";
+document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations ${modelDescription}. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
 document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
@@ -2098,7 +2136,7 @@ function renderMatches(){
       const relWidth = Math.max(4, 100 * Number(s.probability) / maxProb);
       return `<div class="scoreline-row"><div class="scoreline-score">${esc(s.scoreline)}</div><div class="scoreline-bar"><span class="scoreline-fill ${esc(s.outcome)}" style="width:${relWidth}%"></span></div><div class="scoreline-prob">${pct(s.probability)}</div></div>`;
     }).join("");
-    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div><div class="chips"><span class="chip">Projected ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span><span class="chip">Rounded xG ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div><div class="scorelines"><div class="scoreline-heading">Top exact scorelines</div>${topBars}</div></div>`;
+    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div><div class="chips"><span class="chip">Projected ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div><div class="scorelines"><div class="scoreline-heading">Top exact scorelines</div>${topBars}</div></div>`;
   }).join("");
 }
 function renderBracket(){

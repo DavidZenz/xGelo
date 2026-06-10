@@ -221,12 +221,20 @@ split_training_data <- function(training_data, split_method = "random", test_pro
 #' @param output_dir Character string directory to save processed data (default: "data/processed")
 #' @param domestic_only Logical whether to filter to domestic leagues only (default: TRUE)
 #' @param competition_name Character string name to use for all events
+#' @param allow_unmapped_sample Logical whether to allow sample event files without metadata
 #' @return A list with elements: train_data, test_data, training_data
 #' @export
 prepare_and_split_data <- function(events_dir, competitions_file, output_dir = "data/processed", 
-                                   domestic_only = TRUE, competition_name = "Sample League") {
+                                   domestic_only = TRUE, competition_name = "Sample League",
+                                   allow_unmapped_sample = FALSE) {
   # Prepare training data
-  training_data <- prepare_training_data(events_dir, competitions_file, domestic_only, competition_name)
+  training_data <- prepare_training_data(
+    events_dir = events_dir,
+    competitions_file = competitions_file,
+    domestic_only = domestic_only,
+    competition_name = competition_name,
+    allow_unmapped_sample = allow_unmapped_sample
+  )
   
   # Split into train/test
   split <- split_training_data(training_data, split_method = "random", test_proportion = 0.2, random_seed = 42)

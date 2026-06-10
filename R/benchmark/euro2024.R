@@ -154,7 +154,8 @@ run_euro2024_benchmark <- function(
     rolling_form_path = "data/processed/rolling_form.csv",
     squad_strength_path = "data/processed/transfermarkt_squad_strength.csv",
     cutoff_date = as.Date("2024-06-14"),
-    output_dir = "outputs/benchmarks/euro2024"
+    output_dir = "outputs/benchmarks/euro2024_transfermarkt_regularized",
+    comparison_metrics_path = "outputs/benchmarks/euro2024_transfermarkt_expanded/euro2024_metrics.csv"
 ) {
   suppressPackageStartupMessages({
     library(MASS)
@@ -245,11 +246,34 @@ run_euro2024_benchmark <- function(
   write.csv(predictions, file.path(output_dir, "euro2024_predictions.csv"), row.names = FALSE)
   write.csv(metrics, file.path(output_dir, "euro2024_metrics.csv"), row.names = FALSE)
   write.csv(reliability, file.path(output_dir, "euro2024_reliability.csv"), row.names = FALSE)
+  comparison <- metrics
+  comparison$model_version <- ifelse(comparison$model == "hybrid", "regularized_hybrid", comparison$model)
+  if (!is.null(comparison_metrics_path) && file.exists(comparison_metrics_path)) {
+    previous <- read.csv(comparison_metrics_path, stringsAsFactors = FALSE)
+    previous_hybrid <- previous[previous$model == "hybrid", , drop = FALSE]
+    if (nrow(previous_hybrid) > 0) {
+      previous_hybrid <- previous_hybrid[1, intersect(names(previous_hybrid), names(comparison)), drop = FALSE]
+      previous_hybrid$model <- "old_hybrid"
+      previous_hybrid$model_version <- "expanded_hybrid"
+      comparison <- rbind(
+        comparison[, names(previous_hybrid), drop = FALSE],
+        previous_hybrid
+      )
+    }
+  }
+  baseline_comparison <- comparison[comparison$model == "baseline", , drop = FALSE]
+  if (nrow(baseline_comparison) == 1) {
+    for (metric_col in intersect(c("multiclass_brier", "log_loss", "ranked_probability_score", "draw_calibration_error"), names(comparison))) {
+      comparison[[paste0(metric_col, "_delta_vs_baseline")]] <- comparison[[metric_col]] - baseline_comparison[[metric_col]]
+    }
+  }
+  write.csv(comparison, file.path(output_dir, "euro2024_metric_comparison.csv"), row.names = FALSE)
 
   list(
     metrics = metrics,
     predictions = predictions,
     reliability = reliability,
+    comparison = comparison,
     training_rows = nrow(training),
     holdout_rows = nrow(holdout),
     cutoff_date = cutoff_date,

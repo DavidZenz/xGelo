@@ -25,7 +25,6 @@ hybrid_goal_predictors <- function() {
     "median_player_value_diff", "total_caps_diff", "total_goals_diff",
     "log_top23_value_diff", "top5_value_share_diff", "top11_to_top23_ratio_diff", "value_drop_11_to_23_diff",
     "value_weighted_avg_age_diff", "top11_avg_age_diff", "top11_u24_value_share_diff", "top11_over30_value_share_diff",
-    "log_goalkeeper_value_diff", "log_defense_value_diff", "log_midfield_value_diff", "log_attack_value_diff",
     "log_top1_goalkeeper_value_diff", "log_top4_defense_value_diff", "log_top4_midfield_value_diff",
     "log_top3_attack_value_diff", "defense_value_share_diff", "midfield_value_share_diff", "attack_value_share_diff",
     "squad_value_momentum_6m_diff", "squad_value_momentum_12m_diff",
