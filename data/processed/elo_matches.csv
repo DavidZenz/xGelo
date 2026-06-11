@@ -33098,43 +33098,43 @@
 2009-06-28,"Panama","Honduras",0,2,"Friendly","Cary","United States",TRUE,"Panama","Honduras","PAN","HON",0,"Panama_Honduras_2009-06-28",FALSE
 2009-06-28,"South Africa","Spain",2,3,"Confederations Cup","Rustenburg","South Africa",FALSE,"South Africa","Spain","RSA","ESP",0,"South Africa_Spain_2009-06-28",TRUE
 2009-06-28,"United States","Brazil",2,3,"Confederations Cup","Johannesburg","South Africa",TRUE,"United States","Brazil","USA","BRA",0,"United States_Brazil_2009-06-28",FALSE
-2009-06-28,"Åland Islands","Greenland",4,2,"Island Games","Mariehamn","Åland Islands",FALSE,"Åland Islands","Greenland",NA,NA,1,"Åland Islands_Greenland_2009-06-28",TRUE
-2009-06-28,"Shetland","Menorca",2,2,"Island Games","Hammarland","Sweden",TRUE,"Shetland","Menorca",NA,NA,0.5,"Shetland_Menorca_2009-06-28",FALSE
-2009-06-28,"Gibraltar","Guernsey",0,0,"Island Games","Eckerö","Sweden",TRUE,"Gibraltar","Guernsey",NA,NA,0.5,"Gibraltar_Guernsey_2009-06-28",FALSE
-2009-06-28,"Ynys Môn","Frøya",3,0,"Island Games","Jomala","Sweden",TRUE,"Ynys Môn","Frøya",NA,NA,1,"Ynys Môn_Frøya_2009-06-28",FALSE
-2009-06-28,"Rhodes","Isle of Wight",2,0,"Island Games","Sund","Sweden",TRUE,"Rhodes","Isle of Wight",NA,NA,1,"Rhodes_Isle of Wight_2009-06-28",FALSE
-2009-06-28,"Saare County","Jersey",0,1,"Island Games","Saltvik","Sweden",TRUE,"Saare County","Jersey",NA,NA,0,"Saare County_Jersey_2009-06-28",FALSE
-2009-06-28,"Western Isles","Gotland",2,1,"Island Games","Hammarland","Sweden",TRUE,"Western Isles","Gotland",NA,NA,1,"Western Isles_Gotland_2009-06-28",FALSE
-2009-06-28,"Falkland Islands","Isle of Man",1,2,"Island Games","Eckerö","Sweden",TRUE,"Falkland Islands","Isle of Man",NA,NA,0,"Falkland Islands_Isle of Man_2009-06-28",FALSE
-2009-06-29,"Menorca","Greenland",6,0,"Island Games","Sund","Sweden",TRUE,"Menorca","Greenland",NA,NA,1,"Menorca_Greenland_2009-06-29",FALSE
-2009-06-29,"Åland Islands","Shetland",2,1,"Island Games","Hammarland","Sweden",FALSE,"Åland Islands","Shetland",NA,NA,1,"Åland Islands_Shetland_2009-06-29",TRUE
-2009-06-29,"Ynys Môn","Guernsey",0,2,"Island Games","Jomala","Sweden",TRUE,"Ynys Môn","Guernsey",NA,NA,0,"Ynys Môn_Guernsey_2009-06-29",FALSE
-2009-06-29,"Frøya","Gibraltar",0,8,"Island Games","Eckerö","Sweden",TRUE,"Frøya","Gibraltar",NA,NA,0,"Frøya_Gibraltar_2009-06-29",FALSE
-2009-06-29,"Jersey","Rhodes",1,0,"Island Games","Saltvik","Sweden",TRUE,"Jersey","Rhodes",NA,NA,1,"Jersey_Rhodes_2009-06-29",FALSE
-2009-06-29,"Isle of Wight","Saare County",5,1,"Island Games","Hammarland","Sweden",TRUE,"Isle of Wight","Saare County",NA,NA,1,"Isle of Wight_Saare County_2009-06-29",FALSE
-2009-06-29,"Isle of Man","Western Isles",5,0,"Island Games","Finström","Sweden",TRUE,"Isle of Man","Western Isles",NA,NA,1,"Isle of Man_Western Isles_2009-06-29",FALSE
-2009-06-29,"Gotland","Falkland Islands",2,0,"Island Games","Jomala","Sweden",TRUE,"Gotland","Falkland Islands",NA,NA,1,"Gotland_Falkland Islands_2009-06-29",FALSE
+2009-06-28,"Åland Islands","Greenland",4,2,"Island Games","Mariehamn","Finland",FALSE,"Åland Islands","Greenland",NA,NA,1,"Åland Islands_Greenland_2009-06-28",TRUE
+2009-06-28,"Shetland","Menorca",2,2,"Island Games","Hammarland","Finland",TRUE,"Shetland","Menorca",NA,NA,0.5,"Shetland_Menorca_2009-06-28",FALSE
+2009-06-28,"Gibraltar","Guernsey",0,0,"Island Games","Eckerö","Finland",TRUE,"Gibraltar","Guernsey",NA,NA,0.5,"Gibraltar_Guernsey_2009-06-28",FALSE
+2009-06-28,"Ynys Môn","Frøya",3,0,"Island Games","Jomala","Finland",TRUE,"Ynys Môn","Frøya",NA,NA,1,"Ynys Môn_Frøya_2009-06-28",FALSE
+2009-06-28,"Rhodes","Isle of Wight",2,0,"Island Games","Sund","Finland",TRUE,"Rhodes","Isle of Wight",NA,NA,1,"Rhodes_Isle of Wight_2009-06-28",FALSE
+2009-06-28,"Saare County","Jersey",0,1,"Island Games","Saltvik","Finland",TRUE,"Saare County","Jersey",NA,NA,0,"Saare County_Jersey_2009-06-28",FALSE
+2009-06-28,"Western Isles","Gotland",2,1,"Island Games","Hammarland","Finland",TRUE,"Western Isles","Gotland",NA,NA,1,"Western Isles_Gotland_2009-06-28",FALSE
+2009-06-28,"Falkland Islands","Isle of Man",1,2,"Island Games","Eckerö","Finland",TRUE,"Falkland Islands","Isle of Man",NA,NA,0,"Falkland Islands_Isle of Man_2009-06-28",FALSE
+2009-06-29,"Menorca","Greenland",6,0,"Island Games","Sund","Finland",TRUE,"Menorca","Greenland",NA,NA,1,"Menorca_Greenland_2009-06-29",FALSE
+2009-06-29,"Åland Islands","Shetland",2,1,"Island Games","Hammarland","Finland",FALSE,"Åland Islands","Shetland",NA,NA,1,"Åland Islands_Shetland_2009-06-29",TRUE
+2009-06-29,"Ynys Môn","Guernsey",0,2,"Island Games","Jomala","Finland",TRUE,"Ynys Môn","Guernsey",NA,NA,0,"Ynys Môn_Guernsey_2009-06-29",FALSE
+2009-06-29,"Frøya","Gibraltar",0,8,"Island Games","Eckerö","Finland",TRUE,"Frøya","Gibraltar",NA,NA,0,"Frøya_Gibraltar_2009-06-29",FALSE
+2009-06-29,"Jersey","Rhodes",1,0,"Island Games","Saltvik","Finland",TRUE,"Jersey","Rhodes",NA,NA,1,"Jersey_Rhodes_2009-06-29",FALSE
+2009-06-29,"Isle of Wight","Saare County",5,1,"Island Games","Hammarland","Finland",TRUE,"Isle of Wight","Saare County",NA,NA,1,"Isle of Wight_Saare County_2009-06-29",FALSE
+2009-06-29,"Isle of Man","Western Isles",5,0,"Island Games","Finström","Finland",TRUE,"Isle of Man","Western Isles",NA,NA,1,"Isle of Man_Western Isles_2009-06-29",FALSE
+2009-06-29,"Gotland","Falkland Islands",2,0,"Island Games","Jomala","Finland",TRUE,"Gotland","Falkland Islands",NA,NA,1,"Gotland_Falkland Islands_2009-06-29",FALSE
 2009-06-30,"Guatemala","Canada",0,3,"Friendly","Oxnard","United States",TRUE,"Guatemala","Canada","GUA","CAN",0,"Guatemala_Canada_2009-06-30",FALSE
-2009-06-30,"Greenland","Shetland",3,1,"Island Games","Sund","Sweden",TRUE,"Greenland","Shetland",NA,NA,1,"Greenland_Shetland_2009-06-30",FALSE
-2009-06-30,"Åland Islands","Menorca",1,1,"Island Games","Finström","Sweden",FALSE,"Åland Islands","Menorca",NA,NA,0.5,"Åland Islands_Menorca_2009-06-30",TRUE
-2009-06-30,"Gibraltar","Ynys Môn",1,3,"Island Games","Hammarland","Sweden",TRUE,"Gibraltar","Ynys Môn",NA,NA,0,"Gibraltar_Ynys Môn_2009-06-30",FALSE
-2009-06-30,"Guernsey","Frøya",8,0,"Island Games","Jomala","Sweden",TRUE,"Guernsey","Frøya",NA,NA,1,"Guernsey_Frøya_2009-06-30",FALSE
-2009-06-30,"Rhodes","Saare County",3,0,"Island Games","Saltvik","Sweden",TRUE,"Rhodes","Saare County",NA,NA,1,"Rhodes_Saare County_2009-06-30",FALSE
-2009-06-30,"Jersey","Isle of Wight",4,1,"Island Games","Hammarland","Sweden",TRUE,"Jersey","Isle of Wight",NA,NA,1,"Jersey_Isle of Wight_2009-06-30",FALSE
-2009-06-30,"Western Isles","Falkland Islands",7,1,"Island Games","Eckerö","Sweden",TRUE,"Western Isles","Falkland Islands",NA,NA,1,"Western Isles_Falkland Islands_2009-06-30",FALSE
-2009-06-30,"Isle of Man","Gotland",4,2,"Island Games","Finström","Sweden",TRUE,"Isle of Man","Gotland",NA,NA,1,"Isle of Man_Gotland_2009-06-30",FALSE
-2009-07-02,"Falkland Islands","Frøya",1,3,"Island Games","Jomala","Sweden",TRUE,"Falkland Islands","Frøya",NA,NA,0,"Falkland Islands_Frøya_2009-07-02",FALSE
-2009-07-02,"Shetland","Saare County",3,2,"Island Games","Hammarland","Sweden",TRUE,"Shetland","Saare County",NA,NA,1,"Shetland_Saare County_2009-07-02",FALSE
-2009-07-02,"Gotland","Greenland",4,2,"Island Games","Jomala","Sweden",TRUE,"Gotland","Greenland",NA,NA,1,"Gotland_Greenland_2009-07-02",FALSE
-2009-07-02,"Åland Islands","Isle of Man",2,1,"Island Games","Jomala","Sweden",FALSE,"Åland Islands","Isle of Man",NA,NA,1,"Åland Islands_Isle of Man_2009-07-02",TRUE
-2009-07-02,"Guernsey","Jersey",0,2,"Island Games","Sund","Sweden",TRUE,"Guernsey","Jersey",NA,NA,0,"Guernsey_Jersey_2009-07-02",FALSE
+2009-06-30,"Greenland","Shetland",3,1,"Island Games","Sund","Finland",TRUE,"Greenland","Shetland",NA,NA,1,"Greenland_Shetland_2009-06-30",FALSE
+2009-06-30,"Åland Islands","Menorca",1,1,"Island Games","Finström","Finland",FALSE,"Åland Islands","Menorca",NA,NA,0.5,"Åland Islands_Menorca_2009-06-30",TRUE
+2009-06-30,"Gibraltar","Ynys Môn",1,3,"Island Games","Hammarland","Finland",TRUE,"Gibraltar","Ynys Môn",NA,NA,0,"Gibraltar_Ynys Môn_2009-06-30",FALSE
+2009-06-30,"Guernsey","Frøya",8,0,"Island Games","Jomala","Finland",TRUE,"Guernsey","Frøya",NA,NA,1,"Guernsey_Frøya_2009-06-30",FALSE
+2009-06-30,"Rhodes","Saare County",3,0,"Island Games","Saltvik","Finland",TRUE,"Rhodes","Saare County",NA,NA,1,"Rhodes_Saare County_2009-06-30",FALSE
+2009-06-30,"Jersey","Isle of Wight",4,1,"Island Games","Hammarland","Finland",TRUE,"Jersey","Isle of Wight",NA,NA,1,"Jersey_Isle of Wight_2009-06-30",FALSE
+2009-06-30,"Western Isles","Falkland Islands",7,1,"Island Games","Eckerö","Finland",TRUE,"Western Isles","Falkland Islands",NA,NA,1,"Western Isles_Falkland Islands_2009-06-30",FALSE
+2009-06-30,"Isle of Man","Gotland",4,2,"Island Games","Finström","Finland",TRUE,"Isle of Man","Gotland",NA,NA,1,"Isle of Man_Gotland_2009-06-30",FALSE
+2009-07-02,"Falkland Islands","Frøya",1,3,"Island Games","Jomala","Finland",TRUE,"Falkland Islands","Frøya",NA,NA,0,"Falkland Islands_Frøya_2009-07-02",FALSE
+2009-07-02,"Shetland","Saare County",3,2,"Island Games","Hammarland","Finland",TRUE,"Shetland","Saare County",NA,NA,1,"Shetland_Saare County_2009-07-02",FALSE
+2009-07-02,"Gotland","Greenland",4,2,"Island Games","Jomala","Finland",TRUE,"Gotland","Greenland",NA,NA,1,"Gotland_Greenland_2009-07-02",FALSE
+2009-07-02,"Åland Islands","Isle of Man",2,1,"Island Games","Jomala","Finland",FALSE,"Åland Islands","Isle of Man",NA,NA,1,"Åland Islands_Isle of Man_2009-07-02",TRUE
+2009-07-02,"Guernsey","Jersey",0,2,"Island Games","Sund","Finland",TRUE,"Guernsey","Jersey",NA,NA,0,"Guernsey_Jersey_2009-07-02",FALSE
 2009-07-03,"Canada","Jamaica",1,0,"Gold Cup","Carson","United States",TRUE,"Canada","Jamaica","CAN","JAM",1,"Canada_Jamaica_2009-07-03",FALSE
 2009-07-03,"Costa Rica","El Salvador",1,2,"Gold Cup","Carson","United States",TRUE,"Costa Rica","El Salvador","CRC","SLV",0,"Costa Rica_El Salvador_2009-07-03",FALSE
-2009-07-03,"Gibraltar","Isle of Wight",3,0,"Island Games","Jomala","Sweden",TRUE,"Gibraltar","Isle of Wight",NA,NA,1,"Gibraltar_Isle of Wight_2009-07-03",FALSE
-2009-07-03,"Menorca","Western Isles",4,1,"Island Games","Jomala","Sweden",TRUE,"Menorca","Western Isles",NA,NA,1,"Menorca_Western Isles_2009-07-03",FALSE
-2009-07-03,"Rhodes","Ynys Môn",4,0,"Island Games","Eckerö","Sweden",TRUE,"Rhodes","Ynys Môn",NA,NA,1,"Rhodes_Ynys Môn_2009-07-03",FALSE
-2009-07-03,"Isle of Man","Guernsey",0,5,"Island Games","Eckerö","Sweden",TRUE,"Isle of Man","Guernsey",NA,NA,0,"Isle of Man_Guernsey_2009-07-03",FALSE
-2009-07-03,"Åland Islands","Jersey",1,2,"Island Games","Mariehamn","Åland Islands",FALSE,"Åland Islands","Jersey",NA,NA,0,"Åland Islands_Jersey_2009-07-03",TRUE
+2009-07-03,"Gibraltar","Isle of Wight",3,0,"Island Games","Jomala","Finland",TRUE,"Gibraltar","Isle of Wight",NA,NA,1,"Gibraltar_Isle of Wight_2009-07-03",FALSE
+2009-07-03,"Menorca","Western Isles",4,1,"Island Games","Jomala","Finland",TRUE,"Menorca","Western Isles",NA,NA,1,"Menorca_Western Isles_2009-07-03",FALSE
+2009-07-03,"Rhodes","Ynys Môn",4,0,"Island Games","Eckerö","Finland",TRUE,"Rhodes","Ynys Môn",NA,NA,1,"Rhodes_Ynys Môn_2009-07-03",FALSE
+2009-07-03,"Isle of Man","Guernsey",0,5,"Island Games","Eckerö","Finland",TRUE,"Isle of Man","Guernsey",NA,NA,0,"Isle of Man_Guernsey_2009-07-03",FALSE
+2009-07-03,"Åland Islands","Jersey",1,2,"Island Games","Mariehamn","Finland",FALSE,"Åland Islands","Jersey",NA,NA,0,"Åland Islands_Jersey_2009-07-03",TRUE
 2009-07-04,"Honduras","Haiti",1,0,"Gold Cup","Seattle","United States",TRUE,"Honduras","Haiti","HON","HAI",1,"Honduras_Haiti_2009-07-04",FALSE
 2009-07-04,"United States","Grenada",4,0,"Gold Cup","Seattle","United States",FALSE,"United States","Grenada","USA","GRN",1,"United States_Grenada_2009-07-04",TRUE
 2009-07-05,"Botswana","Iran",1,1,"Friendly","Gaborone","Botswana",FALSE,"Botswana","Iran","BOT","IRN",0.5,"Botswana_Iran_2009-07-05",TRUE
@@ -35240,7 +35240,7 @@
 2011-09-28,"Brazil","Argentina",2,0,"Superclásico de las Américas","Belém","Brazil",FALSE,"Brazil","Argentina","BRA","ARG",1,"Brazil_Argentina_2011-09-28",TRUE
 2011-09-30,"Antigua and Barbuda","Martinique",1,0,"Friendly","Osbourn","Antigua and Barbuda",FALSE,"Antigua and Barbuda","Martinique","ATG",NA,1,"Antigua and Barbuda_Martinique_2011-09-30",TRUE
 2011-09-30,"Hong Kong","Philippines",3,3,"Dragon Cup","Kaohsiung","Taiwan",TRUE,"Hong Kong","Philippines","HKG","PHI",0.5,"Hong Kong_Philippines_2011-09-30",FALSE
-2011-09-30,"Taiwan","Macau",3,0,"Dragon Cup","Kaohsiung","Taiwan",TRUE,"Taiwan","Macau",NA,NA,1,"Taiwan_Macau_2011-09-30",FALSE
+2011-09-30,"Taiwan","Macau",3,0,"Dragon Cup","Kaohsiung","Taiwan",FALSE,"Taiwan","Macau",NA,NA,1,"Taiwan_Macau_2011-09-30",TRUE
 2011-10-01,"Ethiopia","Sudan",1,2,"Friendly","Addis Ababa","Ethiopia",FALSE,"Ethiopia","Sudan","ETH","SUD",0,"Ethiopia_Sudan_2011-10-01",TRUE
 2011-10-02,"Antigua and Barbuda","Martinique",1,2,"Friendly","Osbourn","Antigua and Barbuda",FALSE,"Antigua and Barbuda","Martinique","ATG",NA,0,"Antigua and Barbuda_Martinique_2011-10-02",TRUE
 2011-10-02,"Hong Kong","Macau",5,1,"Dragon Cup","Kaohsiung","Taiwan",TRUE,"Hong Kong","Macau","HKG",NA,1,"Hong Kong_Macau_2011-10-02",FALSE
@@ -37665,11 +37665,11 @@
 2014-05-10,"Vatican City","Monaco",0,2,"Friendly","Rome","Italy",FALSE,"Vatican City","Monaco",NA,NA,0,"Vatican City_Monaco_2014-05-10",TRUE
 2014-05-10,"Palestine","Jordan",1,0,"Palestine International Championship","Hebron","Palestine",FALSE,"Palestine","Jordan","PLE","JOR",1,"Palestine_Jordan_2014-05-10",TRUE
 2014-05-11,"Jersey","Guernsey",1,4,"Muratti Vase","Jersey","Jersey",FALSE,"Jersey","Guernsey",NA,NA,0,"Jersey_Guernsey_2014-05-11",TRUE
-2014-05-11,"Pakistan","Sri Lanka",3,0,"Palestine International Championship","Al-Ram","Palestine",FALSE,"Pakistan","Sri Lanka","PAK","SRI",1,"Pakistan_Sri Lanka_2014-05-11",TRUE
+2014-05-11,"Pakistan","Sri Lanka",3,0,"Palestine International Championship","Al-Ram","Palestine",TRUE,"Pakistan","Sri Lanka","PAK","SRI",1,"Pakistan_Sri Lanka_2014-05-11",FALSE
 2014-05-12,"Afghanistan","Kyrgyzstan",1,0,"Friendly","Kuwait City","Kuwait",TRUE,"Afghanistan","Kyrgyzstan","AFG","KGZ",1,"Afghanistan_Kyrgyzstan_2014-05-12",FALSE
 2014-05-13,"Germany","Poland",0,0,"Friendly","Hamburg","Germany",FALSE,"Germany","Poland","GER","POL",0.5,"Germany_Poland_2014-05-13",TRUE
 2014-05-14,"Kuwait","Afghanistan",3,2,"Friendly","Kuwait City","Kuwait",FALSE,"Kuwait","Afghanistan","KUW","AFG",1,"Kuwait_Afghanistan_2014-05-14",TRUE
-2014-05-14,"Jordan","Pakistan",1,0,"Palestine International Championship","Nablus","Palestine",FALSE,"Jordan","Pakistan","JOR","PAK",1,"Jordan_Pakistan_2014-05-14",TRUE
+2014-05-14,"Jordan","Pakistan",1,0,"Palestine International Championship","Nablus","Palestine",TRUE,"Jordan","Pakistan","JOR","PAK",1,"Jordan_Pakistan_2014-05-14",FALSE
 2014-05-14,"Palestine","Sri Lanka",3,0,"Palestine International Championship","Nablus","Palestine",FALSE,"Palestine","Sri Lanka","PLE","SRI",1,"Palestine_Sri Lanka_2014-05-14",TRUE
 2014-05-16,"Kuwait","Kyrgyzstan",2,2,"Friendly","Kuwait City","Kuwait",FALSE,"Kuwait","Kyrgyzstan","KUW","KGZ",0.5,"Kuwait_Kyrgyzstan_2014-05-16",TRUE
 2014-05-17,"Malawi","Chad",2,0,"African Cup of Nations qualification","Blantyre","Malawi",FALSE,"Malawi","Chad","MWI","CHA",1,"Malawi_Chad_2014-05-17",TRUE
@@ -37678,7 +37678,7 @@
 2014-05-17,"Netherlands","Ecuador",1,1,"Friendly","Amsterdam","Netherlands",FALSE,"Netherlands","Ecuador","NED","ECU",0.5,"Netherlands_Ecuador_2014-05-17",TRUE
 2014-05-17,"São Tomé and Príncipe","Benin",0,2,"African Cup of Nations qualification","São Tomé","São Tomé and Príncipe",FALSE,"São Tomé and Príncipe","Benin",NA,"BEN",0,"São Tomé and Príncipe_Benin_2014-05-17",TRUE
 2014-05-17,"Somaliland","Sealand",2,2,"Friendly","London","England",TRUE,"Somaliland","Sealand",NA,NA,0.5,"Somaliland_Sealand_2014-05-17",FALSE
-2014-05-17,"Sri Lanka","Jordan",0,4,"Palestine International Championship","Al-Ram","Palestine",FALSE,"Sri Lanka","Jordan","SRI","JOR",0,"Sri Lanka_Jordan_2014-05-17",TRUE
+2014-05-17,"Sri Lanka","Jordan",0,4,"Palestine International Championship","Al-Ram","Palestine",TRUE,"Sri Lanka","Jordan","SRI","JOR",0,"Sri Lanka_Jordan_2014-05-17",FALSE
 2014-05-17,"Palestine","Pakistan",3,0,"Palestine International Championship","Al-Ram","Palestine",FALSE,"Palestine","Pakistan","PLE","PAK",1,"Palestine_Pakistan_2014-05-17",TRUE
 2014-05-18,"Belarus","Iran",0,0,"Friendly","Kapfenberg","Austria",TRUE,"Belarus","Iran","BLR","IRN",0.5,"Belarus_Iran_2014-05-18",FALSE
 2014-05-18,"Burundi","Botswana",0,0,"African Cup of Nations qualification","Bujumbura","Burundi",FALSE,"Burundi","Botswana","BDI","BOT",0.5,"Burundi_Botswana_2014-05-18",TRUE
@@ -45124,6 +45124,7 @@
 2022-03-30,"Panama","Canada",1,0,"FIFA World Cup qualification","Panama City","Panama",FALSE,"Panama","Canada","PAN","CAN",1,"Panama_Canada_2022-03-30",TRUE
 2022-03-30,"Jamaica","Honduras",2,1,"FIFA World Cup qualification","Kingston","Jamaica",FALSE,"Jamaica","Honduras","JAM","HON",1,"Jamaica_Honduras_2022-03-30",TRUE
 2022-03-30,"Solomon Islands","New Zealand",0,5,"FIFA World Cup qualification","Doha","Qatar",TRUE,"Solomon Islands","New Zealand","SOL","NZL",0,"Solomon Islands_New Zealand_2022-03-30",FALSE
+2022-04-22,"Elba Island","Vatican City",4,2,"Friendly","Capoliveri","Italy",FALSE,"Elba Island","Vatican City",NA,NA,1,"Elba Island_Vatican City_2022-04-22",TRUE
 2022-04-23,"Alderney","Guernsey",0,2,"Muratti Vase","Alderney","Alderney",FALSE,"Alderney","Guernsey",NA,NA,0,"Alderney_Guernsey_2022-04-23",TRUE
 2022-04-24,"El Salvador","Guatemala",0,4,"Friendly","San Jose","United States",TRUE,"El Salvador","Guatemala","SLV","GUA",0,"El Salvador_Guatemala_2022-04-24",FALSE
 2022-04-27,"Mexico","Guatemala",0,0,"Friendly","Orlando","United States",TRUE,"Mexico","Guatemala","MEX","GUA",0.5,"Mexico_Guatemala_2022-04-27",FALSE
@@ -48156,7 +48157,7 @@
 2025-03-20,"Mozambique","Uganda",3,1,"FIFA World Cup qualification","Cairo","Egypt",TRUE,"Mozambique","Uganda","MOZ","UGA",1,"Mozambique_Uganda_2025-03-20",FALSE
 2025-03-20,"Malawi","Namibia",0,1,"FIFA World Cup qualification","Lilongwe","Malawi",FALSE,"Malawi","Namibia","MWI","NAM",0,"Malawi_Namibia_2025-03-20",TRUE
 2025-03-20,"Comoros","Mali",0,3,"FIFA World Cup qualification","Berkane","Morocco",TRUE,"Comoros","Mali","COM","MLI",0,"Comoros_Mali_2025-03-20",FALSE
-2025-03-20,"Lebanon","Timor-Leste",4,0,"Friendly","Al Khor","Qatar",FALSE,"Lebanon","Timor-Leste","LBN",NA,1,"Lebanon_Timor-Leste_2025-03-20",TRUE
+2025-03-20,"Lebanon","Timor-Leste",4,0,"Friendly","Al Khor","Qatar",TRUE,"Lebanon","Timor-Leste","LBN",NA,1,"Lebanon_Timor-Leste_2025-03-20",FALSE
 2025-03-21,"Belize","Costa Rica",0,7,"Gold Cup qualification","Belmopan","Belize",FALSE,"Belize","Costa Rica","BLZ","CRC",0,"Belize_Costa Rica_2025-03-21",TRUE
 2025-03-21,"Guyana","Guatemala",3,2,"Gold Cup qualification","Wildey","Barbados",TRUE,"Guyana","Guatemala","GUY","GUA",1,"Guyana_Guatemala_2025-03-21",FALSE
 2025-03-21,"Bermuda","Honduras",3,5,"Gold Cup qualification","Hamilton","Bermuda",FALSE,"Bermuda","Honduras",NA,"HON",0,"Bermuda_Honduras_2025-03-21",TRUE
@@ -49364,7 +49365,7 @@
 2026-06-06,"Myanmar","Guam",6,1,"Tri-Nations Cup","Manila","Philippines",TRUE,"Myanmar","Guam","MYA","GUM",1,"Myanmar_Guam_2026-06-06",FALSE
 2026-06-06,"Lithuania","Latvia",1,1,"Baltic Cup","Kaunas","Lithuania",FALSE,"Lithuania","Latvia","LTU","LVA",0.5,"Lithuania_Latvia_2026-06-06",TRUE
 2026-06-06,"Estonia","Faroe Islands",1,0,"Baltic Cup","Pärnu","Estonia",FALSE,"Estonia","Faroe Islands","EST","FRO",1,"Estonia_Faroe Islands_2026-06-06",TRUE
-2026-06-07,"Afghanistan","Pakistan",0,2,"Diamond Jubilee International Football Tournament","Malé","Maldives",FALSE,"Afghanistan","Pakistan","AFG","PAK",0,"Afghanistan_Pakistan_2026-06-07",TRUE
+2026-06-07,"Afghanistan","Pakistan",0,2,"Diamond Jubilee International Football Tournament","Malé","Maldives",TRUE,"Afghanistan","Pakistan","AFG","PAK",0,"Afghanistan_Pakistan_2026-06-07",FALSE
 2026-06-07,"Croatia","Slovenia",2,1,"Friendly","Varaždin","Croatia",FALSE,"Croatia","Slovenia","CRO","SVN",1,"Croatia_Slovenia_2026-06-07",TRUE
 2026-06-07,"Ecuador","Guatemala",3,0,"Friendly","Columbus","United States",TRUE,"Ecuador","Guatemala","ECU","GUA",1,"Ecuador_Guatemala_2026-06-07",FALSE
 2026-06-07,"Greece","Italy",0,1,"Friendly","Heraklion","Greece",FALSE,"Greece","Italy","GRE","ITA",0,"Greece_Italy_2026-06-07",TRUE
@@ -49399,6 +49400,10 @@
 2026-06-09,"Togo","Benin",5,1,"Friendly","Lomé","Togo",FALSE,"Togo","Benin","TOG","BEN",1,"Togo_Benin_2026-06-09",TRUE
 2026-06-09,"Liberia","Sierra Leone",3,1,"Friendly","Monrovia","Liberia",FALSE,"Liberia","Sierra Leone","LBR","SLE",1,"Liberia_Sierra Leone_2026-06-09",TRUE
 2026-06-09,"Iraq","Venezuela",0,2,"Friendly","Bridgeview","United States",TRUE,"Iraq","Venezuela","IRQ","VEN",0,"Iraq_Venezuela_2026-06-09",FALSE
+2026-06-10,"Bolivia","Algeria",0,4,"Friendly","Kansas City","United States",TRUE,"Bolivia","Algeria","BOL","ALG",0,"Bolivia_Algeria_2026-06-10",FALSE
+2026-06-10,"England","Costa Rica",3,0,"Friendly","Orlando","United States",TRUE,"England","Costa Rica","ENG","CRC",1,"England_Costa Rica_2026-06-10",FALSE
+2026-06-10,"Portugal","Nigeria",2,1,"Friendly","Leiria","Portugal",FALSE,"Portugal","Nigeria","POR","NGA",1,"Portugal_Nigeria_2026-06-10",TRUE
+2026-06-10,"Afghanistan","Pakistan",0,2,"Diamond Jubilee International Football Tournament","Malé","Maldives",TRUE,"Afghanistan","Pakistan","AFG","PAK",0,"Afghanistan_Pakistan_2026-06-10",FALSE
 2026-06-11,"Mexico","South Africa",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,"Mexico","South Africa","MEX","RSA",NA,"Mexico_South Africa_2026-06-11",TRUE
 2026-06-11,"South Korea","Czech Republic",NA,NA,"FIFA World Cup","Zapopan","Mexico",TRUE,"Korea Republic","Czech Republic","KOR","CZE",NA,"Korea Republic_Czech Republic_2026-06-11",FALSE
 2026-06-12,"Canada","Bosnia and Herzegovina",NA,NA,"FIFA World Cup","Toronto","Canada",FALSE,"Canada","Bosnia and Herzegovina","CAN","BIH",NA,"Canada_Bosnia and Herzegovina_2026-06-12",TRUE

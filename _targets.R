@@ -43,6 +43,16 @@ source("R/visualization/auc.R")
 source("R/visualization/calibration.R")
 source("R/visualization/worldcup_dashboard.R")
 
+xgelo_feature_cutoff_date <- function(default = Sys.Date()) {
+  value <- Sys.getenv("XGELO_FEATURE_CUTOFF_DATE", unset = "")
+  if (!nzchar(value)) return(as.Date(default))
+  parsed <- as.Date(value)
+  if (is.na(parsed)) {
+    stop("XGELO_FEATURE_CUTOFF_DATE must parse as an ISO date, for example 2026-06-10", call. = FALSE)
+  }
+  parsed
+}
+
 list(
   tar_target(
     team_map,
@@ -119,6 +129,7 @@ list(
           as_of_dates = sort(unique(c(
             seq(as.Date("2000-01-01"), Sys.Date(), by = "6 months"),
             as.Date("2024-06-14"),
+            xgelo_feature_cutoff_date(),
             Sys.Date()
           ))),
           output_path = "data/processed/transfermarkt_squad_strength.csv"
@@ -144,7 +155,7 @@ list(
           squad_strength = transfermarkt_squad_strength_file,
           snapshot_path = snapshot_path,
           teams = groups$team,
-          cutoff_date = Sys.Date(),
+          cutoff_date = xgelo_feature_cutoff_date(),
           output_path = "data/processed/transfermarkt_value_audit.csv"
         )
         "data/processed/transfermarkt_value_audit.csv"
@@ -279,7 +290,7 @@ list(
           elo_ratings = elo,
           rolling_form = rolling,
           squad_strength = squad,
-          feature_cutoff_date = Sys.Date(),
+          feature_cutoff_date = xgelo_feature_cutoff_date(),
           output_path = "data/processed/worldcup_2026_forecast_features_hybrid.csv"
         )
         assert_worldcup_forecast_features(
@@ -365,7 +376,7 @@ list(
         n_match_sim = 5000,
         n_tournaments = 5000,
         model_version = if (hybrid_available) "hybrid" else "baseline",
-        feature_cutoff_date = Sys.Date(),
+        feature_cutoff_date = xgelo_feature_cutoff_date(),
         require_forecast_features = hybrid_available,
         baseline_comparison = hybrid_available,
         home_model_path = if (hybrid_available) "models/home_goal_model_hybrid.rds" else "models/home_goal_model.rds",
