@@ -43,12 +43,22 @@ source("R/visualization/auc.R")
 source("R/visualization/calibration.R")
 source("R/visualization/worldcup_dashboard.R")
 
-xgelo_feature_cutoff_date <- function(default = Sys.Date()) {
+xgelo_feature_cutoff_date <- function(default = Sys.Date() - 1L) {
   value <- Sys.getenv("XGELO_FEATURE_CUTOFF_DATE", unset = "")
   if (!nzchar(value)) return(as.Date(default))
   parsed <- as.Date(value)
   if (is.na(parsed)) {
     stop("XGELO_FEATURE_CUTOFF_DATE must parse as an ISO date, for example 2026-06-10", call. = FALSE)
+  }
+  parsed
+}
+
+xgelo_model_training_cutoff_date <- function(default = Sys.Date()) {
+  value <- Sys.getenv("XGELO_MODEL_TRAINING_CUTOFF_DATE", unset = "")
+  if (!nzchar(value)) return(as.Date(default))
+  parsed <- as.Date(value)
+  if (is.na(parsed)) {
+    stop("XGELO_MODEL_TRAINING_CUTOFF_DATE must parse as an ISO date, for example 2026-06-12", call. = FALSE)
   }
   parsed
 }
@@ -130,6 +140,7 @@ list(
             seq(as.Date("2000-01-01"), Sys.Date(), by = "6 months"),
             as.Date("2024-06-14"),
             xgelo_feature_cutoff_date(),
+            xgelo_model_training_cutoff_date(),
             Sys.Date()
           ))),
           output_path = "data/processed/transfermarkt_squad_strength.csv"
@@ -186,7 +197,7 @@ list(
         matches <- read.csv("data/processed/elo_matches.csv", stringsAsFactors = FALSE)
         matches$date <- as.Date(matches$date)
         training <- matches[
-          matches$date < Sys.Date() &
+          matches$date < xgelo_model_training_cutoff_date() &
             !is.na(matches$home_score) &
             !is.na(matches$away_score) &
             !is.na(matches$home_team_canonical) &
@@ -297,7 +308,8 @@ list(
           features,
           fixtures = fixtures,
           teams = groups$team,
-          predictors = hybrid_goal_predictors()
+          predictors = hybrid_goal_predictors(),
+          cutoff_date = xgelo_feature_cutoff_date()
         )
         "data/processed/worldcup_2026_forecast_features_hybrid.csv"
       }

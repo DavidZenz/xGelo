@@ -331,9 +331,13 @@ build_worldcup_forecast_feature_table <- function(
   feature_cutoff_date <- as.Date(feature_cutoff_date)
   fixtures$date <- as.Date(fixtures$date)
   knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
-  group_rows <- worldcup_fixtures_to_feature_matches(fixtures)
+  open_fixtures <- fixtures[feature_cutoff_date < fixtures$date, , drop = FALSE]
+  group_rows <- worldcup_fixtures_to_feature_matches(open_fixtures)
   knockout_rows <- worldcup_knockout_candidate_feature_matches(groups$team, knockout_date)
   feature_matches <- rbind(group_rows, knockout_rows)
+  if (nrow(feature_matches) == 0) {
+    stop("No WC2026 forecast feature rows remain after applying the feature cutoff")
+  }
   if (any(feature_cutoff_date >= feature_matches$date, na.rm = TRUE)) {
     bad <- feature_matches[feature_cutoff_date >= feature_matches$date, c("match_id", "date"), drop = FALSE]
     stop(paste(
@@ -363,7 +367,7 @@ build_worldcup_forecast_feature_table <- function(
     setdiff(names(features), c("match_id", "model_version", "feature_cutoff_date"))
   )]
   assert_no_feature_leakage(features, cutoff_date = feature_cutoff_date)
-  expected_rows <- nrow(fixtures) + length(unique(groups$team)) * (length(unique(groups$team)) - 1)
+  expected_rows <- nrow(open_fixtures) + length(unique(groups$team)) * (length(unique(groups$team)) - 1)
   if (nrow(features) != expected_rows) {
     stop(paste("Expected", expected_rows, "WC2026 feature rows, found", nrow(features)))
   }
@@ -381,9 +385,11 @@ build_worldcup_forecast_feature_table <- function(
 #' @param teams World Cup teams
 #' @param predictors Required predictor columns
 #' @param knockout_date Knockout candidate feature date
+#' @param cutoff_date Optional forecast feature cutoff. Group fixtures on or before
+#' the cutoff are completed or same-day unavailable and need not have feature rows.
 #' @return TRUE invisibly
 #' @export
-assert_worldcup_forecast_features <- function(features, fixtures, teams, predictors, knockout_date = NULL) {
+assert_worldcup_forecast_features <- function(features, fixtures, teams, predictors, knockout_date = NULL, cutoff_date = NULL) {
   required_cols <- c("date", "home_team", "away_team", "feature_source_date", predictors)
   missing_cols <- setdiff(required_cols, names(features))
   if (length(missing_cols) > 0) {
@@ -392,6 +398,9 @@ assert_worldcup_forecast_features <- function(features, fixtures, teams, predict
   features$date <- as.Date(features$date)
   fixtures$date <- as.Date(fixtures$date)
   if (is.null(knockout_date)) knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
+  if (!is.null(cutoff_date)) {
+    fixtures <- fixtures[as.Date(cutoff_date) < fixtures$date, , drop = FALSE]
+  }
   group_keys <- paste(fixtures$date, fixtures$home_team, fixtures$away_team, sep = "\r")
   feature_keys <- paste(features$date, features$home_team, features$away_team, sep = "\r")
   missing_group <- setdiff(group_keys, feature_keys)

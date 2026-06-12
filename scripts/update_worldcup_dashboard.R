@@ -280,9 +280,13 @@ main <- function() {
   publish_pages <- read_env_flag("XGELO_PUBLISH", TRUE)
   baseline_comparison <- read_env_flag("XGELO_BASELINE_COMPARISON", FALSE)
   route_method <- read_env_path("XGELO_ROUTE_METHOD", "analytic")
-  feature_cutoff_date <- as.Date(read_env_path("XGELO_FEATURE_CUTOFF_DATE", as.character(Sys.Date())))
+  feature_cutoff_date <- as.Date(read_env_path("XGELO_FEATURE_CUTOFF_DATE", as.character(Sys.Date() - 1L)))
   if (is.na(feature_cutoff_date)) {
     stop("XGELO_FEATURE_CUTOFF_DATE must parse as an ISO date, for example 2026-06-10", call. = FALSE)
+  }
+  actual_results_cutoff_date <- as.Date(read_env_path("XGELO_ACTUAL_RESULTS_CUTOFF_DATE", as.character(Sys.Date())))
+  if (is.na(actual_results_cutoff_date)) {
+    stop("XGELO_ACTUAL_RESULTS_CUTOFF_DATE must parse as an ISO date, for example 2026-06-12", call. = FALSE)
   }
   if (!route_method %in% c("analytic", "simulation")) {
     stop("XGELO_ROUTE_METHOD must be either analytic or simulation", call. = FALSE)
@@ -331,11 +335,12 @@ main <- function() {
   )
 
   message(sprintf(
-    "Building hybrid dashboard: match_sims=%s, tournaments=%s, workers=%s, cutoff=%s, route_method=%s",
+    "Building hybrid dashboard: match_sims=%s, tournaments=%s, workers=%s, feature_cutoff=%s, actual_results_cutoff=%s, route_method=%s",
     n_match_sim,
     n_tournaments,
     n_workers,
     feature_cutoff_date,
+    actual_results_cutoff_date,
     route_method
   ))
 
@@ -347,6 +352,8 @@ main <- function() {
     n_workers = n_workers,
     model_version = "hybrid",
     feature_cutoff_date = feature_cutoff_date,
+    actual_results_cutoff_date = actual_results_cutoff_date,
+    actual_results_path = matches_path,
     require_forecast_features = TRUE,
     baseline_comparison = baseline_comparison,
     home_model_path = home_model_path,

@@ -153,6 +153,50 @@ test_that("World Cup tournament simulation chunks are deterministic across worke
   expect_equal(parallel$stage_probabilities, serial$stage_probabilities)
 })
 
+test_that("completed World Cup fixtures are fixed at actual scores", {
+  source(file.path(project_root, "R/forecast/monte_carlo.R"))
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  groups <- load_worldcup_2026_groups(file.path(project_root, "data/raw/worldcup_2026_groups.csv"))
+  fixtures <- make_worldcup_group_fixtures(
+    groups,
+    schedule_path = file.path(project_root, "data/raw/worldcup_2026_group_fixtures.csv")
+  )
+  results_path <- tempfile(fileext = ".csv")
+  write.csv(
+    data.frame(
+      date = as.Date("2026-06-11"),
+      home_team_canonical = "Mexico",
+      away_team_canonical = "South Africa",
+      home_score = 2,
+      away_score = 0,
+      tournament = "FIFA World Cup",
+      stringsAsFactors = FALSE
+    ),
+    results_path,
+    row.names = FALSE
+  )
+
+  fixtures <- attach_worldcup_actual_results(
+    fixtures = fixtures,
+    matches_path = results_path,
+    result_cutoff_date = as.Date("2026-06-12")
+  )
+  opener <- fixtures[fixtures$match_id == "GA01", ]
+  expect_true(opener$is_completed)
+  expect_equal(opener$match_status, "final")
+  expect_equal(opener$actual_score, "2-0")
+
+  forecast <- forecast_dashboard_matches(opener, n_match_sim = 20, seed = 1)
+  expect_true(forecast$match_forecasts$is_completed)
+  expect_equal(forecast$match_forecasts$actual_score, "2-0")
+  expect_equal(forecast$match_forecasts$win_probability, 1)
+  expect_equal(forecast$match_forecasts$draw_probability, 0)
+  expect_equal(forecast$match_forecasts$loss_probability, 0)
+  expect_equal(forecast$scoreline_distributions$scoreline, "2-0")
+  expect_equal(forecast$scoreline_distributions$probability, 1)
+})
+
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/forecast/tournament.R"))
@@ -367,8 +411,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Closest group-win race", html, fixed = TRUE))
   expect_true(grepl("Leader margin", html, fixed = TRUE))
   expect_true(grepl("Win spread", html, fixed = TRUE))
-  expect_true(grepl("closest group-win race uses the top-two leader margin", html, fixed = TRUE))
-  expect_true(grepl("open-group headline uses the spread", html, fixed = TRUE))
+  expect_true(grepl("Completed World Cup group matches are fixed at their actual scores", html, fixed = TRUE))
+  expect_true(grepl("remaining fixtures are simulated", html, fixed = TRUE))
   expect_true(grepl("Expected goals", html, fixed = TRUE))
   expect_true(grepl("chip primary", html, fixed = TRUE))
   expect_true(grepl("Rounded goals", html, fixed = TRUE))
@@ -381,7 +425,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Projected advance", html, fixed = TRUE))
   expect_true(grepl("Projected exit", html, fixed = TRUE))
   expect_true(grepl("projected_position", html, fixed = TRUE))
-  expect_true(grepl("Group tables are ordered by projected rank", html, fixed = TRUE))
+  expect_true(grepl("final scores are tournament state", html, fixed = TRUE))
   expect_true(grepl("data-match-probability", html, fixed = TRUE))
   expect_true(grepl("data-route-label", html, fixed = TRUE))
   expect_true(grepl("data-has-tooltip", html, fixed = TRUE))

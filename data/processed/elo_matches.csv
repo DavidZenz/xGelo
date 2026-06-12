@@ -49404,8 +49404,8 @@
 2026-06-10,"England","Costa Rica",3,0,"Friendly","Orlando","United States",TRUE,"England","Costa Rica","ENG","CRC",1,"England_Costa Rica_2026-06-10",FALSE
 2026-06-10,"Portugal","Nigeria",2,1,"Friendly","Leiria","Portugal",FALSE,"Portugal","Nigeria","POR","NGA",1,"Portugal_Nigeria_2026-06-10",TRUE
 2026-06-10,"Afghanistan","Pakistan",0,2,"Diamond Jubilee International Football Tournament","Malé","Maldives",TRUE,"Afghanistan","Pakistan","AFG","PAK",0,"Afghanistan_Pakistan_2026-06-10",FALSE
-2026-06-11,"Mexico","South Africa",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,"Mexico","South Africa","MEX","RSA",NA,"Mexico_South Africa_2026-06-11",TRUE
-2026-06-11,"South Korea","Czech Republic",NA,NA,"FIFA World Cup","Zapopan","Mexico",TRUE,"Korea Republic","Czech Republic","KOR","CZE",NA,"Korea Republic_Czech Republic_2026-06-11",FALSE
+2026-06-11,"Mexico","South Africa",2,0,"FIFA World Cup","Mexico City","Mexico",FALSE,"Mexico","South Africa","MEX","RSA",1,"Mexico_South Africa_2026-06-11",TRUE
+2026-06-11,"South Korea","Czech Republic",2,1,"FIFA World Cup","Zapopan","Mexico",TRUE,"Korea Republic","Czech Republic","KOR","CZE",1,"Korea Republic_Czech Republic_2026-06-11",FALSE
 2026-06-12,"Canada","Bosnia and Herzegovina",NA,NA,"FIFA World Cup","Toronto","Canada",FALSE,"Canada","Bosnia and Herzegovina","CAN","BIH",NA,"Canada_Bosnia and Herzegovina_2026-06-12",TRUE
 2026-06-12,"United States","Paraguay",NA,NA,"FIFA World Cup","Inglewood","United States",FALSE,"United States","Paraguay","USA","PAR",NA,"United States_Paraguay_2026-06-12",TRUE
 2026-06-13,"Qatar","Switzerland",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,"Qatar","Switzerland","QAT","SUI",NA,"Qatar_Switzerland_2026-06-13",FALSE

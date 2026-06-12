@@ -282,6 +282,65 @@ make_worldcup_group_fixtures <- function(
   load_worldcup_2026_group_fixtures(groups = groups, schedule_path = schedule_path)
 }
 
+worldcup_result_key <- function(date, home_team, away_team) {
+  paste(as.character(as.Date(date)), as.character(home_team), as.character(away_team), sep = "\r")
+}
+
+#' Attach completed World Cup scores to scheduled group fixtures
+#'
+#' @param fixtures Fixture data frame from make_worldcup_group_fixtures()
+#' @param matches_path Processed martj42/Elo matches path
+#' @param result_cutoff_date Latest result date to include
+#' @return Fixture data frame with actual score/status columns
+#' @export
+attach_worldcup_actual_results <- function(
+    fixtures,
+    matches_path = "data/processed/elo_matches.csv",
+    result_cutoff_date = Sys.Date()
+) {
+  fixtures$date <- as.Date(fixtures$date)
+  fixtures$is_completed <- FALSE
+  fixtures$match_status <- "scheduled"
+  fixtures$actual_home_goals <- NA_integer_
+  fixtures$actual_away_goals <- NA_integer_
+  fixtures$actual_score <- NA_character_
+
+  if (!file.exists(matches_path)) return(fixtures)
+  matches <- read.csv(matches_path, stringsAsFactors = FALSE)
+  required <- c("date", "home_team_canonical", "away_team_canonical", "home_score", "away_score", "tournament")
+  if (!all(required %in% names(matches))) return(fixtures)
+  matches$date <- as.Date(matches$date)
+  result_cutoff_date <- as.Date(result_cutoff_date)
+  completed <- matches[
+    matches$tournament == "FIFA World Cup" &
+      !is.na(matches$home_score) &
+      !is.na(matches$away_score) &
+      matches$date <= result_cutoff_date,
+    ,
+    drop = FALSE
+  ]
+  if (nrow(completed) == 0) return(fixtures)
+
+  result_keys <- worldcup_result_key(
+    completed$date,
+    completed$home_team_canonical,
+    completed$away_team_canonical
+  )
+  result_index <- split(seq_len(nrow(completed)), result_keys)
+  fixture_keys <- worldcup_result_key(fixtures$date, fixtures$home_team, fixtures$away_team)
+  for (i in seq_along(fixture_keys)) {
+    idx <- result_index[[fixture_keys[i]]]
+    if (length(idx) == 0) next
+    row <- completed[idx[length(idx)], , drop = FALSE]
+    fixtures$is_completed[i] <- TRUE
+    fixtures$match_status[i] <- "final"
+    fixtures$actual_home_goals[i] <- as.integer(row$home_score[1])
+    fixtures$actual_away_goals[i] <- as.integer(row$away_score[1])
+    fixtures$actual_score[i] <- paste(fixtures$actual_home_goals[i], fixtures$actual_away_goals[i], sep = "-")
+  }
+  fixtures
+}
+
 forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 20260611, ...) {
   if (!exists("simulate_fixture")) {
     source("R/forecast/monte_carlo.R")
@@ -301,9 +360,20 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
     elo_ratings_path <- if (!is.null(get_extra_arg("elo_ratings_path"))) get_extra_arg("elo_ratings_path") else "data/processed/elo_ratings.csv"
     if (file.exists(elo_ratings_path)) extra_args$elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
   }
-  fixture_lambdas <- if (!is.null(get_extra_arg("home_model")) && !is.null(get_extra_arg("away_model")) && !is.null(get_extra_arg("forecast_features"))) {
+  completed <- if ("is_completed" %in% names(fixtures)) {
+    isTRUE(fixtures$is_completed) | fixtures$is_completed %in% c(TRUE, "TRUE", "true", "1")
+  } else {
+    rep(FALSE, nrow(fixtures))
+  }
+  open_fixtures <- fixtures[!completed, , drop = FALSE]
+  fixture_lambdas <- if (
+    nrow(open_fixtures) > 0 &&
+      !is.null(get_extra_arg("home_model")) &&
+      !is.null(get_extra_arg("away_model")) &&
+      !is.null(get_extra_arg("forecast_features"))
+  ) {
     precompute_dashboard_fixture_lambdas(
-      fixtures = fixtures,
+      fixtures = open_fixtures,
       home_model = get_extra_arg("home_model"),
       away_model = get_extra_arg("away_model"),
       forecast_features = get_extra_arg("forecast_features")
@@ -319,8 +389,39 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
 
   for (i in seq_len(nrow(fixtures))) {
     fixture <- fixtures[i, ]
-    if (!is.null(fixture_lambdas)) {
+    fixture_completed <- isTRUE(completed[i])
+    if (fixture_completed) {
+      home_goals <- as.integer(fixture$actual_home_goals)
+      away_goals <- as.integer(fixture$actual_away_goals)
+      outcome <- if (home_goals > away_goals) "home_win" else if (home_goals == away_goals) "draw" else "away_win"
+      sim <- list(
+        win_prob = as.numeric(outcome == "home_win"),
+        draw_prob = as.numeric(outcome == "draw"),
+        loss_prob = as.numeric(outcome == "away_win"),
+        expected_home = home_goals,
+        expected_away = away_goals,
+        predicted_outcome = outcome,
+        most_likely_score = paste(home_goals, away_goals, sep = "-"),
+        most_likely_score_probability = 1,
+        rounded_expected_score = paste(home_goals, away_goals, sep = "-"),
+        over_2_5_probability = as.numeric(home_goals + away_goals > 2.5),
+        under_2_5_probability = as.numeric(home_goals + away_goals <= 2.5),
+        both_teams_to_score_probability = as.numeric(home_goals > 0 && away_goals > 0),
+        scoreline_distribution = data.frame(
+          home_goals = home_goals,
+          away_goals = away_goals,
+          scoreline = paste(home_goals, away_goals, sep = "-"),
+          outcome = outcome,
+          count = n_match_sim,
+          probability = 1,
+          stringsAsFactors = FALSE
+        )
+      )
+    } else if (!is.null(fixture_lambdas)) {
       lambda_row <- fixture_lambdas[fixture_lambdas$match_id == fixture$match_id, , drop = FALSE]
+      if (nrow(lambda_row) == 0) {
+        stop(paste("Missing forecast feature/lambda row for open fixture:", fixture$match_id), call. = FALSE)
+      }
       sim <- simulate_fixture_from_lambdas(
         home_lambda = lambda_row$home_lambda[1],
         away_lambda = lambda_row$away_lambda[1],
@@ -361,6 +462,11 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
       venue_name = fixture$venue_name,
       host_city = fixture$host_city,
       host_country = fixture$host_country,
+      is_completed = fixture_completed,
+      match_status = if ("match_status" %in% names(fixture)) fixture$match_status else if (fixture_completed) "final" else "scheduled",
+      actual_home_goals = if ("actual_home_goals" %in% names(fixture)) fixture$actual_home_goals else NA_integer_,
+      actual_away_goals = if ("actual_away_goals" %in% names(fixture)) fixture$actual_away_goals else NA_integer_,
+      actual_score = if ("actual_score" %in% names(fixture)) fixture$actual_score else NA_character_,
       home_goals_expected = sim$expected_home,
       away_goals_expected = sim$expected_away,
       win_probability = sim$win_prob,
@@ -1779,6 +1885,8 @@ build_worldcup_dashboard_data <- function(
     transfermarkt_snapshot_path = "data/raw/transfermarkt/transfermarkt-datasets.duckdb",
     euro2024_metrics_path = "outputs/benchmarks/euro2024_transfermarkt_regularized/euro2024_metrics.csv",
     xg_feature_usage_audit_path = "data/processed/xg_feature_usage_audit.csv",
+    actual_results_path = "data/processed/elo_matches.csv",
+    actual_results_cutoff_date = Sys.Date(),
     baseline_comparison = FALSE,
     baseline_home_model_path = "models/home_goal_model.rds",
     baseline_away_model_path = "models/away_goal_model.rds",
@@ -1803,8 +1911,15 @@ build_worldcup_dashboard_data <- function(
     dashboard_forecast_features <- read.csv(dashboard_forecast_features_path, stringsAsFactors = FALSE)
   }
   feature_cutoff_date <- as.Date(feature_cutoff_date)
+  actual_results_cutoff_date <- as.Date(actual_results_cutoff_date)
   groups <- load_worldcup_2026_groups(groups_path)
   fixtures <- make_worldcup_group_fixtures(groups, schedule_path = schedule_path)
+  fixtures <- attach_worldcup_actual_results(
+    fixtures = fixtures,
+    matches_path = actual_results_path,
+    result_cutoff_date = actual_results_cutoff_date
+  )
+  completed_fixture_count <- sum(fixtures$is_completed, na.rm = TRUE)
   if (is.null(precompute_knockout_routes)) {
     precompute_knockout_routes <- FALSE
   }
@@ -1897,12 +2012,22 @@ build_worldcup_dashboard_data <- function(
       transfermarkt_snapshot_modified_time = tm_metadata$snapshot_modified_time,
       euro2024_benchmark_summary = benchmark_summary,
       xg_feature_usage_summary = xg_usage_summary,
+      completed_group_matches = completed_fixture_count,
+      actual_results_cutoff_date = as.character(actual_results_cutoff_date),
       n_match_sim = n_match_sim,
       n_tournaments = n_tournaments,
       n_workers = normalise_dashboard_workers(n_workers, n_tournaments),
       format_note = "48 teams, 12 groups of four, top two plus eight best third-place teams reach the Round of 32.",
       fixture_source = "FIFA World Cup 2026 group-stage fixture schedule, cross-checked against FourFourTwo listing updated 2026-06-05.",
-      caveat = "Pre-match forecast only. No injuries, lineups, or live state. Knockout ET/pens routes are an Elo tiebreak allocation of drawn 90-minute simulations."
+      caveat = if (completed_fixture_count > 0) {
+        paste0(
+          "In-tournament forecast: completed group matches are fixed at actual scores through ",
+          as.character(actual_results_cutoff_date),
+          ". Remaining fixtures are simulated from pre-match features; no injuries, lineups, or live state."
+        )
+      } else {
+        "Pre-match forecast only. No injuries, lineups, or live state. Knockout ET/pens routes are an Elo tiebreak allocation of drawn 90-minute simulations."
+      }
     ),
     groups = groups,
     fixtures = fixtures,
@@ -1938,6 +2063,8 @@ build_worldcup_dashboard_data <- function(
       transfermarkt_metadata_path = transfermarkt_metadata_path,
       transfermarkt_snapshot_path = transfermarkt_snapshot_path,
       euro2024_metrics_path = euro2024_metrics_path,
+      actual_results_path = actual_results_path,
+      actual_results_cutoff_date = actual_results_cutoff_date,
       baseline_comparison = FALSE,
       home_model_path = baseline_home_model_path,
       away_model_path = baseline_away_model_path
@@ -2000,7 +2127,7 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. The 2026 forecast uses three pre-match signal families: team Elo strength, leakage-safe Transfermarkt player-pool valuation, and weighted historical goal ability. xG/form is currently not used because international rolling-form coverage is too sparse. The combined model is the default because it improved EURO 2024 Brier score, log loss, and ranked probability score without materially hurting draw calibration. Group outcomes are sampled from match scoreline distributions. Group tables are ordered by projected rank from expected points, expected goal difference, and expected goals for, while modal finish is retained in the data as a diagnostic distribution summary. The closest group-win race uses the top-two leader margin; the open-group headline uses the spread between the highest and lowest group-win probabilities, so it reflects whether all four teams are close. Knockout rounds resolve each simulated bracket directly from that tournament table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share.</p></details>
+<details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Completed World Cup group matches are fixed at their actual scores; remaining fixtures are simulated from team Elo strength, leakage-safe Transfermarkt player-pool valuation, and weighted historical goal ability. xG/form is currently not used because international rolling-form coverage is too sparse. The combined model is the default because it improved EURO 2024 Brier score, log loss, and ranked probability score without materially hurting draw calibration. Knockout rounds resolve each simulated bracket directly from the simulated group table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share.</p></details>
 <details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. Player-pool valuation features use a local snapshot of <a href="https://github.com/dcaribou/transfermarkt-datasets" target="_blank" rel="noopener">dcaribou/transfermarkt-datasets</a>. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
 </main>
 <script id="dashboard-data" type="application/json">', json_text, '</script>
@@ -2088,8 +2215,10 @@ function bracketTooltipHtml(g, projectedWinnerProbability){
 const modelDescription = (data.metadata.model_version || "baseline") === "hybrid"
   ? "using a combined Elo, Transfermarkt player-pool valuation, and historical goal-ability model"
   : "using the baseline Elo model";
-document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations ${modelDescription}. Probabilities are the forecast; modal scores and predicted outcomes are summaries of simulated score distributions, not certainty. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
-document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
+const completedCount = Number(data.metadata.completed_group_matches || 0);
+const progressText = completedCount > 0 ? `${completedCount} completed group matches fixed at actual scores; ` : "";
+document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations ${modelDescription}. ${progressText}remaining probabilities are forecasts, while final scores are tournament state. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
+document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | Actual results through ${data.metadata.actual_results_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
   const groupRows = data.group_probabilities;
@@ -2130,13 +2259,18 @@ function renderMatches(){
   const scorelines = by(data.scoreline_distributions, "match_id");
   const rows = data.match_forecasts.filter(r => (!group || r.group === group) && (`${r.home_display} ${r.away_display}`.toLowerCase().includes(search)));
   document.getElementById("matchesGrid").innerHTML = rows.map(r => {
+    const completed = r.is_completed === true || r.is_completed === "TRUE" || r.match_status === "final";
     const topRows = (scorelines[r.match_id] || []).slice(0,5);
     const maxProb = Math.max(...topRows.map(s => Number(s.probability)), 0.01);
     const topBars = topRows.map(s => {
       const relWidth = Math.max(4, 100 * Number(s.probability) / maxProb);
       return `<div class="scoreline-row"><div class="scoreline-score">${esc(s.scoreline)}</div><div class="scoreline-bar"><span class="scoreline-fill ${esc(s.outcome)}" style="width:${relWidth}%"></span></div><div class="scoreline-prob">${pct(s.probability)}</div></div>`;
     }).join("");
-    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div><div class="chips"><span class="chip primary">Expected goals ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span></div><div class="scorelines"><div class="scoreline-heading">Top exact scorelines</div>${topBars}</div></div>`;
+    const statusChips = completed
+      ? `<div class="chips"><span class="chip primary">Final ${esc(r.actual_score)}</span><span class="chip">Fixed in simulations</span></div>`
+      : `<div class="chips"><span class="chip primary">Expected goals ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span></div>`;
+    const heading = completed ? "Final score" : "Top exact scorelines";
+    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div>${statusChips}<div class="scorelines"><div class="scoreline-heading">${heading}</div>${topBars}</div></div>`;
   }).join("");
 }
 function renderBracket(){
@@ -2266,7 +2400,12 @@ function renderTeams(selected){
       return `<div class="slot"><span><strong>${esc(r.round)}</strong>: ${esc(team.display_team)} vs ${esc(opponent)}<br><small>${esc(status)} | 90 min win ${pct(regulation)} | ET/pens ${pct(late)} | rounded goals ${esc(teamScore(r.rounded_expected_score, isSlot1))}</small></span><small>${pct(advance)}</small></div>`;
     }).join("") + (championRow ? `<div class="slot"><span><strong>Champion</strong>: ${esc(team.display_team)}<br><small>Projected champion in the displayed bracket path</small></span><small>${pct(team.champion_probability)}</small></div>` : "")
     : `<div class="slot"><span>No projected knockout route in the displayed bracket path<br><small>Simulations still give ${esc(team.display_team)} a ${pct(team.round_of_32_probability)} Round-of-32 chance.</small></span><small>${pct(team.champion_probability)}</small></div>`;
-  document.getElementById("teamDetail").innerHTML = `<h2>${esc(team.display_team)}</h2><p>Group ${esc(team.group)} | Title ${pct(team.champion_probability)} | Final ${pct(team.final_probability)} | Quarter-final ${pct(team.quarterfinal_probability)} | Round of 32 ${pct(team.round_of_32_probability)}</p><h3 class="panel-title">Group matches</h3>${matches.map(m => `<div class="slot"><span>${esc(m.home_display)} vs ${esc(m.away_display)}<br><small>${esc(m.date)} ${esc(m.kickoff_local)} local | ${esc(m.host_city)} | rounded ${esc(m.rounded_expected_score)} | top exact ${esc(m.most_likely_score)}</small></span><small>xG ${num(m.home_goals_expected)}-${num(m.away_goals_expected)}</small></div>`).join("")}<h3 class="panel-title">Projected tournament path</h3>${routeHtml}`;
+  document.getElementById("teamDetail").innerHTML = `<h2>${esc(team.display_team)}</h2><p>Group ${esc(team.group)} | Title ${pct(team.champion_probability)} | Final ${pct(team.final_probability)} | Quarter-final ${pct(team.quarterfinal_probability)} | Round of 32 ${pct(team.round_of_32_probability)}</p><h3 class="panel-title">Group matches</h3>${matches.map(m => {
+    const completed = m.is_completed === true || m.is_completed === "TRUE" || m.match_status === "final";
+    const detail = completed ? `final ${esc(m.actual_score)} | fixed in simulations` : `rounded ${esc(m.rounded_expected_score)} | top exact ${esc(m.most_likely_score)}`;
+    const side = completed ? `Final ${esc(m.actual_score)}` : `xG ${num(m.home_goals_expected)}-${num(m.away_goals_expected)}`;
+    return `<div class="slot"><span>${esc(m.home_display)} vs ${esc(m.away_display)}<br><small>${esc(m.date)} ${esc(m.kickoff_local)} local | ${esc(m.host_city)} | ${detail}</small></span><small>${side}</small></div>`;
+  }).join("")}<h3 class="panel-title">Projected tournament path</h3>${routeHtml}`;
   document.querySelectorAll(".team-row").forEach(row => row.onclick = () => renderTeams(row.dataset.team));
 }
 document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
