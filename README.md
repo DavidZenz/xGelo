@@ -205,6 +205,34 @@ The repository includes a GitHub Actions Pages workflow in
 **GitHub Actions** as its source, pushes to `master` deploy the contents of
 `docs/`.
 
+### Automatic Local Data Update
+
+Use the local automation wrapper to check upstream martj42 data, rebuild the
+hybrid WC2026 forecast when new rows are available, run tests, commit, and push:
+
+```bash
+scripts/auto_update_worldcup_dashboard.sh
+```
+
+The routine is local by design because the hybrid dashboard requires
+`data/raw/transfermarkt/transfermarkt-datasets.duckdb`, which is intentionally
+not committed. It refuses to run with existing tracked changes or when the local
+branch is not aligned with its upstream remote.
+
+Useful environment overrides:
+
+```bash
+XGELO_AUTO_PUSH=false scripts/auto_update_worldcup_dashboard.sh  # commit only
+XGELO_AUTO_FORCE=true scripts/auto_update_worldcup_dashboard.sh  # rebuild even if martj42 did not change
+XGELO_MATCH_SIMS=1000 XGELO_TOURNAMENT_SIMS=1000 scripts/auto_update_worldcup_dashboard.sh
+```
+
+For a daily local cron job at 09:30:
+
+```cron
+30 9 * * * cd /Users/davidzenz/R/xGelo && mkdir -p logs && scripts/auto_update_worldcup_dashboard.sh >> logs/auto-update.log 2>&1
+```
+
 ## Generate A Forecast
 
 After the pipeline has produced `models/home_goal_model.rds`,
