@@ -254,6 +254,19 @@ For a bounded smoke run:
 XGELO_UPDATE_MAX_RUNS=1 scripts/watch_worldcup_dashboard_updates.sh
 ```
 
+On macOS, use the LaunchAgent definition for a durable hourly local schedule:
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+cp scripts/com.xgelo.dashboard-update.plist ~/Library/LaunchAgents/
+launchctl unload ~/Library/LaunchAgents/com.xgelo.dashboard-update.plist 2>/dev/null || true
+launchctl load ~/Library/LaunchAgents/com.xgelo.dashboard-update.plist
+```
+
+The LaunchAgent runs once when loaded and then every hour. Its stdout/stderr go
+to `logs/launchd-dashboard-update.out` and
+`logs/launchd-dashboard-update.err`.
+
 ## Generate A Forecast
 
 After the pipeline has produced `models/home_goal_model.rds`,

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.xgelo.dashboard-update</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/davidzenz/R/xGelo</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>scripts/auto_update_worldcup_dashboard.sh</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StartInterval</key>
+  <integer>3600</integer>
+
+  <key>StandardOutPath</key>
+  <string>/Users/davidzenz/R/xGelo/logs/launchd-dashboard-update.out</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/davidzenz/R/xGelo/logs/launchd-dashboard-update.err</string>
+</dict>
+</plist>
