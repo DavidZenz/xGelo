@@ -233,6 +233,25 @@ For a daily local cron job at 09:30:
 30 9 * * * cd /Users/davidzenz/R/xGelo && mkdir -p logs && scripts/auto_update_worldcup_dashboard.sh >> logs/auto-update.log 2>&1
 ```
 
+For an hourly local watcher that checks immediately, then once per hour:
+
+```bash
+scripts/watch_worldcup_dashboard_updates.sh
+```
+
+The watcher writes the updater output to `logs/auto-update-loop.log` and keeps
+running until stopped with `Ctrl-C`. Override the polling interval when needed:
+
+```bash
+XGELO_UPDATE_INTERVAL_SECONDS=1800 scripts/watch_worldcup_dashboard_updates.sh
+```
+
+For a bounded smoke run:
+
+```bash
+XGELO_UPDATE_MAX_RUNS=1 scripts/watch_worldcup_dashboard_updates.sh
+```
+
 ## Generate A Forecast
 
 After the pipeline has produced `models/home_goal_model.rds`,

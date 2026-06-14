@@ -7,3 +7,4 @@ outputs/dashboard_parallel_smoke/
 outputs/dashboard_precompute_smoke/
 outputs/dashboard_bench_*/
 _targets/
+logs/
