@@ -49408,10 +49408,10 @@
 2026-06-11,"South Korea","Czech Republic",2,1,"FIFA World Cup","Zapopan","Mexico",TRUE,"Korea Republic","Czech Republic","KOR","CZE",1,"Korea Republic_Czech Republic_2026-06-11",FALSE
 2026-06-12,"Canada","Bosnia and Herzegovina",1,1,"FIFA World Cup","Toronto","Canada",FALSE,"Canada","Bosnia and Herzegovina","CAN","BIH",0.5,"Canada_Bosnia and Herzegovina_2026-06-12",TRUE
 2026-06-12,"United States","Paraguay",4,1,"FIFA World Cup","Inglewood","United States",FALSE,"United States","Paraguay","USA","PAR",1,"United States_Paraguay_2026-06-12",TRUE
-2026-06-13,"Qatar","Switzerland",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,"Qatar","Switzerland","QAT","SUI",NA,"Qatar_Switzerland_2026-06-13",FALSE
-2026-06-13,"Brazil","Morocco",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,"Brazil","Morocco","BRA","MAR",NA,"Brazil_Morocco_2026-06-13",FALSE
-2026-06-13,"Haiti","Scotland",NA,NA,"FIFA World Cup","Foxborough","United States",TRUE,"Haiti","Scotland","HAI",NA,NA,"Haiti_Scotland_2026-06-13",FALSE
-2026-06-13,"Australia","Turkey",NA,NA,"FIFA World Cup","Vancouver","Canada",TRUE,"Australia","Turkey","AUS","TUR",NA,"Australia_Turkey_2026-06-13",FALSE
+2026-06-13,"Qatar","Switzerland",1,1,"FIFA World Cup","Santa Clara","United States",TRUE,"Qatar","Switzerland","QAT","SUI",0.5,"Qatar_Switzerland_2026-06-13",FALSE
+2026-06-13,"Brazil","Morocco",1,1,"FIFA World Cup","East Rutherford","United States",TRUE,"Brazil","Morocco","BRA","MAR",0.5,"Brazil_Morocco_2026-06-13",FALSE
+2026-06-13,"Haiti","Scotland",0,1,"FIFA World Cup","Foxborough","United States",TRUE,"Haiti","Scotland","HAI",NA,0,"Haiti_Scotland_2026-06-13",FALSE
+2026-06-13,"Australia","Turkey",2,0,"FIFA World Cup","Vancouver","Canada",TRUE,"Australia","Turkey","AUS","TUR",1,"Australia_Turkey_2026-06-13",FALSE
 2026-06-14,"Germany","Curaçao",NA,NA,"FIFA World Cup","Houston","United States",TRUE,"Germany","Curaçao","GER",NA,NA,"Germany_Curaçao_2026-06-14",FALSE
 2026-06-14,"Ivory Coast","Ecuador",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,"Ivory Coast","Ecuador","CIV","ECU",NA,"Ivory Coast_Ecuador_2026-06-14",FALSE
 2026-06-14,"Netherlands","Japan",NA,NA,"FIFA World Cup","Arlington","United States",TRUE,"Netherlands","Japan","NED","JPN",NA,"Netherlands_Japan_2026-06-14",FALSE
