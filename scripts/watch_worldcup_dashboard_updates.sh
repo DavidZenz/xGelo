@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 INTERVAL_SECONDS="${XGELO_UPDATE_INTERVAL_SECONDS:-3600}"
 LOG_FILE="${XGELO_UPDATE_LOG:-logs/auto-update-loop.log}"
 MAX_RUNS="${XGELO_UPDATE_MAX_RUNS:-0}"
+LOCK_DIR="${XGELO_UPDATE_LOCK_DIR:-logs/dashboard-update-watcher.lock}"
 
 if ! [[ "$INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || [[ "$INTERVAL_SECONDS" -lt 60 ]]; then
   echo "XGELO_UPDATE_INTERVAL_SECONDS must be an integer >= 60." >&2
@@ -20,7 +21,17 @@ fi
 
 mkdir -p "$(dirname "$LOG_FILE")"
 
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "Dashboard update watcher already appears to be running: ${LOCK_DIR}" >&2
+  echo "If this is a stale lock, remove it after confirming no watcher is active." >&2
+  exit 1
+fi
+
 stop_requested=false
+cleanup() {
+  rmdir "$LOCK_DIR" 2>/dev/null || true
+}
+trap cleanup EXIT
 trap 'stop_requested=true' INT TERM
 
 run_update() {
@@ -47,6 +58,7 @@ echo "Watching for dashboard data updates every ${INTERVAL_SECONDS}s."
 echo "Set XGELO_UPDATE_INTERVAL_SECONDS to change the interval."
 echo "Set XGELO_UPDATE_LOG to change the log path."
 echo "Set XGELO_UPDATE_MAX_RUNS to stop after a fixed number of checks; 0 means unlimited."
+echo "Set XGELO_UPDATE_LOCK_DIR to change the single-watcher lock path."
 echo "Press Ctrl-C to stop."
 
 run_count=0

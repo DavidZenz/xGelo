@@ -240,7 +240,9 @@ scripts/watch_worldcup_dashboard_updates.sh
 ```
 
 The watcher writes the updater output to `logs/auto-update-loop.log` and keeps
-running until stopped with `Ctrl-C`. Override the polling interval when needed:
+running until stopped with `Ctrl-C`. It uses
+`logs/dashboard-update-watcher.lock` to prevent duplicate local loops. Override
+the polling interval when needed:
 
 ```bash
 XGELO_UPDATE_INTERVAL_SECONDS=1800 scripts/watch_worldcup_dashboard_updates.sh
