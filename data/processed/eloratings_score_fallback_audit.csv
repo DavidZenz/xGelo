@@ -1,0 +1,3 @@
+"date","home_team","away_team","home_score","away_score","tournament","city","country","neutral","score_source"
+2026-06-14,"Germany","Curaçao",7,1,"FIFA World Cup","Houston","United States",TRUE,"eloratings_fallback"
+2026-06-14,"Netherlands","Japan",2,2,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback"

@@ -26,6 +26,49 @@ read_env_path <- function(name, default) {
   if (is.na(value) || !nzchar(value)) default else value
 }
 
+sync_current_dashboard_outputs <- function(source_dir, current_dir) {
+  if (!nzchar(current_dir)) {
+    return(invisible(character()))
+  }
+
+  source_dir_norm <- normalizePath(source_dir, mustWork = FALSE)
+  current_dir_norm <- normalizePath(current_dir, mustWork = FALSE)
+  if (identical(source_dir_norm, current_dir_norm)) {
+    return(invisible(character()))
+  }
+
+  files <- c(
+    "worldcup_forecast.html",
+    "worldcup_dashboard_data.json",
+    "worldcup_bracket_paths.csv",
+    "worldcup_group_probabilities.csv",
+    "worldcup_match_forecasts.csv",
+    "worldcup_stage_probabilities.csv"
+  )
+  source_paths <- file.path(source_dir, files)
+  existing <- source_paths[file.exists(source_paths)]
+  if (!length(existing)) {
+    warning(sprintf("No dashboard output files found to sync from %s", source_dir), call. = FALSE)
+    return(invisible(character()))
+  }
+
+  if (!dir.exists(current_dir)) {
+    dir.create(current_dir, recursive = TRUE)
+  }
+
+  copied <- file.copy(existing, current_dir, overwrite = TRUE)
+  if (!all(copied)) {
+    stop(
+      sprintf(
+        "Failed to sync dashboard outputs: %s",
+        paste(basename(existing)[!copied], collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+  invisible(file.path(current_dir, basename(existing)))
+}
+
 require_paths <- function(paths, label) {
   missing_paths <- paths[!file.exists(paths)]
   if (length(missing_paths) > 0) {
@@ -276,6 +319,8 @@ main <- function() {
   n_tournaments <- read_env_int("XGELO_TOURNAMENT_SIMS", 100000L)
   n_workers <- read_env_int("XGELO_DASHBOARD_WORKERS", 4L)
   output_dir <- read_env_path("XGELO_OUTPUT_DIR", "outputs/dashboard_100k")
+  current_output_dir <- read_env_path("XGELO_CURRENT_OUTPUT_DIR", "outputs/dashboard")
+  sync_current_output <- read_env_flag("XGELO_SYNC_CURRENT_OUTPUT", TRUE)
   pages_dir <- read_env_path("XGELO_PAGES_DIR", "docs/wc2026")
   publish_pages <- read_env_flag("XGELO_PUBLISH", TRUE)
   baseline_comparison <- read_env_flag("XGELO_BASELINE_COMPARISON", FALSE)
@@ -373,6 +418,10 @@ main <- function() {
       pages_dir = pages_dir
     )
   }
+  current_paths <- character()
+  if (sync_current_output) {
+    current_paths <- sync_current_dashboard_outputs(output_dir, current_output_dir)
+  }
   audit_dashboard_team_coverage(
     forecast_features_path = forecast_features_path,
     output_dir = output_dir,
@@ -382,6 +431,7 @@ main <- function() {
   message(sprintf("Dashboard HTML: %s", dashboard$paths$html))
   message(sprintf("Dashboard data: %s", dashboard$paths$data_json))
   if (publish_pages) message(sprintf("Published Pages copy: %s", published_path))
+  if (length(current_paths)) message(sprintf("Synced current dashboard copy: %s", current_output_dir))
   message(sprintf("Elapsed: %.1f seconds", elapsed))
 
   top_champions <- extract_top_champions(file.path(output_dir, "worldcup_stage_probabilities.csv"))

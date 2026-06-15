@@ -69,8 +69,15 @@ list(
     read.csv("data/raw/team_name_map.csv", stringsAsFactors = FALSE)
   ),
   tar_target(
+    eloratings_fallback_files,
+    download_eloratings_fallback_files()
+  ),
+  tar_target(
     elo_matches,
-    preprocess_martj42()
+    {
+      eloratings_fallback_files
+      preprocess_martj42()
+    }
   ),
   tar_target(
     elo_result,

@@ -1,4 +1,5 @@
 data/raw/wcq_cache/
+data/raw/eloratings/
 data/cache/
 data/raw/transfermarkt/*.duckdb
 data/raw/transfermarkt/*.duckdb.wal

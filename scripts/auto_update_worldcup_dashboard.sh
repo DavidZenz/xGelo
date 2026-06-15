@@ -11,6 +11,25 @@ TOURNAMENT_SIMS="${XGELO_TOURNAMENT_SIMS:-100000}"
 DASHBOARD_WORKERS="${XGELO_DASHBOARD_WORKERS:-4}"
 OUTPUT_DIR="${XGELO_OUTPUT_DIR:-outputs/dashboard_100k}"
 PAGES_DIR="${XGELO_PAGES_DIR:-docs/wc2026}"
+ELORATINGS_CHANGED="false"
+
+download_if_changed() {
+  local url="$1"
+  local path="$2"
+  local tmp
+
+  mkdir -p "$(dirname "$path")"
+  tmp="$(mktemp)"
+  curl -L --fail -sS -o "$tmp" "$url"
+
+  if [[ ! -f "$path" ]] || ! cmp -s "$tmp" "$path"; then
+    mv "$tmp" "$path"
+    return 0
+  fi
+
+  rm -f "$tmp"
+  return 1
+}
 
 if [[ ! -f "data/raw/transfermarkt/transfermarkt-datasets.duckdb" ]]; then
   echo "Missing local Transfermarkt snapshot: data/raw/transfermarkt/transfermarkt-datasets.duckdb" >&2
@@ -42,8 +61,18 @@ curl -L --fail -o data/raw/martj42/shootouts.csv \
 curl -L --fail -o data/raw/martj42/goalscorers.csv \
   https://raw.githubusercontent.com/martj42/international_results/master/goalscorers.csv
 
-if [[ "$AUTO_FORCE" != "true" ]] && git diff --quiet --exit-code -- data/raw/martj42; then
-  echo "No upstream martj42 data changes detected. Nothing to rebuild."
+echo "Downloading EloRatings fallback data..."
+if download_if_changed "https://www.eloratings.net/latest.tsv" "data/raw/eloratings/latest.tsv"; then
+  ELORATINGS_CHANGED="true"
+fi
+if download_if_changed "https://www.eloratings.net/en.teams.tsv" "data/raw/eloratings/en.teams.tsv"; then
+  ELORATINGS_CHANGED="true"
+fi
+
+if [[ "$AUTO_FORCE" != "true" ]] &&
+  git diff --quiet --exit-code -- data/raw/martj42 &&
+  [[ "$ELORATINGS_CHANGED" != "true" ]]; then
+  echo "No upstream martj42 or EloRatings fallback data changes detected. Nothing to rebuild."
   exit 0
 fi
 
@@ -79,6 +108,7 @@ echo "Running tests..."
 Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
 
 git add -u
+git add data/processed/eloratings_score_fallback_audit.csv 2>/dev/null || true
 if git diff --cached --quiet --exit-code; then
   echo "No tracked output changes after rebuild. Nothing to commit."
   exit 0

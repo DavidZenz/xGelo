@@ -7,6 +7,176 @@
 #' @author xGelo project
 #' @date 2026-06-03
 
+xgelo_eloratings_team_overrides <- function() {
+  c(
+    CH = "Switzerland",
+    SQ = "Scotland",
+    KO = "Korea Republic",
+    KR = "Korea Republic",
+    CI = "Ivory Coast",
+    TR = "Turkey",
+    QA = "Qatar"
+  )
+}
+
+read_eloratings_team_dictionary <- function(path = "data/raw/eloratings/en.teams.tsv") {
+  if (!file.exists(path)) {
+    stop(paste("EloRatings team dictionary not found:", path), call. = FALSE)
+  }
+
+  lines <- readLines(path, warn = FALSE, encoding = "UTF-8")
+  parsed <- strsplit(lines[nzchar(lines)], "\t", fixed = TRUE)
+  rows <- lapply(parsed, function(fields) {
+    if (length(fields) < 2 || grepl("_loc$", fields[[1]])) {
+      return(NULL)
+    }
+    data.frame(
+      eloratings_code = fields[[1]],
+      eloratings_name = fields[[2]],
+      stringsAsFactors = FALSE
+    )
+  })
+  dict <- do.call(rbind, rows[!vapply(rows, is.null, logical(1))])
+  overrides <- xgelo_eloratings_team_overrides()
+  override_idx <- match(names(overrides), dict$eloratings_code)
+  dict$team_name <- dict$eloratings_name
+  dict$team_name[override_idx[!is.na(override_idx)]] <- unname(overrides[!is.na(override_idx)])
+  dict
+}
+
+read_eloratings_latest_results <- function(
+    latest_path = "data/raw/eloratings/latest.tsv",
+    teams_path = "data/raw/eloratings/en.teams.tsv",
+    tournaments = c("WC")) {
+  if (!file.exists(latest_path)) {
+    stop(paste("EloRatings latest results not found:", latest_path), call. = FALSE)
+  }
+
+  team_dict <- read_eloratings_team_dictionary(teams_path)
+  lines <- readLines(latest_path, warn = FALSE, encoding = "UTF-8")
+  lines <- lines[nzchar(lines)]
+  if (!length(lines)) {
+    return(data.frame())
+  }
+
+  fields <- strsplit(lines, "\t", fixed = TRUE)
+  rows <- lapply(fields, function(x) {
+    if (length(x) < 8) {
+      return(NULL)
+    }
+    data.frame(
+      date = as.Date(sprintf("%s-%s-%s", x[[1]], x[[2]], x[[3]])),
+      home_code = x[[4]],
+      away_code = x[[5]],
+      home_score = suppressWarnings(as.integer(x[[6]])),
+      away_score = suppressWarnings(as.integer(x[[7]])),
+      eloratings_tournament = x[[8]],
+      stringsAsFactors = FALSE
+    )
+  })
+  results <- do.call(rbind, rows[!vapply(rows, is.null, logical(1))])
+  if (!nrow(results)) {
+    return(results)
+  }
+
+  results <- results[
+    results$eloratings_tournament %in% tournaments &
+      !is.na(results$home_score) &
+      !is.na(results$away_score),
+    ,
+    drop = FALSE
+  ]
+
+  results$home_team <- team_dict$team_name[match(results$home_code, team_dict$eloratings_code)]
+  results$away_team <- team_dict$team_name[match(results$away_code, team_dict$eloratings_code)]
+  results <- results[!is.na(results$home_team) & !is.na(results$away_team), , drop = FALSE]
+  results
+}
+
+apply_eloratings_score_fallback <- function(
+    results,
+    eloratings_results,
+    tournaments = c("FIFA World Cup")) {
+  if (!nrow(results) || is.null(eloratings_results) || !nrow(eloratings_results)) {
+    results$score_source <- if ("score_source" %in% names(results)) results$score_source else "martj42"
+    results$score_source[is.na(results$home_score) | is.na(results$away_score)] <- NA_character_
+    return(results)
+  }
+
+  results$date <- as.Date(results$date)
+  eloratings_results$date <- as.Date(eloratings_results$date)
+
+  if (!"score_source" %in% names(results)) {
+    results$score_source <- ifelse(
+      is.na(results$home_score) | is.na(results$away_score),
+      NA_character_,
+      "martj42"
+    )
+  }
+
+  results$key <- paste(results$date, results$home_team, results$away_team, sep = "\r")
+  eloratings_results$key <- paste(
+    eloratings_results$date,
+    eloratings_results$home_team,
+    eloratings_results$away_team,
+    sep = "\r"
+  )
+  eloratings_results$reverse_key <- paste(
+    eloratings_results$date,
+    eloratings_results$away_team,
+    eloratings_results$home_team,
+    sep = "\r"
+  )
+  fallback_idx <- match(results$key, eloratings_results$key)
+  needs_score <- is.na(results$home_score) | is.na(results$away_score)
+  eligible <- needs_score &
+    results$tournament %in% tournaments &
+    !is.na(fallback_idx)
+
+  if (any(eligible)) {
+    matched <- fallback_idx[eligible]
+    results$home_score[eligible] <- eloratings_results$home_score[matched]
+    results$away_score[eligible] <- eloratings_results$away_score[matched]
+    results$score_source[eligible] <- "eloratings_fallback"
+  }
+
+  reverse_idx <- match(results$key, eloratings_results$reverse_key)
+  needs_score <- is.na(results$home_score) | is.na(results$away_score)
+  reverse_eligible <- needs_score &
+    results$tournament %in% tournaments &
+    !is.na(reverse_idx)
+
+  if (any(reverse_eligible)) {
+    matched <- reverse_idx[reverse_eligible]
+    results$home_score[reverse_eligible] <- eloratings_results$away_score[matched]
+    results$away_score[reverse_eligible] <- eloratings_results$home_score[matched]
+    results$score_source[reverse_eligible] <- "eloratings_fallback"
+  }
+
+  results$key <- NULL
+  results
+}
+
+download_eloratings_fallback_files <- function(
+    output_dir = "data/raw/eloratings",
+    latest_url = "https://www.eloratings.net/latest.tsv",
+    teams_url = "https://www.eloratings.net/en.teams.tsv") {
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  latest_path <- file.path(output_dir, "latest.tsv")
+  teams_path <- file.path(output_dir, "en.teams.tsv")
+  download.file(latest_url, latest_path, mode = "wb", quiet = TRUE)
+  download.file(teams_url, teams_path, mode = "wb", quiet = TRUE)
+
+  data.frame(
+    file = c(latest_path, teams_path),
+    downloaded_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
+    stringsAsFactors = FALSE
+  )
+}
+
 #' Preprocess martj42 results for Elo computation
 #'
 #' @param results_path Path to the martj42 results.csv file
@@ -16,7 +186,11 @@
 #' @export
 preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
                             team_map_path = "data/raw/team_name_map.csv",
-                            output_path = "data/processed/elo_matches.csv") {
+                            output_path = "data/processed/elo_matches.csv",
+                            eloratings_latest_path = "data/raw/eloratings/latest.tsv",
+                            eloratings_teams_path = "data/raw/eloratings/en.teams.tsv",
+                            use_eloratings_fallback = file.exists(eloratings_latest_path) && file.exists(eloratings_teams_path),
+                            score_fallback_audit_path = "data/processed/eloratings_score_fallback_audit.csv") {
   
   # Load libraries
   suppressPackageStartupMessages({
@@ -33,6 +207,31 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
   results <- read.csv(results_path, stringsAsFactors = FALSE)
   
   message(paste("Loaded", nrow(results), "matches from", results_path))
+
+  if (use_eloratings_fallback) {
+    eloratings_results <- read_eloratings_latest_results(
+      latest_path = eloratings_latest_path,
+      teams_path = eloratings_teams_path,
+      tournaments = c("WC")
+    )
+    results <- apply_eloratings_score_fallback(
+      results = results,
+      eloratings_results = eloratings_results,
+      tournaments = c("FIFA World Cup")
+    )
+    fallback_rows <- results[!is.na(results$score_source) & results$score_source == "eloratings_fallback", , drop = FALSE]
+    if (!dir.exists(dirname(score_fallback_audit_path))) {
+      dir.create(dirname(score_fallback_audit_path), recursive = TRUE)
+    }
+    write.csv(fallback_rows, score_fallback_audit_path, row.names = FALSE)
+    message(paste("Applied", nrow(fallback_rows), "EloRatings fallback scores."))
+  } else {
+    results$score_source <- ifelse(
+      is.na(results$home_score) | is.na(results$away_score),
+      NA_character_,
+      "martj42"
+    )
+  }
   
   # Load team name mapping
   if (!file.exists(team_map_path)) {

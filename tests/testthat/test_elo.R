@@ -5,6 +5,7 @@ context("Elo Rating Calculations")
 project_root <- normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."))
 source(file.path(project_root, "R/elo/runner.R"))
 source(file.path(project_root, "R/elo/runner_optimized.R"))
+source(file.path(project_root, "R/elo/preprocess.R"))
 
 test_that("expected_result is symmetric for equal teams", {
   expect_equal(expected_result(1500, 1500), 0.5, tolerance = 0.001)
@@ -112,4 +113,64 @@ test_that("optimized Elo skips unscored future fixtures", {
   expect_equal(nrow(result$matches_processed), 1)
   expect_true(all(is.finite(result$current_ratings$rating)))
   expect_equal(max(result$current_ratings$last_match_date), as.Date("2026-06-01"))
+})
+
+test_that("EloRatings fallback fills only missing matching World Cup scores", {
+  results <- data.frame(
+    date = as.Date(c("2026-06-13", "2026-06-13", "2026-06-13", "2026-06-13", "2026-06-14")),
+    home_team = c("Brazil", "Qatar", "Australia", "Brazil", "Netherlands"),
+    away_team = c("Morocco", "Switzerland", "Turkey", "Morocco", "Japan"),
+    home_score = c(NA, NA, 9, NA, NA),
+    away_score = c(NA, NA, 9, NA, NA),
+    tournament = c("FIFA World Cup", "FIFA World Cup", "FIFA World Cup", "Friendly", "FIFA World Cup"),
+    neutral = c(TRUE, TRUE, TRUE, TRUE, TRUE),
+    stringsAsFactors = FALSE
+  )
+  eloratings <- data.frame(
+    date = as.Date(c("2026-06-13", "2026-06-13", "2026-06-13", "2026-06-14")),
+    home_team = c("Brazil", "Qatar", "Australia", "Japan"),
+    away_team = c("Morocco", "Switzerland", "Turkey", "Netherlands"),
+    home_score = c(1L, 1L, 2L, 2L),
+    away_score = c(1L, 1L, 0L, 3L),
+    stringsAsFactors = FALSE
+  )
+
+  updated <- apply_eloratings_score_fallback(results, eloratings)
+
+  expect_equal(updated$home_score[1:2], c(1, 1))
+  expect_equal(updated$away_score[1:2], c(1, 1))
+  expect_equal(updated$score_source[1:2], rep("eloratings_fallback", 2))
+  expect_equal(updated$home_score[3], 9)
+  expect_equal(updated$away_score[3], 9)
+  expect_equal(updated$score_source[3], "martj42")
+  expect_true(is.na(updated$home_score[4]))
+  expect_true(is.na(updated$away_score[4]))
+  expect_equal(updated$home_score[5], 3)
+  expect_equal(updated$away_score[5], 2)
+  expect_equal(updated$score_source[5], "eloratings_fallback")
+})
+
+test_that("EloRatings parser maps known team code variants", {
+  temp_dir <- tempfile("eloratings")
+  dir.create(temp_dir)
+  latest_path <- file.path(temp_dir, "latest.tsv")
+  teams_path <- file.path(temp_dir, "en.teams.tsv")
+  writeLines(c(
+    "BR\tBrazil",
+    "MA\tMorocco",
+    "CH\tSwitzerland",
+    "SQ\tScotland",
+    "HT\tHaiti"
+  ), teams_path, useBytes = TRUE)
+  writeLines(c(
+    "2026\t06\t13\tBR\tMA\t1\t1\tWC\tUS",
+    "2026\t06\t13\tSQ\tHT\t1\t0\tWC\tUS"
+  ), latest_path, useBytes = TRUE)
+
+  parsed <- read_eloratings_latest_results(latest_path, teams_path)
+
+  expect_equal(parsed$home_team, c("Brazil", "Scotland"))
+  expect_equal(parsed$away_team, c("Morocco", "Haiti"))
+  expect_equal(parsed$home_score, c(1L, 1L))
+  expect_equal(parsed$away_score, c(1L, 0L))
 })
