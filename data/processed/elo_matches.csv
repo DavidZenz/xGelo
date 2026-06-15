@@ -49418,7 +49418,7 @@
 2026-06-14,"Sweden","Tunisia",5,1,"FIFA World Cup","Guadalupe","Mexico",TRUE,"martj42","Sweden","Tunisia","SWE","TUN",1,"Sweden_Tunisia_2026-06-14",FALSE
 2026-06-15,"Belgium","Egypt",NA,NA,"FIFA World Cup","Seattle","United States",TRUE,NA,"Belgium","Egypt","BEL","EGY",NA,"Belgium_Egypt_2026-06-15",FALSE
 2026-06-15,"Iran","New Zealand",NA,NA,"FIFA World Cup","Inglewood","United States",TRUE,NA,"Iran","New Zealand","IRN","NZL",NA,"Iran_New Zealand_2026-06-15",FALSE
-2026-06-15,"Spain","Cape Verde",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,"Spain","Cape Verde","ESP","CPV",NA,"Spain_Cape Verde_2026-06-15",FALSE
+2026-06-15,"Spain","Cape Verde",0,0,"FIFA World Cup","Atlanta","United States",TRUE,"eloratings_fallback","Spain","Cape Verde","ESP","CPV",0.5,"Spain_Cape Verde_2026-06-15",FALSE
 2026-06-15,"Saudi Arabia","Uruguay",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,"Saudi Arabia","Uruguay","KSA","URU",NA,"Saudi Arabia_Uruguay_2026-06-15",FALSE
 2026-06-16,"France","Senegal",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,"France","Senegal","FRA","SEN",NA,"France_Senegal_2026-06-16",FALSE
 2026-06-16,"Iraq","Norway",NA,NA,"FIFA World Cup","Foxborough","United States",TRUE,NA,"Iraq","Norway","IRQ","NOR",NA,"Iraq_Norway_2026-06-16",FALSE
