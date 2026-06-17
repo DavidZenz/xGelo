@@ -43,6 +43,7 @@ sync_current_dashboard_outputs <- function(source_dir, current_dir) {
     "worldcup_bracket_paths.csv",
     "worldcup_group_probabilities.csv",
     "worldcup_match_forecasts.csv",
+    "worldcup_prematch_forecasts.csv",
     "worldcup_stage_probabilities.csv"
   )
   source_paths <- file.path(source_dir, files)

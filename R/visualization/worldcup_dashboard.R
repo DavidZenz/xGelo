@@ -493,6 +493,126 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
   )
 }
 
+dashboard_prematch_forecast_map <- function() {
+  c(
+    prematch_home_goals_expected = "home_goals_expected",
+    prematch_away_goals_expected = "away_goals_expected",
+    prematch_win_probability = "win_probability",
+    prematch_draw_probability = "draw_probability",
+    prematch_loss_probability = "loss_probability",
+    prematch_predicted_outcome = "predicted_outcome",
+    prematch_most_likely_score = "most_likely_score",
+    prematch_most_likely_score_probability = "most_likely_score_probability",
+    prematch_rounded_expected_score = "rounded_expected_score",
+    prematch_over_2_5_probability = "over_2_5_probability",
+    prematch_under_2_5_probability = "under_2_5_probability",
+    prematch_both_teams_to_score_probability = "both_teams_to_score_probability"
+  )
+}
+
+read_dashboard_prematch_forecast_archive <- function(path) {
+  if (is.null(path) || !nzchar(path) || !file.exists(path)) {
+    return(data.frame())
+  }
+  archive <- read.csv(path, stringsAsFactors = FALSE)
+  if (!"match_id" %in% names(archive)) {
+    return(data.frame())
+  }
+  archive <- archive[!is.na(archive$match_id) & nzchar(archive$match_id), , drop = FALSE]
+  archive[!duplicated(archive$match_id, fromLast = TRUE), , drop = FALSE]
+}
+
+make_dashboard_prematch_forecast_rows <- function(
+    match_forecasts,
+    generated_at,
+    feature_cutoff_date,
+    actual_results_cutoff_date
+) {
+  open <- !(match_forecasts$is_completed %in% c(TRUE, "TRUE", "true", "1") | match_forecasts$match_status == "final")
+  rows <- match_forecasts[open, , drop = FALSE]
+  if (!nrow(rows)) {
+    return(data.frame())
+  }
+
+  map <- dashboard_prematch_forecast_map()
+  out <- rows[, intersect(
+    c("match_id", "date", "group", "home_team", "away_team", "home_display", "away_display"),
+    names(rows)
+  ), drop = FALSE]
+  for (target in names(map)) {
+    source <- unname(map[[target]])
+    out[[target]] <- if (source %in% names(rows)) rows[[source]] else NA
+  }
+  out$prematch_generated_at <- as.character(generated_at)
+  out$prematch_feature_cutoff_date <- as.character(feature_cutoff_date)
+  out$prematch_actual_results_cutoff_date <- as.character(actual_results_cutoff_date)
+  out$prematch_forecast_source <- "dashboard_archive"
+  out
+}
+
+update_dashboard_prematch_forecast_archive <- function(
+    match_forecasts,
+    path,
+    generated_at,
+    feature_cutoff_date,
+    actual_results_cutoff_date
+) {
+  archive <- read_dashboard_prematch_forecast_archive(path)
+  latest_open <- make_dashboard_prematch_forecast_rows(
+    match_forecasts = match_forecasts,
+    generated_at = generated_at,
+    feature_cutoff_date = feature_cutoff_date,
+    actual_results_cutoff_date = actual_results_cutoff_date
+  )
+  if (!nrow(latest_open)) {
+    return(archive)
+  }
+
+  if (nrow(archive)) {
+    missing_cols <- setdiff(names(latest_open), names(archive))
+    for (col in missing_cols) archive[[col]] <- NA
+    missing_cols <- setdiff(names(archive), names(latest_open))
+    for (col in missing_cols) latest_open[[col]] <- NA
+    archive <- archive[!archive$match_id %in% latest_open$match_id, names(latest_open), drop = FALSE]
+  } else {
+    archive <- latest_open[0, , drop = FALSE]
+  }
+
+  combined <- rbind(archive[, names(latest_open), drop = FALSE], latest_open)
+  combined[!duplicated(combined$match_id, fromLast = TRUE), , drop = FALSE]
+}
+
+attach_dashboard_prematch_forecasts <- function(match_forecasts, prematch_archive) {
+  map <- dashboard_prematch_forecast_map()
+  prematch_cols <- c(
+    names(map),
+    "prematch_generated_at",
+    "prematch_feature_cutoff_date",
+    "prematch_actual_results_cutoff_date",
+    "prematch_forecast_source"
+  )
+  for (col in prematch_cols) {
+    if (!col %in% names(match_forecasts)) {
+      match_forecasts[[col]] <- NA
+    }
+  }
+  match_forecasts$prematch_forecast_available <- FALSE
+
+  if (is.null(prematch_archive) || !nrow(prematch_archive) || !"match_id" %in% names(prematch_archive)) {
+    return(match_forecasts)
+  }
+
+  idx <- match(match_forecasts$match_id, prematch_archive$match_id)
+  has_archive <- !is.na(idx)
+  for (col in prematch_cols) {
+    if (col %in% names(prematch_archive)) {
+      match_forecasts[[col]][has_archive] <- prematch_archive[[col]][idx[has_archive]]
+    }
+  }
+  match_forecasts$prematch_forecast_available[has_archive] <- !is.na(match_forecasts$prematch_win_probability[has_archive])
+  match_forecasts
+}
+
 worldcup_bracket_template <- function(include_champion = TRUE) {
   round32 <- data.frame(
     round = "Round of 32",
@@ -1887,6 +2007,7 @@ build_worldcup_dashboard_data <- function(
     xg_feature_usage_audit_path = "data/processed/xg_feature_usage_audit.csv",
     actual_results_path = "data/processed/elo_matches.csv",
     actual_results_cutoff_date = Sys.Date(),
+    prematch_forecasts_path = file.path(output_dir, "worldcup_prematch_forecasts.csv"),
     baseline_comparison = FALSE,
     baseline_home_model_path = "models/home_goal_model.rds",
     baseline_away_model_path = "models/away_goal_model.rds",
@@ -1936,6 +2057,18 @@ build_worldcup_dashboard_data <- function(
       ),
       forecast_args
     )
+  )
+  generated_at <- as.character(Sys.time())
+  prematch_archive <- update_dashboard_prematch_forecast_archive(
+    match_forecasts = match_data$match_forecasts,
+    path = prematch_forecasts_path,
+    generated_at = generated_at,
+    feature_cutoff_date = feature_cutoff_date,
+    actual_results_cutoff_date = actual_results_cutoff_date
+  )
+  match_data$match_forecasts <- attach_dashboard_prematch_forecasts(
+    match_forecasts = match_data$match_forecasts,
+    prematch_archive = prematch_archive
   )
   tournament_start_date <- min(fixtures$date, na.rm = TRUE)
   knockout_ratings <- latest_elo_before_date(
@@ -1996,7 +2129,7 @@ build_worldcup_dashboard_data <- function(
   payload <- list(
     metadata = list(
       title = "xGelo 2026 World Cup Forecast",
-      generated_at = as.character(Sys.time()),
+      generated_at = generated_at,
       model_version = model_version,
       feature_cutoff_date = as.character(feature_cutoff_date),
       precompute_knockout_routes = isTRUE(precompute_knockout_routes),
@@ -2065,6 +2198,7 @@ build_worldcup_dashboard_data <- function(
       euro2024_metrics_path = euro2024_metrics_path,
       actual_results_path = actual_results_path,
       actual_results_cutoff_date = actual_results_cutoff_date,
+      prematch_forecasts_path = prematch_forecasts_path,
       baseline_comparison = FALSE,
       home_model_path = baseline_home_model_path,
       away_model_path = baseline_away_model_path
@@ -2076,6 +2210,7 @@ build_worldcup_dashboard_data <- function(
   json_path <- file.path(output_dir, "worldcup_dashboard_data.json")
   jsonlite::write_json(payload, json_path, pretty = TRUE, auto_unbox = TRUE, digits = 10)
   write.csv(match_data$match_forecasts, file.path(output_dir, "worldcup_match_forecasts.csv"), row.names = FALSE)
+  write.csv(prematch_archive, prematch_forecasts_path, row.names = FALSE)
   write.csv(group_data$group_probabilities, file.path(output_dir, "worldcup_group_probabilities.csv"), row.names = FALSE)
   write.csv(stage_probabilities, file.path(output_dir, "worldcup_stage_probabilities.csv"), row.names = FALSE)
   write.csv(bracket_paths, file.path(output_dir, "worldcup_bracket_paths.csv"), row.names = FALSE)
@@ -2109,7 +2244,7 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .group-table th,.group-table td{border-bottom:0}.group-table th{text-align:center}.group-table th:first-child{text-align:left}.group-table th.xpts-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:9px;font-weight:700}.team-flag{font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-variant-numeric:tabular-nums}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
-.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.prematch-forecast{margin-top:10px;padding-top:8px;border-top:1px solid #eee}.prematch-forecast .wdl{margin:5px 0}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
 .bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-bracket-tooltip{cursor:help}.bracket-game.has-bracket-tooltip:hover,.bracket-game.has-bracket-tooltip:focus-within,.bracket-link-label.has-bracket-tooltip:hover{z-index:220}.bracket-tooltip{display:none;position:absolute;left:0;top:calc(100% + 9px);z-index:240;width:390px;max-width:calc(100vw - 42px);padding:12px;background:#fff;color:var(--ink);border:1px solid rgba(36,87,126,.28);box-shadow:0 14px 34px rgba(17,38,56,.22);font-weight:400;line-height:1.32;white-space:normal;pointer-events:none}.bracket-link-label .bracket-tooltip{top:calc(100% + 7px)}.has-bracket-tooltip:hover>.bracket-tooltip,.has-bracket-tooltip:focus-within>.bracket-tooltip{display:block}.bracket-tooltip::before{content:"";position:absolute;left:18px;top:-7px;width:12px;height:12px;background:#fff;border-left:1px solid rgba(36,87,126,.28);border-top:1px solid rgba(36,87,126,.28);transform:rotate(45deg)}.tooltip-kicker{font-size:10px;line-height:1;text-transform:uppercase;color:var(--muted);letter-spacing:0;font-weight:700}.tooltip-title{margin-top:5px;font-size:15px;font-weight:800;color:var(--ink)}.tooltip-title-team.slot1{color:var(--blue-dark)}.tooltip-title-team.slot2{color:#2f7a49}.tooltip-vs{color:var(--muted);font-weight:700}.tooltip-legend-title{margin-top:7px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.tooltip-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.tooltip-legend-item{display:flex;align-items:center;gap:5px;min-width:0;padding:4px 5px;background:#f7f9fb;border:1px solid #e4eaf0;font-size:10px;font-weight:700;color:#3d4d5b}.legend-dot{width:9px;height:9px;flex:0 0 9px}.legend-dot.slot1{background:var(--blue)}.legend-dot.draw{background:var(--gold)}.legend-dot.slot2{background:var(--green)}.tooltip-legend-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tooltip-winner{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px;background:var(--blue-soft);border-left:3px solid var(--blue);font-size:13px}.tooltip-winner span{font-weight:800;color:var(--blue-dark);font-variant-numeric:tabular-nums}.tooltip-section{margin-top:10px}.tooltip-section-title{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}.tooltip-advance-row{display:grid;grid-template-columns:minmax(90px,1fr) 48px 48px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #eef0f2;font-size:12px}.tooltip-advance-row.slot1{border-left:3px solid var(--blue);padding-left:6px}.tooltip-advance-row.slot2{border-left:3px solid var(--green);padding-left:6px}.tooltip-advance-row.slot1 strong{color:var(--blue-dark)}.tooltip-advance-row.slot2 strong{color:#2f7a49}.tooltip-advance-row:last-child{border-bottom:0}.tooltip-advance-row strong{font-size:12px}.tooltip-advance-head{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700}.tooltip-prob{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}.score-tile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.score-tile{min-height:54px;padding:7px 5px;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;text-align:center;border:1px solid rgba(36,87,126,.12)}.score-tile.slot2_win{background:rgba(59,135,84,var(--heat));color:#174226}.score-tile.draw{background:rgba(210,157,43,var(--heat));color:#513a06}.score-tile.strong{color:#fff}.score-tile-prob{display:block;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums}.score-tile-score{display:block;margin-top:3px;font-size:12px;font-weight:800}.tooltip-foot{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tooltip-pill{padding:3px 6px;background:#f5f7f9;border:1px solid #e3e8ed;font-size:11px;color:#34495b}.tooltip-pill.et-split{display:flex;align-items:center;gap:5px}.tooltip-et-team{font-weight:800}.tooltip-et-team.slot1{color:var(--blue-dark)}.tooltip-et-team.slot2{color:#2f7a49}.tooltip-et-dot{width:8px;height:8px;flex:0 0 8px}.tooltip-et-dot.slot1{background:var(--blue)}.tooltip-et-dot.slot2{background:var(--green)}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
@@ -2141,6 +2276,16 @@ const maybeNum = v => v == null || Number.isNaN(Number(v)) ? "" : Number(v).toFi
 const esc = s => String(s == null ? "" : s).replace(/[&<>"\']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\\"":"&quot;","\'":"&#39;"}[c]));
 const by = (rows, key) => rows.reduce((acc, row) => ((acc[row[key]] ||= []).push(row), acc), {});
 const pctNum = v => v == null || Number.isNaN(v) ? "" : (100 * Number(v)).toFixed(1);
+const hasPrematchForecast = r => {
+  const flag = r.prematch_forecast_available === true || r.prematch_forecast_available === "TRUE" || r.prematch_forecast_available === "true";
+  return flag && r.prematch_win_probability != null && !Number.isNaN(Number(r.prematch_win_probability));
+};
+const prematchForecastChips = r => hasPrematchForecast(r)
+  ? `<div class="prematch-forecast"><div class="scoreline-heading">Pre-match forecast</div><div class="wdl"><span style="width:${100*r.prematch_win_probability}%"></span><span style="width:${100*r.prematch_draw_probability}%"></span><span style="width:${100*r.prematch_loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.prematch_win_probability)}</span><span class="chip">Draw ${pct(r.prematch_draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.prematch_loss_probability)}</span><span class="chip primary">xG ${maybeNum(r.prematch_home_goals_expected)}-${maybeNum(r.prematch_away_goals_expected)}</span><span class="chip">Top exact ${esc(r.prematch_most_likely_score || "")} (${pct(r.prematch_most_likely_score_probability)})</span></div></div>`
+  : "";
+const prematchForecastText = r => hasPrematchForecast(r)
+  ? `pre-match ${esc(r.home_display)} ${pct(r.prematch_win_probability)} / Draw ${pct(r.prematch_draw_probability)} / ${esc(r.away_display)} ${pct(r.prematch_loss_probability)} | xG ${maybeNum(r.prematch_home_goals_expected)}-${maybeNum(r.prematch_away_goals_expected)}`
+  : "";
 const fifaToIso2 = {
   ALG:"DZ", ARG:"AR", AUS:"AU", AUT:"AT", BEL:"BE", BIH:"BA", BRA:"BR", CAN:"CA",
   CIV:"CI", COD:"CD", COL:"CO", CPV:"CV", CRO:"HR", CUW:"CW", CZE:"CZ", ECU:"EC",
@@ -2270,7 +2415,7 @@ function renderMatches(){
       ? `<div class="chips"><span class="chip primary">Final ${esc(r.actual_score)}</span><span class="chip">Fixed in simulations</span></div>`
       : `<div class="chips"><span class="chip primary">Expected goals ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span></div>`;
     const heading = completed ? "Final score" : "Top exact scorelines";
-    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div>${statusChips}<div class="scorelines"><div class="scoreline-heading">${heading}</div>${topBars}</div></div>`;
+    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div>${statusChips}${completed ? prematchForecastChips(r) : ""}<div class="scorelines"><div class="scoreline-heading">${heading}</div>${topBars}</div></div>`;
   }).join("");
 }
 function renderBracket(){
@@ -2402,7 +2547,8 @@ function renderTeams(selected){
     : `<div class="slot"><span>No projected knockout route in the displayed bracket path<br><small>Simulations still give ${esc(team.display_team)} a ${pct(team.round_of_32_probability)} Round-of-32 chance.</small></span><small>${pct(team.champion_probability)}</small></div>`;
   document.getElementById("teamDetail").innerHTML = `<h2>${esc(team.display_team)}</h2><p>Group ${esc(team.group)} | Title ${pct(team.champion_probability)} | Final ${pct(team.final_probability)} | Quarter-final ${pct(team.quarterfinal_probability)} | Round of 32 ${pct(team.round_of_32_probability)}</p><h3 class="panel-title">Group matches</h3>${matches.map(m => {
     const completed = m.is_completed === true || m.is_completed === "TRUE" || m.match_status === "final";
-    const detail = completed ? `final ${esc(m.actual_score)} | fixed in simulations` : `rounded ${esc(m.rounded_expected_score)} | top exact ${esc(m.most_likely_score)}`;
+    const prematch = completed ? prematchForecastText(m) : "";
+    const detail = completed ? `final ${esc(m.actual_score)} | fixed in simulations${prematch ? " | " + prematch : ""}` : `rounded ${esc(m.rounded_expected_score)} | top exact ${esc(m.most_likely_score)}`;
     const side = completed ? `Final ${esc(m.actual_score)}` : `xG ${num(m.home_goals_expected)}-${num(m.away_goals_expected)}`;
     return `<div class="slot"><span>${esc(m.home_display)} vs ${esc(m.away_display)}<br><small>${esc(m.date)} ${esc(m.kickoff_local)} local | ${esc(m.host_city)} | ${detail}</small></span><small>${side}</small></div>`;
   }).join("")}<h3 class="panel-title">Projected tournament path</h3>${routeHtml}`;

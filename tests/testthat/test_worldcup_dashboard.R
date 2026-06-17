@@ -195,6 +195,36 @@ test_that("completed World Cup fixtures are fixed at actual scores", {
   expect_equal(forecast$match_forecasts$loss_probability, 0)
   expect_equal(forecast$scoreline_distributions$scoreline, "2-0")
   expect_equal(forecast$scoreline_distributions$probability, 1)
+
+  with_prematch <- attach_dashboard_prematch_forecasts(
+    forecast$match_forecasts,
+    data.frame(
+      match_id = "GA01",
+      prematch_home_goals_expected = 1.4,
+      prematch_away_goals_expected = 0.8,
+      prematch_win_probability = 0.55,
+      prematch_draw_probability = 0.25,
+      prematch_loss_probability = 0.20,
+      prematch_predicted_outcome = "home_win",
+      prematch_most_likely_score = "1-0",
+      prematch_most_likely_score_probability = 0.12,
+      prematch_rounded_expected_score = "1-1",
+      prematch_over_2_5_probability = 0.42,
+      prematch_under_2_5_probability = 0.58,
+      prematch_both_teams_to_score_probability = 0.45,
+      prematch_generated_at = "2026-06-10 12:00:00",
+      prematch_feature_cutoff_date = "2026-06-10",
+      prematch_actual_results_cutoff_date = "2026-06-10",
+      prematch_forecast_source = "dashboard_archive",
+      stringsAsFactors = FALSE
+    )
+  )
+  expect_equal(with_prematch$win_probability, 1)
+  expect_true(with_prematch$prematch_forecast_available)
+  expect_equal(with_prematch$prematch_win_probability, 0.55)
+  expect_equal(with_prematch$prematch_draw_probability, 0.25)
+  expect_equal(with_prematch$prematch_loss_probability, 0.20)
+  expect_equal(with_prematch$prematch_most_likely_score, "1-0")
 })
 
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
@@ -249,6 +279,15 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("xGelo 2026 World Cup Forecast", paste(readLines(pages_file, warn = FALSE), collapse = "\n"), fixed = TRUE))
   expect_equal(nrow(payload$match_forecasts), 72)
   expect_true(all(c("kickoff_local", "venue_name", "host_city", "host_country") %in% names(payload$match_forecasts)))
+  expect_true(all(c(
+    "prematch_forecast_available",
+    "prematch_win_probability",
+    "prematch_draw_probability",
+    "prematch_loss_probability",
+    "prematch_home_goals_expected",
+    "prematch_away_goals_expected"
+  ) %in% names(payload$match_forecasts)))
+  expect_true(file.exists(file.path(output_dir, "worldcup_prematch_forecasts.csv")))
   expect_equal(length(unique(payload$scoreline_distributions$match_id)), 72)
   expect_equal(nrow(payload$group_probabilities), 48)
   expect_equal(sum(payload$group_probabilities$round_of_32_probability), 32, tolerance = 0.001)
