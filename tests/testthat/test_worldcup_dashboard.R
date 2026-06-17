@@ -595,6 +595,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("selectBracketMatch", html, fixed = TRUE))
   expect_true(grepl("setBracketHoverTeam", html, fixed = TRUE))
   expect_true(grepl("clearBracketHoverTeam", html, fixed = TRUE))
+  expect_true(grepl("selectedBracketPathTeam", html, fixed = TRUE))
+  expect_true(grepl("Selected highlight", html, fixed = TRUE))
   expect_true(grepl("bindBracketInteractions", html, fixed = TRUE))
   expect_true(grepl("bindBracketInspectorDismissal", html, fixed = TRUE))
   expect_true(grepl("isBracketMatchClickTarget", html, fixed = TRUE))

@@ -2668,6 +2668,10 @@ function bracketHoverLegend(){
   if (activeBracketHoverTeam) {
     return `Hover highlight: ${esc(activeBracketHoverTeam)} projected route. The terminal match stays highlighted, but no line continues after a projected exit.`;
   }
+  const selectedTeam = selectedBracketPathTeam();
+  if (selectedTeam) {
+    return `Selected highlight: ${esc(selectedTeam)} projected route. Hover a country to preview another route; click outside the detail box to clear.`;
+  }
   return "Default highlight: projected champion path. Hover a country to trace its projected route; click a match for forecasts.";
 }
 function renderBracketInspector(g){
@@ -2707,6 +2711,11 @@ function closeBracketInspector(){
   selectedBracketAnchor = null;
   document.querySelectorAll(".bracket-game.selected,.bracket-link-label.selected").forEach(el => el.classList.remove("selected"));
   renderBracketInspector(null);
+  setBracketHoverTeam(activeBracketHoverTeam);
+}
+function selectedBracketPathTeam(){
+  const selected = selectedBracketMatchId ? bracketRowsById()[selectedBracketMatchId] : null;
+  return selected && selected.projected_winner_team ? selected.projected_winner_team : "";
 }
 function isBracketMatchClickTarget(target){
   const grid = document.getElementById("bracketGrid");
@@ -2737,26 +2746,28 @@ function selectBracketMatch(matchId, anchor = null){
   document.querySelectorAll(".bracket-game.selected,.bracket-link-label.selected").forEach(el => el.classList.remove("selected"));
   document.querySelectorAll(`.bracket-game[data-match-id="${CSS.escape(row.match_id)}"],.bracket-link-label[data-source-match-id="${CSS.escape(row.match_id)}"]`).forEach(el => el.classList.add("selected"));
   renderBracketInspector(row);
+  setBracketHoverTeam(activeBracketHoverTeam);
 }
 function setBracketHoverTeam(team){
   const normalizedTeam = team || "";
   activeBracketHoverTeam = normalizedTeam;
+  const highlightTeam = normalizedTeam || selectedBracketPathTeam();
   const grid = document.getElementById("bracketGrid");
   if (!grid) return;
-  grid.classList.toggle("is-hovering", Boolean(normalizedTeam));
+  grid.classList.toggle("is-hovering", Boolean(highlightTeam));
   document.querySelectorAll(".hover-path").forEach(el => el.classList.remove("hover-path"));
-  if (normalizedTeam) {
+  if (highlightTeam) {
     grid.querySelectorAll(".bracket-game").forEach(card => {
-      const inMatch = card.dataset.slot1Team === normalizedTeam || card.dataset.slot2Team === normalizedTeam || card.dataset.projectedWinnerTeam === normalizedTeam;
+      const inMatch = card.dataset.slot1Team === highlightTeam || card.dataset.slot2Team === highlightTeam || card.dataset.projectedWinnerTeam === highlightTeam;
       if (inMatch) card.classList.add("hover-path");
     });
     grid.querySelectorAll(".bracket-link,.bracket-link-label").forEach(el => {
-      const projectedWinner = el.dataset.projectedWinnerTeam === normalizedTeam;
+      const projectedWinner = el.dataset.projectedWinnerTeam === highlightTeam;
       const next = grid.querySelector(`.bracket-game[data-match-id="${CSS.escape(el.dataset.nextMatchId || "")}"]`);
       const entersNext = next && (
-        next.dataset.slot1Team === normalizedTeam ||
-        next.dataset.slot2Team === normalizedTeam ||
-        next.dataset.projectedWinnerTeam === normalizedTeam
+        next.dataset.slot1Team === highlightTeam ||
+        next.dataset.slot2Team === highlightTeam ||
+        next.dataset.projectedWinnerTeam === highlightTeam
       );
       if (projectedWinner && entersNext) el.classList.add("hover-path");
     });
