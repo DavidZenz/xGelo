@@ -174,3 +174,96 @@ test_that("EloRatings parser maps known team code variants", {
   expect_equal(parsed$home_score, c(1L, 1L))
   expect_equal(parsed$away_score, c(1L, 0L))
 })
+
+test_that("ESPN scoreboard parser reads completed World Cup scores", {
+  temp_dir <- tempfile("espn")
+  dir.create(temp_dir)
+  scoreboard_path <- file.path(temp_dir, "scoreboard_20260617.json")
+  payload <- list(
+    events = list(
+      list(
+        id = "760434",
+        date = "2026-06-17T04:00Z",
+        links = list(list(href = "https://www.espn.com/soccer/match/_/gameId/760434")),
+        competitions = list(list(
+          date = "2026-06-17T04:00Z",
+          status = list(type = list(completed = TRUE, description = "Full Time")),
+          competitors = list(
+            list(
+              homeAway = "home",
+              score = "3",
+              team = list(displayName = "Austria")
+            ),
+            list(
+              homeAway = "away",
+              score = "1",
+              team = list(displayName = "Jordan")
+            )
+          )
+        ))
+      ),
+      list(
+        id = "760435",
+        date = "2026-06-17T17:00Z",
+        competitions = list(list(
+          date = "2026-06-17T17:00Z",
+          status = list(type = list(completed = FALSE, description = "Scheduled")),
+          competitors = list(
+            list(homeAway = "home", score = "0", team = list(displayName = "Portugal")),
+            list(homeAway = "away", score = "0", team = list(displayName = "Congo DR"))
+          )
+        ))
+      )
+    )
+  )
+  jsonlite::write_json(payload, scoreboard_path, auto_unbox = TRUE)
+
+  parsed <- read_espn_scoreboard_results(temp_dir)
+
+  expect_equal(nrow(parsed), 1)
+  expect_equal(parsed$date, as.Date("2026-06-17"))
+  expect_equal(parsed$home_team, "Austria")
+  expect_equal(parsed$away_team, "Jordan")
+  expect_equal(parsed$home_score, 3L)
+  expect_equal(parsed$away_score, 1L)
+  expect_equal(parsed$espn_status, "Full Time")
+})
+
+test_that("ESPN fallback supports one-day event date tolerance and preserves existing sources", {
+  results <- data.frame(
+    date = as.Date(c("2026-06-16", "2026-06-16", "2026-06-17", "2026-06-17")),
+    home_team = c("Argentina", "Austria", "France", "Portugal"),
+    away_team = c("Algeria", "Jordan", "Senegal", "DR Congo"),
+    home_score = c(NA, NA, 3, NA),
+    away_score = c(NA, NA, 1, NA),
+    tournament = rep("FIFA World Cup", 4),
+    neutral = rep(TRUE, 4),
+    score_source = c(NA, NA, "eloratings_fallback", NA),
+    stringsAsFactors = FALSE
+  )
+  espn <- data.frame(
+    date = as.Date(c("2026-06-17", "2026-06-17", "2026-06-17", "2026-06-17")),
+    home_team = c("Argentina", "Austria", "France", "Congo DR"),
+    away_team = c("Algeria", "Jordan", "Senegal", "Portugal"),
+    home_score = c(3L, 3L, 9L, 2L),
+    away_score = c(0L, 1L, 9L, 1L),
+    stringsAsFactors = FALSE
+  )
+
+  updated <- apply_espn_score_fallback(
+    results,
+    espn,
+    date_tolerance_days = 1L,
+    team_map_path = file.path(project_root, "data/raw/team_name_map.csv")
+  )
+
+  expect_equal(updated$home_score[1:2], c(3, 3))
+  expect_equal(updated$away_score[1:2], c(0, 1))
+  expect_equal(updated$score_source[1:2], rep("espn_scoreboard_fallback", 2))
+  expect_equal(updated$home_score[3], 3)
+  expect_equal(updated$away_score[3], 1)
+  expect_equal(updated$score_source[3], "eloratings_fallback")
+  expect_equal(updated$home_score[4], 1)
+  expect_equal(updated$away_score[4], 2)
+  expect_equal(updated$score_source[4], "espn_scoreboard_fallback")
+})

@@ -19,6 +19,135 @@ xgelo_eloratings_team_overrides <- function() {
   )
 }
 
+xgelo_score_fallback_aliases <- function(team_map_path = "data/raw/team_name_map.csv") {
+  normalize <- function(x) {
+    x <- trimws(as.character(x))
+    x <- iconv(x, from = "", to = "ASCII//TRANSLIT", sub = "")
+    tolower(x)
+  }
+
+  aliases <- character(0)
+  if (file.exists(team_map_path)) {
+    team_map <- read.csv(team_map_path, stringsAsFactors = FALSE)
+    for (i in seq_len(nrow(team_map))) {
+      canonical <- team_map$canonical_name[[i]]
+      names_i <- c(team_map$source_name[[i]], canonical)
+      if ("alt_names" %in% names(team_map) && !is.na(team_map$alt_names[[i]]) && nzchar(team_map$alt_names[[i]])) {
+        names_i <- c(names_i, strsplit(team_map$alt_names[[i]], "\\|")[[1]])
+      }
+      keys <- normalize(names_i[nzchar(names_i)])
+      aliases[keys] <- canonical
+    }
+  }
+  aliases
+}
+
+xgelo_canonicalize_fallback_team <- function(team, aliases = character(0)) {
+  normalize <- function(x) {
+    x <- trimws(as.character(x))
+    x <- iconv(x, from = "", to = "ASCII//TRANSLIT", sub = "")
+    tolower(x)
+  }
+
+  key <- normalize(team)
+  matched <- aliases[key]
+  out <- ifelse(!is.na(matched), unname(matched), as.character(team))
+  out[is.na(team)] <- NA_character_
+  out
+}
+
+apply_score_fallback <- function(
+    results,
+    fallback_results,
+    fallback_source,
+    tournaments = c("FIFA World Cup"),
+    date_tolerance_days = 0L,
+    team_map_path = "data/raw/team_name_map.csv") {
+  if (!nrow(results) || is.null(fallback_results) || !nrow(fallback_results)) {
+    results$score_source <- if ("score_source" %in% names(results)) results$score_source else "martj42"
+    results$score_source[is.na(results$home_score) | is.na(results$away_score)] <- NA_character_
+    return(results)
+  }
+
+  required <- c("date", "home_team", "away_team", "home_score", "away_score")
+  missing_cols <- setdiff(required, names(fallback_results))
+  if (length(missing_cols) > 0) {
+    stop(
+      paste("Fallback results missing required columns:", paste(missing_cols, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  results$date <- as.Date(results$date)
+  fallback_results$date <- as.Date(fallback_results$date)
+
+  if (!"score_source" %in% names(results)) {
+    results$score_source <- ifelse(
+      is.na(results$home_score) | is.na(results$away_score),
+      NA_character_,
+      "martj42"
+    )
+  }
+
+  aliases <- xgelo_score_fallback_aliases(team_map_path)
+  results$.fallback_home_team <- xgelo_canonicalize_fallback_team(results$home_team, aliases)
+  results$.fallback_away_team <- xgelo_canonicalize_fallback_team(results$away_team, aliases)
+  fallback_results$.fallback_home_team <- xgelo_canonicalize_fallback_team(fallback_results$home_team, aliases)
+  fallback_results$.fallback_away_team <- xgelo_canonicalize_fallback_team(fallback_results$away_team, aliases)
+
+  fallback_results$.fallback_key <- paste(
+    fallback_results$date,
+    fallback_results$.fallback_home_team,
+    fallback_results$.fallback_away_team,
+    sep = "\r"
+  )
+  fallback_results$.fallback_reverse_key <- paste(
+    fallback_results$date,
+    fallback_results$.fallback_away_team,
+    fallback_results$.fallback_home_team,
+    sep = "\r"
+  )
+
+  offsets <- unique(c(0L, as.integer(seq(-date_tolerance_days, date_tolerance_days))))
+  for (offset in offsets) {
+    result_key <- paste(
+      results$date + offset,
+      results$.fallback_home_team,
+      results$.fallback_away_team,
+      sep = "\r"
+    )
+    fallback_idx <- match(result_key, fallback_results$.fallback_key)
+    needs_score <- is.na(results$home_score) | is.na(results$away_score)
+    eligible <- needs_score &
+      results$tournament %in% tournaments &
+      !is.na(fallback_idx)
+
+    if (any(eligible)) {
+      matched <- fallback_idx[eligible]
+      results$home_score[eligible] <- fallback_results$home_score[matched]
+      results$away_score[eligible] <- fallback_results$away_score[matched]
+      results$score_source[eligible] <- fallback_source
+    }
+
+    reverse_idx <- match(result_key, fallback_results$.fallback_reverse_key)
+    needs_score <- is.na(results$home_score) | is.na(results$away_score)
+    reverse_eligible <- needs_score &
+      results$tournament %in% tournaments &
+      !is.na(reverse_idx)
+
+    if (any(reverse_eligible)) {
+      matched <- reverse_idx[reverse_eligible]
+      results$home_score[reverse_eligible] <- fallback_results$away_score[matched]
+      results$away_score[reverse_eligible] <- fallback_results$home_score[matched]
+      results$score_source[reverse_eligible] <- fallback_source
+    }
+  }
+
+  results$.fallback_home_team <- NULL
+  results$.fallback_away_team <- NULL
+  results
+}
+
 read_eloratings_team_dictionary <- function(path = "data/raw/eloratings/en.teams.tsv") {
   if (!file.exists(path)) {
     stop(paste("EloRatings team dictionary not found:", path), call. = FALSE)
@@ -97,64 +226,13 @@ apply_eloratings_score_fallback <- function(
     results,
     eloratings_results,
     tournaments = c("FIFA World Cup")) {
-  if (!nrow(results) || is.null(eloratings_results) || !nrow(eloratings_results)) {
-    results$score_source <- if ("score_source" %in% names(results)) results$score_source else "martj42"
-    results$score_source[is.na(results$home_score) | is.na(results$away_score)] <- NA_character_
-    return(results)
-  }
-
-  results$date <- as.Date(results$date)
-  eloratings_results$date <- as.Date(eloratings_results$date)
-
-  if (!"score_source" %in% names(results)) {
-    results$score_source <- ifelse(
-      is.na(results$home_score) | is.na(results$away_score),
-      NA_character_,
-      "martj42"
-    )
-  }
-
-  results$key <- paste(results$date, results$home_team, results$away_team, sep = "\r")
-  eloratings_results$key <- paste(
-    eloratings_results$date,
-    eloratings_results$home_team,
-    eloratings_results$away_team,
-    sep = "\r"
+  apply_score_fallback(
+    results = results,
+    fallback_results = eloratings_results,
+    fallback_source = "eloratings_fallback",
+    tournaments = tournaments,
+    date_tolerance_days = 0L
   )
-  eloratings_results$reverse_key <- paste(
-    eloratings_results$date,
-    eloratings_results$away_team,
-    eloratings_results$home_team,
-    sep = "\r"
-  )
-  fallback_idx <- match(results$key, eloratings_results$key)
-  needs_score <- is.na(results$home_score) | is.na(results$away_score)
-  eligible <- needs_score &
-    results$tournament %in% tournaments &
-    !is.na(fallback_idx)
-
-  if (any(eligible)) {
-    matched <- fallback_idx[eligible]
-    results$home_score[eligible] <- eloratings_results$home_score[matched]
-    results$away_score[eligible] <- eloratings_results$away_score[matched]
-    results$score_source[eligible] <- "eloratings_fallback"
-  }
-
-  reverse_idx <- match(results$key, eloratings_results$reverse_key)
-  needs_score <- is.na(results$home_score) | is.na(results$away_score)
-  reverse_eligible <- needs_score &
-    results$tournament %in% tournaments &
-    !is.na(reverse_idx)
-
-  if (any(reverse_eligible)) {
-    matched <- reverse_idx[reverse_eligible]
-    results$home_score[reverse_eligible] <- eloratings_results$away_score[matched]
-    results$away_score[reverse_eligible] <- eloratings_results$home_score[matched]
-    results$score_source[reverse_eligible] <- "eloratings_fallback"
-  }
-
-  results$key <- NULL
-  results
 }
 
 download_eloratings_fallback_files <- function(
@@ -177,6 +255,133 @@ download_eloratings_fallback_files <- function(
   )
 }
 
+read_espn_scoreboard_results <- function(
+    scoreboard_dir = "data/raw/espn",
+    scoreboard_files = NULL) {
+  if (is.null(scoreboard_files)) {
+    if (!dir.exists(scoreboard_dir)) {
+      return(data.frame())
+    }
+    scoreboard_files <- list.files(scoreboard_dir, pattern = "\\.json$", full.names = TRUE)
+  }
+  scoreboard_files <- scoreboard_files[file.exists(scoreboard_files)]
+  if (!length(scoreboard_files)) {
+    return(data.frame())
+  }
+
+  rows <- list()
+  for (path in scoreboard_files) {
+    payload <- jsonlite::fromJSON(path, simplifyVector = FALSE)
+    events <- payload$events
+    if (is.null(events) || !length(events)) {
+      next
+    }
+    for (event in events) {
+      competition <- event$competitions[[1]]
+      completed <- isTRUE(competition$status$type$completed)
+      if (!completed) {
+        next
+      }
+      competitors <- competition$competitors
+      if (is.null(competitors) || length(competitors) < 2) {
+        next
+      }
+      home <- NULL
+      away <- NULL
+      for (competitor in competitors) {
+        if (identical(competitor$homeAway, "home")) home <- competitor
+        if (identical(competitor$homeAway, "away")) away <- competitor
+      }
+      if (is.null(home) || is.null(away)) {
+        next
+      }
+      home_score <- suppressWarnings(as.integer(home$score))
+      away_score <- suppressWarnings(as.integer(away$score))
+      if (is.na(home_score) || is.na(away_score)) {
+        next
+      }
+
+      event_date <- competition$date
+      if (is.null(event_date) || !nzchar(event_date)) {
+        event_date <- event$date
+      }
+      event_links <- event$links
+      source_url <- NA_character_
+      if (!is.null(event_links) && length(event_links) > 0 && !is.null(event_links[[1]]$href)) {
+        source_url <- event_links[[1]]$href
+      }
+
+      rows[[length(rows) + 1L]] <- data.frame(
+        date = as.Date(substr(event_date, 1L, 10L)),
+        home_team = home$team$displayName,
+        away_team = away$team$displayName,
+        home_score = home_score,
+        away_score = away_score,
+        espn_event_id = event$id,
+        espn_event_date = event_date,
+        espn_status = competition$status$type$description,
+        source_url = source_url,
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+
+  if (!length(rows)) {
+    return(data.frame())
+  }
+  unique(do.call(rbind, rows))
+}
+
+apply_espn_score_fallback <- function(
+    results,
+    espn_results,
+    tournaments = c("FIFA World Cup"),
+    date_tolerance_days = 1L,
+    team_map_path = "data/raw/team_name_map.csv") {
+  apply_score_fallback(
+    results = results,
+    fallback_results = espn_results,
+    fallback_source = "espn_scoreboard_fallback",
+    tournaments = tournaments,
+    date_tolerance_days = date_tolerance_days,
+    team_map_path = team_map_path
+  )
+}
+
+download_espn_scoreboard_files <- function(
+    output_dir = "data/raw/espn",
+    dates = seq.Date(Sys.Date() - 2L, Sys.Date() + 1L, by = "day"),
+    base_url = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard") {
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+  }
+
+  dates <- as.Date(dates)
+  out <- data.frame(
+    file = character(0),
+    date = character(0),
+    downloaded_at = character(0),
+    stringsAsFactors = FALSE
+  )
+  for (date in dates) {
+    date <- as.Date(date, origin = "1970-01-01")
+    date_string <- format(date, "%Y%m%d")
+    path <- file.path(output_dir, paste0("scoreboard_", date_string, ".json"))
+    url <- paste0(base_url, "?dates=", date_string)
+    download.file(url, path, mode = "wb", quiet = TRUE)
+    out <- rbind(
+      out,
+      data.frame(
+        file = path,
+        date = date_string,
+        downloaded_at = format(Sys.time(), "%Y-%m-%d %H:%M:%S %Z"),
+        stringsAsFactors = FALSE
+      )
+    )
+  }
+  out
+}
+
 #' Preprocess martj42 results for Elo computation
 #'
 #' @param results_path Path to the martj42 results.csv file
@@ -190,7 +395,10 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
                             eloratings_latest_path = "data/raw/eloratings/latest.tsv",
                             eloratings_teams_path = "data/raw/eloratings/en.teams.tsv",
                             use_eloratings_fallback = file.exists(eloratings_latest_path) && file.exists(eloratings_teams_path),
-                            score_fallback_audit_path = "data/processed/eloratings_score_fallback_audit.csv") {
+                            score_fallback_audit_path = "data/processed/eloratings_score_fallback_audit.csv",
+                            espn_scoreboard_dir = "data/raw/espn",
+                            use_espn_fallback = dir.exists(espn_scoreboard_dir) && length(list.files(espn_scoreboard_dir, pattern = "\\.json$")) > 0,
+                            espn_score_fallback_audit_path = "data/processed/espn_score_fallback_audit.csv") {
   
   # Load libraries
   suppressPackageStartupMessages({
@@ -232,6 +440,23 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
       "martj42"
     )
   }
+
+  if (use_espn_fallback) {
+    espn_results <- read_espn_scoreboard_results(scoreboard_dir = espn_scoreboard_dir)
+    results <- apply_espn_score_fallback(
+      results = results,
+      espn_results = espn_results,
+      tournaments = c("FIFA World Cup"),
+      date_tolerance_days = 1L,
+      team_map_path = team_map_path
+    )
+    fallback_rows <- results[!is.na(results$score_source) & results$score_source == "espn_scoreboard_fallback", , drop = FALSE]
+    if (!dir.exists(dirname(espn_score_fallback_audit_path))) {
+      dir.create(dirname(espn_score_fallback_audit_path), recursive = TRUE)
+    }
+    write.csv(fallback_rows, espn_score_fallback_audit_path, row.names = FALSE)
+    message(paste("Applied", nrow(fallback_rows), "ESPN scoreboard fallback scores."))
+  }
   
   # Load team name mapping
   if (!file.exists(team_map_path)) {
@@ -267,7 +492,7 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
     
     # Split alt_names if present
     alt_names <- if (!is.na(row$alt_names) && nchar(row$alt_names) > 0) {
-      str_split(row$alt_names, "\\|")[1]
+      str_split(row$alt_names, "\\|")[[1]]
     } else {
       character(0)
     }

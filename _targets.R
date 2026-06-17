@@ -73,9 +73,14 @@ list(
     download_eloratings_fallback_files()
   ),
   tar_target(
+    espn_scoreboard_files,
+    download_espn_scoreboard_files()
+  ),
+  tar_target(
     elo_matches,
     {
       eloratings_fallback_files
+      espn_scoreboard_files
       preprocess_martj42()
     }
   ),

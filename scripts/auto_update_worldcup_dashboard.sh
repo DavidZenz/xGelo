@@ -12,6 +12,7 @@ DASHBOARD_WORKERS="${XGELO_DASHBOARD_WORKERS:-4}"
 OUTPUT_DIR="${XGELO_OUTPUT_DIR:-outputs/dashboard_100k}"
 PAGES_DIR="${XGELO_PAGES_DIR:-docs/wc2026}"
 ELORATINGS_CHANGED="false"
+ESPN_CHANGED="false"
 
 download_if_changed() {
   local url="$1"
@@ -69,10 +70,20 @@ if download_if_changed "https://www.eloratings.net/en.teams.tsv" "data/raw/elora
   ELORATINGS_CHANGED="true"
 fi
 
+echo "Downloading ESPN scoreboard fallback data..."
+ESPN_DATES="$(Rscript --vanilla -e 'cat(format(seq.Date(Sys.Date() - 2L, Sys.Date() + 1L, by = "day"), "%Y%m%d"), sep = "\n")')"
+while IFS= read -r ESPN_DATE; do
+  if [[ -n "$ESPN_DATE" ]] &&
+    download_if_changed "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${ESPN_DATE}" "data/raw/espn/scoreboard_${ESPN_DATE}.json"; then
+    ESPN_CHANGED="true"
+  fi
+done <<< "$ESPN_DATES"
+
 if [[ "$AUTO_FORCE" != "true" ]] &&
   git diff --quiet --exit-code -- data/raw/martj42 &&
-  [[ "$ELORATINGS_CHANGED" != "true" ]]; then
-  echo "No upstream martj42 or EloRatings fallback data changes detected. Nothing to rebuild."
+  [[ "$ELORATINGS_CHANGED" != "true" ]] &&
+  [[ "$ESPN_CHANGED" != "true" ]]; then
+  echo "No upstream martj42, EloRatings, or ESPN fallback data changes detected. Nothing to rebuild."
   exit 0
 fi
 
@@ -109,6 +120,7 @@ Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
 
 git add -u
 git add data/processed/eloratings_score_fallback_audit.csv 2>/dev/null || true
+git add data/processed/espn_score_fallback_audit.csv 2>/dev/null || true
 if git diff --cached --quiet --exit-code; then
   echo "No tracked output changes after rebuild. Nothing to commit."
   exit 0
