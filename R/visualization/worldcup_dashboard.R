@@ -623,6 +623,155 @@ attach_dashboard_prematch_forecasts <- function(match_forecasts, prematch_archiv
   match_forecasts
 }
 
+dashboard_bracket_prematch_forecast_map <- function() {
+  c(
+    prematch_slot1_probability = "slot1_probability",
+    prematch_slot1_advancement_probability = "slot1_advancement_probability",
+    prematch_slot1_regulation_win_probability = "slot1_regulation_win_probability",
+    prematch_slot1_extra_time_penalty_probability = "slot1_extra_time_penalty_probability",
+    prematch_slot1_tiebreak_probability = "slot1_tiebreak_probability",
+    prematch_slot2_probability = "slot2_probability",
+    prematch_slot2_advancement_probability = "slot2_advancement_probability",
+    prematch_slot2_regulation_win_probability = "slot2_regulation_win_probability",
+    prematch_slot2_extra_time_penalty_probability = "slot2_extra_time_penalty_probability",
+    prematch_slot2_tiebreak_probability = "slot2_tiebreak_probability",
+    prematch_draw_after_regulation_probability = "draw_after_regulation_probability",
+    prematch_projected_winner_team = "projected_winner_team",
+    prematch_projected_winner = "projected_winner",
+    prematch_projected_winner_match_probability = "projected_winner_match_probability",
+    prematch_projected_winner_regulation_probability = "projected_winner_regulation_probability",
+    prematch_projected_winner_extra_time_penalty_probability = "projected_winner_extra_time_penalty_probability",
+    prematch_projected_winner_tiebreak_probability = "projected_winner_tiebreak_probability",
+    prematch_projected_winner_route_label = "projected_winner_route_label",
+    prematch_slot1_expected_goals = "slot1_expected_goals",
+    prematch_slot2_expected_goals = "slot2_expected_goals",
+    prematch_most_likely_score = "most_likely_score",
+    prematch_most_likely_score_probability = "most_likely_score_probability",
+    prematch_rounded_expected_score = "rounded_expected_score",
+    prematch_over_2_5_probability = "over_2_5_probability",
+    prematch_both_teams_to_score_probability = "both_teams_to_score_probability",
+    prematch_top_scorelines_label = "top_scorelines_label"
+  )
+}
+
+read_dashboard_bracket_prematch_forecast_archive <- function(path) {
+  if (is.null(path) || !nzchar(path) || !file.exists(path)) {
+    return(data.frame())
+  }
+  archive <- read.csv(path, stringsAsFactors = FALSE)
+  if (!"match_id" %in% names(archive)) {
+    return(data.frame())
+  }
+  archive <- archive[!is.na(archive$match_id) & nzchar(archive$match_id), , drop = FALSE]
+  archive[!duplicated(archive$match_id, fromLast = TRUE), , drop = FALSE]
+}
+
+make_dashboard_bracket_prematch_forecast_rows <- function(
+    bracket_paths,
+    generated_at,
+    feature_cutoff_date,
+    actual_results_cutoff_date
+) {
+  completed <- if ("is_completed" %in% names(bracket_paths)) {
+    bracket_paths$is_completed %in% c(TRUE, "TRUE", "true", "1")
+  } else {
+    rep(FALSE, nrow(bracket_paths))
+  }
+  final_status <- if ("match_status" %in% names(bracket_paths)) {
+    bracket_paths$match_status == "final"
+  } else {
+    rep(FALSE, nrow(bracket_paths))
+  }
+  open <- !(completed | final_status)
+  rows <- bracket_paths[open, , drop = FALSE]
+  if (!nrow(rows)) {
+    return(data.frame())
+  }
+
+  map <- dashboard_bracket_prematch_forecast_map()
+  out <- rows[, intersect(
+    c(
+      "match_id", "round", "slot1_label", "slot1_team", "slot1_display",
+      "slot1_source_match_id", "slot2_label", "slot2_team", "slot2_display",
+      "slot2_source_match_id"
+    ),
+    names(rows)
+  ), drop = FALSE]
+  for (target in names(map)) {
+    source <- unname(map[[target]])
+    out[[target]] <- if (source %in% names(rows)) rows[[source]] else NA
+  }
+  out$prematch_generated_at <- as.character(generated_at)
+  out$prematch_feature_cutoff_date <- as.character(feature_cutoff_date)
+  out$prematch_actual_results_cutoff_date <- as.character(actual_results_cutoff_date)
+  out$prematch_forecast_source <- "dashboard_bracket_archive"
+  out
+}
+
+update_dashboard_bracket_prematch_forecast_archive <- function(
+    bracket_paths,
+    path,
+    generated_at,
+    feature_cutoff_date,
+    actual_results_cutoff_date
+) {
+  archive <- read_dashboard_bracket_prematch_forecast_archive(path)
+  latest_open <- make_dashboard_bracket_prematch_forecast_rows(
+    bracket_paths = bracket_paths,
+    generated_at = generated_at,
+    feature_cutoff_date = feature_cutoff_date,
+    actual_results_cutoff_date = actual_results_cutoff_date
+  )
+  if (!nrow(latest_open)) {
+    return(archive)
+  }
+
+  if (nrow(archive)) {
+    missing_cols <- setdiff(names(latest_open), names(archive))
+    for (col in missing_cols) archive[[col]] <- NA
+    missing_cols <- setdiff(names(archive), names(latest_open))
+    for (col in missing_cols) latest_open[[col]] <- NA
+    archive <- archive[!archive$match_id %in% latest_open$match_id, names(latest_open), drop = FALSE]
+  } else {
+    archive <- latest_open[0, , drop = FALSE]
+  }
+
+  combined <- rbind(archive[, names(latest_open), drop = FALSE], latest_open)
+  combined[!duplicated(combined$match_id, fromLast = TRUE), , drop = FALSE]
+}
+
+attach_dashboard_bracket_prematch_forecasts <- function(bracket_paths, prematch_archive) {
+  map <- dashboard_bracket_prematch_forecast_map()
+  prematch_cols <- c(
+    names(map),
+    "prematch_generated_at",
+    "prematch_feature_cutoff_date",
+    "prematch_actual_results_cutoff_date",
+    "prematch_forecast_source"
+  )
+  for (col in prematch_cols) {
+    if (!col %in% names(bracket_paths)) {
+      bracket_paths[[col]] <- NA
+    }
+  }
+  bracket_paths$prematch_forecast_available <- FALSE
+
+  if (is.null(prematch_archive) || !nrow(prematch_archive) || !"match_id" %in% names(prematch_archive)) {
+    return(bracket_paths)
+  }
+
+  idx <- match(bracket_paths$match_id, prematch_archive$match_id)
+  has_archive <- !is.na(idx)
+  for (col in prematch_cols) {
+    if (col %in% names(prematch_archive)) {
+      bracket_paths[[col]][has_archive] <- prematch_archive[[col]][idx[has_archive]]
+    }
+  }
+  bracket_paths$prematch_forecast_available[has_archive] <-
+    !is.na(bracket_paths$prematch_projected_winner_match_probability[has_archive])
+  bracket_paths
+}
+
 worldcup_bracket_template <- function(include_champion = TRUE) {
   round32 <- data.frame(
     round = "Round of 32",
@@ -1859,6 +2008,61 @@ build_bracket_paths <- function(
     )
   }
 
+  paths <- mark_projected_champion_path(paths)
+  paths
+}
+
+mark_projected_champion_path <- function(paths) {
+  paths$projected_champion_path <- FALSE
+  if (!nrow(paths) || !"match_id" %in% names(paths)) {
+    return(paths)
+  }
+
+  champion_idx <- match("Champion", paths$match_id)
+  final_idx <- match("M104", paths$match_id)
+  champion_team <- NA_character_
+  if (!is.na(champion_idx)) {
+    champion_team <- paths$projected_winner_team[champion_idx]
+    paths$projected_champion_path[champion_idx] <- TRUE
+  }
+  if ((is.na(champion_team) || !nzchar(champion_team)) && !is.na(final_idx)) {
+    champion_team <- paths$projected_winner_team[final_idx]
+  }
+  if (is.na(champion_team) || !nzchar(champion_team)) {
+    return(paths)
+  }
+
+  current_id <- "M104"
+  seen <- character()
+  while (!is.na(current_id) && nzchar(current_id) && !current_id %in% seen) {
+    seen <- c(seen, current_id)
+    idx <- match(current_id, paths$match_id)
+    if (is.na(idx)) break
+    if (!isTRUE(!is.na(paths$projected_winner_team[idx]) && paths$projected_winner_team[idx] == champion_team)) {
+      break
+    }
+
+    paths$projected_champion_path[idx] <- TRUE
+    next_source <- NA_character_
+    if (
+      "slot1_team" %in% names(paths) &&
+        !is.na(paths$slot1_team[idx]) &&
+        paths$slot1_team[idx] == champion_team &&
+        "slot1_source_match_id" %in% names(paths)
+    ) {
+      next_source <- paths$slot1_source_match_id[idx]
+    } else if (
+      "slot2_team" %in% names(paths) &&
+        !is.na(paths$slot2_team[idx]) &&
+        paths$slot2_team[idx] == champion_team &&
+        "slot2_source_match_id" %in% names(paths)
+    ) {
+      next_source <- paths$slot2_source_match_id[idx]
+    }
+    if (is.na(next_source) || !nzchar(next_source)) break
+    current_id <- next_source
+  }
+
   paths
 }
 
@@ -2018,6 +2222,7 @@ build_worldcup_dashboard_data <- function(
     actual_results_path = "data/processed/elo_matches.csv",
     actual_results_cutoff_date = Sys.Date(),
     prematch_forecasts_path = file.path(output_dir, "worldcup_prematch_forecasts.csv"),
+    bracket_prematch_forecasts_path = file.path(output_dir, "worldcup_bracket_prematch_forecasts.csv"),
     baseline_comparison = FALSE,
     baseline_home_model_path = "models/home_goal_model.rds",
     baseline_away_model_path = "models/away_goal_model.rds",
@@ -2129,6 +2334,17 @@ build_worldcup_dashboard_data <- function(
     elo_ratings_path = elo_ratings_path,
     ...
   )
+  bracket_prematch_archive <- update_dashboard_bracket_prematch_forecast_archive(
+    bracket_paths = bracket_paths,
+    path = bracket_prematch_forecasts_path,
+    generated_at = generated_at,
+    feature_cutoff_date = feature_cutoff_date,
+    actual_results_cutoff_date = actual_results_cutoff_date
+  )
+  bracket_paths <- attach_dashboard_bracket_prematch_forecasts(
+    bracket_paths = bracket_paths,
+    prematch_archive = bracket_prematch_archive
+  )
   top_scorelines <- match_data$scoreline_distributions[match_data$scoreline_distributions$rank <= 5, ]
   tm_metadata <- read_transfermarkt_dashboard_metadata(
     metadata_path = transfermarkt_metadata_path,
@@ -2221,6 +2437,7 @@ build_worldcup_dashboard_data <- function(
   jsonlite::write_json(payload, json_path, pretty = TRUE, auto_unbox = TRUE, digits = 10)
   write.csv(match_data$match_forecasts, file.path(output_dir, "worldcup_match_forecasts.csv"), row.names = FALSE)
   write.csv(prematch_archive, prematch_forecasts_path, row.names = FALSE)
+  write.csv(bracket_prematch_archive, bracket_prematch_forecasts_path, row.names = FALSE)
   write.csv(group_data$group_probabilities, file.path(output_dir, "worldcup_group_probabilities.csv"), row.names = FALSE)
   write.csv(stage_probabilities, file.path(output_dir, "worldcup_stage_probabilities.csv"), row.names = FALSE)
   write.csv(bracket_paths, file.path(output_dir, "worldcup_bracket_paths.csv"), row.names = FALSE)
@@ -2255,7 +2472,7 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.prematch-forecast{margin-top:10px;padding-top:8px;border-top:1px solid #eee}.prematch-forecast .wdl{margin:5px 0}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
-.bracket-wrap{overflow-x:auto;padding-bottom:18px}.bracket{position:relative;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-bracket-tooltip{cursor:help}.bracket-game.has-bracket-tooltip:hover,.bracket-game.has-bracket-tooltip:focus-within,.bracket-link-label.has-bracket-tooltip:hover{z-index:220}.bracket-tooltip{display:none;position:absolute;left:0;top:calc(100% + 9px);z-index:240;width:390px;max-width:calc(100vw - 42px);padding:12px;background:#fff;color:var(--ink);border:1px solid rgba(36,87,126,.28);box-shadow:0 14px 34px rgba(17,38,56,.22);font-weight:400;line-height:1.32;white-space:normal;pointer-events:none}.bracket-link-label .bracket-tooltip{top:calc(100% + 7px)}.has-bracket-tooltip:hover>.bracket-tooltip,.has-bracket-tooltip:focus-within>.bracket-tooltip{display:block}.bracket-tooltip::before{content:"";position:absolute;left:18px;top:-7px;width:12px;height:12px;background:#fff;border-left:1px solid rgba(36,87,126,.28);border-top:1px solid rgba(36,87,126,.28);transform:rotate(45deg)}.tooltip-kicker{font-size:10px;line-height:1;text-transform:uppercase;color:var(--muted);letter-spacing:0;font-weight:700}.tooltip-title{margin-top:5px;font-size:15px;font-weight:800;color:var(--ink)}.tooltip-title-team.slot1{color:var(--blue-dark)}.tooltip-title-team.slot2{color:#2f7a49}.tooltip-vs{color:var(--muted);font-weight:700}.tooltip-legend-title{margin-top:7px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.tooltip-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.tooltip-legend-item{display:flex;align-items:center;gap:5px;min-width:0;padding:4px 5px;background:#f7f9fb;border:1px solid #e4eaf0;font-size:10px;font-weight:700;color:#3d4d5b}.legend-dot{width:9px;height:9px;flex:0 0 9px}.legend-dot.slot1{background:var(--blue)}.legend-dot.draw{background:var(--gold)}.legend-dot.slot2{background:var(--green)}.tooltip-legend-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tooltip-winner{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px;background:var(--blue-soft);border-left:3px solid var(--blue);font-size:13px}.tooltip-winner span{font-weight:800;color:var(--blue-dark);font-variant-numeric:tabular-nums}.tooltip-section{margin-top:10px}.tooltip-section-title{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}.tooltip-advance-row{display:grid;grid-template-columns:minmax(90px,1fr) 48px 48px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #eef0f2;font-size:12px}.tooltip-advance-row.slot1{border-left:3px solid var(--blue);padding-left:6px}.tooltip-advance-row.slot2{border-left:3px solid var(--green);padding-left:6px}.tooltip-advance-row.slot1 strong{color:var(--blue-dark)}.tooltip-advance-row.slot2 strong{color:#2f7a49}.tooltip-advance-row:last-child{border-bottom:0}.tooltip-advance-row strong{font-size:12px}.tooltip-advance-head{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700}.tooltip-prob{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}.score-tile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.score-tile{min-height:54px;padding:7px 5px;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;text-align:center;border:1px solid rgba(36,87,126,.12)}.score-tile.slot2_win{background:rgba(59,135,84,var(--heat));color:#174226}.score-tile.draw{background:rgba(210,157,43,var(--heat));color:#513a06}.score-tile.strong{color:#fff}.score-tile-prob{display:block;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums}.score-tile-score{display:block;margin-top:3px;font-size:12px;font-weight:800}.tooltip-foot{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tooltip-pill{padding:3px 6px;background:#f5f7f9;border:1px solid #e3e8ed;font-size:11px;color:#34495b}.tooltip-pill.et-split{display:flex;align-items:center;gap:5px}.tooltip-et-team{font-weight:800}.tooltip-et-team.slot1{color:var(--blue-dark)}.tooltip-et-team.slot2{color:#2f7a49}.tooltip-et-dot{width:8px;height:8px;flex:0 0 8px}.tooltip-et-dot.slot1{background:var(--blue)}.tooltip-et-dot.slot2{background:var(--green)}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
+.bracket-wrap{overflow-x:auto;overflow-y:visible;padding-bottom:18px;position:relative}.bracket{position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 360px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px)}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.has-bracket-tooltip{cursor:help}.bracket-game.has-bracket-tooltip:hover,.bracket-game.has-bracket-tooltip:focus-within,.bracket-link-label.has-bracket-tooltip:hover{z-index:10000}.bracket-tooltip{display:none;position:absolute;left:0;top:calc(100% + 9px);z-index:10001;width:390px;max-width:calc(100vw - 42px);padding:12px;background:#fff;color:var(--ink);border:1px solid rgba(36,87,126,.28);box-shadow:0 14px 34px rgba(17,38,56,.22);font-weight:400;line-height:1.32;white-space:normal;pointer-events:none}.bracket-link-label .bracket-tooltip{top:calc(100% + 7px)}.has-bracket-tooltip:hover>.bracket-tooltip,.has-bracket-tooltip:focus-within>.bracket-tooltip{display:block}.bracket-tooltip::before{content:"";position:absolute;left:18px;top:-7px;width:12px;height:12px;background:#fff;border-left:1px solid rgba(36,87,126,.28);border-top:1px solid rgba(36,87,126,.28);transform:rotate(45deg)}.tooltip-kicker{font-size:10px;line-height:1;text-transform:uppercase;color:var(--muted);letter-spacing:0;font-weight:700}.tooltip-title{margin-top:5px;font-size:15px;font-weight:800;color:var(--ink)}.tooltip-title-team.slot1{color:var(--blue-dark)}.tooltip-title-team.slot2{color:#2f7a49}.tooltip-vs{color:var(--muted);font-weight:700}.tooltip-legend-title{margin-top:7px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.tooltip-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.tooltip-legend-item{display:flex;align-items:center;gap:5px;min-width:0;padding:4px 5px;background:#f7f9fb;border:1px solid #e4eaf0;font-size:10px;font-weight:700;color:#3d4d5b}.legend-dot{width:9px;height:9px;flex:0 0 9px}.legend-dot.slot1{background:var(--blue)}.legend-dot.draw{background:var(--gold)}.legend-dot.slot2{background:var(--green)}.tooltip-legend-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tooltip-winner{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px;background:var(--blue-soft);border-left:3px solid var(--blue);font-size:13px}.tooltip-winner span{font-weight:800;color:var(--blue-dark);font-variant-numeric:tabular-nums}.tooltip-section{margin-top:10px}.tooltip-section-title{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}.tooltip-advance-row{display:grid;grid-template-columns:minmax(90px,1fr) 48px 48px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #eef0f2;font-size:12px}.tooltip-advance-row.slot1{border-left:3px solid var(--blue);padding-left:6px}.tooltip-advance-row.slot2{border-left:3px solid var(--green);padding-left:6px}.tooltip-advance-row.slot1 strong{color:var(--blue-dark)}.tooltip-advance-row.slot2 strong{color:#2f7a49}.tooltip-advance-row:last-child{border-bottom:0}.tooltip-advance-row strong{font-size:12px}.tooltip-advance-head{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700}.tooltip-prob{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}.score-tile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.score-tile{min-height:54px;padding:7px 5px;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;text-align:center;border:1px solid rgba(36,87,126,.12)}.score-tile.slot2_win{background:rgba(59,135,84,var(--heat));color:#174226}.score-tile.draw{background:rgba(210,157,43,var(--heat));color:#513a06}.score-tile.strong{color:#fff}.score-tile-prob{display:block;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums}.score-tile-score{display:block;margin-top:3px;font-size:12px;font-weight:800}.tooltip-foot{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tooltip-pill{padding:3px 6px;background:#f5f7f9;border:1px solid #e3e8ed;font-size:11px;color:#34495b}.tooltip-pill.et-split{display:flex;align-items:center;gap:5px}.tooltip-et-team{font-weight:800}.tooltip-et-team.slot1{color:var(--blue-dark)}.tooltip-et-team.slot2{color:#2f7a49}.tooltip-et-dot{width:8px;height:8px;flex:0 0 8px}.tooltip-et-dot.slot1{background:var(--blue)}.tooltip-et-dot.slot2{background:var(--green)}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
 @media(max-width:1180px){.hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -2344,6 +2561,15 @@ function scoreTileGrid(label){
     return `<div class="score-tile ${scoreOutcome(row.scoreline)}${strong}" style="--heat:${heat.toFixed(3)}"><span class="score-tile-prob">${pct(row.probability)}</span><span class="score-tile-score">${esc(row.scoreline)}</span></div>`;
   }).join("")}</div>`;
 }
+function hasBracketPrematchForecast(g){
+  const flag = g && (g.prematch_forecast_available === true || g.prematch_forecast_available === "TRUE" || g.prematch_forecast_available === "true");
+  return flag && g.prematch_projected_winner_match_probability != null && !Number.isNaN(Number(g.prematch_projected_winner_match_probability));
+}
+function bracketPrematchHtml(g){
+  if (!hasBracketPrematchForecast(g)) return "";
+  const topScores = g.prematch_top_scorelines_label ? `<span class="tooltip-pill">Pre-game top scores ${esc(g.prematch_top_scorelines_label)}</span>` : "";
+  return `<div class="tooltip-section"><div class="tooltip-section-title">Pre-game forecast</div><div class="tooltip-winner"><strong>Most likely advances: ${esc(g.prematch_projected_winner || "")}</strong><span>${pct(g.prematch_projected_winner_match_probability)}</span></div><div class="tooltip-foot"><span class="tooltip-pill">Mean goals ${maybeNum(g.prematch_slot1_expected_goals)}-${maybeNum(g.prematch_slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.prematch_rounded_expected_score || "")}</span><span class="tooltip-pill">Top exact ${esc(g.prematch_most_likely_score || "")} (${pct(g.prematch_most_likely_score_probability)})</span>${topScores}</div></div>`;
+}
 function bracketTooltipHtml(g, projectedWinnerProbability){
   if (!g || !g.slot2_label) return "";
   const slot1Name = g.slot1_display || g.slot1_label;
@@ -2365,7 +2591,7 @@ function bracketTooltipHtml(g, projectedWinnerProbability){
   const conditional = drawAfter90 != null && drawAfter90 > 0 && g.slot1_tiebreak_probability != null && g.slot2_tiebreak_probability != null
     ? `<span class="tooltip-pill et-split">If ET/pens: <span class="tooltip-et-dot slot1"></span><span class="tooltip-et-team slot1">${esc(slot1Name)} ${pct(g.slot1_tiebreak_probability)}</span> / <span class="tooltip-et-dot slot2"></span><span class="tooltip-et-team slot2">${esc(slot2Name)} ${pct(g.slot2_tiebreak_probability)}</span></span>`
     : "";
-  return `<div class="bracket-tooltip" role="tooltip"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}<div class="tooltip-winner"><strong>Most likely advances: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div><div class="tooltip-section"><div class="tooltip-section-title">Advance probability</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Adv</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min mean goals ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
+  return `<div class="bracket-tooltip" role="tooltip"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}<div class="tooltip-winner"><strong>Most likely advances: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div>${bracketPrematchHtml(g)}<div class="tooltip-section"><div class="tooltip-section-title">Advance probability</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Adv</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min mean goals ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
 }
 const modelDescription = (data.metadata.model_version || "baseline") === "hybrid"
   ? "using a combined Elo, Transfermarkt player-pool valuation, and historical goal-ability model"
@@ -2473,11 +2699,13 @@ function renderBracket(){
     const projectedWinnerProbability = g.projected_winner_match_probability ?? g.projected_winner_stage_probability;
     const tooltipHtml = bracketTooltipHtml(g, projectedWinnerProbability);
     const tooltipClass = tooltipHtml ? " has-bracket-tooltip" : "";
+    const championPath = g.projected_champion_path === true || g.projected_champion_path === "TRUE" || g.projected_champion_path === "true";
+    const gameClass = isChampion ? "champion" : `${championPath ? "projected" : ""}${tooltipClass}`;
     const slot1Class = slot1Source ? "slot bracket-slot-target" : "slot";
     const slot2Class = slot2Source ? "slot bracket-slot-target" : "slot";
     const slot2 = g.slot2_label ? `<div class="${slot2Class}" data-source-match-id="${esc(slot2Source)}"><span>${esc(g.slot2_display || g.slot2_label)}</span><small>${pct(slot2Probability)}</small></div>` : "";
     const championText = isChampion ? `<div class="bracket-champion">${esc(winnerLabel)}: ${esc(g.projected_winner)}</div><div class="bracket-prob">Title ${pct(g.projected_winner_title_probability)}</div>` : "";
-    return `<div class="bracket-game ${isChampion ? "champion" : `projected${tooltipClass}`}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-projected-winner="${esc(g.projected_winner || "")}" data-match-probability="${pct(projectedWinnerProbability)}" data-route-label="${esc(g.projected_winner_route_label || "")}" data-has-tooltip="${tooltipHtml ? "true" : "false"}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}"><span>${esc(g.slot1_display || g.slot1_label)}</span><small>${pct(slot1Probability)}</small></div>${slot2}${tooltipHtml}`}</div>`;
+    return `<div class="bracket-game ${gameClass}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-champion-path="${championPath ? "true" : "false"}" data-projected-winner="${esc(g.projected_winner || "")}" data-match-probability="${pct(projectedWinnerProbability)}" data-route-label="${esc(g.projected_winner_route_label || "")}" data-has-tooltip="${tooltipHtml ? "true" : "false"}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}"><span>${esc(g.slot1_display || g.slot1_label)}</span><small>${pct(slot1Probability)}</small></div>${slot2}${tooltipHtml}`}</div>`;
   }).join("");
   document.getElementById("bracketGrid").innerHTML = `<svg class="bracket-link-svg" aria-hidden="true"></svg>${titles}${games}`;
   requestAnimationFrame(drawBracketLinks);
@@ -2508,7 +2736,7 @@ function drawBracketLinks(){
       ? targetSlot.offsetTop + next.offsetTop + targetSlot.offsetHeight / 2
       : next.offsetTop + next.offsetHeight / 2;
     const mid = x1 + Math.max(48, (x2 - x1) / 2);
-    const projectedPath = card.dataset.winnerContinues === "true" ? " projected-path" : "";
+    const projectedPath = card.dataset.championPath === "true" ? " projected-path" : "";
     const champion = nextId === "Champion" ? " champion" : "";
     paths.push(`<path class="bracket-link${projectedPath}${champion}" d="M${x1} ${y1} H${mid} V${y2} H${x2}"></path>`);
     const label = document.createElement("div");

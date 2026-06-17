@@ -41,6 +41,7 @@ sync_current_dashboard_outputs <- function(source_dir, current_dir) {
     "worldcup_forecast.html",
     "worldcup_dashboard_data.json",
     "worldcup_bracket_paths.csv",
+    "worldcup_bracket_prematch_forecasts.csv",
     "worldcup_group_probabilities.csv",
     "worldcup_match_forecasts.csv",
     "worldcup_prematch_forecasts.csv",

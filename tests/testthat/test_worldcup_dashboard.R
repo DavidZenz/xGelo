@@ -263,6 +263,71 @@ test_that("prematch archive accepts older forecast rows without completion colum
   expect_equal(archive$prematch_win_probability, 0.52)
 })
 
+test_that("bracket prematch archive preserves projected knockout forecasts", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  bracket_paths <- data.frame(
+    match_id = "M104",
+    round = "Final",
+    slot1_label = "Winner M102",
+    slot1_team = "Austria",
+    slot1_display = "Austria",
+    slot1_source_match_id = "M102",
+    slot1_probability = 0.42,
+    slot1_advancement_probability = 0.56,
+    slot1_regulation_win_probability = 0.34,
+    slot1_extra_time_penalty_probability = 0.22,
+    slot1_tiebreak_probability = 0.55,
+    slot2_label = "Winner M103",
+    slot2_team = "Bosnia and Herzegovina",
+    slot2_display = "Bosnia and Herzegovina",
+    slot2_source_match_id = "M103",
+    slot2_probability = 0.38,
+    slot2_advancement_probability = 0.44,
+    slot2_regulation_win_probability = 0.28,
+    slot2_extra_time_penalty_probability = 0.16,
+    slot2_tiebreak_probability = 0.45,
+    draw_after_regulation_probability = 0.38,
+    projected_winner_team = "Austria",
+    projected_winner = "Austria",
+    projected_winner_match_probability = 0.56,
+    projected_winner_regulation_probability = 0.34,
+    projected_winner_extra_time_penalty_probability = 0.22,
+    projected_winner_tiebreak_probability = 0.55,
+    projected_winner_route_label = "90' win 34.0%",
+    slot1_expected_goals = 1.5,
+    slot2_expected_goals = 1.1,
+    most_likely_score = "1-0",
+    most_likely_score_probability = 0.12,
+    rounded_expected_score = "2-1",
+    over_2_5_probability = 0.48,
+    both_teams_to_score_probability = 0.51,
+    top_scorelines_label = "1-0 12.0%; 1-1 11.0%",
+    stringsAsFactors = FALSE
+  )
+
+  archive <- make_dashboard_bracket_prematch_forecast_rows(
+    bracket_paths = bracket_paths,
+    generated_at = "2026-06-28 12:00:00",
+    feature_cutoff_date = "2026-06-28",
+    actual_results_cutoff_date = "2026-06-28"
+  )
+
+  expect_equal(nrow(archive), 1)
+  expect_equal(archive$match_id, "M104")
+  expect_equal(archive$prematch_projected_winner, "Austria")
+  expect_equal(archive$prematch_slot1_expected_goals, 1.5)
+  expect_equal(archive$prematch_most_likely_score, "1-0")
+
+  attached <- attach_dashboard_bracket_prematch_forecasts(
+    bracket_paths,
+    archive
+  )
+  expect_true(attached$prematch_forecast_available)
+  expect_equal(attached$prematch_projected_winner_match_probability, 0.56)
+  expect_equal(attached$prematch_top_scorelines_label, "1-0 12.0%; 1-1 11.0%")
+})
+
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/forecast/tournament.R"))
@@ -324,6 +389,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     "prematch_away_goals_expected"
   ) %in% names(payload$match_forecasts)))
   expect_true(file.exists(file.path(output_dir, "worldcup_prematch_forecasts.csv")))
+  expect_true(file.exists(file.path(output_dir, "worldcup_bracket_prematch_forecasts.csv")))
   expect_equal(length(unique(payload$scoreline_distributions$match_id)), 72)
   expect_equal(nrow(payload$group_probabilities), 48)
   expect_equal(sum(payload$group_probabilities$round_of_32_probability), 32, tolerance = 0.001)
@@ -372,6 +438,13 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     "projected_winner_title_probability",
     "next_match_id",
     "projected_winner_continues",
+    "projected_champion_path",
+    "prematch_forecast_available",
+    "prematch_projected_winner_match_probability",
+    "prematch_slot1_expected_goals",
+    "prematch_slot2_expected_goals",
+    "prematch_most_likely_score",
+    "prematch_top_scorelines_label",
     "slot1_advancement_probability",
     "slot2_advancement_probability",
     "slot1_regulation_win_probability",
@@ -456,6 +529,13 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(all(grepl("-", knockout_paths$top_scorelines_label, fixed = TRUE)))
   expect_equal(payload$bracket_paths$next_match_id[payload$bracket_paths$match_id == "M104"], "Champion")
   expect_true(payload$bracket_paths$projected_winner_continues[payload$bracket_paths$match_id == "M104"])
+  expect_true(payload$bracket_paths$projected_champion_path[payload$bracket_paths$match_id == "M104"])
+  expect_true(payload$bracket_paths$projected_champion_path[payload$bracket_paths$match_id == "Champion"])
+  champion_team <- payload$bracket_paths$projected_winner_team[payload$bracket_paths$match_id == "Champion"]
+  champion_path <- payload$bracket_paths[payload$bracket_paths$projected_champion_path, , drop = FALSE]
+  expect_gte(nrow(champion_path), 2)
+  expect_lte(nrow(champion_path), 6)
+  expect_true(all(champion_path$projected_winner_team == champion_team))
   expect_equal(sum(!is.na(payload$bracket_paths$next_match_id)), 31)
   expect_lt(sum(payload$bracket_paths$projected_winner_continues), 31)
   expect_equal(
@@ -501,11 +581,14 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Projected exit", html, fixed = TRUE))
   expect_true(grepl("projected_position", html, fixed = TRUE))
   expect_true(grepl("final scores are tournament state", html, fixed = TRUE))
+  expect_true(grepl("data-champion-path", html, fixed = TRUE))
   expect_true(grepl("data-match-probability", html, fixed = TRUE))
   expect_true(grepl("data-route-label", html, fixed = TRUE))
   expect_true(grepl("data-has-tooltip", html, fixed = TRUE))
   expect_true(grepl("has-bracket-tooltip", html, fixed = TRUE))
   expect_true(grepl("bracketTooltipHtml", html, fixed = TRUE))
+  expect_true(grepl("hasBracketPrematchForecast", html, fixed = TRUE))
+  expect_true(grepl("Pre-game forecast", html, fixed = TRUE))
   expect_true(grepl("scoreTileGrid", html, fixed = TRUE))
   expect_true(grepl("score-tile-grid", html, fixed = TRUE))
   expect_true(grepl("score-tile-prob", html, fixed = TRUE))
@@ -525,6 +608,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Most likely advances", html, fixed = TRUE))
   expect_true(grepl("Advance probability", html, fixed = TRUE))
   expect_true(grepl(".has-bracket-tooltip:hover>.bracket-tooltip", html, fixed = TRUE))
+  expect_true(grepl("z-index:10001", html, fixed = TRUE))
   expect_false(grepl("data-tooltip=\"", html, fixed = TRUE))
   expect_false(grepl(".has-tooltip::after", html, fixed = TRUE))
   expect_false(grepl("title=\"", html, fixed = TRUE))
