@@ -12571,7 +12571,12 @@ function renderBracketInspector(g){
   panel.innerHTML = `<div class="bracket-inspector-head"><div><h2>Bracket match details</h2><div class="bracket-inspector-note">${esc(g.match_id)} | ${esc(g.round)}</div></div><button class="bracket-inspector-close" type="button" aria-label="Close match details">Close</button><span class="chip primary">${esc(g.projected_winner || "Projected winner")} ${pct(projectedWinnerProbability)}</span></div><div class="bracket-inspector-legend">${bracketHoverLegend()}</div>${detail}`;
   panel.classList.add("open");
   const close = panel.querySelector(".bracket-inspector-close");
-  if (close) close.onclick = closeBracketInspector;
+  if (close) close.onclick = event => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeBracketInspector();
+  };
+  bindBracketInspectorDismissal();
   positionBracketInspector(selectedBracketAnchor);
 }
 function positionBracketInspector(anchor){
@@ -12596,6 +12601,32 @@ function closeBracketInspector(){
   selectedBracketAnchor = null;
   document.querySelectorAll(".bracket-game.selected,.bracket-link-label.selected").forEach(el => el.classList.remove("selected"));
   renderBracketInspector(null);
+}
+function isBracketMatchClickTarget(target){
+  const grid = document.getElementById("bracketGrid");
+  if (!grid || !target || !target.closest) return false;
+  const label = target.closest(".bracket-link-label");
+  const card = target.closest(".bracket-game");
+  return Boolean((label && grid.contains(label)) || (card && grid.contains(card)));
+}
+function bindBracketInspectorDismissal(){
+  if (window.bracketInspectorDismissBound) return;
+  window.bracketInspectorDismissBound = true;
+  document.addEventListener("click", event => {
+    const panel = document.getElementById("bracketInspector");
+    if (!panel || !panel.classList.contains("open")) return;
+    const close = event.target.closest && event.target.closest(".bracket-inspector-close");
+    if (close && panel.contains(close)) {
+      event.preventDefault();
+      closeBracketInspector();
+      return;
+    }
+    if (panel.contains(event.target) || isBracketMatchClickTarget(event.target)) return;
+    closeBracketInspector();
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape") closeBracketInspector();
+  });
 }
 function selectBracketMatch(matchId, anchor = null){
   const rows = bracketRowsById();
