@@ -528,7 +528,17 @@ make_dashboard_prematch_forecast_rows <- function(
     feature_cutoff_date,
     actual_results_cutoff_date
 ) {
-  open <- !(match_forecasts$is_completed %in% c(TRUE, "TRUE", "true", "1") | match_forecasts$match_status == "final")
+  completed <- if ("is_completed" %in% names(match_forecasts)) {
+    match_forecasts$is_completed %in% c(TRUE, "TRUE", "true", "1")
+  } else {
+    rep(FALSE, nrow(match_forecasts))
+  }
+  final_status <- if ("match_status" %in% names(match_forecasts)) {
+    match_forecasts$match_status == "final"
+  } else {
+    rep(FALSE, nrow(match_forecasts))
+  }
+  open <- !(completed | final_status)
   rows <- match_forecasts[open, , drop = FALSE]
   if (!nrow(rows)) {
     return(data.frame())

@@ -227,6 +227,42 @@ test_that("completed World Cup fixtures are fixed at actual scores", {
   expect_equal(with_prematch$prematch_most_likely_score, "1-0")
 })
 
+test_that("prematch archive accepts older forecast rows without completion columns", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  archive <- make_dashboard_prematch_forecast_rows(
+    data.frame(
+      match_id = "GA01",
+      date = "2026-06-11",
+      group = "A",
+      home_team = "Mexico",
+      away_team = "South Africa",
+      home_display = "Mexico",
+      away_display = "South Africa",
+      home_goals_expected = 1.7,
+      away_goals_expected = 1.0,
+      win_probability = 0.52,
+      draw_probability = 0.24,
+      loss_probability = 0.24,
+      predicted_outcome = "home_win",
+      most_likely_score = "1-0",
+      most_likely_score_probability = 0.11,
+      rounded_expected_score = "2-1",
+      over_2_5_probability = 0.48,
+      under_2_5_probability = 0.52,
+      both_teams_to_score_probability = 0.47,
+      stringsAsFactors = FALSE
+    ),
+    generated_at = "2026-06-10 12:00:00",
+    feature_cutoff_date = "2026-06-10",
+    actual_results_cutoff_date = "2026-06-10"
+  )
+
+  expect_equal(nrow(archive), 1)
+  expect_equal(archive$match_id, "GA01")
+  expect_equal(archive$prematch_win_probability, 0.52)
+})
+
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/forecast/tournament.R"))
