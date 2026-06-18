@@ -457,14 +457,28 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   ) %in% names(payload$bracket_paths)))
   expect_true("projected_position" %in% names(payload$group_probabilities))
   expect_true("projected_position" %in% names(payload$expected_group_tables))
+  expect_true("display_position" %in% names(payload$group_probabilities))
+  expect_true("display_position" %in% names(payload$expected_group_tables))
   for (group_id in unique(payload$group_probabilities$group)) {
+    group_probs <- payload$group_probabilities[payload$group_probabilities$group == group_id, ]
     expect_equal(
-      sort(payload$group_probabilities$projected_position[payload$group_probabilities$group == group_id]),
+      sort(group_probs$projected_position),
+      1:4
+    )
+    expect_equal(
+      sort(group_probs$display_position),
       1:4
     )
     group_table <- payload$expected_group_tables[payload$expected_group_tables$group == group_id, ]
-    expect_equal(group_table$projected_position, 1:4)
-    expect_true(all(diff(group_table$expected_points) <= 0))
+    expect_equal(sort(group_table$projected_position), 1:4)
+    expect_equal(group_table$display_position, 1:4)
+    displayed_points <- floor(group_table$expected_points * 10 + 0.5) / 10
+    expect_true(all(diff(displayed_points) <= 0))
+    tied_rows <- which(diff(displayed_points) == 0)
+    if (length(tied_rows) > 0) {
+      sorted_probs <- group_probs[match(group_table$team, group_probs$team), ]
+      expect_true(all(sorted_probs$group_win_probability[tied_rows] >= sorted_probs$group_win_probability[tied_rows + 1]))
+    }
   }
   expect_false(any(is.na(payload$bracket_paths$projected_winner)))
   knockout_paths <- payload$bracket_paths[
@@ -551,6 +565,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Built from ${intFmt(data.metadata.n_match_sim)} match simulations", html, fixed = TRUE))
   expect_true(grepl("Created by <a href=\"https://github.com/DavidZenz\"", html, fixed = TRUE))
   expect_true(grepl("rel=\"noopener\"", html, fixed = TRUE))
+  expect_true(grepl("title-chance-row", html, fixed = TRUE))
+  expect_true(grepl("title-chance-pct", html, fixed = TRUE))
   expect_true(grepl("Data Credits", html, fixed = TRUE))
   expect_true(grepl("https://github.com/martj42/international_results", html, fixed = TRUE))
   expect_true(grepl("https://github.com/statsbomb/open-data", html, fixed = TRUE))
@@ -580,6 +596,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("Projected advance", html, fixed = TRUE))
   expect_true(grepl("Projected exit", html, fixed = TRUE))
   expect_true(grepl("projected_position", html, fixed = TRUE))
+  expect_true(grepl("display_position", html, fixed = TRUE))
   expect_true(grepl("final scores are tournament state", html, fixed = TRUE))
   expect_true(grepl("data-champion-path", html, fixed = TRUE))
   expect_true(grepl("data-match-probability", html, fixed = TRUE))
