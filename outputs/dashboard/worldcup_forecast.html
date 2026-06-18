@@ -13,7 +13,7 @@ h1{margin:0;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
 .subhead{margin-top:8px;max-width:980px;color:#444}.subhead a{color:var(--blue);font-weight:700;text-decoration:none}.subhead a:hover{text-decoration:underline}.meta{margin-top:10px;color:var(--muted);font-size:12px}
 main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
-.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .note{font-size:12px;color:var(--muted)}
+.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}
 .group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
 .group-table th,.group-table td{border-bottom:0}.group-table th{text-align:center}.group-table th:first-child{text-align:left}.group-table th.xpts-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:9px;font-weight:700}.team-flag{font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-variant-numeric:tabular-nums}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}
@@ -12387,7 +12387,7 @@ const progressText = completedCount > 0 ? `${completedCount} completed group mat
 document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations ${modelDescription}. ${progressText}remaining probabilities are forecasts, while final scores are tournament state. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
 document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | Actual results through ${data.metadata.actual_results_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
-  const champs = data.champion_probabilities.slice(0,3).map(r => `${r.display_team} ${pct(r.champion_probability)}`).join(" | ");
+  const champs = data.champion_probabilities.slice(0,3).map(r => `<span class="title-chance-row"><span class="title-chance-pct">${pct(r.champion_probability)}</span><span class="title-chance-team">${esc(r.display_team)}</span></span>`).join("");
   const groupRows = data.group_probabilities;
   const topGroup = [...groupRows].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
   const open = Object.values(by(groupRows,"group")).map(rows => {
@@ -12401,18 +12401,18 @@ function renderHero(){
   const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
   const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
   document.getElementById("hero").innerHTML = [
-    ["Top title chances", champs, "Full tournament simulations"],
-    ["Likely final", finalTeams, "Highest final probabilities"],
-    ["Strongest group favorite", `${topGroup.display_team} (${topGroup.group})`, pct(topGroup.group_win_probability)],
-    ["Closest group-win race", `Group ${closestRace.group}`, `Leader margin ${pp(closestRace.margin)}`],
-    ["Most open group", `Group ${open.group}`, `Win spread ${pp(open.spread)}`]
-  ].map(m => `<div class="metric"><div class="label">${esc(m[0])}</div><div class="value">${esc(m[1])}</div><div class="note">${esc(m[2])}</div></div>`).join("");
+    {label:"Top title chances", valueHtml:`<div class="title-chances">${champs}</div>`, valueClass:"title-chances-value", note:"Full tournament simulations"},
+    {label:"Likely final", value:finalTeams, note:"Highest final probabilities"},
+    {label:"Strongest group favorite", value:`${topGroup.display_team} (${topGroup.group})`, note:pct(topGroup.group_win_probability)},
+    {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},
+    {label:"Most open group", value:`Group ${open.group}`, note:`Win spread ${pp(open.spread)}`}
+  ].map(m => `<div class="metric"><div class="label">${esc(m.label)}</div><div class="value ${esc(m.valueClass || "")}">${m.valueHtml || esc(m.value)}</div><div class="note">${esc(m.note)}</div></div>`).join("");
 }
 function renderGroups(){
   const probs = by(data.group_probabilities, "group");
   const exp = by(data.expected_group_tables, "team");
   document.getElementById("groupsGrid").innerHTML = Object.keys(probs).sort().map(g => {
-    const rows = probs[g].slice().sort((a,b)=>(a.projected_position ?? a.most_likely_position)-(b.projected_position ?? b.most_likely_position));
+    const rows = probs[g].slice().sort((a,b)=>(a.display_position ?? a.projected_position ?? a.most_likely_position)-(b.display_position ?? b.projected_position ?? b.most_likely_position));
     return `<div class="group-box"><h2>Group ${g}</h2><table class="group-table"><thead><tr><th>Team</th><th class="num xpts-head">xPts<br>Avg</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">R32</th><th class="num">3rd<br>Top 8</th></tr></thead><tbody>${rows.map(r => {
       const e = (exp[r.team] && exp[r.team][0]) || {};
       const code = r.fifa_code || "";
