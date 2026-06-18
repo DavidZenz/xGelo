@@ -49425,9 +49425,9 @@
 2026-06-16,"Argentina","Algeria",3,0,"FIFA World Cup","Kansas City","United States",TRUE,"martj42","Argentina","Algeria","ARG","ALG",1,"Argentina_Algeria_2026-06-16",FALSE
 2026-06-16,"Austria","Jordan",3,1,"FIFA World Cup","Santa Clara","United States",TRUE,"martj42","Austria","Jordan","AUT","JOR",1,"Austria_Jordan_2026-06-16",FALSE
 2026-06-17,"Portugal","DR Congo",1,1,"FIFA World Cup","Houston","United States",TRUE,"eloratings_fallback","Portugal","DR Congo","POR",NA,0.5,"Portugal_DR Congo_2026-06-17",FALSE
-2026-06-17,"Uzbekistan","Colombia",1,3,"FIFA World Cup","Mexico City","Mexico",TRUE,"espn_scoreboard_fallback","Uzbekistan","Colombia","UZB","COL",0,"Uzbekistan_Colombia_2026-06-17",FALSE
+2026-06-17,"Uzbekistan","Colombia",1,3,"FIFA World Cup","Mexico City","Mexico",TRUE,"eloratings_fallback","Uzbekistan","Colombia","UZB","COL",0,"Uzbekistan_Colombia_2026-06-17",FALSE
 2026-06-17,"England","Croatia",4,2,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback","England","Croatia","ENG","CRO",1,"England_Croatia_2026-06-17",FALSE
-2026-06-17,"Ghana","Panama",1,0,"FIFA World Cup","Toronto","Canada",TRUE,"espn_scoreboard_fallback","Ghana","Panama","GHA","PAN",1,"Ghana_Panama_2026-06-17",FALSE
+2026-06-17,"Ghana","Panama",1,0,"FIFA World Cup","Toronto","Canada",TRUE,"eloratings_fallback","Ghana","Panama","GHA","PAN",1,"Ghana_Panama_2026-06-17",FALSE
 2026-06-18,"Czech Republic","South Africa",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,"Czech Republic","South Africa","CZE","RSA",NA,"Czech Republic_South Africa_2026-06-18",FALSE
 2026-06-18,"Mexico","South Korea",NA,NA,"FIFA World Cup","Zapopan","Mexico",FALSE,NA,"Mexico","Korea Republic","MEX","KOR",NA,"Mexico_Korea Republic_2026-06-18",TRUE
 2026-06-18,"Switzerland","Bosnia and Herzegovina",NA,NA,"FIFA World Cup","Inglewood","United States",TRUE,NA,"Switzerland","Bosnia and Herzegovina","SUI","BIH",NA,"Switzerland_Bosnia and Herzegovina_2026-06-18",FALSE
