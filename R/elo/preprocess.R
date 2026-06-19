@@ -348,6 +348,43 @@ apply_espn_score_fallback <- function(
   )
 }
 
+read_verified_score_fallback_results <- function(
+    path = "data/raw/verified_score_fallbacks.csv") {
+  if (!file.exists(path)) {
+    return(data.frame())
+  }
+
+  results <- read.csv(path, stringsAsFactors = FALSE)
+  required <- c("date", "home_team", "away_team", "home_score", "away_score")
+  missing_cols <- setdiff(required, names(results))
+  if (length(missing_cols) > 0) {
+    stop(
+      paste("Verified score fallback file missing required columns:", paste(missing_cols, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+
+  results$date <- as.Date(results$date)
+  results$home_score <- suppressWarnings(as.integer(results$home_score))
+  results$away_score <- suppressWarnings(as.integer(results$away_score))
+  results[!is.na(results$date) & !is.na(results$home_score) & !is.na(results$away_score), , drop = FALSE]
+}
+
+apply_verified_score_fallback <- function(
+    results,
+    verified_results,
+    tournaments = c("FIFA World Cup"),
+    team_map_path = "data/raw/team_name_map.csv") {
+  apply_score_fallback(
+    results = results,
+    fallback_results = verified_results,
+    fallback_source = "verified_score_fallback",
+    tournaments = tournaments,
+    date_tolerance_days = 0L,
+    team_map_path = team_map_path
+  )
+}
+
 download_espn_scoreboard_files <- function(
     output_dir = "data/raw/espn",
     dates = seq.Date(Sys.Date() - 2L, Sys.Date() + 1L, by = "day"),
@@ -398,7 +435,10 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
                             score_fallback_audit_path = "data/processed/eloratings_score_fallback_audit.csv",
                             espn_scoreboard_dir = "data/raw/espn",
                             use_espn_fallback = dir.exists(espn_scoreboard_dir) && length(list.files(espn_scoreboard_dir, pattern = "\\.json$")) > 0,
-                            espn_score_fallback_audit_path = "data/processed/espn_score_fallback_audit.csv") {
+                            espn_score_fallback_audit_path = "data/processed/espn_score_fallback_audit.csv",
+                            verified_score_fallback_path = "data/raw/verified_score_fallbacks.csv",
+                            use_verified_score_fallback = file.exists(verified_score_fallback_path),
+                            verified_score_fallback_audit_path = "data/processed/verified_score_fallback_audit.csv") {
   
   # Load libraries
   suppressPackageStartupMessages({
@@ -456,6 +496,22 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
     }
     write.csv(fallback_rows, espn_score_fallback_audit_path, row.names = FALSE)
     message(paste("Applied", nrow(fallback_rows), "ESPN scoreboard fallback scores."))
+  }
+
+  if (use_verified_score_fallback) {
+    verified_results <- read_verified_score_fallback_results(verified_score_fallback_path)
+    results <- apply_verified_score_fallback(
+      results = results,
+      verified_results = verified_results,
+      tournaments = c("FIFA World Cup"),
+      team_map_path = team_map_path
+    )
+    fallback_rows <- results[!is.na(results$score_source) & results$score_source == "verified_score_fallback", , drop = FALSE]
+    if (!dir.exists(dirname(verified_score_fallback_audit_path))) {
+      dir.create(dirname(verified_score_fallback_audit_path), recursive = TRUE)
+    }
+    write.csv(fallback_rows, verified_score_fallback_audit_path, row.names = FALSE)
+    message(paste("Applied", nrow(fallback_rows), "verified fallback scores."))
   }
   
   # Load team name mapping

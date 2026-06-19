@@ -121,6 +121,7 @@ Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
 git add -u
 git add data/processed/eloratings_score_fallback_audit.csv 2>/dev/null || true
 git add data/processed/espn_score_fallback_audit.csv 2>/dev/null || true
+git add data/processed/verified_score_fallback_audit.csv 2>/dev/null || true
 if git diff --cached --quiet --exit-code; then
   echo "No tracked output changes after rebuild. Nothing to commit."
   exit 0
