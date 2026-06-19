@@ -49428,10 +49428,10 @@
 2026-06-17,"Uzbekistan","Colombia",1,3,"FIFA World Cup","Mexico City","Mexico",TRUE,"martj42","Uzbekistan","Colombia","UZB","COL",0,"Uzbekistan_Colombia_2026-06-17",FALSE
 2026-06-17,"England","Croatia",4,2,"FIFA World Cup","Arlington","United States",TRUE,"martj42","England","Croatia","ENG","CRO",1,"England_Croatia_2026-06-17",FALSE
 2026-06-17,"Ghana","Panama",1,0,"FIFA World Cup","Toronto","Canada",TRUE,"martj42","Ghana","Panama","GHA","PAN",1,"Ghana_Panama_2026-06-17",FALSE
-2026-06-18,"Czech Republic","South Africa",1,1,"FIFA World Cup","Atlanta","United States",TRUE,"verified_score_fallback","Czech Republic","South Africa","CZE","RSA",0.5,"Czech Republic_South Africa_2026-06-18",FALSE
-2026-06-18,"Mexico","South Korea",1,0,"FIFA World Cup","Zapopan","Mexico",FALSE,"espn_scoreboard_fallback","Mexico","Korea Republic","MEX","KOR",1,"Mexico_Korea Republic_2026-06-18",TRUE
-2026-06-18,"Switzerland","Bosnia and Herzegovina",4,1,"FIFA World Cup","Inglewood","United States",TRUE,"eloratings_fallback","Switzerland","Bosnia and Herzegovina","SUI","BIH",1,"Switzerland_Bosnia and Herzegovina_2026-06-18",FALSE
-2026-06-18,"Canada","Qatar",6,0,"FIFA World Cup","Vancouver","Canada",FALSE,"eloratings_fallback","Canada","Qatar","CAN","QAT",1,"Canada_Qatar_2026-06-18",TRUE
+2026-06-18,"Czech Republic","South Africa",1,1,"FIFA World Cup","Atlanta","United States",TRUE,"martj42","Czech Republic","South Africa","CZE","RSA",0.5,"Czech Republic_South Africa_2026-06-18",FALSE
+2026-06-18,"Mexico","South Korea",1,0,"FIFA World Cup","Zapopan","Mexico",FALSE,"martj42","Mexico","Korea Republic","MEX","KOR",1,"Mexico_Korea Republic_2026-06-18",TRUE
+2026-06-18,"Switzerland","Bosnia and Herzegovina",4,1,"FIFA World Cup","Inglewood","United States",TRUE,"martj42","Switzerland","Bosnia and Herzegovina","SUI","BIH",1,"Switzerland_Bosnia and Herzegovina_2026-06-18",FALSE
+2026-06-18,"Canada","Qatar",6,0,"FIFA World Cup","Vancouver","Canada",FALSE,"martj42","Canada","Qatar","CAN","QAT",1,"Canada_Qatar_2026-06-18",TRUE
 2026-06-19,"Scotland","Morocco",NA,NA,"FIFA World Cup","Foxborough","United States",TRUE,NA,"Scotland","Morocco",NA,"MAR",NA,"Scotland_Morocco_2026-06-19",FALSE
 2026-06-19,"Brazil","Haiti",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,NA,"Brazil","Haiti","BRA","HAI",NA,"Brazil_Haiti_2026-06-19",FALSE
 2026-06-19,"United States","Australia",NA,NA,"FIFA World Cup","Seattle","United States",FALSE,NA,"United States","Australia","USA","AUS",NA,"United States_Australia_2026-06-19",TRUE

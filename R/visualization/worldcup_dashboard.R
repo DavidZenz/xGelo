@@ -1646,6 +1646,76 @@ simulate_group_stage_dashboard <- function(
   )
 }
 
+build_current_group_tables <- function(groups, fixtures) {
+  if (!exists("rank_group_table")) {
+    source("R/forecast/tournament.R")
+  }
+  tables <- groups[, c("group", "position", "team", "display_team", "fifa_code")]
+  tables$played <- 0L
+  tables$wins <- 0L
+  tables$draws <- 0L
+  tables$losses <- 0L
+  tables$goals_for <- 0L
+  tables$goals_against <- 0L
+  tables$points <- 0L
+
+  completed <- fixtures[
+    isTRUE(nrow(fixtures) > 0) &
+      !is.na(fixtures$is_completed) &
+      fixtures$is_completed &
+      !is.na(fixtures$actual_home_goals) &
+      !is.na(fixtures$actual_away_goals),
+    ,
+    drop = FALSE
+  ]
+  if (nrow(completed) > 0) {
+    for (i in seq_len(nrow(completed))) {
+      fixture <- completed[i, ]
+      home_idx <- match(fixture$home_team, tables$team)
+      away_idx <- match(fixture$away_team, tables$team)
+      if (is.na(home_idx) || is.na(away_idx)) next
+
+      home_goals <- as.integer(fixture$actual_home_goals)
+      away_goals <- as.integer(fixture$actual_away_goals)
+      home_points <- if (home_goals > away_goals) 3L else if (home_goals == away_goals) 1L else 0L
+      away_points <- if (away_goals > home_goals) 3L else if (home_goals == away_goals) 1L else 0L
+
+      tables$played[c(home_idx, away_idx)] <- tables$played[c(home_idx, away_idx)] + 1L
+      tables$goals_for[home_idx] <- tables$goals_for[home_idx] + home_goals
+      tables$goals_against[home_idx] <- tables$goals_against[home_idx] + away_goals
+      tables$goals_for[away_idx] <- tables$goals_for[away_idx] + away_goals
+      tables$goals_against[away_idx] <- tables$goals_against[away_idx] + home_goals
+      tables$points[home_idx] <- tables$points[home_idx] + home_points
+      tables$points[away_idx] <- tables$points[away_idx] + away_points
+
+      if (home_goals > away_goals) {
+        tables$wins[home_idx] <- tables$wins[home_idx] + 1L
+        tables$losses[away_idx] <- tables$losses[away_idx] + 1L
+      } else if (away_goals > home_goals) {
+        tables$wins[away_idx] <- tables$wins[away_idx] + 1L
+        tables$losses[home_idx] <- tables$losses[home_idx] + 1L
+      } else {
+        tables$draws[c(home_idx, away_idx)] <- tables$draws[c(home_idx, away_idx)] + 1L
+      }
+    }
+  }
+
+  tables$goal_difference <- tables$goals_for - tables$goals_against
+  ranked_groups <- lapply(split(tables, tables$group), function(group_table) {
+    group_table$tie_breaker <- group_table$position
+    ranked <- rank_group_table(group_table)
+    ranked$current_position <- seq_len(nrow(ranked))
+    ranked
+  })
+  out <- do.call(rbind, ranked_groups)
+  rownames(out) <- NULL
+  out[order(out$group, out$current_position), c(
+    "group", "current_position", "team", "display_team", "fifa_code",
+    "played", "wins", "draws", "losses", "goals_for", "goals_against",
+    "goal_difference", "points"
+  )]
+}
+
 latest_elo_before_date <- function(
     teams,
     cutoff_date,
@@ -2336,6 +2406,7 @@ build_worldcup_dashboard_data <- function(
     knockout_route_estimator = knockout_route_estimator,
     n_workers = n_workers
   )
+  current_group_tables <- build_current_group_tables(groups, fixtures)
   stage_probabilities <- group_data$stage_probabilities
   champion_probabilities <- stage_probabilities[order(-stage_probabilities$champion_probability), c("team", "display_team", "group", "champion_probability")]
   bracket_paths <- build_bracket_paths(
@@ -2408,6 +2479,7 @@ build_worldcup_dashboard_data <- function(
     scoreline_distributions = top_scorelines,
     group_probabilities = group_data$group_probabilities,
     expected_group_tables = group_data$expected_group_tables,
+    current_group_tables = current_group_tables,
     stage_probabilities = stage_probabilities,
     champion_probabilities = champion_probabilities,
     bracket_paths = bracket_paths
@@ -2453,6 +2525,7 @@ build_worldcup_dashboard_data <- function(
   write.csv(prematch_archive, prematch_forecasts_path, row.names = FALSE)
   write.csv(bracket_prematch_archive, bracket_prematch_forecasts_path, row.names = FALSE)
   write.csv(group_data$group_probabilities, file.path(output_dir, "worldcup_group_probabilities.csv"), row.names = FALSE)
+  write.csv(current_group_tables, file.path(output_dir, "worldcup_current_group_tables.csv"), row.names = FALSE)
   write.csv(stage_probabilities, file.path(output_dir, "worldcup_stage_probabilities.csv"), row.names = FALSE)
   write.csv(bracket_paths, file.path(output_dir, "worldcup_bracket_paths.csv"), row.names = FALSE)
   if (!is.null(payload$model_comparison)) {
@@ -2481,7 +2554,7 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
 .hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}
-.group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
+.group-box h2,.panel-title{font-size:15px;margin:0;font-weight:700}.group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.group-toggle{display:inline-flex;border:1px solid var(--line);background:#f9f9f7}.group-toggle button{border:0;border-right:1px solid var(--line);background:transparent;padding:5px 8px;font-size:12px;font-weight:700;color:#555;cursor:pointer}.group-toggle button:last-child{border-right:0}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}.current-table{min-width:520px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
 .group-table th,.group-table td{border-bottom:0}.group-table th{text-align:center}.group-table th:first-child{text-align:left}.group-table th.xpts-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:9px;font-weight:700}.team-flag{font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-variant-numeric:tabular-nums}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell.empty{background:transparent;color:var(--ink);border-radius:0}.heat-cell.empty::after{display:none}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}.heat-cell.empty.qual,.heat-cell.empty.third{background:transparent}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
@@ -2643,14 +2716,38 @@ function renderHero(){
 function renderGroups(){
   const probs = by(data.group_probabilities, "group");
   const exp = by(data.expected_group_tables, "team");
+  const current = by(data.current_group_tables || [], "group");
   document.getElementById("groupsGrid").innerHTML = Object.keys(probs).sort().map(g => {
     const rows = probs[g].slice().sort((a,b)=>(a.display_position ?? a.projected_position ?? a.most_likely_position)-(b.display_position ?? b.projected_position ?? b.most_likely_position));
-    return `<div class="group-box"><h2>Group ${g}</h2><table class="group-table"><thead><tr><th>Team</th><th class="num xpts-head">xPts<br>Avg</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">R32</th><th class="num">3rd<br>Top 8</th></tr></thead><tbody>${rows.map(r => {
+    const currentRows = (current[g] || []).slice().sort((a,b)=>Number(a.current_position)-Number(b.current_position));
+    const forecastTable = `<div class="group-view" data-view="forecast"><table class="group-table"><thead><tr><th>Team</th><th class="num xpts-head">xPts<br>Avg</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">R32</th><th class="num">3rd<br>Top 8</th></tr></thead><tbody>${rows.map(r => {
       const e = (exp[r.team] && exp[r.team][0]) || {};
       const code = r.fifa_code || "";
       return `<tr><td class="team-cell"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(r.display_team)}</span></div></td><td class="xpts-cell">${Number(e.expected_points).toFixed(1)}</td>${heatCell(r.position_1_probability)}${heatCell(r.position_2_probability)}${heatCell(r.position_3_probability)}${heatCell(r.position_4_probability)}${heatCell(r.round_of_32_probability, "qual")}${heatCell(r.third_place_qual_probability, "third")}</tr>`;
     }).join("")}</tbody></table></div>`;
+    const currentTable = `<div class="group-view" data-view="current" hidden><table class="group-table current-table"><thead><tr><th>Team</th><th class="num">P</th><th class="num">W</th><th class="num">D</th><th class="num">L</th><th class="num">GF</th><th class="num">GA</th><th class="num">GD</th><th class="num">Pts</th></tr></thead><tbody>${currentRows.map(r => {
+      const code = r.fifa_code || "";
+      const gd = Number(r.goal_difference);
+      const gdText = gd > 0 ? `+${gd}` : `${gd}`;
+      return `<tr><td class="team-cell"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(r.display_team)}</span></div></td><td class="num">${intFmt(r.played)}</td><td class="num">${intFmt(r.wins)}</td><td class="num">${intFmt(r.draws)}</td><td class="num">${intFmt(r.losses)}</td><td class="num">${intFmt(r.goals_for)}</td><td class="num">${intFmt(r.goals_against)}</td><td class="num">${esc(gdText)}</td><td class="num"><strong>${intFmt(r.points)}</strong></td></tr>`;
+    }).join("")}</tbody></table></div>`;
+    return `<div class="group-box" data-group="${esc(g)}"><div class="group-head"><h2>Group ${g}</h2><div class="group-toggle" aria-label="Group ${esc(g)} table view"><button class="active" type="button" data-group-view="forecast">Forecast</button><button type="button" data-group-view="current">Current</button></div></div>${forecastTable}${currentTable}</div>`;
   }).join("");
+}
+function bindGroupViewToggles(){
+  const grid = document.getElementById("groupsGrid");
+  if (!grid || grid.dataset.bound === "true") return;
+  grid.dataset.bound = "true";
+  grid.addEventListener("click", event => {
+    const btn = event.target.closest && event.target.closest("[data-group-view]");
+    if (!btn || !grid.contains(btn)) return;
+    const box = btn.closest(".group-box");
+    const view = btn.dataset.groupView;
+    box.querySelectorAll("[data-group-view]").forEach(toggle => toggle.classList.toggle("active", toggle === btn));
+    box.querySelectorAll(".group-view").forEach(panel => {
+      panel.hidden = panel.dataset.view !== view;
+    });
+  });
 }
 function renderMatches(){
   const search = document.getElementById("matchSearch").value.toLowerCase();
@@ -3022,7 +3119,7 @@ document.getElementById("matchSearch").oninput = renderMatches;
 document.getElementById("groupFilter").onchange = renderMatches;
 document.getElementById("teamSearch").oninput = () => renderTeams();
 window.addEventListener("resize", refreshBracketLinks);
-renderHero(); renderGroups(); renderMatches(); renderBracket(); renderTeams();
+renderHero(); renderGroups(); bindGroupViewToggles(); renderMatches(); renderBracket(); renderTeams();
 </script>
 </body>
 </html>')
