@@ -1,0 +1,2 @@
+"date","home_team","away_team","home_score","away_score","tournament","source_name","source_url","notes"
+2026-06-18,"Czech Republic","South Africa",1,1,"FIFA World Cup","The Guardian","https://www.theguardian.com/football/live/2026/jun/18/czechia-v-south-africa-world-cup-live","Added because martj42/EloRatings/ESPN did not expose this final score when the 2026-06-19 dashboard refresh ran."
