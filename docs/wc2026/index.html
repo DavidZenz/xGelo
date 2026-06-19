@@ -15,11 +15,12 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
 .hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}
-.group-box h2,.panel-title{font-size:15px;margin:0 0 8px;font-weight:700}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
-.group-table th,.group-table td{border-bottom:0}.group-table th{text-align:center}.group-table th:first-child{text-align:left}.group-table th.xpts-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:9px;font-weight:700}.team-flag{font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-variant-numeric:tabular-nums}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell.empty{background:transparent;color:var(--ink);border-radius:0}.heat-cell.empty::after{display:none}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}.heat-cell.empty.qual,.heat-cell.empty.third{background:transparent}
+.group-box h2,.panel-title{font-size:15px;margin:0;font-weight:700}.group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.group-toggle{display:inline-flex;border:1px solid var(--line);background:#f9f9f7}.group-toggle button{border:0;border-right:1px solid var(--line);background:transparent;padding:5px 8px;font-size:12px;font-weight:700;color:#555;cursor:pointer}.group-toggle button:last-child{border-right:0}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}.current-table{min-width:570px}.standing-cell{width:46.6667px;height:50px;text-align:center;vertical-align:middle;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.current-points{height:50px;font-weight:800;vertical-align:middle}.current-table th.standing-head{width:46.6667px;max-width:46.6667px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
+.group-table th,.group-table td{border-bottom:0}.group-table thead tr{height:44px}.group-table tbody tr{height:50px}.group-table th{text-align:center;vertical-align:bottom}.group-table th:first-child{text-align:left}.group-table th.xpts-head,.group-table th.standing-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:8px;font-weight:700}.status-head,.status-cell{width:18px;min-width:18px;padding-left:0;padding-right:0;text-align:center}.status-cell{vertical-align:middle}.team-flag{display:inline-flex;align-items:center;justify-content:center;width:31px;min-width:31px;font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.metric-value{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;min-width:0}.status-mark{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;font-size:10px;line-height:1;font-weight:900;flex:0 0 14px}.status-mark.qualified{color:var(--blue-dark);background:var(--blue-soft);border:1px solid rgba(53,115,168,.30)}.status-mark.eliminated{color:#4f6577;background:#eef3f7;border:1px solid rgba(53,115,168,.20)}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell.empty{background:transparent;color:var(--ink);border-radius:0}.heat-cell.empty::after{display:none}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}.heat-cell.empty.qual,.heat-cell.empty.third{background:transparent}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.prematch-forecast{margin-top:10px;padding-top:8px;border-top:1px solid #eee}.prematch-forecast .wdl{margin:5px 0}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
+.elo-panel{background:#fff;border:1px solid var(--line);padding:10px;overflow-x:auto}.elo-table{min-width:900px}.elo-table th{text-align:right}.elo-table th.team-col,.elo-table td.team-col{text-align:left}.elo-table td{vertical-align:middle}.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;background:#f0eee7;font-weight:800;font-variant-numeric:tabular-nums}.rating-cell{display:grid;grid-template-columns:64px minmax(90px,1fr);gap:10px;align-items:center;min-width:180px}.rating-value{font-weight:900;font-size:15px;color:var(--blue-dark);font-variant-numeric:tabular-nums;text-align:right}.rating-track{height:8px;background:#ece8df;position:relative}.rating-fill{display:block;height:100%;background:var(--blue);min-width:2px}.elo-prob-cell{position:relative;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;border-radius:4px;background:rgba(53,115,168,var(--heat));color:#163c5d;overflow:hidden}.elo-prob-cell::after{content:"";position:absolute;left:5px;right:auto;bottom:3px;width:calc(var(--prob) * (100% - 10px));height:2px;border-radius:4px;background:currentColor;opacity:.45}.elo-prob-cell.strong{font-weight:900}.elo-prob-cell.empty{background:transparent;color:var(--muted)}.elo-prob-cell.empty::after{display:none}.elo-note{margin:0 0 10px;color:var(--muted);font-size:12px}
 .section.active{position:relative;z-index:1}#bracket.active{z-index:20}.bracket-inspector{display:none;position:fixed;z-index:5000;width:min(440px,calc(100vw - 28px));max-height:calc(100vh - 28px);overflow:auto;background:#fff;border:1px solid var(--line);border-left:3px solid var(--blue);padding:12px;box-shadow:0 16px 38px rgba(17,38,56,.24)}.bracket-inspector.open{display:block}.bracket-inspector-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.bracket-inspector h2{font-size:15px;margin:0}.bracket-inspector-note{font-size:12px;color:var(--muted)}.bracket-inspector-legend{margin-top:7px;font-size:12px;color:#34495b}.bracket-forecast-detail{margin-top:10px;padding-top:10px;border-top:1px solid #e9edf1}.bracket-empty-detail{margin-top:8px;color:var(--muted)}.bracket-wrap{overflow-x:auto;overflow-y:visible;padding-bottom:18px;position:relative}.bracket{position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link.hover-path{stroke:var(--green);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px);cursor:pointer}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-link-label.hover-path{border-color:var(--green);color:#174226;font-weight:800;box-shadow:0 3px 10px rgba(59,135,84,.22)}.bracket-link-label.selected{outline:2px solid var(--ink);outline-offset:2px}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6;cursor:pointer;transition:box-shadow .12s ease,border-color .12s ease,opacity .12s ease}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-game.selected{outline:2px solid var(--ink);outline-offset:2px;box-shadow:0 6px 18px rgba(29,29,31,.16)}.bracket-game.hover-path{border-left-color:var(--green);box-shadow:0 5px 16px rgba(59,135,84,.18)}.bracket.is-hovering .bracket-game:not(.hover-path){opacity:.68}.bracket.is-hovering .bracket-link:not(.hover-path){opacity:.34}.bracket.is-hovering .bracket-link-label:not(.hover-path){opacity:.58}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.bracket-team-target{display:inline-block;cursor:pointer}.bracket-team-target:hover,.bracket-team-target:focus{color:var(--blue-dark);text-decoration:underline}.tooltip-kicker{font-size:10px;line-height:1;text-transform:uppercase;color:var(--muted);letter-spacing:0;font-weight:700}.tooltip-title{margin-top:5px;font-size:15px;font-weight:800;color:var(--ink)}.tooltip-title-team.slot1{color:var(--blue-dark)}.tooltip-title-team.slot2{color:#2f7a49}.tooltip-vs{color:var(--muted);font-weight:700}.tooltip-legend-title{margin-top:7px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.tooltip-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.tooltip-legend-item{display:flex;align-items:center;gap:5px;min-width:0;padding:4px 5px;background:#f7f9fb;border:1px solid #e4eaf0;font-size:10px;font-weight:700;color:#3d4d5b}.legend-dot{width:9px;height:9px;flex:0 0 9px}.legend-dot.slot1{background:var(--blue)}.legend-dot.draw{background:var(--gold)}.legend-dot.slot2{background:var(--green)}.tooltip-legend-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tooltip-winner{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px;background:var(--blue-soft);border-left:3px solid var(--blue);font-size:13px}.tooltip-winner span{font-weight:800;color:var(--blue-dark);font-variant-numeric:tabular-nums}.tooltip-section{margin-top:10px}.tooltip-section-title{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}.tooltip-advance-row{display:grid;grid-template-columns:minmax(90px,1fr) 48px 48px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #eef0f2;font-size:12px}.tooltip-advance-row.slot1{border-left:3px solid var(--blue);padding-left:6px}.tooltip-advance-row.slot2{border-left:3px solid var(--green);padding-left:6px}.tooltip-advance-row.slot1 strong{color:var(--blue-dark)}.tooltip-advance-row.slot2 strong{color:#2f7a49}.tooltip-advance-row:last-child{border-bottom:0}.tooltip-advance-row strong{font-size:12px}.tooltip-advance-head{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700}.tooltip-prob{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}.score-tile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.score-tile{min-height:54px;padding:7px 5px;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;text-align:center;border:1px solid rgba(36,87,126,.12)}.score-tile.slot2_win{background:rgba(59,135,84,var(--heat));color:#174226}.score-tile.draw{background:rgba(210,157,43,var(--heat));color:#513a06}.score-tile.strong{color:#fff}.score-tile-prob{display:block;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums}.score-tile-score{display:block;margin-top:3px;font-size:12px;font-weight:800}.tooltip-foot{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tooltip-pill{padding:3px 6px;background:#f5f7f9;border:1px solid #e3e8ed;font-size:11px;color:#34495b}.tooltip-pill.et-split{display:flex;align-items:center;gap:5px}.tooltip-et-team{font-weight:800}.tooltip-et-team.slot1{color:var(--blue-dark)}.tooltip-et-team.slot2{color:#2f7a49}.tooltip-et-dot{width:8px;height:8px;flex:0 0 8px}.tooltip-et-dot.slot1{background:var(--blue)}.tooltip-et-dot.slot2{background:var(--green)}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
@@ -32,11 +33,12 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <header><h1>xGelo 2026 World Cup Forecast</h1><div class="subhead" id="subhead"></div><div class="meta" id="meta"></div></header>
 <main>
 <div class="hero" id="hero"></div>
-<div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button></div>
+<div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button><button class="tab" data-tab="elo">Elo Ratings</button></div>
 <section id="groups" class="section active"><div class="grid-groups" id="groupsGrid"></div></section>
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-inspector" id="bracketInspector" aria-live="polite"></div><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
+<section id="elo" class="section"><div class="toolbar"><input id="eloSearch" placeholder="Search team or group"></div><div class="elo-panel"><p class="elo-note">Ratings are the Elo values used by the tournament simulation snapshot.</p><table class="elo-table"><thead><tr><th>Rank</th><th class="team-col">Team</th><th>Group</th><th>Rating</th><th>R32</th><th>R16</th><th>QF</th><th>HF</th><th>F</th><th>Title</th></tr></thead><tbody id="eloRows"></tbody></table></div></section>
 <details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Completed World Cup group matches are fixed at their actual scores; remaining fixtures are simulated from team Elo strength, leakage-safe Transfermarkt player-pool valuation, and weighted historical goal ability. xG/form is currently not used because international rolling-form coverage is too sparse. The combined model is the default because it improved EURO 2024 Brier score, log loss, and ranked probability score without materially hurting draw calibration. Knockout rounds resolve each simulated bracket directly from the simulated group table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share.</p></details>
 <details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. Player-pool valuation features use a local snapshot of <a href="https://github.com/dcaribou/transfermarkt-datasets" target="_blank" rel="noopener">dcaribou/transfermarkt-datasets</a>. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
 </main>
@@ -1946,9 +1948,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48203,
       "prematch_generated_at": "2026-06-19 07:39:33.045957",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GA04",
@@ -1995,9 +1997,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48365202108,
       "prematch_generated_at": "2026-06-18 16:04:00.579567",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GA05",
@@ -2041,9 +2043,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47515327114,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GA06",
@@ -2087,9 +2089,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47482148643,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GB01",
@@ -2136,9 +2138,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.461,
       "prematch_generated_at": "2026-06-12 13:11:51.362861",
       "prematch_feature_cutoff_date": "2026-06-11",
-      "prematch_actual_results_cutoff_date": "2026-06-12",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-12"
     },
     {
       "match_id": "GB02",
@@ -2185,9 +2187,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.455,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GB03",
@@ -2234,9 +2236,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47954,
       "prematch_generated_at": "2026-06-19 09:12:04.330108",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GB04",
@@ -2283,9 +2285,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.46116552206,
       "prematch_generated_at": "2026-06-18 16:04:00.579567",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GB05",
@@ -2329,9 +2331,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48406243721,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GB06",
@@ -2375,9 +2377,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48437912852,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GC01",
@@ -2424,9 +2426,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4845,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GC02",
@@ -2473,9 +2475,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4842,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GC03",
@@ -2519,9 +2521,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.45648853301,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GC04",
@@ -2565,9 +2567,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.44794931457,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GC05",
@@ -2611,9 +2613,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.45309621714,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GC06",
@@ -2657,9 +2659,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.45103683359,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GD01",
@@ -2706,9 +2708,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4819,
       "prematch_generated_at": "2026-06-12 13:11:51.362861",
       "prematch_feature_cutoff_date": "2026-06-11",
-      "prematch_actual_results_cutoff_date": "2026-06-12",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-12"
     },
     {
       "match_id": "GD02",
@@ -2755,9 +2757,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4842,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GD03",
@@ -2801,9 +2803,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47952960759,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GD04",
@@ -2847,9 +2849,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48337648228,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GD05",
@@ -2893,9 +2895,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48421551549,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GD06",
@@ -2939,9 +2941,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47357029184,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GE01",
@@ -2988,9 +2990,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4832,
       "prematch_generated_at": "2026-06-15 10:04:33.190885",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GE02",
@@ -3037,9 +3039,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4381,
       "prematch_generated_at": "2026-06-14 12:08:12.337671",
       "prematch_feature_cutoff_date": "2026-06-13",
-      "prematch_actual_results_cutoff_date": "2026-06-14",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-14"
     },
     {
       "match_id": "GE03",
@@ -3083,9 +3085,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48069046468,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GE04",
@@ -3129,9 +3131,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.44695810134,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GE05",
@@ -3175,9 +3177,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.44283997053,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GE06",
@@ -3221,9 +3223,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47919002344,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GF01",
@@ -3270,9 +3272,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4843,
       "prematch_generated_at": "2026-06-14 12:08:12.337671",
       "prematch_feature_cutoff_date": "2026-06-13",
-      "prematch_actual_results_cutoff_date": "2026-06-14",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-14"
     },
     {
       "match_id": "GF02",
@@ -3319,9 +3321,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.485,
       "prematch_generated_at": "2026-06-15 10:04:33.190885",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GF03",
@@ -3365,9 +3367,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47356947969,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GF04",
@@ -3411,9 +3413,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.46358638721,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GF05",
@@ -3457,9 +3459,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47219780589,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GF06",
@@ -3503,9 +3505,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.46567644673,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GG01",
@@ -3552,9 +3554,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4762,
       "prematch_generated_at": "2026-06-16 04:16:35.336811",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GG02",
@@ -3601,9 +3603,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4761,
       "prematch_generated_at": "2026-06-15 21:15:31.293832",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GG03",
@@ -3647,9 +3649,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48083064484,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GG04",
@@ -3693,9 +3695,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47892460588,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GG05",
@@ -3739,9 +3741,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48356343618,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GG06",
@@ -3785,9 +3787,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.45930672295,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GH01",
@@ -3834,9 +3836,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4746,
       "prematch_generated_at": "2026-06-16 02:33:00.171785",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GH02",
@@ -3883,9 +3885,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4345,
       "prematch_generated_at": "2026-06-15 13:55:03.913378",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GH03",
@@ -3929,9 +3931,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47294554281,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GH04",
@@ -3975,9 +3977,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.42511725505,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GH05",
@@ -4021,9 +4023,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4830625411,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GH06",
@@ -4067,9 +4069,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47124253705,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GI01",
@@ -4116,9 +4118,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4826,
       "prematch_generated_at": "2026-06-16 20:56:57.719089",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GI02",
@@ -4165,9 +4167,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4717,
       "prematch_generated_at": "2026-06-17 00:37:01.3407",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GI03",
@@ -4211,9 +4213,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48399668188,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GI04",
@@ -4257,9 +4259,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.44506713788,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GI05",
@@ -4303,9 +4305,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47903979693,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GI06",
@@ -4349,9 +4351,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.46510011495,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GJ01",
@@ -4398,9 +4400,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4764,
       "prematch_generated_at": "2026-06-17 03:58:44.083992",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GJ02",
@@ -4447,9 +4449,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4803,
       "prematch_generated_at": "2026-06-17 03:58:44.083992",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GJ03",
@@ -4493,9 +4495,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.46099970694,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GJ04",
@@ -4539,9 +4541,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.46710427807,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GJ05",
@@ -4585,9 +4587,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48405933396,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GJ06",
@@ -4631,9 +4633,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.41312484363,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GK01",
@@ -4680,9 +4682,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4613278079,
       "prematch_generated_at": "2026-06-17 19:17:18.308441",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GK02",
@@ -4729,9 +4731,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47248,
       "prematch_generated_at": "2026-06-18 05:14:40.572495",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GK03",
@@ -4775,9 +4777,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4624955724,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GK04",
@@ -4821,9 +4823,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47377320907,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GK05",
@@ -4867,9 +4869,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48210459359,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GK06",
@@ -4913,9 +4915,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.4840702677,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GL01",
@@ -4962,9 +4964,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.48087,
       "prematch_generated_at": "2026-06-18 02:39:09.329866",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GL02",
@@ -5011,9 +5013,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47439734913,
       "prematch_generated_at": "2026-06-18 00:03:16.811674",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GL03",
@@ -5057,9 +5059,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.43913591428,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GL04",
@@ -5103,9 +5105,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47180457584,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GL05",
@@ -5149,9 +5151,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.43215415656,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GL06",
@@ -5195,9 +5197,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_both_teams_to_score_probability": 0.47542152776,
       "prematch_generated_at": "2026-06-19 13:34:42.912993",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     }
   ],
   "scoreline_distributions": [
@@ -11111,7 +11113,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.45981030251,
       "slot1_extra_time_penalty_probability": 0.1363854723,
       "slot1_tiebreak_probability": 0.55311033737,
-      "slot1_source_match_id": "M73",
       "slot2_team": "Mexico",
       "slot2_display": "Mexico",
       "slot2_probability": 0.58665,
@@ -11119,7 +11120,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.29361055571,
       "slot2_extra_time_penalty_probability": 0.11019366948,
       "slot2_tiebreak_probability": 0.44688966263,
-      "slot2_source_match_id": "M81",
       "draw_after_regulation_probability": 0.24657914178,
       "projected_winner_team": "Germany",
       "projected_winner": "Germany",
@@ -11171,7 +11171,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M73",
+      "slot2_source_match_id": "M81"
     },
     {
       "round": "Round of 16",
@@ -11185,7 +11187,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.38266333904,
       "slot1_extra_time_penalty_probability": 0.11492511903,
       "slot1_tiebreak_probability": 0.4548196966,
-      "slot1_source_match_id": "M74",
       "slot2_team": "Brazil",
       "slot2_display": "Brazil",
       "slot2_probability": 0.62767,
@@ -11193,7 +11194,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.36465385084,
       "slot2_extra_time_penalty_probability": 0.13775769108,
       "slot2_tiebreak_probability": 0.5451803034,
-      "slot2_source_match_id": "M82",
       "draw_after_regulation_probability": 0.25268281012,
       "projected_winner_team": "Brazil",
       "projected_winner": "Brazil",
@@ -11245,7 +11245,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M74",
+      "slot2_source_match_id": "M82"
     },
     {
       "round": "Round of 16",
@@ -11259,7 +11261,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.33735526053,
       "slot1_extra_time_penalty_probability": 0.11562186447,
       "slot1_tiebreak_probability": 0.45937137775,
-      "slot1_source_match_id": "M75",
       "slot2_team": "Algeria",
       "slot2_display": "Algeria",
       "slot2_probability": 0.27944,
@@ -11267,7 +11268,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.41094890018,
       "slot2_extra_time_penalty_probability": 0.13607397482,
       "slot2_tiebreak_probability": 0.54062862225,
-      "slot2_source_match_id": "M83",
       "draw_after_regulation_probability": 0.25169583929,
       "projected_winner_team": "Algeria",
       "projected_winner": "Algeria",
@@ -11319,7 +11319,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M75",
+      "slot2_source_match_id": "M83"
     },
     {
       "round": "Round of 16",
@@ -11333,7 +11335,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.27193888714,
       "slot1_extra_time_penalty_probability": 0.06590079624,
       "slot1_tiebreak_probability": 0.27091873547,
-      "slot1_source_match_id": "M76",
       "slot2_team": "Argentina",
       "slot2_display": "Argentina",
       "slot2_probability": 0.75812,
@@ -11341,7 +11342,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.48481180001,
       "slot2_extra_time_penalty_probability": 0.1773485166,
       "slot2_tiebreak_probability": 0.72908126453,
-      "slot2_source_match_id": "M84",
       "draw_after_regulation_probability": 0.24324931284,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -11393,7 +11393,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M76",
+      "slot2_source_match_id": "M84"
     },
     {
       "round": "Round of 16",
@@ -11407,7 +11409,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.32600961725,
       "slot1_extra_time_penalty_probability": 0.10801104575,
       "slot1_tiebreak_probability": 0.43056041376,
-      "slot1_source_match_id": "M77",
       "slot2_team": "Colombia",
       "slot2_display": "Colombia",
       "slot2_probability": 0.62226,
@@ -11415,7 +11416,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.42312884905,
       "slot2_extra_time_penalty_probability": 0.14285048795,
       "slot2_tiebreak_probability": 0.56943958624,
-      "slot2_source_match_id": "M85",
       "draw_after_regulation_probability": 0.2508615337,
       "projected_winner_team": "Colombia",
       "projected_winner": "Colombia",
@@ -11467,7 +11467,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M77",
+      "slot2_source_match_id": "M85"
     },
     {
       "round": "Round of 16",
@@ -11481,7 +11483,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.30044400893,
       "slot1_extra_time_penalty_probability": 0.11454924205,
       "slot1_tiebreak_probability": 0.46189950657,
-      "slot1_source_match_id": "M78",
       "slot2_team": "England",
       "slot2_display": "England",
       "slot2_probability": 0.93834,
@@ -11489,7 +11490,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.45155996505,
       "slot2_extra_time_penalty_probability": 0.13344678397,
       "slot2_tiebreak_probability": 0.53810049343,
-      "slot2_source_match_id": "M86",
       "draw_after_regulation_probability": 0.24799602602,
       "projected_winner_team": "England",
       "projected_winner": "England",
@@ -11541,7 +11541,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M78",
+      "slot2_source_match_id": "M86"
     },
     {
       "round": "Round of 16",
@@ -11555,7 +11557,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.52997100975,
       "slot1_extra_time_penalty_probability": 0.1832572458,
       "slot1_tiebreak_probability": 0.78436957243,
-      "slot1_source_match_id": "M79",
       "slot2_team": "Ivory Coast",
       "slot2_display": "Cote d'Ivoire",
       "slot2_probability": 0.51636,
@@ -11563,7 +11564,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.2363926379,
       "slot2_extra_time_penalty_probability": 0.050379106555,
       "slot2_tiebreak_probability": 0.21563042757,
-      "slot2_source_match_id": "M87",
       "draw_after_regulation_probability": 0.23363635235,
       "projected_winner_team": "Spain",
       "projected_winner": "Spain",
@@ -11615,7 +11615,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M79",
+      "slot2_source_match_id": "M87"
     },
     {
       "round": "Round of 16",
@@ -11629,7 +11631,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.40679129004,
       "slot1_extra_time_penalty_probability": 0.14155559027,
       "slot1_tiebreak_probability": 0.56240891586,
-      "slot1_source_match_id": "M80",
       "slot2_team": "Japan",
       "slot2_display": "Japan",
       "slot2_probability": 0.48824,
@@ -11637,7 +11638,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.34151357093,
       "slot2_extra_time_penalty_probability": 0.11013954876,
       "slot2_tiebreak_probability": 0.43759108414,
-      "slot2_source_match_id": "M88",
       "draw_after_regulation_probability": 0.25169513904,
       "projected_winner_team": "Portugal",
       "projected_winner": "Portugal",
@@ -11689,7 +11689,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M80",
+      "slot2_source_match_id": "M88"
     },
     {
       "round": "Quarter-finals",
@@ -11703,7 +11705,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.41765448926,
       "slot1_extra_time_penalty_probability": 0.11776519982,
       "slot1_tiebreak_probability": 0.46909316935,
-      "slot1_source_match_id": "M89",
       "slot2_team": "Colombia",
       "slot2_display": "Colombia",
       "slot2_probability": 0.35332,
@@ -11711,7 +11712,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.33129687581,
       "slot2_extra_time_penalty_probability": 0.13328343511,
       "slot2_tiebreak_probability": 0.53090683065,
-      "slot2_source_match_id": "M93",
       "draw_after_regulation_probability": 0.25104863493,
       "projected_winner_team": "Germany",
       "projected_winner": "Germany",
@@ -11763,7 +11763,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M89",
+      "slot2_source_match_id": "M93"
     },
     {
       "round": "Quarter-finals",
@@ -11777,7 +11779,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.35496557516,
       "slot1_extra_time_penalty_probability": 0.15120380443,
       "slot1_tiebreak_probability": 0.59880274344,
-      "slot1_source_match_id": "M90",
       "slot2_team": "England",
       "slot2_display": "England",
       "slot2_probability": 0.61435,
@@ -11785,7 +11786,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.39252421829,
       "slot2_extra_time_penalty_probability": 0.10130640212,
       "slot2_tiebreak_probability": 0.40119725656,
-      "slot2_source_match_id": "M94",
       "draw_after_regulation_probability": 0.25251020655,
       "projected_winner_team": "Brazil",
       "projected_winner": "Brazil",
@@ -11837,7 +11837,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M90",
+      "slot2_source_match_id": "M94"
     },
     {
       "round": "Quarter-finals",
@@ -11851,7 +11853,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.24717539261,
       "slot1_extra_time_penalty_probability": 0.067727265962,
       "slot1_tiebreak_probability": 0.28544254715,
-      "slot1_source_match_id": "M91",
       "slot2_team": "Spain",
       "slot2_display": "Spain",
       "slot2_probability": 0.36528,
@@ -11859,7 +11860,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.51555351155,
       "slot2_extra_time_penalty_probability": 0.16954382988,
       "slot2_tiebreak_probability": 0.71455745285,
-      "slot2_source_match_id": "M95",
       "draw_after_regulation_probability": 0.23727109584,
       "projected_winner_team": "Spain",
       "projected_winner": "Spain",
@@ -11911,7 +11911,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M91",
+      "slot2_source_match_id": "M95"
     },
     {
       "round": "Quarter-finals",
@@ -11925,7 +11927,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.49005035657,
       "slot1_extra_time_penalty_probability": 0.16268580999,
       "slot1_tiebreak_probability": 0.67249050116,
-      "slot1_source_match_id": "M92",
       "slot2_team": "Portugal",
       "slot2_display": "Portugal",
       "slot2_probability": 0.35439,
@@ -11933,7 +11934,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.26803424134,
       "slot2_extra_time_penalty_probability": 0.079229592102,
       "slot2_tiebreak_probability": 0.32750949884,
-      "slot2_source_match_id": "M96",
       "draw_after_regulation_probability": 0.24191540209,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -11985,7 +11985,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M92",
+      "slot2_source_match_id": "M96"
     },
     {
       "round": "Semi-finals",
@@ -11999,7 +12001,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.31209106238,
       "slot1_extra_time_penalty_probability": 0.095866350873,
       "slot1_tiebreak_probability": 0.38430141409,
-      "slot1_source_match_id": "M97",
       "slot2_team": "Spain",
       "slot2_display": "Spain",
       "slot2_probability": 0.25583,
@@ -12007,7 +12008,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.43845278846,
       "slot2_extra_time_penalty_probability": 0.15358979828,
       "slot2_tiebreak_probability": 0.61569858591,
-      "slot2_source_match_id": "M99",
       "draw_after_regulation_probability": 0.24945614915,
       "projected_winner_team": "Spain",
       "projected_winner": "Spain",
@@ -12059,7 +12059,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M97",
+      "slot2_source_match_id": "M99"
     },
     {
       "round": "Semi-finals",
@@ -12073,7 +12075,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.28643151263,
       "slot1_extra_time_penalty_probability": 0.096782098126,
       "slot1_tiebreak_probability": 0.39362338737,
-      "slot1_source_match_id": "M98",
       "slot2_team": "Argentina",
       "slot2_display": "Argentina",
       "slot2_probability": 0.40157,
@@ -12081,7 +12082,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.46769362009,
       "slot2_extra_time_penalty_probability": 0.14909276915,
       "slot2_tiebreak_probability": 0.60637661263,
-      "slot2_source_match_id": "M100",
       "draw_after_regulation_probability": 0.24587486728,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -12133,7 +12133,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M98",
+      "slot2_source_match_id": "M100"
     },
     {
       "round": "Final",
@@ -12147,7 +12149,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_regulation_win_probability": 0.31652773082,
       "slot1_extra_time_penalty_probability": 0.10224148842,
       "slot1_tiebreak_probability": 0.40905124391,
-      "slot1_source_match_id": "M101",
       "slot2_team": "Argentina",
       "slot2_display": "Argentina",
       "slot2_probability": 0.27046,
@@ -12155,7 +12156,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot2_regulation_win_probability": 0.43352439603,
       "slot2_extra_time_penalty_probability": 0.14770638473,
       "slot2_tiebreak_probability": 0.59094875609,
-      "slot2_source_match_id": "M102",
       "draw_after_regulation_probability": 0.24994787315,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -12207,7 +12207,9 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M101",
+      "slot2_source_match_id": "M102"
     },
     {
       "round": "Champion",
@@ -12218,7 +12220,6 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "slot1_display": "Argentina",
       "slot1_probability": 0.1904,
       "slot1_advancement_probability": 0.1904,
-      "slot1_source_match_id": "M104",
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
       "projected_winner_match_probability": 0.1904,
@@ -12235,7 +12236,730 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
       "prematch_feature_cutoff_date": "2026-06-18",
       "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M104"
+    }
+  ],
+  "current_group_tables": [
+    {
+      "group": "A",
+      "current_position": 1,
+      "team": "Mexico",
+      "display_team": "Mexico",
+      "fifa_code": "MEX",
+      "played": 2,
+      "wins": 2,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 3,
+      "goals_against": 0,
+      "goal_difference": 3,
+      "points": 6
+    },
+    {
+      "group": "A",
+      "current_position": 2,
+      "team": "Korea Republic",
+      "display_team": "South Korea",
+      "fifa_code": "KOR",
+      "played": 2,
+      "wins": 1,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 2,
+      "goals_against": 2,
+      "goal_difference": 0,
+      "points": 3
+    },
+    {
+      "group": "A",
+      "current_position": 3,
+      "team": "Czech Republic",
+      "display_team": "Czechia",
+      "fifa_code": "CZE",
+      "played": 2,
+      "wins": 0,
+      "draws": 1,
+      "losses": 1,
+      "goals_for": 2,
+      "goals_against": 3,
+      "goal_difference": -1,
+      "points": 1
+    },
+    {
+      "group": "A",
+      "current_position": 4,
+      "team": "South Africa",
+      "display_team": "South Africa",
+      "fifa_code": "RSA",
+      "played": 2,
+      "wins": 0,
+      "draws": 1,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 3,
+      "goal_difference": -2,
+      "points": 1
+    },
+    {
+      "group": "B",
+      "current_position": 1,
+      "team": "Canada",
+      "display_team": "Canada",
+      "fifa_code": "CAN",
+      "played": 2,
+      "wins": 1,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 7,
+      "goals_against": 1,
+      "goal_difference": 6,
+      "points": 4
+    },
+    {
+      "group": "B",
+      "current_position": 2,
+      "team": "Switzerland",
+      "display_team": "Switzerland",
+      "fifa_code": "SUI",
+      "played": 2,
+      "wins": 1,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 5,
+      "goals_against": 2,
+      "goal_difference": 3,
+      "points": 4
+    },
+    {
+      "group": "B",
+      "current_position": 3,
+      "team": "Bosnia and Herzegovina",
+      "display_team": "Bosnia and Herzegovina",
+      "fifa_code": "BIH",
+      "played": 2,
+      "wins": 0,
+      "draws": 1,
+      "losses": 1,
+      "goals_for": 2,
+      "goals_against": 5,
+      "goal_difference": -3,
+      "points": 1
+    },
+    {
+      "group": "B",
+      "current_position": 4,
+      "team": "Qatar",
+      "display_team": "Qatar",
+      "fifa_code": "QAT",
+      "played": 2,
+      "wins": 0,
+      "draws": 1,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 7,
+      "goal_difference": -6,
+      "points": 1
+    },
+    {
+      "group": "C",
+      "current_position": 1,
+      "team": "Scotland",
+      "display_team": "Scotland",
+      "fifa_code": "SCO",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 0,
+      "goal_difference": 1,
+      "points": 3
+    },
+    {
+      "group": "C",
+      "current_position": 2,
+      "team": "Brazil",
+      "display_team": "Brazil",
+      "fifa_code": "BRA",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "C",
+      "current_position": 3,
+      "team": "Morocco",
+      "display_team": "Morocco",
+      "fifa_code": "MAR",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "C",
+      "current_position": 4,
+      "team": "Haiti",
+      "display_team": "Haiti",
+      "fifa_code": "HAI",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 0,
+      "goals_against": 1,
+      "goal_difference": -1,
+      "points": 0
+    },
+    {
+      "group": "D",
+      "current_position": 1,
+      "team": "United States",
+      "display_team": "United States",
+      "fifa_code": "USA",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 4,
+      "goals_against": 1,
+      "goal_difference": 3,
+      "points": 3
+    },
+    {
+      "group": "D",
+      "current_position": 2,
+      "team": "Australia",
+      "display_team": "Australia",
+      "fifa_code": "AUS",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 2,
+      "goals_against": 0,
+      "goal_difference": 2,
+      "points": 3
+    },
+    {
+      "group": "D",
+      "current_position": 3,
+      "team": "Turkey",
+      "display_team": "Turkiye",
+      "fifa_code": "TUR",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 0,
+      "goals_against": 2,
+      "goal_difference": -2,
+      "points": 0
+    },
+    {
+      "group": "D",
+      "current_position": 4,
+      "team": "Paraguay",
+      "display_team": "Paraguay",
+      "fifa_code": "PAR",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 4,
+      "goal_difference": -3,
+      "points": 0
+    },
+    {
+      "group": "E",
+      "current_position": 1,
+      "team": "Germany",
+      "display_team": "Germany",
+      "fifa_code": "GER",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 7,
+      "goals_against": 1,
+      "goal_difference": 6,
+      "points": 3
+    },
+    {
+      "group": "E",
+      "current_position": 2,
+      "team": "Ivory Coast",
+      "display_team": "Cote d'Ivoire",
+      "fifa_code": "CIV",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 0,
+      "goal_difference": 1,
+      "points": 3
+    },
+    {
+      "group": "E",
+      "current_position": 3,
+      "team": "Ecuador",
+      "display_team": "Ecuador",
+      "fifa_code": "ECU",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 0,
+      "goals_against": 1,
+      "goal_difference": -1,
+      "points": 0
+    },
+    {
+      "group": "E",
+      "current_position": 4,
+      "team": "Curaçao",
+      "display_team": "Curacao",
+      "fifa_code": "CUW",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 7,
+      "goal_difference": -6,
+      "points": 0
+    },
+    {
+      "group": "F",
+      "current_position": 1,
+      "team": "Sweden",
+      "display_team": "Sweden",
+      "fifa_code": "SWE",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 5,
+      "goals_against": 1,
+      "goal_difference": 4,
+      "points": 3
+    },
+    {
+      "group": "F",
+      "current_position": 2,
+      "team": "Netherlands",
+      "display_team": "Netherlands",
+      "fifa_code": "NED",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 2,
+      "goals_against": 2,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "F",
+      "current_position": 3,
+      "team": "Japan",
+      "display_team": "Japan",
+      "fifa_code": "JPN",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 2,
+      "goals_against": 2,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "F",
+      "current_position": 4,
+      "team": "Tunisia",
+      "display_team": "Tunisia",
+      "fifa_code": "TUN",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 5,
+      "goal_difference": -4,
+      "points": 0
+    },
+    {
+      "group": "G",
+      "current_position": 1,
+      "team": "Iran",
+      "display_team": "Iran",
+      "fifa_code": "IRN",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 2,
+      "goals_against": 2,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "G",
+      "current_position": 2,
+      "team": "New Zealand",
+      "display_team": "New Zealand",
+      "fifa_code": "NZL",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 2,
+      "goals_against": 2,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "G",
+      "current_position": 3,
+      "team": "Belgium",
+      "display_team": "Belgium",
+      "fifa_code": "BEL",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "G",
+      "current_position": 4,
+      "team": "Egypt",
+      "display_team": "Egypt",
+      "fifa_code": "EGY",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "H",
+      "current_position": 1,
+      "team": "Saudi Arabia",
+      "display_team": "Saudi Arabia",
+      "fifa_code": "KSA",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "H",
+      "current_position": 2,
+      "team": "Uruguay",
+      "display_team": "Uruguay",
+      "fifa_code": "URU",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "H",
+      "current_position": 3,
+      "team": "Spain",
+      "display_team": "Spain",
+      "fifa_code": "ESP",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 0,
+      "goals_against": 0,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "H",
+      "current_position": 4,
+      "team": "Cape Verde",
+      "display_team": "Cape Verde",
+      "fifa_code": "CPV",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 0,
+      "goals_against": 0,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "I",
+      "current_position": 1,
+      "team": "Norway",
+      "display_team": "Norway",
+      "fifa_code": "NOR",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 4,
+      "goals_against": 1,
+      "goal_difference": 3,
+      "points": 3
+    },
+    {
+      "group": "I",
+      "current_position": 2,
+      "team": "France",
+      "display_team": "France",
+      "fifa_code": "FRA",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 3,
+      "goals_against": 1,
+      "goal_difference": 2,
+      "points": 3
+    },
+    {
+      "group": "I",
+      "current_position": 3,
+      "team": "Senegal",
+      "display_team": "Senegal",
+      "fifa_code": "SEN",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 3,
+      "goal_difference": -2,
+      "points": 0
+    },
+    {
+      "group": "I",
+      "current_position": 4,
+      "team": "Iraq",
+      "display_team": "Iraq",
+      "fifa_code": "IRQ",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 4,
+      "goal_difference": -3,
+      "points": 0
+    },
+    {
+      "group": "J",
+      "current_position": 1,
+      "team": "Argentina",
+      "display_team": "Argentina",
+      "fifa_code": "ARG",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 3,
+      "goals_against": 0,
+      "goal_difference": 3,
+      "points": 3
+    },
+    {
+      "group": "J",
+      "current_position": 2,
+      "team": "Austria",
+      "display_team": "Austria",
+      "fifa_code": "AUT",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 3,
+      "goals_against": 1,
+      "goal_difference": 2,
+      "points": 3
+    },
+    {
+      "group": "J",
+      "current_position": 3,
+      "team": "Jordan",
+      "display_team": "Jordan",
+      "fifa_code": "JOR",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 3,
+      "goal_difference": -2,
+      "points": 0
+    },
+    {
+      "group": "J",
+      "current_position": 4,
+      "team": "Algeria",
+      "display_team": "Algeria",
+      "fifa_code": "ALG",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 0,
+      "goals_against": 3,
+      "goal_difference": -3,
+      "points": 0
+    },
+    {
+      "group": "K",
+      "current_position": 1,
+      "team": "Colombia",
+      "display_team": "Colombia",
+      "fifa_code": "COL",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 3,
+      "goals_against": 1,
+      "goal_difference": 2,
+      "points": 3
+    },
+    {
+      "group": "K",
+      "current_position": 2,
+      "team": "Portugal",
+      "display_team": "Portugal",
+      "fifa_code": "POR",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "K",
+      "current_position": 3,
+      "team": "DR Congo",
+      "display_team": "DR Congo",
+      "fifa_code": "COD",
+      "played": 1,
+      "wins": 0,
+      "draws": 1,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 1,
+      "goal_difference": 0,
+      "points": 1
+    },
+    {
+      "group": "K",
+      "current_position": 4,
+      "team": "Uzbekistan",
+      "display_team": "Uzbekistan",
+      "fifa_code": "UZB",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 1,
+      "goals_against": 3,
+      "goal_difference": -2,
+      "points": 0
+    },
+    {
+      "group": "L",
+      "current_position": 1,
+      "team": "England",
+      "display_team": "England",
+      "fifa_code": "ENG",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 4,
+      "goals_against": 2,
+      "goal_difference": 2,
+      "points": 3
+    },
+    {
+      "group": "L",
+      "current_position": 2,
+      "team": "Ghana",
+      "display_team": "Ghana",
+      "fifa_code": "GHA",
+      "played": 1,
+      "wins": 1,
+      "draws": 0,
+      "losses": 0,
+      "goals_for": 1,
+      "goals_against": 0,
+      "goal_difference": 1,
+      "points": 3
+    },
+    {
+      "group": "L",
+      "current_position": 3,
+      "team": "Panama",
+      "display_team": "Panama",
+      "fifa_code": "PAN",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 0,
+      "goals_against": 1,
+      "goal_difference": -1,
+      "points": 0
+    },
+    {
+      "group": "L",
+      "current_position": 4,
+      "team": "Croatia",
+      "display_team": "Croatia",
+      "fifa_code": "CRO",
+      "played": 1,
+      "wins": 0,
+      "draws": 0,
+      "losses": 1,
+      "goals_for": 2,
+      "goals_against": 4,
+      "goal_difference": -2,
+      "points": 0
     }
   ]
 }</script>
@@ -12281,6 +13005,37 @@ function heatCell(value, className = ""){
   const heat = Math.max(0.10, Math.min(0.92, 0.12 + prob * 0.78));
   const strong = prob >= 0.55 ? " strong" : "";
   return `<td class="heat-cell ${className}${strong}" style="--heat:${heat.toFixed(3)};--prob:${Math.max(0, Math.min(1, prob)).toFixed(3)}"><span class="heat-val">${pctNum(prob)}</span></td>`;
+}
+function advancementStatus(row){
+  const r32 = finiteProb(row.round_of_32_probability);
+  if (r32 !== null && r32 >= 0.999) return {className: "qualified", symbol: "&#10003;", label: "Qualified for Round of 32"};
+  if (r32 !== null && r32 <= 0.001) return {className: "eliminated", symbol: "&#215;", label: "Eliminated from Round of 32"};
+  return null;
+}
+function statusMark(status){
+  if (!status) return "";
+  return `<span class="status-mark ${esc(status.className)}" title="${esc(status.label)}" aria-label="${esc(status.label)}">${status.symbol}</span>`;
+}
+function statusCell(status){
+  return `<td class="status-cell">${statusMark(status)}</td>`;
+}
+function metricValueHtml(displayValue){
+  return `<span class="metric-value"><span>${esc(displayValue)}</span></span>`;
+}
+function valueHeatCell(value, range, displayValue, className = ""){
+  const numeric = Number(value);
+  const minValue = Number(range.min);
+  const maxValue = Number(range.max);
+  const emptyClass = className ? ` ${className}` : "";
+  if (!Number.isFinite(numeric) || !Number.isFinite(minValue) || !Number.isFinite(maxValue)) {
+    return `<td class="heat-cell${emptyClass} empty"><span class="heat-val">${metricValueHtml(displayValue)}</span></td>`;
+  }
+  const span = maxValue - minValue;
+  const scaled = span > 0 ? (numeric - minValue) / span : (maxValue > 0 ? 1 : 0);
+  const heat = scaled <= 0 ? 0 : Math.max(0.10, Math.min(0.92, 0.12 + scaled * 0.78));
+  const strong = scaled >= 0.62 ? " strong" : "";
+  const empty = heat === 0 ? " empty" : "";
+  return `<td class="heat-cell ${className}${strong}${empty}" style="--heat:${heat.toFixed(3)};--prob:${Math.max(0, Math.min(1, scaled)).toFixed(3)}"><span class="heat-val">${metricValueHtml(displayValue)}</span></td>`;
 }
 function finiteProb(value){
   const prob = Number(value);
@@ -12375,14 +13130,46 @@ function renderHero(){
 function renderGroups(){
   const probs = by(data.group_probabilities, "group");
   const exp = by(data.expected_group_tables, "team");
+  const current = by(data.current_group_tables || [], "group");
   document.getElementById("groupsGrid").innerHTML = Object.keys(probs).sort().map(g => {
     const rows = probs[g].slice().sort((a,b)=>(a.display_position ?? a.projected_position ?? a.most_likely_position)-(b.display_position ?? b.projected_position ?? b.most_likely_position));
-    return `<div class="group-box"><h2>Group ${g}</h2><table class="group-table"><thead><tr><th>Team</th><th class="num xpts-head">xPts<br>Avg</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">R32</th><th class="num">3rd<br>Top 8</th></tr></thead><tbody>${rows.map(r => {
+    const currentRows = (current[g] || []).slice().sort((a,b)=>Number(a.current_position)-Number(b.current_position));
+    const statusByTeam = Object.fromEntries(rows.map(r => [r.team, advancementStatus(r)]));
+    const standingRanges = {
+      points: {min: 0, max: Math.max(0, ...currentRows.map(r => Number(r.points)))},
+      goal_difference: {
+        min: Math.min(0, ...currentRows.map(r => Number(r.goal_difference))),
+        max: Math.max(0, ...currentRows.map(r => Number(r.goal_difference)))
+      }
+    };
+    const forecastTable = `<div class="group-view" data-view="forecast"><table class="group-table"><thead><tr><th>Team</th><th class="status-head" aria-label="Status"></th><th class="num xpts-head">xPts<br>Avg</th><th class="num">1</th><th class="num">2</th><th class="num">3</th><th class="num">4</th><th class="num">R32</th><th class="num">3rd<br>Top 8</th></tr></thead><tbody>${rows.map(r => {
       const e = (exp[r.team] && exp[r.team][0]) || {};
       const code = r.fifa_code || "";
-      return `<tr><td class="team-cell"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(r.display_team)}</span></div></td><td class="xpts-cell">${Number(e.expected_points).toFixed(1)}</td>${heatCell(r.position_1_probability)}${heatCell(r.position_2_probability)}${heatCell(r.position_3_probability)}${heatCell(r.position_4_probability)}${heatCell(r.round_of_32_probability, "qual")}${heatCell(r.third_place_qual_probability, "third")}</tr>`;
+      return `<tr><td class="team-cell"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(r.display_team)}</span></div></td>${statusCell(statusByTeam[r.team])}<td class="xpts-cell">${metricValueHtml(Number(e.expected_points).toFixed(1))}</td>${heatCell(r.position_1_probability)}${heatCell(r.position_2_probability)}${heatCell(r.position_3_probability)}${heatCell(r.position_4_probability)}${heatCell(r.round_of_32_probability, "qual")}${heatCell(r.third_place_qual_probability, "third")}</tr>`;
     }).join("")}</tbody></table></div>`;
+    const currentTable = `<div class="group-view" data-view="current" hidden><table class="group-table current-table"><thead><tr><th>Team</th><th class="status-head" aria-label="Status"></th><th class="num xpts-head">Pts</th><th class="num standing-head">Played</th><th class="num standing-head">Wins</th><th class="num standing-head">Draws</th><th class="num standing-head">Losses</th><th class="num standing-head">Goals<br>For</th><th class="num standing-head">Goals<br>Against</th><th class="num standing-head">Goal<br>Diff</th></tr></thead><tbody>${currentRows.map(r => {
+      const code = r.fifa_code || "";
+      const gd = Number(r.goal_difference);
+      const gdText = gd > 0 ? `+${gd}` : `${gd}`;
+      return `<tr><td class="team-cell"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(r.display_team)}</span></div></td>${statusCell(statusByTeam[r.team])}${valueHeatCell(r.points, standingRanges.points, intFmt(r.points), "standing")}<td class="standing-cell">${intFmt(r.played)}</td><td class="standing-cell">${intFmt(r.wins)}</td><td class="standing-cell">${intFmt(r.draws)}</td><td class="standing-cell">${intFmt(r.losses)}</td><td class="standing-cell">${intFmt(r.goals_for)}</td><td class="standing-cell">${intFmt(r.goals_against)}</td>${valueHeatCell(r.goal_difference, standingRanges.goal_difference, gdText, "standing")}</tr>`;
+    }).join("")}</tbody></table></div>`;
+    return `<div class="group-box" data-group="${esc(g)}"><div class="group-head"><h2>Group ${g}</h2><div class="group-toggle" aria-label="Group ${esc(g)} table view"><button class="active" type="button" data-group-view="forecast">Forecast</button><button type="button" data-group-view="current">Current</button></div></div>${forecastTable}${currentTable}</div>`;
   }).join("");
+}
+function bindGroupViewToggles(){
+  const grid = document.getElementById("groupsGrid");
+  if (!grid || grid.dataset.bound === "true") return;
+  grid.dataset.bound = "true";
+  grid.addEventListener("click", event => {
+    const btn = event.target.closest && event.target.closest("[data-group-view]");
+    if (!btn || !grid.contains(btn)) return;
+    const box = btn.closest(".group-box");
+    const view = btn.dataset.groupView;
+    box.querySelectorAll("[data-group-view]").forEach(toggle => toggle.classList.toggle("active", toggle === btn));
+    box.querySelectorAll(".group-view").forEach(panel => {
+      panel.hidden = panel.dataset.view !== view;
+    });
+  });
 }
 function renderMatches(){
   const search = document.getElementById("matchSearch").value.toLowerCase();
@@ -12742,6 +13529,53 @@ function renderTeams(selected){
   }).join("")}<h3 class="panel-title">Projected tournament path</h3>${routeHtml}`;
   document.querySelectorAll(".team-row").forEach(row => row.onclick = () => renderTeams(row.dataset.team));
 }
+function renderEloRatings(){
+  const search = document.getElementById("eloSearch").value.toLowerCase();
+  const groupMeta = Object.fromEntries((data.groups || []).map(row => [row.team, row]));
+  const stageColumns = [
+    "round_of_32_probability",
+    "round_of_16_probability",
+    "quarterfinal_probability",
+    "semifinal_probability",
+    "final_probability",
+    "champion_probability"
+  ];
+  const stageMax = Object.fromEntries(stageColumns.map(col => {
+    const values = data.stage_probabilities.map(row => finiteProb(row[col])).filter(value => value !== null);
+    return [col, Math.max(0, ...values)];
+  }));
+  const eloProbCell = (value, column) => {
+    const prob = finiteProb(value);
+    if (prob === null) return `<td class="elo-prob-cell empty"></td>`;
+    const rounded = Number((100 * prob).toFixed(1));
+    if (rounded === 0) return `<td class="elo-prob-cell empty">${pctNum(prob)}%</td>`;
+    const scaled = stageMax[column] > 0 ? prob / stageMax[column] : 0;
+    const heat = Math.max(0.05, Math.min(0.46, 0.06 + scaled * 0.36));
+    const strong = scaled >= 0.62 ? " strong" : "";
+    return `<td class="elo-prob-cell${strong}" style="--heat:${heat.toFixed(3)};--prob:${Math.max(0, Math.min(1, scaled)).toFixed(3)}">${pctNum(prob)}%</td>`;
+  };
+  const ratings = data.stage_probabilities
+    .slice()
+    .sort((a,b)=>Number(b.rating)-Number(a.rating))
+    .map((row, index) => ({...row, elo_rank: index + 1}))
+    .filter(row => {
+      const group = String(row.group || "").toLowerCase();
+      const groupLabel = `group ${group}`;
+      return row.display_team.toLowerCase().includes(search) || group.includes(search) || groupLabel.includes(search);
+    });
+  const allRatings = data.stage_probabilities.map(row => Number(row.rating)).filter(Number.isFinite);
+  const minRating = Math.min(...allRatings);
+  const maxRating = Math.max(...allRatings);
+  const ratingSpan = Math.max(1, maxRating - minRating);
+  document.getElementById("eloRows").innerHTML = ratings.map(row => {
+    const meta = groupMeta[row.team] || {};
+    const code = meta.fifa_code || row.fifa_code || "";
+    const rating = Number(row.rating);
+    const ratingDisplay = Number.isFinite(rating) ? Math.round(rating) : "";
+    const width = Number.isFinite(rating) ? Math.max(0.03, Math.min(1, (rating - minRating) / ratingSpan)) : 0;
+    return `<tr><td><span class="rank-badge">${intFmt(row.elo_rank)}</span></td><td class="team-col"><div class="team-ident"><span class="team-flag" aria-hidden="true">${esc(flagEmoji(code))}</span><span class="team-name">${esc(row.display_team)}</span></div></td><td class="num">${esc(row.group)}</td><td><div class="rating-cell"><span class="rating-value">${intFmt(ratingDisplay)}</span><span class="rating-track"><span class="rating-fill" style="width:${(100 * width).toFixed(1)}%"></span></span></div></td>${eloProbCell(row.round_of_32_probability, "round_of_32_probability")}${eloProbCell(row.round_of_16_probability, "round_of_16_probability")}${eloProbCell(row.quarterfinal_probability, "quarterfinal_probability")}${eloProbCell(row.semifinal_probability, "semifinal_probability")}${eloProbCell(row.final_probability, "final_probability")}${eloProbCell(row.champion_probability, "champion_probability")}</tr>`;
+  }).join("");
+}
 document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
   document.querySelectorAll(".tab").forEach(b=>b.classList.remove("active"));
   document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
@@ -12753,8 +13587,9 @@ for (const g of "ABCDEFGHIJKL") document.getElementById("groupFilter").innerHTML
 document.getElementById("matchSearch").oninput = renderMatches;
 document.getElementById("groupFilter").onchange = renderMatches;
 document.getElementById("teamSearch").oninput = () => renderTeams();
+document.getElementById("eloSearch").oninput = renderEloRatings;
 window.addEventListener("resize", refreshBracketLinks);
-renderHero(); renderGroups(); renderMatches(); renderBracket(); renderTeams();
+renderHero(); renderGroups(); bindGroupViewToggles(); renderMatches(); renderBracket(); renderTeams(); renderEloRatings();
 </script>
 </body>
 </html>
