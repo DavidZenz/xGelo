@@ -12277,7 +12277,7 @@ function heatCell(value, className = ""){
   const emptyClass = className ? ` ${className}` : "";
   if (!Number.isFinite(prob)) return `<td class="heat-cell${emptyClass} empty"></td>`;
   const rounded = Number((100 * prob).toFixed(1));
-  if (rounded === 0) return `<td class="heat-cell${emptyClass} empty"><span class="heat-val">0</span></td>`;
+  if (rounded === 0) return `<td class="heat-cell${emptyClass} empty"></td>`;
   const heat = Math.max(0.10, Math.min(0.92, 0.12 + prob * 0.78));
   const strong = prob >= 0.55 ? " strong" : "";
   return `<td class="heat-cell ${className}${strong}" style="--heat:${heat.toFixed(3)};--prob:${Math.max(0, Math.min(1, prob)).toFixed(3)}"><span class="heat-val">${pctNum(prob)}</span></td>`;
