@@ -575,6 +575,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("xPts<br>Avg", html, fixed = TRUE))
   expect_true(grepl("3rd<br>Top 8", html, fixed = TRUE))
   expect_true(grepl("heat-cell", html, fixed = TRUE))
+  expect_true(grepl("heat-cell.empty", html, fixed = TRUE))
+  expect_true(grepl("rounded === 0", html, fixed = TRUE))
   expect_true(grepl("team-flag", html, fixed = TRUE))
   expect_false(grepl("team-code", html, fixed = TRUE))
   expect_true(grepl("--prob:", html, fixed = TRUE))
