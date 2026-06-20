@@ -61,6 +61,7 @@ Context:
 - Candidate variables: GNP/GDP per capita, squared GNP/GDP per capita, squared deviation from 14 C average capital-city temperature, prior World Cup host status, and Latin cultural-origin x population-share interaction.
 - Joachim Klement's 2026 World Cup model explicitly cites Hoffmann/Ging/Ramasamy as its root, adds current FIFA ranking points, simulates tournament progression, and reports explaining roughly 55% of cross-country World Cup success variation.
 - Reported fit in the original paper is R-squared = 0.3180; reserve any "55%" claim for Klement's extended World Cup model, not the 2002 paper alone.
+- Related literature includes Zeileis/Leitner/Hornik bookmaker-consensus ability models and Groll et al. Poisson, bivariate-Poisson, ranking, and hybrid random-forest tournament simulators; see the phase research note.
 - Potential xGelo use: compare Elo-only, xG/Elo, and structural-only baselines; optionally use structural strength as shrinkage for sparse-match countries.
 
 Plans:
