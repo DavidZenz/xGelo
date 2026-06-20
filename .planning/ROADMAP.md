@@ -59,7 +59,8 @@ Context:
 - Source paper: Robert Hoffmann, Lee Chew Ging, and Bala Ramasamy (2002), "The Socio-Economic Determinants of International Soccer Performance."
 - The paper models January 2001 FIFA ranking points, not match-level World Cup outcomes; treat it as a macro-strength benchmark, not a direct outcome model.
 - Candidate variables: GNP/GDP per capita, squared GNP/GDP per capita, squared deviation from 14 C average capital-city temperature, prior World Cup host status, and Latin cultural-origin x population-share interaction.
-- Reported fit in the paper is R-squared = 0.3180, so any "55%" framing should be independently verified before use in documentation.
+- Joachim Klement's 2026 World Cup model explicitly cites Hoffmann/Ging/Ramasamy as its root, adds current FIFA ranking points, simulates tournament progression, and reports explaining roughly 55% of cross-country World Cup success variation.
+- Reported fit in the original paper is R-squared = 0.3180; reserve any "55%" claim for Klement's extended World Cup model, not the 2002 paper alone.
 - Potential xGelo use: compare Elo-only, xG/Elo, and structural-only baselines; optionally use structural strength as shrinkage for sparse-match countries.
 
 Plans:
