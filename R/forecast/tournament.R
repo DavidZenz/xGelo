@@ -2,12 +2,13 @@
 #'
 #' Simulates explicit tournament fixture sets from match scoreline distributions.
 
-#' Rank a group table using football table rules
+#' Rank a group table using FIFA World Cup group table rules
 #'
 #' @param table Group table with team, points, goal_difference, goals_for
+#' @param matches Optional match rows with home_team, away_team, home_goals, away_goals
 #' @return Ranked table
 #' @export
-rank_group_table <- function(table) {
+rank_group_table <- function(table, matches = NULL) {
   required_cols <- c("team", "points", "goal_difference", "goals_for")
   missing_cols <- setdiff(required_cols, names(table))
   if (length(missing_cols) > 0) {
@@ -16,7 +17,65 @@ rank_group_table <- function(table) {
 
   tie_breaker <- if ("tie_breaker" %in% names(table)) table$tie_breaker else runif(nrow(table))
   table$tie_breaker <- tie_breaker
-  table[order(-table$points, -table$goal_difference, -table$goals_for, table$tie_breaker), ]
+
+  if (is.null(matches) || nrow(matches) == 0) {
+    return(table[order(-table$points, -table$goal_difference, -table$goals_for, table$tie_breaker), ])
+  }
+
+  match_required <- c("home_team", "away_team", "home_goals", "away_goals")
+  if (length(setdiff(match_required, names(matches))) > 0) {
+    return(table[order(-table$points, -table$goal_difference, -table$goals_for, table$tie_breaker), ])
+  }
+
+  fallback_order <- function(idx) {
+    idx[order(-table$points[idx], -table$goal_difference[idx], -table$goals_for[idx], table$tie_breaker[idx])]
+  }
+
+  rank_tied_idx <- function(idx) {
+    if (length(idx) <= 1) return(idx)
+
+    teams <- table$team[idx]
+    h2h_points <- numeric(length(idx))
+    h2h_goal_difference <- numeric(length(idx))
+    h2h_goals_for <- numeric(length(idx))
+
+    for (i in seq_len(nrow(matches))) {
+      home_pos <- match(matches$home_team[i], teams)
+      away_pos <- match(matches$away_team[i], teams)
+      if (is.na(home_pos) || is.na(away_pos) || is.na(matches$home_goals[i]) || is.na(matches$away_goals[i])) next
+
+      home_goals <- as.integer(matches$home_goals[i])
+      away_goals <- as.integer(matches$away_goals[i])
+      home_points <- if (home_goals > away_goals) 3L else if (home_goals == away_goals) 1L else 0L
+      away_points <- if (away_goals > home_goals) 3L else if (home_goals == away_goals) 1L else 0L
+
+      h2h_points[home_pos] <- h2h_points[home_pos] + home_points
+      h2h_points[away_pos] <- h2h_points[away_pos] + away_points
+      h2h_goal_difference[home_pos] <- h2h_goal_difference[home_pos] + home_goals - away_goals
+      h2h_goal_difference[away_pos] <- h2h_goal_difference[away_pos] + away_goals - home_goals
+      h2h_goals_for[home_pos] <- h2h_goals_for[home_pos] + home_goals
+      h2h_goals_for[away_pos] <- h2h_goals_for[away_pos] + away_goals
+    }
+
+    ord <- order(-h2h_points, -h2h_goal_difference, -h2h_goals_for)
+    ordered_idx <- idx[ord]
+    keys <- paste(h2h_points[ord], h2h_goal_difference[ord], h2h_goals_for[ord], sep = "\r")
+    if (length(unique(keys)) == 1) {
+      return(fallback_order(idx))
+    }
+
+    ranked_parts <- lapply(split(ordered_idx, factor(keys, levels = unique(keys)), drop = TRUE), function(part) {
+      if (length(part) <= 1) part else rank_tied_idx(part)
+    })
+    unlist(ranked_parts, use.names = FALSE)
+  }
+
+  point_levels <- sort(unique(table$points), decreasing = TRUE)
+  ranked_idx <- unlist(
+    lapply(point_levels, function(points) rank_tied_idx(which(table$points == points))),
+    use.names = FALSE
+  )
+  table[ranked_idx, ]
 }
 
 #' Simulate a tournament from explicit fixtures
@@ -98,6 +157,9 @@ simulate_tournament <- function(
   for (iteration in seq_len(n_tournaments)) {
     sampled_matches <- vector("list", nrow(fixtures))
     group_stats <- list()
+    group_match_results <- fixtures[, c("group", "home_team", "away_team")]
+    group_match_results$home_goals <- NA_integer_
+    group_match_results$away_goals <- NA_integer_
     tournament_champion <- NA_character_
     iteration_group_teams <- character()
     iteration_knockout_teams <- character()
@@ -165,6 +227,8 @@ simulate_tournament <- function(
             stringsAsFactors = FALSE
           )
         }
+        group_match_results$home_goals[i] <- home_goals
+        group_match_results$away_goals[i] <- away_goals
         table <- group_stats[[group_key]]
         gh <- match(fixture$home_team, table$team)
         ga <- match(fixture$away_team, table$team)
@@ -184,7 +248,14 @@ simulate_tournament <- function(
     for (group_key in names(group_stats)) {
       table <- group_stats[[group_key]]
       table$goal_difference <- table$goals_for - table$goals_against
-      ranked <- rank_group_table(table)
+      ranked <- rank_group_table(
+        table,
+        group_match_results[
+          group_match_results$group == group_key,
+          c("home_team", "away_team", "home_goals", "away_goals"),
+          drop = FALSE
+        ]
+      )
       advancing <- head(ranked$team, min(2, nrow(ranked)))
       iteration_group_teams <- union(iteration_group_teams, ranked$team)
       iteration_knockout_teams <- union(iteration_knockout_teams, advancing)

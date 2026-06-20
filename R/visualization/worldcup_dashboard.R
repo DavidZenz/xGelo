@@ -1454,6 +1454,34 @@ simulate_group_stage_dashboard <- function(
     stringsAsFactors = FALSE
   )
   dists <- split(scoreline_distributions, scoreline_distributions$match_id)
+  team_count <- length(team_names)
+  fixture_count <- nrow(fixtures)
+  home_team_idx <- match(fixtures$home_team, team_names)
+  away_team_idx <- match(fixtures$away_team, team_names)
+  group_ids <- sort(unique(teams$group))
+  group_idx_by_id <- stats::setNames(seq_along(group_ids), group_ids)
+  fixture_group_idx <- unname(group_idx_by_id[fixtures$group])
+  group_team_indices <- lapply(group_ids, function(group_id) which(teams$group == group_id))
+  names(group_team_indices) <- group_ids
+  group_fixture_indices <- lapply(group_ids, function(group_id) which(fixtures$group == group_id))
+  names(group_fixture_indices) <- group_ids
+  fixture_home_pos <- integer(fixture_count)
+  fixture_away_pos <- integer(fixture_count)
+  for (group_id in group_ids) {
+    group_team_idx <- group_team_indices[[group_id]]
+    fixture_idx <- group_fixture_indices[[group_id]]
+    fixture_home_pos[fixture_idx] <- match(home_team_idx[fixture_idx], group_team_idx)
+    fixture_away_pos[fixture_idx] <- match(away_team_idx[fixture_idx], group_team_idx)
+  }
+  dist_home_goals <- vector("list", fixture_count)
+  dist_away_goals <- vector("list", fixture_count)
+  dist_cumprob <- vector("list", fixture_count)
+  for (i in seq_len(fixture_count)) {
+    dist <- dists[[fixtures$match_id[i]]]
+    dist_home_goals[[i]] <- as.integer(dist$home_goals)
+    dist_away_goals[[i]] <- as.integer(dist$away_goals)
+    dist_cumprob[[i]] <- cumsum(dist$probability / sum(dist$probability))
+  }
   if (is.null(knockout_ratings)) {
     knockout_ratings <- data.frame(team = team_names, rating = 1500, stringsAsFactors = FALSE)
   }
@@ -1469,6 +1497,85 @@ simulate_group_stage_dashboard <- function(
       ...
     )
   }
+  route_advancement <- matrix(NA_real_, nrow = team_count, ncol = team_count)
+  diag(route_advancement) <- 0.5
+  for (i in seq_len(team_count)) {
+    for (j in seq_len(team_count)) {
+      if (i == j) next
+      route <- knockout_route_estimator(team_names[i], team_names[j])
+      route_advancement[i, j] <- if (!is.null(route$slot1_advancement_probability)) {
+        route$slot1_advancement_probability
+      } else {
+        slot1_regulation <- if (!is.null(route$slot1_regulation_win_probability)) route$slot1_regulation_win_probability else 0
+        draw_after_regulation <- if (!is.null(route$draw_after_regulation_probability)) route$draw_after_regulation_probability else 0
+        tiebreak_probability <- if (!is.null(route$tiebreak_probability)) route$tiebreak_probability else 0.5
+        slot1_regulation + draw_after_regulation * tiebreak_probability
+      }
+    }
+  }
+
+  bracket <- worldcup_bracket_template(include_champion = FALSE)
+  bracket_round_code <- match(
+    bracket$round,
+    c("Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final")
+  )
+  bracket_match_index <- stats::setNames(seq_len(nrow(bracket)), bracket$match_id)
+  parse_bracket_slot <- function(slot) {
+    if (grepl("^Winner M[0-9]+$", slot)) {
+      return(list(type = "match", value = bracket_match_index[[sub("^Winner ", "", slot)]]))
+    }
+    if (grepl("^Winner Group [A-L]$", slot)) {
+      return(list(type = "group_winner", value = group_idx_by_id[[sub(".*Group ([A-L]).*", "\\1", slot)]]))
+    }
+    if (grepl("^Runner-up Group [A-L]$", slot)) {
+      return(list(type = "group_runner_up", value = group_idx_by_id[[sub(".*Group ([A-L]).*", "\\1", slot)]]))
+    }
+    if (grepl("^Best 3rd", slot)) {
+      allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
+      return(list(type = "best_third", value = unname(group_idx_by_id[allowed])))
+    }
+    list(type = "empty", value = NA_integer_)
+  }
+  bracket_slot1 <- lapply(bracket$slot1_label, parse_bracket_slot)
+  bracket_slot2 <- lapply(bracket$slot2_label, parse_bracket_slot)
+
+  rank_group_fast <- function(points, goals_for, goals_against, home_pos, away_pos, home_goals, away_goals, tie_breaker) {
+    goal_difference <- goals_for - goals_against
+    fallback_order <- function(idx) {
+      idx[order(-points[idx], -goal_difference[idx], -goals_for[idx], tie_breaker[idx])]
+    }
+    rank_tied <- function(idx) {
+      if (length(idx) <= 1) return(idx)
+      h2h_points <- numeric(length(idx))
+      h2h_goal_difference <- numeric(length(idx))
+      h2h_goals_for <- numeric(length(idx))
+      for (i in seq_along(home_pos)) {
+        home_idx <- match(home_pos[i], idx)
+        away_idx <- match(away_pos[i], idx)
+        if (is.na(home_idx) || is.na(away_idx)) next
+        hg <- home_goals[i]
+        ag <- away_goals[i]
+        hp <- if (hg > ag) 3L else if (hg == ag) 1L else 0L
+        ap <- if (ag > hg) 3L else if (hg == ag) 1L else 0L
+        h2h_points[home_idx] <- h2h_points[home_idx] + hp
+        h2h_points[away_idx] <- h2h_points[away_idx] + ap
+        h2h_goal_difference[home_idx] <- h2h_goal_difference[home_idx] + hg - ag
+        h2h_goal_difference[away_idx] <- h2h_goal_difference[away_idx] + ag - hg
+        h2h_goals_for[home_idx] <- h2h_goals_for[home_idx] + hg
+        h2h_goals_for[away_idx] <- h2h_goals_for[away_idx] + ag
+      }
+      ord <- order(-h2h_points, -h2h_goal_difference, -h2h_goals_for)
+      ordered_idx <- idx[ord]
+      keys <- paste(h2h_points[ord], h2h_goal_difference[ord], h2h_goals_for[ord], sep = "\r")
+      if (length(unique(keys)) == 1) return(fallback_order(idx))
+      unlist(lapply(split(ordered_idx, factor(keys, levels = unique(keys)), drop = TRUE), function(part) {
+        if (length(part) <= 1) part else rank_tied(part)
+      }), use.names = FALSE)
+    }
+    unlist(lapply(sort(unique(points), decreasing = TRUE), function(point_value) {
+      rank_tied(which(points == point_value))
+    }), use.names = FALSE)
+  }
 
   count_columns <- setdiff(names(counts), c("team", "group", "display_team"))
   worker_count <- normalise_dashboard_workers(n_workers, n_tournaments)
@@ -1480,73 +1587,128 @@ simulate_group_stage_dashboard <- function(
 
     for (iteration_seed in chunk_seeds) {
       set.seed(iteration_seed)
-      stats <- data.frame(
-        team = team_names,
-        group = teams$group,
-        points = 0,
-        goals_for = 0,
-        goals_against = 0,
-        stringsAsFactors = FALSE
-      )
+      points <- integer(team_count)
+      goals_for <- integer(team_count)
+      goals_against <- integer(team_count)
+      fixture_home_goals <- integer(fixture_count)
+      fixture_away_goals <- integer(fixture_count)
 
-      for (i in seq_len(nrow(fixtures))) {
-        fixture <- fixtures[i, ]
-        dist <- dists[[fixture$match_id]]
-        sampled <- dist[sample(seq_len(nrow(dist)), size = 1, prob = dist$probability), ]
-        home_goals <- as.integer(sampled$home_goals)
-        away_goals <- as.integer(sampled$away_goals)
+      for (i in seq_len(fixture_count)) {
+        sampled_idx <- which(runif(1) <= dist_cumprob[[i]])[1]
+        home_goals <- dist_home_goals[[i]][sampled_idx]
+        away_goals <- dist_away_goals[[i]][sampled_idx]
         home_points <- if (home_goals > away_goals) 3 else if (home_goals == away_goals) 1 else 0
         away_points <- if (away_goals > home_goals) 3 else if (home_goals == away_goals) 1 else 0
-        home_idx <- match(fixture$home_team, stats$team)
-        away_idx <- match(fixture$away_team, stats$team)
-        stats$points[home_idx] <- stats$points[home_idx] + home_points
-        stats$points[away_idx] <- stats$points[away_idx] + away_points
-        stats$goals_for[home_idx] <- stats$goals_for[home_idx] + home_goals
-        stats$goals_against[home_idx] <- stats$goals_against[home_idx] + away_goals
-        stats$goals_for[away_idx] <- stats$goals_for[away_idx] + away_goals
-        stats$goals_against[away_idx] <- stats$goals_against[away_idx] + home_goals
+        home_idx <- home_team_idx[i]
+        away_idx <- away_team_idx[i]
+        points[home_idx] <- points[home_idx] + home_points
+        points[away_idx] <- points[away_idx] + away_points
+        goals_for[home_idx] <- goals_for[home_idx] + home_goals
+        goals_against[home_idx] <- goals_against[home_idx] + away_goals
+        goals_for[away_idx] <- goals_for[away_idx] + away_goals
+        goals_against[away_idx] <- goals_against[away_idx] + home_goals
+        fixture_home_goals[i] <- home_goals
+        fixture_away_goals[i] <- away_goals
       }
 
-      ranked_groups <- list()
-      for (group_id in LETTERS[1:12]) {
-        table <- stats[stats$group == group_id, ]
-        table$goal_difference <- table$goals_for - table$goals_against
-        table$tie_breaker <- runif(nrow(table))
-        ranked <- rank_group_table(table)
-        ranked$finish_position <- seq_len(nrow(ranked))
-        ranked_groups[[group_id]] <- ranked
+      rank_matrix <- matrix(NA_integer_, nrow = 4L, ncol = length(group_ids))
+      rank_points <- matrix(NA_integer_, nrow = 4L, ncol = length(group_ids))
+      rank_goals_for <- matrix(NA_integer_, nrow = 4L, ncol = length(group_ids))
+      rank_goals_against <- matrix(NA_integer_, nrow = 4L, ncol = length(group_ids))
+      rank_tie_breaker <- matrix(NA_real_, nrow = 4L, ncol = length(group_ids))
+      for (group_pos in seq_along(group_ids)) {
+        group_id <- group_ids[group_pos]
+        group_team_idx <- group_team_indices[[group_id]]
+        fixture_idx <- group_fixture_indices[[group_id]]
+        tie_breaker <- runif(length(group_team_idx))
+        ranked_pos <- rank_group_fast(
+          points = points[group_team_idx],
+          goals_for = goals_for[group_team_idx],
+          goals_against = goals_against[group_team_idx],
+          home_pos = fixture_home_pos[fixture_idx],
+          away_pos = fixture_away_pos[fixture_idx],
+          home_goals = fixture_home_goals[fixture_idx],
+          away_goals = fixture_away_goals[fixture_idx],
+          tie_breaker = tie_breaker
+        )
+        ranked_team_idx <- group_team_idx[ranked_pos]
+        rank_matrix[, group_pos] <- ranked_team_idx
+        rank_points[, group_pos] <- points[ranked_team_idx]
+        rank_goals_for[, group_pos] <- goals_for[ranked_team_idx]
+        rank_goals_against[, group_pos] <- goals_against[ranked_team_idx]
+        rank_tie_breaker[, group_pos] <- tie_breaker[ranked_pos]
 
-        chunk_counts$group_win_count[match(ranked$team[1], chunk_counts$team)] <- chunk_counts$group_win_count[match(ranked$team[1], chunk_counts$team)] + 1
-        top_two <- ranked$team[1:2]
-        chunk_counts$top_two_count[match(top_two, chunk_counts$team)] <- chunk_counts$top_two_count[match(top_two, chunk_counts$team)] + 1
+        chunk_counts$group_win_count[ranked_team_idx[1]] <- chunk_counts$group_win_count[ranked_team_idx[1]] + 1
+        chunk_counts$top_two_count[ranked_team_idx[1:2]] <- chunk_counts$top_two_count[ranked_team_idx[1:2]] + 1
         for (position in 1:4) {
           col <- paste0("pos", position, "_count")
-          chunk_counts[[col]][match(ranked$team[position], chunk_counts$team)] <- chunk_counts[[col]][match(ranked$team[position], chunk_counts$team)] + 1
+          chunk_counts[[col]][ranked_team_idx[position]] <- chunk_counts[[col]][ranked_team_idx[position]] + 1
         }
       }
 
-      all_ranked <- do.call(rbind, ranked_groups)
-      third_place <- all_ranked[all_ranked$finish_position == 3, ]
-      third_place <- third_place[order(-third_place$points, -third_place$goal_difference, -third_place$goals_for, third_place$tie_breaker), ]
-      best_third_rows <- head(third_place, 8)
-      best_thirds <- best_third_rows$team
-      round_of_32 <- union(all_ranked$team[all_ranked$finish_position <= 2], best_thirds)
-      chunk_counts$third_qual_count[match(best_thirds, chunk_counts$team)] <- chunk_counts$third_qual_count[match(best_thirds, chunk_counts$team)] + 1
-      chunk_counts$round_of_32_count[match(round_of_32, chunk_counts$team)] <- chunk_counts$round_of_32_count[match(round_of_32, chunk_counts$team)] + 1
-      knockout_reachers <- simulate_knockout_bracket_once(
-        ranked_groups,
-        best_third_rows,
-        rating_by_team,
-        knockout_route_estimator = knockout_route_estimator
+      third_team_idx <- rank_matrix[3, ]
+      third_order <- order(
+        -rank_points[3, ],
+        -(rank_goals_for[3, ] - rank_goals_against[3, ]),
+        -rank_goals_for[3, ],
+        rank_tie_breaker[3, ]
       )
-      chunk_counts$round_of_16_count[match(knockout_reachers$round_of_16, chunk_counts$team)] <- chunk_counts$round_of_16_count[match(knockout_reachers$round_of_16, chunk_counts$team)] + 1
-      chunk_counts$quarterfinal_count[match(knockout_reachers$quarterfinal, chunk_counts$team)] <- chunk_counts$quarterfinal_count[match(knockout_reachers$quarterfinal, chunk_counts$team)] + 1
-      chunk_counts$semifinal_count[match(knockout_reachers$semifinal, chunk_counts$team)] <- chunk_counts$semifinal_count[match(knockout_reachers$semifinal, chunk_counts$team)] + 1
-      chunk_counts$final_count[match(knockout_reachers$final, chunk_counts$team)] <- chunk_counts$final_count[match(knockout_reachers$final, chunk_counts$team)] + 1
-      chunk_counts$champion_count[match(knockout_reachers$champion, chunk_counts$team)] <- chunk_counts$champion_count[match(knockout_reachers$champion, chunk_counts$team)] + 1
-      chunk_counts$points_sum[team_index] <- chunk_counts$points_sum[team_index] + stats$points
-      chunk_counts$goals_for_sum[team_index] <- chunk_counts$goals_for_sum[team_index] + stats$goals_for
-      chunk_counts$goals_against_sum[team_index] <- chunk_counts$goals_against_sum[team_index] + stats$goals_against
+      best_third_team_idx <- third_team_idx[third_order][1:8]
+      best_third_group_pos <- third_order[1:8]
+      round_of_32_idx <- union(as.integer(rank_matrix[1:2, ]), best_third_team_idx)
+      chunk_counts$third_qual_count[best_third_team_idx] <- chunk_counts$third_qual_count[best_third_team_idx] + 1
+      chunk_counts$round_of_32_count[round_of_32_idx] <- chunk_counts$round_of_32_count[round_of_32_idx] + 1
+
+      remaining_third_teams <- best_third_team_idx
+      remaining_third_groups <- best_third_group_pos
+      match_winner_idx <- integer(nrow(bracket))
+      resolve_slot <- function(slot_spec) {
+        if (slot_spec$type == "match") return(match_winner_idx[slot_spec$value])
+        if (slot_spec$type == "group_winner") return(rank_matrix[1, slot_spec$value])
+        if (slot_spec$type == "group_runner_up") return(rank_matrix[2, slot_spec$value])
+        if (slot_spec$type == "best_third") {
+          candidate_idx <- which(remaining_third_groups %in% slot_spec$value)
+          chosen_idx <- if (length(candidate_idx) > 0) candidate_idx[1] else 1L
+          team_idx <- remaining_third_teams[chosen_idx]
+          remaining_third_teams <<- remaining_third_teams[-chosen_idx]
+          remaining_third_groups <<- remaining_third_groups[-chosen_idx]
+          return(team_idx)
+        }
+        NA_integer_
+      }
+      for (match_pos in seq_len(nrow(bracket))) {
+        slot1_idx <- resolve_slot(bracket_slot1[[match_pos]])
+        slot2_idx <- resolve_slot(bracket_slot2[[match_pos]])
+        slot1_missing <- length(slot1_idx) == 0 || is.na(slot1_idx)
+        slot2_missing <- length(slot2_idx) == 0 || is.na(slot2_idx)
+        if (slot1_missing && slot2_missing) {
+          next
+        } else if (slot1_missing && !slot2_missing) {
+          winner_idx <- slot2_idx
+        } else if (slot2_missing && !slot1_missing) {
+          winner_idx <- slot1_idx
+        } else {
+          slot1_adv <- route_advancement[slot1_idx, slot2_idx]
+          if (!is.finite(slot1_adv)) slot1_adv <- 0.5
+          winner_idx <- if (runif(1) <= slot1_adv) slot1_idx else slot2_idx
+        }
+        match_winner_idx[match_pos] <- winner_idx
+        if (bracket_round_code[match_pos] == 1L) {
+          chunk_counts$round_of_16_count[winner_idx] <- chunk_counts$round_of_16_count[winner_idx] + 1
+        } else if (bracket_round_code[match_pos] == 2L) {
+          chunk_counts$quarterfinal_count[winner_idx] <- chunk_counts$quarterfinal_count[winner_idx] + 1
+        } else if (bracket_round_code[match_pos] == 3L) {
+          chunk_counts$semifinal_count[winner_idx] <- chunk_counts$semifinal_count[winner_idx] + 1
+        } else if (bracket_round_code[match_pos] == 4L) {
+          chunk_counts$final_count[winner_idx] <- chunk_counts$final_count[winner_idx] + 1
+        } else if (bracket_round_code[match_pos] == 5L) {
+          chunk_counts$champion_count[winner_idx] <- chunk_counts$champion_count[winner_idx] + 1
+        }
+      }
+
+      chunk_counts$points_sum[team_index] <- chunk_counts$points_sum[team_index] + points
+      chunk_counts$goals_for_sum[team_index] <- chunk_counts$goals_for_sum[team_index] + goals_for
+      chunk_counts$goals_against_sum[team_index] <- chunk_counts$goals_against_sum[team_index] + goals_against
     }
 
     chunk_counts
@@ -1703,7 +1865,15 @@ build_current_group_tables <- function(groups, fixtures) {
   tables$goal_difference <- tables$goals_for - tables$goals_against
   ranked_groups <- lapply(split(tables, tables$group), function(group_table) {
     group_table$tie_breaker <- group_table$position
-    ranked <- rank_group_table(group_table)
+    group_matches <- completed[
+      completed$group == group_table$group[1],
+      c("home_team", "away_team", "actual_home_goals", "actual_away_goals"),
+      drop = FALSE
+    ]
+    if (nrow(group_matches) > 0) {
+      names(group_matches) <- c("home_team", "away_team", "home_goals", "away_goals")
+    }
+    ranked <- rank_group_table(group_table, group_matches)
     ranked$current_position <- seq_len(nrow(ranked))
     ranked
   })

@@ -286,7 +286,7 @@ test_that("forecast output sanitizes filenames", {
   expect_true(all(c("home_goals", "away_goals", "scoreline", "outcome", "count", "probability") %in% names(scorelines)))
 })
 
-test_that("group table ranking uses points, goal difference, goals for, and seeded ties", {
+test_that("group table ranking falls back to points, goal difference, goals for, and seeded ties", {
   source(file.path(project_root, "R/forecast/tournament.R"))
 
   table <- data.frame(
@@ -300,6 +300,29 @@ test_that("group table ranking uses points, goal difference, goals for, and seed
 
   ranked <- rank_group_table(table)
   expect_equal(ranked$team, c("C", "B", "A", "D"))
+})
+
+test_that("group table ranking applies FIFA head-to-head tiebreakers before overall goal difference", {
+  source(file.path(project_root, "R/forecast/tournament.R"))
+
+  table <- data.frame(
+    team = c("Turkey", "Paraguay", "Australia", "United States"),
+    points = c(3, 3, 6, 6),
+    goal_difference = c(1, -1, 2, 3),
+    goals_for = c(3, 1, 4, 5),
+    tie_breaker = c(0.4, 0.3, 0.2, 0.1),
+    stringsAsFactors = FALSE
+  )
+  matches <- data.frame(
+    home_team = c("Turkey", "United States", "Australia", "Turkey", "Turkey", "Paraguay"),
+    away_team = c("Paraguay", "Australia", "Turkey", "United States", "Australia", "United States"),
+    home_goals = c(0, 2, 2, 1, 3, 0),
+    away_goals = c(1, 0, 0, 3, 0, 1),
+    stringsAsFactors = FALSE
+  )
+
+  ranked <- rank_group_table(table, matches)
+  expect_equal(ranked$team, c("United States", "Australia", "Paraguay", "Turkey"))
 })
 
 test_that("tournament simulation resolves group ties and knockout draws reproducibly", {
