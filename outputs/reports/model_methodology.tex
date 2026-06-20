@@ -1,0 +1,456 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\title{Methodology of the xGelo Forecasting Model}
+\author{xGelo Project}
+\date{June 20, 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+xGelo is an open-data football forecasting system for international fixtures,
+with a particular focus on UEFA World Cup Qualifiers and the 2026 World Cup. The
+implemented model combines a chronological Elo rating system, a shot-level
+expected-goals model, leakage-safe team form and squad-strength features,
+negative-binomial goal models, and Monte Carlo simulation. This paper summarizes
+the methodology implemented in the repository, including the distinction between
+the baseline xG+Elo pipeline and the current 2026 World Cup dashboard deployment.
+The baseline pipeline retains the original xG and rolling-form components, while
+the current dashboard uses Elo, weighted historical goal ability, and
+Transfermarkt player-pool features as active goal-model predictors because the
+available international rolling xG/form coverage is insufficient.
+\end{abstract}
+
+\section{Model Overview}
+
+xGelo is designed as a reproducible analytical pipeline rather than as a
+black-box prediction service. The pipeline is defined in \path{_targets.R} and
+uses R targets to materialize data, fitted models, validation outputs, and
+dashboard artifacts. The model has five conceptual layers:
+
+\begin{enumerate}[leftmargin=*]
+  \item data ingestion from open or local-only sources;
+  \item shot-level expected-goals estimation from StatsBomb event data;
+  \item chronological Elo ratings from historical international results;
+  \item match-level feature construction with strict pre-match lookups; and
+  \item negative-binomial score simulation for win, draw, loss, scoreline, and
+  tournament probabilities.
+\end{enumerate}
+
+The implementation has two closely related forecast routes. The baseline route
+uses Elo differences and candidate rolling xG/form features. The current
+WC2026 dashboard route uses a hybrid feature set: Elo difference, weighted
+historical attack and defense ability, and leakage-safe Transfermarkt
+player-pool valuation features. The overall approach sits in the long
+tradition of football score modeling and tournament simulation, from early
+attack-defense Poisson models through modern Elo, ranking, and hybrid
+tournament forecast systems
+\cite{maher1982,dixoncoles1997,karlisntzoufras2003,gilchmuller2018,groll2018rf}.
+This hybrid design is conceptually close to the
+tournament forecasting work of Groll, Ley, Schauberger, Van Eetvelde, Zeileis,
+and coauthors, who combine estimated team abilities, player or squad
+information, covariates, score prediction, and repeated tournament simulation
+\cite{groll2019wwc,groll2021euro2020,groll2024euro2024}. xGelo adapts that
+idea to a deliberately simpler open-data setting: model-derived strength
+signals are used as covariates in goal-count models, but the active score model
+is a pair of interpretable negative-binomial GLMs rather than a random forest,
+xgboost model, or ensemble. The shot-level xG model remains trained and audited
+in the pipeline, but its derived rolling international form variables are
+inactive in the current dashboard artifact because the generated
+\path{data/processed/xg_feature_usage_audit.csv} records zero variance and no
+forecast-team rolling-form coverage for those predictors.
+
+\section{Data Sources and Temporal Discipline}
+
+The primary historical match source is the martj42 international results data
+set, which provides match dates, teams, venues, neutral-site flags, scores, and
+tournaments from 1872 onward. In the current local artifacts,
+\path{data/processed/elo_matches.csv} contains 49,477 rows from 1872-11-30 to
+2026-06-27, and \path{data/processed/elo_ratings.csv} contains 198,084 rating
+history rows through 2026-06-19. StatsBomb Open Data supplies event-level shot
+coordinates for the xG model. Transfermarkt-derived player-pool features are
+optional and local-only: the raw DuckDB snapshot is not redistributed, while
+derived squad-strength features are built from valuations dated strictly before
+the target match or benchmark cutoff.
+
+Temporal leakage prevention is a central part of the implementation. Feature
+tables are constructed using ``latest before'' lookup functions for Elo,
+rolling form, squad strength, and goal ability. A feature row includes a
+\texttt{feature\_source\_date}, and \texttt{assert\_no\_feature\_leakage()}
+fails if that date is on or after the fixture date. For fixed-cutoff forecasts,
+such as the WC2026 dashboard, all features are sourced before the cutoff. The
+current WC2026 feature artifact uses cutoff 2026-06-19 and contains 40 future
+group-fixture rows plus 2,256 ordered knockout candidate rows.
+
+\section{Shot-Level Expected Goals}
+
+The xG component estimates the probability that a shot becomes a goal. For each
+StatsBomb shot, the implementation extracts:
+
+\begin{itemize}[leftmargin=*]
+  \item distance to the center of the goal;
+  \item shot angle subtended by the two posts;
+  \item whether the shot is a header;
+  \item whether the shot comes from regular open play; and
+  \item competition identity.
+\end{itemize}
+
+Penalties are excluded. StatsBomb coordinates are treated as a 120-by-80 yard
+pitch with the goal centered at $(120,40)$ and posts at $y=36.34$ and
+$y=43.66$. For a shot at $(x,y)$, distance is
+\[
+d = \sqrt{(120 - x)^2 + (40 - y)^2}.
+\]
+The shot angle is computed with the law of cosines. Let $a$ and $b$ be the
+distances from the shot location to the two posts and $c$ be the goal width.
+Then
+\[
+\theta = \cos^{-1}\left(\frac{a^2 + b^2 - c^2}{2ab}\right),
+\]
+with the cosine argument clamped to $[-1,1]$ for numerical stability.
+
+The fitted xG model is a logistic regression implemented with tidymodels. Natural
+spline bases with four degrees of freedom are applied to distance and angle, and
+categorical predictors are dummy encoded after zero-variance filtering:
+\[
+\Pr(\mathrm{goal}_i = 1)
+  = \mathrm{logit}^{-1}\left(\beta_0
+  + f_d(d_i) + f_\theta(\theta_i) + \beta^\top z_i\right),
+\]
+where $z_i$ contains the header, open-play, and competition indicators. The
+current backtest output reports AUC 0.7905, accuracy 0.8462, and Brier score
+0.1188 in \path{outputs/model_performance/xg_backtest.csv}.
+
+\section{Chronological Elo Ratings}
+
+The Elo system is a custom implementation for international football. Teams
+start at 1500. Matches are processed in chronological order, and each team has a
+pre-match and post-match rating history entry. The rating update follows the
+general Elo framework \cite{elo1978}, which has been adapted widely for
+football ranking and prediction \cite{lasek2013,gilchmuller2018}. More general
+dynamic team-rating approaches, such as Knorr-Held's dynamic sports-team rating
+model, motivate the broader idea that team strength should evolve through time
+rather than be estimated as a static season average \cite{knorrheld2000}. The
+expected result for team $A$ against team $B$ is
+\[
+E_A = \frac{1}{1 + 10^{(R_B - R_A)/400}}.
+\]
+For non-neutral matches, a 60-point home advantage is added to the home team's
+pre-match rating before the expected result is computed. The rating update is
+\[
+R_A' = R_A + K_A(S_A - E_A),
+\]
+where $S_A$ is 1 for a win, 0.5 for a draw, and 0 for a loss. The implementation
+uses $K=20$ for teams with at least 15 matches across the previous and current
+year counters, and $K=40$ otherwise. Ratings also decay with inactivity:
+\[
+R(t) = R_0 \cdot 0.995^{\Delta t / 365},
+\]
+where $\Delta t$ is the number of days since the team's last match.
+
+The validation artifact reports an Elo home-win discrimination AUC of 0.7916.
+In later forecast layers, Elo enters as \texttt{elo\_diff}, the pre-match home
+rating minus the pre-match away rating after applying venue adjustment where
+appropriate. This mirrors the football forecasting literature in which Elo or
+ranking-derived team strength is used either directly as a prediction rule or
+as a covariate in score-count models and tournament simulations
+\cite{lasek2013,gilchmuller2018,groll2018rf}.
+
+\section{Match-Level Feature Construction}
+
+The feature layer converts source data into one row per fixture. In the baseline
+route, candidate predictors include differences in rolling xG for, xG against,
+xG difference, shots, and a composite form index. Rolling form is computed with
+an exponentially weighted moving average:
+\[
+\mathrm{EWMA}_t = \alpha x_t + (1-\alpha)\mathrm{EWMA}_{t-1},
+\qquad
+\alpha = \frac{2}{\mathrm{span}+1},
+\]
+with a default span of 12 matches. Importantly, post-match EWMAs are lagged so
+that each row contains only pre-match form.
+
+The current hybrid route expands the match row with two additional families of
+features. The motivation follows the hybrid tournament-forecasting literature:
+instead of relying on one rating or one set of raw covariates, the score model
+is supplied with several partially independent strength summaries. In the
+Zeileis-associated EURO and World Cup work, these summaries include historical
+team-ability estimates, bookmaker-consensus ability estimates, player ratings,
+market values, team structure, and other team covariates
+\cite{leitner2010,groll2015,groll2019wwc,groll2021euro2020,groll2024euro2024}.
+xGelo implements a smaller version of this idea that can be reproduced from the
+local data available in the project.
+
+First, weighted historical goal ability summarizes attack and defense using
+prior international scores. Let $w_m$ be the product of a recency weight and a
+tournament-importance weight for historical match $m$. The recency component
+uses a 730-day half-life,
+\[
+w_m^{\mathrm{time}} = \exp\left(-\log(2)
+  \frac{\mathrm{age}_m}{730}\right),
+\]
+and the tournament component gives major tournaments, qualifiers, and Nations
+League matches more influence than friendlies. For each team, weighted goals
+for and weighted goals against are divided by their corresponding global
+weighted rates. Thus an attack value above 1 indicates scoring above the global
+baseline after weighting, while a defense value above 1 indicates conceding
+above the global baseline. Fixture-level predictors are then formed as
+\texttt{attack\_ability\_diff} and \texttt{defense\_ability\_diff}, measured
+from the listed home-team perspective.
+
+Second, Transfermarkt player-pool strength approximates squad quality and depth.
+The implementation intentionally avoids current-only leakage: raw player profile
+fields that are not historically dated are dropped for historical benchmarks,
+and player valuations are included only when their valuation date precedes the
+match or forecast cutoff. The resulting features are not a single market-value
+number. They include log total squad value, top-11, top-15, and top-23 value,
+median player value, value concentration, positional value aggregates for
+goalkeepers, defense, midfield, and attack, age/value composition, and 6- and
+12-month momentum. Each is converted to a home-minus-away difference before
+entering the model.
+
+The fitted hybrid models retain 26 predictors: \texttt{elo\_diff}, attack and
+defense ability differences, and the Transfermarkt value, structure, position,
+age, and momentum differences listed by \path{R/forecast/poisson.R}. The
+home-goal and away-goal models use the same home-perspective feature convention;
+for neutral fixtures, prediction averages over the original and reversed
+perspectives to avoid giving the first-listed team an artificial home-model
+intercept advantage. Candidate rolling xG/form features are present in the code
+but not active in the current fitted hybrid models because their current
+international feature table values have zero variance and no WC2026 forecast
+team coverage.
+
+\section{Goal Models}
+
+Statistical analysis of football scores predates modern machine-learning
+tournament forecasts. Early work on football score distributions and chance
+includes Moroney, Reep and Benjamin, and Hill
+\cite{moroney1956,reepbenjamin1968,hill1974}. The modern score-model lineage
+then centers on count models for home and away goals, especially Poisson and
+related bivariate or adjusted count models.
+
+The forecast engine fits separate goal-count models for the listed home and away
+teams. The preferred model is a negative-binomial generalized linear model
+fitted with \texttt{MASS::glm.nb}; if the negative-binomial fit fails, the code
+falls back to a Poisson GLM. This score-count framing follows the standard
+football modeling lineage, including independent attack-defense Poisson models,
+low-score dependence corrections, bivariate Poisson models, and Skellam
+goal-difference models
+\cite{maher1982,lee1997,dixoncoles1997,karlisntzoufras2003,karlisntzoufras2009}.
+Recent work continues to study dependence and distributional assumptions in
+football score models \cite{petretta2021,michels2023}. For side
+$s \in \{\mathrm{home}, \mathrm{away}\}$,
+\[
+Y_s \sim \mathrm{NegBin}(\mu_s, \theta_s), \qquad
+\log(\mu_s) = \beta_{0s} + \beta_s^\top x.
+\]
+The negative-binomial form is used because football scores are low-count but
+overdispersed relative to a strict Poisson assumption.
+
+The saved baseline models use only \texttt{elo\_diff}. Their fitted dispersion
+parameters are $\theta=6.083$ for home goals and $\theta=3.010$ for away goals.
+The saved hybrid models use the retained predictor set described above, with
+$\theta=6.114$ for home goals and $\theta=4.945$ for away goals. The hybrid
+training table currently contains 49,437 scored international matches through
+2026-06-19, with 24,229 home wins, 11,243 draws, and 13,965 away wins.
+
+\section{Monte Carlo Match and Tournament Simulation}
+
+For each forecast fixture, the implementation loads the relevant home and away
+goal models, constructs the fixture feature row, predicts mean goals, and draws
+simulated scores from the fitted negative-binomial distributions:
+\[
+Y_\mathrm{home}^{(m)} \sim \mathrm{NegBin}(\mu_\mathrm{home}, \theta_\mathrm{home}),
+\qquad
+Y_\mathrm{away}^{(m)} \sim \mathrm{NegBin}(\mu_\mathrm{away}, \theta_\mathrm{away}).
+\]
+The empirical frequencies across $M$ simulations define home-win, draw, and
+away-win probabilities:
+\[
+\hat{p}_{H} = \frac{1}{M}\sum_{m=1}^{M} \mathbf{1}
+\{Y_\mathrm{home}^{(m)} > Y_\mathrm{away}^{(m)}\},
+\]
+with analogous definitions for draws and away wins. The same score draws also
+produce expected goals, modal scorelines, top exact-score probabilities,
+over/under 2.5 goals, and both-teams-to-score probabilities.
+
+Neutral matches require special handling because separate home and away model
+intercepts otherwise create an arbitrary boost for the first-listed team. For
+neutral fixtures using home-perspective models, xGelo averages the appropriate
+home-model and away-model predictions under the original and reversed team
+perspectives.
+
+The tournament simulator composes match forecasts into group and knockout paths.
+Group-stage simulations sample exact scores, award points, and rank groups using
+World Cup-style head-to-head tiebreakers before goal difference, goals for, and
+a seeded residual tiebreaker. Knockout matches use the 90-minute score model;
+if regulation is drawn, advancement is allocated through an Elo-based tiebreak
+share representing the combined extra-time and penalties path. The dashboard can
+run a fast 100,000-tournament simulator by precomputing fixture distributions
+and ordered knockout advancement matrices. Repeated tournament simulation is
+common in football forecasting because nonlinear tournament rules, group draws,
+tiebreakers, and knockout brackets make closed-form stage probabilities
+impractical \cite{kuonen1996,gilchmuller2018,groll2018rf,groll2021euro2020}.
+
+\section{Validation and Limitations}
+
+The implemented validation checks combine statistical metrics, unit tests, and
+pipeline assertions. The xG model exceeds its target AUC threshold of 0.75. The
+Elo model's validation AUC is 0.7916. Forecast calibration artifacts report a
+draw-probability Brier score near 0.214 and predicted draw frequency near the
+target WCQ-UEFA rate of 28 percent in the v1 project state.
+
+Several limitations remain. The xG model is trained on available open
+StatsBomb data rather than the target WCQ-UEFA competition, and the current
+international rolling xG/form coverage is too sparse to be active in the
+published dashboard. Transfermarkt values are useful proxies for player-pool
+strength but are not a direct measure of tactical fit, player availability, or
+injury status. The knockout tiebreak model combines extra time and penalties
+rather than modeling them separately. Finally, all forecasts are pre-match
+forecasts; the system is not designed for in-play updating.
+
+\section{Conclusion}
+
+xGelo implements an interpretable open-data forecasting stack: chronological Elo
+captures long-run national-team strength, shot-level xG provides a transparent
+event-data component, leakage-safe feature construction prevents future
+information from entering forecasts, negative-binomial goal models represent
+score uncertainty, and Monte Carlo simulation translates goal intensities into
+match and tournament probabilities. The present WC2026 dashboard deployment is
+best understood as a hybrid international-goal model using Elo, historical goal
+ability, and dated squad-value information, with xG/form features retained as
+audited but currently inactive candidate predictors.
+
+\begin{thebibliography}{99}
+\bibitem{martj42}
+martj42. \emph{International football results from 1872 to present}.
+\url{https://github.com/martj42/international_results}
+
+\bibitem{statsbomb}
+StatsBomb. \emph{StatsBomb Open Data}.
+\url{https://github.com/statsbomb/open-data}
+
+\bibitem{transfermarkt}
+dcaribou. \emph{transfermarkt-datasets}.
+\url{https://github.com/dcaribou/transfermarkt-datasets}
+
+\bibitem{elo1978}
+Elo, A. E. \emph{The Rating of Chessplayers, Past and Present}. Arco, 1978.
+
+\bibitem{moroney1956}
+Moroney, M. J. \emph{Facts from Figures}. 3rd ed. Penguin, 1956.
+
+\bibitem{reepbenjamin1968}
+Reep, C. and Benjamin, B. Skill and chance in association football.
+\emph{Journal of the Royal Statistical Society. Series A}, 131(4):581--585,
+1968.
+
+\bibitem{hill1974}
+Hill, I. D. Association football and statistical inference.
+\emph{Applied Statistics}, 23(2):203--208, 1974.
+
+\bibitem{maher1982}
+Maher, M. J. Modelling association football scores. \emph{Statistica
+Neerlandica}, 36(3):109--118, 1982.
+
+\bibitem{kuonen1996}
+Kuonen, D. Statistical models for knock-out soccer tournaments. Technical
+report, 1996.
+
+\bibitem{lee1997}
+Lee, A. J. Modeling scores in the Premier League: Is Manchester United really
+the best? \emph{Chance}, 10(1):15--19, 1997.
+
+\bibitem{dixoncoles1997}
+Dixon, M. J. and Coles, S. G. Modelling association football scores and
+inefficiencies in the football betting market. \emph{Applied Statistics},
+46(2):265--280, 1997.
+
+\bibitem{knorrheld2000}
+Knorr-Held, L. Dynamic rating of sports teams. \emph{The Statistician},
+49(2):261--276, 2000.
+
+\bibitem{karlisntzoufras2003}
+Karlis, D. and Ntzoufras, I. Analysis of sports data by using bivariate Poisson
+models. \emph{The Statistician}, 52(3):381--393, 2003.
+
+\bibitem{karlisntzoufras2009}
+Karlis, D. and Ntzoufras, I. Bayesian modelling of football outcomes: Using the
+Skellam's distribution for the goal difference. \emph{IMA Journal of Management
+Mathematics}, 20(2):133--145, 2009.
+
+\bibitem{leitner2010}
+Leitner, C., Zeileis, A., and Hornik, K. Forecasting sports tournaments by
+ratings of (prob)abilities: A comparison for the EURO 2008. \emph{International
+Journal of Forecasting}, 26(3):471--481, 2010.
+
+\bibitem{groll2015}
+Groll, A., Schauberger, G., and Tutz, G. Prediction of major international
+soccer tournaments based on team-specific regularized Poisson regression: An
+application to the FIFA World Cup 2014. \emph{Statistical Modelling},
+15(4):335--360, 2015.
+
+\bibitem{lasek2013}
+Lasek, J., Szl\'avik, Z., and Bhulai, S. The predictive power of ranking systems
+in association football. \emph{International Journal of Applied Pattern
+Recognition}, 1(1):27--46, 2013.
+
+\bibitem{gilchmuller2018}
+Gilch, L. A. and M{\"u}ller, S. \emph{On Elo Based Prediction Models for the
+FIFA Worldcup 2018}. arXiv:1806.01930, 2018.
+\url{https://arxiv.org/abs/1806.01930}
+
+\bibitem{groll2018rf}
+Groll, A., Ley, C., Schauberger, G., and Van Eetvelde, H. \emph{Prediction of
+the FIFA World Cup 2018 -- A Random Forest Approach with an Emphasis on
+Estimated Team Ability Parameters}. arXiv:1806.03208, 2018.
+\url{https://arxiv.org/abs/1806.03208}
+
+\bibitem{groll2019wwc}
+Groll, A., Ley, C., Schauberger, G., Van Eetvelde, H., and Zeileis, A.
+\emph{Hybrid Machine Learning Forecasts for the FIFA Women's World Cup 2019}.
+arXiv:1906.01131, 2019.
+\url{https://arxiv.org/abs/1906.01131}
+
+\bibitem{groll2021euro2020}
+Groll, A., Hvattum, L. M., Ley, C., Popp, F., Schauberger, G.,
+Van Eetvelde, H., and Zeileis, A.
+\emph{Hybrid Machine Learning Forecasts for the UEFA EURO 2020}.
+arXiv:2106.05799, 2021.
+\url{https://arxiv.org/abs/2106.05799}
+
+\bibitem{groll2024euro2024}
+Groll, A., Hvattum, L. M., Ley, C., Sternemann, J., Schauberger, G.,
+and Zeileis, A.
+\emph{Modeling and Prediction of the UEFA EURO 2024 via Combined Statistical
+Learning Approaches}. arXiv:2410.09068, 2024.
+\url{https://arxiv.org/abs/2410.09068}
+
+\bibitem{petretta2021}
+Petretta, M., Schiavon, L., and Diquigiovanni, J. \emph{On the Dependence in
+Football Match Outcomes: Traditional Model Assumptions and an Alternative
+Proposal}. arXiv:2103.07272, 2021.
+\url{https://arxiv.org/abs/2103.07272}
+
+\bibitem{michels2023}
+Michels, R., {\"O}tting, M., and Karlis, D. \emph{Extending the Dixon and Coles
+Model: An Application to Women's Football Data}. arXiv:2307.02139, 2023.
+\url{https://arxiv.org/abs/2307.02139}
+
+\bibitem{targets}
+Landau, W. M. \emph{The targets R package: a dynamic Make-like function-oriented
+pipeline toolkit for reproducibility and high-performance computing}.
+\url{https://docs.ropensci.org/targets/}
+
+\bibitem{mass}
+Venables, W. N. and Ripley, B. D. \emph{Modern Applied Statistics with S}.
+Springer, 2002.
+\end{thebibliography}
+
+\end{document}
