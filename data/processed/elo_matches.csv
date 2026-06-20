@@ -49435,7 +49435,7 @@
 2026-06-19,"Scotland","Morocco",0,1,"FIFA World Cup","Foxborough","United States",TRUE,"eloratings_fallback","Scotland","Morocco",NA,"MAR",0,"Scotland_Morocco_2026-06-19",FALSE
 2026-06-19,"Brazil","Haiti",3,0,"FIFA World Cup","Philadelphia","United States",TRUE,"espn_scoreboard_fallback","Brazil","Haiti","BRA","HAI",1,"Brazil_Haiti_2026-06-19",FALSE
 2026-06-19,"United States","Australia",2,0,"FIFA World Cup","Seattle","United States",FALSE,"eloratings_fallback","United States","Australia","USA","AUS",1,"United States_Australia_2026-06-19",TRUE
-2026-06-19,"Turkey","Paraguay",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,NA,"Turkey","Paraguay","TUR","PAR",NA,"Turkey_Paraguay_2026-06-19",FALSE
+2026-06-19,"Turkey","Paraguay",0,1,"FIFA World Cup","Santa Clara","United States",TRUE,"espn_scoreboard_fallback","Turkey","Paraguay","TUR","PAR",0,"Turkey_Paraguay_2026-06-19",FALSE
 2026-06-20,"Germany","Ivory Coast",NA,NA,"FIFA World Cup","Toronto","Canada",TRUE,NA,"Germany","Ivory Coast","GER","CIV",NA,"Germany_Ivory Coast_2026-06-20",FALSE
 2026-06-20,"Ecuador","Curaçao",NA,NA,"FIFA World Cup","Kansas City","United States",TRUE,NA,"Ecuador","Curaçao","ECU",NA,NA,"Ecuador_Curaçao_2026-06-20",FALSE
 2026-06-20,"Netherlands","Sweden",NA,NA,"FIFA World Cup","Houston","United States",TRUE,NA,"Netherlands","Sweden","NED","SWE",NA,"Netherlands_Sweden_2026-06-20",FALSE

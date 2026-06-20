@@ -231,22 +231,22 @@ test_that("ESPN scoreboard parser reads completed World Cup scores", {
 
 test_that("ESPN fallback supports one-day event date tolerance and preserves existing sources", {
   results <- data.frame(
-    date = as.Date(c("2026-06-16", "2026-06-16", "2026-06-17", "2026-06-17")),
-    home_team = c("Argentina", "Austria", "France", "Portugal"),
-    away_team = c("Algeria", "Jordan", "Senegal", "DR Congo"),
-    home_score = c(NA, NA, 3, NA),
-    away_score = c(NA, NA, 1, NA),
-    tournament = rep("FIFA World Cup", 4),
-    neutral = rep(TRUE, 4),
-    score_source = c(NA, NA, "eloratings_fallback", NA),
+    date = as.Date(c("2026-06-16", "2026-06-16", "2026-06-17", "2026-06-17", "2026-06-19")),
+    home_team = c("Argentina", "Austria", "France", "Portugal", "Turkey"),
+    away_team = c("Algeria", "Jordan", "Senegal", "DR Congo", "Paraguay"),
+    home_score = c(NA, NA, 3, NA, NA),
+    away_score = c(NA, NA, 1, NA, NA),
+    tournament = rep("FIFA World Cup", 5),
+    neutral = rep(TRUE, 5),
+    score_source = c(NA, NA, "eloratings_fallback", NA, NA),
     stringsAsFactors = FALSE
   )
   espn <- data.frame(
-    date = as.Date(c("2026-06-17", "2026-06-17", "2026-06-17", "2026-06-17")),
-    home_team = c("Argentina", "Austria", "France", "Congo DR"),
-    away_team = c("Algeria", "Jordan", "Senegal", "Portugal"),
-    home_score = c(3L, 3L, 9L, 2L),
-    away_score = c(0L, 1L, 9L, 1L),
+    date = as.Date(c("2026-06-17", "2026-06-17", "2026-06-17", "2026-06-17", "2026-06-20")),
+    home_team = c("Argentina", "Austria", "France", "Congo DR", "Türkiye"),
+    away_team = c("Algeria", "Jordan", "Senegal", "Portugal", "Paraguay"),
+    home_score = c(3L, 3L, 9L, 2L, 0L),
+    away_score = c(0L, 1L, 9L, 1L, 1L),
     stringsAsFactors = FALSE
   )
 
@@ -266,4 +266,7 @@ test_that("ESPN fallback supports one-day event date tolerance and preserves exi
   expect_equal(updated$home_score[4], 1)
   expect_equal(updated$away_score[4], 2)
   expect_equal(updated$score_source[4], "espn_scoreboard_fallback")
+  expect_equal(updated$home_score[5], 0)
+  expect_equal(updated$away_score[5], 1)
+  expect_equal(updated$score_source[5], "espn_scoreboard_fallback")
 })
