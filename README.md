@@ -236,6 +236,7 @@ Useful environment overrides:
 ```bash
 XGELO_AUTO_PUSH=false scripts/auto_update_worldcup_dashboard.sh  # commit only
 XGELO_AUTO_FORCE=true scripts/auto_update_worldcup_dashboard.sh  # rebuild even if martj42 did not change
+XGELO_RUN_BENCHMARK=true scripts/auto_update_worldcup_dashboard.sh  # refresh frozen EURO 2024 validation too
 XGELO_MATCH_SIMS=1000 XGELO_TOURNAMENT_SIMS=1000 scripts/auto_update_worldcup_dashboard.sh
 ```
 

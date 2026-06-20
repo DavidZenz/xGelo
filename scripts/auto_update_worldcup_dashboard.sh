@@ -11,6 +11,7 @@ TOURNAMENT_SIMS="${XGELO_TOURNAMENT_SIMS:-100000}"
 DASHBOARD_WORKERS="${XGELO_DASHBOARD_WORKERS:-4}"
 OUTPUT_DIR="${XGELO_OUTPUT_DIR:-outputs/dashboard_100k}"
 PAGES_DIR="${XGELO_PAGES_DIR:-docs/wc2026}"
+RUN_BENCHMARK="${XGELO_RUN_BENCHMARK:-false}"
 ELORATINGS_CHANGED="false"
 ESPN_CHANGED="false"
 
@@ -97,6 +98,7 @@ export XGELO_TOURNAMENT_SIMS="$TOURNAMENT_SIMS"
 export XGELO_DASHBOARD_WORKERS="$DASHBOARD_WORKERS"
 export XGELO_OUTPUT_DIR="$OUTPUT_DIR"
 export XGELO_PAGES_DIR="$PAGES_DIR"
+export XGELO_RUN_BENCHMARK="$RUN_BENCHMARK"
 
 echo "Rebuilding processed data and hybrid forecast artifacts..."
 Rscript --vanilla -e '
@@ -106,8 +108,13 @@ refresh_targets <- c(
   "transfermarkt_squad_strength_file", "transfermarkt_value_audit_file",
   "hybrid_goal_training_features_file", "home_goal_model_hybrid",
   "away_goal_model_hybrid", "xg_feature_usage_audit_file",
-  "worldcup_forecast_features_file", "euro2024_benchmark"
+  "worldcup_forecast_features_file"
 )
+if (tolower(Sys.getenv("XGELO_RUN_BENCHMARK", "false")) %in% c("true", "1", "yes")) {
+  refresh_targets <- c(refresh_targets, "euro2024_benchmark")
+} else {
+  message("Skipping frozen EURO 2024 benchmark; set XGELO_RUN_BENCHMARK=true to refresh it.")
+}
 targets::tar_invalidate(tidyselect::any_of(refresh_targets))
 targets::tar_make(names = tidyselect::any_of(refresh_targets), callr_function = NULL)
 '
