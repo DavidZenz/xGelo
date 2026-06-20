@@ -60,6 +60,11 @@ related but not identical:
 - Group-stage matches use 90-minute scoreline simulations directly. Each sampled
   score produces points, goals for, goals against, group ranks, and the best
   third-place qualifiers.
+- Group ranking applies FIFA-style head-to-head tiebreakers within equal-point
+  teams before falling back to overall goal difference, overall goals for, and a
+  seeded residual tie-breaker. This matters for teams that can no longer pass a
+  tied opponent because of the direct result, even if their overall goal
+  difference could still improve.
 - Group tables are ordered by projected rank from expected points, expected goal
   difference, and expected goals for. The modal finishing position is retained in
   the dashboard data as a diagnostic summary, but it is not used for the visible
@@ -81,6 +86,13 @@ related but not identical:
 
 The current model does not yet split extra time and penalties into separate
 sub-models; `ET/pens` is one combined tiebreak bucket.
+
+The publication dashboard uses a fast numeric tournament simulator for the
+100,000-tournament path. It pre-indexes group fixtures, parses bracket slots
+once, and precomputes the two-team knockout advancement matrix before the Monte
+Carlo loop. The simulation logic is the same as the object-oriented path, but
+individual random draws are not bit-for-bit identical because knockout
+advancement is sampled directly from the total advancement probability.
 
 ## Repository Layout
 
@@ -321,8 +333,15 @@ the generated static HTML.
 
 Dashboard views include:
 
-- Group matrices with expected points, finish-position probabilities,
-  Round-of-32 qualification, and best-third probabilities.
+- Group cards with a Forecast/Current toggle. The forecast table shows expected
+  points, finish-position probabilities, Round-of-32 qualification, and
+  best-third probabilities. The current table shows points plus `Played`,
+  `Wins`, `Draws`, `Losses`, `Goals For`, `Goals Against`, and `Goal Diff`.
+  Points/xPts and goal difference use compact heat cells for scanning.
+- Round-of-32 status markers next to the points/xPts column. A blue check marks
+  teams already qualified for the Round of 32, and a muted x marks teams with no
+  remaining Round-of-32 route under the current simulation and FIFA head-to-head
+  group tiebreak rules.
 - Match cards with win/draw/loss probabilities, projected goals, modal
   scorelines, over 2.5, and both-teams-to-score probabilities.
 - A connected bracket tree that projects the most likely path from Round of 32
@@ -330,6 +349,10 @@ Dashboard views include:
   projected winner route splits, 90-minute scoring summaries, and title
   probabilities reflected in each round.
 - Team pages showing stage probabilities and group fixtures.
+- An Elo ratings table with current rating rank, rating bar, and Round of 32,
+  Round of 16, quarter-final, semi-final, final, and title probabilities. The
+  probability cells use column-scaled heat coloring so the darkest cell in each
+  probability column marks the highest value in that column.
 
 The bracket is a presentation path estimate derived from full tournament
 simulations. Knockout games do not allow draws: each matchup advances one team
@@ -343,9 +366,13 @@ its own seed, so a seeded run is reproducible across serial and parallel worker
 counts. When no option is set, dashboard builds use up to four local workers.
 Hybrid dashboard builds reuse loaded model objects, vectorize group-fixture
 goal predictions, and derive knockout routes from analytic score grids by
-default (`route_method = "analytic"`). The older route Monte Carlo remains
-available with `route_method = "simulation"`. Knockout route estimates are
-cached lazily by matchup; all-pair route precomputation is available with
+default (`route_method = "analytic"`). For the publication-scale dashboard,
+the group-stage tournament loop also uses pre-indexed numeric fixtures,
+numeric head-to-head ranking, parsed bracket slots, and a precomputed
+knockout advancement matrix so 100,000 match simulations and 100,000 full
+tournament simulations are practical locally. The older route Monte Carlo
+remains available with `route_method = "simulation"`. Knockout route estimates
+are cached lazily by matchup; all-pair route precomputation is available with
 `precompute_knockout_routes = TRUE`, but it is opt-in because a 48-team
 ordered-pair cache is expensive for quick smoke runs.
 Windows falls back to serial execution.
@@ -373,6 +400,10 @@ Environment variables supported by that script include `XGELO_MATCH_SIMS`,
 - `outputs/dashboard/worldcup_forecast.html`: static World Cup dashboard
 - `outputs/dashboard/worldcup_dashboard_data.json`: dashboard source payload
 - `outputs/dashboard/worldcup_*_probabilities.csv`: dashboard probability exports
+- `outputs/dashboard/worldcup_current_group_tables.csv`: current group tables
+  from completed fixtures
+- `outputs/dashboard_100k/`: publication-scale dashboard artifacts before they
+  are synced into `outputs/dashboard/`
 - `outputs/benchmarks/euro2024/euro2024_metrics.csv`: frozen EURO 2024
   baseline-vs-hybrid benchmark metrics
 - `outputs/benchmarks/euro2024/euro2024_predictions.csv`: match-grain EURO 2024
@@ -434,8 +465,8 @@ targets::tar_make(names = validation, callr_function = NULL)
 The test suite covers xG feature calculations, Elo counters, leakage-sensitive
 rolling-form behavior, forecast simulation sanity checks, calibration grouping,
 pipeline validation helpers, World Cup fixture contracts, dashboard exports, and
-bracket projection contracts, including knockout route probabilities that sum to
-one winner per matchup.
+bracket projection contracts, including FIFA head-to-head group tiebreaks and
+knockout route probabilities that sum to one winner per matchup.
 
 ## Important Caveats
 
