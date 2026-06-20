@@ -2722,7 +2722,7 @@ h1{margin:0;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
 .subhead{margin-top:8px;max-width:980px;color:#444}.subhead a{color:var(--blue);font-weight:700;text-decoration:none}.subhead a:hover{text-decoration:underline}.meta{margin-top:10px;color:var(--muted);font-size:12px}
 main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
-.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value,.metric .value.compact-metric-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}
 .group-box h2,.panel-title{font-size:15px;margin:0;font-weight:700}.group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.group-toggle{display:inline-flex;border:1px solid var(--line);background:#f9f9f7}.group-toggle button{border:0;border-right:1px solid var(--line);background:transparent;padding:5px 8px;font-size:12px;font-weight:700;color:#555;cursor:pointer}.group-toggle button:last-child{border-right:0}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}.current-table{min-width:570px}.standing-cell{width:46.6667px;height:50px;text-align:center;vertical-align:middle;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.current-points{height:50px;font-weight:800;vertical-align:middle}.current-table th.standing-head{width:46.6667px;max-width:46.6667px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
 .group-table th,.group-table td{border-bottom:0}.group-table thead tr{height:44px}.group-table tbody tr{height:50px}.group-table th{text-align:center;vertical-align:bottom}.group-table th:first-child{text-align:left}.group-table th.xpts-head,.group-table th.standing-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:8px;font-weight:700}.status-head,.status-cell{width:18px;min-width:18px;padding-left:0;padding-right:0;text-align:center}.status-cell{vertical-align:middle}.team-flag{display:inline-flex;align-items:center;justify-content:center;width:31px;min-width:31px;font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.metric-value{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;min-width:0}.status-mark{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;font-size:10px;line-height:1;font-weight:900;flex:0 0 14px}.status-mark.qualified{color:var(--blue-dark);background:var(--blue-soft);border:1px solid rgba(53,115,168,.30)}.status-mark.eliminated{color:#4f6577;background:#eef3f7;border:1px solid rgba(53,115,168,.20)}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell.empty{background:transparent;color:var(--ink);border-radius:0}.heat-cell.empty::after{display:none}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}.heat-cell.empty.qual,.heat-cell.empty.third{background:transparent}
@@ -2897,7 +2897,13 @@ document.getElementById("meta").textContent = `Generated ${data.metadata.generat
 function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `<span class="title-chance-row"><span class="title-chance-pct">${pct(r.champion_probability)}</span><span class="title-chance-team">${esc(r.display_team)}</span></span>`).join("");
   const groupRows = data.group_probabilities;
+  const lockedThreshold = 0.999995;
+  const lockedGroupWinners = groupRows
+    .filter(row => Number(row.group_win_probability) >= lockedThreshold)
+    .sort((a,b)=>String(a.group).localeCompare(String(b.group)));
+  const unresolvedGroupRows = groupRows.filter(row => Number(row.group_win_probability) < lockedThreshold);
   const topGroup = [...groupRows].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
+  const topUnresolvedGroup = [...unresolvedGroupRows].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
   const open = Object.values(by(groupRows,"group")).map(rows => {
     const winProbs = rows.map(row => Number(row.group_win_probability));
     return {group: rows[0].group, spread: Math.max(...winProbs) - Math.min(...winProbs)};
@@ -2908,13 +2914,22 @@ function renderHero(){
   }).sort((a,b)=>a.margin-b.margin)[0];
   const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
   const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
-  document.getElementById("hero").innerHTML = [
+  const lockedLabels = lockedGroupWinners.map(row => `${row.display_team} (${row.group})`);
+  const lockedValue = lockedLabels.length <= 3 ? lockedLabels.join(", ") : `${lockedLabels.slice(0,3).join(", ")} +${lockedLabels.length - 3}`;
+  const favoriteMetric = lockedGroupWinners.length
+    ? {label:"Locked group winners", value:lockedValue, valueClass:"compact-metric-value", note:`${lockedGroupWinners.length} at 100.0%`}
+    : {label:"Strongest group favorite", value:`${topGroup.display_team} (${topGroup.group})`, note:pct(topGroup.group_win_probability)};
+  const unresolvedMetric = topUnresolvedGroup
+    ? {label:"Strongest unresolved favorite", value:`${topUnresolvedGroup.display_team} (${topUnresolvedGroup.group})`, note:pct(topUnresolvedGroup.group_win_probability)}
+    : {label:"Strongest unresolved favorite", value:"None", note:"All groups fixed at 100.0%"};
+  const heroMetrics = [
     {label:"Top title chances", valueHtml:`<div class="title-chances">${champs}</div>`, valueClass:"title-chances-value", note:"Full tournament simulations"},
     {label:"Likely final", value:finalTeams, note:"Highest final probabilities"},
-    {label:"Strongest group favorite", value:`${topGroup.display_team} (${topGroup.group})`, note:pct(topGroup.group_win_probability)},
-    {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},
-    {label:"Most open group", value:`Group ${open.group}`, note:`Win spread ${pp(open.spread)}`}
-  ].map(m => `<div class="metric"><div class="label">${esc(m.label)}</div><div class="value ${esc(m.valueClass || "")}">${m.valueHtml || esc(m.value)}</div><div class="note">${esc(m.note)}</div></div>`).join("");
+    favoriteMetric,
+    lockedGroupWinners.length ? unresolvedMetric : {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},
+    lockedGroupWinners.length ? {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`} : {label:"Most open group", value:`Group ${open.group}`, note:`Win spread ${pp(open.spread)}`}
+  ];
+  document.getElementById("hero").innerHTML = heroMetrics.map(m => `<div class="metric"><div class="label">${esc(m.label)}</div><div class="value ${esc(m.valueClass || "")}">${m.valueHtml || esc(m.value)}</div><div class="note">${esc(m.note)}</div></div>`).join("");
 }
 function renderGroups(){
   const probs = by(data.group_probabilities, "group");
