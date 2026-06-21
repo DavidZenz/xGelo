@@ -49442,7 +49442,7 @@
 2026-06-20,"Tunisia","Japan",0,4,"FIFA World Cup","Guadalupe","Mexico",TRUE,"martj42","Tunisia","Japan","TUN","JPN",0,"Tunisia_Japan_2026-06-20",FALSE
 2026-06-21,"Belgium","Iran",NA,NA,"FIFA World Cup","Inglewood","United States",TRUE,NA,"Belgium","Iran","BEL","IRN",NA,"Belgium_Iran_2026-06-21",FALSE
 2026-06-21,"New Zealand","Egypt",NA,NA,"FIFA World Cup","Vancouver","Canada",TRUE,NA,"New Zealand","Egypt","NZL","EGY",NA,"New Zealand_Egypt_2026-06-21",FALSE
-2026-06-21,"Spain","Saudi Arabia",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,"Spain","Saudi Arabia","ESP","KSA",NA,"Spain_Saudi Arabia_2026-06-21",FALSE
+2026-06-21,"Spain","Saudi Arabia",4,0,"FIFA World Cup","Atlanta","United States",TRUE,"espn_scoreboard_fallback","Spain","Saudi Arabia","ESP","KSA",1,"Spain_Saudi Arabia_2026-06-21",FALSE
 2026-06-21,"Uruguay","Cape Verde",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,"Uruguay","Cape Verde","URU","CPV",NA,"Uruguay_Cape Verde_2026-06-21",FALSE
 2026-06-22,"France","Iraq",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,NA,"France","Iraq","FRA","IRQ",NA,"France_Iraq_2026-06-22",FALSE
 2026-06-22,"Norway","Senegal",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,"Norway","Senegal","NOR","SEN",NA,"Norway_Senegal_2026-06-22",FALSE
