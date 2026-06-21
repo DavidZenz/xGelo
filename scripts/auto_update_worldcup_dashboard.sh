@@ -84,8 +84,11 @@ if [[ "$AUTO_FORCE" != "true" ]] &&
   git diff --quiet --exit-code -- data/raw/martj42 &&
   [[ "$ELORATINGS_CHANGED" != "true" ]] &&
   [[ "$ESPN_CHANGED" != "true" ]]; then
-  echo "No upstream martj42, EloRatings, or ESPN fallback data changes detected. Nothing to rebuild."
-  exit 0
+  if git diff --quiet --exit-code && git diff --cached --quiet --exit-code; then
+    echo "No upstream martj42, EloRatings, or ESPN fallback data changes detected. Nothing to rebuild."
+    exit 0
+  fi
+  echo "Tracked files changed during feed refresh; rebuilding dashboard outputs for consistency."
 fi
 
 DEFAULT_FEATURE_CUTOFF="$(Rscript --vanilla -e 'cat(as.character(Sys.Date() - 1L))')"
@@ -121,6 +124,9 @@ targets::tar_make(names = tidyselect::any_of(refresh_targets), callr_function = 
 
 echo "Building publication dashboard..."
 Rscript --vanilla scripts/update_worldcup_dashboard.R
+
+echo "Checking dashboard result freshness..."
+Rscript --vanilla scripts/check_dashboard_result_freshness.R
 
 echo "Running tests..."
 Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'
