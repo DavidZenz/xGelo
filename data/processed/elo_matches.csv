@@ -49446,7 +49446,7 @@
 2026-06-21,"Uruguay","Cape Verde",2,2,"FIFA World Cup","Miami Gardens","United States",TRUE,"martj42","Uruguay","Cape Verde","URU","CPV",0.5,"Uruguay_Cape Verde_2026-06-21",FALSE
 2026-06-22,"France","Iraq",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,NA,"France","Iraq","FRA","IRQ",NA,"France_Iraq_2026-06-22",FALSE
 2026-06-22,"Norway","Senegal",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,"Norway","Senegal","NOR","SEN",NA,"Norway_Senegal_2026-06-22",FALSE
-2026-06-22,"Argentina","Austria",NA,NA,"FIFA World Cup","Arlington","United States",TRUE,NA,"Argentina","Austria","ARG","AUT",NA,"Argentina_Austria_2026-06-22",FALSE
+2026-06-22,"Argentina","Austria",2,0,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback","Argentina","Austria","ARG","AUT",1,"Argentina_Austria_2026-06-22",FALSE
 2026-06-22,"Jordan","Algeria",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,NA,"Jordan","Algeria","JOR","ALG",NA,"Jordan_Algeria_2026-06-22",FALSE
 2026-06-23,"Portugal","Uzbekistan",NA,NA,"FIFA World Cup","Houston","United States",TRUE,NA,"Portugal","Uzbekistan","POR","UZB",NA,"Portugal_Uzbekistan_2026-06-23",FALSE
 2026-06-23,"Colombia","DR Congo",NA,NA,"FIFA World Cup","Zapopan","Mexico",TRUE,NA,"Colombia","DR Congo","COL",NA,NA,"Colombia_DR Congo_2026-06-23",FALSE
