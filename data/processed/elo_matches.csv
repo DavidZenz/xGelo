@@ -49444,10 +49444,10 @@
 2026-06-21,"New Zealand","Egypt",1,3,"FIFA World Cup","Vancouver","Canada",TRUE,"martj42","New Zealand","Egypt","NZL","EGY",0,"New Zealand_Egypt_2026-06-21",FALSE
 2026-06-21,"Spain","Saudi Arabia",4,0,"FIFA World Cup","Atlanta","United States",TRUE,"martj42","Spain","Saudi Arabia","ESP","KSA",1,"Spain_Saudi Arabia_2026-06-21",FALSE
 2026-06-21,"Uruguay","Cape Verde",2,2,"FIFA World Cup","Miami Gardens","United States",TRUE,"martj42","Uruguay","Cape Verde","URU","CPV",0.5,"Uruguay_Cape Verde_2026-06-21",FALSE
-2026-06-22,"France","Iraq",3,0,"FIFA World Cup","Philadelphia","United States",TRUE,"verified_score_fallback","France","Iraq","FRA","IRQ",1,"France_Iraq_2026-06-22",FALSE
-2026-06-22,"Norway","Senegal",3,2,"FIFA World Cup","East Rutherford","United States",TRUE,"verified_score_fallback","Norway","Senegal","NOR","SEN",1,"Norway_Senegal_2026-06-22",FALSE
+2026-06-22,"France","Iraq",3,0,"FIFA World Cup","Philadelphia","United States",TRUE,"espn_scoreboard_fallback","France","Iraq","FRA","IRQ",1,"France_Iraq_2026-06-22",FALSE
+2026-06-22,"Norway","Senegal",3,2,"FIFA World Cup","East Rutherford","United States",TRUE,"espn_scoreboard_fallback","Norway","Senegal","NOR","SEN",1,"Norway_Senegal_2026-06-22",FALSE
 2026-06-22,"Argentina","Austria",2,0,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback","Argentina","Austria","ARG","AUT",1,"Argentina_Austria_2026-06-22",FALSE
-2026-06-22,"Jordan","Algeria",1,2,"FIFA World Cup","Santa Clara","United States",TRUE,"verified_score_fallback","Jordan","Algeria","JOR","ALG",0,"Jordan_Algeria_2026-06-22",FALSE
+2026-06-22,"Jordan","Algeria",1,2,"FIFA World Cup","Santa Clara","United States",TRUE,"espn_scoreboard_fallback","Jordan","Algeria","JOR","ALG",0,"Jordan_Algeria_2026-06-22",FALSE
 2026-06-23,"Portugal","Uzbekistan",NA,NA,"FIFA World Cup","Houston","United States",TRUE,NA,"Portugal","Uzbekistan","POR","UZB",NA,"Portugal_Uzbekistan_2026-06-23",FALSE
 2026-06-23,"Colombia","DR Congo",NA,NA,"FIFA World Cup","Zapopan","Mexico",TRUE,NA,"Colombia","DR Congo","COL",NA,NA,"Colombia_DR Congo_2026-06-23",FALSE
 2026-06-23,"England","Ghana",NA,NA,"FIFA World Cup","Foxborough","United States",TRUE,NA,"England","Ghana","ENG","GHA",NA,"England_Ghana_2026-06-23",FALSE
