@@ -2898,12 +2898,18 @@ function renderHero(){
   const champs = data.champion_probabilities.slice(0,3).map(r => `<span class="title-chance-row"><span class="title-chance-pct">${pct(r.champion_probability)}</span><span class="title-chance-team">${esc(r.display_team)}</span></span>`).join("");
   const groupRows = data.group_probabilities;
   const lockedThreshold = 0.999995;
+  const qualifiedThreshold = 0.999;
   const lockedGroupWinners = groupRows
     .filter(row => Number(row.group_win_probability) >= lockedThreshold)
     .sort((a,b)=>String(a.group).localeCompare(String(b.group)));
   const unresolvedGroupRows = groupRows.filter(row => Number(row.group_win_probability) < lockedThreshold);
+  const qualifiedRows = groupRows.filter(row => Number(row.round_of_32_probability) >= qualifiedThreshold);
+  const qualifiedGroups = new Set(qualifiedRows.map(row => row.group));
+  const allGroupsHaveQualifier = qualifiedGroups.size === new Set(groupRows.map(row => row.group)).size;
+  const qualifiedFavoriteRows = qualifiedRows.filter(row => Number(row.group_win_probability) < lockedThreshold);
   const topGroup = [...groupRows].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
   const topUnresolvedGroup = [...unresolvedGroupRows].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
+  const topQualifiedFavorite = [...(qualifiedFavoriteRows.length ? qualifiedFavoriteRows : qualifiedRows)].sort((a,b)=>b.group_win_probability-a.group_win_probability)[0];
   const open = Object.values(by(groupRows,"group")).map(rows => {
     const winProbs = rows.map(row => Number(row.group_win_probability));
     return {group: rows[0].group, spread: Math.max(...winProbs) - Math.min(...winProbs)};
@@ -2922,11 +2928,14 @@ function renderHero(){
   const unresolvedMetric = topUnresolvedGroup
     ? {label:"Strongest unresolved favorite", value:`${topUnresolvedGroup.display_team} (${topUnresolvedGroup.group})`, note:pct(topUnresolvedGroup.group_win_probability)}
     : {label:"Strongest unresolved favorite", value:"None", note:"All groups fixed at 100.0%"};
+  const qualifiedFavoriteMetric = topQualifiedFavorite
+    ? {label:"Strongest qualified favorite", value:`${topQualifiedFavorite.display_team} (${topQualifiedFavorite.group})`, note:`${pct(topQualifiedFavorite.group_win_probability)} group win`}
+    : unresolvedMetric;
   const heroMetrics = [
     {label:"Top title chances", valueHtml:`<div class="title-chances">${champs}</div>`, valueClass:"title-chances-value", note:"Full tournament simulations"},
     {label:"Likely final", value:finalTeams, note:"Highest final probabilities"},
     favoriteMetric,
-    lockedGroupWinners.length ? unresolvedMetric : {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},
+    lockedGroupWinners.length ? (allGroupsHaveQualifier ? qualifiedFavoriteMetric : unresolvedMetric) : {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},
     lockedGroupWinners.length ? {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`} : {label:"Most open group", value:`Group ${open.group}`, note:`Win spread ${pp(open.spread)}`}
   ];
   document.getElementById("hero").innerHTML = heroMetrics.map(m => `<div class="metric"><div class="label">${esc(m.label)}</div><div class="value ${esc(m.valueClass || "")}">${m.valueHtml || esc(m.value)}</div><div class="note">${esc(m.note)}</div></div>`).join("");
