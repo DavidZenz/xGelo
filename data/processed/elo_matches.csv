@@ -49454,8 +49454,8 @@
 2026-06-23,"Panama","Croatia",0,1,"FIFA World Cup","Toronto","Canada",TRUE,"martj42","Panama","Croatia","PAN","CRO",0,"Panama_Croatia_2026-06-23",FALSE
 2026-06-24,"Mexico","Czech Republic",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,NA,"Mexico","Czech Republic","MEX","CZE",NA,"Mexico_Czech Republic_2026-06-24",TRUE
 2026-06-24,"South Africa","South Korea",NA,NA,"FIFA World Cup","Guadalupe","Mexico",TRUE,NA,"South Africa","Korea Republic","RSA","KOR",NA,"South Africa_Korea Republic_2026-06-24",FALSE
-2026-06-24,"Canada","Switzerland",NA,NA,"FIFA World Cup","Vancouver","Canada",FALSE,NA,"Canada","Switzerland","CAN","SUI",NA,"Canada_Switzerland_2026-06-24",TRUE
-2026-06-24,"Bosnia and Herzegovina","Qatar",NA,NA,"FIFA World Cup","Seattle","United States",TRUE,NA,"Bosnia and Herzegovina","Qatar","BIH","QAT",NA,"Bosnia and Herzegovina_Qatar_2026-06-24",FALSE
+2026-06-24,"Canada","Switzerland",1,2,"FIFA World Cup","Vancouver","Canada",FALSE,"eloratings_fallback","Canada","Switzerland","CAN","SUI",0,"Canada_Switzerland_2026-06-24",TRUE
+2026-06-24,"Bosnia and Herzegovina","Qatar",3,1,"FIFA World Cup","Seattle","United States",TRUE,"eloratings_fallback","Bosnia and Herzegovina","Qatar","BIH","QAT",1,"Bosnia and Herzegovina_Qatar_2026-06-24",FALSE
 2026-06-24,"Scotland","Brazil",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,"Scotland","Brazil",NA,"BRA",NA,"Scotland_Brazil_2026-06-24",FALSE
 2026-06-24,"Morocco","Haiti",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,"Morocco","Haiti","MAR","HAI",NA,"Morocco_Haiti_2026-06-24",FALSE
 2026-06-25,"United States","Turkey",NA,NA,"FIFA World Cup","Inglewood","United States",FALSE,NA,"United States","Turkey","USA","TUR",NA,"United States_Turkey_2026-06-25",TRUE
