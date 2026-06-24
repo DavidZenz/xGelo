@@ -49449,7 +49449,7 @@
 2026-06-22,"Argentina","Austria",2,0,"FIFA World Cup","Arlington","United States",TRUE,"martj42","Argentina","Austria","ARG","AUT",1,"Argentina_Austria_2026-06-22",FALSE
 2026-06-22,"Jordan","Algeria",1,2,"FIFA World Cup","Santa Clara","United States",TRUE,"martj42","Jordan","Algeria","JOR","ALG",0,"Jordan_Algeria_2026-06-22",FALSE
 2026-06-23,"Portugal","Uzbekistan",5,0,"FIFA World Cup","Houston","United States",TRUE,"eloratings_fallback","Portugal","Uzbekistan","POR","UZB",1,"Portugal_Uzbekistan_2026-06-23",FALSE
-2026-06-23,"Colombia","DR Congo",NA,NA,"FIFA World Cup","Zapopan","Mexico",TRUE,NA,"Colombia","DR Congo","COL",NA,NA,"Colombia_DR Congo_2026-06-23",FALSE
+2026-06-23,"Colombia","DR Congo",1,0,"FIFA World Cup","Zapopan","Mexico",TRUE,"espn_scoreboard_fallback","Colombia","DR Congo","COL",NA,1,"Colombia_DR Congo_2026-06-23",FALSE
 2026-06-23,"England","Ghana",0,0,"FIFA World Cup","Foxborough","United States",TRUE,"eloratings_fallback","England","Ghana","ENG","GHA",0.5,"England_Ghana_2026-06-23",FALSE
 2026-06-23,"Panama","Croatia",0,1,"FIFA World Cup","Toronto","Canada",TRUE,"eloratings_fallback","Panama","Croatia","PAN","CRO",0,"Panama_Croatia_2026-06-23",FALSE
 2026-06-24,"Mexico","Czech Republic",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,NA,"Mexico","Czech Republic","MEX","CZE",NA,"Mexico_Czech Republic_2026-06-24",TRUE
