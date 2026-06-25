@@ -49456,8 +49456,8 @@
 2026-06-24,"South Africa","South Korea",NA,NA,"FIFA World Cup","Guadalupe","Mexico",TRUE,NA,"South Africa","Korea Republic","RSA","KOR",NA,"South Africa_Korea Republic_2026-06-24",FALSE
 2026-06-24,"Canada","Switzerland",1,2,"FIFA World Cup","Vancouver","Canada",FALSE,"eloratings_fallback","Canada","Switzerland","CAN","SUI",0,"Canada_Switzerland_2026-06-24",TRUE
 2026-06-24,"Bosnia and Herzegovina","Qatar",3,1,"FIFA World Cup","Seattle","United States",TRUE,"eloratings_fallback","Bosnia and Herzegovina","Qatar","BIH","QAT",1,"Bosnia and Herzegovina_Qatar_2026-06-24",FALSE
-2026-06-24,"Scotland","Brazil",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,"Scotland","Brazil",NA,"BRA",NA,"Scotland_Brazil_2026-06-24",FALSE
-2026-06-24,"Morocco","Haiti",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,"Morocco","Haiti","MAR","HAI",NA,"Morocco_Haiti_2026-06-24",FALSE
+2026-06-24,"Scotland","Brazil",0,3,"FIFA World Cup","Miami Gardens","United States",TRUE,"eloratings_fallback","Scotland","Brazil",NA,"BRA",0,"Scotland_Brazil_2026-06-24",FALSE
+2026-06-24,"Morocco","Haiti",4,2,"FIFA World Cup","Atlanta","United States",TRUE,"eloratings_fallback","Morocco","Haiti","MAR","HAI",1,"Morocco_Haiti_2026-06-24",FALSE
 2026-06-25,"United States","Turkey",NA,NA,"FIFA World Cup","Inglewood","United States",FALSE,NA,"United States","Turkey","USA","TUR",NA,"United States_Turkey_2026-06-25",TRUE
 2026-06-25,"Paraguay","Australia",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,NA,"Paraguay","Australia","PAR","AUS",NA,"Paraguay_Australia_2026-06-25",FALSE
 2026-06-25,"Curaçao","Ivory Coast",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,NA,"Curaçao","Ivory Coast",NA,"CIV",NA,"Curaçao_Ivory Coast_2026-06-25",FALSE
