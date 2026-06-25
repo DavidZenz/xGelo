@@ -1,5 +1,1 @@
 "date","home_team","away_team","home_score","away_score","tournament","city","country","neutral","score_source"
-2026-06-24,"Canada","Switzerland",1,2,"FIFA World Cup","Vancouver","Canada",FALSE,"eloratings_fallback"
-2026-06-24,"Bosnia and Herzegovina","Qatar",3,1,"FIFA World Cup","Seattle","United States",TRUE,"eloratings_fallback"
-2026-06-24,"Scotland","Brazil",0,3,"FIFA World Cup","Miami Gardens","United States",TRUE,"eloratings_fallback"
-2026-06-24,"Morocco","Haiti",4,2,"FIFA World Cup","Atlanta","United States",TRUE,"eloratings_fallback"
