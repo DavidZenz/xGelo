@@ -165,12 +165,12 @@ test_that("completed World Cup fixtures are fixed at actual scores", {
   results_path <- tempfile(fileext = ".csv")
   write.csv(
     data.frame(
-      date = as.Date("2026-06-11"),
-      home_team_canonical = "Mexico",
-      away_team_canonical = "South Africa",
-      home_score = 2,
-      away_score = 0,
-      tournament = "FIFA World Cup",
+      date = as.Date(c("2026-06-11", "2026-06-24")),
+      home_team_canonical = c("Mexico", "Mexico"),
+      away_team_canonical = c("South Africa", "Czech Republic"),
+      home_score = c(2, 3),
+      away_score = c(0, 0),
+      tournament = c("FIFA World Cup", "FIFA World Cup"),
       stringsAsFactors = FALSE
     ),
     results_path,
@@ -180,12 +180,19 @@ test_that("completed World Cup fixtures are fixed at actual scores", {
   fixtures <- attach_worldcup_actual_results(
     fixtures = fixtures,
     matches_path = results_path,
-    result_cutoff_date = as.Date("2026-06-12")
+    result_cutoff_date = as.Date("2026-06-25")
   )
   opener <- fixtures[fixtures$match_id == "GA01", ]
   expect_true(opener$is_completed)
   expect_equal(opener$match_status, "final")
   expect_equal(opener$actual_score, "2-0")
+
+  reversed <- fixtures[fixtures$match_id == "GA05", ]
+  expect_true(reversed$is_completed)
+  expect_equal(reversed$match_status, "final")
+  expect_equal(reversed$home_team, "Czech Republic")
+  expect_equal(reversed$away_team, "Mexico")
+  expect_equal(reversed$actual_score, "0-3")
 
   forecast <- forecast_dashboard_matches(opener, n_match_sim = 20, seed = 1)
   expect_true(forecast$match_forecasts$is_completed)

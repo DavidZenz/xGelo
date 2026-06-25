@@ -33,34 +33,50 @@ scored_worldcup <- matches[
 ]
 
 if (nrow(scored_worldcup) > 0) {
-  scored_worldcup$key <- paste(
-    scored_worldcup$date,
-    scored_worldcup$home_team_canonical,
-    scored_worldcup$away_team_canonical
-  )
-  fixtures$key <- paste(fixtures$date, fixtures$home_team, fixtures$away_team)
-  scored_worldcup <- scored_worldcup[scored_worldcup$key %in% fixtures$key, , drop = FALSE]
-}
+  fixture_key <- paste(fixtures$date, fixtures$home_team, fixtures$away_team)
+  fixture_reverse_key <- paste(fixtures$date, fixtures$away_team, fixtures$home_team)
+  exact_fixture_index <- setNames(seq_len(nrow(fixtures)), fixture_key)
+  reverse_fixture_index <- setNames(seq_len(nrow(fixtures)), fixture_reverse_key)
 
-if (nrow(scored_worldcup) > 0) {
-  matched <- merge(
-    scored_worldcup[, c("key", "date", "home_team_canonical", "away_team_canonical", "home_score", "away_score")],
-    fixtures[, c("key", "is_completed", "actual_home_goals", "actual_away_goals")],
-    by = "key",
-    all.x = TRUE
-  )
+  stale <- data.frame()
+  for (idx in seq_len(nrow(scored_worldcup))) {
+    row <- scored_worldcup[idx, , drop = FALSE]
+    key <- paste(row$date, row$home_team_canonical, row$away_team_canonical)
+    fixture_idx <- unname(exact_fixture_index[key])
+    reverse_match <- FALSE
+    if (is.na(fixture_idx)) {
+      fixture_idx <- unname(reverse_fixture_index[key])
+      reverse_match <- !is.na(fixture_idx)
+    }
+    if (is.na(fixture_idx)) next
 
-  stale <- matched[
-    is.na(matched$is_completed) |
-      !matched$is_completed |
-      matched$home_score != matched$actual_home_goals |
-      matched$away_score != matched$actual_away_goals,
-    ,
-    drop = FALSE
-  ]
+    fixture <- fixtures[fixture_idx, , drop = FALSE]
+    expected_home <- as.integer(if (reverse_match) row$away_score[1] else row$home_score[1])
+    expected_away <- as.integer(if (reverse_match) row$home_score[1] else row$away_score[1])
+    fixture_completed <- fixture$is_completed %in% c(TRUE, "TRUE", "true", "1")
+    if (
+      !fixture_completed ||
+        expected_home != fixture$actual_home_goals[1] ||
+        expected_away != fixture$actual_away_goals[1]
+    ) {
+      stale <- rbind(
+        stale,
+        data.frame(
+          date = row$date,
+          source_home_team = row$home_team_canonical,
+          source_away_team = row$away_team_canonical,
+          fixture_home_team = fixture$home_team,
+          fixture_away_team = fixture$away_team,
+          expected_score = paste(expected_home, expected_away, sep = "-"),
+          dashboard_score = fixture$actual_score,
+          stringsAsFactors = FALSE
+        )
+      )
+    }
+  }
 
   if (nrow(stale) > 0) {
-    print(stale)
+    print(stale, row.names = FALSE)
     stop("Dashboard payload is stale relative to scored World Cup fixtures.", call. = FALSE)
   }
 }

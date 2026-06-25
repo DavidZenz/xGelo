@@ -328,14 +328,20 @@ attach_worldcup_actual_results <- function(
   )
   result_index <- split(seq_len(nrow(completed)), result_keys)
   fixture_keys <- worldcup_result_key(fixtures$date, fixtures$home_team, fixtures$away_team)
+  fixture_reverse_keys <- worldcup_result_key(fixtures$date, fixtures$away_team, fixtures$home_team)
   for (i in seq_along(fixture_keys)) {
     idx <- result_index[[fixture_keys[i]]]
+    reverse_match <- FALSE
+    if (length(idx) == 0) {
+      idx <- result_index[[fixture_reverse_keys[i]]]
+      reverse_match <- length(idx) > 0
+    }
     if (length(idx) == 0) next
     row <- completed[idx[length(idx)], , drop = FALSE]
     fixtures$is_completed[i] <- TRUE
     fixtures$match_status[i] <- "final"
-    fixtures$actual_home_goals[i] <- as.integer(row$home_score[1])
-    fixtures$actual_away_goals[i] <- as.integer(row$away_score[1])
+    fixtures$actual_home_goals[i] <- as.integer(if (reverse_match) row$away_score[1] else row$home_score[1])
+    fixtures$actual_away_goals[i] <- as.integer(if (reverse_match) row$home_score[1] else row$away_score[1])
     fixtures$actual_score[i] <- paste(fixtures$actual_home_goals[i], fixtures$actual_away_goals[i], sep = "-")
   }
   fixtures
