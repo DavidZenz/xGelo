@@ -49468,8 +49468,8 @@
 2026-06-26,"New Zealand","Belgium",NA,NA,"FIFA World Cup","Vancouver","Canada",TRUE,NA,"New Zealand","Belgium","NZL","BEL",NA,"New Zealand_Belgium_2026-06-26",FALSE
 2026-06-26,"Cape Verde","Saudi Arabia",NA,NA,"FIFA World Cup","Houston","United States",TRUE,NA,"Cape Verde","Saudi Arabia","CPV","KSA",NA,"Cape Verde_Saudi Arabia_2026-06-26",FALSE
 2026-06-26,"Uruguay","Spain",NA,NA,"FIFA World Cup","Zapopan","Mexico",TRUE,NA,"Uruguay","Spain","URU","ESP",NA,"Uruguay_Spain_2026-06-26",FALSE
-2026-06-26,"Norway","France",NA,NA,"FIFA World Cup","Foxborough","United States",TRUE,NA,"Norway","France","NOR","FRA",NA,"Norway_France_2026-06-26",FALSE
-2026-06-26,"Senegal","Iraq",NA,NA,"FIFA World Cup","Toronto","Canada",TRUE,NA,"Senegal","Iraq","SEN","IRQ",NA,"Senegal_Iraq_2026-06-26",FALSE
+2026-06-26,"Norway","France",1,4,"FIFA World Cup","Foxborough","United States",TRUE,"espn_scoreboard_fallback","Norway","France","NOR","FRA",0,"Norway_France_2026-06-26",FALSE
+2026-06-26,"Senegal","Iraq",5,0,"FIFA World Cup","Toronto","Canada",TRUE,"espn_scoreboard_fallback","Senegal","Iraq","SEN","IRQ",1,"Senegal_Iraq_2026-06-26",FALSE
 2026-06-27,"Algeria","Austria",NA,NA,"FIFA World Cup","Kansas City","United States",TRUE,NA,"Algeria","Austria","ALG","AUT",NA,"Algeria_Austria_2026-06-27",FALSE
 2026-06-27,"Jordan","Argentina",NA,NA,"FIFA World Cup","Arlington","United States",TRUE,NA,"Jordan","Argentina","JOR","ARG",NA,"Jordan_Argentina_2026-06-27",FALSE
 2026-06-27,"Colombia","Portugal",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,"Colombia","Portugal","COL","POR",NA,"Colombia_Portugal_2026-06-27",FALSE
