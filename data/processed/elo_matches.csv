@@ -49462,8 +49462,8 @@
 2026-06-25,"Paraguay","Australia",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,NA,"Paraguay","Australia","PAR","AUS",NA,"Paraguay_Australia_2026-06-25",FALSE
 2026-06-25,"Curaçao","Ivory Coast",0,2,"FIFA World Cup","Philadelphia","United States",TRUE,"eloratings_fallback","Curaçao","Ivory Coast",NA,"CIV",0,"Curaçao_Ivory Coast_2026-06-25",FALSE
 2026-06-25,"Ecuador","Germany",2,1,"FIFA World Cup","East Rutherford","United States",TRUE,"eloratings_fallback","Ecuador","Germany","ECU","GER",1,"Ecuador_Germany_2026-06-25",FALSE
-2026-06-25,"Japan","Sweden",NA,NA,"FIFA World Cup","Arlington","United States",TRUE,NA,"Japan","Sweden","JPN","SWE",NA,"Japan_Sweden_2026-06-25",FALSE
-2026-06-25,"Tunisia","Netherlands",NA,NA,"FIFA World Cup","Kansas City","United States",TRUE,NA,"Tunisia","Netherlands","TUN","NED",NA,"Tunisia_Netherlands_2026-06-25",FALSE
+2026-06-25,"Japan","Sweden",1,1,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback","Japan","Sweden","JPN","SWE",0.5,"Japan_Sweden_2026-06-25",FALSE
+2026-06-25,"Tunisia","Netherlands",1,3,"FIFA World Cup","Kansas City","United States",TRUE,"eloratings_fallback","Tunisia","Netherlands","TUN","NED",0,"Tunisia_Netherlands_2026-06-25",FALSE
 2026-06-26,"Egypt","Iran",NA,NA,"FIFA World Cup","Seattle","United States",TRUE,NA,"Egypt","Iran","EGY","IRN",NA,"Egypt_Iran_2026-06-26",FALSE
 2026-06-26,"New Zealand","Belgium",NA,NA,"FIFA World Cup","Vancouver","Canada",TRUE,NA,"New Zealand","Belgium","NZL","BEL",NA,"New Zealand_Belgium_2026-06-26",FALSE
 2026-06-26,"Cape Verde","Saudi Arabia",NA,NA,"FIFA World Cup","Houston","United States",TRUE,NA,"Cape Verde","Saudi Arabia","CPV","KSA",NA,"Cape Verde_Saudi Arabia_2026-06-26",FALSE
