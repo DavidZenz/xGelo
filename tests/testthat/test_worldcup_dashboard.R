@@ -49,6 +49,62 @@ test_that("World Cup group seed and official fixtures cover the 2026 format", {
   expect_equal(england_opener$host_city, "Arlington")
 })
 
+test_that("World Cup knockout template follows official FIFA match tree", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  bracket <- worldcup_bracket_template(include_champion = FALSE)
+  by_id <- function(match_id) bracket[bracket$match_id == match_id, ]
+
+  expect_equal(by_id("M73")$slot1_label, "Runner-up Group A")
+  expect_equal(by_id("M73")$slot2_label, "Runner-up Group B")
+  expect_equal(by_id("M74")$slot1_label, "Winner Group E")
+  expect_equal(by_id("M74")$slot2_label, "Best 3rd A/B/C/D/F")
+  expect_equal(by_id("M80")$slot1_label, "Winner Group L")
+  expect_equal(by_id("M80")$slot2_label, "Best 3rd E/H/I/J/K")
+  expect_equal(by_id("M87")$slot1_label, "Winner Group K")
+  expect_equal(by_id("M87")$slot2_label, "Best 3rd D/E/I/J/L")
+  expect_equal(by_id("M88")$slot1_label, "Runner-up Group D")
+  expect_equal(by_id("M88")$slot2_label, "Runner-up Group G")
+
+  expect_equal(by_id("M89")$slot1_label, "Winner M74")
+  expect_equal(by_id("M89")$slot2_label, "Winner M77")
+  expect_equal(by_id("M96")$slot1_label, "Winner M85")
+  expect_equal(by_id("M96")$slot2_label, "Winner M87")
+  expect_equal(by_id("M98")$slot1_label, "Winner M93")
+  expect_equal(by_id("M98")$slot2_label, "Winner M94")
+  expect_equal(by_id("M100")$slot1_label, "Winner M95")
+  expect_equal(by_id("M100")$slot2_label, "Winner M96")
+  expect_equal(by_id("M104")$slot1_label, "Winner M101")
+  expect_equal(by_id("M104")$slot2_label, "Winner M102")
+})
+
+test_that("World Cup third-place routing uses FIFA Annex C combinations", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  pairings <- worldcup_third_place_pairing_table(
+    file.path(project_root, "data/raw/worldcup_2026_third_place_pairings.csv")
+  )
+  expect_equal(nrow(pairings), 495)
+  assignments <- worldcup_third_place_assignments(LETTERS[1:8], pairings)
+  expect_equal(unname(assignments[c("A", "B", "D", "E", "G", "I", "K", "L")]), c("H", "G", "B", "C", "A", "F", "D", "E"))
+
+  ranked_groups <- lapply(LETTERS[1:12], function(group_id) {
+    data.frame(
+      group = group_id,
+      team = paste0(group_id, 1:4),
+      display_team = paste0(group_id, 1:4),
+      projected_position = 1:4,
+      third_place_qual_probability = c(0, 0, if (group_id %in% LETTERS[1:8]) 1 else 0, 0),
+      position_3_probability = c(0, 0, 1, 0),
+      stringsAsFactors = FALSE
+    )
+  })
+  group_probabilities <- do.call(rbind, ranked_groups)
+  projected <- projected_worldcup_third_place_candidates(group_probabilities, pairings)
+  expect_equal(projected$assignments["E"], c(E = "C"))
+  expect_equal(projected$candidates$team[projected$candidates$group == "C"], "C3")
+})
+
 test_that("dynamic World Cup knockouts sample route probabilities, not Elo-only winners", {
   source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
 

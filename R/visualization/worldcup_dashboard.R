@@ -783,22 +783,32 @@ worldcup_bracket_template <- function(include_champion = TRUE) {
     round = "Round of 32",
     match_id = paste0("M", 73:88),
     slot1_label = c(
-      "Winner Group E", "Winner Group I", "Runner-up Group A", "Winner Group F",
-      "Winner Group D", "Winner Group G", "Winner Group H", "Runner-up Group K",
-      "Winner Group A", "Winner Group C", "Winner Group B", "Winner Group J",
-      "Winner Group K", "Winner Group L", "Runner-up Group D", "Runner-up Group F"
+      "Runner-up Group A", "Winner Group E", "Winner Group F", "Winner Group C",
+      "Winner Group I", "Runner-up Group E", "Winner Group A", "Winner Group L",
+      "Winner Group D", "Winner Group G", "Runner-up Group K", "Winner Group H",
+      "Winner Group B", "Winner Group J", "Winner Group K", "Runner-up Group D"
     ),
     slot2_label = c(
-      "Best 3rd A/B/C/D/F", "Best 3rd C/D/F/G/H", "Runner-up Group B", "Runner-up Group C",
-      "Best 3rd B/E/F/I/J", "Best 3rd A/E/H/I/J", "Runner-up Group J", "Runner-up Group L",
-      "Best 3rd C/E/F/H/I", "Best 3rd A/B/F/G/K", "Best 3rd E/F/G/I/J", "Runner-up Group H",
-      "Best 3rd A/B/D/E/I", "Best 3rd C/D/E/F/H", "Runner-up Group E", "Runner-up Group G"
+      "Runner-up Group B", "Best 3rd A/B/C/D/F", "Runner-up Group C", "Runner-up Group F",
+      "Best 3rd C/D/F/G/H", "Runner-up Group I", "Best 3rd C/E/F/H/I", "Best 3rd E/H/I/J/K",
+      "Best 3rd B/E/F/I/J", "Best 3rd A/E/H/I/J", "Runner-up Group L", "Runner-up Group J",
+      "Best 3rd E/F/G/I/J", "Runner-up Group H", "Best 3rd D/E/I/J/L", "Runner-up Group G"
     ),
     stringsAsFactors = FALSE
   )
   later <- rbind(
-    data.frame(round = "Round of 16", match_id = paste0("M", 89:96), slot1_label = paste0("Winner M", 73:80), slot2_label = paste0("Winner M", 81:88)),
-    data.frame(round = "Quarter-finals", match_id = paste0("M", 97:100), slot1_label = paste0("Winner M", 89:92), slot2_label = paste0("Winner M", 93:96)),
+    data.frame(
+      round = "Round of 16",
+      match_id = paste0("M", 89:96),
+      slot1_label = paste("Winner", c("M74", "M73", "M76", "M79", "M83", "M81", "M86", "M85")),
+      slot2_label = paste("Winner", c("M77", "M75", "M78", "M80", "M84", "M82", "M88", "M87"))
+    ),
+    data.frame(
+      round = "Quarter-finals",
+      match_id = paste0("M", 97:100),
+      slot1_label = paste("Winner", c("M89", "M93", "M91", "M95")),
+      slot2_label = paste("Winner", c("M90", "M94", "M92", "M96"))
+    ),
     data.frame(round = "Semi-finals", match_id = paste0("M", 101:102), slot1_label = paste0("Winner M", 97:98), slot2_label = paste0("Winner M", 99:100)),
     data.frame(round = "Final", match_id = "M104", slot1_label = "Winner M101", slot2_label = "Winner M102"),
     stringsAsFactors = FALSE
@@ -813,7 +823,70 @@ worldcup_bracket_template <- function(include_champion = TRUE) {
   bracket
 }
 
-resolve_simulated_bracket_slot <- function(slot, ranked_groups, remaining_thirds, match_winners) {
+worldcup_third_place_pairing_table <- function(path = "data/raw/worldcup_2026_third_place_pairings.csv") {
+  if (!file.exists(path) && file.exists(file.path("..", "..", path))) {
+    path <- file.path("..", "..", path)
+  }
+  if (!file.exists(path)) {
+    stop(sprintf("Missing FIFA World Cup 26 third-place pairing table: %s", path), call. = FALSE)
+  }
+  pairings <- read.csv(path, stringsAsFactors = FALSE)
+  required_cols <- c(
+    "qualified_thirds",
+    paste0("vs_", c("1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"))
+  )
+  missing_cols <- setdiff(required_cols, names(pairings))
+  if (length(missing_cols) > 0) {
+    stop(paste("Third-place pairing table missing columns:", paste(missing_cols, collapse = ", ")), call. = FALSE)
+  }
+  pairings
+}
+
+worldcup_third_place_assignments <- function(qualified_third_groups, pairing_table = NULL) {
+  groups <- sort(unique(gsub("^3", "", as.character(qualified_third_groups))))
+  if (length(groups) != 8L) {
+    stop("World Cup third-place assignment requires exactly eight qualified third-place groups", call. = FALSE)
+  }
+  if (is.null(pairing_table)) pairing_table <- worldcup_third_place_pairing_table()
+  key <- paste(groups, collapse = "")
+  row <- pairing_table[pairing_table$qualified_thirds == key, , drop = FALSE]
+  if (nrow(row) != 1L) {
+    stop(sprintf("Missing FIFA Annex C third-place assignment for groups %s", key), call. = FALSE)
+  }
+  assignments <- as.character(row[1, paste0("vs_", c("1A", "1B", "1D", "1E", "1G", "1I", "1K", "1L"))])
+  stats::setNames(gsub("^3", "", assignments), c("A", "B", "D", "E", "G", "I", "K", "L"))
+}
+
+projected_worldcup_third_place_candidates <- function(group_probabilities, pairing_table = NULL) {
+  candidates <- do.call(rbind, lapply(split(group_probabilities, group_probabilities$group), function(group_rows) {
+    preferred <- group_rows[group_rows$projected_position == 3, , drop = FALSE]
+    if (nrow(preferred) == 0) preferred <- group_rows
+    preferred <- preferred[order(
+      -preferred$third_place_qual_probability,
+      -preferred$position_3_probability,
+      preferred$display_team
+    ), , drop = FALSE]
+    preferred[1, c("group", "team", "display_team", "third_place_qual_probability"), drop = FALSE]
+  }))
+  candidates <- candidates[order(-candidates$third_place_qual_probability, candidates$group), , drop = FALSE]
+  candidates <- head(candidates, 8L)
+  assignments <- worldcup_third_place_assignments(candidates$group, pairing_table = pairing_table)
+  list(candidates = candidates, assignments = assignments)
+}
+
+worldcup_winner_group_from_slot <- function(slot) {
+  if (!grepl("^Winner Group [A-L]$", slot)) return(NA_character_)
+  sub(".*Group ([A-L]).*", "\\1", slot)
+}
+
+resolve_simulated_bracket_slot <- function(
+    slot,
+    ranked_groups,
+    remaining_thirds,
+    match_winners,
+    winner_group = NA_character_,
+    third_place_assignments = NULL
+) {
   winner_match <- regmatches(slot, regexpr("^Winner M[0-9]+$", slot))
   if (length(winner_match) > 0 && nzchar(winner_match)) {
     source_match_id <- sub("^Winner ", "", slot)
@@ -828,9 +901,15 @@ resolve_simulated_bracket_slot <- function(slot, ranked_groups, remaining_thirds
     return(list(team = ranked_groups[[group_letter]]$team[2], remaining_thirds = remaining_thirds))
   }
   if (grepl("^Best 3rd", slot)) {
-    allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
-    candidate_idx <- which(remaining_thirds$group %in% allowed)
-    chosen_idx <- if (length(candidate_idx) > 0) candidate_idx[1] else 1
+    if (is.null(third_place_assignments) || is.na(winner_group) || !winner_group %in% names(third_place_assignments)) {
+      stop(sprintf("Missing FIFA Annex C assignment for %s", slot), call. = FALSE)
+    }
+    assigned_group <- third_place_assignments[[winner_group]]
+    candidate_idx <- which(remaining_thirds$group == assigned_group)
+    if (length(candidate_idx) != 1L) {
+      stop(sprintf("Assigned third-place group %s is not available for %s", assigned_group, slot), call. = FALSE)
+    }
+    chosen_idx <- candidate_idx[1]
     team <- remaining_thirds$team[chosen_idx]
     remaining_thirds <- remaining_thirds[-chosen_idx, , drop = FALSE]
     return(list(team = team, remaining_thirds = remaining_thirds))
@@ -1364,6 +1443,7 @@ simulate_knockout_bracket_once <- function(
   }
   bracket <- worldcup_bracket_template(include_champion = FALSE)
   remaining_thirds <- best_thirds
+  third_place_assignments <- worldcup_third_place_assignments(best_thirds$group)
   match_winners <- list()
   reachers <- list(
     round_of_16 = character(),
@@ -1376,7 +1456,14 @@ simulate_knockout_bracket_once <- function(
   for (i in seq_len(nrow(bracket))) {
     slot1 <- resolve_simulated_bracket_slot(bracket$slot1_label[i], ranked_groups, remaining_thirds, match_winners)
     remaining_thirds <- slot1$remaining_thirds
-    slot2 <- resolve_simulated_bracket_slot(bracket$slot2_label[i], ranked_groups, remaining_thirds, match_winners)
+    slot2 <- resolve_simulated_bracket_slot(
+      bracket$slot2_label[i],
+      ranked_groups,
+      remaining_thirds,
+      match_winners,
+      winner_group = worldcup_winner_group_from_slot(bracket$slot1_label[i]),
+      third_place_assignments = third_place_assignments
+    )
     remaining_thirds <- slot2$remaining_thirds
 
     route <- knockout_route_estimator(slot1$team, slot2$team)
@@ -1521,12 +1608,13 @@ simulate_group_stage_dashboard <- function(
   }
 
   bracket <- worldcup_bracket_template(include_champion = FALSE)
+  third_place_pairing_table <- worldcup_third_place_pairing_table()
   bracket_round_code <- match(
     bracket$round,
     c("Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final")
   )
   bracket_match_index <- stats::setNames(seq_len(nrow(bracket)), bracket$match_id)
-  parse_bracket_slot <- function(slot) {
+  parse_bracket_slot <- function(slot, slot1_label = NA_character_) {
     if (grepl("^Winner M[0-9]+$", slot)) {
       return(list(type = "match", value = bracket_match_index[[sub("^Winner ", "", slot)]]))
     }
@@ -1538,12 +1626,16 @@ simulate_group_stage_dashboard <- function(
     }
     if (grepl("^Best 3rd", slot)) {
       allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
-      return(list(type = "best_third", value = unname(group_idx_by_id[allowed])))
+      return(list(
+        type = "best_third",
+        value = unname(group_idx_by_id[allowed]),
+        winner_group = worldcup_winner_group_from_slot(slot1_label)
+      ))
     }
     list(type = "empty", value = NA_integer_)
   }
   bracket_slot1 <- lapply(bracket$slot1_label, parse_bracket_slot)
-  bracket_slot2 <- lapply(bracket$slot2_label, parse_bracket_slot)
+  bracket_slot2 <- Map(parse_bracket_slot, bracket$slot2_label, bracket$slot1_label)
 
   rank_group_fast <- function(points, goals_for, goals_against, home_pos, away_pos, home_goals, away_goals, tie_breaker) {
     goal_difference <- goals_for - goals_against
@@ -1661,6 +1753,10 @@ simulate_group_stage_dashboard <- function(
       )
       best_third_team_idx <- third_team_idx[third_order][1:8]
       best_third_group_pos <- third_order[1:8]
+      third_place_assignments <- worldcup_third_place_assignments(
+        group_ids[best_third_group_pos],
+        pairing_table = third_place_pairing_table
+      )
       round_of_32_idx <- union(as.integer(rank_matrix[1:2, ]), best_third_team_idx)
       chunk_counts$third_qual_count[best_third_team_idx] <- chunk_counts$third_qual_count[best_third_team_idx] + 1
       chunk_counts$round_of_32_count[round_of_32_idx] <- chunk_counts$round_of_32_count[round_of_32_idx] + 1
@@ -1673,8 +1769,16 @@ simulate_group_stage_dashboard <- function(
         if (slot_spec$type == "group_winner") return(rank_matrix[1, slot_spec$value])
         if (slot_spec$type == "group_runner_up") return(rank_matrix[2, slot_spec$value])
         if (slot_spec$type == "best_third") {
-          candidate_idx <- which(remaining_third_groups %in% slot_spec$value)
-          chosen_idx <- if (length(candidate_idx) > 0) candidate_idx[1] else 1L
+          assigned_group <- third_place_assignments[[slot_spec$winner_group]]
+          assigned_group_pos <- group_idx_by_id[[assigned_group]]
+          candidate_idx <- which(remaining_third_groups == assigned_group_pos)
+          if (length(candidate_idx) != 1L) {
+            stop(
+              sprintf("Assigned third-place group %s is not available for simulated bracket", assigned_group),
+              call. = FALSE
+            )
+          }
+          chosen_idx <- candidate_idx[1]
           team_idx <- remaining_third_teams[chosen_idx]
           remaining_third_teams <<- remaining_third_teams[-chosen_idx]
           remaining_third_groups <<- remaining_third_groups[-chosen_idx]
@@ -1940,7 +2044,16 @@ team_stage_probability <- function(team, stage_probabilities, probability_col) {
   row[[probability_col]][1]
 }
 
-resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities, projections = list(), used_teams = character()) {
+resolve_bracket_slot <- function(
+    slot,
+    group_probabilities,
+    stage_probabilities,
+    projections = list(),
+    used_teams = character(),
+    winner_group = NA_character_,
+    third_place_assignments = NULL,
+    third_place_candidates = NULL
+) {
   winner_match <- regmatches(slot, regexpr("^Winner M[0-9]+$", slot))
   if (length(winner_match) > 0 && nzchar(winner_match)) {
     source_match_id <- sub("^Winner ", "", slot)
@@ -1990,6 +2103,20 @@ resolve_bracket_slot <- function(slot, group_probabilities, stage_probabilities,
     ))
   }
   if (grepl("^Best 3rd", slot)) {
+    if (!is.null(third_place_assignments) && !is.null(third_place_candidates) &&
+        !is.na(winner_group) && winner_group %in% names(third_place_assignments)) {
+      assigned_group <- third_place_assignments[[winner_group]]
+      candidates <- third_place_candidates[third_place_candidates$group == assigned_group, , drop = FALSE]
+      if (nrow(candidates) > 0) {
+        row <- candidates[1, ]
+        return(list(
+          team = row$team,
+          display_team = row$display_team,
+          probability = row$third_place_qual_probability,
+          source_match_id = NA_character_
+        ))
+      }
+    }
     allowed <- unlist(strsplit(gsub("[^A-L/]", "", slot), "/"))
     candidates <- group_probabilities[group_probabilities$group %in% allowed, ]
     available <- candidates[!(candidates$team %in% used_teams), ]
@@ -2066,6 +2193,10 @@ build_bracket_paths <- function(
 
   projections <- list()
   used_group_stage_teams <- character()
+  projected_thirds <- projected_worldcup_third_place_candidates(
+    group_probabilities,
+    pairing_table = worldcup_third_place_pairing_table()
+  )
   rating_by_team <- stats::setNames(stage_probabilities$rating, stage_probabilities$team)
   for (i in seq_len(nrow(paths))) {
     slot1 <- resolve_bracket_slot(
@@ -2081,7 +2212,10 @@ build_bracket_paths <- function(
         group_probabilities = group_probabilities,
         stage_probabilities = stage_probabilities,
         projections = projections,
-        used_teams = c(used_group_stage_teams, slot1$team)
+        used_teams = c(used_group_stage_teams, slot1$team),
+        winner_group = worldcup_winner_group_from_slot(paths$slot1_label[i]),
+        third_place_assignments = projected_thirds$assignments,
+        third_place_candidates = projected_thirds$candidates
       )
     } else {
       list(team = NA_character_, display_team = NA_character_, probability = NA_real_, source_match_id = NA_character_)
