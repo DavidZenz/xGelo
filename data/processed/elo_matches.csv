@@ -49458,8 +49458,8 @@
 2026-06-24,"Bosnia and Herzegovina","Qatar",3,1,"FIFA World Cup","Seattle","United States",TRUE,"martj42","Bosnia and Herzegovina","Qatar","BIH","QAT",1,"Bosnia and Herzegovina_Qatar_2026-06-24",FALSE
 2026-06-24,"Scotland","Brazil",0,3,"FIFA World Cup","Miami Gardens","United States",TRUE,"martj42","Scotland","Brazil",NA,"BRA",0,"Scotland_Brazil_2026-06-24",FALSE
 2026-06-24,"Morocco","Haiti",4,2,"FIFA World Cup","Atlanta","United States",TRUE,"martj42","Morocco","Haiti","MAR","HAI",1,"Morocco_Haiti_2026-06-24",FALSE
-2026-06-25,"United States","Turkey",NA,NA,"FIFA World Cup","Inglewood","United States",FALSE,NA,"United States","Turkey","USA","TUR",NA,"United States_Turkey_2026-06-25",TRUE
-2026-06-25,"Paraguay","Australia",NA,NA,"FIFA World Cup","Santa Clara","United States",TRUE,NA,"Paraguay","Australia","PAR","AUS",NA,"Paraguay_Australia_2026-06-25",FALSE
+2026-06-25,"United States","Turkey",2,3,"FIFA World Cup","Inglewood","United States",FALSE,"espn_scoreboard_fallback","United States","Turkey","USA","TUR",0,"United States_Turkey_2026-06-25",TRUE
+2026-06-25,"Paraguay","Australia",0,0,"FIFA World Cup","Santa Clara","United States",TRUE,"espn_scoreboard_fallback","Paraguay","Australia","PAR","AUS",0.5,"Paraguay_Australia_2026-06-25",FALSE
 2026-06-25,"Curaçao","Ivory Coast",0,2,"FIFA World Cup","Philadelphia","United States",TRUE,"eloratings_fallback","Curaçao","Ivory Coast",NA,"CIV",0,"Curaçao_Ivory Coast_2026-06-25",FALSE
 2026-06-25,"Ecuador","Germany",2,1,"FIFA World Cup","East Rutherford","United States",TRUE,"eloratings_fallback","Ecuador","Germany","ECU","GER",1,"Ecuador_Germany_2026-06-25",FALSE
 2026-06-25,"Japan","Sweden",1,1,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback","Japan","Sweden","JPN","SWE",0.5,"Japan_Sweden_2026-06-25",FALSE
