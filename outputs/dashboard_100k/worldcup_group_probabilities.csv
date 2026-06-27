@@ -1,7 +1,7 @@
 "group","team","display_team","fifa_code","group_win_probability","top_two_probability","third_place_qual_probability","round_of_32_probability","position_1_probability","position_2_probability","position_3_probability","position_4_probability","most_likely_position","projected_position","display_position"
 "A","Mexico","Mexico","MEX",1,1,0,1,1,0,0,0,1,1,1
 "A","South Africa","South Africa","RSA",0,1,0,1,0,1,0,0,2,2,2
-"A","Korea Republic","South Korea","KOR",0,0,0.58096,0.58096,0,0,1,0,3,3,3
+"A","Korea Republic","South Korea","KOR",0,0,0.44707,0.44707,0,0,1,0,3,3,3
 "A","Czech Republic","Czechia","CZE",0,0,0,0,0,0,0,1,4,4,4
 "B","Canada","Canada","CAN",0,1,0,1,0,1,0,0,2,2,2
 "B","Bosnia and Herzegovina","Bosnia and Herzegovina","BIH",0,0,1,1,0,0,1,0,3,3,3
@@ -9,7 +9,7 @@
 "B","Qatar","Qatar","QAT",0,0,0,0,0,0,0,1,4,4,4
 "C","Brazil","Brazil","BRA",1,1,0,1,1,0,0,0,1,1,1
 "C","Morocco","Morocco","MAR",0,1,0,1,0,1,0,0,2,2,2
-"C","Scotland","Scotland","SCO",0,0,0.0465,0.0465,0,0,1,0,3,3,3
+"C","Scotland","Scotland","SCO",0,0,0.00408,0.00408,0,0,1,0,3,3,3
 "C","Haiti","Haiti","HAI",0,0,0,0,0,0,0,1,4,4,4
 "D","United States","United States","USA",1,1,0,1,1,0,0,0,1,1,1
 "D","Paraguay","Paraguay","PAR",0,0,1,1,0,0,1,0,3,3,3
@@ -23,27 +23,27 @@
 "F","Japan","Japan","JPN",0,1,0,1,0,1,0,0,2,2,2
 "F","Sweden","Sweden","SWE",0,0,1,1,0,0,1,0,3,3,3
 "F","Tunisia","Tunisia","TUN",0,0,0,0,0,0,0,1,4,4,4
-"G","Egypt","Egypt","EGY",0.54117,0.79008,0.20992,1,0.54117,0.24891,0.20992,0,1,1,1
-"G","Belgium","Belgium","BEL",0.13053,0.59284,0.13626,0.7291,0.13053,0.46231,0.18313,0.22403,2,2,2
-"G","Iran","Iran","IRN",0.3283,0.46619,0.18433,0.65052,0.3283,0.13789,0.46328,0.07053,3,3,3
-"G","New Zealand","New Zealand","NZL",0,0.15089,0.10836,0.25925,0,0.15089,0.14367,0.70544,4,4,4
+"G","Belgium","Belgium","BEL",1,1,0,1,1,0,0,0,1,1,1
+"G","Egypt","Egypt","EGY",0,1,0,1,0,1,0,0,2,2,2
+"G","Iran","Iran","IRN",0,0,0.92302,0.92302,0,0,1,0,3,3,3
+"G","New Zealand","New Zealand","NZL",0,0,0,0,0,0,0,1,4,4,4
 "H","Spain","Spain","ESP",1,1,0,1,1,0,0,0,1,1,1
 "H","Cape Verde","Cape Verde","CPV",0,1,0,1,0,1,0,0,2,2,2
 "H","Saudi Arabia","Saudi Arabia","KSA",0,0,0,0,0,0,0,1,4,4,4
 "H","Uruguay","Uruguay","URU",0,0,0,0,0,0,1,0,3,3,3
 "I","France","France","FRA",1,1,0,1,1,0,0,0,1,1,1
+"I","Senegal","Senegal","SEN",0,0,1,1,0,0,1,0,3,3,3
 "I","Norway","Norway","NOR",0,1,0,1,0,1,0,0,2,2,2
-"I","Senegal","Senegal","SEN",0,0,0.97597,0.97597,0,0,1,0,3,3,3
 "I","Iraq","Iraq","IRQ",0,0,0,0,0,0,0,1,4,4,4
 "J","Argentina","Argentina","ARG",1,1,0,1,1,0,0,0,1,1,1
-"J","Austria","Austria","AUT",0,0.59108,0.20897,0.80005,0,0.59108,0.40892,0,2,3,3
-"J","Algeria","Algeria","ALG",0,0.40892,0.28929,0.69821,0,0.40892,0.59108,0,3,2,2
+"J","Austria","Austria","AUT",0,0.59301,0.15249,0.7455,0,0.59301,0.40699,0,2,3,3
+"J","Algeria","Algeria","ALG",0,0.40699,0.25631,0.6633,0,0.40699,0.59301,0,3,2,2
 "J","Jordan","Jordan","JOR",0,0,0,0,0,0,0,1,4,4,4
-"K","Portugal","Portugal","POR",0.43629,0.99354,0.00646,1,0.43629,0.55725,0.00646,0,2,2,2
-"K","Colombia","Colombia","COL",0.56371,1,0,1,0.56371,0.43629,0,0,1,1,1
-"K","DR Congo","DR Congo","COD",0,0.00646,0.4056,0.41206,0,0.00646,0.65674,0.3368,3,3,3
-"K","Uzbekistan","Uzbekistan","UZB",0,0,0.00759,0.00759,0,0,0.3368,0.6632,4,4,4
-"L","England","England","ENG",0.72744,0.99745,0.00255,1,0.72744,0.27001,0.00255,0,1,1,1
-"L","Ghana","Ghana","GHA",0.11776,0.49285,0.50715,1,0.11776,0.37509,0.50715,0,3,2,2
-"L","Croatia","Croatia","CRO",0.1548,0.5097,0.33009,0.83979,0.1548,0.3549,0.4903,0,3,3,3
+"K","Portugal","Portugal","POR",0.43698,0.99407,0.00593,1,0.43698,0.55709,0.00593,0,2,2,2
+"K","Colombia","Colombia","COL",0.56302,1,0,1,0.56302,0.43698,0,0,1,1,1
+"K","DR Congo","DR Congo","COD",0,0.00593,0.40542,0.41135,0,0.00593,0.65685,0.33722,3,3,3
+"K","Uzbekistan","Uzbekistan","UZB",0,0,0.00385,0.00385,0,0,0.33722,0.66278,4,4,4
+"L","England","England","ENG",0.72716,0.99728,0.00272,1,0.72716,0.27012,0.00272,0,1,1,1
+"L","Ghana","Ghana","GHA",0.11787,0.49435,0.50565,1,0.11787,0.37648,0.50565,0,3,2,2
+"L","Croatia","Croatia","CRO",0.15497,0.50837,0.29346,0.80183,0.15497,0.3534,0.49163,0,3,3,3
 "L","Panama","Panama","PAN",0,0,0,0,0,0,0,1,4,4,4
