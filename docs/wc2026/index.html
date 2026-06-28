@@ -14630,9 +14630,10 @@ function renderEloEvolution(ratings, search){
       const previous = item.series.points[index];
       const gain = Math.round(point.rating - previous.rating);
       if (gain === 0) return "";
+      const resultingRating = Math.round(point.rating);
       const labelX = Math.max(margin.left + 18, Math.min(width - margin.right - 18, x(point.t)));
       const labelY = Math.max(margin.top + 10, Math.min(height - margin.bottom - 8, y(point.rating) - 8));
-      return `<text class="elo-gain-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" fill="${item.color}">${gain >= 0 ? "+" : ""}${gain}</text>`;
+      return `<text class="elo-gain-label" x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" fill="${item.color}">${gain >= 0 ? "+" : ""}${gain} (${resultingRating})</text>`;
     }).join("") : "";
     return `<g class="elo-series"><path class="elo-step-line${item.selected ? " selected" : ""}${item.muted ? " muted" : ""}" d="${item.path}" stroke="${item.color}"><title>${esc(item.name)} ${Math.round(item.series.points[0].rating)} to ${Math.round(item.series.last.rating)}</title></path><path class="elo-hit-line" tabindex="0" role="button" aria-label="${esc(item.name)}" data-team="${item.teamAttr}" d="${item.path}"></path>${gainLabels}${label}</g>`;
   }).join("");
