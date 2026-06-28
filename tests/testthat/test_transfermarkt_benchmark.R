@@ -312,6 +312,58 @@ test_that("WC2026 feature builder creates group and ordered knockout rows withou
   )
 })
 
+test_that("WC2026 feature builder handles completed group stage cutoff", {
+  source(file.path(project_root, "R/forecast/features.R"))
+  source(file.path(project_root, "R/forecast/goal_ability.R"))
+
+  groups <- data.frame(
+    team = c("A", "B", "C"),
+    stringsAsFactors = FALSE
+  )
+  fixtures <- data.frame(
+    match_id = "G1",
+    date = as.Date("2026-06-11"),
+    home_team = "A",
+    away_team = "B",
+    venue = "neutral",
+    stringsAsFactors = FALSE
+  )
+  history <- data.frame(
+    date = as.Date(c("2025-01-01", "2025-02-01")),
+    home_team_canonical = c("A", "B"),
+    away_team_canonical = c("B", "C"),
+    home_score = c(2, 1),
+    away_score = c(0, 1),
+    tournament = "Friendly",
+    stringsAsFactors = FALSE
+  )
+  elo <- data.frame(
+    date = rep(as.Date("2026-06-01"), 3),
+    team = c("A", "B", "C"),
+    rating = c(1600, 1500, 1400),
+    stringsAsFactors = FALSE
+  )
+
+  features <- build_worldcup_forecast_feature_table(
+    groups = groups,
+    fixtures = fixtures,
+    history_matches = history,
+    elo_ratings = elo,
+    feature_cutoff_date = as.Date("2026-06-11")
+  )
+
+  expect_equal(nrow(features), 6)
+  expect_true(all(grepl("^KO_", features$match_id)))
+  expect_true(all(as.Date(features$date) == as.Date("2026-06-12")))
+  assert_worldcup_forecast_features(
+    features,
+    fixtures = fixtures,
+    teams = groups$team,
+    predictors = c("elo_diff", "attack_ability_diff"),
+    cutoff_date = as.Date("2026-06-11")
+  )
+})
+
 test_that("WC2026 squad lookup canonicalizes Transfermarkt country aliases", {
   source(file.path(project_root, "R/forecast/features.R"))
 

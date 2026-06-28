@@ -263,13 +263,14 @@ worldcup_fixtures_to_feature_matches <- function(fixtures) {
   if (length(missing_cols) > 0) {
     stop(paste("World Cup fixtures missing required columns:", paste(missing_cols, collapse = ", ")))
   }
+  n <- nrow(fixtures)
   data.frame(
     match_id = fixtures$match_id,
     date = as.Date(fixtures$date),
     home_team_canonical = fixtures$home_team,
     away_team_canonical = fixtures$away_team,
-    home_score = NA_real_,
-    away_score = NA_real_,
+    home_score = rep(NA_real_, n),
+    away_score = rep(NA_real_, n),
     neutral = fixtures$venue == "neutral",
     venue = fixtures$venue,
     stringsAsFactors = FALSE
