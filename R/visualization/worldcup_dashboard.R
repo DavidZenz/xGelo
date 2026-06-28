@@ -2863,7 +2863,7 @@ h1{margin:0;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
 main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
 .hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value,.metric .value.compact-metric-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}
+.section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}.match-card.knockout{border-left:3px solid var(--blue)}
 .group-box h2,.panel-title{font-size:15px;margin:0;font-weight:700}.group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.group-toggle{display:inline-flex;border:1px solid var(--line);background:#f9f9f7}.group-toggle button{border:0;border-right:1px solid var(--line);background:transparent;padding:5px 8px;font-size:12px;font-weight:700;color:#555;cursor:pointer}.group-toggle button:last-child{border-right:0}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none}.group-table{min-width:570px;border-collapse:separate;border-spacing:3px}.current-table{min-width:570px}.standing-cell{width:46.6667px;height:50px;text-align:center;vertical-align:middle;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.current-points{height:50px;font-weight:800;vertical-align:middle}.current-table th.standing-head{width:46.6667px;max-width:46.6667px}table{width:100%;border-collapse:collapse}th,td{padding:5px 4px;border-bottom:1px solid #eee;text-align:left;font-size:12px}th{color:#555;font-weight:700}.num{text-align:right;font-variant-numeric:tabular-nums}
 .group-table th,.group-table td{border-bottom:0}.group-table thead tr{height:44px}.group-table tbody tr{height:50px}.group-table th{text-align:center;vertical-align:bottom}.group-table th:first-child{text-align:left}.group-table th.xpts-head,.group-table th.standing-head{font-size:11px;line-height:1.1}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:8px;font-weight:700}.status-head,.status-cell{width:18px;min-width:18px;padding-left:0;padding-right:0;text-align:center}.status-cell{vertical-align:middle}.team-flag{display:inline-flex;align-items:center;justify-content:center;width:31px;min-width:31px;font-size:25px;line-height:1}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.metric-value{position:relative;z-index:1;display:inline-flex;align-items:center;justify-content:center;min-width:0}.status-mark{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:50%;font-size:10px;line-height:1;font-weight:900;flex:0 0 14px}.status-mark.qualified{color:var(--blue-dark);background:var(--blue-soft);border:1px solid rgba(53,115,168,.30)}.status-mark.eliminated{color:#4f6577;background:#eef3f7;border:1px solid rgba(53,115,168,.20)}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell::after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell.empty{background:transparent;color:var(--ink);border-radius:0}.heat-cell.empty::after{display:none}.heat-cell .heat-val{position:relative;z-index:1}.heat-cell.qual{background:rgba(47,139,183,var(--heat))}.heat-cell.third{background:rgba(53,115,168,var(--heat))}.heat-cell.empty.qual,.heat-cell.empty.third{background:transparent}
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
@@ -2884,7 +2884,7 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <div class="hero" id="hero"></div>
 <div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button><button class="tab" data-tab="elo">Elo Ratings</button></div>
 <section id="groups" class="section active"><div class="grid-groups" id="groupsGrid"></div></section>
-<section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All groups</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
+<section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All matches</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-inspector" id="bracketInspector" aria-live="polite"></div><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
 <section id="elo" class="section"><div class="toolbar"><input id="eloSearch" placeholder="Search team or group"></div><div class="elo-panel"><p class="elo-note">Ratings are the Elo values used by the tournament simulation snapshot.</p><table class="elo-table"><thead><tr><th>Rank</th><th class="team-col">Team</th><th>Group</th><th>Rating</th><th>R32</th><th>R16</th><th>QF</th><th>HF</th><th>F</th><th>Title</th></tr></thead><tbody id="eloRows"></tbody></table></div></section>
@@ -3124,24 +3124,81 @@ function bindGroupViewToggles(){
     });
   });
 }
+function knockoutMatchRows(){
+  return (data.bracket_paths || [])
+    .filter(r => r.round !== "Champion" && r.slot2_label)
+    .map(r => ({
+      source: "knockout",
+      match_id: r.match_id,
+      stage: "knockout",
+      group: "__knockout",
+      round: r.round,
+      home_team: r.slot1_team || "",
+      away_team: r.slot2_team || "",
+      home_display: r.slot1_display || r.slot1_label,
+      away_display: r.slot2_display || r.slot2_label,
+      win_probability: r.slot1_regulation_win_probability,
+      draw_probability: r.draw_after_regulation_probability,
+      loss_probability: r.slot2_regulation_win_probability,
+      home_goals_expected: r.slot1_expected_goals,
+      away_goals_expected: r.slot2_expected_goals,
+      rounded_expected_score: r.rounded_expected_score,
+      most_likely_score: r.most_likely_score,
+      most_likely_score_probability: r.most_likely_score_probability,
+      over_2_5_probability: r.over_2_5_probability,
+      both_teams_to_score_probability: r.both_teams_to_score_probability,
+      top_scorelines_label: r.top_scorelines_label,
+      slot1_advancement_probability: r.slot1_advancement_probability,
+      slot2_advancement_probability: r.slot2_advancement_probability,
+      projected_winner: r.projected_winner,
+      projected_winner_match_probability: r.projected_winner_match_probability,
+      projected_winner_route_label: r.projected_winner_route_label
+    }));
+}
+function matchTopRows(r, scorelines){
+  if (r.source === "knockout") {
+    return parseTopScorelines(r.top_scorelines_label).map(row => ({
+      scoreline: row.scoreline,
+      probability: row.probability,
+      outcome: scoreOutcome(row.scoreline).replace("slot1", "home").replace("slot2", "away")
+    }));
+  }
+  return (scorelines[r.match_id] || []).slice(0,5);
+}
+function matchFilterAllows(row, filterValue){
+  if (!filterValue) return true;
+  if (filterValue === "__groups") return row.source !== "knockout";
+  if (filterValue === "__knockout") return row.source === "knockout";
+  return row.group === filterValue;
+}
 function renderMatches(){
   const search = document.getElementById("matchSearch").value.toLowerCase();
-  const group = document.getElementById("groupFilter").value;
+  const filterValue = document.getElementById("groupFilter").value;
   const scorelines = by(data.scoreline_distributions, "match_id");
-  const rows = data.match_forecasts.filter(r => (!group || r.group === group) && (`${r.home_display} ${r.away_display}`.toLowerCase().includes(search)));
+  const rows = [...data.match_forecasts.map(r => ({...r, source: "group"})), ...knockoutMatchRows()]
+    .filter(r => matchFilterAllows(r, filterValue) && (`${r.home_display} ${r.away_display} ${r.round || ""}`.toLowerCase().includes(search)));
   document.getElementById("matchesGrid").innerHTML = rows.map(r => {
+    const isKnockout = r.source === "knockout";
     const completed = r.is_completed === true || r.is_completed === "TRUE" || r.match_status === "final";
-    const topRows = (scorelines[r.match_id] || []).slice(0,5);
+    const topRows = matchTopRows(r, scorelines).slice(0,5);
     const maxProb = Math.max(...topRows.map(s => Number(s.probability)), 0.01);
     const topBars = topRows.map(s => {
       const relWidth = Math.max(4, 100 * Number(s.probability) / maxProb);
       return `<div class="scoreline-row"><div class="scoreline-score">${esc(s.scoreline)}</div><div class="scoreline-bar"><span class="scoreline-fill ${esc(s.outcome)}" style="width:${relWidth}%"></span></div><div class="scoreline-prob">${pct(s.probability)}</div></div>`;
     }).join("");
-    const statusChips = completed
+    const knockoutChips = isKnockout
+      ? `<div class="chips"><span class="chip primary">Expected goals ${maybeNum(r.home_goals_expected)}-${maybeNum(r.away_goals_expected)}</span><span class="chip">${esc(r.home_display)} advance ${pct(r.slot1_advancement_probability)}</span><span class="chip">${esc(r.away_display)} advance ${pct(r.slot2_advancement_probability)}</span><span class="chip">Projected winner ${esc(r.projected_winner || "")} ${pct(r.projected_winner_match_probability)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score || "")}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div>`
+      : "";
+    const statusChips = isKnockout
+      ? knockoutChips
+      : completed
       ? `<div class="chips"><span class="chip primary">Final ${esc(r.actual_score)}</span><span class="chip">Fixed in simulations</span></div>`
       : `<div class="chips"><span class="chip primary">Expected goals ${num(r.home_goals_expected)}-${num(r.away_goals_expected)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score)}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span><span class="chip">Top exact score ${esc(r.most_likely_score)} (${pct(r.most_likely_score_probability)})</span></div>`;
-    const heading = completed ? "Final score" : "Top exact scorelines";
-    return `<div class="match-card"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} ${pct(r.loss_probability)}</span></div>${statusChips}${completed ? prematchForecastChips(r) : ""}<div class="scorelines"><div class="scoreline-heading">${heading}</div>${topBars}</div></div>`;
+    const heading = completed ? "Final score" : (isKnockout ? "Top exact 90 min scorelines" : "Top exact scorelines");
+    const meta = isKnockout
+      ? `${esc(r.round)} | ${esc(r.match_id)} | Projected knockout phase`
+      : `Group ${esc(r.group)} | ${esc(r.date)} ${esc(r.kickoff_local)} local | ${esc(r.venue_name)}, ${esc(r.host_city)}`;
+    return `<div class="match-card ${isKnockout ? "knockout" : ""}"><div class="match-title">${esc(r.home_display)} vs ${esc(r.away_display)}</div><div class="match-meta">${meta}</div><div class="wdl"><span style="width:${100*r.win_probability}%"></span><span style="width:${100*r.draw_probability}%"></span><span style="width:${100*r.loss_probability}%"></span></div><div class="chips"><span class="chip">${esc(r.home_display)} 90 min ${pct(r.win_probability)}</span><span class="chip">Draw ${pct(r.draw_probability)}</span><span class="chip">${esc(r.away_display)} 90 min ${pct(r.loss_probability)}</span></div>${statusChips}${completed ? prematchForecastChips(r) : ""}<div class="scorelines"><div class="scoreline-heading">${heading}</div>${topBars}</div></div>`;
   }).join("");
 }
 let selectedBracketMatchId = null;
@@ -3536,6 +3593,7 @@ document.querySelectorAll(".tab").forEach(btn => btn.onclick = () => {
   btn.classList.add("active"); document.getElementById(btn.dataset.tab).classList.add("active");
   if (btn.dataset.tab === "bracket") refreshBracketLinks();
 });
+document.getElementById("groupFilter").innerHTML += `<option value="__groups">Group stage</option><option value="__knockout">Knockout phase</option>`;
 for (const g of "ABCDEFGHIJKL") document.getElementById("groupFilter").innerHTML += `<option value="${g}">Group ${g}</option>`;
 document.getElementById("matchSearch").oninput = renderMatches;
 document.getElementById("groupFilter").onchange = renderMatches;
