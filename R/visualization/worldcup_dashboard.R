@@ -1996,6 +1996,122 @@ build_current_group_tables <- function(groups, fixtures) {
   )]
 }
 
+build_elo_evolution <- function(
+    teams,
+    groups,
+    tournament_start_date,
+    tournament_end_date,
+    elo_ratings_path = "data/processed/elo_ratings.csv",
+    elo_current_path = "data/processed/elo_current.csv"
+) {
+  tournament_start_date <- as.Date(tournament_start_date)
+  tournament_end_date <- max(tournament_start_date, as.Date(tournament_end_date), na.rm = TRUE)
+  group_lookup <- setNames(groups$group, groups$team)
+  display_lookup <- setNames(groups$display_team, groups$team)
+  fifa_lookup <- setNames(groups$fifa_code, groups$team)
+
+  normalise_history <- function(rows) {
+    if (is.null(rows) || nrow(rows) == 0) {
+      return(data.frame(
+        date = as.Date(character()),
+        team = character(),
+        rating = numeric(),
+        match_id = character(),
+        is_post_match = logical(),
+        stringsAsFactors = FALSE
+      ))
+    }
+    rows$date <- as.Date(rows$date)
+    if (!"match_id" %in% names(rows)) rows$match_id <- NA_character_
+    if (!"is_post_match" %in% names(rows)) rows$is_post_match <- TRUE
+    rows <- rows[rows$team %in% teams & !is.na(rows$rating) & !is.na(rows$date), , drop = FALSE]
+    rows$rating <- as.numeric(rows$rating)
+    rows[is.finite(rows$rating), , drop = FALSE]
+  }
+
+  latest_per_team <- function(rows) {
+    rows <- normalise_history(rows)
+    if (nrow(rows) == 0) return(rows)
+    rows <- rows[order(rows$team, rows$date, rows$is_post_match, rows$match_id), , drop = FALSE]
+    do.call(rbind, lapply(split(rows, rows$team), function(team_rows) team_rows[nrow(team_rows), , drop = FALSE]))
+  }
+
+  latest_per_team_date <- function(rows) {
+    rows <- normalise_history(rows)
+    if (nrow(rows) == 0) return(rows)
+    rows$key <- paste(rows$team, rows$date, sep = "\r")
+    rows <- rows[order(rows$key, rows$is_post_match, rows$match_id), , drop = FALSE]
+    out <- do.call(rbind, lapply(split(rows, rows$key), function(team_rows) team_rows[nrow(team_rows), , drop = FALSE]))
+    out$key <- NULL
+    out
+  }
+
+  elo_history <- NULL
+  if (file.exists(elo_ratings_path)) {
+    elo_history <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
+  }
+
+  start_rows <- if (!is.null(elo_history)) {
+    latest_per_team(elo_history[as.Date(elo_history$date) < tournament_start_date, , drop = FALSE])
+  } else {
+    normalise_history(NULL)
+  }
+
+  if (nrow(start_rows) == 0 && file.exists(elo_current_path)) {
+    current <- read.csv(elo_current_path, stringsAsFactors = FALSE)
+    if (!"date" %in% names(current)) current$date <- tournament_start_date
+    if (!"match_id" %in% names(current)) current$match_id <- "current"
+    start_rows <- latest_per_team(current)
+  }
+
+  start_rows <- start_rows[start_rows$team %in% teams, , drop = FALSE]
+  if (nrow(start_rows) > 0) {
+    start_rows$date <- tournament_start_date
+    start_rows$match_id <- "tournament_start"
+    start_rows$is_post_match <- FALSE
+  }
+
+  tournament_rows <- if (!is.null(elo_history)) {
+    rows <- normalise_history(elo_history)
+    if ("is_post_match" %in% names(rows)) {
+      rows <- rows[isTRUE(nrow(rows) > 0) & (rows$is_post_match %in% c(TRUE, "TRUE", "true", 1)), , drop = FALSE]
+    }
+    rows <- rows[
+      rows$date >= tournament_start_date &
+        rows$date <= tournament_end_date,
+      ,
+      drop = FALSE
+    ]
+    latest_per_team_date(rows)
+  } else {
+    normalise_history(NULL)
+  }
+
+  combined <- rbind(
+    start_rows[, intersect(names(start_rows), c("date", "team", "rating", "match_id", "is_post_match")), drop = FALSE],
+    tournament_rows[, intersect(names(tournament_rows), c("date", "team", "rating", "match_id", "is_post_match")), drop = FALSE]
+  )
+  combined <- normalise_history(combined)
+  if (nrow(combined) == 0) return(combined)
+
+  end_rows <- latest_per_team(combined)
+  if (nrow(end_rows) > 0) {
+    end_rows <- end_rows[end_rows$date < tournament_end_date, , drop = FALSE]
+    if (nrow(end_rows) > 0) {
+      end_rows$date <- tournament_end_date
+      end_rows$match_id <- "tournament_end"
+      combined <- rbind(combined, end_rows[, names(combined), drop = FALSE])
+    }
+  }
+
+  combined$display_team <- unname(display_lookup[combined$team])
+  combined$group <- unname(group_lookup[combined$team])
+  combined$fifa_code <- unname(fifa_lookup[combined$team])
+  combined <- combined[order(combined$team, combined$date, combined$is_post_match, combined$match_id), , drop = FALSE]
+  rownames(combined) <- NULL
+  combined[, c("date", "team", "display_team", "group", "fifa_code", "rating", "match_id", "is_post_match")]
+}
+
 latest_elo_before_date <- function(
     teams,
     cutoff_date,
@@ -2717,6 +2833,14 @@ build_worldcup_dashboard_data <- function(
     n_workers = n_workers
   )
   current_group_tables <- build_current_group_tables(groups, fixtures)
+  elo_evolution <- build_elo_evolution(
+    teams = groups$team,
+    groups = groups,
+    tournament_start_date = tournament_start_date,
+    tournament_end_date = actual_results_cutoff_date,
+    elo_ratings_path = elo_ratings_path,
+    elo_current_path = elo_current_path
+  )
   stage_probabilities <- group_data$stage_probabilities
   champion_probabilities <- stage_probabilities[order(-stage_probabilities$champion_probability), c("team", "display_team", "group", "champion_probability")]
   bracket_paths <- build_bracket_paths(
@@ -2790,6 +2914,7 @@ build_worldcup_dashboard_data <- function(
     group_probabilities = group_data$group_probabilities,
     expected_group_tables = group_data$expected_group_tables,
     current_group_tables = current_group_tables,
+    elo_evolution = elo_evolution,
     stage_probabilities = stage_probabilities,
     champion_probabilities = champion_probabilities,
     bracket_paths = bracket_paths
@@ -2836,6 +2961,7 @@ build_worldcup_dashboard_data <- function(
   write.csv(bracket_prematch_archive, bracket_prematch_forecasts_path, row.names = FALSE)
   write.csv(group_data$group_probabilities, file.path(output_dir, "worldcup_group_probabilities.csv"), row.names = FALSE)
   write.csv(current_group_tables, file.path(output_dir, "worldcup_current_group_tables.csv"), row.names = FALSE)
+  write.csv(elo_evolution, file.path(output_dir, "worldcup_elo_evolution.csv"), row.names = FALSE)
   write.csv(stage_probabilities, file.path(output_dir, "worldcup_stage_probabilities.csv"), row.names = FALSE)
   write.csv(bracket_paths, file.path(output_dir, "worldcup_bracket_paths.csv"), row.names = FALSE)
   if (!is.null(payload$model_comparison)) {
@@ -2869,7 +2995,7 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .probbar{height:7px;background:#eee;position:relative;margin-top:3px}.probbar span{display:block;height:100%;background:var(--blue)}
 .match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-divider{grid-column:1/-1;display:flex;align-items:center;gap:10px;margin:8px 0 2px;color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase}.match-divider::before,.match-divider::after{content:"";height:1px;background:var(--line);flex:1}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.prematch-forecast{margin-top:10px;padding-top:8px;border-top:1px solid #eee}.prematch-forecast .wdl{margin:5px 0}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
-.elo-panel{background:#fff;border:1px solid var(--line);padding:10px;overflow-x:auto}.elo-table{min-width:900px}.elo-table th{text-align:right}.elo-table th.team-col,.elo-table td.team-col{text-align:left}.elo-table td{vertical-align:middle}.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;background:#f0eee7;font-weight:800;font-variant-numeric:tabular-nums}.rating-cell{display:grid;grid-template-columns:64px minmax(90px,1fr);gap:10px;align-items:center;min-width:180px}.rating-value{font-weight:900;font-size:15px;color:var(--blue-dark);font-variant-numeric:tabular-nums;text-align:right}.rating-track{height:8px;background:#ece8df;position:relative}.rating-fill{display:block;height:100%;background:var(--blue);min-width:2px}.elo-prob-cell{position:relative;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;border-radius:4px;background:rgba(53,115,168,var(--heat));color:#163c5d;overflow:hidden}.elo-prob-cell::after{content:"";position:absolute;left:5px;right:auto;bottom:3px;width:calc(var(--prob) * (100% - 10px));height:2px;border-radius:4px;background:currentColor;opacity:.45}.elo-prob-cell.strong{font-weight:900}.elo-prob-cell.empty{background:transparent;color:var(--muted)}.elo-prob-cell.empty::after{display:none}.elo-note{margin:0 0 10px;color:var(--muted);font-size:12px}
+.elo-panel{background:#fff;border:1px solid var(--line);padding:10px;overflow-x:auto}.elo-evolution{min-width:900px;margin-bottom:12px;padding:8px 8px 4px;border-bottom:1px solid var(--line)}.elo-evolution-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}.elo-evolution-title{font-size:15px;font-weight:800}.elo-evolution-note{font-size:12px;color:var(--muted);text-align:right}.elo-chart{display:block;width:100%;height:auto;min-height:260px}.elo-axis,.elo-grid{stroke:#e6e1d8;stroke-width:1}.elo-axis-text{fill:#666;font-size:11px}.elo-step-line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;opacity:.82}.elo-step-line.muted{opacity:.22;stroke-width:1.5}.elo-step-label{font-size:11px;font-weight:700}.elo-empty{color:var(--muted);font-size:12px;padding:28px 0}.elo-table{min-width:900px}.elo-table th{text-align:right}.elo-table th.team-col,.elo-table td.team-col{text-align:left}.elo-table td{vertical-align:middle}.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;background:#f0eee7;font-weight:800;font-variant-numeric:tabular-nums}.rating-cell{display:grid;grid-template-columns:64px minmax(90px,1fr);gap:10px;align-items:center;min-width:180px}.rating-value{font-weight:900;font-size:15px;color:var(--blue-dark);font-variant-numeric:tabular-nums;text-align:right}.rating-track{height:8px;background:#ece8df;position:relative}.rating-fill{display:block;height:100%;background:var(--blue);min-width:2px}.elo-prob-cell{position:relative;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;border-radius:4px;background:rgba(53,115,168,var(--heat));color:#163c5d;overflow:hidden}.elo-prob-cell::after{content:"";position:absolute;left:5px;right:auto;bottom:3px;width:calc(var(--prob) * (100% - 10px));height:2px;border-radius:4px;background:currentColor;opacity:.45}.elo-prob-cell.strong{font-weight:900}.elo-prob-cell.empty{background:transparent;color:var(--muted)}.elo-prob-cell.empty::after{display:none}.elo-note{margin:0 0 10px;color:var(--muted);font-size:12px}
 .section.active{position:relative;z-index:1}#bracket.active{z-index:20}.bracket-inspector{display:none;position:fixed;z-index:5000;width:min(440px,calc(100vw - 28px));max-height:calc(100vh - 28px);overflow:auto;background:#fff;border:1px solid var(--line);border-left:3px solid var(--blue);padding:12px;box-shadow:0 16px 38px rgba(17,38,56,.24)}.bracket-inspector.open{display:block}.bracket-inspector-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.bracket-inspector h2{font-size:15px;margin:0}.bracket-inspector-note{font-size:12px;color:var(--muted)}.bracket-inspector-legend{margin-top:7px;font-size:12px;color:#34495b}.bracket-forecast-detail{margin-top:10px;padding-top:10px;border-top:1px solid #e9edf1}.bracket-empty-detail{margin-top:8px;color:var(--muted)}.bracket-wrap{overflow-x:auto;overflow-y:visible;padding-bottom:18px;position:relative}.bracket{position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link.hover-path{stroke:var(--green);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px);cursor:pointer}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-link-label.hover-path{border-color:var(--green);color:#174226;font-weight:800;box-shadow:0 3px 10px rgba(59,135,84,.22)}.bracket-link-label.selected{outline:2px solid var(--ink);outline-offset:2px}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6;cursor:pointer;transition:box-shadow .12s ease,border-color .12s ease,opacity .12s ease}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-game.selected{outline:2px solid var(--ink);outline-offset:2px;box-shadow:0 6px 18px rgba(29,29,31,.16)}.bracket-game.hover-path{border-left-color:var(--green);box-shadow:0 5px 16px rgba(59,135,84,.18)}.bracket.is-hovering .bracket-game:not(.hover-path){opacity:.68}.bracket.is-hovering .bracket-link:not(.hover-path){opacity:.34}.bracket.is-hovering .bracket-link-label:not(.hover-path){opacity:.58}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.bracket-team-target{display:inline-block;cursor:pointer}.bracket-team-target:hover,.bracket-team-target:focus{color:var(--blue-dark);text-decoration:underline}.tooltip-kicker{font-size:10px;line-height:1;text-transform:uppercase;color:var(--muted);letter-spacing:0;font-weight:700}.tooltip-title{margin-top:5px;font-size:15px;font-weight:800;color:var(--ink)}.tooltip-title-team.slot1{color:var(--blue-dark)}.tooltip-title-team.slot2{color:#2f7a49}.tooltip-vs{color:var(--muted);font-weight:700}.tooltip-legend-title{margin-top:7px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.tooltip-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.tooltip-legend-item{display:flex;align-items:center;gap:5px;min-width:0;padding:4px 5px;background:#f7f9fb;border:1px solid #e4eaf0;font-size:10px;font-weight:700;color:#3d4d5b}.legend-dot{width:9px;height:9px;flex:0 0 9px}.legend-dot.slot1{background:var(--blue)}.legend-dot.draw{background:var(--gold)}.legend-dot.slot2{background:var(--green)}.tooltip-legend-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tooltip-winner{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px;background:var(--blue-soft);border-left:3px solid var(--blue);font-size:13px}.tooltip-winner span{font-weight:800;color:var(--blue-dark);font-variant-numeric:tabular-nums}.tooltip-section{margin-top:10px}.tooltip-section-title{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}.tooltip-advance-row{display:grid;grid-template-columns:minmax(90px,1fr) 48px 48px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #eef0f2;font-size:12px}.tooltip-advance-row.slot1{border-left:3px solid var(--blue);padding-left:6px}.tooltip-advance-row.slot2{border-left:3px solid var(--green);padding-left:6px}.tooltip-advance-row.slot1 strong{color:var(--blue-dark)}.tooltip-advance-row.slot2 strong{color:#2f7a49}.tooltip-advance-row:last-child{border-bottom:0}.tooltip-advance-row strong{font-size:12px}.tooltip-advance-head{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700}.tooltip-prob{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}.score-tile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.score-tile{min-height:54px;padding:7px 5px;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;text-align:center;border:1px solid rgba(36,87,126,.12)}.score-tile.slot2_win{background:rgba(59,135,84,var(--heat));color:#174226}.score-tile.draw{background:rgba(210,157,43,var(--heat));color:#513a06}.score-tile.strong{color:#fff}.score-tile-prob{display:block;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums}.score-tile-score{display:block;margin-top:3px;font-size:12px;font-weight:800}.tooltip-foot{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tooltip-pill{padding:3px 6px;background:#f5f7f9;border:1px solid #e3e8ed;font-size:11px;color:#34495b}.tooltip-pill.et-split{display:flex;align-items:center;gap:5px}.tooltip-et-team{font-weight:800}.tooltip-et-team.slot1{color:var(--blue-dark)}.tooltip-et-team.slot2{color:#2f7a49}.tooltip-et-dot{width:8px;height:8px;flex:0 0 8px}.tooltip-et-dot.slot1{background:var(--blue)}.tooltip-et-dot.slot2{background:var(--green)}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
@@ -2887,7 +3013,7 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All matches</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
 <section id="bracket" class="section"><div class="bracket-inspector" id="bracketInspector" aria-live="polite"></div><div class="bracket-wrap"><div class="bracket" id="bracketGrid"></div></div></section>
 <section id="teams" class="section"><div class="toolbar"><input id="teamSearch" placeholder="Search team"></div><div class="team-layout"><div class="team-list" id="teamList"></div><div class="team-detail" id="teamDetail"></div></div></section>
-<section id="elo" class="section"><div class="toolbar"><input id="eloSearch" placeholder="Search team or group"></div><div class="elo-panel"><p class="elo-note">Ratings are the Elo values used by the tournament simulation snapshot.</p><table class="elo-table"><thead><tr><th>Rank</th><th class="team-col">Team</th><th>Group</th><th>Rating</th><th>R32</th><th>R16</th><th>QF</th><th>HF</th><th>F</th><th>Title</th></tr></thead><tbody id="eloRows"></tbody></table></div></section>
+<section id="elo" class="section"><div class="toolbar"><input id="eloSearch" placeholder="Search team or group"></div><div class="elo-panel"><p class="elo-note">Ratings are the Elo values used by the tournament simulation snapshot.</p><div class="elo-evolution" id="eloEvolution"></div><table class="elo-table"><thead><tr><th>Rank</th><th class="team-col">Team</th><th>Group</th><th>Rating</th><th>R32</th><th>R16</th><th>QF</th><th>HF</th><th>F</th><th>Title</th></tr></thead><tbody id="eloRows"></tbody></table></div></section>
 <details open><summary>Methodology</summary><p>xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Completed World Cup group matches are fixed at their actual scores; remaining fixtures are simulated from team Elo strength, leakage-safe Transfermarkt player-pool valuation, and weighted historical goal ability. xG/form is currently not used because international rolling-form coverage is too sparse. The combined model is the default because it improved EURO 2024 Brier score, log loss, and ranked probability score without materially hurting draw calibration. Knockout rounds resolve each simulated bracket directly from the simulated group table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share.</p></details>
 <details><summary>Data Credits</summary><p>This dashboard builds on open football data projects. Historical international results come from <a href="https://github.com/martj42/international_results" target="_blank" rel="noopener">martj42/international_results</a>. Event-level shot data used for xG training comes from <a href="https://github.com/statsbomb/open-data" target="_blank" rel="noopener">StatsBomb Open Data</a>, which is available under StatsBomb Open Data terms for non-commercial analytical use. Player-pool valuation features use a local snapshot of <a href="https://github.com/dcaribou/transfermarkt-datasets" target="_blank" rel="noopener">dcaribou/transfermarkt-datasets</a>. The 2026 World Cup group seeds and fixture schedule are manually maintained in this repository and cross-checked against public FIFA schedule listings.</p></details>
 </main>
@@ -3552,6 +3678,88 @@ function renderTeams(selected){
   }).join("")}<h3 class="panel-title">Projected tournament path</h3>${routeHtml}`;
   document.querySelectorAll(".team-row").forEach(row => row.onclick = () => renderTeams(row.dataset.team));
 }
+function renderEloEvolution(ratings, search){
+  const target = document.getElementById("eloEvolution");
+  if (!target) return;
+  const history = data.elo_evolution || [];
+  if (!history.length || !ratings.length) {
+    target.innerHTML = `<div class="elo-evolution-head"><div class="elo-evolution-title">Elo evolution</div></div><div class="elo-empty">No tournament Elo history available.</div>`;
+    return;
+  }
+  const selectedRatings = search ? ratings.slice(0, 48) : ratings.slice(0, 16);
+  const selectedTeams = new Set(selectedRatings.map(row => row.team));
+  const rows = history
+    .filter(row => selectedTeams.has(row.team) && row.date != null && Number.isFinite(Number(row.rating)))
+    .map(row => ({...row, t: new Date(`${row.date}T00:00:00Z`).getTime(), rating: Number(row.rating)}))
+    .filter(row => Number.isFinite(row.t) && Number.isFinite(row.rating));
+  if (!rows.length) {
+    target.innerHTML = `<div class="elo-evolution-head"><div class="elo-evolution-title">Elo evolution</div></div><div class="elo-empty">No matching tournament Elo history.</div>`;
+    return;
+  }
+  const teamsByRank = Object.fromEntries(selectedRatings.map((row, index) => [row.team, {...row, rank: index + 1}]));
+  const rowsByTeam = by(rows, "team");
+  const teamSeries = Object.keys(rowsByTeam).map(team => {
+    const points = rowsByTeam[team].sort((a,b) => a.t - b.t || a.rating - b.rating);
+    const meta = teamsByRank[team] || points[points.length - 1];
+    return {team, meta, points, last: points[points.length - 1]};
+  }).sort((a,b) => (a.meta.rank || 999) - (b.meta.rank || 999));
+  const width = 1000;
+  const height = 286;
+  const margin = {top: 20, right: 132, bottom: 38, left: 54};
+  const innerW = width - margin.left - margin.right;
+  const innerH = height - margin.top - margin.bottom;
+  const minT = Math.min(...rows.map(row => row.t));
+  let maxT = Math.max(...rows.map(row => row.t));
+  if (maxT <= minT) maxT = minT + 86400000;
+  const ratingsOnly = rows.map(row => row.rating);
+  let minR = Math.floor((Math.min(...ratingsOnly) - 18) / 25) * 25;
+  let maxR = Math.ceil((Math.max(...ratingsOnly) + 18) / 25) * 25;
+  if (maxR <= minR) {
+    minR -= 25;
+    maxR += 25;
+  }
+  const x = t => margin.left + ((t - minT) / (maxT - minT)) * innerW;
+  const y = rating => margin.top + (1 - ((rating - minR) / (maxR - minR))) * innerH;
+  const palette = ["#24577e", "#3b8754", "#d29d2b", "#7c4d79", "#c45b39", "#26878f", "#5f6f2f", "#9a6534"];
+  const stepPath = points => {
+    const p = points.map(point => [x(point.t), y(point.rating)]);
+    return p.slice(1).reduce((path, point) => `${path} H ${point[0].toFixed(1)} V ${point[1].toFixed(1)}`, `M ${p[0][0].toFixed(1)} ${p[0][1].toFixed(1)}`);
+  };
+  const yTicks = Array.from({length: 5}, (_, index) => minR + ((maxR - minR) * index / 4));
+  const dateTicks = [minT, minT + (maxT - minT) / 2, maxT];
+  const dateLabel = t => new Date(t).toLocaleDateString("en-US", {timeZone: "UTC", month: "short", day: "numeric"});
+  const grid = [
+    ...yTicks.map(tick => `<line class="elo-grid" x1="${margin.left}" y1="${y(tick).toFixed(1)}" x2="${(width - margin.right).toFixed(1)}" y2="${y(tick).toFixed(1)}"></line><text class="elo-axis-text" x="${margin.left - 8}" y="${(y(tick) + 4).toFixed(1)}" text-anchor="end">${Math.round(tick)}</text>`),
+    ...dateTicks.map(tick => `<line class="elo-grid" x1="${x(tick).toFixed(1)}" y1="${margin.top}" x2="${x(tick).toFixed(1)}" y2="${height - margin.bottom}"></line><text class="elo-axis-text" x="${x(tick).toFixed(1)}" y="${height - 12}" text-anchor="middle">${esc(dateLabel(tick))}</text>`)
+  ].join("");
+  const labelBase = teamSeries
+    .slice(0, search ? Math.min(12, teamSeries.length) : 8)
+    .map(series => ({series, y: y(series.last.rating)}))
+    .sort((a,b) => a.y - b.y);
+  for (let i = 1; i < labelBase.length; i++) {
+    labelBase[i].y = Math.max(labelBase[i].y, labelBase[i - 1].y + 14);
+  }
+  const overflow = labelBase.length ? labelBase[labelBase.length - 1].y - (height - margin.bottom) : 0;
+  if (overflow > 0) {
+    for (let i = labelBase.length - 1; i >= 0; i--) {
+      labelBase[i].y = Math.max(margin.top + 8, labelBase[i].y - overflow);
+    }
+  }
+  const labelByTeam = Object.fromEntries(labelBase.map(item => [item.series.team, item.y]));
+  const lines = teamSeries.map((series, index) => {
+    const color = palette[index % palette.length];
+    const showLabel = labelByTeam[series.team] != null;
+    const name = series.meta.display_team || series.last.display_team || series.team;
+    const delta = series.points.length > 1 ? series.last.rating - series.points[0].rating : 0;
+    const deltaLabel = `${delta >= 0 ? "+" : ""}${Math.round(delta)}`;
+    const label = showLabel ? `<text class="elo-step-label" x="${(width - margin.right + 8).toFixed(1)}" y="${(labelByTeam[series.team] + 4).toFixed(1)}" fill="${color}">${esc(name)} ${deltaLabel}</text>` : "";
+    return `<path class="elo-step-line${showLabel ? "" : " muted"}" d="${stepPath(series.points)}" stroke="${color}"><title>${esc(name)} ${Math.round(series.points[0].rating)} to ${Math.round(series.last.rating)}</title></path>${label}`;
+  }).join("");
+  const note = search
+    ? `${teamSeries.length} matching team${teamSeries.length === 1 ? "" : "s"}`
+    : `Top ${teamSeries.length} by current Elo`;
+  target.innerHTML = `<div class="elo-evolution-head"><div class="elo-evolution-title">Elo evolution</div><div class="elo-evolution-note">${esc(note)} | ${esc(dateLabel(minT))}-${esc(dateLabel(maxT))}</div></div><svg class="elo-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Elo evolution line-step plot"><line class="elo-axis" x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}"></line><line class="elo-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}"></line>${grid}${lines}</svg>`;
+}
 function renderEloRatings(){
   const search = document.getElementById("eloSearch").value.toLowerCase();
   const groupMeta = Object.fromEntries((data.groups || []).map(row => [row.team, row]));
@@ -3590,6 +3798,7 @@ function renderEloRatings(){
   const minRating = Math.min(...allRatings);
   const maxRating = Math.max(...allRatings);
   const ratingSpan = Math.max(1, maxRating - minRating);
+  renderEloEvolution(ratings, search);
   document.getElementById("eloRows").innerHTML = ratings.map(row => {
     const meta = groupMeta[row.team] || {};
     const code = meta.fifa_code || row.fifa_code || "";
