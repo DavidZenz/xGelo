@@ -659,6 +659,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("toggleEloEvolutionTeam", html, fixed = TRUE))
   expect_true(grepl("elo-hit-line", html, fixed = TRUE))
   expect_true(grepl("eloEvolutionSelectedTeams", html, fixed = TRUE))
+  expect_true(grepl("const selectedRatings = ratings;", html, fixed = TRUE))
   expect_true(grepl("Ratings are the Elo values used by the tournament simulation snapshot", html, fixed = TRUE))
   expect_true(grepl("<th>R32</th><th>R16</th><th>QF</th><th>HF</th><th>F</th><th>Title</th>", html, fixed = TRUE))
   expect_true(grepl("elo-prob-cell", html, fixed = TRUE))

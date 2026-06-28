@@ -3693,7 +3693,7 @@ function renderEloEvolution(ratings, search){
     target.innerHTML = `<div class="elo-evolution-head"><div class="elo-evolution-title">Elo evolution</div></div><div class="elo-empty">No tournament Elo history available.</div>`;
     return;
   }
-  const selectedRatings = search ? ratings.slice(0, 48) : ratings.slice(0, 16);
+  const selectedRatings = ratings;
   const selectedTeams = new Set(selectedRatings.map(row => row.team));
   const rows = history
     .filter(row => selectedTeams.has(row.team) && row.date != null && Number.isFinite(Number(row.rating)))
