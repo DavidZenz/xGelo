@@ -405,12 +405,23 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   saveRDS(structure(list(lambda = 0.6), class = "constant_goal_model"), home_model_path)
   saveRDS(structure(list(lambda = 0.4), class = "constant_goal_model"), away_model_path)
   write.csv(
-    data.frame(
-      date = as.Date(rep("2026-01-01", nrow(groups))),
-      team = groups$team,
-      rating = 1500 + seq_len(nrow(groups)),
-      is_post_match = TRUE,
-      stringsAsFactors = FALSE
+    rbind(
+      data.frame(
+        date = as.Date(rep("2026-01-01", nrow(groups))),
+        team = groups$team,
+        rating = 1500 + seq_len(nrow(groups)),
+        match_id = "seed",
+        is_post_match = TRUE,
+        stringsAsFactors = FALSE
+      ),
+      data.frame(
+        date = as.Date("2026-06-12"),
+        team = groups$team[1],
+        rating = 1600,
+        match_id = "M001",
+        is_post_match = TRUE,
+        stringsAsFactors = FALSE
+      )
     ),
     elo_ratings_path,
     row.names = FALSE
@@ -453,6 +464,9 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   ) %in% names(payload$match_forecasts)))
   expect_true(file.exists(file.path(output_dir, "worldcup_prematch_forecasts.csv")))
   expect_true(file.exists(file.path(output_dir, "worldcup_bracket_prematch_forecasts.csv")))
+  expect_true(file.exists(file.path(output_dir, "worldcup_elo_evolution.csv")))
+  expect_true(all(c("date", "team", "display_team", "group", "rating") %in% names(payload$elo_evolution)))
+  expect_true(any(payload$elo_evolution$match_id == "M001"))
   expect_equal(length(unique(payload$scoreline_distributions$match_id)), 72)
   expect_equal(nrow(payload$group_probabilities), 48)
   expect_equal(sum(payload$group_probabilities$round_of_32_probability), 32, tolerance = 0.001)
@@ -638,6 +652,10 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("xPts<br>Avg", html, fixed = TRUE))
   expect_true(grepl("Elo Ratings", html, fixed = TRUE))
   expect_true(grepl("renderEloRatings", html, fixed = TRUE))
+  expect_true(grepl("renderEloEvolution", html, fixed = TRUE))
+  expect_true(grepl("eloEvolution", html, fixed = TRUE))
+  expect_true(grepl("Elo evolution line-step plot", html, fixed = TRUE))
+  expect_true(grepl("elo-step-line", html, fixed = TRUE))
   expect_true(grepl("Ratings are the Elo values used by the tournament simulation snapshot", html, fixed = TRUE))
   expect_true(grepl("<th>R32</th><th>R16</th><th>QF</th><th>HF</th><th>F</th><th>Title</th>", html, fixed = TRUE))
   expect_true(grepl("elo-prob-cell", html, fixed = TRUE))
