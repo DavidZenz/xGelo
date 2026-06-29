@@ -2894,7 +2894,7 @@ build_worldcup_dashboard_data <- function(
     elo_ratings_path = elo_ratings_path,
     elo_current_path = elo_current_path
   )
-  tournament_knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
+  tournament_knockout_date <- max(max(fixtures$date, na.rm = TRUE) + 1, feature_cutoff_date + 1, na.rm = TRUE)
   knockout_route_estimator <- make_knockout_route_estimator(
     rating_by_team = stats::setNames(knockout_ratings$rating, knockout_ratings$team),
     date = tournament_knockout_date,

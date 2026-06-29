@@ -175,6 +175,14 @@ test_that("EloRatings parser maps known team code variants", {
   expect_equal(parsed$away_score, c(1L, 0L))
 })
 
+test_that("World Cup ESPN fallback date window covers tournament through final", {
+  dates <- worldcup_2026_scoreboard_dates(today = as.Date("2026-06-29"))
+
+  expect_equal(min(dates), as.Date("2026-06-11"))
+  expect_equal(max(dates), as.Date("2026-07-19"))
+  expect_true(as.Date("2026-06-29") %in% dates)
+})
+
 test_that("ESPN scoreboard parser reads completed World Cup scores", {
   temp_dir <- tempfile("espn")
   dir.create(temp_dir)

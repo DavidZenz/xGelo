@@ -331,7 +331,7 @@ build_worldcup_forecast_feature_table <- function(
   if (!all(c("team") %in% names(groups))) stop("groups must contain team")
   feature_cutoff_date <- as.Date(feature_cutoff_date)
   fixtures$date <- as.Date(fixtures$date)
-  knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
+  knockout_date <- max(max(fixtures$date, na.rm = TRUE) + 1, feature_cutoff_date + 1, na.rm = TRUE)
   open_fixtures <- fixtures[feature_cutoff_date < fixtures$date, , drop = FALSE]
   group_rows <- worldcup_fixtures_to_feature_matches(open_fixtures)
   knockout_rows <- worldcup_knockout_candidate_feature_matches(groups$team, knockout_date)
@@ -400,6 +400,7 @@ assert_worldcup_forecast_features <- function(features, fixtures, teams, predict
   fixtures$date <- as.Date(fixtures$date)
   if (is.null(knockout_date)) knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
   if (!is.null(cutoff_date)) {
+    knockout_date <- max(as.Date(knockout_date), as.Date(cutoff_date) + 1, na.rm = TRUE)
     fixtures <- fixtures[as.Date(cutoff_date) < fixtures$date, , drop = FALSE]
   }
   group_keys <- paste(fixtures$date, fixtures$home_team, fixtures$away_team, sep = "\r")

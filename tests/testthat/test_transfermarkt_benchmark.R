@@ -362,6 +362,25 @@ test_that("WC2026 feature builder handles completed group stage cutoff", {
     predictors = c("elo_diff", "attack_ability_diff"),
     cutoff_date = as.Date("2026-06-11")
   )
+
+  post_group_features <- build_worldcup_forecast_feature_table(
+    groups = groups,
+    fixtures = fixtures,
+    history_matches = history,
+    elo_ratings = elo,
+    feature_cutoff_date = as.Date("2026-06-12")
+  )
+
+  expect_equal(nrow(post_group_features), 6)
+  expect_true(all(grepl("^KO_", post_group_features$match_id)))
+  expect_true(all(as.Date(post_group_features$date) == as.Date("2026-06-13")))
+  assert_worldcup_forecast_features(
+    post_group_features,
+    fixtures = fixtures,
+    teams = groups$team,
+    predictors = c("elo_diff", "attack_ability_diff"),
+    cutoff_date = as.Date("2026-06-12")
+  )
 })
 
 test_that("WC2026 squad lookup canonicalizes Transfermarkt country aliases", {

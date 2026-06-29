@@ -385,9 +385,25 @@ apply_verified_score_fallback <- function(
   )
 }
 
+worldcup_2026_scoreboard_dates <- function(
+    today = Sys.Date(),
+    tournament_start = Sys.getenv("XGELO_TOURNAMENT_START_DATE", "2026-06-11"),
+    tournament_final = Sys.getenv("XGELO_TOURNAMENT_FINAL_DATE", "2026-07-19")) {
+  today <- as.Date(today)
+  tournament_start <- as.Date(tournament_start)
+  tournament_final <- as.Date(tournament_final)
+  if (is.na(today) || is.na(tournament_start) || is.na(tournament_final)) {
+    stop("World Cup scoreboard dates must parse as ISO dates", call. = FALSE)
+  }
+
+  start_date <- if (today <= tournament_final) tournament_start else max(tournament_start, today - 2L)
+  end_date <- if (today <= tournament_final) tournament_final else today + 1L
+  seq.Date(start_date, end_date, by = "day")
+}
+
 download_espn_scoreboard_files <- function(
     output_dir = "data/raw/espn",
-    dates = seq.Date(Sys.Date() - 2L, Sys.Date() + 1L, by = "day"),
+    dates = worldcup_2026_scoreboard_dates(),
     base_url = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard") {
   if (!dir.exists(output_dir)) {
     dir.create(output_dir, recursive = TRUE)

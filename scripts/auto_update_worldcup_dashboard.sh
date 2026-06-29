@@ -72,7 +72,7 @@ if download_if_changed "https://www.eloratings.net/en.teams.tsv" "data/raw/elora
 fi
 
 echo "Downloading ESPN scoreboard fallback data..."
-ESPN_DATES="$(Rscript --vanilla -e 'cat(format(seq.Date(Sys.Date() - 2L, Sys.Date() + 1L, by = "day"), "%Y%m%d"), sep = "\n")')"
+ESPN_DATES="$(Rscript --vanilla -e 'today <- Sys.Date(); tournament_start <- as.Date(Sys.getenv("XGELO_TOURNAMENT_START_DATE", "2026-06-11")); tournament_final <- as.Date(Sys.getenv("XGELO_TOURNAMENT_FINAL_DATE", "2026-07-19")); if (is.na(tournament_start) || is.na(tournament_final)) stop("World Cup scoreboard dates must parse as ISO dates"); start_date <- if (today <= tournament_final) tournament_start else max(tournament_start, today - 2L); end_date <- if (today <= tournament_final) tournament_final else today + 1L; cat(format(seq.Date(start_date, end_date, by = "day"), "%Y%m%d"), sep = "\n")')"
 while IFS= read -r ESPN_DATE; do
   if [[ -n "$ESPN_DATE" ]] &&
     download_if_changed "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard?dates=${ESPN_DATE}" "data/raw/espn/scoreboard_${ESPN_DATE}.json"; then
