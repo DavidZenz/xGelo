@@ -391,6 +391,56 @@ test_that("bracket prematch archive preserves projected knockout forecasts", {
   expect_equal(attached$prematch_top_scorelines_label, "1-0 12.0%; 1-1 11.0%")
 })
 
+test_that("knockout bracket rows attach actual decided results", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  bracket_paths <- data.frame(
+    round = c("Round of 32", "Round of 16"),
+    match_id = c("M73", "M90"),
+    slot1_label = c("Runner-up Group A", "Winner M73"),
+    slot2_label = c("Runner-up Group B", "Winner M75"),
+    slot1_team = c("South Africa", "Canada"),
+    slot1_display = c("South Africa", "Canada"),
+    slot1_source_match_id = c(NA, "M73"),
+    slot2_team = c("Canada", "Morocco"),
+    slot2_display = c("Canada", "Morocco"),
+    slot2_source_match_id = c(NA, "M75"),
+    projected_winner_team = c("Canada", "Morocco"),
+    projected_winner = c("Canada", "Morocco"),
+    next_match_id = c("M90", NA),
+    stringsAsFactors = FALSE
+  )
+  matches_path <- tempfile(fileext = ".csv")
+  write.csv(
+    data.frame(
+      date = "2026-06-28",
+      home_team_canonical = "South Africa",
+      away_team_canonical = "Canada",
+      home_score = 0,
+      away_score = 1,
+      tournament = "FIFA World Cup",
+      stringsAsFactors = FALSE
+    ),
+    matches_path,
+    row.names = FALSE
+  )
+
+  attached <- attach_worldcup_bracket_actual_results(
+    bracket_paths,
+    matches_path = matches_path,
+    result_cutoff_date = "2026-06-28",
+    knockout_start_date = "2026-06-28"
+  )
+
+  expect_true(attached$is_completed[attached$match_id == "M73"])
+  expect_equal(attached$match_status[attached$match_id == "M73"], "final")
+  expect_equal(attached$actual_score[attached$match_id == "M73"], "0-1")
+  expect_equal(attached$actual_winner_team[attached$match_id == "M73"], "Canada")
+  expect_equal(attached$actual_winner[attached$match_id == "M73"], "Canada")
+  expect_true(attached$actual_winner_continues[attached$match_id == "M73"])
+  expect_false(attached$is_completed[attached$match_id == "M90"])
+})
+
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/forecast/tournament.R"))
@@ -516,6 +566,15 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     "next_match_id",
     "projected_winner_continues",
     "projected_champion_path",
+    "is_completed",
+    "match_status",
+    "actual_match_date",
+    "actual_slot1_goals",
+    "actual_slot2_goals",
+    "actual_score",
+    "actual_winner_team",
+    "actual_winner",
+    "actual_winner_continues",
     "prematch_forecast_available",
     "prematch_projected_winner_match_probability",
     "prematch_slot1_expected_goals",

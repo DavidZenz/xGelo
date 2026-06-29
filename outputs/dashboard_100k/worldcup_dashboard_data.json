@@ -2036,9 +2036,9 @@
       "prematch_both_teams_to_score_probability": 0.48203,
       "prematch_generated_at": "2026-06-19 07:39:33.045957",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GA04",
@@ -2085,9 +2085,9 @@
       "prematch_both_teams_to_score_probability": 0.48365202108,
       "prematch_generated_at": "2026-06-18 16:04:00.579567",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GA05",
@@ -2134,9 +2134,9 @@
       "prematch_both_teams_to_score_probability": 0.47953,
       "prematch_generated_at": "2026-06-25 10:57:50.444512",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GA06",
@@ -2183,9 +2183,9 @@
       "prematch_both_teams_to_score_probability": 0.48019,
       "prematch_generated_at": "2026-06-25 03:17:45.482112",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GB01",
@@ -2232,9 +2232,9 @@
       "prematch_both_teams_to_score_probability": 0.461,
       "prematch_generated_at": "2026-06-12 13:11:51.362861",
       "prematch_feature_cutoff_date": "2026-06-11",
-      "prematch_actual_results_cutoff_date": "2026-06-12",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-12"
     },
     {
       "match_id": "GB02",
@@ -2281,9 +2281,9 @@
       "prematch_both_teams_to_score_probability": 0.455,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GB03",
@@ -2330,9 +2330,9 @@
       "prematch_both_teams_to_score_probability": 0.47954,
       "prematch_generated_at": "2026-06-19 09:12:04.330108",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GB04",
@@ -2379,9 +2379,9 @@
       "prematch_both_teams_to_score_probability": 0.46116552206,
       "prematch_generated_at": "2026-06-18 16:04:00.579567",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GB05",
@@ -2428,9 +2428,9 @@
       "prematch_both_teams_to_score_probability": 0.48383,
       "prematch_generated_at": "2026-06-25 10:57:50.444512",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GB06",
@@ -2477,9 +2477,9 @@
       "prematch_both_teams_to_score_probability": 0.48414481023,
       "prematch_generated_at": "2026-06-24 22:13:26.38817",
       "prematch_feature_cutoff_date": "2026-06-23",
-      "prematch_actual_results_cutoff_date": "2026-06-24",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-24"
     },
     {
       "match_id": "GC01",
@@ -2526,9 +2526,9 @@
       "prematch_both_teams_to_score_probability": 0.4845,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GC02",
@@ -2575,9 +2575,9 @@
       "prematch_both_teams_to_score_probability": 0.4842,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GC03",
@@ -2624,9 +2624,9 @@
       "prematch_both_teams_to_score_probability": 0.47874,
       "prematch_generated_at": "2026-06-20 01:22:03.652805",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GC04",
@@ -2673,9 +2673,9 @@
       "prematch_both_teams_to_score_probability": 0.4643,
       "prematch_generated_at": "2026-06-20 03:57:16.942154",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GC05",
@@ -2722,9 +2722,9 @@
       "prematch_both_teams_to_score_probability": 0.46782,
       "prematch_generated_at": "2026-06-25 01:53:18.652459",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GC06",
@@ -2771,9 +2771,9 @@
       "prematch_both_teams_to_score_probability": 0.47372,
       "prematch_generated_at": "2026-06-25 01:53:18.652459",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GD01",
@@ -2820,9 +2820,9 @@
       "prematch_both_teams_to_score_probability": 0.4819,
       "prematch_generated_at": "2026-06-12 13:11:51.362861",
       "prematch_feature_cutoff_date": "2026-06-11",
-      "prematch_actual_results_cutoff_date": "2026-06-12",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-12"
     },
     {
       "match_id": "GD02",
@@ -2869,9 +2869,9 @@
       "prematch_both_teams_to_score_probability": 0.4842,
       "prematch_generated_at": "2026-06-13 10:04:44.538941",
       "prematch_feature_cutoff_date": "2026-06-12",
-      "prematch_actual_results_cutoff_date": "2026-06-13",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-13"
     },
     {
       "match_id": "GD03",
@@ -2918,9 +2918,9 @@
       "prematch_both_teams_to_score_probability": 0.48393,
       "prematch_generated_at": "2026-06-20 09:05:36.482277",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GD04",
@@ -2967,9 +2967,9 @@
       "prematch_both_teams_to_score_probability": 0.48337648228,
       "prematch_generated_at": "2026-06-19 22:48:55.303909",
       "prematch_feature_cutoff_date": "2026-06-18",
-      "prematch_actual_results_cutoff_date": "2026-06-19",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-19"
     },
     {
       "match_id": "GD05",
@@ -3016,9 +3016,9 @@
       "prematch_both_teams_to_score_probability": 0.48322,
       "prematch_generated_at": "2026-06-26 05:34:47.330478",
       "prematch_feature_cutoff_date": "2026-06-25",
-      "prematch_actual_results_cutoff_date": "2026-06-26",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-26"
     },
     {
       "match_id": "GD06",
@@ -3065,9 +3065,9 @@
       "prematch_both_teams_to_score_probability": 0.48238,
       "prematch_generated_at": "2026-06-26 05:34:47.330478",
       "prematch_feature_cutoff_date": "2026-06-25",
-      "prematch_actual_results_cutoff_date": "2026-06-26",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-26"
     },
     {
       "match_id": "GE01",
@@ -3114,9 +3114,9 @@
       "prematch_both_teams_to_score_probability": 0.4832,
       "prematch_generated_at": "2026-06-15 10:04:33.190885",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GE02",
@@ -3163,9 +3163,9 @@
       "prematch_both_teams_to_score_probability": 0.4381,
       "prematch_generated_at": "2026-06-14 12:08:12.337671",
       "prematch_feature_cutoff_date": "2026-06-13",
-      "prematch_actual_results_cutoff_date": "2026-06-14",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-14"
     },
     {
       "match_id": "GE03",
@@ -3212,9 +3212,9 @@
       "prematch_both_teams_to_score_probability": 0.48069205892,
       "prematch_generated_at": "2026-06-20 21:27:29.581523",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GE04",
@@ -3261,9 +3261,9 @@
       "prematch_both_teams_to_score_probability": 0.44689392833,
       "prematch_generated_at": "2026-06-20 21:27:29.581523",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GE05",
@@ -3310,9 +3310,9 @@
       "prematch_both_teams_to_score_probability": 0.44854323011,
       "prematch_generated_at": "2026-06-25 23:59:52.007439",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GE06",
@@ -3359,9 +3359,9 @@
       "prematch_both_teams_to_score_probability": 0.47858278298,
       "prematch_generated_at": "2026-06-25 23:59:52.007439",
       "prematch_feature_cutoff_date": "2026-06-24",
-      "prematch_actual_results_cutoff_date": "2026-06-25",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-25"
     },
     {
       "match_id": "GF01",
@@ -3408,9 +3408,9 @@
       "prematch_both_teams_to_score_probability": 0.4843,
       "prematch_generated_at": "2026-06-14 12:08:12.337671",
       "prematch_feature_cutoff_date": "2026-06-13",
-      "prematch_actual_results_cutoff_date": "2026-06-14",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-14"
     },
     {
       "match_id": "GF02",
@@ -3457,9 +3457,9 @@
       "prematch_both_teams_to_score_probability": 0.485,
       "prematch_generated_at": "2026-06-15 10:04:33.190885",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GF03",
@@ -3506,9 +3506,9 @@
       "prematch_both_teams_to_score_probability": 0.47355183615,
       "prematch_generated_at": "2026-06-20 20:57:44.478911",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GF04",
@@ -3555,9 +3555,9 @@
       "prematch_both_teams_to_score_probability": 0.46353930429,
       "prematch_generated_at": "2026-06-20 21:27:29.581523",
       "prematch_feature_cutoff_date": "2026-06-19",
-      "prematch_actual_results_cutoff_date": "2026-06-20",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-20"
     },
     {
       "match_id": "GF05",
@@ -3604,9 +3604,9 @@
       "prematch_both_teams_to_score_probability": 0.48091,
       "prematch_generated_at": "2026-06-26 02:13:57.106649",
       "prematch_feature_cutoff_date": "2026-06-25",
-      "prematch_actual_results_cutoff_date": "2026-06-26",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-26"
     },
     {
       "match_id": "GF06",
@@ -3653,9 +3653,9 @@
       "prematch_both_teams_to_score_probability": 0.47609,
       "prematch_generated_at": "2026-06-26 02:13:57.106649",
       "prematch_feature_cutoff_date": "2026-06-25",
-      "prematch_actual_results_cutoff_date": "2026-06-26",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-26"
     },
     {
       "match_id": "GG01",
@@ -3702,9 +3702,9 @@
       "prematch_both_teams_to_score_probability": 0.4762,
       "prematch_generated_at": "2026-06-16 04:16:35.336811",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GG02",
@@ -3751,9 +3751,9 @@
       "prematch_both_teams_to_score_probability": 0.4761,
       "prematch_generated_at": "2026-06-15 21:15:31.293832",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GG03",
@@ -3800,9 +3800,9 @@
       "prematch_both_teams_to_score_probability": 0.48081053719,
       "prematch_generated_at": "2026-06-21 22:33:26.485577",
       "prematch_feature_cutoff_date": "2026-06-20",
-      "prematch_actual_results_cutoff_date": "2026-06-21",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-21"
     },
     {
       "match_id": "GG04",
@@ -3849,9 +3849,9 @@
       "prematch_both_teams_to_score_probability": 0.4802,
       "prematch_generated_at": "2026-06-22 04:30:00.210421",
       "prematch_feature_cutoff_date": "2026-06-21",
-      "prematch_actual_results_cutoff_date": "2026-06-22",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-22"
     },
     {
       "match_id": "GG05",
@@ -3898,9 +3898,9 @@
       "prematch_both_teams_to_score_probability": 0.48165,
       "prematch_generated_at": "2026-06-27 06:18:31.46313",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GG06",
@@ -3947,9 +3947,9 @@
       "prematch_both_teams_to_score_probability": 0.47644,
       "prematch_generated_at": "2026-06-27 06:18:31.46313",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GH01",
@@ -3996,9 +3996,9 @@
       "prematch_both_teams_to_score_probability": 0.4746,
       "prematch_generated_at": "2026-06-16 02:33:00.171785",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GH02",
@@ -4045,9 +4045,9 @@
       "prematch_both_teams_to_score_probability": 0.4345,
       "prematch_generated_at": "2026-06-15 13:55:03.913378",
       "prematch_feature_cutoff_date": "2026-06-14",
-      "prematch_actual_results_cutoff_date": "2026-06-15",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-15"
     },
     {
       "match_id": "GH03",
@@ -4094,9 +4094,9 @@
       "prematch_both_teams_to_score_probability": 0.47797,
       "prematch_generated_at": "2026-06-22 01:30:19.998429",
       "prematch_feature_cutoff_date": "2026-06-21",
-      "prematch_actual_results_cutoff_date": "2026-06-22",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-22"
     },
     {
       "match_id": "GH04",
@@ -4143,9 +4143,9 @@
       "prematch_both_teams_to_score_probability": 0.42496561791,
       "prematch_generated_at": "2026-06-21 19:13:44.609572",
       "prematch_feature_cutoff_date": "2026-06-20",
-      "prematch_actual_results_cutoff_date": "2026-06-21",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-21"
     },
     {
       "match_id": "GH05",
@@ -4192,9 +4192,9 @@
       "prematch_both_teams_to_score_probability": 0.48717,
       "prematch_generated_at": "2026-06-27 04:04:31.085895",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GH06",
@@ -4241,9 +4241,9 @@
       "prematch_both_teams_to_score_probability": 0.48121,
       "prematch_generated_at": "2026-06-27 04:04:31.085895",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GI01",
@@ -4290,9 +4290,9 @@
       "prematch_both_teams_to_score_probability": 0.4826,
       "prematch_generated_at": "2026-06-16 20:56:57.719089",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GI02",
@@ -4339,9 +4339,9 @@
       "prematch_both_teams_to_score_probability": 0.4717,
       "prematch_generated_at": "2026-06-17 00:37:01.3407",
       "prematch_feature_cutoff_date": "2026-06-15",
-      "prematch_actual_results_cutoff_date": "2026-06-16",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-16"
     },
     {
       "match_id": "GI03",
@@ -4388,9 +4388,9 @@
       "prematch_both_teams_to_score_probability": 0.48297,
       "prematch_generated_at": "2026-06-23 00:34:24.881741",
       "prematch_feature_cutoff_date": "2026-06-22",
-      "prematch_actual_results_cutoff_date": "2026-06-23",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-23"
     },
     {
       "match_id": "GI04",
@@ -4437,9 +4437,9 @@
       "prematch_both_teams_to_score_probability": 0.47115,
       "prematch_generated_at": "2026-06-23 00:34:24.881741",
       "prematch_feature_cutoff_date": "2026-06-22",
-      "prematch_actual_results_cutoff_date": "2026-06-23",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-23"
     },
     {
       "match_id": "GI05",
@@ -4486,9 +4486,9 @@
       "prematch_both_teams_to_score_probability": 0.47819339594,
       "prematch_generated_at": "2026-06-26 22:30:17.665359",
       "prematch_feature_cutoff_date": "2026-06-25",
-      "prematch_actual_results_cutoff_date": "2026-06-26",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-26"
     },
     {
       "match_id": "GI06",
@@ -4535,9 +4535,9 @@
       "prematch_both_teams_to_score_probability": 0.46524886467,
       "prematch_generated_at": "2026-06-26 22:30:17.665359",
       "prematch_feature_cutoff_date": "2026-06-25",
-      "prematch_actual_results_cutoff_date": "2026-06-26",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-26"
     },
     {
       "match_id": "GJ01",
@@ -4584,9 +4584,9 @@
       "prematch_both_teams_to_score_probability": 0.4764,
       "prematch_generated_at": "2026-06-17 03:58:44.083992",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GJ02",
@@ -4633,9 +4633,9 @@
       "prematch_both_teams_to_score_probability": 0.4803,
       "prematch_generated_at": "2026-06-17 03:58:44.083992",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GJ03",
@@ -4682,9 +4682,9 @@
       "prematch_both_teams_to_score_probability": 0.46095030995,
       "prematch_generated_at": "2026-06-22 20:02:24.956423",
       "prematch_feature_cutoff_date": "2026-06-21",
-      "prematch_actual_results_cutoff_date": "2026-06-22",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-22"
     },
     {
       "match_id": "GJ04",
@@ -4731,9 +4731,9 @@
       "prematch_both_teams_to_score_probability": 0.48087,
       "prematch_generated_at": "2026-06-23 00:34:24.881741",
       "prematch_feature_cutoff_date": "2026-06-22",
-      "prematch_actual_results_cutoff_date": "2026-06-23",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-23"
     },
     {
       "match_id": "GJ05",
@@ -4780,9 +4780,9 @@
       "prematch_both_teams_to_score_probability": 0.48371122782,
       "prematch_generated_at": "2026-06-27 22:58:36.132816",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GJ06",
@@ -4829,9 +4829,9 @@
       "prematch_both_teams_to_score_probability": 0.40703575843,
       "prematch_generated_at": "2026-06-27 22:58:36.132816",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GK01",
@@ -4878,9 +4878,9 @@
       "prematch_both_teams_to_score_probability": 0.4613278079,
       "prematch_generated_at": "2026-06-17 19:17:18.308441",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GK02",
@@ -4927,9 +4927,9 @@
       "prematch_both_teams_to_score_probability": 0.47248,
       "prematch_generated_at": "2026-06-18 05:14:40.572495",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GK03",
@@ -4976,9 +4976,9 @@
       "prematch_both_teams_to_score_probability": 0.46259682169,
       "prematch_generated_at": "2026-06-23 16:20:10.5152",
       "prematch_feature_cutoff_date": "2026-06-22",
-      "prematch_actual_results_cutoff_date": "2026-06-23",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-23"
     },
     {
       "match_id": "GK04",
@@ -5025,9 +5025,9 @@
       "prematch_both_teams_to_score_probability": 0.47607,
       "prematch_generated_at": "2026-06-24 05:34:18.318532",
       "prematch_feature_cutoff_date": "2026-06-23",
-      "prematch_actual_results_cutoff_date": "2026-06-24",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-24"
     },
     {
       "match_id": "GK05",
@@ -5074,9 +5074,9 @@
       "prematch_both_teams_to_score_probability": 0.48172854752,
       "prematch_generated_at": "2026-06-27 22:58:36.132816",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GK06",
@@ -5123,9 +5123,9 @@
       "prematch_both_teams_to_score_probability": 0.4835281789,
       "prematch_generated_at": "2026-06-27 22:58:36.132816",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GL01",
@@ -5172,9 +5172,9 @@
       "prematch_both_teams_to_score_probability": 0.48087,
       "prematch_generated_at": "2026-06-18 02:39:09.329866",
       "prematch_feature_cutoff_date": "2026-06-17",
-      "prematch_actual_results_cutoff_date": "2026-06-18",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-18"
     },
     {
       "match_id": "GL02",
@@ -5221,9 +5221,9 @@
       "prematch_both_teams_to_score_probability": 0.47439734913,
       "prematch_generated_at": "2026-06-18 00:03:16.811674",
       "prematch_feature_cutoff_date": "2026-06-16",
-      "prematch_actual_results_cutoff_date": "2026-06-17",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-17"
     },
     {
       "match_id": "GL03",
@@ -5270,9 +5270,9 @@
       "prematch_both_teams_to_score_probability": 0.43898742799,
       "prematch_generated_at": "2026-06-24 00:20:13.279326",
       "prematch_feature_cutoff_date": "2026-06-22",
-      "prematch_actual_results_cutoff_date": "2026-06-23",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-23"
     },
     {
       "match_id": "GL04",
@@ -5319,9 +5319,9 @@
       "prematch_both_teams_to_score_probability": 0.48267,
       "prematch_generated_at": "2026-06-24 02:59:20.756493",
       "prematch_feature_cutoff_date": "2026-06-23",
-      "prematch_actual_results_cutoff_date": "2026-06-24",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-24"
     },
     {
       "match_id": "GL05",
@@ -5368,9 +5368,9 @@
       "prematch_both_teams_to_score_probability": 0.43114387305,
       "prematch_generated_at": "2026-06-27 22:58:36.132816",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     },
     {
       "match_id": "GL06",
@@ -5417,9 +5417,9 @@
       "prematch_both_teams_to_score_probability": 0.47545047853,
       "prematch_generated_at": "2026-06-27 22:58:36.132816",
       "prematch_feature_cutoff_date": "2026-06-26",
-      "prematch_actual_results_cutoff_date": "2026-06-27",
       "prematch_forecast_source": "dashboard_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "prematch_actual_results_cutoff_date": "2026-06-27"
     }
   ],
   "scoreline_distributions": [
@@ -11603,7 +11603,16 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": true,
+      "match_status": "final",
+      "actual_match_date": "2026-06-28",
+      "actual_slot1_goals": 0,
+      "actual_slot2_goals": 1,
+      "actual_score": "0-1",
+      "actual_winner_team": "Canada",
+      "actual_winner": "Canada",
+      "actual_winner_continues": true
     },
     {
       "round": "Round of 32",
@@ -11675,7 +11684,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -11747,7 +11759,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -11819,7 +11834,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -11891,7 +11909,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -11963,7 +11984,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12035,7 +12059,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12107,7 +12134,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12179,7 +12209,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12251,7 +12284,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12323,7 +12359,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12395,7 +12434,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12467,7 +12509,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12539,7 +12584,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12611,7 +12659,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 32",
@@ -12683,7 +12734,10 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -12697,7 +12751,6 @@
       "slot1_regulation_win_probability": 0.31273939242,
       "slot1_extra_time_penalty_probability": 0.11073925246,
       "slot1_tiebreak_probability": 0.44376467525,
-      "slot1_source_match_id": "M74",
       "slot2_team": "France",
       "slot2_display": "France",
       "slot2_probability": 0.78282,
@@ -12705,7 +12758,6 @@
       "slot2_regulation_win_probability": 0.4377156153,
       "slot2_extra_time_penalty_probability": 0.13880573982,
       "slot2_tiebreak_probability": 0.55623532475,
-      "slot2_source_match_id": "M77",
       "draw_after_regulation_probability": 0.24954499228,
       "projected_winner_team": "France",
       "projected_winner": "France",
@@ -12757,7 +12809,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M74",
+      "slot2_source_match_id": "M77",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -12771,7 +12828,6 @@
       "slot1_regulation_win_probability": 0.24068195505,
       "slot1_extra_time_penalty_probability": 0.088181466759,
       "slot1_tiebreak_probability": 0.37386547221,
-      "slot1_source_match_id": "M73",
       "slot2_team": "Morocco",
       "slot2_display": "Morocco",
       "slot2_probability": 0.52613,
@@ -12779,7 +12835,6 @@
       "slot2_regulation_win_probability": 0.52345388174,
       "slot2_extra_time_penalty_probability": 0.14768269646,
       "slot2_tiebreak_probability": 0.62613452779,
-      "slot2_source_match_id": "M75",
       "draw_after_regulation_probability": 0.23586416322,
       "projected_winner_team": "Morocco",
       "projected_winner": "Morocco",
@@ -12831,7 +12886,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M73",
+      "slot2_source_match_id": "M75",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -12845,7 +12905,6 @@
       "slot1_regulation_win_probability": 0.51721182487,
       "slot1_extra_time_penalty_probability": 0.17101513472,
       "slot1_tiebreak_probability": 0.72352039428,
-      "slot1_source_match_id": "M76",
       "slot2_team": "Norway",
       "slot2_display": "Norway",
       "slot2_probability": 0.52241,
@@ -12853,7 +12912,6 @@
       "slot2_regulation_win_probability": 0.24642284794,
       "slot2_extra_time_penalty_probability": 0.065350192465,
       "slot2_tiebreak_probability": 0.27647960572,
-      "slot2_source_match_id": "M78",
       "draw_after_regulation_probability": 0.23636532718,
       "projected_winner_team": "Brazil",
       "projected_winner": "Brazil",
@@ -12905,7 +12963,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M76",
+      "slot2_source_match_id": "M78",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -12919,7 +12982,6 @@
       "slot1_regulation_win_probability": 0.2658575914,
       "slot1_extra_time_penalty_probability": 0.10766236314,
       "slot1_tiebreak_probability": 0.44525057585,
-      "slot1_source_match_id": "M79",
       "slot2_team": "England",
       "slot2_display": "England",
       "slot2_probability": 0.78644,
@@ -12927,7 +12989,6 @@
       "slot2_regulation_win_probability": 0.49234067048,
       "slot2_extra_time_penalty_probability": 0.13413937498,
       "slot2_tiebreak_probability": 0.55474942415,
-      "slot2_source_match_id": "M80",
       "draw_after_regulation_probability": 0.24180173813,
       "projected_winner_team": "England",
       "projected_winner": "England",
@@ -12979,7 +13040,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M79",
+      "slot2_source_match_id": "M80",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -12993,7 +13059,6 @@
       "slot1_regulation_win_probability": 0.33182614487,
       "slot1_extra_time_penalty_probability": 0.10376659934,
       "slot1_tiebreak_probability": 0.41299882822,
-      "slot1_source_match_id": "M83",
       "slot2_team": "Spain",
       "slot2_display": "Spain",
       "slot2_probability": 0.72022,
@@ -13001,7 +13066,6 @@
       "slot2_regulation_win_probability": 0.41692229641,
       "slot2_extra_time_penalty_probability": 0.14748495938,
       "slot2_tiebreak_probability": 0.58700117178,
-      "slot2_source_match_id": "M84",
       "draw_after_regulation_probability": 0.25125155872,
       "projected_winner_team": "Spain",
       "projected_winner": "Spain",
@@ -13053,7 +13117,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M83",
+      "slot2_source_match_id": "M84",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -13067,7 +13136,6 @@
       "slot1_regulation_win_probability": 0.27015097819,
       "slot1_extra_time_penalty_probability": 0.081359010466,
       "slot1_tiebreak_probability": 0.3349995322,
-      "slot1_source_match_id": "M81",
       "slot2_team": "Belgium",
       "slot2_display": "Belgium",
       "slot2_probability": 0.54975,
@@ -13075,7 +13143,6 @@
       "slot2_regulation_win_probability": 0.48698596486,
       "slot2_extra_time_penalty_probability": 0.16150404648,
       "slot2_tiebreak_probability": 0.6650004678,
-      "slot2_source_match_id": "M82",
       "draw_after_regulation_probability": 0.24286305695,
       "projected_winner_team": "Belgium",
       "projected_winner": "Belgium",
@@ -13127,7 +13194,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M81",
+      "slot2_source_match_id": "M82",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -13141,7 +13213,6 @@
       "slot1_regulation_win_probability": 0.62973639884,
       "slot1_extra_time_penalty_probability": 0.1699454563,
       "slot1_tiebreak_probability": 0.82891658002,
-      "slot1_source_match_id": "M86",
       "slot2_team": "Australia",
       "slot2_display": "Australia",
       "slot2_probability": 0.53989,
@@ -13149,7 +13220,6 @@
       "slot2_regulation_win_probability": 0.16524242002,
       "slot2_extra_time_penalty_probability": 0.035075724838,
       "slot2_tiebreak_probability": 0.17108341998,
-      "slot2_source_match_id": "M88",
       "draw_after_regulation_probability": 0.20502118113,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -13201,7 +13271,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M86",
+      "slot2_source_match_id": "M88",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Round of 16",
@@ -13215,7 +13290,6 @@
       "slot1_regulation_win_probability": 0.3388305437,
       "slot1_extra_time_penalty_probability": 0.090948736276,
       "slot1_tiebreak_probability": 0.36121896201,
-      "slot1_source_match_id": "M85",
       "slot2_team": "Colombia",
       "slot2_display": "Colombia",
       "slot2_probability": 0.77706,
@@ -13223,7 +13297,6 @@
       "slot2_regulation_win_probability": 0.40938661585,
       "slot2_extra_time_penalty_probability": 0.16083410417,
       "slot2_tiebreak_probability": 0.63878103799,
-      "slot2_source_match_id": "M87",
       "draw_after_regulation_probability": 0.25178284044,
       "projected_winner_team": "Colombia",
       "projected_winner": "Colombia",
@@ -13275,7 +13348,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M85",
+      "slot2_source_match_id": "M87",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Quarter-finals",
@@ -13289,7 +13367,6 @@
       "slot1_regulation_win_probability": 0.4112294446,
       "slot1_extra_time_penalty_probability": 0.14908626322,
       "slot1_tiebreak_probability": 0.593063448,
-      "slot1_source_match_id": "M89",
       "slot2_team": "Morocco",
       "slot2_display": "Morocco",
       "slot2_probability": 0.37376,
@@ -13297,7 +13374,6 @@
       "slot2_regulation_win_probability": 0.33738722748,
       "slot2_extra_time_penalty_probability": 0.10229706469,
       "slot2_tiebreak_probability": 0.406936552,
-      "slot2_source_match_id": "M90",
       "draw_after_regulation_probability": 0.25138332792,
       "projected_winner_team": "France",
       "projected_winner": "France",
@@ -13349,7 +13425,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M89",
+      "slot2_source_match_id": "M90",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Quarter-finals",
@@ -13363,7 +13444,6 @@
       "slot1_regulation_win_probability": 0.46991216306,
       "slot1_extra_time_penalty_probability": 0.1592394438,
       "slot1_tiebreak_probability": 0.64962580858,
-      "slot1_source_match_id": "M93",
       "slot2_team": "Belgium",
       "slot2_display": "Belgium",
       "slot2_probability": 0.38472,
@@ -13371,7 +13451,6 @@
       "slot2_regulation_win_probability": 0.28496296398,
       "slot2_extra_time_penalty_probability": 0.085885429158,
       "slot2_tiebreak_probability": 0.35037419142,
-      "slot2_source_match_id": "M94",
       "draw_after_regulation_probability": 0.24512487296,
       "projected_winner_team": "Spain",
       "projected_winner": "Spain",
@@ -13423,7 +13502,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M93",
+      "slot2_source_match_id": "M94",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Quarter-finals",
@@ -13437,7 +13521,6 @@
       "slot1_regulation_win_probability": 0.37659670415,
       "slot1_extra_time_penalty_probability": 0.15135549768,
       "slot1_tiebreak_probability": 0.59880274344,
-      "slot1_source_match_id": "M91",
       "slot2_team": "England",
       "slot2_display": "England",
       "slot2_probability": 0.49973,
@@ -13445,7 +13528,6 @@
       "slot2_regulation_win_probability": 0.37063976172,
       "slot2_extra_time_penalty_probability": 0.10140803645,
       "slot2_tiebreak_probability": 0.40119725656,
-      "slot2_source_match_id": "M92",
       "draw_after_regulation_probability": 0.25276353413,
       "projected_winner_team": "Brazil",
       "projected_winner": "Brazil",
@@ -13497,7 +13579,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M91",
+      "slot2_source_match_id": "M92",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Quarter-finals",
@@ -13511,7 +13598,6 @@
       "slot1_regulation_win_probability": 0.55411045959,
       "slot1_extra_time_penalty_probability": 0.15307129595,
       "slot1_tiebreak_probability": 0.67160077995,
-      "slot1_source_match_id": "M95",
       "slot2_team": "Colombia",
       "slot2_display": "Colombia",
       "slot2_probability": 0.45847,
@@ -13519,7 +13605,6 @@
       "slot2_regulation_win_probability": 0.21796947164,
       "slot2_extra_time_penalty_probability": 0.074848772815,
       "slot2_tiebreak_probability": 0.32839922005,
-      "slot2_source_match_id": "M96",
       "draw_after_regulation_probability": 0.22792006877,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -13571,7 +13656,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M95",
+      "slot2_source_match_id": "M96",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Semi-finals",
@@ -13585,7 +13675,6 @@
       "slot1_regulation_win_probability": 0.37789495196,
       "slot1_extra_time_penalty_probability": 0.11495797906,
       "slot1_tiebreak_probability": 0.4548196966,
-      "slot1_source_match_id": "M97",
       "slot2_team": "Brazil",
       "slot2_display": "Brazil",
       "slot2_probability": 0.25072,
@@ -13593,7 +13682,6 @@
       "slot2_regulation_win_probability": 0.36934998945,
       "slot2_extra_time_penalty_probability": 0.13779707953,
       "slot2_tiebreak_probability": 0.5451803034,
-      "slot2_source_match_id": "M99",
       "draw_after_regulation_probability": 0.25275505859,
       "projected_winner_team": "Brazil",
       "projected_winner": "Brazil",
@@ -13645,7 +13733,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M97",
+      "slot2_source_match_id": "M99",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Semi-finals",
@@ -13659,7 +13752,6 @@
       "slot1_regulation_win_probability": 0.31574455693,
       "slot1_extra_time_penalty_probability": 0.10221272173,
       "slot1_tiebreak_probability": 0.40905124391,
-      "slot1_source_match_id": "M98",
       "slot2_team": "Argentina",
       "slot2_display": "Argentina",
       "slot2_probability": 0.54015,
@@ -13667,7 +13759,6 @@
       "slot2_regulation_win_probability": 0.43437789532,
       "slot2_extra_time_penalty_probability": 0.14766482602,
       "slot2_tiebreak_probability": 0.59094875609,
-      "slot2_source_match_id": "M100",
       "draw_after_regulation_probability": 0.24987754775,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -13719,7 +13810,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M98",
+      "slot2_source_match_id": "M100",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Final",
@@ -13733,7 +13829,6 @@
       "slot1_regulation_win_probability": 0.2949130054,
       "slot1_extra_time_penalty_probability": 0.097312612946,
       "slot1_tiebreak_probability": 0.39362338737,
-      "slot1_source_match_id": "M101",
       "slot2_team": "Argentina",
       "slot2_display": "Argentina",
       "slot2_probability": 0.36503,
@@ -13741,7 +13836,6 @@
       "slot2_regulation_win_probability": 0.45786435471,
       "slot2_extra_time_penalty_probability": 0.14991002694,
       "slot2_tiebreak_probability": 0.60637661263,
-      "slot2_source_match_id": "M102",
       "draw_after_regulation_probability": 0.24722263989,
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
@@ -13793,7 +13887,12 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M101",
+      "slot2_source_match_id": "M102",
+      "is_completed": false,
+      "match_status": "scheduled",
+      "actual_winner_continues": false
     },
     {
       "round": "Champion",
@@ -13804,7 +13903,6 @@
       "slot1_display": "Argentina",
       "slot1_probability": 0.24546,
       "slot1_advancement_probability": 0.24546,
-      "slot1_source_match_id": "M104",
       "projected_winner_team": "Argentina",
       "projected_winner": "Argentina",
       "projected_winner_match_probability": 0.24546,
@@ -13821,7 +13919,11 @@
       "prematch_feature_cutoff_date": "2026-06-27",
       "prematch_actual_results_cutoff_date": "2026-06-28",
       "prematch_forecast_source": "dashboard_bracket_archive",
-      "prematch_forecast_available": true
+      "prematch_forecast_available": true,
+      "slot1_source_match_id": "M104",
+      "is_completed": false,
+      "match_status": "projected",
+      "actual_winner_continues": false
     }
   ]
 }
