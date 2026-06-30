@@ -3217,7 +3217,7 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.prematch-forecast{margin-top:10px;padding-top:8px;border-top:1px solid #eee}.prematch-forecast .wdl{margin:5px 0}.scorelines{margin-top:10px}.scoreline-heading{font-size:11px;color:var(--muted);text-transform:uppercase;margin-bottom:5px}.scoreline-row{display:grid;grid-template-columns:38px minmax(90px,1fr) 44px;gap:7px;align-items:center;margin:4px 0;font-size:12px}.scoreline-score{font-weight:700;font-variant-numeric:tabular-nums}.scoreline-bar{height:9px;background:#eee;position:relative}.scoreline-fill{display:block;height:100%;min-width:2px}.scoreline-fill.home_win{background:var(--blue)}.scoreline-fill.draw{background:var(--gold)}.scoreline-fill.away_win{background:var(--green)}.scoreline-prob{text-align:right;color:#444;font-variant-numeric:tabular-nums}
 .elo-panel{background:#fff;border:1px solid var(--line);padding:10px;overflow-x:auto}.elo-evolution{min-width:900px;margin-bottom:12px;padding:8px 8px 4px;border-bottom:1px solid var(--line)}.elo-evolution-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:6px}.elo-evolution-title{font-size:15px;font-weight:800}.elo-evolution-note{font-size:12px;color:var(--muted);text-align:right}.elo-evolution-body{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:12px;align-items:start}.elo-chart{display:block;width:100%;height:auto;min-height:260px}.elo-picker{max-height:286px;overflow:auto;border-left:1px solid var(--line);padding-left:8px}.elo-picker-row{display:grid;grid-template-columns:10px minmax(0,1fr) 38px;gap:7px;align-items:center;min-height:24px;padding:3px 4px;border-radius:4px;cursor:pointer;font-size:12px}.elo-picker-row:hover,.elo-picker-row:focus{background:#f3f6f8;outline:0}.elo-picker-row.selected{background:var(--blue-soft);font-weight:800}.elo-picker-row.dimmed{opacity:.45}.elo-picker-swatch{width:10px;height:10px}.elo-picker-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.elo-picker-delta{text-align:right;font-variant-numeric:tabular-nums;color:#555}.elo-axis,.elo-grid{stroke:#e6e1d8;stroke-width:1}.elo-axis-text{fill:#666;font-size:11px}.elo-step-line{fill:none;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round;opacity:.82;transition:opacity .12s ease,stroke-width .12s ease}.elo-step-line.muted{opacity:.22;stroke-width:1.5}.elo-step-line.selected{opacity:1;stroke-width:3.3}.elo-hit-line{fill:none;stroke:transparent;stroke-width:14;stroke-linecap:round;stroke-linejoin:round;cursor:pointer}.elo-step-label{font-size:11px;font-weight:700;cursor:pointer}.elo-step-label.selected{font-weight:900}.elo-step-label.dimmed{opacity:.34}.elo-gain-label{font-size:10px;font-weight:900;paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;pointer-events:none;font-variant-numeric:tabular-nums}.elo-empty{color:var(--muted);font-size:12px;padding:28px 0}.elo-table{min-width:900px}.elo-table th{text-align:right}.elo-table th.team-col,.elo-table td.team-col{text-align:left}.elo-table td{vertical-align:middle}.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:24px;background:#f0eee7;font-weight:800;font-variant-numeric:tabular-nums}.rating-cell{display:grid;grid-template-columns:64px minmax(90px,1fr);gap:10px;align-items:center;min-width:180px}.rating-value{font-weight:900;font-size:15px;color:var(--blue-dark);font-variant-numeric:tabular-nums;text-align:right}.rating-track{height:8px;background:#ece8df;position:relative}.rating-fill{display:block;height:100%;background:var(--blue);min-width:2px}.elo-prob-cell{position:relative;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;border-radius:4px;background:rgba(53,115,168,var(--heat));color:#163c5d;overflow:hidden}.elo-prob-cell::after{content:"";position:absolute;left:5px;right:auto;bottom:3px;width:calc(var(--prob) * (100% - 10px));height:2px;border-radius:4px;background:currentColor;opacity:.45}.elo-prob-cell.strong{font-weight:900}.elo-prob-cell.empty{background:transparent;color:var(--muted)}.elo-prob-cell.empty::after{display:none}.elo-note{margin:0 0 10px;color:var(--muted);font-size:12px}
 .section.active{position:relative;z-index:1}#bracket.active{z-index:20}.bracket-inspector{display:none;position:fixed;z-index:5000;width:min(440px,calc(100vw - 28px));max-height:calc(100vh - 28px);overflow:auto;background:#fff;border:1px solid var(--line);border-left:3px solid var(--blue);padding:12px;box-shadow:0 16px 38px rgba(17,38,56,.24)}.bracket-inspector.open{display:block}.bracket-inspector-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.bracket-inspector h2{font-size:15px;margin:0}.bracket-inspector-note{font-size:12px;color:var(--muted)}.bracket-inspector-legend{margin-top:7px;font-size:12px;color:#34495b}.bracket-forecast-detail{margin-top:10px;padding-top:10px;border-top:1px solid #e9edf1}.bracket-empty-detail{margin-top:8px;color:var(--muted)}.bracket-wrap{overflow-x:auto;overflow-y:visible;padding-bottom:18px;position:relative}.bracket{position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(6,260px);grid-template-rows:repeat(33,58px);column-gap:220px;min-width:2720px;padding:34px 20px 30px}.bracket-link-svg{position:absolute;inset:0;pointer-events:none;z-index:1}.bracket-link{fill:none;stroke:#c5beb2;stroke-width:2}.bracket-link.projected-path{stroke:var(--blue);stroke-width:3}.bracket-link.champion{stroke:var(--blue-dark);stroke-width:4}.bracket-link.decided-path{stroke:var(--ink);stroke-width:5}.bracket-link.hover-path{stroke:var(--green);stroke-width:4}.bracket-link-label{position:absolute;z-index:4;min-width:170px;padding:4px 7px;background:#fff;border:1px solid #c5beb2;font-size:12px;color:#333;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.12);transform:translateY(8px);cursor:pointer}.bracket-link-label.projected-path{border-color:var(--blue);color:#111;font-weight:700}.bracket-link-label.champion{border-color:var(--blue-dark);font-weight:700}.bracket-link-label.decided-path{border-color:var(--ink);color:var(--ink);font-weight:900;box-shadow:0 3px 10px rgba(29,29,31,.18)}.bracket-link-label.hover-path{border-color:var(--green);color:#174226;font-weight:800;box-shadow:0 3px 10px rgba(59,135,84,.22)}.bracket-link-label.selected{outline:2px solid var(--ink);outline-offset:2px}.bracket-round-title{font-size:13px;font-weight:700;color:#444;align-self:end}.bracket-game{position:relative;z-index:3;min-height:104px;padding:10px;border-left:3px solid #d6d0c6;cursor:pointer;transition:box-shadow .12s ease,border-color .12s ease,opacity .12s ease}.bracket-game.projected{border-left-color:var(--blue)}.bracket-game.decided{border-left-color:var(--ink);box-shadow:inset 0 0 0 1px rgba(29,29,31,.18)}.bracket-game.champion{border-left-color:var(--blue-dark);background:var(--blue-soft)}.bracket-game.selected{outline:2px solid var(--ink);outline-offset:2px;box-shadow:0 6px 18px rgba(29,29,31,.16)}.bracket-game.hover-path{border-left-color:var(--green);box-shadow:0 5px 16px rgba(59,135,84,.18)}.bracket.is-hovering .bracket-game:not(.hover-path){opacity:.68}.bracket.is-hovering .bracket-link:not(.hover-path){opacity:.34}.bracket.is-hovering .bracket-link.decided-path:not(.hover-path){opacity:.9}.bracket.is-hovering .bracket-link-label:not(.hover-path){opacity:.58}.bracket.is-hovering .bracket-link-label.decided-path:not(.hover-path){opacity:.88}.bracket-id{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}.bracket-result{margin-top:6px;padding-top:6px;border-top:1px solid #eee;font-size:12px;font-weight:900;color:var(--ink)}.bracket-champion{font-weight:700;margin-top:6px}.bracket-prob{font-size:12px;color:#444}.bracket-team-target{display:inline-block;cursor:pointer}.bracket-team-target.actual-winner{font-weight:900;color:var(--ink)}.bracket-team-target:hover,.bracket-team-target:focus{color:var(--blue-dark);text-decoration:underline}.tooltip-kicker{font-size:10px;line-height:1;text-transform:uppercase;color:var(--muted);letter-spacing:0;font-weight:700}.tooltip-title{margin-top:5px;font-size:15px;font-weight:800;color:var(--ink)}.tooltip-title-team.slot1{color:var(--blue-dark)}.tooltip-title-team.slot2{color:#2f7a49}.tooltip-vs{color:var(--muted);font-weight:700}.tooltip-legend-title{margin-top:7px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800}.tooltip-legend{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:4px}.tooltip-legend-item{display:flex;align-items:center;gap:5px;min-width:0;padding:4px 5px;background:#f7f9fb;border:1px solid #e4eaf0;font-size:10px;font-weight:700;color:#3d4d5b}.legend-dot{width:9px;height:9px;flex:0 0 9px}.legend-dot.slot1{background:var(--blue)}.legend-dot.draw{background:var(--gold)}.legend-dot.slot2{background:var(--green)}.tooltip-legend-item span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tooltip-winner{display:flex;justify-content:space-between;gap:10px;margin-top:9px;padding:8px;background:var(--blue-soft);border-left:3px solid var(--blue);font-size:13px}.tooltip-winner span{font-weight:800;color:var(--blue-dark);font-variant-numeric:tabular-nums}.tooltip-section{margin-top:10px}.tooltip-section-title{font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:800;margin-bottom:5px}.tooltip-advance-row{display:grid;grid-template-columns:minmax(90px,1fr) 48px 48px 52px;gap:6px;align-items:center;padding:5px 0;border-bottom:1px solid #eef0f2;font-size:12px}.tooltip-advance-row.slot1{border-left:3px solid var(--blue);padding-left:6px}.tooltip-advance-row.slot2{border-left:3px solid var(--green);padding-left:6px}.tooltip-advance-row.slot1 strong{color:var(--blue-dark)}.tooltip-advance-row.slot2 strong{color:#2f7a49}.tooltip-advance-row:last-child{border-bottom:0}.tooltip-advance-row strong{font-size:12px}.tooltip-advance-head{color:var(--muted);font-size:10px;text-transform:uppercase;font-weight:700}.tooltip-prob{text-align:right;font-weight:800;font-variant-numeric:tabular-nums}.score-tile-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}.score-tile{min-height:54px;padding:7px 5px;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;text-align:center;border:1px solid rgba(36,87,126,.12)}.score-tile.slot2_win{background:rgba(59,135,84,var(--heat));color:#174226}.score-tile.draw{background:rgba(210,157,43,var(--heat));color:#513a06}.score-tile.strong{color:#fff}.score-tile-prob{display:block;font-size:15px;font-weight:900;font-variant-numeric:tabular-nums}.score-tile-score{display:block;margin-top:3px;font-size:12px;font-weight:800}.tooltip-foot{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.tooltip-pill{padding:3px 6px;background:#f5f7f9;border:1px solid #e3e8ed;font-size:11px;color:#34495b}.tooltip-pill.et-split{display:flex;align-items:center;gap:5px}.tooltip-et-team{font-weight:800}.tooltip-et-team.slot1{color:var(--blue-dark)}.tooltip-et-team.slot2{color:#2f7a49}.tooltip-et-dot{width:8px;height:8px;flex:0 0 8px}.tooltip-et-dot.slot1{background:var(--blue)}.tooltip-et-dot.slot2{background:var(--green)}.slot{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.slot:last-child{border-bottom:0}.slot small{color:var(--muted);white-space:nowrap}.slot.actual-winner small{color:var(--ink);font-weight:900}.bracket-slot-target{position:relative}.bracket-slot-target::before{content:"";position:absolute;left:-13px;top:50%;width:7px;border-top:2px solid #c8c1b5}
-.bracket-team-label{display:inline-flex;align-items:center;gap:5px;min-width:0;vertical-align:middle}.bracket-team-label>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}.bracket-flag{display:inline-flex;align-items:center;justify-content:center;width:18px;min-width:18px;font-size:15px;line-height:1}
+.bracket-team-label{display:inline-flex;align-items:center;gap:5px;min-width:0;vertical-align:middle}.bracket-team-label>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}.bracket-flag{display:inline-flex;align-items:center;justify-content:center;width:18px;min-width:18px;font-size:15px;line-height:1}.bracket-flag.code{font-size:10px;font-weight:800;color:#111;border:1px solid var(--line);border-radius:3px;background:#fff}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
 @media(max-width:1180px){.hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
@@ -3279,15 +3279,71 @@ function flagEmoji(code){
   if (!/^[A-Z]{2}$/.test(iso)) return "";
   return String.fromCodePoint(...[...iso].map(c => 127397 + c.charCodeAt(0)));
 }
-const teamMetaByTeam = Object.fromEntries((data.stage_probabilities || []).map(row => [row.team, row]));
-function teamFlag(team){
-  const meta = teamMetaByTeam[team] || {};
-  const flag = flagEmoji(meta.fifa_code || "");
-  return flag ? `<span class="bracket-flag" aria-hidden="true">${esc(flag)}</span>` : "";
+const teamMetaByTeam = {};
+const teamMetaByDisplay = {};
+function normalizeTeamKey(value){
+  return String(value || "").trim().toLowerCase();
+}
+function mergeTeamMeta(existing, incoming){
+  const merged = Object.assign({}, existing || {}, incoming || {});
+  if ((!merged.fifa_code || !String(merged.fifa_code).trim()) && existing && existing.fifa_code) {
+    merged.fifa_code = existing.fifa_code;
+  }
+  return merged;
+}
+function registerTeamMeta(row){
+  if (!row) return;
+  const team = row.team || "";
+  const display = row.display_team || row.team_display || team;
+  const fifa = row.fifa_code ? String(row.fifa_code).trim().toUpperCase() : "";
+  if (!team && !display) return;
+  const meta = { team, display_team: display, fifa_code: fifa };
+  [team, display].forEach(value => {
+    const key = normalizeTeamKey(value);
+    if (!key) return;
+    teamMetaByTeam[key] = mergeTeamMeta(teamMetaByTeam[key], meta);
+    teamMetaByDisplay[key] = mergeTeamMeta(teamMetaByDisplay[key], meta);
+  });
+}
+function registerMatchTeam(row, side){
+  registerTeamMeta({
+    team: row && row[`${side}_team`],
+    display_team: row && row[`${side}_display`],
+    fifa_code: row && row[`${side}_fifa_code`]
+  });
+}
+(data.stage_probabilities || []).forEach(registerTeamMeta);
+(data.group_standings || []).forEach(registerTeamMeta);
+(data.elo_ratings || data.elo_table || []).forEach(registerTeamMeta);
+(data.team_form || data.team_forms || []).forEach(registerTeamMeta);
+(data.matches || data.group_matches || []).forEach(row => {
+  registerMatchTeam(row, "home");
+  registerMatchTeam(row, "away");
+});
+(data.bracket_paths || []).forEach(row => {
+  registerTeamMeta({ team: row.slot1_team, display_team: row.slot1_display });
+  registerTeamMeta({ team: row.slot2_team, display_team: row.slot2_display });
+  registerTeamMeta({ team: row.projected_winner_team, display_team: row.projected_winner });
+  registerTeamMeta({ team: row.actual_winner_team, display_team: row.actual_winner });
+});
+function teamMetaFor(team, name){
+  return teamMetaByTeam[normalizeTeamKey(team)] ||
+    teamMetaByDisplay[normalizeTeamKey(team)] ||
+    teamMetaByTeam[normalizeTeamKey(name)] ||
+    teamMetaByDisplay[normalizeTeamKey(name)] ||
+    {};
+}
+function teamFlag(team, name){
+  const meta = teamMetaFor(team, name);
+  const code = meta.fifa_code ? String(meta.fifa_code).trim().toUpperCase() : "";
+  const flag = flagEmoji(code);
+  if (flag) return `<span class="bracket-flag" aria-hidden="true">${esc(flag)}</span>`;
+  return code ? `<span class="bracket-flag code" aria-hidden="true">${esc(code)}</span>` : "";
 }
 function teamLabel(team, name){
-  const displayName = name || (teamMetaByTeam[team] && teamMetaByTeam[team].display_team) || team || "";
-  return `<span class="bracket-team-label">${teamFlag(team)}<span>${esc(displayName)}</span></span>`;
+  const meta = teamMetaFor(team, name);
+  const displayName = name || meta.display_team || team || "";
+  return `<span class="bracket-team-label">${teamFlag(team, name)}<span>${esc(displayName)}</span></span>`;
 }
 function heatCell(value, className = ""){
   const prob = Number(value);
