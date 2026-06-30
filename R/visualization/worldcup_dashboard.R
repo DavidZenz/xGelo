@@ -1514,6 +1514,7 @@ simulate_group_stage_dashboard <- function(
     knockout_date = NULL,
     n_knockout_sim = 1000,
     knockout_route_estimator = NULL,
+    actual_knockout_results = NULL,
     n_workers = default_dashboard_workers(),
     ...
 ) {
@@ -1636,6 +1637,44 @@ simulate_group_stage_dashboard <- function(
   }
   bracket_slot1 <- lapply(bracket$slot1_label, parse_bracket_slot)
   bracket_slot2 <- Map(parse_bracket_slot, bracket$slot2_label, bracket$slot1_label)
+  actual_pair_winner_idx <- integer()
+  if (!is.null(actual_knockout_results) && nrow(actual_knockout_results) > 0) {
+    required_actual_cols <- c("home_team_canonical", "away_team_canonical", "home_score", "away_score")
+    if (all(required_actual_cols %in% names(actual_knockout_results))) {
+      actual_pair_key <- function(team1, team2) paste(sort(c(as.character(team1), as.character(team2))), collapse = "\r")
+      actual_winners <- character()
+      for (result_idx in seq_len(nrow(actual_knockout_results))) {
+        home_team <- as.character(actual_knockout_results$home_team_canonical[result_idx])
+        away_team <- as.character(actual_knockout_results$away_team_canonical[result_idx])
+        home_score <- suppressWarnings(as.integer(actual_knockout_results$home_score[result_idx]))
+        away_score <- suppressWarnings(as.integer(actual_knockout_results$away_score[result_idx]))
+        if (is.na(home_score) || is.na(away_score)) next
+        winner_team <- if (home_score == away_score) {
+          if ("actual_winner_team" %in% names(actual_knockout_results)) {
+            as.character(actual_knockout_results$actual_winner_team[result_idx])
+          } else {
+            NA_character_
+          }
+        } else if (home_score > away_score) {
+          home_team
+        } else {
+          away_team
+        }
+        if (
+          is.na(winner_team) || !nzchar(winner_team) ||
+            !winner_team %in% c(home_team, away_team) ||
+            !home_team %in% team_names || !away_team %in% team_names ||
+            !winner_team %in% team_names
+        ) {
+          next
+        }
+        actual_winners[[actual_pair_key(home_team, away_team)]] <- winner_team
+      }
+      if (length(actual_winners) > 0) {
+        actual_pair_winner_idx <- stats::setNames(match(unname(actual_winners), team_names), names(actual_winners))
+      }
+    }
+  }
 
   rank_group_fast <- function(points, goals_for, goals_against, home_pos, away_pos, home_goals, away_goals, tie_breaker) {
     goal_difference <- goals_for - goals_against
@@ -1798,9 +1837,14 @@ simulate_group_stage_dashboard <- function(
         } else if (slot2_missing && !slot1_missing) {
           winner_idx <- slot1_idx
         } else {
-          slot1_adv <- route_advancement[slot1_idx, slot2_idx]
-          if (!is.finite(slot1_adv)) slot1_adv <- 0.5
-          winner_idx <- if (runif(1) <= slot1_adv) slot1_idx else slot2_idx
+          actual_key <- paste(sort(c(team_names[slot1_idx], team_names[slot2_idx])), collapse = "\r")
+          if (length(actual_pair_winner_idx) > 0 && actual_key %in% names(actual_pair_winner_idx)) {
+            winner_idx <- unname(actual_pair_winner_idx[[actual_key]])
+          } else {
+            slot1_adv <- route_advancement[slot1_idx, slot2_idx]
+            if (!is.finite(slot1_adv)) slot1_adv <- 0.5
+            winner_idx <- if (runif(1) <= slot1_adv) slot1_idx else slot2_idx
+          }
         }
         match_winner_idx[match_pos] <- winner_idx
         if (bracket_round_code[match_pos] == 1L) {
@@ -2267,6 +2311,7 @@ build_bracket_paths <- function(
     n_knockout_sim = 1000,
     seed = 20260628,
     knockout_route_estimator = NULL,
+    actual_knockout_results = NULL,
     ...
 ) {
   paths <- worldcup_bracket_template(include_champion = TRUE)
@@ -2314,6 +2359,19 @@ build_bracket_paths <- function(
     pairing_table = worldcup_third_place_pairing_table()
   )
   rating_by_team <- stats::setNames(stage_probabilities$rating, stage_probabilities$team)
+  pair_key <- function(team1, team2) {
+    apply(cbind(as.character(team1), as.character(team2)), 1, function(pair) {
+      paste(sort(pair), collapse = "\r")
+    })
+  }
+  actual_result_index <- NULL
+  if (!is.null(actual_knockout_results) && nrow(actual_knockout_results) > 0) {
+    actual_knockout_results$date <- as.Date(actual_knockout_results$date)
+    actual_result_index <- split(
+      seq_len(nrow(actual_knockout_results)),
+      pair_key(actual_knockout_results$home_team_canonical, actual_knockout_results$away_team_canonical)
+    )
+  }
   for (i in seq_len(nrow(paths))) {
     slot1 <- resolve_bracket_slot(
       paths$slot1_label[i],
@@ -2360,7 +2418,28 @@ build_bracket_paths <- function(
     both_teams_to_score_probability <- NA_real_
     top_scorelines_label <- NA_character_
     route <- NULL
+    actual_result <- NULL
+    actual_winner_team <- NA_character_
     if (!is.na(slot1$team) && nzchar(slot1$team) && !is.na(slot2$team) && nzchar(slot2$team)) {
+      if (!is.null(actual_result_index)) {
+        actual_idx <- actual_result_index[[pair_key(slot1$team, slot2$team)]]
+        if (length(actual_idx) > 0) {
+          actual_result <- actual_knockout_results[actual_idx[which.max(actual_knockout_results$date[actual_idx])], , drop = FALSE]
+          slot1_home <- identical(as.character(actual_result$home_team_canonical[1]), as.character(slot1$team))
+          slot1_actual_goals <- as.integer(if (slot1_home) actual_result$home_score[1] else actual_result$away_score[1])
+          slot2_actual_goals <- as.integer(if (slot1_home) actual_result$away_score[1] else actual_result$home_score[1])
+          actual_winner_team <- if (slot1_actual_goals == slot2_actual_goals) {
+            if ("actual_winner_team" %in% names(actual_result)) as.character(actual_result$actual_winner_team[1]) else NA_character_
+          } else if (slot1_actual_goals > slot2_actual_goals) {
+            slot1$team
+          } else {
+            slot2$team
+          }
+          if (is.na(actual_winner_team) || !nzchar(actual_winner_team) || !actual_winner_team %in% c(slot1$team, slot2$team)) {
+            actual_winner_team <- NA_character_
+          }
+        }
+      }
       slot1_advancement_probability <- knockout_advancement_probability(slot1$team, slot2$team, rating_by_team)
       slot2_advancement_probability <- 1 - slot1_advancement_probability
       if (!is.null(knockout_route_estimator)) {
@@ -2395,6 +2474,10 @@ build_bracket_paths <- function(
         both_teams_to_score_probability <- if (is.null(route$both_teams_to_score_probability)) NA_real_ else route$both_teams_to_score_probability
         top_scorelines_label <- if (is.null(route$top_scorelines_label)) NA_character_ else route$top_scorelines_label
       }
+      if (!is.na(actual_winner_team) && nzchar(actual_winner_team)) {
+        slot1_advancement_probability <- if (identical(actual_winner_team, slot1$team)) 1 else 0
+        slot2_advancement_probability <- if (identical(actual_winner_team, slot2$team)) 1 else 0
+      }
     } else if (!is.na(slot1$team) && nzchar(slot1$team) && paths$round[i] == "Champion") {
       slot1_advancement_probability <- team_stage_probability(slot1$team, stage_probabilities, "champion_probability")
     }
@@ -2424,6 +2507,16 @@ build_bracket_paths <- function(
       candidates[which.max(ranking_probability), ]
     } else {
       data.frame(team = NA_character_, display_team = NA_character_, stage_probability = NA_real_, match_probability = NA_real_)
+    }
+    if (!is.na(actual_winner_team) && nzchar(actual_winner_team)) {
+      actual_display <- if (identical(actual_winner_team, slot1$team)) slot1$display_team else slot2$display_team
+      winner <- data.frame(
+        team = actual_winner_team,
+        display_team = actual_display,
+        stage_probability = team_stage_probability(actual_winner_team, stage_probabilities, probability_col),
+        match_probability = 1,
+        stringsAsFactors = FALSE
+      )
     }
 
     paths$slot1_team[i] <- slot1$team
@@ -2637,8 +2730,17 @@ attach_worldcup_bracket_actual_results <- function(
     slot1_home <- identical(as.character(row$home_team_canonical[1]), as.character(slot1_team))
     slot1_goals <- as.integer(if (slot1_home) row$home_score[1] else row$away_score[1])
     slot2_goals <- as.integer(if (slot1_home) row$away_score[1] else row$home_score[1])
-    if (slot1_goals == slot2_goals) next
-    winner_team <- if (slot1_goals > slot2_goals) slot1_team else slot2_team
+    winner_team <- if (slot1_goals == slot2_goals) {
+      actual_winner <- if ("actual_winner_team" %in% names(row)) as.character(row$actual_winner_team[1]) else NA_character_
+      if (is.na(actual_winner) || !nzchar(actual_winner) || !actual_winner %in% c(slot1_team, slot2_team)) {
+        next
+      }
+      actual_winner
+    } else if (slot1_goals > slot2_goals) {
+      slot1_team
+    } else {
+      slot2_team
+    }
 
     bracket_paths$is_completed[i] <- TRUE
     bracket_paths$match_status[i] <- "final"
@@ -2913,6 +3015,23 @@ build_worldcup_dashboard_data <- function(
     route_method = route_method,
     route_max_goals = route_max_goals
   )
+  actual_knockout_results <- NULL
+  if (file.exists(actual_results_path)) {
+    actual_matches <- read.csv(actual_results_path, stringsAsFactors = FALSE)
+    required_actual_cols <- c("date", "home_team_canonical", "away_team_canonical", "home_score", "away_score", "tournament")
+    if (all(required_actual_cols %in% names(actual_matches))) {
+      actual_matches$date <- as.Date(actual_matches$date)
+      actual_knockout_results <- actual_matches[
+        actual_matches$tournament == "FIFA World Cup" &
+          !is.na(actual_matches$home_score) &
+          !is.na(actual_matches$away_score) &
+          actual_matches$date >= tournament_knockout_start_date &
+          actual_matches$date <= actual_results_cutoff_date,
+        ,
+        drop = FALSE
+      ]
+    }
+  }
   group_data <- simulate_group_stage_dashboard(
     groups,
     fixtures,
@@ -2923,6 +3042,7 @@ build_worldcup_dashboard_data <- function(
     knockout_date = tournament_knockout_date,
     n_knockout_sim = n_match_sim,
     knockout_route_estimator = knockout_route_estimator,
+    actual_knockout_results = actual_knockout_results,
     n_workers = n_workers
   )
   current_group_tables <- build_current_group_tables(groups, fixtures)
@@ -2943,6 +3063,7 @@ build_worldcup_dashboard_data <- function(
     n_knockout_sim = n_match_sim,
     seed = seed + 2,
     knockout_route_estimator = knockout_route_estimator,
+    actual_knockout_results = actual_knockout_results,
     elo_ratings_path = elo_ratings_path,
     ...
   )

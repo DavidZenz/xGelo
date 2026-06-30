@@ -209,6 +209,66 @@ test_that("World Cup tournament simulation chunks are deterministic across worke
   expect_equal(parallel$stage_probabilities, serial$stage_probabilities)
 })
 
+test_that("completed knockout results condition tournament stage probabilities", {
+  source(file.path(project_root, "R/forecast/tournament.R"))
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+
+  groups <- load_worldcup_2026_groups(file.path(project_root, "data/raw/worldcup_2026_groups.csv"))
+  fixtures <- make_worldcup_group_fixtures(
+    groups,
+    schedule_path = file.path(project_root, "data/raw/worldcup_2026_group_fixtures.csv")
+  )
+  scoreline_distributions <- do.call(rbind, lapply(fixtures$match_id, function(match_id) {
+    data.frame(
+      match_id = match_id,
+      home_goals = 1L,
+      away_goals = 0L,
+      probability = 1,
+      rank = 1L,
+      stringsAsFactors = FALSE
+    )
+  }))
+  always_slot1_route <- function(team1, team2) {
+    list(
+      slot1_regulation_win_probability = 1,
+      slot1_extra_time_penalty_probability = 0,
+      slot1_advancement_probability = 1,
+      slot2_regulation_win_probability = 0,
+      slot2_extra_time_penalty_probability = 0,
+      slot2_advancement_probability = 0,
+      draw_after_regulation_probability = 0,
+      tiebreak_probability = 0.5
+    )
+  }
+  actual_knockout_results <- data.frame(
+    date = as.Date("2026-06-28"),
+    home_team_canonical = "Germany",
+    away_team_canonical = "France",
+    home_score = 1L,
+    away_score = 1L,
+    actual_winner_team = "France",
+    tournament = "FIFA World Cup",
+    stringsAsFactors = FALSE
+  )
+
+  result <- simulate_group_stage_dashboard(
+    groups,
+    fixtures,
+    scoreline_distributions,
+    n_tournaments = 4,
+    seed = 20260612,
+    knockout_route_estimator = always_slot1_route,
+    actual_knockout_results = actual_knockout_results,
+    n_workers = 1
+  )
+  stages <- result$stage_probabilities
+
+  expect_equal(stages$round_of_32_probability[stages$team == "Germany"], 1)
+  expect_equal(stages$round_of_16_probability[stages$team == "Germany"], 0)
+  expect_equal(stages$round_of_32_probability[stages$team == "France"], 1)
+  expect_equal(stages$round_of_16_probability[stages$team == "France"], 1)
+})
+
 test_that("completed World Cup fixtures are fixed at actual scores", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
@@ -447,6 +507,44 @@ test_that("knockout bracket rows attach actual decided results", {
     knockout_start_date = "2026-06-28"
   )
   expect_true(later_attached$is_completed[later_attached$match_id == "M73"])
+
+  tied_matches_path <- tempfile(fileext = ".csv")
+  write.csv(
+    data.frame(
+      date = "2026-06-29",
+      home_team_canonical = "Germany",
+      away_team_canonical = "Paraguay",
+      home_score = 1,
+      away_score = 1,
+      actual_winner_team = "Paraguay",
+      tournament = "FIFA World Cup",
+      stringsAsFactors = FALSE
+    ),
+    tied_matches_path,
+    row.names = FALSE
+  )
+  tied_bracket <- data.frame(
+    round = "Round of 32",
+    match_id = "M74",
+    slot1_team = "Germany",
+    slot1_display = "Germany",
+    slot2_team = "Paraguay",
+    slot2_display = "Paraguay",
+    projected_winner_team = "Germany",
+    projected_winner = "Germany",
+    next_match_id = NA_character_,
+    stringsAsFactors = FALSE
+  )
+  tied_attached <- attach_worldcup_bracket_actual_results(
+    tied_bracket,
+    matches_path = tied_matches_path,
+    result_cutoff_date = "2026-06-30",
+    knockout_start_date = "2026-06-28"
+  )
+  expect_true(tied_attached$is_completed)
+  expect_equal(tied_attached$actual_score, "1-1")
+  expect_equal(tied_attached$actual_winner_team, "Paraguay")
+  expect_equal(tied_attached$actual_winner, "Paraguay")
 })
 
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {

@@ -200,11 +200,13 @@ test_that("ESPN scoreboard parser reads completed World Cup scores", {
             list(
               homeAway = "home",
               score = "3",
+              winner = TRUE,
               team = list(displayName = "Austria")
             ),
             list(
               homeAway = "away",
               score = "1",
+              winner = FALSE,
               team = list(displayName = "Jordan")
             )
           )
@@ -234,6 +236,7 @@ test_that("ESPN scoreboard parser reads completed World Cup scores", {
   expect_equal(parsed$away_team, "Jordan")
   expect_equal(parsed$home_score, 3L)
   expect_equal(parsed$away_score, 1L)
+  expect_equal(parsed$actual_winner_team, "Austria")
   expect_equal(parsed$espn_status, "Full Time")
 })
 
@@ -247,6 +250,7 @@ test_that("ESPN fallback supports one-day event date tolerance and preserves exi
     tournament = rep("FIFA World Cup", 5),
     neutral = rep(TRUE, 5),
     score_source = c(NA, NA, "eloratings_fallback", NA, NA),
+    actual_winner_team = c(NA, NA, NA, NA, NA),
     stringsAsFactors = FALSE
   )
   espn <- data.frame(
@@ -255,6 +259,7 @@ test_that("ESPN fallback supports one-day event date tolerance and preserves exi
     away_team = c("Algeria", "Jordan", "Senegal", "Portugal", "Paraguay"),
     home_score = c(3L, 3L, 9L, 2L, 0L),
     away_score = c(0L, 1L, 9L, 1L, 1L),
+    actual_winner_team = c("Argentina", "Austria", "Senegal", "Congo DR", "Paraguay"),
     stringsAsFactors = FALSE
   )
 
@@ -271,10 +276,13 @@ test_that("ESPN fallback supports one-day event date tolerance and preserves exi
   expect_equal(updated$home_score[3], 3)
   expect_equal(updated$away_score[3], 1)
   expect_equal(updated$score_source[3], "eloratings_fallback")
+  expect_equal(updated$actual_winner_team[3], "Senegal")
   expect_equal(updated$home_score[4], 1)
   expect_equal(updated$away_score[4], 2)
   expect_equal(updated$score_source[4], "espn_scoreboard_fallback")
+  expect_equal(updated$actual_winner_team[4], "DR Congo")
   expect_equal(updated$home_score[5], 0)
   expect_equal(updated$away_score[5], 1)
   expect_equal(updated$score_source[5], "espn_scoreboard_fallback")
+  expect_equal(updated$actual_winner_team[5], "Paraguay")
 })

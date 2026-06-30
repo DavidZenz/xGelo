@@ -88,12 +88,20 @@ apply_score_fallback <- function(
       "martj42"
     )
   }
+  if (!"actual_winner_team" %in% names(results)) {
+    results$actual_winner_team <- NA_character_
+  }
 
   aliases <- xgelo_score_fallback_aliases(team_map_path)
   results$.fallback_home_team <- xgelo_canonicalize_fallback_team(results$home_team, aliases)
   results$.fallback_away_team <- xgelo_canonicalize_fallback_team(results$away_team, aliases)
   fallback_results$.fallback_home_team <- xgelo_canonicalize_fallback_team(fallback_results$home_team, aliases)
   fallback_results$.fallback_away_team <- xgelo_canonicalize_fallback_team(fallback_results$away_team, aliases)
+  fallback_results$.fallback_actual_winner_team <- if ("actual_winner_team" %in% names(fallback_results)) {
+    xgelo_canonicalize_fallback_team(fallback_results$actual_winner_team, aliases)
+  } else {
+    NA_character_
+  }
 
   fallback_results$.fallback_key <- paste(
     fallback_results$date,
@@ -128,6 +136,15 @@ apply_score_fallback <- function(
       results$away_score[eligible] <- fallback_results$away_score[matched]
       results$score_source[eligible] <- fallback_source
     }
+    winner_available <- !is.na(fallback_idx) &
+      !is.na(fallback_results$.fallback_actual_winner_team[fallback_idx])
+    winner_eligible <- results$tournament %in% tournaments &
+      winner_available &
+      (is.na(results$actual_winner_team) | !nzchar(results$actual_winner_team))
+    if (any(winner_eligible)) {
+      matched <- fallback_idx[winner_eligible]
+      results$actual_winner_team[winner_eligible] <- fallback_results$.fallback_actual_winner_team[matched]
+    }
 
     reverse_idx <- match(result_key, fallback_results$.fallback_reverse_key)
     needs_score <- is.na(results$home_score) | is.na(results$away_score)
@@ -140,6 +157,15 @@ apply_score_fallback <- function(
       results$home_score[reverse_eligible] <- fallback_results$away_score[matched]
       results$away_score[reverse_eligible] <- fallback_results$home_score[matched]
       results$score_source[reverse_eligible] <- fallback_source
+    }
+    reverse_winner_available <- !is.na(reverse_idx) &
+      !is.na(fallback_results$.fallback_actual_winner_team[reverse_idx])
+    reverse_winner_eligible <- results$tournament %in% tournaments &
+      reverse_winner_available &
+      (is.na(results$actual_winner_team) | !nzchar(results$actual_winner_team))
+    if (any(reverse_winner_eligible)) {
+      matched <- reverse_idx[reverse_winner_eligible]
+      results$actual_winner_team[reverse_winner_eligible] <- fallback_results$.fallback_actual_winner_team[matched]
     }
   }
 
@@ -300,6 +326,15 @@ read_espn_scoreboard_results <- function(
       if (is.na(home_score) || is.na(away_score)) {
         next
       }
+      home_winner <- isTRUE(home$winner)
+      away_winner <- isTRUE(away$winner)
+      actual_winner_team <- if (home_winner && !away_winner) {
+        home$team$displayName
+      } else if (away_winner && !home_winner) {
+        away$team$displayName
+      } else {
+        NA_character_
+      }
 
       event_date <- competition$date
       if (is.null(event_date) || !nzchar(event_date)) {
@@ -317,6 +352,7 @@ read_espn_scoreboard_results <- function(
         away_team = away$team$displayName,
         home_score = home_score,
         away_score = away_score,
+        actual_winner_team = actual_winner_team,
         espn_event_id = event$id,
         espn_event_date = event_date,
         espn_status = competition$status$type$description,
