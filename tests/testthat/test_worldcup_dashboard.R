@@ -907,6 +907,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("bracket-flag", html, fixed = TRUE))
   expect_true(grepl("bracket-flag code", html, fixed = TRUE))
   expect_true(grepl("registerTeamMeta", html, fixed = TRUE))
+  expect_true(grepl("(data.groups || []).forEach(registerTeamMeta)", html, fixed = TRUE))
   expect_true(grepl("teamMetaFor", html, fixed = TRUE))
   expect_true(grepl("teamLabel", html, fixed = TRUE))
   expect_true(grepl("hasBracketPrematchForecast", html, fixed = TRUE))

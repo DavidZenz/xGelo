@@ -14143,7 +14143,11 @@ function registerMatchTeam(row, side){
     fifa_code: row && row[`${side}_fifa_code`]
   });
 }
+(data.groups || []).forEach(registerTeamMeta);
 (data.stage_probabilities || []).forEach(registerTeamMeta);
+(data.group_probabilities || []).forEach(registerTeamMeta);
+(data.current_group_tables || []).forEach(registerTeamMeta);
+(data.expected_group_tables || []).forEach(registerTeamMeta);
 (data.group_standings || []).forEach(registerTeamMeta);
 (data.elo_ratings || data.elo_table || []).forEach(registerTeamMeta);
 (data.team_form || data.team_forms || []).forEach(registerTeamMeta);
