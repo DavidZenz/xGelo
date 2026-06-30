@@ -439,6 +439,14 @@ test_that("knockout bracket rows attach actual decided results", {
   expect_equal(attached$actual_winner[attached$match_id == "M73"], "Canada")
   expect_true(attached$actual_winner_continues[attached$match_id == "M73"])
   expect_false(attached$is_completed[attached$match_id == "M90"])
+
+  later_attached <- attach_worldcup_bracket_actual_results(
+    bracket_paths,
+    matches_path = matches_path,
+    result_cutoff_date = "2026-06-30",
+    knockout_start_date = "2026-06-28"
+  )
+  expect_true(later_attached$is_completed[later_attached$match_id == "M73"])
 })
 
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {

@@ -49477,8 +49477,8 @@
 2026-06-27,"Panama","England",0,2,"FIFA World Cup","East Rutherford","United States",TRUE,"martj42","Panama","England","PAN","ENG",0,"Panama_England_2026-06-27",FALSE
 2026-06-27,"Croatia","Ghana",2,1,"FIFA World Cup","Philadelphia","United States",TRUE,"martj42","Croatia","Ghana","CRO","GHA",1,"Croatia_Ghana_2026-06-27",FALSE
 2026-06-28,"South Africa","Canada",0,1,"FIFA World Cup","Inglewood","United States",TRUE,"martj42","South Africa","Canada","RSA","CAN",0,"South Africa_Canada_2026-06-28",FALSE
-2026-06-29,"Brazil","Japan",2,1,"FIFA World Cup","Houston","United States",TRUE,"espn_scoreboard_fallback","Brazil","Japan","BRA","JPN",1,"Brazil_Japan_2026-06-29",FALSE
-2026-06-29,"Germany","Paraguay",NA,NA,"FIFA World Cup","Foxborough","United States",TRUE,NA,"Germany","Paraguay","GER","PAR",NA,"Germany_Paraguay_2026-06-29",FALSE
+2026-06-29,"Brazil","Japan",2,1,"FIFA World Cup","Houston","United States",TRUE,"eloratings_fallback","Brazil","Japan","BRA","JPN",1,"Brazil_Japan_2026-06-29",FALSE
+2026-06-29,"Germany","Paraguay",1,1,"FIFA World Cup","Foxborough","United States",TRUE,"eloratings_fallback","Germany","Paraguay","GER","PAR",0.5,"Germany_Paraguay_2026-06-29",FALSE
 2026-06-29,"Netherlands","Morocco",NA,NA,"FIFA World Cup","Guadalupe","Mexico",TRUE,NA,"Netherlands","Morocco","NED","MAR",NA,"Netherlands_Morocco_2026-06-29",FALSE
 2026-06-30,"Ivory Coast","Norway",NA,NA,"FIFA World Cup","Arlington","United States",TRUE,NA,"Ivory Coast","Norway","CIV","NOR",NA,"Ivory Coast_Norway_2026-06-30",FALSE
 2026-06-30,"France","Sweden",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,"France","Sweden","FRA","SWE",NA,"France_Sweden_2026-06-30",FALSE
