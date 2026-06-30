@@ -904,6 +904,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("entersNext", html, fixed = TRUE))
   expect_true(grepl("next.dataset.slot1Team", html, fixed = TRUE))
   expect_true(grepl("bracket-team-target", html, fixed = TRUE))
+  expect_true(grepl("grid-template-rows:repeat(33,64px)", html, fixed = TRUE))
   expect_true(grepl("bracket-flag", html, fixed = TRUE))
   expect_true(grepl("bracket-flag code", html, fixed = TRUE))
   expect_true(grepl("registerTeamMeta", html, fixed = TRUE))
