@@ -49481,7 +49481,7 @@
 2026-06-29,"Germany","Paraguay",1,1,"FIFA World Cup","Foxborough","United States",TRUE,"martj42","Paraguay","Germany","Paraguay","GER","PAR",0.5,"Germany_Paraguay_2026-06-29",FALSE
 2026-06-29,"Netherlands","Morocco",1,1,"FIFA World Cup","Guadalupe","Mexico",TRUE,"martj42","Morocco","Netherlands","Morocco","NED","MAR",0.5,"Netherlands_Morocco_2026-06-29",FALSE
 2026-06-30,"Ivory Coast","Norway",1,2,"FIFA World Cup","Arlington","United States",TRUE,"eloratings_fallback","Norway","Ivory Coast","Norway","CIV","NOR",0,"Ivory Coast_Norway_2026-06-30",FALSE
-2026-06-30,"France","Sweden",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,NA,"France","Sweden","FRA","SWE",NA,"France_Sweden_2026-06-30",FALSE
+2026-06-30,"France","Sweden",3,0,"FIFA World Cup","East Rutherford","United States",TRUE,"eloratings_fallback","France","France","Sweden","FRA","SWE",1,"France_Sweden_2026-06-30",FALSE
 2026-06-30,"Mexico","Ecuador",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,NA,NA,"Mexico","Ecuador","MEX","ECU",NA,"Mexico_Ecuador_2026-06-30",TRUE
 2026-07-01,"England","DR Congo",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,NA,"England","DR Congo","ENG",NA,NA,"England_DR Congo_2026-07-01",FALSE
 2026-07-01,"Belgium","Senegal",NA,NA,"FIFA World Cup","Seattle","United States",TRUE,NA,NA,"Belgium","Senegal","BEL","SEN",NA,"Belgium_Senegal_2026-07-01",FALSE

@@ -1,2 +1,2 @@
 "snapshot_path","size_bytes","modified_time","md5","tables","generated_at"
-"data/raw/transfermarkt/transfermarkt-datasets.duckdb",203960320,"2026-06-09 10:35:17.355639","5b1b61f18fe6028c08ea45f21782bfbc","appearances|club_games|clubs|competitions|countries|game_events|game_lineups|games|national_teams|player_valuations|players|transfers|version","2026-07-01 00:30:42.856398"
+"data/raw/transfermarkt/transfermarkt-datasets.duckdb",203960320,"2026-06-09 10:35:17.355639","5b1b61f18fe6028c08ea45f21782bfbc","appearances|club_games|clubs|competitions|countries|game_events|game_lineups|games|national_teams|player_valuations|players|transfers|version","2026-07-01 02:21:08.523034"
