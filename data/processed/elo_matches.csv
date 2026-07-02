@@ -49484,8 +49484,8 @@
 2026-06-30,"France","Sweden",3,0,"FIFA World Cup","East Rutherford","United States",TRUE,"martj42","France","France","Sweden","FRA","SWE",1,"France_Sweden_2026-06-30",FALSE
 2026-06-30,"Mexico","Ecuador",2,0,"FIFA World Cup","Mexico City","Mexico",FALSE,"martj42","Mexico","Mexico","Ecuador","MEX","ECU",1,"Mexico_Ecuador_2026-06-30",TRUE
 2026-07-01,"England","DR Congo",2,1,"FIFA World Cup","Atlanta","United States",TRUE,"eloratings_fallback","England","England","DR Congo","ENG",NA,1,"England_DR Congo_2026-07-01",FALSE
-2026-07-01,"Belgium","Senegal",NA,NA,"FIFA World Cup","Seattle","United States",TRUE,NA,NA,"Belgium","Senegal","BEL","SEN",NA,"Belgium_Senegal_2026-07-01",FALSE
-2026-07-01,"United States","Bosnia and Herzegovina",NA,NA,"FIFA World Cup","Santa Clara","United States",FALSE,NA,NA,"United States","Bosnia and Herzegovina","USA","BIH",NA,"United States_Bosnia and Herzegovina_2026-07-01",TRUE
+2026-07-01,"Belgium","Senegal",3,2,"FIFA World Cup","Seattle","United States",TRUE,"eloratings_fallback","Belgium","Belgium","Senegal","BEL","SEN",1,"Belgium_Senegal_2026-07-01",FALSE
+2026-07-01,"United States","Bosnia and Herzegovina",2,0,"FIFA World Cup","Santa Clara","United States",FALSE,"eloratings_fallback",NA,"United States","Bosnia and Herzegovina","USA","BIH",1,"United States_Bosnia and Herzegovina_2026-07-01",TRUE
 2026-07-02,"Spain","Austria",NA,NA,"FIFA World Cup","Inglewood","United States",TRUE,NA,NA,"Spain","Austria","ESP","AUT",NA,"Spain_Austria_2026-07-02",FALSE
 2026-07-02,"Portugal","Croatia",NA,NA,"FIFA World Cup","Toronto","Canada",TRUE,NA,NA,"Portugal","Croatia","POR","CRO",NA,"Portugal_Croatia_2026-07-02",FALSE
 2026-07-02,"Switzerland","Algeria",NA,NA,"FIFA World Cup","Vancouver","Canada",TRUE,NA,NA,"Switzerland","Algeria","SUI","ALG",NA,"Switzerland_Algeria_2026-07-02",FALSE
