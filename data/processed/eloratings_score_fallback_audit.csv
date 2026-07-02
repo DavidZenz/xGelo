@@ -1,4 +1,1 @@
 "date","home_team","away_team","home_score","away_score","tournament","city","country","neutral","score_source","actual_winner_team"
-2026-07-01,"England","DR Congo",2,1,"FIFA World Cup","Atlanta","United States",TRUE,"eloratings_fallback",NA
-2026-07-01,"Belgium","Senegal",3,2,"FIFA World Cup","Seattle","United States",TRUE,"eloratings_fallback",NA
-2026-07-01,"United States","Bosnia and Herzegovina",2,0,"FIFA World Cup","Santa Clara","United States",FALSE,"eloratings_fallback",NA
