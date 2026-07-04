@@ -49489,12 +49489,14 @@
 2026-07-02,"Spain","Austria",3,0,"FIFA World Cup","Inglewood","United States",TRUE,"martj42","Spain","Spain","Austria","ESP","AUT",1,"Spain_Austria_2026-07-02",FALSE
 2026-07-02,"Portugal","Croatia",2,1,"FIFA World Cup","Toronto","Canada",TRUE,"martj42","Portugal","Portugal","Croatia","POR","CRO",1,"Portugal_Croatia_2026-07-02",FALSE
 2026-07-02,"Switzerland","Algeria",2,0,"FIFA World Cup","Vancouver","Canada",TRUE,"martj42","Switzerland","Switzerland","Algeria","SUI","ALG",1,"Switzerland_Algeria_2026-07-02",FALSE
-2026-07-03,"Australia","Egypt",NA,NA,"FIFA World Cup","Arlington","United States",TRUE,NA,NA,"Australia","Egypt","AUS","EGY",NA,"Australia_Egypt_2026-07-03",FALSE
-2026-07-03,"Argentina","Cape Verde",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,NA,"Argentina","Cape Verde","ARG","CPV",NA,"Argentina_Cape Verde_2026-07-03",FALSE
-2026-07-03,"Colombia","Ghana",NA,NA,"FIFA World Cup","Kansas City","United States",TRUE,NA,NA,"Colombia","Ghana","COL","GHA",NA,"Colombia_Ghana_2026-07-03",FALSE
+2026-07-03,"Australia","Egypt",1,1,"FIFA World Cup","Arlington","United States",TRUE,"martj42","Egypt","Australia","Egypt","AUS","EGY",0.5,"Australia_Egypt_2026-07-03",FALSE
+2026-07-03,"Argentina","Cape Verde",3,2,"FIFA World Cup","Miami Gardens","United States",TRUE,"martj42","Argentina","Argentina","Cape Verde","ARG","CPV",1,"Argentina_Cape Verde_2026-07-03",FALSE
+2026-07-03,"Colombia","Ghana",1,0,"FIFA World Cup","Kansas City","United States",TRUE,"martj42","Colombia","Colombia","Ghana","COL","GHA",1,"Colombia_Ghana_2026-07-03",FALSE
 2026-07-04,"Canada","Morocco",NA,NA,"FIFA World Cup","Houston","United States",TRUE,NA,NA,"Canada","Morocco","CAN","MAR",NA,"Canada_Morocco_2026-07-04",FALSE
 2026-07-04,"Paraguay","France",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,NA,NA,"Paraguay","France","PAR","FRA",NA,"Paraguay_France_2026-07-04",FALSE
 2026-07-05,"Brazil","Norway",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,NA,"Brazil","Norway","BRA","NOR",NA,"Brazil_Norway_2026-07-05",FALSE
 2026-07-05,"Mexico","England",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,NA,NA,"Mexico","England","MEX","ENG",NA,"Mexico_England_2026-07-05",TRUE
 2026-07-06,"Portugal","Spain",NA,NA,"FIFA World Cup","Dallas","United States",TRUE,NA,NA,"Portugal","Spain","POR","ESP",NA,"Portugal_Spain_2026-07-06",FALSE
 2026-07-06,"United States","Belgium",NA,NA,"FIFA World Cup","Seattle","United States",FALSE,NA,NA,"United States","Belgium","USA","BEL",NA,"United States_Belgium_2026-07-06",TRUE
+2026-07-06,"Argentina","Egypt",NA,NA,"FIFA World Cup","Atlanta","United States",TRUE,NA,NA,"Argentina","Egypt","ARG","EGY",NA,"Argentina_Egypt_2026-07-06",FALSE
+2026-07-06,"Switzerland","Colombia",NA,NA,"FIFA World Cup","Vancouver","Canada",TRUE,NA,NA,"Switzerland","Colombia","SUI","COL",NA,"Switzerland_Colombia_2026-07-06",FALSE
