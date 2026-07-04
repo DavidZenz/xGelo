@@ -49492,7 +49492,7 @@
 2026-07-03,"Australia","Egypt",1,1,"FIFA World Cup","Arlington","United States",TRUE,"martj42","Egypt","Australia","Egypt","AUS","EGY",0.5,"Australia_Egypt_2026-07-03",FALSE
 2026-07-03,"Argentina","Cape Verde",3,2,"FIFA World Cup","Miami Gardens","United States",TRUE,"martj42","Argentina","Argentina","Cape Verde","ARG","CPV",1,"Argentina_Cape Verde_2026-07-03",FALSE
 2026-07-03,"Colombia","Ghana",1,0,"FIFA World Cup","Kansas City","United States",TRUE,"martj42","Colombia","Colombia","Ghana","COL","GHA",1,"Colombia_Ghana_2026-07-03",FALSE
-2026-07-04,"Canada","Morocco",0,3,"FIFA World Cup","Houston","United States",TRUE,"espn_scoreboard_fallback","Morocco","Canada","Morocco","CAN","MAR",0,"Canada_Morocco_2026-07-04",FALSE
+2026-07-04,"Canada","Morocco",0,3,"FIFA World Cup","Houston","United States",TRUE,"eloratings_fallback","Morocco","Canada","Morocco","CAN","MAR",0,"Canada_Morocco_2026-07-04",FALSE
 2026-07-04,"Paraguay","France",NA,NA,"FIFA World Cup","Philadelphia","United States",TRUE,NA,NA,"Paraguay","France","PAR","FRA",NA,"Paraguay_France_2026-07-04",FALSE
 2026-07-05,"Brazil","Norway",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,NA,"Brazil","Norway","BRA","NOR",NA,"Brazil_Norway_2026-07-05",FALSE
 2026-07-05,"Mexico","England",NA,NA,"FIFA World Cup","Mexico City","Mexico",FALSE,NA,NA,"Mexico","England","MEX","ENG",NA,"Mexico_England_2026-07-05",TRUE
