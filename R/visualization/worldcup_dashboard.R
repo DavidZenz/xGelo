@@ -809,7 +809,12 @@ worldcup_bracket_template <- function(include_champion = TRUE) {
       slot1_label = paste("Winner", c("M89", "M93", "M91", "M95")),
       slot2_label = paste("Winner", c("M90", "M94", "M92", "M96"))
     ),
-    data.frame(round = "Semi-finals", match_id = paste0("M", 101:102), slot1_label = paste0("Winner M", 97:98), slot2_label = paste0("Winner M", 99:100)),
+    data.frame(
+      round = "Semi-finals",
+      match_id = paste0("M", 101:102),
+      slot1_label = paste("Winner", c("M97", "M99")),
+      slot2_label = paste("Winner", c("M98", "M100"))
+    ),
     data.frame(round = "Final", match_id = "M104", slot1_label = "Winner M101", slot2_label = "Winner M102"),
     stringsAsFactors = FALSE
   )
