@@ -11,7 +11,7 @@
 **Milestone**: v1.0 - COMPLETE ✅
 **Status**: Archived
 **Next Milestone**: v2.0 (Ready for Planning)
-Last activity: 2026-07-15 - Completed quick task 260715-v45: Show only teams with a positive title probability in Top title chances
+Last activity: 2026-07-15 - Completed quick task 260715-v8j: Label the final as fixed once both finalists are confirmed
 
 ---
 
@@ -195,6 +195,7 @@ $ git status
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 260715-v45 | Show only teams with a positive title probability in Top title chances | 2026-07-15 | a31ff43 | [260715-v45-show-only-teams-with-a-positive-title-pr](./quick/260715-v45-show-only-teams-with-a-positive-title-pr/) |
+| 260715-v8j | Label the final as fixed once both finalists are confirmed | 2026-07-15 | 3519c15 | [260715-v8j-label-the-final-as-fixed-once-both-final](./quick/260715-v8j-label-the-final-as-fixed-once-both-final/) |
 
 ---
 *Generated: 2026-06-05 | v1.0 Complete | v2.0 Ready*
