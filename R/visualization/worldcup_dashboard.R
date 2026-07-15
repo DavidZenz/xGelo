@@ -3508,6 +3508,11 @@ function renderHero(){
   }).sort((a,b)=>a.margin-b.margin)[0];
   const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
   const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
+  const finalSourceIds = finalPath ? [finalPath.slot1_source_match_id, finalPath.slot2_source_match_id].filter(Boolean) : [];
+  const finalIsFixed = finalSourceIds.length === 2 && finalSourceIds.every(matchId => bracketMatchIsCompleted(data.bracket_paths.find(r => r.match_id === matchId)));
+  const finalMetric = finalIsFixed
+    ? {label:"Final fixed", value:finalTeams, note:"Finalists confirmed"}
+    : {label:"Likely final", value:finalTeams, note:"Highest final probabilities"};
   const lockedLabels = lockedGroupWinners.map(row => `${row.display_team} (${row.group})`);
   const lockedValue = lockedLabels.length <= 3 ? lockedLabels.join(", ") : `${lockedLabels.slice(0,3).join(", ")} +${lockedLabels.length - 3}`;
   const favoriteMetric = lockedGroupWinners.length
@@ -3521,7 +3526,7 @@ function renderHero(){
     : unresolvedMetric;
   const heroMetrics = [
     {label:"Top title chances", valueHtml:`<div class="title-chances">${champs}</div>`, valueClass:"title-chances-value", note:"Full tournament simulations"},
-    {label:"Likely final", value:finalTeams, note:"Highest final probabilities"},
+    finalMetric,
     favoriteMetric,
     lockedGroupWinners.length ? (allGroupsHaveQualifier ? qualifiedFavoriteMetric : unresolvedMetric) : {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},
     lockedGroupWinners.length ? {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`} : {label:"Most open group", value:`Group ${open.group}`, note:`Win spread ${pp(open.spread)}`}
