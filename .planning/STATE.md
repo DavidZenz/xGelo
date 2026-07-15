@@ -11,6 +11,7 @@
 **Milestone**: v1.0 - COMPLETE ✅
 **Status**: Archived
 **Next Milestone**: v2.0 (Ready for Planning)
+Last activity: 2026-07-15 - Completed quick task 260715-v45: Show only teams with a positive title probability in Top title chances
 
 ---
 
@@ -188,6 +189,12 @@ $ git status
 - **Milestone Complete**: All phases executed, all artifacts created, all gaps resolved
 - **Audit Passed**: v1.0-MILESTONE-AUDIT.md shows PASSED status
 - **Ready for v2.0**: Clean slate with archived v1.0 for reference
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260715-v45 | Show only teams with a positive title probability in Top title chances | 2026-07-15 | a31ff43 | [260715-v45-show-only-teams-with-a-positive-title-pr](./quick/260715-v45-show-only-teams-with-a-positive-title-pr/) |
 
 ---
 *Generated: 2026-06-05 | v1.0 Complete | v2.0 Ready*
