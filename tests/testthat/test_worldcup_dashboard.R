@@ -813,6 +813,11 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("rel=\"noopener\"", html, fixed = TRUE))
   expect_true(grepl("title-chance-row", html, fixed = TRUE))
   expect_true(grepl("title-chance-pct", html, fixed = TRUE))
+  expect_true(grepl(
+    "champion_probabilities.filter(r => Number(r.champion_probability) > 0).slice(0,3)",
+    html,
+    fixed = TRUE
+  ))
   expect_true(grepl("Data Credits", html, fixed = TRUE))
   expect_true(grepl("https://github.com/martj42/international_results", html, fixed = TRUE))
   expect_true(grepl("https://github.com/statsbomb/open-data", html, fixed = TRUE))
