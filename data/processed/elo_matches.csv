@@ -29608,6 +29608,9 @@
 2005-10-26,"Mexico","Uruguay",3,1,"Friendly","Guadalajara","Mexico",FALSE,"martj42",NA,"Mexico","Uruguay","MEX","URU",1,"Mexico_Uruguay_2005-10-26",TRUE
 2005-10-27,"Bahrain","Panama",5,0,"Friendly","Riffa","Bahrain",FALSE,"martj42",NA,"Bahrain","Panama","BHR","PAN",1,"Bahrain_Panama_2005-10-27",TRUE
 2005-10-30,"Puerto Rico","Guadeloupe",1,3,"Friendly","Bayamón","Puerto Rico",FALSE,"martj42",NA,"Puerto Rico","Guadeloupe","PUR",NA,0,"Puerto Rico_Guadeloupe_2005-10-30",TRUE
+2005-11-02,"Northern Cyprus","Kosovo",1,0,"KTFF 50th Anniversary Cup","North Nicosia","Northern Cyprus",FALSE,"martj42",NA,"Northern Cyprus","Kosovo",NA,"KVX",1,"Northern Cyprus_Kosovo_2005-11-02",TRUE
+2005-11-03,"Sápmi","Kosovo",1,4,"KTFF 50th Anniversary Cup","Girne","Northern Cyprus",TRUE,"martj42",NA,"Sápmi","Kosovo",NA,"KVX",0,"Sápmi_Kosovo_2005-11-03",FALSE
+2005-11-04,"Northern Cyprus","Sápmi",6,2,"KTFF 50th Anniversary Cup","North Nicosia","Northern Cyprus",FALSE,"martj42",NA,"Northern Cyprus","Sápmi",NA,NA,1,"Northern Cyprus_Sápmi_2005-11-04",TRUE
 2005-11-06,"Zanzibar","Tanzania",0,1,"Friendly","Zanzibar City","Zanzibar",FALSE,"martj42",NA,"Zanzibar","Tanzania",NA,"TAN",0,"Zanzibar_Tanzania_2005-11-06",TRUE
 2005-11-09,"France","Costa Rica",3,2,"Friendly","Fort-de-France","Martinique",TRUE,"martj42",NA,"France","Costa Rica","FRA","CRC",1,"France_Costa Rica_2005-11-09",FALSE
 2005-11-09,"Tajikistan","Afghanistan",4,0,"Friendly","Dushanbe","Tajikistan",FALSE,"martj42",NA,"Tajikistan","Afghanistan","TJK","AFG",1,"Tajikistan_Afghanistan_2005-11-09",TRUE
@@ -46111,7 +46114,7 @@
 2023-06-17,"Luxembourg","Liechtenstein",2,0,"UEFA Euro qualification","Luxembourg","Luxembourg",FALSE,"martj42",NA,"Luxembourg","Liechtenstein","LUX","LIE",1,"Luxembourg_Liechtenstein_2023-06-17",TRUE
 2023-06-17,"Iceland","Slovakia",1,2,"UEFA Euro qualification","Reykjavík","Iceland",FALSE,"martj42",NA,"Iceland","Slovakia","ISL","SVK",0,"Iceland_Slovakia_2023-06-17",TRUE
 2023-06-17,"Portugal","Bosnia and Herzegovina",3,0,"UEFA Euro qualification","Lisbon","Portugal",FALSE,"martj42",NA,"Portugal","Bosnia and Herzegovina","POR","BIH",1,"Portugal_Bosnia and Herzegovina_2023-06-17",TRUE
-2023-06-17,"Ticino","Raetia",1,8,"CONIFA World Football Cup qualification","Tenero-Contra","Switzerland",FALSE,"martj42",NA,"Ticino","Raetia",NA,NA,0,"Ticino_Raetia_2023-06-17",TRUE
+2023-06-17,"Canton Ticino","Raetia",1,8,"CONIFA World Football Cup qualification","Tenero-Contra","Switzerland",FALSE,"martj42",NA,"Canton Ticino","Raetia",NA,NA,0,"Canton Ticino_Raetia_2023-06-17",TRUE
 2023-06-17,"Turkmenistan","Oman",0,2,"CAFA Nations Cup","Tashkent","Uzbekistan",TRUE,"martj42",NA,"Turkmenistan","Oman","TKM","OMA",0,"Turkmenistan_Oman_2023-06-17",FALSE
 2023-06-17,"Uzbekistan","Tajikistan",5,1,"CAFA Nations Cup","Tashkent","Uzbekistan",FALSE,"martj42",NA,"Uzbekistan","Tajikistan","UZB","TJK",1,"Uzbekistan_Tajikistan_2023-06-17",TRUE
 2023-06-17,"Djibouti","Pakistan",3,1,"Mauritius Four Nations Cup","Saint Pierre","Mauritius",TRUE,"martj42",NA,"Djibouti","Pakistan","DJI","PAK",1,"Djibouti_Pakistan_2023-06-17",FALSE
@@ -46294,7 +46297,7 @@
 2023-08-04,"Tamil Eelam","Hmong",3,0,"CONIFA Asia Cup","Alcochete","Portugal",TRUE,"martj42",NA,"Tamil Eelam","Hmong",NA,NA,1,"Tamil Eelam_Hmong_2023-08-04",FALSE
 2023-08-05,"Hmong","Tibet",5,4,"CONIFA Asia Cup","Alcochete","Portugal",TRUE,"martj42",NA,"Hmong","Tibet",NA,NA,1,"Hmong_Tibet_2023-08-05",FALSE
 2023-08-06,"Tibet","Tamil Eelam",1,3,"CONIFA Asia Cup","Alcochete","Portugal",TRUE,"martj42",NA,"Tibet","Tamil Eelam",NA,NA,0,"Tibet_Tamil Eelam_2023-08-06",FALSE
-2023-08-06,"Raetia","Ticino",5,1,"Friendly","Domat/Ems","Switzerland",FALSE,"martj42",NA,"Raetia","Ticino",NA,NA,1,"Raetia_Ticino_2023-08-06",TRUE
+2023-08-06,"Raetia","Canton Ticino",5,1,"Friendly","Domat/Ems","Switzerland",FALSE,"martj42",NA,"Raetia","Canton Ticino",NA,NA,1,"Raetia_Canton Ticino_2023-08-06",TRUE
 2023-08-08,"Tamil Eelam","Hmong",3,1,"CONIFA Asia Cup","Alcochete","Portugal",TRUE,"martj42",NA,"Tamil Eelam","Hmong",NA,NA,1,"Tamil Eelam_Hmong_2023-08-08",FALSE
 2023-08-24,"Comoros","Mayotte",0,0,"Indian Ocean Island Games","Antananarivo","Madagascar",TRUE,"martj42",NA,"Comoros","Mayotte","COM",NA,0.5,"Comoros_Mayotte_2023-08-24",FALSE
 2023-08-24,"Madagascar","Seychelles",1,0,"Indian Ocean Island Games","Antananarivo","Madagascar",FALSE,"martj42",NA,"Madagascar","Seychelles","MAD","SEY",1,"Madagascar_Seychelles_2023-08-24",TRUE
@@ -49292,12 +49295,15 @@
 2026-06-01,"Slovakia","Malta",2,1,"Friendly","Dunajská Streda","Slovakia",FALSE,"martj42",NA,"Slovakia","Malta","SVK","MLT",1,"Slovakia_Malta_2026-06-01",TRUE
 2026-06-01,"Turkey","North Macedonia",4,0,"Friendly","Istanbul","Turkey",FALSE,"martj42",NA,"Turkey","Macedonia","TUR","MKD",1,"Turkey_Macedonia_2026-06-01",TRUE
 2026-06-01,"Maldives","Afghanistan",0,1,"Diamond Jubilee International Football Tournament","Malé","Maldives",FALSE,"martj42",NA,"Maldives","Afghanistan","MDV","AFG",0,"Maldives_Afghanistan_2026-06-01",TRUE
-2026-06-01,"Maldives","Pakistan",0,3,"Diamond Jubilee International Football Tournament","Malé","Maldives",FALSE,"martj42",NA,"Maldives","Pakistan","MDV","PAK",0,"Maldives_Pakistan_2026-06-01",TRUE
 2026-06-02,"Croatia","Belgium",0,2,"Friendly","Rijeka","Croatia",FALSE,"martj42",NA,"Croatia","Belgium","CRO","BEL",0,"Croatia_Belgium_2026-06-02",TRUE
 2026-06-02,"Georgia","Romania",1,1,"Friendly","Tbilisi","Georgia",FALSE,"martj42",NA,"Georgia","Romania","GEO","ROU",0.5,"Georgia_Romania_2026-06-02",TRUE
 2026-06-02,"Haiti","New Zealand",4,0,"Friendly","Fort Lauderdale","United States",TRUE,"martj42",NA,"Haiti","New Zealand","HAI","NZL",1,"Haiti_New Zealand_2026-06-02",FALSE
 2026-06-02,"Morocco","Madagascar",4,0,"Friendly","Rabat","Morocco",FALSE,"martj42",NA,"Morocco","Madagascar","MAR","MAD",1,"Morocco_Madagascar_2026-06-02",TRUE
 2026-06-02,"Wales","Ghana",1,1,"Friendly","Cardiff","Wales",FALSE,"martj42",NA,"Wales","Ghana","WAL","GHA",0.5,"Wales_Ghana_2026-06-02",TRUE
+2026-06-02,"Padania","Raetia",4,1,"CONIFA European Football Cup","Carate Brianza","Italy",FALSE,"martj42",NA,"Padania","Raetia",NA,NA,1,"Padania_Raetia_2026-06-02",TRUE
+2026-06-02,"Rouet-Provence","Canton Ticino",0,1,"CONIFA European Football Cup","Carate Brianza","Italy",TRUE,"martj42",NA,"Rouet-Provence","Canton Ticino",NA,NA,0,"Rouet-Provence_Canton Ticino_2026-06-02",FALSE
+2026-06-03,"Padania","Greenland",3,1,"CONIFA European Football Cup","Carate Brianza","Italy",FALSE,"martj42",NA,"Padania","Greenland",NA,NA,1,"Padania_Greenland_2026-06-03",TRUE
+2026-06-03,"Canton Ticino","Northern Cyprus",1,5,"CONIFA European Football Cup","Carate Brianza","Italy",TRUE,"martj42",NA,"Canton Ticino","Northern Cyprus",NA,NA,0,"Canton Ticino_Northern Cyprus_2026-06-03",FALSE
 2026-06-03,"Albania","Israel",0,1,"Friendly","Tirana","Albania",FALSE,"martj42",NA,"Albania","Israel","ALB","ISR",0,"Albania_Israel_2026-06-03",TRUE
 2026-06-03,"DR Congo","Denmark",0,0,"Friendly","Liège","Belgium",TRUE,"martj42",NA,"DR Congo","Denmark",NA,"DEN",0.5,"DR Congo_Denmark_2026-06-03",FALSE
 2026-06-03,"Gibraltar","British Virgin Islands",4,0,"Friendly","Europa Point","Gibraltar",FALSE,"martj42",NA,"Gibraltar","British Virgin Islands",NA,NA,1,"Gibraltar_British Virgin Islands_2026-06-03",TRUE
@@ -49307,6 +49313,9 @@
 2026-06-03,"Panama","Dominican Republic",4,2,"Friendly","Panama City","Panama",FALSE,"martj42",NA,"Panama","Dominican Republic","PAN","DOM",1,"Panama_Dominican Republic_2026-06-03",TRUE
 2026-06-03,"Poland","Nigeria",2,2,"Friendly","Warsaw","Poland",FALSE,"martj42",NA,"Poland","Nigeria","POL","NGA",0.5,"Poland_Nigeria_2026-06-03",TRUE
 2026-06-03,"Philippines","Guam",5,1,"Friendly","Manila","Philippines",FALSE,"martj42",NA,"Philippines","Guam","PHI","GUM",1,"Philippines_Guam_2026-06-03",TRUE
+2026-06-04,"Raetia","Greenland",1,4,"CONIFA European Football Cup","Carate Brianza","Italy",TRUE,"martj42",NA,"Raetia","Greenland",NA,NA,0,"Raetia_Greenland_2026-06-04",FALSE
+2026-06-04,"Rouet-Provence","Northern Cyprus",0,4,"CONIFA European Football Cup","Carate Brianza","Italy",TRUE,"martj42",NA,"Rouet-Provence","Northern Cyprus",NA,NA,0,"Rouet-Provence_Northern Cyprus_2026-06-04",FALSE
+2026-06-04,"Maldives","Pakistan",0,3,"Diamond Jubilee International Football Tournament","Malé","Maldives",FALSE,"martj42",NA,"Maldives","Pakistan","MDV","PAK",0,"Maldives_Pakistan_2026-06-04",TRUE
 2026-06-04,"Andorra","Liechtenstein",2,0,"Friendly","Encamp","Andorra",FALSE,"martj42",NA,"Andorra","Liechtenstein","AND","LIE",1,"Andorra_Liechtenstein_2026-06-04",TRUE
 2026-06-04,"Cambodia","Bhutan",4,0,"Friendly","Phnom Penh","Cambodia",FALSE,"martj42",NA,"Cambodia","Bhutan","CAM","BHU",1,"Cambodia_Bhutan_2026-06-04",TRUE
 2026-06-04,"France","Ivory Coast",1,2,"Friendly","Nantes","France",FALSE,"martj42",NA,"France","Ivory Coast","FRA","CIV",0,"France_Ivory Coast_2026-06-04",TRUE
@@ -49338,6 +49347,9 @@
 2026-06-05,"Benin","Niger",1,1,"Friendly","Casablanca","Morocco",TRUE,"martj42",NA,"Benin","Niger","BEN","NIG",0.5,"Benin_Niger_2026-06-05",FALSE
 2026-06-05,"Central African Republic","Togo",1,1,"Friendly","Mohammedia","Morocco",TRUE,"martj42",NA,"Central African Republic","Togo","CAF","TOG",0.5,"Central African Republic_Togo_2026-06-05",FALSE
 2026-06-05,"Puerto Rico","Saudi Arabia",0,3,"Friendly","Austin","United States",TRUE,"martj42",NA,"Puerto Rico","Saudi Arabia","PUR","KSA",0,"Puerto Rico_Saudi Arabia_2026-06-05",FALSE
+2026-06-06,"Raetia","Rouet-Provence",3,3,"CONIFA European Football Cup","Carate Brianza","Italy",TRUE,"martj42",NA,"Raetia","Rouet-Provence",NA,NA,0.5,"Raetia_Rouet-Provence_2026-06-06",FALSE
+2026-06-06,"Greenland","Canton Ticino",3,2,"CONIFA European Football Cup","Carate Brianza","Italy",TRUE,"martj42",NA,"Greenland","Canton Ticino",NA,NA,1,"Greenland_Canton Ticino_2026-06-06",FALSE
+2026-06-06,"Padania","Northern Cyprus",1,6,"CONIFA European Football Cup","Carate Brianza","Italy",FALSE,"martj42",NA,"Padania","Northern Cyprus",NA,NA,0,"Padania_Northern Cyprus_2026-06-06",TRUE
 2026-06-06,"Vanuatu","Fiji",2,1,"Friendly","Port Vila","Vanuatu",FALSE,"martj42",NA,"Vanuatu","Fiji","VAN","FIJ",1,"Vanuatu_Fiji_2026-06-06",TRUE
 2026-06-06,"Albania","Luxembourg",0,1,"Friendly","Tirana","Albania",FALSE,"martj42",NA,"Albania","Luxembourg","ALB","LUX",0,"Albania_Luxembourg_2026-06-06",TRUE
 2026-06-06,"Argentina","Honduras",2,0,"Friendly","College Station","United States",TRUE,"martj42",NA,"Argentina","Honduras","ARG","HON",1,"Argentina_Honduras_2026-06-06",FALSE
@@ -49351,7 +49363,6 @@
 2026-06-06,"England","New Zealand",1,0,"Friendly","Tampa","United States",TRUE,"martj42",NA,"England","New Zealand","ENG","NZL",1,"England_New Zealand_2026-06-06",FALSE
 2026-06-06,"Sierra Leone","Liberia",1,0,"Friendly","Bo","Sierra Leone",FALSE,"martj42",NA,"Sierra Leone","Liberia","SLE","LBR",1,"Sierra Leone_Liberia_2026-06-06",TRUE
 2026-06-06,"Ethiopia","Malawi",1,0,"Friendly","Dire Dawa","Ethiopia",FALSE,"martj42",NA,"Ethiopia","Malawi","ETH","MWI",1,"Ethiopia_Malawi_2026-06-06",TRUE
-2026-06-06,"Gibraltar","Cayman Islands",4,1,"Friendly","Gibraltar","Gibraltar",FALSE,"martj42",NA,"Gibraltar","Cayman Islands",NA,NA,1,"Gibraltar_Cayman Islands_2026-06-06",TRUE
 2026-06-06,"Jamaica","South Africa",0,1,"Friendly","Pachuca","Mexico",TRUE,"martj42",NA,"Jamaica","South Africa","JAM","RSA",0,"Jamaica_South Africa_2026-06-06",FALSE
 2026-06-06,"Kyrgyzstan","Palestine",0,0,"Friendly","Bishkek","Kyrgyzstan",FALSE,"martj42",NA,"Kyrgyzstan","Palestine","KGZ","PLE",0.5,"Kyrgyzstan_Palestine_2026-06-06",TRUE
 2026-06-06,"Panama","Bosnia and Herzegovina",1,1,"Friendly","St. Louis","United States",TRUE,"martj42",NA,"Panama","Bosnia and Herzegovina","PAN","BIH",0.5,"Panama_Bosnia and Herzegovina_2026-06-06",FALSE
@@ -49505,6 +49516,6 @@
 2026-07-11,"Norway","England",1,2,"FIFA World Cup","Miami Gardens","United States",TRUE,"martj42","England","Norway","England","NOR","ENG",0,"Norway_England_2026-07-11",FALSE
 2026-07-11,"Argentina","Switzerland",3,1,"FIFA World Cup","Kansas City","United States",TRUE,"martj42","Argentina","Argentina","Switzerland","ARG","SUI",1,"Argentina_Switzerland_2026-07-11",FALSE
 2026-07-14,"France","Spain",0,2,"FIFA World Cup","Arlington","United States",TRUE,"martj42","Spain","France","Spain","FRA","ESP",0,"France_Spain_2026-07-14",FALSE
-2026-07-15,"England","Argentina",1,2,"FIFA World Cup","Atlanta","United States",TRUE,"espn_scoreboard_fallback","Argentina","England","Argentina","ENG","ARG",0,"England_Argentina_2026-07-15",FALSE
-2026-07-18,"France",NA,NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,NA,"France",NA,"FRA",NA,NA,"France_NA_2026-07-18",FALSE
-2026-07-19,"Spain",NA,NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,NA,"Spain",NA,"ESP",NA,NA,"Spain_NA_2026-07-19",FALSE
+2026-07-15,"England","Argentina",1,2,"FIFA World Cup","Atlanta","United States",TRUE,"martj42","Argentina","England","Argentina","ENG","ARG",0,"England_Argentina_2026-07-15",FALSE
+2026-07-18,"France","England",NA,NA,"FIFA World Cup","Miami Gardens","United States",TRUE,NA,NA,"France","England","FRA","ENG",NA,"France_England_2026-07-18",FALSE
+2026-07-19,"Spain","Argentina",NA,NA,"FIFA World Cup","East Rutherford","United States",TRUE,NA,NA,"Spain","Argentina","ESP","ARG",NA,"Spain_Argentina_2026-07-19",FALSE
