@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "xGelo 2026 World Cup Forecast",
-    "generated_at": "2026-07-17 02:29:41.601675",
+    "generated_at": "2026-07-17 03:37:01.715633",
     "model_version": "hybrid",
     "feature_cutoff_date": "2026-07-16",
     "precompute_knockout_routes": false,
@@ -14662,7 +14662,7 @@
       "prematch_over_2_5_probability": 0.47957967242,
       "prematch_both_teams_to_score_probability": 0.48364212494,
       "prematch_top_scorelines_label": "1-1 10.5% | 0-1 10.2% | 1-0 9.6% | 0-0 9.2% | 1-2 7.0%",
-      "prematch_generated_at": "2026-07-17 02:29:41.601675",
+      "prematch_generated_at": "2026-07-17 03:37:01.715633",
       "prematch_feature_cutoff_date": "2026-07-16",
       "prematch_actual_results_cutoff_date": "2026-07-17",
       "prematch_forecast_source": "dashboard_bracket_archive",
@@ -14693,7 +14693,7 @@
       "prematch_projected_winner_team": "Argentina",
       "prematch_projected_winner": "Argentina",
       "prematch_projected_winner_match_probability": 0.55471,
-      "prematch_generated_at": "2026-07-17 02:29:41.601675",
+      "prematch_generated_at": "2026-07-17 03:37:01.715633",
       "prematch_feature_cutoff_date": "2026-07-16",
       "prematch_actual_results_cutoff_date": "2026-07-17",
       "prematch_forecast_source": "dashboard_bracket_archive",
