@@ -19,7 +19,7 @@
 - [x] **BENCH-01**: The analyst can run deterministic tournament-blocked World Cup and Euro evaluation folds using only information available before each assessed match.
 - [x] **BENCH-02**: The benchmark prevents 2026 World Cup outcomes from entering model fitting, feature selection, tuning, or calibration before the final sealed evaluation.
 - [x] **BENCH-03**: Every candidate uses a common prediction schema, point-in-time feature contract, model manifest, and feature-coverage audit.
-- [ ] **BENCH-04**: The benchmark includes naive, Elo-only, and incumbent negative-binomial baselines on identical fixtures and folds.
+- [x] **BENCH-04**: The benchmark includes naive, Elo-only, and incumbent negative-binomial baselines on identical fixtures and folds.
 - [ ] **BENCH-05**: Candidates are compared with shared seeds, paired tournament-fold deltas, uncertainty estimates, and a predeclared promotion rule.
 
 ### Statistical Challengers
@@ -79,7 +79,7 @@ Each active v2.0 requirement maps to exactly one roadmap phase.
 | BENCH-01 | 9 | Complete |
 | BENCH-02 | 9 | Complete |
 | BENCH-03 | 9 | Complete |
-| BENCH-04 | 9 | Pending |
+| BENCH-04 | 9 | Complete |
 | BENCH-05 | 9 | Pending |
 | STAT-01 | 10 | Pending |
 | STAT-02 | 10 | Pending |

@@ -5,16 +5,16 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 09
 current_phase_name: Rolling Tournament Benchmark Harness
 status: executing
-stopped_at: Completed 09-01-PLAN.md
-last_updated: "2026-07-20T18:21:23.002Z"
+stopped_at: Completed 09-02-PLAN.md
+last_updated: "2026-07-20T18:58:36.008Z"
 last_activity: 2026-07-20
-last_activity_desc: Phase 09 Plan 01 completed
+last_activity_desc: Phase 09 Plan 02 completed
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 4
-  percent: 57
+  completed_plans: 5
+  percent: 71
 ---
 
 # xGelo Project State
@@ -22,11 +22,11 @@ progress:
 ## Current Position
 
 Phase: 09 (Rolling Tournament Benchmark Harness) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
-Last activity: 2026-07-20 — Phase 09 Plan 01 completed
+Last activity: 2026-07-20 — Phase 09 Plan 02 completed
 
-Progress: [██████░░░░] 57%
+Progress: [███████░░░] 71%
 
 ## Progress
 
@@ -38,7 +38,7 @@ Progress: [██████░░░░] 57%
 | 11 | Hybrid ML and Contextual Priors | Pending | 5 |
 | 12 | Calibration, Promotion, and Model Release | Pending | 5 |
 
-**Overall:** 4 of 7 currently planned plans complete (57%)
+**Overall:** 5 of 7 currently planned plans complete (71%)
 
 ## Project Reference
 
@@ -63,6 +63,8 @@ leakage-safe assessment folds.
 - [Phase 09]: Represent historical groups with stable edition-local component IDs rather than infer unverified display letters.
 - [Phase 09]: Derive regulation scores from checked local goal events through minute 90 while retaining final and shootout outcomes separately.
 - [Phase 09]: Permit absolute benchmark registry paths only when they normalize inside the approved project registry root.
+- [Phase 09]: Use the conservative registered NB envelope mu=5 theta=8 to seal global score support G=40 across all folds.
+- [Phase 09]: Keep output coverage and promotion eligibility as post-prediction observations outside frozen panel membership.
 
 ## Blockers
 
@@ -74,15 +76,15 @@ None.
 
 ## Next Action
 
-Execute Plan 09-02: freeze common prediction, model, panel, and feature contracts.
+Execute Plan 09-03.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-07-20T18:21:10.676Z
-**Stopped at:** Completed 09-01-PLAN.md
+**Last session:** 2026-07-20T18:58:35.842Z
+**Stopped at:** Completed 09-02-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -90,3 +92,4 @@ Execute Plan 09-02: freeze common prediction, model, panel, and feature contract
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
 | Phase 09 P01 | 21min | 3 tasks | 14 files |
+| Phase 09 P02 | 30min | 3 tasks | 13 files |
