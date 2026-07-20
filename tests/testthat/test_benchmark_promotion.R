@@ -10,11 +10,13 @@ protocol_path <- file.path(project_root, "data/benchmark/phase09/promotion_proto
 registry_dir <- dirname(protocol_path)
 
 all_contracts_pass <- function() {
-  stats::setNames(as.list(rep(TRUE, 12)), c(
+  fields <- c(
     "probability_valid", "distribution_valid", "fixture_valid", "coverage_valid",
     "provenance_valid", "license_valid", "seed_valid", "checksum_valid",
-    "reproducible", "code_frozen", "settings_frozen", "wc2026_sealed"
-  ))
+    "reproducible", "code_frozen", "features_frozen", "settings_frozen",
+    "panels_frozen", "seeds_frozen", "wc2026_sealed"
+  )
+  stats::setNames(as.list(rep(TRUE, length(fields))), fields)
 }
 
 promotion_case <- function(optional = FALSE) {
@@ -102,10 +104,13 @@ test_that("core practical-effect boundaries are exact and unrounded", {
 test_that("core breadth boundaries count strict fold wins by competition", {
   x <- promotion_case(); x$core$fold_wins <- 7L; expect_retained(x, "core_fold_breadth_failed")
   x <- promotion_case(); x$core$fold_wins <- 8L; expect_eligible(x)
+  x <- promotion_case(); x$core$fold_wins <- 9L; expect_eligible(x)
   x <- promotion_case(); x$core$world_cup_wins <- 1L; expect_retained(x, "core_world_cup_breadth_failed")
   x <- promotion_case(); x$core$world_cup_wins <- 2L; expect_eligible(x)
+  x <- promotion_case(); x$core$world_cup_wins <- 3L; expect_eligible(x)
   x <- promotion_case(); x$core$euro_wins <- 1L; expect_retained(x, "core_euro_breadth_failed")
   x <- promotion_case(); x$core$euro_wins <- 2L; expect_eligible(x)
+  x <- promotion_case(); x$core$euro_wins <- 3L; expect_eligible(x)
 })
 
 test_that("supporting-score boundaries pass at the limit and fail one step above", {
@@ -135,7 +140,10 @@ test_that("every common contract failure is an ordered hard veto", {
     checksum_valid = "checksum_contract_failed",
     reproducible = "reproducibility_failed",
     code_frozen = "code_freeze_failed",
+    features_frozen = "features_freeze_failed",
     settings_frozen = "settings_freeze_failed",
+    panels_frozen = "panels_freeze_failed",
+    seeds_frozen = "seeds_freeze_failed",
     wc2026_sealed = "wc2026_seal_failed"
   )
   for (field in names(expected)) {
@@ -167,12 +175,20 @@ test_that("rich-panel effect and uncertainty use production hybrid exact boundar
 test_that("rich-panel breadth, regression, and supporting vetoes mirror the core gate", {
   eps <- 1e-12
   x <- promotion_case(TRUE); x$rich_panel$fold_wins <- 7L; expect_retained(x, "rich_fold_breadth_failed")
+  x <- promotion_case(TRUE); x$rich_panel$fold_wins <- 8L; expect_eligible(x)
+  x <- promotion_case(TRUE); x$rich_panel$fold_wins <- 9L; expect_eligible(x)
   x <- promotion_case(TRUE); x$rich_panel$world_cup_wins <- 1L; expect_retained(x, "rich_world_cup_breadth_failed")
+  x <- promotion_case(TRUE); x$rich_panel$world_cup_wins <- 2L; expect_eligible(x)
+  x <- promotion_case(TRUE); x$rich_panel$world_cup_wins <- 3L; expect_eligible(x)
   x <- promotion_case(TRUE); x$rich_panel$euro_wins <- 1L; expect_retained(x, "rich_euro_breadth_failed")
+  x <- promotion_case(TRUE); x$rich_panel$euro_wins <- 2L; expect_eligible(x)
+  x <- promotion_case(TRUE); x$rich_panel$euro_wins <- 3L; expect_eligible(x)
+  x <- promotion_case(TRUE); x$rich_panel$maximum_fold_regression <- 0.015 - eps; expect_eligible(x)
   x <- promotion_case(TRUE); x$rich_panel$maximum_fold_regression <- 0.015; expect_eligible(x)
   x <- promotion_case(TRUE); x$rich_panel$maximum_fold_regression <- 0.015 + eps
   expect_retained(x, "rich_max_regression_failed")
   for (field in c("brier_relative_change", "log_loss_relative_change", "calibration_change")) {
+    x <- promotion_case(TRUE); x$rich_panel[[field]] <- 0.01 - eps; expect_eligible(x)
     x <- promotion_case(TRUE); x$rich_panel[[field]] <- 0.01; expect_eligible(x)
     x <- promotion_case(TRUE); x$rich_panel[[field]] <- 0.01 + eps
     expect_retained(x, paste0("rich_", sub("_relative_change", "", sub("_change", "", field)), "_veto"))
@@ -212,6 +228,7 @@ test_that("open companion gates preserve all 630 fixtures and exact non-regressi
   expect_retained(x, "open_companion_ci_failed")
 
   x <- promotion_case(TRUE); x$open_companion$maximum_fold_regression <- 0.015; expect_eligible(x)
+  x <- promotion_case(TRUE); x$open_companion$maximum_fold_regression <- 0.015 - eps; expect_eligible(x)
   x <- promotion_case(TRUE); x$open_companion$maximum_fold_regression <- 0.015 + eps
   expect_retained(x, "open_companion_max_regression_failed")
 
@@ -219,6 +236,13 @@ test_that("open companion gates preserve all 630 fixtures and exact non-regressi
   expect_equal(decision_for(x)$decision, "veto")
   x <- promotion_case(TRUE); x$open_companion$default_open_mode <- FALSE
   expect_equal(decision_for(x)$decision, "veto")
+
+  for (field in c("brier_relative_change", "log_loss_relative_change", "calibration_change")) {
+    x <- promotion_case(TRUE); x$open_companion[[field]] <- 0.01 - eps; expect_eligible(x)
+    x <- promotion_case(TRUE); x$open_companion[[field]] <- 0.01; expect_eligible(x)
+    x <- promotion_case(TRUE); x$open_companion[[field]] <- 0.01 + eps
+    expect_equal(decision_for(x)$decision, "retain_incumbent")
+  }
 })
 
 test_that("optional variants apply every common veto to rich and open companions", {
@@ -228,6 +252,16 @@ test_that("optional variants apply every common veto to rich and open companions
   x <- promotion_case(TRUE); x$open_companion$contracts$distribution_valid <- FALSE
   expect_equal(decision_for(x)$decision, "veto")
   expect_true("open_companion_distribution_contract_failed" %in% decision_for(x)$reason_codes)
+})
+
+test_that("multiple vetoes retain the frozen reason-code order", {
+  x <- promotion_case()
+  x$contracts$distribution_valid <- FALSE
+  x$contracts$fixture_valid <- FALSE
+  expect_equal(
+    decision_for(x)$reason_codes[1:2],
+    c("distribution_contract_failed", "fixture_contract_failed")
+  )
 })
 
 test_that("protocol validation detects normalized audit, selected G, and parent tampering", {

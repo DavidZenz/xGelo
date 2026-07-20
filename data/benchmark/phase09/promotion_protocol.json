@@ -1,0 +1,149 @@
+{
+  "schema_version": "1.0",
+  "protocol_version": "phase09-d16-d20-v1",
+  "protocol_sha256": "5535217768e395990c7717e2c607904635ce373f6cd4730ecac2f4bbe72aa08d",
+  "source_git_sha": "02300fd01a9b1236fcf67f465c9105079de4a133",
+  "development_editions": [
+    "wc2002", "wc2006", "wc2010", "wc2014", "wc2018", "wc2022",
+    "euro2004", "euro2008", "euro2012", "euro2016", "euro2020", "euro2024"
+  ],
+  "primary_track": "updating",
+  "secondary_track": "frozen",
+  "incumbents": {
+    "open_core": "open_nb_incumbent",
+    "production_hybrid": "production_hybrid_nb"
+  },
+  "panels": {
+    "open_core": {
+      "panel_id": "open_core",
+      "fixture_count": 630,
+      "coverage_floor": 0.8,
+      "required_output_coverage": 1.0,
+      "default_operating_mode": true
+    },
+    "feature_rich": {
+      "panel_id": "feature_rich",
+      "coverage_floor": 0.8,
+      "required_output_coverage": 1.0,
+      "eligibility_source": "post_adapter_output_coverage_plus_predeclared_provenance"
+    }
+  },
+  "fixed_probability_bins": [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+  "bootstrap": {
+    "replicates": 10000,
+    "seed_id": "paired_tournament_bootstrap__development",
+    "seed": 920001,
+    "resampling_unit": "tournament",
+    "quantile_type": 8,
+    "confidence": 0.95
+  },
+  "core_gate": {
+    "rps_delta": {"operator": "<=", "value": -0.003},
+    "ci_upper": {"operator": "<", "value": 0},
+    "fold_wins": {"operator": ">=", "value": 8},
+    "world_cup_wins": {"operator": ">=", "value": 2},
+    "euro_wins": {"operator": ">=", "value": 2},
+    "maximum_fold_regression": {"operator": "<=", "value": 0.015},
+    "ties_count_as_wins": false,
+    "delta_direction": "challenger_minus_incumbent"
+  },
+  "supporting_vetoes": {
+    "brier_relative_change": {"operator": "<=", "value": 0.01},
+    "log_loss_relative_change": {"operator": "<=", "value": 0.01},
+    "calibration_change": {"operator": "<=", "value": 0.01}
+  },
+  "optional_data_gate": {
+    "rich": {
+      "panel_id": "feature_rich",
+      "incumbent_id": "production_hybrid_nb",
+      "rps_delta": {"operator": "<=", "value": -0.003},
+      "ci_upper": {"operator": "<", "value": 0},
+      "fold_wins": {"operator": ">=", "value": 8},
+      "world_cup_wins": {"operator": ">=", "value": 2},
+      "euro_wins": {"operator": ">=", "value": 2},
+      "maximum_fold_regression": {"operator": "<=", "value": 0.015},
+      "required_output_coverage": 1.0,
+      "coverage_floor_by_edition": 0.8
+    },
+    "open_companion": {
+      "panel_id": "open_core",
+      "incumbent_id": "open_nb_incumbent",
+      "fixture_count": 630,
+      "rps_delta": {"operator": "<=", "value": 0},
+      "ci_upper": {"operator": "<", "value": 0.003},
+      "maximum_fold_regression": {"operator": "<=", "value": 0.015},
+      "default_open_mode_required": true
+    }
+  },
+  "common_vetoes": [
+    "probability_valid", "distribution_valid", "fixture_valid", "coverage_valid",
+    "provenance_valid", "license_valid", "seed_valid", "checksum_valid",
+    "reproducible", "code_frozen", "features_frozen", "settings_frozen",
+    "panels_frozen", "seeds_frozen", "wc2026_sealed"
+  ],
+  "tie_break_order": [
+    "core_headline_rps", "core_log_loss", "core_brier",
+    "core_calibration_error", "complexity_rank", "model_id"
+  ],
+  "artifact_hashes": {
+    "tournaments_sha256": "953138acd8ce4cc8cc9a82824538bd0dd4e65145d8d397cf75a13d9cb6663c27",
+    "fixtures_sha256": "dbcf24c9f86f48423588ed254bdb08b4eb8663c31d50135a35aac5648ce87c73",
+    "panels_sha256": "9594be76f91233b4bd8ac10ea92f55804f3a75cf63802170d5f19204034bff55",
+    "panel_fixtures_sha256": "7162a480ad84de03424aef9a962249f486496cce6e7ae0bd3f11d9e479392d94",
+    "model_registry_sha256": "685c4a522b8c4ec76ad13d60562e6d80eb7cbc48713d51d7749cf3f5c643f15b",
+    "seed_registry_sha256": "768f85835f40aa42a25eef8a3465c720c24483a9929e58a248e4f8c7624c176b",
+    "feature_contract_sha256": "723ecc946bca958cfb51e44534d0a75c215d0289f50547a6503942666d1c817c",
+    "score_support_audit_sha256": "95cbdefb0a6bf569c94657849db63bb350cfe8a4ec6c46651d6844b4e93b15c9"
+  },
+  "model_hashes": {
+    "uniform_1x2": {
+      "registration_sha256": "069e269dea7d87610d386cbae8e8cd0a547cc4d690c8e66ed905d310299c6d3a",
+      "settings_sha256": "4e0195730ded95b9ca689cee69685e654337e3acc10e067debde0d47b2626f1b"
+    },
+    "expanding_1x2": {
+      "registration_sha256": "ad38e48abbc7beeb1f8366a987cb589e2ffd2746e4a5a3a73d95f16f5aa7a354",
+      "settings_sha256": "f8f22c4fda7f7ae5e512960e34e752809b219b728d5427d188b57dd4b51bd0fc"
+    },
+    "elo_goal_nb": {
+      "registration_sha256": "ac536b21ab49694a796e9babc73642b482e66a342ca5fbf0870e4a3bb7d24d88",
+      "settings_sha256": "fe56ee6e40392754759cba4d7b998746d85993a0d4f42c12bde99dd0dbecdcef"
+    },
+    "open_nb_incumbent": {
+      "registration_sha256": "d4f9163a420cc2aadb336366245e647ebcf360d34fc0064e9a0c28d144ae7306",
+      "settings_sha256": "d48d490fd4a2ee0b7047fbfc7ffbd2e46739b41fb5208cf660d5aadc60a87b60"
+    },
+    "production_hybrid_nb": {
+      "registration_sha256": "f0353c2491b640cc6a8c4b11e84c511ec329593c2eda531eba195f41cc71cb4e",
+      "settings_sha256": "61467fdcc61786d531c439c963f520845d7a7af42d48ffa1e20c8e28716d5a93"
+    }
+  },
+  "score_support": {
+    "selected_g": 40,
+    "candidate_min": 8,
+    "candidate_max": 40,
+    "raw_tail_tolerance": 1e-10,
+    "score_support_audit_sha256": "95cbdefb0a6bf569c94657849db63bb350cfe8a4ec6c46651d6844b4e93b15c9",
+    "requires_all_parent_hashes": true
+  },
+  "freeze": {
+    "candidate_registration_required": true,
+    "code_frozen": true,
+    "features_frozen": true,
+    "settings_frozen": true,
+    "panels_frozen": true,
+    "seeds_frozen": true,
+    "checksums_frozen": true,
+    "thresholds_frozen": true,
+    "sealed_before_final_labels": true
+  },
+  "final_holdout": {
+    "edition_id": "wc2026",
+    "labels_status": "sealed",
+    "opening_purpose": "final_evaluation_only",
+    "requires_lower_rps_than_applicable_incumbent": true,
+    "requires_no_supporting_score_veto": true,
+    "requires_complete_output_coverage": true,
+    "requires_default_open_mode": true,
+    "development_access_path": false
+  }
+}
