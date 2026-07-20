@@ -3484,6 +3484,7 @@ document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadat
 document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | Actual results through ${data.metadata.actual_results_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
 function renderHero(){
   const champs = data.champion_probabilities.filter(r => Number(r.champion_probability) > 0).slice(0,3).map(r => `<span class="title-chance-row"><span class="title-chance-pct">${pct(r.champion_probability)}</span><span class="title-chance-team">${esc(r.display_team)}</span></span>`).join("");
+  const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
   const groupRows = data.group_probabilities;
   const lockedThreshold = 0.999995;
   const qualifiedThreshold = 0.999;
@@ -3506,13 +3507,16 @@ function renderHero(){
     const sorted = [...rows].sort((a,b)=>b.group_win_probability-a.group_win_probability);
     return {group: rows[0].group, margin: sorted[0].group_win_probability - sorted[1].group_win_probability};
   }).sort((a,b)=>a.margin-b.margin)[0];
-  const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
   const finalTeams = finalPath ? `${finalPath.slot1_display} vs ${finalPath.slot2_display}` : data.stage_probabilities.slice().sort((a,b)=>b.final_probability-a.final_probability).slice(0,2).map(r=>r.display_team).join(" vs ");
   const finalSourceIds = finalPath ? [finalPath.slot1_source_match_id, finalPath.slot2_source_match_id].filter(Boolean) : [];
   const finalIsFixed = finalSourceIds.length === 2 && finalSourceIds.every(matchId => bracketMatchIsCompleted(data.bracket_paths.find(r => r.match_id === matchId)));
   const finalMetric = finalIsFixed
     ? {label:"Final fixed", value:finalTeams, note:"Finalists confirmed"}
     : {label:"Likely final", value:finalTeams, note:"Highest final probabilities"};
+  const confirmedChampion = bracketMatchIsCompleted(finalPath) ? actualBracketWinnerName(finalPath) : "";
+  const titleMetric = confirmedChampion
+    ? {label:"Winner", value:confirmedChampion, note:"Tournament champion"}
+    : {label:"Top title chances", valueHtml:`<div class="title-chances">${champs}</div>`, valueClass:"title-chances-value", note:"Full tournament simulations"};
   const lockedLabels = lockedGroupWinners.map(row => `${row.display_team} (${row.group})`);
   const lockedValue = lockedLabels.length <= 3 ? lockedLabels.join(", ") : `${lockedLabels.slice(0,3).join(", ")} +${lockedLabels.length - 3}`;
   const favoriteMetric = lockedGroupWinners.length
@@ -3525,7 +3529,7 @@ function renderHero(){
     ? {label:"Strongest qualified favorite", value:`${topQualifiedFavorite.display_team} (${topQualifiedFavorite.group})`, note:`${pct(topQualifiedFavorite.group_win_probability)} group win`}
     : unresolvedMetric;
   const heroMetrics = [
-    {label:"Top title chances", valueHtml:`<div class="title-chances">${champs}</div>`, valueClass:"title-chances-value", note:"Full tournament simulations"},
+    titleMetric,
     finalMetric,
     favoriteMetric,
     lockedGroupWinners.length ? (allGroupsHaveQualifier ? qualifiedFavoriteMetric : unresolvedMetric) : {label:"Closest group-win race", value:`Group ${closestRace.group}`, note:`Leader margin ${pp(closestRace.margin)}`},

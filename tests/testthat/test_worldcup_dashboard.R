@@ -825,6 +825,13 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   ))
   expect_true(grepl('{label:"Final fixed", value:finalTeams, note:"Finalists confirmed"}', html, fixed = TRUE))
   expect_true(grepl('{label:"Likely final", value:finalTeams, note:"Highest final probabilities"}', html, fixed = TRUE))
+  expect_true(grepl(
+    'const confirmedChampion = bracketMatchIsCompleted(finalPath) ? actualBracketWinnerName(finalPath) : "";',
+    html,
+    fixed = TRUE
+  ))
+  expect_true(grepl('{label:"Winner", value:confirmedChampion, note:"Tournament champion"}', html, fixed = TRUE))
+  expect_true(grepl('{label:"Top title chances", valueHtml:', html, fixed = TRUE))
   expect_true(grepl("Data Credits", html, fixed = TRUE))
   expect_true(grepl("https://github.com/martj42/international_results", html, fixed = TRUE))
   expect_true(grepl("https://github.com/statsbomb/open-data", html, fixed = TRUE))
