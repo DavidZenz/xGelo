@@ -3294,6 +3294,10 @@ main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bot
 .bracket-team-label{display:inline-flex;align-items:center;gap:5px;min-width:0;vertical-align:middle}.bracket-team-label>span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis}.bracket-flag{display:inline-flex;align-items:center;justify-content:center;width:18px;min-width:18px;font-size:15px;line-height:1}.bracket-flag.code{font-size:10px;font-weight:800;color:#111;border:1px solid var(--line);border-radius:3px;background:#fff}
 .team-layout{display:grid;grid-template-columns:260px 1fr;gap:14px}.team-list{background:#fff;border:1px solid var(--line);max-height:640px;overflow:auto}.team-row{display:flex;justify-content:space-between;border-bottom:1px solid #eee;padding:8px;cursor:pointer}.team-row.active{background:#f0eee7;font-weight:700}.team-detail{background:#fff;border:1px solid var(--line);padding:12px}
 details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18px}summary{font-weight:700;cursor:pointer}
+.bracket{grid-template-rows:repeat(39,64px)}
+.bracket-link[data-outcome="loser"]{stroke-dasharray:7 5}
+.bracket-link-label[data-outcome="loser"]{border-style:dashed}
+.bracket-game.medal-match{border-left-color:var(--gold)}
 @media(max-width:1180px){.hero{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:980px){.hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups,.match-grid{grid-template-columns:1fr}.team-layout{grid-template-columns:1fr}.bracket{min-width:2720px}}
 @media(max-width:560px){main,header{padding-left:14px;padding-right:14px}.hero{grid-template-columns:1fr}h1{font-size:24px}}
@@ -3518,6 +3522,7 @@ function bracketPrematchHtml(g){
 }
 function bracketForecastDetailHtml(g, projectedWinnerProbability){
   if (!g || !g.slot2_label) return "";
+  const isThirdPlace = g.round === "Third-place play-off";
   const slot1Name = g.slot1_display || g.slot1_label;
   const slot2Name = g.slot2_display || g.slot2_label;
   const slot1Adv = finiteProb(g.slot1_advancement_probability);
@@ -3533,16 +3538,21 @@ function bracketForecastDetailHtml(g, projectedWinnerProbability){
   const titleHtml = `<span class="tooltip-title-team slot1">${slot1Label}</span> <span class="tooltip-vs">vs</span> <span class="tooltip-title-team slot2">${slot2Label}</span>`;
   const legendHtml = `<div class="tooltip-legend-title">90 min score colors</div><div class="tooltip-legend"><div class="tooltip-legend-item"><span class="legend-dot slot1"></span><span>${slot1Label} win</span></div><div class="tooltip-legend-item"><span class="legend-dot draw"></span><span>Draw</span></div><div class="tooltip-legend-item"><span class="legend-dot slot2"></span><span>${slot2Label} win</span></div></div>`;
   const finalHtml = bracketMatchIsCompleted(g)
-    ? `<div class="tooltip-winner"><strong>Final: ${teamLabel(actualBracketWinnerTeam(g), actualBracketWinnerName(g))} advanced</strong><span>${esc(g.actual_score || "")}</span></div>`
+    ? `<div class="tooltip-winner"><strong>Final: ${teamLabel(actualBracketWinnerTeam(g), actualBracketWinnerName(g))} ${isThirdPlace ? "won third place" : "advanced"}</strong><span>${esc(g.actual_score || "")}</span></div>`
     : "";
   const advanceRows = [
     ["slot1", g.slot1_team || "", slot1Name, slot1Adv, slot1Reg, slot1Late],
     ["slot2", g.slot2_team || "", slot2Name, slot2Adv, slot2Reg, slot2Late]
-  ].map(row => `<div class="tooltip-advance-row ${row[0]}"><strong>${teamLabel(row[1], row[2])}</strong><span class="tooltip-prob">${pct(row[3])}</span><span class="tooltip-prob">${pct(row[4])}</span><span class="tooltip-prob">${pct(row[5])}</span></div>`).join("");
+  ].map(row => {
+    const medalOutcome = isThirdPlace ? `<small>${row[1] === g.projected_winner_team ? "Projected third-place winner" : "Projected fourth place"}</small>` : "";
+    return `<div class="tooltip-advance-row ${row[0]}"><strong>${teamLabel(row[1], row[2])}${medalOutcome}</strong><span class="tooltip-prob">${pct(row[3])}</span><span class="tooltip-prob">${pct(row[4])}</span><span class="tooltip-prob">${pct(row[5])}</span></div>`;
+  }).join("");
   const conditional = drawAfter90 != null && drawAfter90 > 0 && g.slot1_tiebreak_probability != null && g.slot2_tiebreak_probability != null
     ? `<span class="tooltip-pill et-split">If ET/pens: <span class="tooltip-et-dot slot1"></span><span class="tooltip-et-team slot1">${slot1Label} ${pct(g.slot1_tiebreak_probability)}</span> / <span class="tooltip-et-dot slot2"></span><span class="tooltip-et-team slot2">${slot2Label} ${pct(g.slot2_tiebreak_probability)}</span></span>`
     : "";
-  return `<div class="bracket-forecast-detail" role="region" aria-label="Bracket match forecast"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}${finalHtml}<div class="tooltip-winner"><strong>Most likely advances: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div>${bracketPrematchHtml(g)}<div class="tooltip-section"><div class="tooltip-section-title">Advance probability</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Adv</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min mean goals ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
+  const outcomeHeading = isThirdPlace ? "Most likely wins third place" : "Most likely advances";
+  const probabilityHeading = isThirdPlace ? "Third-place win probability" : "Advance probability";
+  return `<div class="bracket-forecast-detail" role="region" aria-label="Bracket match forecast"><div class="tooltip-kicker">${esc(g.match_id)} | ${esc(g.round)}</div><div class="tooltip-title">${titleHtml}</div>${legendHtml}${finalHtml}<div class="tooltip-winner"><strong>${outcomeHeading}: ${esc(g.projected_winner || "")}</strong><span>${pct(projectedWinnerProbability)}</span></div>${bracketPrematchHtml(g)}<div class="tooltip-section"><div class="tooltip-section-title">${probabilityHeading}</div><div class="tooltip-advance-row tooltip-advance-head"><span>Team</span><span>Win</span><span>90 min</span><span>ET/pens</span></div>${advanceRows}</div>${scoreTiles ? `<div class="tooltip-section"><div class="tooltip-section-title">Top exact 90 min scores</div>${scoreTiles}</div>` : ""}<div class="tooltip-foot"><span class="tooltip-pill">90 min mean goals ${maybeNum(g.slot1_expected_goals)}-${maybeNum(g.slot2_expected_goals)}</span><span class="tooltip-pill">Rounded ${esc(g.rounded_expected_score || "")}</span><span class="tooltip-pill">90 min draw ${pct(drawAfter90)}</span><span class="tooltip-pill">O2.5 ${pct(g.over_2_5_probability)}</span><span class="tooltip-pill">BTTS ${pct(g.both_teams_to_score_probability)}</span>${conditional}</div></div>`;
 }
 const modelDescription = (data.metadata.model_version || "baseline") === "hybrid"
   ? "using a combined Elo, Transfermarkt player-pool valuation, and historical goal-ability model"
@@ -3750,8 +3760,17 @@ function renderMatches(){
       const relWidth = Math.max(4, 100 * Number(s.probability) / maxProb);
       return `<div class="scoreline-row"><div class="scoreline-score">${esc(s.scoreline)}</div><div class="scoreline-bar"><span class="scoreline-fill ${esc(s.outcome)}" style="width:${relWidth}%"></span></div><div class="scoreline-prob">${pct(s.probability)}</div></div>`;
     }).join("");
+    const isThirdPlace = r.round === "Third-place play-off";
+    const winVerb = isThirdPlace ? "win third place" : "advance";
+    const winnerCopy = isThirdPlace ? "Projected third-place winner" : "Projected winner";
+    const slot1OutcomeCopy = isThirdPlace
+      ? `${esc(r.home_display)} ${winVerb} ${pct(r.slot1_advancement_probability)}`
+      : `${esc(r.home_display)} advance ${pct(r.slot1_advancement_probability)}`;
+    const slot2OutcomeCopy = isThirdPlace
+      ? `${esc(r.away_display)} ${winVerb} ${pct(r.slot2_advancement_probability)}`
+      : `${esc(r.away_display)} advance ${pct(r.slot2_advancement_probability)}`;
     const knockoutChips = isKnockout
-      ? `<div class="chips"><span class="chip primary">Expected goals ${maybeNum(r.home_goals_expected)}-${maybeNum(r.away_goals_expected)}</span><span class="chip">${esc(r.home_display)} advance ${pct(r.slot1_advancement_probability)}</span><span class="chip">${esc(r.away_display)} advance ${pct(r.slot2_advancement_probability)}</span><span class="chip">Projected winner ${esc(r.projected_winner || "")} ${pct(r.projected_winner_match_probability)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score || "")}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div>`
+      ? `<div class="chips"><span class="chip primary">Expected goals ${maybeNum(r.home_goals_expected)}-${maybeNum(r.away_goals_expected)}</span><span class="chip">${slot1OutcomeCopy}</span><span class="chip">${slot2OutcomeCopy}</span><span class="chip">${winnerCopy} ${esc(r.projected_winner || "")} ${pct(r.projected_winner_match_probability)}</span><span class="chip">Rounded goals ${esc(r.rounded_expected_score || "")}</span><span class="chip">O2.5 ${pct(r.over_2_5_probability)}</span><span class="chip">BTTS ${pct(r.both_teams_to_score_probability)}</span></div>`
       : "";
     const statusChips = isKnockout
       ? knockoutChips
@@ -3883,14 +3902,14 @@ function setBracketHoverTeam(team){
       if (inMatch) card.classList.add("hover-path");
     });
     grid.querySelectorAll(".bracket-link,.bracket-link-label").forEach(el => {
-      const projectedWinner = el.dataset.projectedWinnerTeam === highlightTeam;
+      const projectedOutcome = el.dataset.projectedOutcomeTeam === highlightTeam;
       const next = grid.querySelector(`.bracket-game[data-match-id="${CSS.escape(el.dataset.nextMatchId || "")}"]`);
       const entersNext = next && (
         next.dataset.slot1Team === highlightTeam ||
         next.dataset.slot2Team === highlightTeam ||
         next.dataset.projectedWinnerTeam === highlightTeam
       );
-      if (projectedWinner && entersNext) el.classList.add("hover-path");
+      if (projectedOutcome && entersNext) el.classList.add("hover-path");
     });
   }
   const selected = selectedBracketMatchId ? bracketRowsById()[selectedBracketMatchId] : null;
@@ -3903,7 +3922,7 @@ function bracketHoverTeamFromTarget(target, grid){
   const teamTarget = target.closest && target.closest(".bracket-team-target");
   if (teamTarget && grid.contains(teamTarget)) return teamTarget.dataset.team;
   const label = target.closest && target.closest(".bracket-link-label");
-  if (label && grid.contains(label)) return label.dataset.actualWinnerTeam || label.dataset.projectedWinnerTeam;
+  if (label && grid.contains(label)) return label.dataset.actualOutcomeTeam || label.dataset.projectedOutcomeTeam;
   return "";
 }
 function bindBracketInteractions(){
@@ -3955,7 +3974,7 @@ function bindBracketInteractions(){
 }
 function renderBracket(){
   const order = ["Round of 32","Round of 16","Quarter-finals","Semi-finals","Final","Champion"];
-  const col = Object.fromEntries(order.map((round, i) => [round, i + 1]));
+  const col = {"Round of 32": 1, "Round of 16": 2, "Quarter-finals": 3, "Semi-finals": 4, "Final": 5, "Third-place play-off": 5, "Champion": 6};
   const byId = Object.fromEntries(data.bracket_paths.map(row => [row.match_id, row]));
   const childIds = match => [match.slot1_source_match_id, match.slot2_source_match_id].filter(Boolean);
   const leafOrder = matchId => {
@@ -3987,10 +4006,13 @@ function renderBracket(){
       placeMatch(row.match_id);
     }
   });
+  const medalMatchRow = Math.max(...leaves.map(matchId => rows[matchId] || 1), 31) + 4;
+  if (byId.M103) rows.M103 = medalMatchRow;
   const titles = order.map(round => `<div class="bracket-round-title" style="grid-column:${col[round]};grid-row:1;">${esc(round)}</div>`).join("");
   const games = data.bracket_paths.map(g => {
     const isChampion = g.round === "Champion";
-    const winnerLabel = isChampion ? "Projected champion" : "Projected winner";
+    const isThirdPlace = g.round === "Third-place play-off";
+    const winnerLabel = isChampion ? "Projected champion" : (isThirdPlace ? "Projected third-place winner" : "Projected winner");
     const slot1Source = g.slot1_source_match_id || "";
     const slot2Source = g.slot2_source_match_id || "";
     const slot1Probability = g.slot1_advancement_probability ?? g.slot1_probability;
@@ -4000,9 +4022,11 @@ function renderBracket(){
     const championPath = g.projected_champion_path === true || g.projected_champion_path === "TRUE" || g.projected_champion_path === "true";
     const completed = bracketMatchIsCompleted(g);
     const actualWinnerTeam = actualBracketWinnerTeam(g);
-    const gameClass = isChampion ? "champion" : `${championPath ? "projected" : ""}${completed ? " decided" : ""}`;
+    const gameClass = isChampion ? "champion" : `${isThirdPlace ? "medal-match" : ""}${championPath ? " projected" : ""}${completed ? " decided" : ""}`;
     const slot1Team = g.slot1_team || "";
     const slot2Team = g.slot2_team || "";
+    const actualLoserTeam = completed ? (actualWinnerTeam === slot1Team ? slot2Team : slot1Team) : "";
+    const actualLoser = completed ? (actualWinnerTeam === slot1Team ? (g.slot2_display || g.slot2_label) : (g.slot1_display || g.slot1_label)) : "";
     const slot1Winner = completed && slot1Team === actualWinnerTeam;
     const slot2Winner = completed && slot2Team === actualWinnerTeam;
     const slot1Class = `${slot1Source ? "slot bracket-slot-target" : "slot"}${slot1Winner ? " actual-winner" : ""}`;
@@ -4014,7 +4038,7 @@ function renderBracket(){
     const slot2 = g.slot2_label ? `<div class="${slot2Class}" data-source-match-id="${esc(slot2Source)}">${slot2Target}<small>${pct(slot2Probability)}</small></div>` : "";
     const championText = isChampion ? `<div class="bracket-champion">${esc(winnerLabel)}: ${teamLabel(g.projected_winner_team || "", g.projected_winner)}</div><div class="bracket-prob">Title ${pct(g.projected_winner_title_probability)}</div>` : "";
     const resultText = completed ? `<div class="bracket-result">Final ${esc(g.actual_score || "")}: ${teamLabel(actualWinnerTeam, actualBracketWinnerName(g))}</div>` : "";
-    return `<div class="bracket-game ${gameClass}" tabindex="0" role="button" title="Click for forecast" aria-label="Click for forecast: ${esc(g.match_id)} ${esc(g.round)}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-actual-winner-continues="${g.actual_winner_continues ? "true" : "false"}" data-champion-path="${championPath ? "true" : "false"}" data-completed="${completed ? "true" : "false"}" data-slot1-team="${esc(slot1Team)}" data-slot2-team="${esc(slot2Team)}" data-projected-winner-team="${esc(g.projected_winner_team || "")}" data-actual-winner-team="${esc(actualWinnerTeam)}" data-projected-winner="${esc(g.projected_winner || "")}" data-actual-winner="${esc(actualBracketWinnerName(g))}" data-actual-score="${esc(g.actual_score || "")}" data-match-probability="${pct(projectedWinnerProbability)}" data-route-label="${esc(g.projected_winner_route_label || "")}" data-has-detail="${hasDetail ? "true" : "false"}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}">${slot1Target}<small>${pct(slot1Probability)}</small></div>${slot2}${resultText}`}</div>`;
+    return `<div class="bracket-game ${gameClass}" tabindex="0" role="button" title="Click for forecast" aria-label="Click for forecast: ${esc(g.match_id)} ${esc(g.round)}" data-match-id="${esc(g.match_id)}" data-next-match-id="${esc(g.next_match_id || "")}" data-loser-next-match-id="${esc(g.loser_next_match_id || "")}" data-winner-continues="${g.projected_winner_continues ? "true" : "false"}" data-actual-winner-continues="${g.actual_winner_continues ? "true" : "false"}" data-champion-path="${championPath ? "true" : "false"}" data-completed="${completed ? "true" : "false"}" data-slot1-team="${esc(slot1Team)}" data-slot2-team="${esc(slot2Team)}" data-projected-winner-team="${esc(g.projected_winner_team || "")}" data-projected-loser-team="${esc(g.projected_loser_team || "")}" data-actual-winner-team="${esc(actualWinnerTeam)}" data-actual-loser-team="${esc(actualLoserTeam)}" data-projected-winner="${esc(g.projected_winner || "")}" data-projected-loser="${esc(g.projected_loser || "")}" data-actual-winner="${esc(actualBracketWinnerName(g))}" data-actual-loser="${esc(actualLoser)}" data-actual-score="${esc(g.actual_score || "")}" data-match-probability="${pct(projectedWinnerProbability)}" data-route-label="${esc(g.projected_winner_route_label || "")}" data-has-detail="${hasDetail ? "true" : "false"}" data-stage-probability="${pct(g.projected_winner_stage_probability)}" data-title-probability="${pct(g.projected_winner_title_probability)}" style="grid-column:${col[g.round]};grid-row:${rows[g.match_id] + 1} / span 2;"><div class="bracket-id"><span>${esc(g.match_id)}</span><span>${esc(g.round)}</span></div>${isChampion ? championText : `<div class="${slot1Class}" data-source-match-id="${esc(slot1Source)}">${slot1Target}<small>${pct(slot1Probability)}</small></div>${slot2}${resultText}`}</div>`;
   }).join("");
   document.getElementById("bracketGrid").innerHTML = `<svg class="bracket-link-svg" aria-hidden="true"></svg>${titles}${games}`;
   requestAnimationFrame(() => {
@@ -4037,40 +4061,60 @@ function drawBracketLinks(){
   const paths = [];
   const labels = [];
   grid.querySelectorAll(".bracket-game[data-next-match-id]").forEach(card => {
-    const nextId = card.dataset.nextMatchId;
-    if (!nextId) return;
-    const next = grid.querySelector(`.bracket-game[data-match-id="${CSS.escape(nextId)}"]`);
-    if (!next) return;
-    const x1 = card.offsetLeft + card.offsetWidth;
-    const y1 = card.offsetTop + card.offsetHeight / 2;
-    const targetSlot = next.querySelector(`[data-source-match-id="${CSS.escape(card.dataset.matchId)}"]`);
-    const x2 = next.offsetLeft;
-    const y2 = targetSlot
-      ? targetSlot.offsetTop + next.offsetTop + targetSlot.offsetHeight / 2
-      : next.offsetTop + next.offsetHeight / 2;
-    const mid = x1 + Math.max(48, (x2 - x1) / 2);
-    const projectedPath = card.dataset.championPath === "true" ? " projected-path" : "";
-    const decidedPath = card.dataset.completed === "true" && card.dataset.actualWinnerContinues === "true" ? " decided-path" : "";
-    const champion = nextId === "Champion" ? " champion" : "";
-    paths.push(`<path class="bracket-link${projectedPath}${decidedPath}${champion}" data-source-match-id="${esc(card.dataset.matchId)}" data-next-match-id="${esc(nextId)}" data-projected-winner-team="${esc(card.dataset.projectedWinnerTeam || "")}" data-actual-winner-team="${esc(card.dataset.actualWinnerTeam || "")}" data-winner-continues="${esc(card.dataset.winnerContinues || "false")}" data-actual-winner-continues="${esc(card.dataset.actualWinnerContinues || "false")}" d="M${x1} ${y1} H${mid} V${y2} H${x2}"></path>`);
-    const label = document.createElement("div");
-    label.className = `bracket-link-label${projectedPath}${decidedPath}${champion}`;
-    label.tabIndex = 0;
-    label.setAttribute("role", "button");
-    label.setAttribute("title", "Click for forecast");
-    label.setAttribute("aria-label", `Click for forecast: winner from ${card.dataset.matchId}`);
-    label.dataset.sourceMatchId = card.dataset.matchId;
-    label.dataset.nextMatchId = nextId;
-    label.dataset.projectedWinnerTeam = card.dataset.projectedWinnerTeam || "";
-    label.dataset.actualWinnerTeam = card.dataset.actualWinnerTeam || "";
-    label.dataset.winnerContinues = card.dataset.winnerContinues || "false";
-    label.dataset.actualWinnerContinues = card.dataset.actualWinnerContinues || "false";
-    label.style.left = `${x1 + 24}px`;
-    label.style.top = `${y1}px`;
-    label.innerHTML = card.dataset.completed === "true"
-      ? `${teamLabel(card.dataset.actualWinnerTeam, card.dataset.actualWinner)} Final ${esc(card.dataset.actualScore)}`
-      : `${teamLabel(card.dataset.projectedWinnerTeam, card.dataset.projectedWinner)} ${esc(card.dataset.matchProbability)}`;
-    labels.push(label);
+    const edgeSpecs = [
+      {
+        outcome: "winner",
+        nextId: card.dataset.nextMatchId,
+        projectedOutcomeTeam: card.dataset.projectedWinnerTeam || "",
+        projectedOutcome: card.dataset.projectedWinner || "",
+        actualOutcomeTeam: card.dataset.actualWinnerTeam || "",
+        actualOutcome: card.dataset.actualWinner || ""
+      },
+      {
+        outcome: "loser",
+        nextId: card.dataset.loserNextMatchId,
+        projectedOutcomeTeam: card.dataset.projectedLoserTeam || "",
+        projectedOutcome: card.dataset.projectedLoser || "",
+        actualOutcomeTeam: card.dataset.actualLoserTeam || "",
+        actualOutcome: card.dataset.actualLoser || ""
+      }
+    ];
+    edgeSpecs.forEach(edge => {
+      const nextId = edge.nextId;
+      if (!nextId) return;
+      const next = grid.querySelector(`.bracket-game[data-match-id="${CSS.escape(nextId)}"]`);
+      if (!next) return;
+      const x1 = card.offsetLeft + card.offsetWidth;
+      const y1 = card.offsetTop + card.offsetHeight / 2;
+      const targetSlot = next.querySelector(`[data-source-match-id="${CSS.escape(card.dataset.matchId)}"]`);
+      const x2 = next.offsetLeft;
+      const y2 = targetSlot
+        ? targetSlot.offsetTop + next.offsetTop + targetSlot.offsetHeight / 2
+        : next.offsetTop + next.offsetHeight / 2;
+      const mid = x1 + Math.max(48, (x2 - x1) / 2);
+      const projectedPath = edge.outcome === "winner" && card.dataset.championPath === "true" ? " projected-path" : "";
+      const actualEntersNext = edge.actualOutcomeTeam && [next.dataset.slot1Team, next.dataset.slot2Team, next.dataset.projectedWinnerTeam].includes(edge.actualOutcomeTeam);
+      const decidedPath = card.dataset.completed === "true" && actualEntersNext ? " decided-path" : "";
+      const champion = nextId === "Champion" ? " champion" : "";
+      paths.push(`<path class="bracket-link${projectedPath}${decidedPath}${champion}" data-outcome="${esc(edge.outcome)}" data-source-match-id="${esc(card.dataset.matchId)}" data-next-match-id="${esc(nextId)}" data-projected-outcome-team="${esc(edge.projectedOutcomeTeam)}" data-actual-outcome-team="${esc(edge.actualOutcomeTeam)}" d="M${x1} ${y1} H${mid} V${y2} H${x2}"></path>`);
+      const label = document.createElement("div");
+      label.className = `bracket-link-label${projectedPath}${decidedPath}${champion}`;
+      label.tabIndex = 0;
+      label.setAttribute("role", "button");
+      label.setAttribute("title", "Click for forecast");
+      label.setAttribute("aria-label", `Click for forecast: ${edge.outcome} from ${card.dataset.matchId}`);
+      label.dataset.outcome = edge.outcome;
+      label.dataset.sourceMatchId = card.dataset.matchId;
+      label.dataset.nextMatchId = nextId;
+      label.dataset.projectedOutcomeTeam = edge.projectedOutcomeTeam;
+      label.dataset.actualOutcomeTeam = edge.actualOutcomeTeam;
+      label.style.left = `${x1 + 24}px`;
+      label.style.top = `${y1}px`;
+      label.innerHTML = card.dataset.completed === "true"
+        ? `${teamLabel(edge.actualOutcomeTeam, edge.actualOutcome)} ${edge.outcome === "winner" ? `Final ${esc(card.dataset.actualScore)}` : "to third-place play-off"}`
+        : `${teamLabel(edge.projectedOutcomeTeam, edge.projectedOutcome)} ${edge.outcome === "winner" ? esc(card.dataset.matchProbability) : "to third-place play-off"}`;
+      labels.push(label);
+    });
   });
   svg.innerHTML = paths.join("");
   labels.forEach(label => grid.appendChild(label));
@@ -4110,7 +4154,9 @@ function renderTeams(selected){
       const regulation = isSlot1 ? r.slot1_regulation_win_probability : r.slot2_regulation_win_probability;
       const late = isSlot1 ? r.slot1_extra_time_penalty_probability : r.slot2_extra_time_penalty_probability;
       const projectedAdvance = isProjectedTeam(r.projected_winner);
-      const status = projectedAdvance ? "Projected advance" : "Projected exit";
+      const status = r.round === "Third-place play-off"
+        ? (projectedAdvance ? "Projected third-place winner" : "Projected fourth place")
+        : (projectedAdvance ? "Projected advance" : "Projected exit");
       return `<div class="slot"><span><strong>${esc(r.round)}</strong>: ${esc(team.display_team)} vs ${esc(opponent)}<br><small>${esc(status)} | 90 min win ${pct(regulation)} | ET/pens ${pct(late)} | rounded goals ${esc(teamScore(r.rounded_expected_score, isSlot1))}</small></span><small>${pct(advance)}</small></div>`;
     }).join("") + (championRow ? `<div class="slot"><span><strong>Champion</strong>: ${esc(team.display_team)}<br><small>Projected champion in the displayed bracket path</small></span><small>${pct(team.champion_probability)}</small></div>` : "")
     : `<div class="slot"><span>No projected knockout route in the displayed bracket path<br><small>Simulations still give ${esc(team.display_team)} a ${pct(team.round_of_32_probability)} Round-of-32 chance.</small></span><small>${pct(team.champion_probability)}</small></div>`;
