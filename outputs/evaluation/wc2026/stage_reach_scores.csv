@@ -1,0 +1,577 @@
+"sample","anchor_type","target_stage","commit_sha","forecast_at","boundary_utc","team","probability","observed","brier","log_loss"
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Mexico",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","South Africa",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Korea Republic",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Czech Republic",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Canada",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Bosnia and Herzegovina",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Qatar",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Switzerland",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Brazil",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Morocco",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Haiti",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Scotland",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","United States",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Paraguay",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Australia",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Turkey",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Germany",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Curaçao",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Ivory Coast",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Ecuador",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Netherlands",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Japan",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Tunisia",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Sweden",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Belgium",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Egypt",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Iran",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","New Zealand",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Spain",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Cape Verde",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Saudi Arabia",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Uruguay",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","France",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Senegal",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Norway",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Iraq",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Argentina",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Algeria",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Austria",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Jordan",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Portugal",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Uzbekistan",0,0,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Colombia",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","DR Congo",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","England",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Croatia",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Ghana",1,1,0,0
+"strict","pre_stage","round_of_32","8f579a390f6cdc175c6a30509c29ab52edffcd3d","2026-06-28T18:04:12Z","2026-06-28T19:00:00Z","Panama",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Mexico",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","South Africa",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Korea Republic",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Czech Republic",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Canada",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Qatar",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Switzerland",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Brazil",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Morocco",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Haiti",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Scotland",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","United States",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Paraguay",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Australia",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Turkey",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Germany",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Curaçao",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Ivory Coast",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Ecuador",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Netherlands",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Japan",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Tunisia",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Sweden",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Belgium",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Egypt",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Iran",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","New Zealand",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Spain",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Cape Verde",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Saudi Arabia",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Uruguay",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","France",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Senegal",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Norway",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Iraq",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Argentina",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Algeria",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Austria",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Jordan",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Portugal",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Uzbekistan",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Colombia",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","DR Congo",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","England",1,1,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Croatia",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Ghana",0,0,0,0
+"strict","pre_stage","round_of_16","e85634daeede11a74babcf4fd603a0a561b3b913","2026-07-04T16:47:01Z","2026-07-04T17:00:00Z","Panama",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Mexico",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","South Africa",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Korea Republic",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Czech Republic",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Canada",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Qatar",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Switzerland",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Brazil",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Morocco",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Haiti",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Scotland",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","United States",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Paraguay",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Australia",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Turkey",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Germany",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Curaçao",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Ivory Coast",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Ecuador",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Netherlands",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Japan",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Tunisia",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Sweden",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Belgium",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Egypt",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Iran",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","New Zealand",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Spain",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Cape Verde",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Saudi Arabia",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Uruguay",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","France",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Senegal",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Norway",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Iraq",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Argentina",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Algeria",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Austria",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Jordan",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Portugal",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Uzbekistan",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Colombia",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","DR Congo",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","England",1,1,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Croatia",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Ghana",0,0,0,0
+"strict","pre_stage","quarterfinal","21f2598f10443a9f77f0e4cd90c1c63afc72a114","2026-07-09T08:09:56Z","2026-07-09T20:00:00Z","Panama",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Mexico",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","South Africa",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Korea Republic",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Czech Republic",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Canada",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Qatar",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Switzerland",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Brazil",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Morocco",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Haiti",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Scotland",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","United States",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Paraguay",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Australia",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Turkey",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Germany",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Curaçao",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Ivory Coast",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Ecuador",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Netherlands",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Japan",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Tunisia",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Sweden",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Belgium",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Egypt",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Iran",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","New Zealand",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Spain",1,1,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Cape Verde",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Saudi Arabia",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Uruguay",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","France",1,1,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Senegal",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Norway",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Iraq",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Argentina",1,1,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Algeria",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Austria",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Jordan",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Portugal",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Uzbekistan",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Colombia",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","DR Congo",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","England",1,1,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Croatia",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Ghana",0,0,0,0
+"strict","pre_stage","semifinal","723b8267bde2727181662b17d6cb79d53fbf3d5e","2026-07-12T20:52:27Z","2026-07-14T19:00:00Z","Panama",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Mexico",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","South Africa",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Korea Republic",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Czech Republic",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Canada",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Qatar",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Switzerland",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Brazil",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Morocco",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Haiti",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Scotland",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","United States",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Paraguay",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Australia",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Turkey",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Germany",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Curaçao",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Ivory Coast",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Ecuador",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Netherlands",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Japan",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Tunisia",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Sweden",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Belgium",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Egypt",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Iran",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","New Zealand",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Spain",1,1,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Cape Verde",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Saudi Arabia",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Uruguay",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","France",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Senegal",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Norway",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Iraq",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Argentina",1,1,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Algeria",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Austria",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Jordan",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Portugal",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Uzbekistan",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Colombia",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","DR Congo",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","England",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Croatia",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Ghana",0,0,0,0
+"strict","pre_stage","final","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Panama",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Mexico",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","South Africa",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Korea Republic",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Czech Republic",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Canada",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Qatar",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Switzerland",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Brazil",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Morocco",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Haiti",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Scotland",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","United States",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Paraguay",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Australia",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Turkey",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Germany",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Curaçao",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Ivory Coast",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Ecuador",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Netherlands",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Japan",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Tunisia",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Sweden",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Belgium",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Egypt",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Iran",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","New Zealand",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Spain",0.44535,1,0.3076366225,0.808894789104258
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Cape Verde",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Saudi Arabia",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Uruguay",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","France",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Senegal",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Norway",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Iraq",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Argentina",0.55465,0,0.3076366225,0.808894789104258
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Algeria",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Austria",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Jordan",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Portugal",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Uzbekistan",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Colombia",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","DR Congo",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","England",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Croatia",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Ghana",0,0,0,0
+"strict","pre_stage","champion","fbb653d05a32cb17717fc5334caf0c7106f7a6e3","2026-07-19T06:36:47Z","2026-07-19T19:00:00Z","Panama",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Mexico",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","South Africa",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Korea Republic",0.37561,0,0.1410828721,0.470980105843867
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Czech Republic",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Canada",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Bosnia and Herzegovina",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Qatar",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Switzerland",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Brazil",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Morocco",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Haiti",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Scotland",0.02186,0,0.0004778596,0.0221024699079472
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","United States",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Paraguay",0.99729,1,7.34409999999995e-06,0.00271367869768357
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Australia",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Turkey",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Germany",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Curaçao",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Ivory Coast",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Ecuador",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Netherlands",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Japan",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Tunisia",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Sweden",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Belgium",0.70187,1,0.0888814969,0.354007077290405
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Egypt",0.99992,1,6.39999999999504e-09,8.00032001706459e-05
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Iran",0.6176,0,0.38142976,0.961288097804891
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","New Zealand",0.25927,0,0.0672209329,0.300119092555464
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Spain",0.99999,1,9.99999999990898e-11,1.00000500002878e-05
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Cape Verde",0.6046,1,0.15634116,0.503188196636779
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Saudi Arabia",0.36394,0,0.1324523236,0.452462380469076
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Uruguay",0.50128,0,0.2512816384,0.69571046296311
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","France",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Senegal",0.93881,1,0.0037442161,0.0631421631659621
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Norway",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Iraq",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Argentina",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Algeria",0.67786,1,0.1037741796,0.388814502039186
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Austria",0.72602,1,0.0750650404,0.32017771632742
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Jordan",0,0,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Portugal",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Uzbekistan",0.00429,0,1.84041e-05,0.0042992284528324
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Colombia",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","DR Congo",0.41121,1,0.3466736641,0.888651246070738
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","England",1,1,0,0
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Croatia",0.79949,1,0.0402042601,0.223781254603737
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Ghana",0.99909,1,8.28099999999939e-07,0.000910414301361862
+"exploratory","pre_stage","round_of_32","6e01d3fdfb9707f5912bb9a966567c5c1b5cb5a5","2026-06-26T23:52:45Z","2026-06-28T19:00:00Z","Panama",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Mexico",0.51826,1,0.2320734276,0.657278232145702
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","South Africa",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Korea Republic",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Czech Republic",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Canada",1,1,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Bosnia and Herzegovina",0.2592,0,0.06718464,0.300024595650167
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Qatar",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Switzerland",0.47289,1,0.2778449521,0.748892475675576
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Brazil",1,1,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Morocco",1,1,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Haiti",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Scotland",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","United States",0.7408,1,0.06718464,0.300024595650167
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Paraguay",1,1,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Australia",0.5385,0,0.28998225,0.77327322503923
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Turkey",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Germany",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Curaçao",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Ivory Coast",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Ecuador",0.48174,0,0.2320734276,0.657278232145703
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Netherlands",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Japan",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Tunisia",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Sweden",0.21767,0,0.0473802289,0.245478632566715
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Belgium",0.55315,1,0.1996749225,0.592126066501217
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Egypt",0.4615,1,0.28998225,0.77327322503923
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Iran",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","New Zealand",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Spain",0.7306,1,0.07257636,0.313889164620955
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Cape Verde",0.11307,0,0.0127848249,0.119989217486836
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Saudi Arabia",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Uruguay",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","France",0.78233,1,0.0473802289,0.245478632566715
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Senegal",0.44685,0,0.1996749225,0.592126066501217
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Norway",1,1,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Iraq",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Argentina",0.88693,1,0.0127848249,0.119989217486836
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Algeria",0.52711,0,0.2778449521,0.748892475675576
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Austria",0.2694,0,0.07257636,0.313889164620955
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Jordan",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Portugal",0.65998,1,0.1156136004,0.415545747451115
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Uzbekistan",0,0,0,0
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Colombia",0.78658,1,0.0455480964,0.240060845191221
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","DR Congo",0.21882,0,0.0478821924,0.246949681945846
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","England",0.78118,1,0.0478821924,0.246949681945846
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Croatia",0.34002,0,0.1156136004,0.415545747451115
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Ghana",0.21342,0,0.0455480964,0.240060845191221
+"exploratory","pre_stage","round_of_16","d3af98d6d72608b5711367cc6bae3e186c11e2e0","2026-06-30T23:18:07Z","2026-07-04T17:00:00Z","Panama",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Mexico",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","South Africa",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Korea Republic",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Czech Republic",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Canada",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Qatar",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Switzerland",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Brazil",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Morocco",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Haiti",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Scotland",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","United States",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Paraguay",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Australia",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Turkey",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Germany",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Curaçao",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Ivory Coast",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Ecuador",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Netherlands",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Japan",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Tunisia",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Sweden",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Belgium",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Egypt",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Iran",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","New Zealand",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Spain",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Cape Verde",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Saudi Arabia",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Uruguay",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","France",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Senegal",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Norway",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Iraq",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Argentina",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Algeria",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Austria",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Jordan",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Portugal",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Uzbekistan",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Colombia",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","DR Congo",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","England",1,1,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Croatia",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Ghana",0,0,0,0
+"exploratory","pre_stage","quarterfinal","89f7a1360e7034346fb6a0f6140ac20b5a740e28","2026-07-08T23:59:46Z","2026-07-09T20:00:00Z","Panama",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Mexico",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","South Africa",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Korea Republic",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Czech Republic",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Canada",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Qatar",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Switzerland",0.22901,0,0.0524455801,0.260079875671533
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Brazil",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Morocco",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Haiti",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Scotland",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","United States",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Paraguay",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Australia",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Turkey",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Germany",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Curaçao",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Ivory Coast",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Ecuador",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Netherlands",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Japan",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Tunisia",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Sweden",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Belgium",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Egypt",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Iran",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","New Zealand",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Spain",1,1,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Cape Verde",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Saudi Arabia",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Uruguay",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","France",1,1,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Senegal",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Norway",0.34202,0,0.1169776804,0.418580743255539
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Iraq",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Argentina",0.77099,1,0.0524455801,0.260079875671533
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Algeria",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Austria",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Jordan",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Portugal",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Uzbekistan",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Colombia",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","DR Congo",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","England",0.65798,1,0.1169776804,0.418580743255539
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Croatia",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Ghana",0,0,0,0
+"exploratory","pre_stage","semifinal","bcbd4018fb4b7301b87b596c0e1c22d5baeb3b95","2026-07-11T00:23:07Z","2026-07-14T19:00:00Z","Panama",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Mexico",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","South Africa",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Korea Republic",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Czech Republic",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Canada",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Qatar",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Switzerland",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Brazil",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Morocco",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Haiti",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Scotland",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","United States",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Paraguay",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Australia",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Turkey",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Germany",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Curaçao",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Ivory Coast",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Ecuador",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Netherlands",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Japan",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Tunisia",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Sweden",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Belgium",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Egypt",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Iran",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","New Zealand",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Spain",1,1,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Cape Verde",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Saudi Arabia",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Uruguay",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","France",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Senegal",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Norway",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Iraq",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Argentina",1,1,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Algeria",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Austria",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Jordan",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Portugal",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Uzbekistan",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Colombia",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","DR Congo",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","England",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Croatia",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Ghana",0,0,0,0
+"exploratory","pre_stage","final","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Panama",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Mexico",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","South Africa",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Korea Republic",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Czech Republic",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Canada",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Bosnia and Herzegovina",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Qatar",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Switzerland",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Brazil",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Morocco",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Haiti",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Scotland",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","United States",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Paraguay",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Australia",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Turkey",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Germany",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Curaçao",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Ivory Coast",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Ecuador",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Netherlands",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Japan",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Tunisia",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Sweden",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Belgium",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Egypt",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Iran",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","New Zealand",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Spain",0.44535,1,0.3076366225,0.808894789104258
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Cape Verde",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Saudi Arabia",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Uruguay",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","France",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Senegal",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Norway",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Iraq",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Argentina",0.55465,0,0.3076366225,0.808894789104258
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Algeria",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Austria",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Jordan",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Portugal",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Uzbekistan",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Colombia",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","DR Congo",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","England",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Croatia",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Ghana",0,0,0,0
+"exploratory","pre_stage","champion","12420327be91a8ed2fab022c722ba27388885a37","2026-07-19T00:58:44Z","2026-07-19T19:00:00Z","Panama",0,0,0,0

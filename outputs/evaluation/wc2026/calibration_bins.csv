@@ -1,0 +1,121 @@
+"sample","view","class","bin","n","mean_probability","observed_frequency","sparse"
+"exploratory","first_valid","away","[-Inf,0.163]",8,0.13418499262888,0,FALSE
+"exploratory","first_valid","away","(0.163,0.198]",8,0.184967895824048,0,FALSE
+"exploratory","first_valid","away","(0.198,0.242]",8,0.217839982970094,0,FALSE
+"exploratory","first_valid","away","(0.242,0.315]",8,0.279226782124991,0.25,FALSE
+"exploratory","first_valid","away","(0.315,0.352]",8,0.34038747203179,0,FALSE
+"exploratory","first_valid","away","(0.352,0.401]",7,0.3813212055309,0,FALSE
+"exploratory","first_valid","away","(0.401,0.463]",8,0.423973448445474,0.375,FALSE
+"exploratory","first_valid","away","(0.463,0.502]",8,0.482659575060955,0.75,FALSE
+"exploratory","first_valid","away","(0.502,0.567]",8,0.527818846262238,0.875,FALSE
+"exploratory","first_valid","away","(0.567, Inf]",8,0.636585961135475,1,FALSE
+"strict","first_valid","away","[-Inf,0.167]",8,0.136948688012444,0,FALSE
+"strict","first_valid","away","(0.167,0.195]",9,0.183610154250008,0,FALSE
+"strict","first_valid","away","(0.195,0.243]",8,0.218459157176698,0,FALSE
+"strict","first_valid","away","(0.243,0.311]",8,0.269573392511095,0.25,FALSE
+"strict","first_valid","away","(0.311,0.344]",9,0.335774471369038,0,FALSE
+"strict","first_valid","away","(0.344,0.405]",8,0.382291436241103,0.125,FALSE
+"strict","first_valid","away","(0.405,0.448]",8,0.418991013105959,0.375,FALSE
+"strict","first_valid","away","(0.448,0.5]",9,0.477428823436977,0.777777777777778,FALSE
+"strict","first_valid","away","(0.5,0.565]",8,0.529323204634298,0.75,FALSE
+"strict","first_valid","away","(0.565, Inf]",8,0.633608562292564,1,FALSE
+"exploratory","latest_valid","away","[-Inf,0.171]",8,0.136137430643107,0,FALSE
+"exploratory","latest_valid","away","(0.171,0.198]",8,0.18841059163936,0,FALSE
+"exploratory","latest_valid","away","(0.198,0.244]",8,0.217991232970094,0,FALSE
+"exploratory","latest_valid","away","(0.244,0.328]",8,0.282198901566698,0.125,FALSE
+"exploratory","latest_valid","away","(0.328,0.344]",8,0.339745935147894,0.125,FALSE
+"exploratory","latest_valid","away","(0.344,0.4]",7,0.374319274663774,0,FALSE
+"exploratory","latest_valid","away","(0.4,0.441]",8,0.415388554884982,0.375,FALSE
+"exploratory","latest_valid","away","(0.441,0.48]",8,0.459370993661177,0.625,FALSE
+"exploratory","latest_valid","away","(0.48,0.557]",8,0.4989335191657,1,FALSE
+"exploratory","latest_valid","away","(0.557, Inf]",8,0.639279711135475,1,FALSE
+"strict","latest_valid","away","[-Inf,0.161]",8,0.134258208816486,0,FALSE
+"strict","latest_valid","away","(0.161,0.196]",9,0.185102914162287,0,FALSE
+"strict","latest_valid","away","(0.196,0.244]",8,0.217568007998904,0,FALSE
+"strict","latest_valid","away","(0.244,0.314]",8,0.271522194602931,0.125,FALSE
+"strict","latest_valid","away","(0.314,0.344]",9,0.335268018856331,0.111111111111111,FALSE
+"strict","latest_valid","away","(0.344,0.389]",8,0.370071384218454,0.25,FALSE
+"strict","latest_valid","away","(0.389,0.44]",8,0.409497464353166,0.125,FALSE
+"strict","latest_valid","away","(0.44,0.495]",9,0.472142536334868,0.666666666666667,FALSE
+"strict","latest_valid","away","(0.495,0.558]",8,0.517854036718634,1,FALSE
+"strict","latest_valid","away","(0.558, Inf]",8,0.640696439889667,1,FALSE
+"exploratory","first_valid","draw","[-Inf,0.195]",8,0.178797541277507,0.125,FALSE
+"exploratory","first_valid","draw","(0.195,0.214]",8,0.204952892225643,0.125,FALSE
+"exploratory","first_valid","draw","(0.214,0.221]",8,0.218001231287784,0,FALSE
+"exploratory","first_valid","draw","(0.221,0.233]",8,0.226716671157318,0.125,FALSE
+"exploratory","first_valid","draw","(0.233,0.239]",8,0.236152481271276,0.375,FALSE
+"exploratory","first_valid","draw","(0.239,0.244]",7,0.241384681583958,0,FALSE
+"exploratory","first_valid","draw","(0.244,0.248]",8,0.245121633351017,0.125,FALSE
+"exploratory","first_valid","draw","(0.248,0.251]",8,0.249520017213158,0.375,FALSE
+"exploratory","first_valid","draw","(0.251,0.252]",8,0.251832719533275,0.25,FALSE
+"exploratory","first_valid","draw","(0.252, Inf]",8,0.252737014119479,0.375,FALSE
+"strict","first_valid","draw","[-Inf,0.1961]",9,0.182725377992597,0.222222222222222,FALSE
+"strict","first_valid","draw","(0.1961,0.2148]",8,0.207486864520739,0,FALSE
+"strict","first_valid","draw","(0.2148,0.2204]",8,0.217145143680673,0.25,FALSE
+"strict","first_valid","draw","(0.2204,0.2329]",8,0.226208698241905,0,FALSE
+"strict","first_valid","draw","(0.2329,0.2381]",9,0.235774700004743,0.222222222222222,FALSE
+"strict","first_valid","draw","(0.2381,0.2446]",8,0.241643106611556,0.125,FALSE
+"strict","first_valid","draw","(0.2446,0.2485]",8,0.245890961674945,0.25,FALSE
+"strict","first_valid","draw","(0.2485,0.2516]",9,0.250511650929856,0.444444444444444,FALSE
+"strict","first_valid","draw","(0.2516,0.252]",9,0.251853150029197,0.222222222222222,FALSE
+"strict","first_valid","draw","(0.252, Inf]",7,0.252519871517735,0.142857142857143,FALSE
+"exploratory","latest_valid","draw","[-Inf,0.196]",8,0.178136789086777,0.25,FALSE
+"exploratory","latest_valid","draw","(0.196,0.216]",8,0.207279752582053,0,FALSE
+"exploratory","latest_valid","draw","(0.216,0.222]",8,0.218599191692914,0.125,FALSE
+"exploratory","latest_valid","draw","(0.222,0.236]",8,0.228184062955532,0.25,FALSE
+"exploratory","latest_valid","draw","(0.236,0.241]",8,0.238650193779042,0,FALSE
+"exploratory","latest_valid","draw","(0.241,0.246]",7,0.243950207134503,0.142857142857143,FALSE
+"exploratory","latest_valid","draw","(0.246,0.249]",8,0.247967343538792,0.125,FALSE
+"exploratory","latest_valid","draw","(0.249,0.251]",8,0.25022491402827,0.25,FALSE
+"exploratory","latest_valid","draw","(0.251,0.252]",8,0.251857197087651,0.375,FALSE
+"exploratory","latest_valid","draw","(0.252, Inf]",8,0.252804160339007,0.375,FALSE
+"strict","latest_valid","draw","[-Inf,0.1956]",8,0.178174359778948,0.125,FALSE
+"strict","latest_valid","draw","(0.1956,0.2147]",9,0.205048594616199,0.111111111111111,FALSE
+"strict","latest_valid","draw","(0.2147,0.2208]",8,0.217699600753814,0.125,FALSE
+"strict","latest_valid","draw","(0.2208,0.2351]",8,0.226414762889368,0.375,FALSE
+"strict","latest_valid","draw","(0.2351,0.239]",9,0.237153123063851,0,FALSE
+"strict","latest_valid","draw","(0.239,0.2444]",8,0.24201642968642,0,FALSE
+"strict","latest_valid","draw","(0.2444,0.2491]",8,0.246887084626976,0.25,FALSE
+"strict","latest_valid","draw","(0.2491,0.2516]",9,0.250606804900843,0.444444444444444,FALSE
+"strict","latest_valid","draw","(0.2516,0.2522]",8,0.251917613081098,0.25,FALSE
+"strict","latest_valid","draw","(0.2522, Inf]",8,0.252634371329166,0.25,FALSE
+"exploratory","first_valid","home","[-Inf,0.206]",8,0.161110281310785,0,FALSE
+"exploratory","first_valid","home","(0.206,0.257]",8,0.236485773511,0,FALSE
+"exploratory","first_valid","home","(0.257,0.291]",8,0.27412896085966,0.25,FALSE
+"exploratory","first_valid","home","(0.291,0.346]",8,0.325776779379958,0.25,FALSE
+"exploratory","first_valid","home","(0.346,0.396]",8,0.369740148201172,0.75,FALSE
+"exploratory","first_valid","home","(0.396,0.435]",7,0.409723768151778,0.571428571428571,FALSE
+"exploratory","first_valid","home","(0.435,0.523]",8,0.47712740027625,0.625,FALSE
+"exploratory","first_valid","home","(0.523,0.582]",8,0.554964595872588,0.625,FALSE
+"exploratory","first_valid","home","(0.582,0.632]",8,0.600386738216266,1,FALSE
+"exploratory","first_valid","home","(0.632, Inf]",8,0.680426216093613,0.75,FALSE
+"strict","first_valid","home","[-Inf,0.209]",8,0.16311251962948,0,FALSE
+"strict","first_valid","home","(0.209,0.259]",9,0.23894147606619,0.111111111111111,FALSE
+"strict","first_valid","home","(0.259,0.304]",8,0.280691678332012,0.125,FALSE
+"strict","first_valid","home","(0.304,0.343]",8,0.330030568716103,0.5,FALSE
+"strict","first_valid","home","(0.343,0.404]",9,0.369598797888524,0.666666666666667,FALSE
+"strict","first_valid","home","(0.404,0.44]",8,0.414026765363874,0.5,FALSE
+"strict","first_valid","home","(0.44,0.522]",8,0.488727031789696,0.625,FALSE
+"strict","first_valid","home","(0.522,0.585]",9,0.557401273881111,0.777777777777778,FALSE
+"strict","first_valid","home","(0.585,0.627]",8,0.604641197810433,0.75,FALSE
+"strict","first_valid","home","(0.627, Inf]",8,0.676172761745884,0.75,FALSE
+"exploratory","latest_valid","home","[-Inf,0.214]",8,0.159344031310785,0,FALSE
+"exploratory","latest_valid","home","(0.214,0.276]",8,0.260515927318685,0,FALSE
+"exploratory","latest_valid","home","(0.276,0.31]",8,0.293484072412779,0.25,FALSE
+"exploratory","latest_valid","home","(0.31,0.348]",8,0.333742014263493,0.375,FALSE
+"exploratory","latest_valid","home","(0.348,0.404]",8,0.37705994471267,0.625,FALSE
+"exploratory","latest_valid","home","(0.404,0.421]",7,0.409298685365023,0.428571428571429,FALSE
+"exploratory","latest_valid","home","(0.421,0.519]",8,0.47423429002706,0.75,FALSE
+"exploratory","latest_valid","home","(0.519,0.582]",8,0.554034595872588,0.625,FALSE
+"exploratory","latest_valid","home","(0.582,0.621]",8,0.595469160242777,1,FALSE
+"exploratory","latest_valid","home","(0.621, Inf]",8,0.676833341666751,0.75,FALSE
+"strict","latest_valid","home","[-Inf,0.214]",8,0.159109962478787,0,FALSE
+"strict","latest_valid","home","(0.214,0.264]",9,0.247475136131604,0.111111111111111,FALSE
+"strict","latest_valid","home","(0.264,0.311]",8,0.285245057153446,0.125,FALSE
+"strict","latest_valid","home","(0.311,0.359]",8,0.339141156261199,0.375,FALSE
+"strict","latest_valid","home","(0.359,0.404]",9,0.380433912501136,0.666666666666667,FALSE
+"strict","latest_valid","home","(0.404,0.437]",8,0.414668143673358,0.625,FALSE
+"strict","latest_valid","home","(0.437,0.519]",8,0.486591194756076,0.625,FALSE
+"strict","latest_valid","home","(0.519,0.585]",9,0.558343845975255,0.666666666666667,FALSE
+"strict","latest_valid","home","(0.585,0.636]",8,0.60227271034927,0.875,FALSE
+"strict","latest_valid","home","(0.636, Inf]",8,0.680238069223661,0.75,FALSE

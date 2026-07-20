@@ -1,0 +1,6 @@
+"artifact","path","rows","md5"
+"match_scores","outputs/evaluation/wc2026/match_scores.csv",4860,"959b9f55963fa9f977699812b6258f6d"
+"aggregate_scores","outputs/evaluation/wc2026/aggregate_scores.csv",630,"be0fd3ee48f798e603450438dfc65415"
+"calibration_bins","outputs/evaluation/wc2026/calibration_bins.csv",120,"8989ace11bf48cf42d7dd1622f3a5737"
+"advancement_scores","outputs/evaluation/wc2026/advancement_scores.csv",122,"ea71c288f8f13e126ab9e625e1b95d65"
+"stage_reach_scores","outputs/evaluation/wc2026/stage_reach_scores.csv",576,"020d05b99f830eeb8972fbddccc46532"

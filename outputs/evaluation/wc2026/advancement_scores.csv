@@ -1,0 +1,123 @@
+"match_id","sample","view","round","home_team","away_team","actual_advancing_team","p_home_advance","brier","log_loss"
+"M100","strict","first_valid","Quarter-finals","Argentina","Switzerland","Argentina",0.778427082027157,0.0490945579790002,0.250479956799897
+"M101","strict","first_valid","Semi-finals","France","Spain","Spain",0.47022757569699,0.221113972945868,0.635307752756969
+"M102","strict","first_valid","Semi-finals","England","Argentina","Argentina",0.384029137607605,0.147478378531641,0.484555617878407
+"M104","strict","first_valid","Final","Spain","Argentina","Spain",0.43009975875,0.324786284976808,0.84373810010867
+"M73","strict","first_valid","Round of 32","South Africa","Canada","Canada",0.354117431864113,0.125399155550035,0.437137574795463
+"M74","strict","first_valid","Round of 32","Germany","Paraguay","Paraguay",0.746714715864199,0.557582866888152,1.37323882024409
+"M75","strict","first_valid","Round of 32","Netherlands","Morocco","Morocco",0.473125206513877,0.223847461038799,0.640792342186003
+"M76","strict","first_valid","Round of 32","Brazil","Japan","Brazil",0.587792947485357,0.16991465414281,0.531380523222825
+"M77","strict","first_valid","Round of 32","France","Sweden","France",0.779748552286637,0.0485107002198323,0.248783780133797
+"M78","strict","first_valid","Round of 32","Ivory Coast","Norway","Norway",0.450317677579299,0.202786010740414,0.598414763226943
+"M79","strict","first_valid","Round of 32","Mexico","Ecuador","Mexico",0.526677813771691,0.224033891975946,0.641166276463931
+"M80","strict","first_valid","Round of 32","England","DR Congo","England",0.786215137770726,0.0457039673183896,0.240524811828778
+"M81","strict","first_valid","Round of 32","United States","Bosnia and Herzegovina","United States",0.755492958549789,0.0597836933187352,0.280384817564545
+"M82","strict","first_valid","Round of 32","Belgium","Senegal","Belgium",0.551298625055193,0.20133292387736,0.595478647394338
+"M83","strict","first_valid","Round of 32","Portugal","Croatia","Portugal",0.66546433504428,0.111914111127366,0.407270233801243
+"M84","strict","first_valid","Round of 32","Spain","Austria","Spain",0.723046945435343,0.0767029944326939,0.324281127485487
+"M85","strict","first_valid","Round of 32","Switzerland","Algeria","Switzerland",0.465728692487872,0.285445830030719,0.764152019365259
+"M86","strict","first_valid","Round of 32","Argentina","Cape Verde","Argentina",0.889686306382923,0.0121691109994423,0.116886343124536
+"M87","strict","first_valid","Round of 32","Colombia","Ghana","Colombia",0.777248209143423,0.0496183603298122,0.251995534139305
+"M88","strict","first_valid","Round of 32","Australia","Egypt","Egypt",0.538982294123319,0.290501913378436,0.774318829181432
+"M89","strict","first_valid","Round of 16","Paraguay","France","France",0.215160186250499,0.0462939057473494,0.242275640940416
+"M90","strict","first_valid","Round of 16","Canada","Morocco","Morocco",0.329272082418017,0.108420104259897,0.399391712198242
+"M91","strict","first_valid","Round of 16","Brazil","Norway","Norway",0.665168691669233,0.442449388376959,1.09412843120618
+"M92","strict","first_valid","Round of 16","Mexico","England","England",0.374090697439541,0.139943849910802,0.468549802467476
+"M93","strict","first_valid","Round of 16","Portugal","Spain","Spain",0.439493565880463,0.193154594450325,0.578914557285966
+"M94","strict","first_valid","Round of 16","United States","Belgium","Belgium",0.357194913772578,0.127588206424999,0.441913732537418
+"M95","strict","first_valid","Round of 16","Argentina","Egypt","Argentina",0.823109399810296,0.0312902844354737,0.194666159058668
+"M96","strict","first_valid","Round of 16","Switzerland","Colombia","Switzerland",0.3916769576943,0.370056923800062,0.937317866452998
+"M97","strict","first_valid","Quarter-finals","France","Morocco","France",0.554916688587447,0.198099154097964,0.588937287156683
+"M98","strict","first_valid","Quarter-finals","Spain","Belgium","Spain",0.631414397834886,0.13585534612342,0.459792900085469
+"M99","strict","first_valid","Quarter-finals","Norway","England","England",0.336289086115804,0.113090349440603,0.409908594963356
+"M100","strict","latest_valid","Quarter-finals","Argentina","Switzerland","Argentina",0.772526314474787,0.0517442776064235,0.258089206745371
+"M101","strict","latest_valid","Semi-finals","France","Spain","Spain",0.470227575696968,0.221113972945848,0.635307752756928
+"M102","strict","latest_valid","Semi-finals","England","Argentina","Argentina",0.382996455357717,0.146686284816576,0.48288051013007
+"M104","strict","latest_valid","Final","Spain","Argentina","Spain",0.445147011633869,0.307861838698826,0.809350688151633
+"M73","strict","latest_valid","Round of 32","South Africa","Canada","Canada",0.354225672796692,0.125475827268269,0.437305174927081
+"M74","strict","latest_valid","Round of 32","Germany","Paraguay","Paraguay",0.729074428047548,0.531549521632859,1.3059111380654
+"M75","strict","latest_valid","Round of 32","Netherlands","Morocco","Morocco",0.476484393857265,0.227037377589525,0.647188437954982
+"M76","strict","latest_valid","Round of 32","Brazil","Japan","Brazil",0.593455600448216,0.165278348806921,0.521792877422095
+"M77","strict","latest_valid","Round of 32","France","Sweden","France",0.782153276096801,0.0474571951153566,0.245704552404467
+"M78","strict","latest_valid","Round of 32","Ivory Coast","Norway","Norway",0.480620486587179,0.230996052127297,0.655120423325329
+"M79","strict","latest_valid","Round of 32","Mexico","Ecuador","Mexico",0.519017620630307,0.231344049264131,0.655817445274449
+"M80","strict","latest_valid","Round of 32","England","DR Congo","England",0.783531703045333,0.0468585235864539,0.243943754641142
+"M81","strict","latest_valid","Round of 32","United States","Bosnia and Herzegovina","United States",0.742357774016556,0.066379516609704,0.297923976799407
+"M82","strict","latest_valid","Round of 32","Belgium","Senegal","Belgium",0.551254127704425,0.201372857902317,0.595559364349932
+"M83","strict","latest_valid","Round of 32","Portugal","Croatia","Portugal",0.660810934327472,0.115049222271803,0.414287509806532
+"M84","strict","latest_valid","Round of 32","Spain","Austria","Spain",0.731168321797887,0.0722704712049644,0.31311158336126
+"M85","strict","latest_valid","Round of 32","Switzerland","Algeria","Switzerland",0.4728211315751,0.277917559313758,0.749038119356236
+"M86","strict","latest_valid","Round of 32","Argentina","Cape Verde","Argentina",0.88786019538817,0.0125753357783794,0.118940986010506
+"M87","strict","latest_valid","Round of 32","Colombia","Ghana","Colombia",0.786364522247356,0.0456401173546005,0.240334825297886
+"M88","strict","latest_valid","Round of 32","Australia","Egypt","Egypt",0.538634772274691,0.290127417903408,0.773565298619641
+"M89","strict","latest_valid","Round of 16","Paraguay","France","France",0.210287472017712,0.0442208208876,0.236086288374618
+"M90","strict","latest_valid","Round of 16","Canada","Morocco","Morocco",0.33847621533121,0.11456614834494,0.413209340413969
+"M91","strict","latest_valid","Round of 16","Brazil","Norway","Norway",0.688023404477188,0.47337620510838,1.16482710833633
+"M92","strict","latest_valid","Round of 16","Mexico","England","England",0.376094574028537,0.141447128613707,0.471756483042398
+"M93","strict","latest_valid","Round of 16","Portugal","Spain","Spain",0.430125820937899,0.185008221837502,0.562339681007409
+"M94","strict","latest_valid","Round of 16","United States","Belgium","Belgium",0.357122971730254,0.127536816937448,0.441801819893401
+"M95","strict","latest_valid","Round of 16","Argentina","Egypt","Argentina",0.821711163481418,0.0317869092271496,0.19636632830131
+"M96","strict","latest_valid","Round of 16","Switzerland","Colombia","Switzerland",0.398178707807657,0.362188867736061,0.920854359882483
+"M97","strict","latest_valid","Quarter-finals","France","Morocco","France",0.570569619826303,0.184410451416126,0.561120084125773
+"M98","strict","latest_valid","Quarter-finals","Spain","Belgium","Spain",0.634185189164357,0.133820475826717,0.455414270723032
+"M99","strict","latest_valid","Quarter-finals","Norway","England","England",0.341404610153032,0.116557107833744,0.417645908993058
+"M100","exploratory","first_valid","Quarter-finals","Argentina","Switzerland","Argentina",0.772481951432048,0.051764462424169,0.258146634325184
+"M102","exploratory","first_valid","Semi-finals","England","Argentina","Argentina",0.382996455357717,0.146686284816576,0.48288051013007
+"M104","exploratory","first_valid","Final","Spain","Argentina","Spain",0.418831256339659,0.337757108607739,0.870287169676924
+"M73","exploratory","first_valid","Round of 32","South Africa","Canada","Canada",0.354217670262036,0.125470157925864,0.43729278285026
+"M74","exploratory","first_valid","Round of 32","Germany","Paraguay","Paraguay",0.728720576152869,0.531033678108569,1.30460590499799
+"M75","exploratory","first_valid","Round of 32","Netherlands","Morocco","Morocco",0.476437042963986,0.226992255908267,0.647097994133522
+"M76","exploratory","first_valid","Round of 32","Brazil","Japan","Brazil",0.593253270121223,0.165442902267079,0.522133871467005
+"M77","exploratory","first_valid","Round of 32","France","Sweden","France",0.778304704466482,0.0491488040616939,0.250637180493778
+"M78","exploratory","first_valid","Round of 32","Ivory Coast","Norway","Norway",0.455870865112871,0.207818245658757,0.608568679989219
+"M79","exploratory","first_valid","Round of 32","Mexico","Ecuador","Mexico",0.51911362512721,0.231251705538293,0.655632488897172
+"M80","exploratory","first_valid","Round of 32","England","DR Congo","England",0.786324485194848,0.0456572256272467,0.240385740707515
+"M81","exploratory","first_valid","Round of 32","United States","Bosnia and Herzegovina","United States",0.74225281768386,0.0664336099919095,0.298065369206895
+"M82","exploratory","first_valid","Round of 32","Belgium","Senegal","Belgium",0.551186264293305,0.201433769358999,0.595682479235232
+"M83","exploratory","first_valid","Round of 32","Portugal","Croatia","Portugal",0.660693164769787,0.115129128433943,0.414465745436792
+"M84","exploratory","first_valid","Round of 32","Spain","Austria","Spain",0.731125741143255,0.0722933670757639,0.313169821516941
+"M85","exploratory","first_valid","Round of 32","Switzerland","Algeria","Switzerland",0.472870307289293,0.277865712937284,0.748934119865035
+"M86","exploratory","first_valid","Round of 32","Argentina","Cape Verde","Argentina",0.889711303377902,0.0121635966026012,0.116858247105025
+"M87","exploratory","first_valid","Round of 32","Colombia","Ghana","Colombia",0.786258535652499,0.045685413581414,0.240469614870613
+"M88","exploratory","first_valid","Round of 32","Australia","Egypt","Egypt",0.538472975730611,0.289953145592179,0.773214669290187
+"M89","exploratory","first_valid","Round of 16","Paraguay","France","France",0.216585944147949,0.0469094712024585,0.244093915797436
+"M90","exploratory","first_valid","Round of 16","Canada","Morocco","Morocco",0.329165494090474,0.108349922499826,0.39923281041939
+"M91","exploratory","first_valid","Round of 16","Brazil","Norway","Norway",0.665396029168167,0.442751875632764,1.09480762310045
+"M92","exploratory","first_valid","Round of 16","Mexico","England","England",0.373981077462921,0.139861846300327,0.468374680643872
+"M93","exploratory","first_valid","Round of 16","Portugal","Spain","Spain",0.4395319440504,0.193188329840724,0.578983030155405
+"M94","exploratory","first_valid","Round of 16","United States","Belgium","Belgium",0.351557208599375,0.123592470918184,0.433181495924025
+"M95","exploratory","first_valid","Round of 16","Argentina","Egypt","Argentina",0.821734008462099,0.031778763738991,0.19633852697143
+"M96","exploratory","first_valid","Round of 16","Switzerland","Colombia","Switzerland",0.398151897520343,0.362221138458364,0.920921694447159
+"M97","exploratory","first_valid","Quarter-finals","France","Morocco","France",0.5552082237652,0.197839724206108,0.588412057642038
+"M98","exploratory","first_valid","Quarter-finals","Spain","Belgium","Spain",0.629119192398353,0.13755257344725,0.463434545164696
+"M99","exploratory","first_valid","Quarter-finals","Norway","England","England",0.341480253676076,0.116608763650677,0.417760771423911
+"M100","exploratory","latest_valid","Quarter-finals","Argentina","Switzerland","Argentina",0.772526314474787,0.0517442776064235,0.258089206745371
+"M102","exploratory","latest_valid","Semi-finals","England","Argentina","Argentina",0.382996455357717,0.146686284816576,0.48288051013007
+"M104","exploratory","latest_valid","Final","Spain","Argentina","Spain",0.445147011633869,0.307861838698826,0.809350688151633
+"M73","exploratory","latest_valid","Round of 32","South Africa","Canada","Canada",0.354217670262036,0.125470157925864,0.43729278285026
+"M74","exploratory","latest_valid","Round of 32","Germany","Paraguay","Paraguay",0.728720576152869,0.531033678108569,1.30460590499799
+"M75","exploratory","latest_valid","Round of 32","Netherlands","Morocco","Morocco",0.476437042963986,0.226992255908267,0.647097994133522
+"M76","exploratory","latest_valid","Round of 32","Brazil","Japan","Brazil",0.593253270121223,0.165442902267079,0.522133871467005
+"M77","exploratory","latest_valid","Round of 32","France","Sweden","France",0.778304704466482,0.0491488040616939,0.250637180493778
+"M78","exploratory","latest_valid","Round of 32","Ivory Coast","Norway","Norway",0.455870865112871,0.207818245658757,0.608568679989219
+"M79","exploratory","latest_valid","Round of 32","Mexico","Ecuador","Mexico",0.519016814693739,0.231344824547357,0.655818998087228
+"M80","exploratory","latest_valid","Round of 32","England","DR Congo","England",0.783468138210063,0.0468860471702164,0.244024883986061
+"M81","exploratory","latest_valid","Round of 32","United States","Bosnia and Herzegovina","United States",0.742370202739159,0.066373112436662,0.29790723471224
+"M82","exploratory","latest_valid","Round of 32","Belgium","Senegal","Belgium",0.551186264293305,0.201433769358999,0.595682479235232
+"M83","exploratory","latest_valid","Round of 32","Portugal","Croatia","Portugal",0.660693164769787,0.115129128433943,0.414465745436792
+"M84","exploratory","latest_valid","Round of 32","Spain","Austria","Spain",0.731125741143255,0.0722933670757639,0.313169821516941
+"M85","exploratory","latest_valid","Round of 32","Switzerland","Algeria","Switzerland",0.472870307289293,0.277865712937284,0.748934119865035
+"M86","exploratory","latest_valid","Round of 32","Argentina","Cape Verde","Argentina",0.887801622771773,0.0125884758526475,0.119006958726503
+"M87","exploratory","latest_valid","Round of 32","Colombia","Ghana","Colombia",0.786258535652499,0.045685413581414,0.240469614870613
+"M88","exploratory","latest_valid","Round of 32","Australia","Egypt","Egypt",0.538472975730611,0.289953145592179,0.773214669290187
+"M89","exploratory","latest_valid","Round of 16","Paraguay","France","France",0.216585944147949,0.0469094712024585,0.244093915797436
+"M90","exploratory","latest_valid","Round of 16","Canada","Morocco","Morocco",0.338466988391307,0.114559902230681,0.413195392501938
+"M91","exploratory","latest_valid","Round of 16","Brazil","Norway","Norway",0.688023404477188,0.47337620510838,1.16482710833633
+"M92","exploratory","latest_valid","Round of 16","Mexico","England","England",0.376094574028537,0.141447128613707,0.471756483042398
+"M93","exploratory","latest_valid","Round of 16","Portugal","Spain","Spain",0.430125820937899,0.185008221837502,0.562339681007409
+"M94","exploratory","latest_valid","Round of 16","United States","Belgium","Belgium",0.357077702269258,0.127504485457893,0.44173140538921
+"M95","exploratory","latest_valid","Round of 16","Argentina","Egypt","Argentina",0.821734008462099,0.031778763738991,0.19633852697143
+"M96","exploratory","latest_valid","Round of 16","Switzerland","Colombia","Switzerland",0.398151897520343,0.362221138458364,0.920921694447159
+"M97","exploratory","latest_valid","Quarter-finals","France","Morocco","France",0.570569619826303,0.184410451416126,0.561120084125773
+"M98","exploratory","latest_valid","Quarter-finals","Spain","Belgium","Spain",0.634107716521548,0.133877163109076,0.455536439100002
+"M99","exploratory","latest_valid","Quarter-finals","Norway","England","England",0.341404610153032,0.116557107833744,0.417645908993058
