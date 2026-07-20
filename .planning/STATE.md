@@ -1,3 +1,18 @@
+---
+gsd_state_version: 1.0
+milestone: v2.0
+milestone_name: Model Retrospective and Forecast Evolution
+status: planning
+last_updated: "2026-07-20T11:02:54.463Z"
+last_activity: 2026-07-20
+progress:
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
+---
+
 # xGelo Project State
 
 ---
@@ -34,6 +49,7 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 ## Requirement Status
 
 ### Phase 1: Data Ingestion & Infrastructure (6/6)
+
 - [x] DATA-01: Ingest martj42 international results dataset
 - [x] DATA-02: Normalize team names across sources
 - [x] DATA-03: Download and cache StatsBomb Open Data events and line-ups
@@ -42,6 +58,7 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 - [x] PIPELINE-03: Create schema validation for all ingested data
 
 ### Phase 2: xG Model Development (6/6)
+
 - [x] XG-01: Implement shot distance calculation from coordinates
 - [x] XG-02: Implement shot angle calculation from coordinates
 - [x] XG-03: Build minimal xG feature contract
@@ -50,16 +67,19 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 - [x] XG-06: Backtest xG model performance (AUC: 0.7905)
 
 ### Phase 3: Elo Rating System (4/4)
+
 - [x] ELO-01: Implement Elo rating calculation
 - [x] ELO-02: Compute Elo ratings across all men's international matches (49,368 matches, 336 teams)
 - [x] ELO-03: Add home advantage adjustment (60 points)
 - [x] ELO-04: Tune Elo k-factor and home advantage (k=20/40, decay=0.995, validation AUC=0.7916)
 
 ### Phase 4: Integration Layer (2/2)
+
 - [x] INTEGR-01: Create aggregated team-match xG metrics
 - [x] INTEGR-02: Compute rolling form metrics with EWMA
 
 ### Phase 5: Forecasting Layer (5/5)
+
 - [x] FORECAST-01: Build NB regression model for home goals
 - [x] FORECAST-02: Build NB regression model for away goals
 - [x] FORECAST-03: Implement Monte Carlo simulation engine
@@ -67,12 +87,14 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 - [x] FORECAST-05: Calibrate forecast model
 
 ### Phase 6: Pipeline & Quality (4/4)
+
 - [x] PIPELINE-01: Implement targets pipeline with clear dependency graph
 - [x] TEST-01: Unit tests for xG feature calculations
 - [x] TEST-02: Unit tests for Elo calculation logic
 - [x] TEST-03: Integration test for full pipeline execution
 
 ### Phase 7: Visualization & Documentation (4/4)
+
 - [x] VIS-01: Create AUC comparison chart showing performance by feature set
 - [x] VIS-02: Generate calibration plots for both xG and forecast models
 - [x] DOC-01: Reproducible research notebook showing model performance
@@ -94,17 +116,20 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 ## Quality Metrics
 
 ### Model Performance
+
 - **xG Model AUC**: 0.7905 (Target: ≥ 0.75) ✅
 - **Elo Validation AUC**: 0.7916 ✅
 - **Forecast Brier Score**: 0.214 (Target: < 0.25) ✅
 - **Draw Probability**: 28.3% (Target: ~28%) ✅
 
 ### Testing
+
 - **Unit Tests**: 27/27 passing ✅
 - **Integration Tests**: 4/4 passing ✅
 - **Code Coverage**: >80% for xG and Elo functions ✅
 
 ### Documentation
+
 - [x] SUMMARY.md for all 7 phases
 - [x] VERIFICATION.md for all 7 phases
 - [x] SETUP.md
@@ -156,6 +181,7 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 | STATE.md | .planning/STATE.md | Updated |
 
 ### Milestone Archives
+
 | Artifact | Location | Status |
 |----------|----------|--------|
 | v1.0-ROADMAP.md | .planning/milestones/v1.0-ROADMAP.md | Archived |
@@ -177,9 +203,11 @@ Last activity: 2026-07-20 - Completed quick task 260720-fet: Add the missing Wor
 
 ```
 $ git status
+
 - All v1.0 artifacts committed
 - Archive files staged for commit
 - Ready for v1.0 tag
+
 ```
 
 ---
@@ -202,3 +230,10 @@ $ git status
 
 ---
 *Generated: 2026-06-05 | v1.0 Complete | v2.0 Ready*
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-07-20 — Milestone v2.0 started

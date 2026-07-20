@@ -5,11 +5,22 @@
 
 ## What This Is
 
-A **free, open-data** forecasting system that combines **Elo ratings** with **expected goals (xG)** to predict UEFA World Cup Qualifiers match outcomes. The system is designed as a **hybrid solution**: using open-licensed data for model training (StatsBomb Open Data) and carefully cached public data for WCQ-specific target predictions (FotMob), while maintaining legal compliance and reproducibility.
+A **free, open-data-first** forecasting system for men's international football that combines team-strength ratings, goal models, expected goals (xG), and tournament simulation. It produces leakage-safe match probabilities and tournament forecasts while keeping restricted data optional, local, and auditable.
 
 ## Core Value
 
-**Accurate football match forecasting without paid data feeds** — Provide reliable win/draw/loss probabilities and goal expectations for UEFA World Cup Qualifiers by combining team strength (Elo) with attacking efficiency (xG), using only freely available data sources.
+**Accurate, calibrated international-football forecasting without dependence on paid data feeds.**
+
+## Current Milestone: v2.0 Model Retrospective and Forecast Evolution
+
+**Goal:** Establish a trustworthy post-tournament evaluation system, then improve xGelo only through challengers that generalize across historical tournaments.
+
+**Target features:**
+- Reconstruct the final forecast snapshot before every 2026 World Cup kickoff and publish a reproducible scorecard.
+- Build rolling World Cup and Euro backtests with proper scoring, calibration diagnostics, and explicit model-promotion gates.
+- Benchmark Elo-only, current negative-binomial, regularized Poisson, dependent-score, hybrid tree, structural-prior, and external bookmaker-consensus approaches.
+- Test dynamic attack/defence ratings, venue and travel context, active xG signals, squad information, and post-model calibration.
+- Preserve the open-data-first design and prevent the 2026 World Cup from becoming tuning data.
 
 ## Context
 
@@ -88,41 +99,18 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 
 ### Validated
 
-(None yet — ship to validate)
+- ✓ Open international-results ingestion, canonical team identities, and reproducible caches — v1.0
+- ✓ Calibrated open-data xG model and historical Elo rating system — v1.0
+- ✓ Negative-binomial match forecasts, scoreline distributions, and Monte Carlo simulation — v1.0
+- ✓ 2026 World Cup group and knockout simulation with result conditioning and dashboard publication — post-v1.0
+- ✓ Automated tests, targets orchestration, model documentation, and forecast artifacts — v1.0
 
 ### Active
 
-- [ ] **DATA-01**: Ingest martj42 international results dataset
-- [ ] **DATA-02**: Normalize team names across sources (Turkey/Türkiye, Macedonia/North Macedonia, etc.)
-- [ ] **DATA-03**: Download and cache StatsBomb Open Data events and line-ups
-- [ ] **DATA-04**: Create data inventory documenting source, license, coverage for each dataset
-- [ ] **XG-01**: Implement shot distance calculation from coordinates
-- [ ] **XG-02**: Implement shot angle calculation from coordinates
-- [ ] **XG-03**: Build minimal xG feature contract (distance, angle, header, open_play, competition)
-- [ ] **XG-04**: Train logistic regression xG model with splines for distance and angle
-- [ ] **XG-05**: Calibrate xG model on held-out test set
-- [ ] **XG-06**: Backtest xG model performance (AUC, calibration plots)
-- [ ] **ELO-01**: Implement Elo rating calculation using R elo package
-- [ ] **ELO-02**: Compute Elo ratings across all men's international matches from martj42
-- [ ] **ELO-03**: Add home advantage adjustment (60 points for non-neutral home matches)
-- [ ] **ELO-04**: Tune Elo k-factor and home advantage via rolling-origin validation
-- [ ] **INTEGR-01**: Create aggregated team-match xG metrics (xGF, xGA, xGD, shots per 90)
-- [ ] **INTEGR-02**: Compute rolling form metrics with EWMA over 6-12 matches
-- [ ] **FORECAST-01**: Build Poisson regression model for home goals
-- [ ] **FORECAST-02**: Build Poisson regression model for away goals
-- [ ] **FORECAST-03**: Implement Monte Carlo simulation engine (50,000 scenarios per fixture)
-- [ ] **FORECAST-04**: Generate win/draw/loss probabilities and expected goals
-- [ ] **FORECAST-05**: Calibrate forecast model (ensure predicted draw frequency matches reality)
-- [ ] **PIPELINE-01**: Implement targets pipeline with clear dependency graph
-- [ ] **PIPELINE-02**: Set up local cache directory structure with versioning
-- [ ] **PIPELINE-03**: Create schema validation for all ingested data
-- [ ] **VIS-01**: Create AUC comparison chart showing performance by feature set
-- [ ] **VIS-02**: Generate calibration plots for both xG and forecast models
-- [ ] **TEST-01**: Unit tests for xG feature calculations
-- [ ] **TEST-02**: Unit tests for Elo calculation logic
-- [ ] **TEST-03**: Integration test for full pipeline execution
-- [ ] **DOC-01**: Reproducible research notebook showing model performance
-- [ ] **DOC-02**: Technical documentation for pipeline setup and execution
+- [ ] Build a trustworthy pre-kickoff 2026 forecast ledger and retrospective scorecard.
+- [ ] Create rolling multi-tournament benchmark infrastructure and promotion gates.
+- [ ] Implement and compare literature-backed goal and machine-learning challengers.
+- [ ] Improve strength, context, xG, squad, and calibration features only when they generalize out of sample.
 
 ### Out of Scope
 
@@ -246,20 +234,13 @@ Pipeline → Visualization & Docs (Phase 7)
 - **Model Calibration**: All bins within ±5% of ideal line
 - **Reproducibility**: Pipeline outputs match across runs
 
-## Next Milestone Goals (v2.0)
+## v2.0 Evaluation Principles
 
-### Planned Enhancements
-1. **Mixed-effects xG model** - Team random effects for better personalization
-2. **Sequence-aware models** - Capture game state dynamics
-3. **Hybrid WCQ data layer** - Integrate cached WCQ data
-4. **Group stage simulation** - Tournament-level predictions
-5. **CI/CD pipeline** - Automated testing and deployment
-
-### Target Improvements
-- xG model AUC > 0.80
-- Forecast Brier score < 0.20
-- Full end-to-end automation
-- Extended historical coverage
+- The 2026 World Cup is an untouched final holdout for model comparison, not a tuning set.
+- Candidate models must improve proper scoring and calibration across multiple rolling tournament folds.
+- Added complexity must beat simpler Elo and count-model baselines by a predeclared promotion rule.
+- Structural and market models are benchmarks or priors unless their data and licensing fit the open-data operating mode.
+- Dashboard behavior remains stable while model evaluation and replacement happen behind explicit versioned contracts.
 
 ---
-*Last updated: 2026-06-05 | v1.0 Shipped | v2.0 Planning*
+*Last updated: 2026-07-20 after starting milestone v2.0*
