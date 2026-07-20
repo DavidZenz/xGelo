@@ -39,6 +39,15 @@ backfilling missing predictions.
 5. The published retrospective can be regenerated from the immutable ledger and
    reports missing forecast coverage as an analytical result.
 
+**Plans:** 3 plans
+
+Plans:
+- [ ] 08-01: Reconstruct and validate the immutable forecast ledger
+- [ ] 08-02: Score match, goal, advancement, and stage-reach forecasts
+- [ ] 08-03: Publish the retrospective and integrate the pipeline
+
+**Execution waves:** Wave 1: 08-01; Wave 2: 08-02 after 08-01; Wave 3: 08-03 after 08-02.
+
 ### Phase 9: Rolling Tournament Benchmark Harness
 
 **Goal:** Create the common, leakage-safe evaluation contract under which every
@@ -128,7 +137,7 @@ information add stable value beyond the strongest statistical benchmark.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Forecast Ledger and WC 2026 Retrospective | 0/TBD | Not started | - |
+| 8. Forecast Ledger and WC 2026 Retrospective | 0/3 | Planned | - |
 | 9. Rolling Tournament Benchmark Harness | 0/TBD | Not started | - |
 | 10. Statistical Goal-Model Challengers | 0/TBD | Not started | - |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
