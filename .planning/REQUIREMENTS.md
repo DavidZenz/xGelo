@@ -66,41 +66,41 @@
 
 ## Traceability
 
-Roadmap phase mappings will be populated during roadmap creation.
+Each active v2.0 requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LEDGER-01 | TBD | Pending |
-| LEDGER-02 | TBD | Pending |
-| LEDGER-03 | TBD | Pending |
-| EVAL-01 | TBD | Pending |
-| EVAL-02 | TBD | Pending |
-| EVAL-03 | TBD | Pending |
-| BENCH-01 | TBD | Pending |
-| BENCH-02 | TBD | Pending |
-| BENCH-03 | TBD | Pending |
-| BENCH-04 | TBD | Pending |
-| BENCH-05 | TBD | Pending |
-| STAT-01 | TBD | Pending |
-| STAT-02 | TBD | Pending |
-| STAT-03 | TBD | Pending |
-| STAT-04 | TBD | Pending |
-| HYBRID-01 | TBD | Pending |
-| HYBRID-02 | TBD | Pending |
-| HYBRID-03 | TBD | Pending |
-| HYBRID-04 | TBD | Pending |
-| HYBRID-05 | TBD | Pending |
-| CAL-01 | TBD | Pending |
-| CAL-02 | TBD | Pending |
-| PROMO-01 | TBD | Pending |
-| PROMO-02 | TBD | Pending |
-| PROMO-03 | TBD | Pending |
+| LEDGER-01 | 8 | Pending |
+| LEDGER-02 | 8 | Pending |
+| LEDGER-03 | 8 | Pending |
+| EVAL-01 | 8 | Pending |
+| EVAL-02 | 8 | Pending |
+| EVAL-03 | 8 | Pending |
+| BENCH-01 | 9 | Pending |
+| BENCH-02 | 9 | Pending |
+| BENCH-03 | 9 | Pending |
+| BENCH-04 | 9 | Pending |
+| BENCH-05 | 9 | Pending |
+| STAT-01 | 10 | Pending |
+| STAT-02 | 10 | Pending |
+| STAT-03 | 10 | Pending |
+| STAT-04 | 10 | Pending |
+| HYBRID-01 | 11 | Pending |
+| HYBRID-02 | 11 | Pending |
+| HYBRID-03 | 11 | Pending |
+| HYBRID-04 | 11 | Pending |
+| HYBRID-05 | 11 | Pending |
+| CAL-01 | 12 | Pending |
+| CAL-02 | 12 | Pending |
+| PROMO-01 | 12 | Pending |
+| PROMO-02 | 12 | Pending |
+| PROMO-03 | 12 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25
+- Mapped to phases: 25
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-07-20*
-*Last updated: 2026-07-20 after milestone requirements approval*
+*Last updated: 2026-07-20 after roadmap mapping*
