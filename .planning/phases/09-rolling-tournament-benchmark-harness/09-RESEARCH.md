@@ -324,7 +324,7 @@ All market probabilities are derived from the stored joint score distribution an
 
 Long rows keyed by `score_distribution_id`, with integer `home_goals`, integer `away_goals`, `probability`, `support_max_home`, `support_max_away`, `raw_tail_mass`, and `normalized`. Store the full rectangular grid, including zero-probability cells, so “complete” is machine-checkable. [VERIFIED: Phase 08 found truncated storage unusable; 09-CONTEXT.md D-15]
 
-For NB/Poisson models, compute the analytic joint PMF on `0:G × 0:G`. Register `G = 15` initially, record mass outside the rectangle, require `raw_tail_mass <= 1e-10`, and fail the baseline freeze if that bound is violated; raise `G` globally and refreeze rather than choosing support per model. Renormalize only after the tail check. [VERIFIED: standard R `dnbinom`/`dpois` behavior and existing independent-grid implementation in `R/benchmark/euro2024.R`; support/tolerance are prescriptive choices] The observed regulation score must lie within support or scoring fails loudly. [VERIFIED: `R/evaluation/proper_scores.R`]
+For NB/Poisson models, compute the analytic joint PMF on `0:G × 0:G`. Before sealing any baseline, evaluate the single global integer candidate range `G = 8, 9, ..., 40` against every registered model, fold, track, and fitted boundary. Select the smallest `G` for which every raw omitted joint-tail mass is `<= 1e-10`; record the complete audit, selected `G`, and canonical audit/registry SHA-256 values in the model registry and promotion protocol. Fail the baseline freeze if no candidate passes. Renormalize only after the tail check, and never choose support per model or after candidate scores are observed. [VERIFIED: standard R `dnbinom`/`dpois` behavior and existing independent-grid implementation in `R/benchmark/euro2024.R`; bounded range/tolerance are prescriptive choices] The observed regulation score must lie within the selected support or scoring fails loudly. [VERIFIED: `R/evaluation/proper_scores.R`]
 
 #### `stage_probabilities.csv`
 
@@ -609,7 +609,7 @@ Define all lower-is-better deltas as `challenger - incumbent`. Apply the locked 
 6. Relative log-loss worsening `(Log_c - Log_b) / Log_b <= 0.01`.
 7. Calibration worsening `ECE_c - ECE_b <= 0.01`.
 8. Every probability, distribution, fixture, coverage, provenance, licensing, seed, checksum, and reproducibility check passes.
-9. If optional data are used, rich-panel comparison versus production hybrid passes the same predeclared effect/uncertainty policy and the registered open companion passes core non-regression/promotion requirements.
+9. If optional data are used, the candidate's rich variant must beat `production_hybrid_nb` on the exact paired rich panel with tournament-weighted RPS delta `<= -0.003`, paired 95% CI upper endpoint `< 0`, at least 8/12 fold wins including at least two World Cups and two Euros, and maximum fold regression `<= 0.015`. Its registered open-mode companion must cover all 630 open-core fixtures, have RPS delta `<= 0.000` versus `open_nb_incumbent`, paired 95% CI upper endpoint `< 0.003`, and maximum fold regression `<= 0.015`. Both variants must pass the Brier/log-loss/calibration limits and every probability, distribution, fixture, coverage, point-in-time provenance, licensing, seed, checksum, reproducibility, and default-open-mode veto. Exact boundary operators are part of the frozen protocol.
 
 [VERIFIED: 09-CONTEXT.md D-16..D-20; formulas make the locked prose executable]
 
@@ -656,7 +656,7 @@ Panel eligibility is a property of a predeclared fixture, not a model's successf
 
 Missing optional features may be imputed only when the model registry defines the imputation and a missingness indicator. Current zero defaults are not sufficient provenance. [VERIFIED: `R/forecast/features.R`; recommendation] A rich-panel comparison is valid only when candidate and hybrid incumbent have identical eligible fixture IDs and each included edition meets the frozen minimum coverage rule. [VERIFIED: D-19]
 
-Register that minimum as at least 80% of official fixtures within every one of the 12 editions, with 100% prediction/distribution/provenance coverage on the fixtures declared eligible. If any edition falls below 80%, the rich panel is descriptive only and cannot support promotion. [VERIFIED: prescriptive panel policy consistent with D-05, D-15, D-19]
+Register that minimum as at least 80% of official fixtures within every one of the 12 editions. Promotion eligibility is earned only when every declared eligible output row has complete required prediction/distribution coverage and point-in-time provenance and every registered edition meets the frozen 80% floor. If any row or edition fails, label both the rich panel and affected candidate `descriptive_only`, set promotion eligibility false, and continue the complete open-core evaluation unchanged. [VERIFIED: prescriptive panel policy consistent with D-05, D-15, D-19]
 
 ## Literature Lineage and Scope Mapping
 
@@ -1020,22 +1020,13 @@ OWASP ASVS 5.0.0 is the latest stable ASVS release as of this research date. Thi
 |---|-------|---------|---------------|
 | — | None. All factual claims are tied to repository inspection, locked context, local probes/tests, or cited primary/official sources. Prescriptive numeric choices are explicitly labelled as such. | — | — |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which official or durable open source should back the 12-edition stage/status/regulation corrections?**
-   - What we know: the repository's Mart Jürisoo lineage supplies all 630 base fixtures but explicitly lacks extra-time/status semantics and stage routing. [CITED: https://github.com/openfootball/internationals]
-   - What is unclear: one already-licensed source may not expose every historical field uniformly.
-   - Recommendation: create a source-attributed correction layer rather than replacing the base dataset; require source URL/license and row hash for every correction, and pause Plan 09-01 if regulation outcomes cannot be verified.
+1. **Historical stage/status/regulation corrections:** Treat every correction as a checked, source-attributed local input rather than an inferred replacement for the 630-row base registry. Require authoritative source title/URL, license, access date, affected fixture ID, original and corrected values, rationale, reviewer, row SHA-256, and source-artifact SHA-256; validate this correction registry before Plan 09-01 completes or Plan 09-02 starts. Establish provenance autonomously from checked local evidence where possible. If any correction still lacks authoritative local provenance, stop before registry sealing and require a blocking human approval/checkpoint for the supplied evidence; do not continue on an assumption.
 
-2. **Can the production hybrid be reconstructed with full point-in-time provenance for the entire rich panel?**
-   - What we know: the local processed Transfermarkt snapshots span 2000-2026 and cover most edition teams, and the raw DuckDB snapshot is present; several historical aliases/teams are missing in a direct coverage audit. [VERIFIED: repository inventory]
-   - What is unclear: whether every processed snapshot can be regenerated from the current raw snapshot with identical historical source semantics.
-   - Recommendation: make regeneration/hash closure a Plan 09-02 gate. If it fails, retain the rich panel as descriptive with an explicit provenance veto; do not weaken the open core.
+2. **Rich-panel eligibility:** A rich panel and candidate are promotion-eligible only if every eligible output row has complete required prediction/distribution coverage and point-in-time provenance and every one of the 12 registered editions meets the frozen 80% official-fixture floor. Otherwise label the panel/candidate `descriptive_only`, make it promotion-ineligible, retain explicit failure reasons, and continue the complete open-core evaluation unchanged.
 
-3. **Does `G = 15` satisfy the registered NB tail bound for every baseline/fold/boundary?**
-   - What we know: target tournament observed scores are at most 8 home and 7 away in current data, but predictive NB tails depend on fitted means and dispersion. [VERIFIED: repository inventory]
-   - What is unclear: worst fitted tail mass before the complete baseline dry run.
-   - Recommendation: run a support audit before freezing models; if any tail exceeds `1e-10`, raise one global `G` and recompute protocol hashes. Never adapt support after viewing candidate scores.
+3. **Global score support:** Do not assume `G = 15`. Before sealing, evaluate every integer `G` from 8 through 40 over every registered model/fold/track/boundary, choose the smallest global `G` for which every raw omitted joint-tail mass is `<= 1e-10`, and record/checksum the candidate audit and selected `G`. Fail sealing if no candidate passes; never adapt support after candidate scores are observed.
 
 ## Sources
 
