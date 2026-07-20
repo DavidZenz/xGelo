@@ -8,6 +8,7 @@ source(file.path(project_root, "R/evaluation/promotion.R"))
 
 protocol_path <- file.path(project_root, "data/benchmark/phase09/promotion_protocol.json")
 registry_dir <- dirname(protocol_path)
+frozen_protocol <- load_promotion_protocol(protocol_path)
 
 all_contracts_pass <- function() {
   fields <- c(
@@ -56,7 +57,7 @@ promotion_case <- function(optional = FALSE) {
   )
 }
 
-decision_for <- function(case) evaluate_promotion(case, load_promotion_protocol(protocol_path))
+decision_for <- function(case) evaluate_promotion(case, frozen_protocol)
 
 expect_eligible <- function(case) {
   expect_equal(decision_for(case)$decision, "eligible_for_final_holdout")
@@ -69,7 +70,7 @@ expect_retained <- function(case, reason) {
 }
 
 test_that("the frozen promotion protocol validates and hashes canonically", {
-  protocol <- load_promotion_protocol(protocol_path)
+  protocol <- frozen_protocol
   expect_silent(validate_promotion_protocol(protocol, registry_dir = registry_dir))
   expect_identical(
     canonicalize_promotion_protocol(protocol),
@@ -80,6 +81,7 @@ test_that("the frozen promotion protocol validates and hashes canonically", {
   expect_equal(protocol$bootstrap$replicates, 10000L)
   expect_equal(protocol$fixed_probability_bins, seq(0, 1, 0.1))
   expect_false(any(grepl("actual_(home|away)_goals|wc2026_result", canonicalize_promotion_protocol(protocol))))
+  expect_length(promotion_veto_reasons(promotion_case(), protocol), 0L)
 })
 
 test_that("core practical-effect boundaries are exact and unrounded", {
@@ -187,11 +189,16 @@ test_that("rich-panel breadth, regression, and supporting vetoes mirror the core
   x <- promotion_case(TRUE); x$rich_panel$maximum_fold_regression <- 0.015; expect_eligible(x)
   x <- promotion_case(TRUE); x$rich_panel$maximum_fold_regression <- 0.015 + eps
   expect_retained(x, "rich_max_regression_failed")
-  for (field in c("brier_relative_change", "log_loss_relative_change", "calibration_change")) {
+  expected_reasons <- c(
+    brier_relative_change = "rich_brier_veto",
+    log_loss_relative_change = "rich_log_loss_veto",
+    calibration_change = "rich_calibration_veto"
+  )
+  for (field in names(expected_reasons)) {
     x <- promotion_case(TRUE); x$rich_panel[[field]] <- 0.01 - eps; expect_eligible(x)
     x <- promotion_case(TRUE); x$rich_panel[[field]] <- 0.01; expect_eligible(x)
     x <- promotion_case(TRUE); x$rich_panel[[field]] <- 0.01 + eps
-    expect_retained(x, paste0("rich_", sub("_relative_change", "", sub("_change", "", field)), "_veto"))
+    expect_retained(x, expected_reasons[[field]])
   }
 })
 
@@ -219,7 +226,7 @@ test_that("open companion gates preserve all 630 fixtures and exact non-regressi
   x <- promotion_case(TRUE); x$open_companion$rps_delta <- -eps; expect_eligible(x)
   x <- promotion_case(TRUE); x$open_companion$rps_delta <- 0; expect_eligible(x)
   x <- promotion_case(TRUE); x$open_companion$rps_delta <- eps
-  expect_retained(x, "open_companion_rps_failed")
+  expect_retained(x, "open_companion_rps_effect_failed")
 
   x <- promotion_case(TRUE); x$open_companion$ci_upper <- 0.003 - eps; expect_eligible(x)
   x <- promotion_case(TRUE); x$open_companion$ci_upper <- 0.003

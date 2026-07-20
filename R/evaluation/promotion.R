@@ -234,6 +234,7 @@ promotion_contract_reasons <- function(flags, prefix = "") {
   missing <- setdiff(names(mapping), names(flags))
   if (length(missing)) return(paste0(prefix, mapping[missing]))
   failed <- names(mapping)[!vapply(flags[names(mapping)], isTRUE, logical(1))]
+  if (!length(failed)) return(character())
   paste0(prefix, unname(mapping[failed]))
 }
 
