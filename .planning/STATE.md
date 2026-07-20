@@ -5,16 +5,16 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 09
 current_phase_name: Rolling Tournament Benchmark Harness
 status: executing
-stopped_at: Completed 09-02-PLAN.md
-last_updated: "2026-07-20T18:58:36.008Z"
+stopped_at: Completed 09-03-PLAN.md
+last_updated: "2026-07-20T19:23:38.306Z"
 last_activity: 2026-07-20
-last_activity_desc: Phase 09 Plan 02 completed
+last_activity_desc: Phase 09 Plan 03 completed
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # xGelo Project State
@@ -22,23 +22,23 @@ progress:
 ## Current Position
 
 Phase: 09 (Rolling Tournament Benchmark Harness) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
-Last activity: 2026-07-20 — Phase 09 Plan 02 completed
+Last activity: 2026-07-20 — Phase 09 Plan 03 completed
 
-Progress: [███████░░░] 71%
+Progress: [█████████░] 86%
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 8 | Forecast Ledger and WC 2026 Retrospective | Complete | 6/6 |
-| 9 | Rolling Tournament Benchmark Harness | In Progress | 3/5 |
+| 9 | Rolling Tournament Benchmark Harness | In Progress | 5/5 |
 | 10 | Statistical Goal-Model Challengers | Pending | 4 |
 | 11 | Hybrid ML and Contextual Priors | Pending | 5 |
 | 12 | Calibration, Promotion, and Model Release | Pending | 5 |
 
-**Overall:** 5 of 7 currently planned plans complete (71%)
+**Overall:** 6 of 7 currently planned plans complete (86%)
 
 ## Project Reference
 
@@ -65,6 +65,9 @@ leakage-safe assessment folds.
 - [Phase 09]: Permit absolute benchmark registry paths only when they normalize inside the approved project registry root.
 - [Phase 09]: Use the conservative registered NB envelope mu=5 theta=8 to seal global score support G=40 across all folds.
 - [Phase 09]: Keep output coverage and promotion eligibility as post-prediction observations outside frozen panel membership.
+- [Phase 09]: Bootstrap only the 12 paired tournament deltas with seed 920001, 10,000 replicates, and type-8 quantiles.
+- [Phase 09]: Require optional-data candidates to pass the production-hybrid rich gate and a complete 630-fixture open-core companion gate.
+- [Phase 09]: Derive rich promotion eligibility from observed post-adapter output coverage plus frozen provenance and per-edition floors.
 
 ## Blockers
 
@@ -76,15 +79,15 @@ None.
 
 ## Next Action
 
-Execute Plan 09-03.
+Execute Plan 09-04.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-07-20T18:58:35.842Z
-**Stopped at:** Completed 09-02-PLAN.md
+**Last session:** 2026-07-20T19:23:21.290Z
+**Stopped at:** Completed 09-03-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -93,3 +96,4 @@ Execute Plan 09-03.
 |-------|------|----------|-------|
 | Phase 09 P01 | 21min | 3 tasks | 14 files |
 | Phase 09 P02 | 30min | 3 tasks | 13 files |
+| Phase 09 P03 | 18min | 2 tasks | 5 files |

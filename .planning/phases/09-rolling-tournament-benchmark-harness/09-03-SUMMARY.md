@@ -128,7 +128,7 @@ None - plan executed exactly as written.
 
 ## Issues Encountered
 
-None.
+- The GSD progress handler correctly counted 6/7 summaries and returned 86%, but its case-insensitive plain-progress matcher hit the YAML `progress:` key before the body line. The resulting stale 71% body and 20% frontmatter were corrected in the tracking-only closeout commit; handler-produced plan, metric, decision, roadmap, and requirement updates were retained.
 
 ## TDD Gate Compliance
 
