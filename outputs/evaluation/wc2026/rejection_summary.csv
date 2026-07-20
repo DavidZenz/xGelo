@@ -1,0 +1,7 @@
+"evidence_tier","primary_reason","Freq"
+"rejected","fixture_identity_mismatch",5167
+"verified","none",6401
+"rejected","post_kickoff_commit",8628
+"rejected","post_kickoff_generation",13980
+"rejected","probability_invalid",2155
+"documented","source_cutoff_not_proven",339

@@ -49,7 +49,7 @@ provider or model fitting belongs in this phase.
 
 ### 1. Canonical fixture registry
 
-Build one 103-row registry keyed by `match_id` with stage, teams, official
+Build one 104-row registry keyed by `match_id` with stage, teams, official
 scheduled kickoff UTC, final regulation score, advancement winner, and result
 source. Parse cached ESPN event timestamps/results and reconcile them to xGelo
 match IDs through normalized teams, date, and bracket identity. Fail on ambiguous
@@ -200,7 +200,7 @@ Use `testthat` at three layers:
    probability cases.
 3. A read-only repository integration test that reconstructs a bounded commit
    range and proves deterministic hashes, then an end-to-end artifact test for all
-   103 official fixtures and the rendered report.
+   104 official fixtures and the rendered report.
 
 Quick tests should use synthetic data and finish in seconds. Full reconstruction
 is a separate explicit test/run because Git history traversal and report rendering
@@ -213,4 +213,3 @@ Use three sequential plans:
 1. reconstruct and validate the immutable forecast ledger;
 2. implement proper scoring, stage events, calibration, and uncertainty; and
 3. integrate outputs into `targets`, render the report, and run end-to-end tests.
-
