@@ -7,12 +7,12 @@
 
 ### Forecast Integrity
 
-- [ ] **LEDGER-01**: The analyst can reconstruct the latest committed forecast that existed before each 2026 World Cup kickoff.
-- [ ] **LEDGER-02**: Every reconstructed forecast records kickoff time, generation time, feature and result cutoffs, source commit, model version, and provenance.
-- [ ] **LEDGER-03**: Forecasts that violate timing or provenance rules are rejected with a machine-readable reason.
-- [ ] **EVAL-01**: The analyst can score 1X2 probabilities, goal distributions, totals, both-teams-to-score, and exact-score forecasts with documented metrics.
-- [ ] **EVAL-02**: The analyst can score knockout advancement and tournament-stage reach probabilities against actual outcomes.
-- [ ] **EVAL-03**: The retrospective reports calibration and uncertainty by stage, outcome class, and confidence, with strict and exploratory samples clearly separated.
+- [x] **LEDGER-01**: The analyst can reconstruct the latest committed forecast that existed before each 2026 World Cup kickoff.
+- [x] **LEDGER-02**: Every reconstructed forecast records kickoff time, generation time, feature and result cutoffs, source commit, model version, and provenance.
+- [x] **LEDGER-03**: Forecasts that violate timing or provenance rules are rejected with a machine-readable reason.
+- [x] **EVAL-01**: The analyst can score 1X2 probabilities, goal distributions, totals, both-teams-to-score, and exact-score forecasts with documented metrics.
+- [x] **EVAL-02**: The analyst can score knockout advancement and tournament-stage reach probabilities against actual outcomes.
+- [x] **EVAL-03**: The retrospective reports calibration and uncertainty by stage, outcome class, and confidence, with strict and exploratory samples clearly separated.
 
 ### Benchmarking
 
@@ -70,12 +70,12 @@ Each active v2.0 requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LEDGER-01 | 8 | Pending |
-| LEDGER-02 | 8 | Pending |
-| LEDGER-03 | 8 | Pending |
-| EVAL-01 | 8 | Pending |
-| EVAL-02 | 8 | Pending |
-| EVAL-03 | 8 | Pending |
+| LEDGER-01 | 8 | Complete |
+| LEDGER-02 | 8 | Complete |
+| LEDGER-03 | 8 | Complete |
+| EVAL-01 | 8 | Complete |
+| EVAL-02 | 8 | Complete |
+| EVAL-03 | 8 | Complete |
 | BENCH-01 | 9 | Pending |
 | BENCH-02 | 9 | Pending |
 | BENCH-03 | 9 | Pending |

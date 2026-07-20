@@ -1,0 +1,179 @@
+---
+title: "World Cup 2026 Forecast Retrospective"
+subtitle: "Point-in-time evidence for xGelo v2"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    self_contained: true
+params:
+  output_dir: "outputs/evaluation/wc2026"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, fig.align = "center")
+output_dir <- normalizePath(params$output_dir, mustWork = TRUE)
+read_bundle <- function(name) read.csv(file.path(output_dir, name), stringsAsFactors = FALSE, check.names = FALSE)
+fixtures <- read_bundle("fixture_results.csv")
+coverage <- read_bundle("forecast_coverage.csv")
+selected <- read_bundle("selected_forecasts.csv")
+ledger <- read_bundle("forecast_ledger.csv")
+match_scores <- read_bundle("match_scores.csv")
+aggregates <- read_bundle("aggregate_scores.csv")
+calibration <- read_bundle("calibration_bins.csv")
+advancement <- read_bundle("advancement_scores.csv")
+stage_reach <- read_bundle("stage_reach_scores.csv")
+headline <- aggregates[
+  aggregates$sample == "strict" & aggregates$view == "latest_valid" &
+    aggregates$metric == "rps" & aggregates$cut_type == "overall", , drop = FALSE
+]
+delta <- aggregates[
+  aggregates$sample == "strict" & aggregates$view == "paired_delta_latest_minus_first" &
+    aggregates$metric == "rps" & aggregates$cut_type == "overall", , drop = FALSE
+]
+fmt <- function(x, digits = 3) formatC(x, digits = digits, format = "f")
+```
+
+# Scorecard
+
+The strict latest-valid benchmark covers **`r headline$n_scored` of 104 fixtures
+(`r fmt(100 * headline$coverage, 1)`%)**. Its regulation-time ranked probability
+score is **`r fmt(headline$estimate, 4)`**, with a deterministic 95% fixture
+bootstrap interval of **`r fmt(headline$lower, 4)` to `r fmt(headline$upper, 4)`**.
+
+The paired latest-minus-first change is **`r fmt(delta$estimate, 4)`** (95%
+interval **`r fmt(delta$lower, 4)` to `r fmt(delta$upper, 4)`**). Negative values
+favor the latest revision; this interval includes zero.
+
+**Caveats.** Twenty-one fixtures have no strict eligible forecast. Historical
+JSON retains only the five leading scorelines, about 46.5% of joint probability
+mass, so complete joint and marginal goal-distribution scores are unavailable.
+No retained team-stage snapshot predates the opening kickoff; stage-reach results
+therefore use strictly pre-stage anchors only. Exploratory evidence is reported
+separately and never blended into the strict scorecard.
+
+```{r scorecard-table}
+scorecard_metrics <- aggregates[
+  aggregates$sample == "strict" & aggregates$view == "latest_valid" &
+    aggregates$cut_type == "overall" &
+    aggregates$metric %in% c("rps", "brier", "log_loss", "accuracy", "over_2_5_brier", "btts_brier"),
+  c("metric", "n_scored", "n_official", "coverage", "estimate", "lower", "upper")
+]
+knitr::kable(scorecard_metrics, digits = 4, caption = "Strict latest-valid scorecard")
+```
+
+# Provenance And Coverage
+
+Every forecast occurrence is tied to its Git commit, archived forecast blob,
+dashboard blob, feature-table blob, home and away model blobs, generation time,
+committer time, and declared source cutoffs. Strict records require all three
+times to be before kickoff with no grace period.
+
+```{r coverage-figure, out.width='90%'}
+knitr::include_graphics(file.path(output_dir, "figures", "forecast_coverage.png"))
+```
+
+```{r evidence-table}
+evidence_counts <- as.data.frame(table(ledger$evidence_tier), stringsAsFactors = FALSE)
+names(evidence_counts) <- c("evidence_tier", "occurrences")
+knitr::kable(evidence_counts, caption = "Committed forecast occurrences by evidence tier")
+```
+
+# Match Outcomes
+
+RPS is the primary 1X2 metric. Multiclass Brier score and log loss are supporting
+proper scores; accuracy is descriptive. Every headline aggregate weights
+fixtures equally.
+
+```{r cumulative-rps, out.width='90%'}
+knitr::include_graphics(file.path(output_dir, "figures", "cumulative_rps.png"))
+```
+
+```{r revision-figure, out.width='90%'}
+knitr::include_graphics(file.path(output_dir, "figures", "forecast_revisions.png"))
+```
+
+# Goals
+
+Over-2.5 and both-teams-to-score probabilities are scored from their archived
+market probabilities. Expected-goal errors are diagnostic. Complete joint
+scoreline coverage is explicitly zero rather than reconstructed from omitted
+cells.
+
+```{r goal-figure, out.width='95%'}
+knitr::include_graphics(file.path(output_dir, "figures", "goal_diagnostics.png"))
+```
+
+# Advancement And Stage Reach
+
+Knockout targets use the team that advanced, not the regulation-time 1X2 result.
+Team-stage probabilities use one deterministic snapshot per stage boundary, so
+frequent dashboard revisions do not inflate sample size.
+
+```{r advancement-table}
+advancement_summary <- aggregate(cbind(brier, log_loss) ~ sample + view, advancement, mean)
+advancement_summary$n <- as.integer(table(interaction(advancement$sample, advancement$view))[
+  interaction(advancement_summary$sample, advancement_summary$view)
+])
+knitr::kable(advancement_summary, digits = 4, caption = "Knockout advancement scores")
+```
+
+```{r stage-table}
+stage_summary <- aggregate(cbind(brier, log_loss) ~ sample + anchor_type + target_stage, stage_reach, mean)
+stage_summary$n_teams <- aggregate(team ~ sample + anchor_type + target_stage, stage_reach, length)$team
+knitr::kable(stage_summary, digits = 4, caption = "Anchored team-stage scores")
+```
+
+# Calibration
+
+Calibration is shown one class versus the rest. Bins are deterministic quantile
+bins; cuts with fewer than five observations are marked sparse.
+
+```{r calibration-figure, out.width='90%'}
+knitr::include_graphics(file.path(output_dir, "figures", "outcome_calibration.png"))
+```
+
+# Fixture Ledger
+
+```{r fixture-ledger}
+first <- selected[selected$sample == "strict" & selected$view == "first_valid", ]
+latest <- selected[selected$sample == "strict" & selected$view == "latest_valid", ]
+fields <- c("match_id", "p_home", "p_draw", "p_away", "commit_sha", "generated_at_utc")
+first <- first[fields]
+latest <- latest[fields]
+names(first)[-1] <- paste0("first_", names(first)[-1])
+names(latest)[-1] <- paste0("latest_", names(latest)[-1])
+fixture_table <- merge(coverage, first, by = "match_id", all.x = TRUE, sort = FALSE)
+fixture_table <- merge(fixture_table, latest, by = "match_id", all.x = TRUE, sort = FALSE)
+rejections <- ledger[ledger$evidence_tier == "rejected", c("match_id", "primary_reason", "validation_flags")]
+rejections <- rejections[!duplicated(rejections$match_id), ]
+fixture_table <- merge(fixture_table, rejections, by = "match_id", all.x = TRUE, sort = FALSE)
+fixture_table <- fixture_table[match(fixtures$match_id, fixture_table$match_id), ]
+stopifnot(nrow(fixture_table) == 104, length(unique(fixture_table$match_id)) == 104)
+knitr::kable(fixture_table, digits = 4, caption = "All 104 official fixtures and forecast evidence")
+```
+
+# Appendices
+
+## Stage Cuts
+
+```{r stage-cuts}
+knitr::kable(
+  aggregates[aggregates$cut_type == "stage", ], digits = 4,
+  caption = "Stage-specific metric cuts"
+)
+```
+
+## Outcome, Confidence, And Team-Balanced Cuts
+
+```{r dense-cuts}
+dense <- aggregates[aggregates$cut_type %in% c("outcome_class", "confidence", "team_balanced"), ]
+knitr::kable(dense, digits = 4, caption = "Diagnostic aggregate cuts")
+```
+
+## Reproducibility Contract
+
+The report reads only the immutable fixture, ledger, selection, scoring,
+calibration, advancement, stage-reach, and checksum artifacts in the evaluation
+bundle. It performs no model fitting and does not alter forecast evidence.

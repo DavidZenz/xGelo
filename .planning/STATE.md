@@ -2,43 +2,43 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
-current_phase: 8
-current_phase_name: Forecast Ledger and WC 2026 Retrospective
-status: executing
-stopped_at: Plan 08-02 complete; executing Plan 08-03
+current_phase: 9
+current_phase_name: Rolling Tournament Benchmark Harness
+status: ready_for_discussion
+stopped_at: Phase 8 complete; Phase 9 ready for discussion
 last_updated: "2026-07-20T11:58:26.891Z"
 last_activity: 2026-07-20
-last_activity_desc: Phase 8 execution started
+last_activity_desc: Phase 8 retrospective completed and published
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
-  percent: 67
+  completed_plans: 3
+  percent: 20
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 8 (Forecast Ledger and WC 2026 Retrospective) — EXECUTING
-Plan: 3 of 3
-Status: Executing Phase 8
-Last activity: 2026-07-20 — Phase 8 execution started
+Phase: 9 (Rolling Tournament Benchmark Harness) — READY FOR DISCUSSION
+Plan: Not planned
+Status: Phase 8 complete; Phase 9 ready
+Last activity: 2026-07-20 — Phase 8 retrospective completed and published
 
-Progress: [#######---] 67%
+Progress: [##--------] 20%
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
-| 8 | Forecast Ledger and WC 2026 Retrospective | Pending | 6 |
+| 8 | Forecast Ledger and WC 2026 Retrospective | Complete | 6/6 |
 | 9 | Rolling Tournament Benchmark Harness | Pending | 5 |
 | 10 | Statistical Goal-Model Challengers | Pending | 4 |
 | 11 | Hybrid ML and Contextual Priors | Pending | 5 |
 | 12 | Calibration, Promotion, and Model Release | Pending | 5 |
 
-**Overall:** 0 of 5 phases complete (0%)
+**Overall:** 1 of 5 phases complete (20%)
 
 ## Project Reference
 
@@ -48,8 +48,8 @@ milestone scope.
 **Core value:** Accurate, calibrated international-football forecasting without
 dependence on paid data feeds.
 
-**Current focus:** Phase 8 — Forecast Ledger and WC 2026 Retrospective
-completed tournament as evaluation evidence.
+**Current focus:** Phase 9 — common rolling tournament benchmark contracts and
+leakage-safe assessment folds.
 
 ## Decisions
 
@@ -70,7 +70,7 @@ None.
 
 ## Next Action
 
-Complete Phase 8 scoring, report, and pipeline integration.
+Discuss and plan Phase 9 using the retention and coverage findings from Phase 8.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
@@ -78,5 +78,5 @@ Complete Phase 8 scoring, report, and pipeline integration.
 ## Session
 
 **Last session:** 2026-07-20T11:46:33.318Z
-**Stopped at:** Phase 8 context gathered
-**Resume file:** .planning/phases/08-forecast-ledger-and-wc-2026-retrospective/08-CONTEXT.md
+**Stopped at:** Phase 8 complete; Phase 9 ready for discussion
+**Resume file:** .planning/phases/08-forecast-ledger-and-wc-2026-retrospective/08-03-SUMMARY.md

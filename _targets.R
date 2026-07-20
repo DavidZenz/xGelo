@@ -42,6 +42,10 @@ source("R/pipeline/validation.R")
 source("R/visualization/auc.R")
 source("R/visualization/calibration.R")
 source("R/visualization/worldcup_dashboard.R")
+source("R/evaluation/proper_scores.R")
+source("R/evaluation/worldcup_ledger.R")
+source("R/evaluation/worldcup_retrospective.R")
+source("R/visualization/worldcup_retrospective.R")
 
 xgelo_feature_cutoff_date <- function(default = Sys.Date() - 1L) {
   value <- Sys.getenv("XGELO_FEATURE_CUTOFF_DATE", unset = "")
@@ -418,6 +422,57 @@ list(
     {
       worldcup_dashboard_file
       publish_worldcup_dashboard_pages()
+    },
+    format = "file"
+  ),
+  tar_target(
+    worldcup_retrospective_ledger_bundle,
+    write_forecast_ledger_bundle(
+      source_ref = "HEAD",
+      output_dir = "outputs/evaluation/wc2026"
+    )
+  ),
+  tar_target(
+    worldcup_retrospective_score_files,
+    {
+      bundle <- worldcup_retrospective_ledger_bundle
+      output_dir <- "outputs/evaluation/wc2026"
+      distributions <- readRDS(file.path(output_dir, "selected_distributions.rds"))
+      scores <- score_worldcup_matches(bundle$selected, distributions$scorelines)
+      aggregates <- aggregate_worldcup_scores(scores)
+      calibration <- make_calibration_bins(bundle$selected)
+      advancement <- score_knockout_advancement(bundle$selected)
+      anchors <- select_stage_reach_anchors(bundle$selected, distributions$stage, bundle$fixtures)
+      stages <- score_stage_reach(anchors, distributions$stage, bundle$fixtures)
+      write_worldcup_score_bundle(scores, aggregates, calibration, advancement, stages, output_dir)
+      file.path(output_dir, c(
+        "match_scores.csv", "aggregate_scores.csv", "calibration_bins.csv",
+        "advancement_scores.csv", "stage_reach_scores.csv", "score_manifest.csv"
+      ))
+    },
+    format = "file"
+  ),
+  tar_target(
+    worldcup_retrospective_figure_files,
+    {
+      worldcup_retrospective_score_files
+      generate_worldcup_retrospective_figures("outputs/evaluation/wc2026")
+    },
+    format = "file"
+  ),
+  tar_target(
+    worldcup_retrospective_report_file,
+    {
+      worldcup_retrospective_figure_files
+      output_dir <- normalizePath("outputs/evaluation/wc2026")
+      output_path <- file.path(output_dir, "worldcup_2026_retrospective.html")
+      rmarkdown::render(
+        "notebooks/worldcup_2026_retrospective.Rmd",
+        output_file = basename(output_path), output_dir = dirname(output_path),
+        params = list(output_dir = output_dir),
+        envir = new.env(parent = globalenv()), quiet = TRUE
+      )
+      output_path
     },
     format = "file"
   )

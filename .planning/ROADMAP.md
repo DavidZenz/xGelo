@@ -1,7 +1,7 @@
 # xGelo Roadmap
 
 **Active milestone:** v2.0 - Model Retrospective and Forecast Evolution
-**Status:** Planning
+**Status:** In progress
 **Created:** 2026-07-20
 
 ## Milestone Objective
@@ -42,9 +42,9 @@ backfilling missing predictions.
 **Plans:** 3 plans
 
 Plans:
-- [ ] 08-01: Reconstruct and validate the immutable forecast ledger
-- [ ] 08-02: Score match, goal, advancement, and stage-reach forecasts
-- [ ] 08-03: Publish the retrospective and integrate the pipeline
+- [x] 08-01: Reconstruct and validate the immutable forecast ledger
+- [x] 08-02: Score match, goal, advancement, and stage-reach forecasts
+- [x] 08-03: Publish the retrospective and integrate the pipeline
 
 **Execution waves:** Wave 1: 08-01; Wave 2: 08-02 after 08-01; Wave 3: 08-03 after 08-02.
 
@@ -137,7 +137,7 @@ information add stable value beyond the strongest statistical benchmark.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 8. Forecast Ledger and WC 2026 Retrospective | 0/3 | Planned | - |
+| 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
 | 9. Rolling Tournament Benchmark Harness | 0/TBD | Not started | - |
 | 10. Statistical Goal-Model Challengers | 0/TBD | Not started | - |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
@@ -166,4 +166,4 @@ testing, visualization, and documentation foundations. See the
 | **Total** | **All v2.0 requirements** | **25** |
 
 ---
-*Last updated: 2026-07-20 after v2.0 roadmap creation*
+*Last updated: 2026-07-20 after Phase 8 completion*
