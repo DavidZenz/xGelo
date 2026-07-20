@@ -816,6 +816,12 @@ worldcup_bracket_template <- function(include_champion = TRUE) {
       slot2_label = paste("Winner", c("M98", "M100"))
     ),
     data.frame(round = "Final", match_id = "M104", slot1_label = "Winner M101", slot2_label = "Winner M102"),
+    data.frame(
+      round = "Third-place play-off",
+      match_id = "M103",
+      slot1_label = "Loser M101",
+      slot2_label = "Loser M102"
+    ),
     stringsAsFactors = FALSE
   )
   bracket <- rbind(round32, later)
@@ -889,6 +895,7 @@ resolve_simulated_bracket_slot <- function(
     ranked_groups,
     remaining_thirds,
     match_winners,
+    match_losers = list(),
     winner_group = NA_character_,
     third_place_assignments = NULL
 ) {
@@ -896,6 +903,11 @@ resolve_simulated_bracket_slot <- function(
   if (length(winner_match) > 0 && nzchar(winner_match)) {
     source_match_id <- sub("^Winner ", "", slot)
     return(list(team = match_winners[[source_match_id]], remaining_thirds = remaining_thirds))
+  }
+  loser_match <- regmatches(slot, regexpr("^Loser M[0-9]+$", slot))
+  if (length(loser_match) > 0 && nzchar(loser_match)) {
+    source_match_id <- sub("^Loser ", "", slot)
+    return(list(team = match_losers[[source_match_id]], remaining_thirds = remaining_thirds))
   }
 
   group_letter <- sub(".*Group ([A-L]).*", "\\1", slot)
@@ -1450,6 +1462,7 @@ simulate_knockout_bracket_once <- function(
   remaining_thirds <- best_thirds
   third_place_assignments <- worldcup_third_place_assignments(best_thirds$group)
   match_winners <- list()
+  match_losers <- list()
   reachers <- list(
     round_of_16 = character(),
     quarterfinal = character(),
@@ -1459,13 +1472,16 @@ simulate_knockout_bracket_once <- function(
   )
 
   for (i in seq_len(nrow(bracket))) {
-    slot1 <- resolve_simulated_bracket_slot(bracket$slot1_label[i], ranked_groups, remaining_thirds, match_winners)
+    slot1 <- resolve_simulated_bracket_slot(
+      bracket$slot1_label[i], ranked_groups, remaining_thirds, match_winners, match_losers
+    )
     remaining_thirds <- slot1$remaining_thirds
     slot2 <- resolve_simulated_bracket_slot(
       bracket$slot2_label[i],
       ranked_groups,
       remaining_thirds,
       match_winners,
+      match_losers,
       winner_group = worldcup_winner_group_from_slot(bracket$slot1_label[i]),
       third_place_assignments = third_place_assignments
     )
@@ -1474,6 +1490,7 @@ simulate_knockout_bracket_once <- function(
     route <- knockout_route_estimator(slot1$team, slot2$team)
     winner <- sample_knockout_winner_from_route(slot1$team, slot2$team, route)
     match_winners[[bracket$match_id[i]]] <- winner
+    match_losers[[bracket$match_id[i]]] <- if (identical(winner, slot1$team)) slot2$team else slot1$team
 
     if (bracket$round[i] == "Round of 32") {
       reachers$round_of_16 <- c(reachers$round_of_16, winner)
@@ -1623,6 +1640,9 @@ simulate_group_stage_dashboard <- function(
   parse_bracket_slot <- function(slot, slot1_label = NA_character_) {
     if (grepl("^Winner M[0-9]+$", slot)) {
       return(list(type = "match", value = bracket_match_index[[sub("^Winner ", "", slot)]]))
+    }
+    if (grepl("^Loser M[0-9]+$", slot)) {
+      return(list(type = "match_loser", value = bracket_match_index[[sub("^Loser ", "", slot)]]))
     }
     if (grepl("^Winner Group [A-L]$", slot)) {
       return(list(type = "group_winner", value = group_idx_by_id[[sub(".*Group ([A-L]).*", "\\1", slot)]]))
@@ -1808,8 +1828,10 @@ simulate_group_stage_dashboard <- function(
       remaining_third_teams <- best_third_team_idx
       remaining_third_groups <- best_third_group_pos
       match_winner_idx <- integer(nrow(bracket))
+      match_loser_idx <- integer(nrow(bracket))
       resolve_slot <- function(slot_spec) {
         if (slot_spec$type == "match") return(match_winner_idx[slot_spec$value])
+        if (slot_spec$type == "match_loser") return(match_loser_idx[slot_spec$value])
         if (slot_spec$type == "group_winner") return(rank_matrix[1, slot_spec$value])
         if (slot_spec$type == "group_runner_up") return(rank_matrix[2, slot_spec$value])
         if (slot_spec$type == "best_third") {
@@ -1852,15 +1874,16 @@ simulate_group_stage_dashboard <- function(
           }
         }
         match_winner_idx[match_pos] <- winner_idx
-        if (bracket_round_code[match_pos] == 1L) {
+        match_loser_idx[match_pos] <- if (isTRUE(winner_idx == slot1_idx)) slot2_idx else slot1_idx
+        if (!is.na(bracket_round_code[match_pos]) && bracket_round_code[match_pos] == 1L) {
           chunk_counts$round_of_16_count[winner_idx] <- chunk_counts$round_of_16_count[winner_idx] + 1
-        } else if (bracket_round_code[match_pos] == 2L) {
+        } else if (!is.na(bracket_round_code[match_pos]) && bracket_round_code[match_pos] == 2L) {
           chunk_counts$quarterfinal_count[winner_idx] <- chunk_counts$quarterfinal_count[winner_idx] + 1
-        } else if (bracket_round_code[match_pos] == 3L) {
+        } else if (!is.na(bracket_round_code[match_pos]) && bracket_round_code[match_pos] == 3L) {
           chunk_counts$semifinal_count[winner_idx] <- chunk_counts$semifinal_count[winner_idx] + 1
-        } else if (bracket_round_code[match_pos] == 4L) {
+        } else if (!is.na(bracket_round_code[match_pos]) && bracket_round_code[match_pos] == 4L) {
           chunk_counts$final_count[winner_idx] <- chunk_counts$final_count[winner_idx] + 1
-        } else if (bracket_round_code[match_pos] == 5L) {
+        } else if (!is.na(bracket_round_code[match_pos]) && bracket_round_code[match_pos] == 5L) {
           chunk_counts$champion_count[winner_idx] <- chunk_counts$champion_count[winner_idx] + 1
         }
       }
@@ -2194,6 +2217,7 @@ stage_probability_column <- function(round) {
     "Round of 16" = "quarterfinal_probability",
     "Quarter-finals" = "semifinal_probability",
     "Semi-finals" = "final_probability",
+    "Third-place play-off" = "semifinal_probability",
     "Final" = "champion_probability",
     "Champion" = "champion_probability",
     "champion_probability"
@@ -2235,6 +2259,25 @@ resolve_bracket_slot <- function(
       team = prior$projected_winner_team,
       display_team = prior$projected_winner,
       probability = prior$projected_winner_stage_probability,
+      source_match_id = source_match_id
+    ))
+  }
+  loser_match <- regmatches(slot, regexpr("^Loser M[0-9]+$", slot))
+  if (length(loser_match) > 0 && nzchar(loser_match)) {
+    source_match_id <- sub("^Loser ", "", slot)
+    prior <- projections[[source_match_id]]
+    if (is.null(prior)) {
+      return(list(
+        team = NA_character_,
+        display_team = slot,
+        probability = NA_real_,
+        source_match_id = source_match_id
+      ))
+    }
+    return(list(
+      team = prior$projected_loser_team,
+      display_team = prior$projected_loser,
+      probability = prior$projected_loser_stage_probability,
       source_match_id = source_match_id
     ))
   }
@@ -2354,7 +2397,11 @@ build_bracket_paths <- function(
   paths$top_scorelines_label <- NA_character_
   paths$projected_winner_stage_probability <- NA_real_
   paths$projected_winner_title_probability <- NA_real_
+  paths$projected_loser_team <- NA_character_
+  paths$projected_loser <- NA_character_
+  paths$projected_loser_stage_probability <- NA_real_
   paths$next_match_id <- NA_character_
+  paths$loser_next_match_id <- NA_character_
   paths$projected_winner_continues <- FALSE
 
   projections <- list()
@@ -2590,6 +2637,21 @@ build_bracket_paths <- function(
       stage_probabilities,
       "champion_probability"
     )
+    loser_team <- if (nrow(candidates) == 2L) {
+      candidates$team[which(candidates$team != winner$team[1])[1]]
+    } else {
+      NA_character_
+    }
+    if (!is.na(loser_team) && nzchar(loser_team)) {
+      loser_display <- if (identical(loser_team, slot1$team)) slot1$display_team else slot2$display_team
+      paths$projected_loser_team[i] <- loser_team
+      paths$projected_loser[i] <- loser_display
+      paths$projected_loser_stage_probability[i] <- team_stage_probability(
+        loser_team,
+        stage_probabilities,
+        probability_col
+      )
+    }
     projections[[paths$match_id[i]]] <- as.list(paths[i, ])
   }
 
@@ -2602,6 +2664,13 @@ build_bracket_paths <- function(
       paths$next_match_id[i] <- paths$match_id[next_rows[1]]
     } else if (paths$match_id[i] == "M104") {
       paths$next_match_id[i] <- "Champion"
+    }
+    loser_next_rows <- which(
+      paths$slot1_label == paste("Loser", paths$match_id[i]) |
+        paths$slot2_label == paste("Loser", paths$match_id[i])
+    )
+    if (length(loser_next_rows) > 0) {
+      paths$loser_next_match_id[i] <- paths$match_id[loser_next_rows[1]]
     }
   }
   for (i in seq_len(nrow(paths))) {
