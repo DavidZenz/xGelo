@@ -259,3 +259,32 @@ test_that("rich eligibility is derived from observed adapter output coverage", {
   expect_false(observed$output_coverage_complete)
   expect_false(observed$promotion_eligible)
 })
+
+test_that("targets exposes the isolated Phase 9 benchmark dependency chain", {
+  old_dir <- setwd(project_root)
+  on.exit(setwd(old_dir), add = TRUE)
+  manifest <- targets::tar_manifest(fields = c("name", "command"))
+  expected <- c(
+    "benchmark_phase09_registry_files", "benchmark_phase09_registries",
+    "benchmark_phase09_boundaries", "benchmark_phase09_predictions",
+    "benchmark_phase09_stage_probabilities", "benchmark_phase09_scores",
+    "benchmark_phase09_comparisons", "benchmark_phase09_bundle_files"
+  )
+  expect_true(all(expected %in% manifest$name))
+  expect_lt(max(match(expected, manifest$name)), match("worldcup_retrospective_ledger_bundle", manifest$name))
+
+  commands <- stats::setNames(as.character(manifest$command), manifest$name)
+  expect_match(commands[["benchmark_phase09_registries"]], "benchmark_phase09_registry_files", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_boundaries"]], "benchmark_phase09_registries", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_predictions"]], "benchmark_phase09_boundaries", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_predictions"]], "score_support_audit", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_stage_probabilities"]], "benchmark_phase09_predictions", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_scores"]], "benchmark_phase09_predictions", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_comparisons"]], "benchmark_phase09_scores", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_comparisons"]], "feature_coverage", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_bundle_files"]], "benchmark_phase09_comparisons", fixed = TRUE)
+
+  phase09_code <- paste(commands[expected], collapse = "\n")
+  forbidden <- c("download", "dashboard", "worldcup_2026", "httr", "curl", "refresh")
+  expect_false(any(vapply(forbidden, grepl, logical(1), x = phase09_code, fixed = TRUE)))
+})
