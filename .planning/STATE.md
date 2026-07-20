@@ -5,8 +5,10 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 8
 current_phase_name: Forecast Ledger and WC 2026 Retrospective
 status: ready
-last_updated: "2026-07-20T12:00:00Z"
+stopped_at: Phase 8 context gathered
+last_updated: "2026-07-20T11:46:33.324Z"
 last_activity: 2026-07-20
+last_activity_desc: Phase 8 context gathered
 progress:
   total_phases: 5
   completed_phases: 0
@@ -21,8 +23,8 @@ progress:
 
 Phase: 8 of 12 (Forecast Ledger and WC 2026 Retrospective)
 Plan: Not started
-Status: Ready to discuss
-Last activity: 2026-07-20 - Created the v2.0 roadmap
+Status: Ready to plan
+Last activity: 2026-07-20 - Gathered and committed Phase 8 context
 
 Progress: [----------] 0%
 
@@ -68,7 +70,13 @@ None.
 
 ## Next Action
 
-Discuss Phase 8 and define the immutable ledger and retrospective acceptance rules.
+Plan Phase 8 from the approved immutable-ledger and retrospective decisions.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
+
+## Session
+
+**Last session:** 2026-07-20T11:46:33.318Z
+**Stopped at:** Phase 8 context gathered
+**Resume file:** .planning/phases/08-forecast-ledger-and-wc-2026-retrospective/08-CONTEXT.md
