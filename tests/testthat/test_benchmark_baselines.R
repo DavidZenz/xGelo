@@ -78,7 +78,7 @@ test_that("uniform and expanding controls emit coherent complete score grids", {
   expect_equal(nrow(uniform_grid), 81L)
   expect_equal(sum(uniform_grid$probability), 1, tolerance = 1e-12)
   uniform_market <- derive_benchmark_markets(uniform_grid)
-  expect_equal(unlist(uniform_market[c("p_home", "p_draw", "p_away")]), rep(1 / 3, 3), tolerance = 1e-12)
+  expect_equal(unname(unlist(uniform_market[c("p_home", "p_draw", "p_away")])), rep(1 / 3, 3), tolerance = 1e-12)
   expect_equal(sum(expanding_grid$probability), 1, tolerance = 1e-12)
   expect_false(isTRUE(all.equal(uniform_grid$probability, expanding_grid$probability)))
   expect_true(all(expanding$training_dates < as.Date("2005-01-01")))
@@ -192,12 +192,16 @@ test_that("all registered tournament formats conserve expected stage and champio
   )
   deterministic_paths <- function(adapter, team_ids, n_simulations) {
     stages <- names(expected_mass[[adapter$format$format_id]])
-    do.call(rbind, lapply(seq_len(n_simulations), function(i) {
-      ordered <- team_ids[((seq_along(team_ids) + i - 2L) %% length(team_ids)) + 1L]
-      do.call(rbind, lapply(stages, function(stage) data.frame(
-        simulation_id = i, team_id = head(ordered, expected_mass[[adapter$format$format_id]][[stage]]),
-        stage_id = stage, stringsAsFactors = FALSE
-      )))
+    do.call(rbind, lapply(stages, function(stage) {
+      mass <- expected_mass[[adapter$format$format_id]][[stage]]
+      simulation_id <- rep(seq_len(n_simulations), each = mass)
+      slot <- rep(seq_len(mass), times = n_simulations)
+      data.frame(
+        simulation_id = simulation_id,
+        team_id = team_ids[((slot + simulation_id - 2L) %% length(team_ids)) + 1L],
+        stage_id = stage,
+        stringsAsFactors = FALSE
+      )
     }))
   }
   for (format_id in formats$format_id) {
@@ -211,7 +215,11 @@ test_that("all registered tournament formats conserve expected stage and champio
     )
     expect_silent(validate_stage_probabilities(stage))
     mass <- tapply(stage$probability, stage$stage_id, sum)
-    expect_equal(mass[names(expected_mass[[format_id]])], expected_mass[[format_id]], tolerance = 1e-12)
+    expect_equal(
+      unname(as.numeric(mass[names(expected_mass[[format_id]])])),
+      unname(as.numeric(expected_mass[[format_id]])),
+      tolerance = 1e-12
+    )
   }
 })
 
