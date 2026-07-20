@@ -98,7 +98,11 @@ discrete_rps <- function(probabilities, observed, support = NULL, tolerance = 1e
   sum((cumsum(probabilities)[-length(probabilities)] - cumsum(actual)[-length(actual)])^2)
 }
 
-validate_scoreline_distribution <- function(distribution, tolerance = 1e-6) {
+validate_scoreline_distribution <- function(distribution, tolerance = 1e-6,
+                                            support_max = NULL,
+                                            require_full_rectangle = FALSE,
+                                            raw_tail_mass = NULL,
+                                            tail_tolerance = NULL) {
   required <- c("home_goals", "away_goals", "probability")
   missing <- setdiff(required, names(distribution))
   if (length(missing)) stop("scoreline distribution missing: ", paste(missing, collapse = ", "), call. = FALSE)
@@ -107,8 +111,40 @@ validate_scoreline_distribution <- function(distribution, tolerance = 1e-6) {
       any(distribution$home_goals < 0) || any(distribution$away_goals < 0)) {
     stop("scoreline goals must be finite non-negative values", call. = FALSE)
   }
+  if (any(distribution$home_goals != as.integer(distribution$home_goals)) ||
+      any(distribution$away_goals != as.integer(distribution$away_goals))) {
+    stop("scoreline goals must be non-negative integers", call. = FALSE)
+  }
   keys <- paste(distribution$home_goals, distribution$away_goals, sep = "-")
   if (anyDuplicated(keys)) stop("scoreline distribution contains duplicate cells", call. = FALSE)
+  if (!is.null(support_max)) {
+    support_max <- as.integer(support_max)
+    if (!length(support_max) || length(support_max) > 2L || any(is.na(support_max)) || any(support_max < 0L)) {
+      stop("support_max must contain one or two non-negative integers", call. = FALSE)
+    }
+    if (length(support_max) == 1L) support_max <- rep(support_max, 2L)
+    if (isTRUE(require_full_rectangle)) {
+      expected <- expand.grid(home_goals = 0:support_max[1], away_goals = 0:support_max[2])
+      expected_keys <- paste(expected$home_goals, expected$away_goals, sep = "-")
+      if (length(keys) != length(expected_keys) || !setequal(keys, expected_keys)) {
+        stop("scoreline distribution must contain the complete 0:G x 0:G rectangle", call. = FALSE)
+      }
+    } else if (any(distribution$home_goals > support_max[1]) ||
+               any(distribution$away_goals > support_max[2])) {
+      stop("scoreline distribution contains cells outside support_max", call. = FALSE)
+    }
+  }
+  if (!is.null(raw_tail_mass) || !is.null(tail_tolerance)) {
+    if (is.null(raw_tail_mass) || is.null(tail_tolerance) ||
+        length(raw_tail_mass) != 1L || length(tail_tolerance) != 1L ||
+        !is.finite(raw_tail_mass) || !is.finite(tail_tolerance) ||
+        raw_tail_mass < 0 || tail_tolerance < 0) {
+      stop("raw_tail_mass and tail_tolerance must be finite non-negative scalars", call. = FALSE)
+    }
+    if (raw_tail_mass > tail_tolerance) {
+      stop("scoreline raw omitted tail exceeds the registered tolerance", call. = FALSE)
+    }
+  }
   distribution$probability <- validate_probability_vector(
     distribution$probability, tolerance, "scoreline probabilities"
   )

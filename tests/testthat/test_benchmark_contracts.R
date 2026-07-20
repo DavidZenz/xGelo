@@ -244,12 +244,13 @@ support_audit <- function() {
     by = c("model_id", "edition_id", "track_id", "boundary_id")
   )
   audit$parent_hashes <- benchmark_support_parent_sha256(audit)
+  audit <- audit[, c(
+    "model_id", "edition_id", "track_id", "boundary_id", "candidate_g",
+    "raw_omitted_tail", "tolerance", "pass", "selected_g", "parent_hashes"
+  )]
   audit$row_hash <- ""
   audit$row_hash <- benchmark_row_sha256(audit, "row_hash")
-  audit[, c(
-    "model_id", "edition_id", "track_id", "boundary_id", "candidate_g",
-    "raw_omitted_tail", "tolerance", "pass", "selected_g", "parent_hashes", "row_hash"
-  )]
+  audit
 }
 
 testthat::test_that("score support audit is complete, globally minimal, and canonical", {
