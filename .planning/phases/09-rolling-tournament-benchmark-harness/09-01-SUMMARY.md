@@ -159,7 +159,7 @@ Task 3 followed the plan's TDD contract: Task 1 supplied the committed RED tests
 ## Verification
 
 - Focused Wave 0 suite: 57 expectations passed across registry, cutoff, and seal tests.
-- Required legacy regressions: 105 expectations passed across Transfermarkt benchmark, World Cup scoring, and World Cup retrospective tests.
+- Required legacy regressions: 126 expectations passed across Transfermarkt benchmark, World Cup scoring, and World Cup retrospective tests.
 - Registry regeneration was byte-stable; the completion manifest sealed seven artifacts with canonical SHA-256 values.
 - All 1,260 fixture-track states used evidence strictly before their exclusive cutoff.
 
