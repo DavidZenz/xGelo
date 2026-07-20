@@ -634,6 +634,9 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   ) %in% names(payload$match_forecasts)))
   expect_true(file.exists(file.path(output_dir, "worldcup_prematch_forecasts.csv")))
   expect_true(file.exists(file.path(output_dir, "worldcup_bracket_prematch_forecasts.csv")))
+  bracket_archive <- read.csv(file.path(output_dir, "worldcup_bracket_prematch_forecasts.csv"), stringsAsFactors = FALSE)
+  expect_equal(nrow(bracket_archive), 33)
+  expect_equal(bracket_archive$round[bracket_archive$match_id == "M103"], "Third-place play-off")
   expect_true(file.exists(file.path(output_dir, "worldcup_elo_evolution.csv")))
   expect_true(all(c("date", "team", "display_team", "group", "rating") %in% names(payload$elo_evolution)))
   expect_true(any(payload$elo_evolution$match_id == "M001"))
@@ -665,7 +668,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_equal(sum(payload$stage_probabilities$semifinal_probability), 4, tolerance = 0.001)
   expect_equal(sum(payload$stage_probabilities$final_probability), 2, tolerance = 0.001)
   expect_equal(sum(payload$champion_probabilities$champion_probability), 1, tolerance = 0.001)
-  expect_true(all(c("Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Final", "Champion") %in% payload$bracket_paths$round))
+  expect_equal(nrow(payload$bracket_paths), 33)
+  expect_true(all(c("Round of 32", "Round of 16", "Quarter-finals", "Semi-finals", "Third-place play-off", "Final", "Champion") %in% payload$bracket_paths$round))
   expect_true(all(c(
     "projected_winner",
     "projected_winner_stage_probability",
@@ -684,6 +688,7 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     "top_scorelines_label",
     "projected_winner_title_probability",
     "next_match_id",
+    "loser_next_match_id",
     "projected_winner_continues",
     "projected_champion_path",
     "is_completed",
@@ -798,6 +803,11 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(all(knockout_paths$both_teams_to_score_probability >= 0 & knockout_paths$both_teams_to_score_probability <= 1))
   expect_true(all(grepl("-", knockout_paths$top_scorelines_label, fixed = TRUE)))
   expect_equal(payload$bracket_paths$next_match_id[payload$bracket_paths$match_id == "M104"], "Champion")
+  expect_equal(payload$bracket_paths$next_match_id[payload$bracket_paths$match_id %in% c("M101", "M102")], rep("M104", 2))
+  expect_equal(payload$bracket_paths$loser_next_match_id[payload$bracket_paths$match_id %in% c("M101", "M102")], rep("M103", 2))
+  expect_true(is.na(payload$bracket_paths$next_match_id[payload$bracket_paths$match_id == "M103"]))
+  expect_true(is.na(payload$bracket_paths$loser_next_match_id[payload$bracket_paths$match_id == "M103"]))
+  expect_false(payload$bracket_paths$projected_champion_path[payload$bracket_paths$match_id == "M103"])
   expect_true(payload$bracket_paths$projected_winner_continues[payload$bracket_paths$match_id == "M104"])
   expect_true(payload$bracket_paths$projected_champion_path[payload$bracket_paths$match_id == "M104"])
   expect_true(payload$bracket_paths$projected_champion_path[payload$bracket_paths$match_id == "Champion"])
@@ -943,7 +953,15 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
   expect_true(grepl("entersNext", html, fixed = TRUE))
   expect_true(grepl("next.dataset.slot1Team", html, fixed = TRUE))
   expect_true(grepl("bracket-team-target", html, fixed = TRUE))
-  expect_true(grepl("grid-template-rows:repeat(33,64px)", html, fixed = TRUE))
+  expect_true(grepl("grid-template-rows:repeat(39,64px)", html, fixed = TRUE))
+  expect_true(grepl('"Third-place play-off": 5', html, fixed = TRUE))
+  expect_true(grepl("data-loser-next-match-id", html, fixed = TRUE))
+  expect_true(grepl('data-outcome="loser"', html, fixed = TRUE))
+  expect_true(grepl("projectedOutcomeTeam", html, fixed = TRUE))
+  expect_true(grepl("Most likely wins third place", html, fixed = TRUE))
+  expect_true(grepl("Projected third-place winner", html, fixed = TRUE))
+  expect_true(grepl("Projected fourth place", html, fixed = TRUE))
+  expect_true(grepl("won third place", html, fixed = TRUE))
   expect_true(grepl("bracket-flag", html, fixed = TRUE))
   expect_true(grepl("bracket-flag code", html, fixed = TRUE))
   expect_true(grepl("registerTeamMeta", html, fixed = TRUE))
