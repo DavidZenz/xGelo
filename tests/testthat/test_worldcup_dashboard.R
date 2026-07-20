@@ -55,6 +55,9 @@ test_that("World Cup knockout template follows official FIFA match tree", {
   bracket <- worldcup_bracket_template(include_champion = FALSE)
   by_id <- function(match_id) bracket[bracket$match_id == match_id, ]
 
+  expect_equal(nrow(bracket), 32)
+  expect_setequal(bracket$match_id, paste0("M", 73:104))
+
   expect_equal(by_id("M73")$slot1_label, "Runner-up Group A")
   expect_equal(by_id("M73")$slot2_label, "Runner-up Group B")
   expect_equal(by_id("M74")$slot1_label, "Winner Group E")
@@ -80,6 +83,10 @@ test_that("World Cup knockout template follows official FIFA match tree", {
   expect_equal(by_id("M102")$slot2_label, "Winner M100")
   expect_equal(by_id("M104")$slot1_label, "Winner M101")
   expect_equal(by_id("M104")$slot2_label, "Winner M102")
+  expect_equal(by_id("M103")$round, "Third-place play-off")
+  expect_equal(by_id("M103")$slot1_label, "Loser M101")
+  expect_equal(by_id("M103")$slot2_label, "Loser M102")
+  expect_lt(match("M104", bracket$match_id), match("M103", bracket$match_id))
 })
 
 test_that("World Cup third-place routing uses FIFA Annex C combinations", {
@@ -137,8 +144,10 @@ test_that("dynamic World Cup knockouts sample route probabilities, not Elo-only 
   )
   rating_by_team <- stats::setNames(rep(1500, 48), unlist(lapply(LETTERS[1:12], function(group_id) paste0(group_id, 1:4))))
   route_calls <- 0
+  route_teams <- list()
   always_slot1_route <- function(team1, team2) {
     route_calls <<- route_calls + 1
+    route_teams[[route_calls]] <<- c(team1, team2)
     list(
       slot1_regulation_win_probability = 1,
       slot1_extra_time_penalty_probability = 0,
@@ -158,8 +167,9 @@ test_that("dynamic World Cup knockouts sample route probabilities, not Elo-only 
     knockout_route_estimator = always_slot1_route
   )
 
-  expect_equal(route_calls, 31)
+  expect_equal(route_calls, 32)
   expect_equal(reachers$champion, "E1")
+  expect_false(any(route_teams[[31]] %in% route_teams[[32]]))
 })
 
 test_that("World Cup tournament simulation chunks are deterministic across workers", {
