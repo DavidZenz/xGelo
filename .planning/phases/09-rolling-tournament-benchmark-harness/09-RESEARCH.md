@@ -284,13 +284,17 @@ The validator requires exactly the registered fixture count, unique `fixture_id`
 
 #### `panels.csv` and `panel_fixtures.csv`
 
-`panels.csv` records `panel_id`, `mode` (`open_core`, `feature_rich`), required source/feature sets, license class, predeclaration SHA, and minimum coverage policy. `panel_fixtures.csv` records every `panel_id × fixture_id` with `eligible`, each failed coverage flag, and the final reason. [VERIFIED: 09-CONTEXT.md D-05, D-19] The open core has all 630 fixtures and cannot be edited by optional-data availability. [VERIFIED: 09-CONTEXT.md D-05]
+`panels.csv` records `panel_id`, `mode` (`open_core`, `feature_rich`), required source/feature sets, license class, predeclaration SHA, and minimum coverage policy. `panel_fixtures.csv` records every `panel_id × fixture_id` with pre-output membership/provenance eligibility, each failed source-coverage flag, `output_coverage_required = TRUE`, and the declaration reason. It must not contain observed `output_coverage_complete` or final promotion eligibility before predictions exist. [VERIFIED: 09-CONTEXT.md D-05, D-19] The open core has all 630 fixtures and cannot be edited by optional-data availability. [VERIFIED: 09-CONTEXT.md D-05] After adapters run, bundle coverage/manifests measure `output_coverage_complete`; the promotion gate combines those observations with frozen provenance and the per-edition threshold.
 
 ### Model and feature contracts
 
 #### `model_registry.csv`
 
-`model_id`, `model_family`, `adapter_version`, `panel_id`, `formula_id`, `hyperparameter_id`, `weight_schedule_id`, `calibration_id`, `score_support_id`, `stochastic`, `open_mode_compatible`, `registered_at`, and `registry_sha256`. [VERIFIED: 09-CONTEXT.md D-09, D-14, D-20]
+`model_id`, `model_family`, `adapter_version`, `panel_id`, `formula_id`, `hyperparameter_id`, `weight_schedule_id`, `calibration_id`, `score_support_policy_id`, `stochastic`, `open_mode_compatible`, `registered_at`, `registration_sha256`, and `settings_sha256`. This table is frozen registration metadata only: D-14 requires all formulas, hyperparameters, weighting schedules, calibration recipes, model registrations, and score-support policy to be frozen before fold execution, forbids fold-specific tuning, and requires identical registration/settings hashes across folds. [VERIFIED: 09-CONTEXT.md D-09, D-14, D-20]
+
+#### `score_support_audit.csv`
+
+Normalized rows contain `model_id`, `edition_id`, `track_id`, `boundary_id`, `candidate_g`, `raw_omitted_tail`, `tolerance`, `pass`, `selected_g`, `parent_hashes`, and `row_hash`. The audit owns observed candidate tails and the selected global G; `model_registry.csv` must not embed these repeated audit observations. Every row is canonically sorted/hashed and parent-linked to the frozen registration/settings plus edition/track/boundary inputs.
 
 #### `model_manifests.csv`
 
@@ -324,7 +328,7 @@ All market probabilities are derived from the stored joint score distribution an
 
 Long rows keyed by `score_distribution_id`, with integer `home_goals`, integer `away_goals`, `probability`, `support_max_home`, `support_max_away`, `raw_tail_mass`, and `normalized`. Store the full rectangular grid, including zero-probability cells, so “complete” is machine-checkable. [VERIFIED: Phase 08 found truncated storage unusable; 09-CONTEXT.md D-15]
 
-For NB/Poisson models, compute the analytic joint PMF on `0:G × 0:G`. Before sealing any baseline, evaluate the single global integer candidate range `G = 8, 9, ..., 40` against every registered model, fold, track, and fitted boundary. Select the smallest `G` for which every raw omitted joint-tail mass is `<= 1e-10`; record the complete audit, selected `G`, and canonical audit/registry SHA-256 values in the model registry and promotion protocol. Fail the baseline freeze if no candidate passes. Renormalize only after the tail check, and never choose support per model or after candidate scores are observed. [VERIFIED: standard R `dnbinom`/`dpois` behavior and existing independent-grid implementation in `R/benchmark/euro2024.R`; bounded range/tolerance are prescriptive choices] The observed regulation score must lie within the selected support or scoring fails loudly. [VERIFIED: `R/evaluation/proper_scores.R`]
+For NB/Poisson models, compute the analytic joint PMF on `0:G × 0:G`. Before fold execution, freeze the candidate range, tail tolerance, selection recipe, and every model registration/settings hash per D-14; do not tune any of them by fold. During the registered fold fits, evaluate the single global integer candidate range `G = 8, 9, ..., 40` against every registered model, fold, track, and fitted boundary. Select the smallest `G` for which every raw omitted joint-tail mass is `<= 1e-10`; record the complete normalized audit and selected `G` in `score_support_audit.csv`, then bind its canonical SHA-256 and selected G into the promotion protocol and final checksum graph. Fail the baseline freeze if no candidate passes or registration/settings hashes differ across folds. Renormalize only after the tail check, and never choose support per model or after candidate scores are observed. [VERIFIED: standard R `dnbinom`/`dpois` behavior and existing independent-grid implementation in `R/benchmark/euro2024.R`; bounded range/tolerance are prescriptive choices] The observed regulation score must lie within the selected support or scoring fails loudly. [VERIFIED: `R/evaluation/proper_scores.R`]
 
 #### `stage_probabilities.csv`
 
@@ -472,6 +476,7 @@ data/benchmark/phase09/
 ├── panels.csv
 ├── panel_fixtures.csv
 ├── model_registry.csv
+├── score_support_audit.csv
 ├── feature_contract.csv
 ├── seed_registry.csv
 └── promotion_protocol.json
@@ -1024,9 +1029,9 @@ OWASP ASVS 5.0.0 is the latest stable ASVS release as of this research date. Thi
 
 1. **Historical stage/status/regulation corrections:** Treat every correction as a checked, source-attributed local input rather than an inferred replacement for the 630-row base registry. Require authoritative source title/URL, license, access date, affected fixture ID, original and corrected values, rationale, reviewer, row SHA-256, and source-artifact SHA-256; validate this correction registry before Plan 09-01 completes or Plan 09-02 starts. Establish provenance autonomously from checked local evidence where possible. If any correction still lacks authoritative local provenance, stop before registry sealing and require a blocking human approval/checkpoint for the supplied evidence; do not continue on an assumption.
 
-2. **Rich-panel eligibility:** A rich panel and candidate are promotion-eligible only if every eligible output row has complete required prediction/distribution coverage and point-in-time provenance and every one of the 12 registered editions meets the frozen 80% official-fixture floor. Otherwise label the panel/candidate `descriptive_only`, make it promotion-ineligible, retain explicit failure reasons, and continue the complete open-core evaluation unchanged.
+2. **Rich-panel eligibility:** Before predictions, `panel_fixtures.csv` declares membership, point-in-time provenance, and `output_coverage_required = TRUE`; it does not claim observed completeness or final promotion eligibility. After adapters run, bundle coverage/manifests measure `output_coverage_complete`. A rich panel and candidate are promotion-eligible only if those observed outputs are complete, point-in-time provenance passes, and every one of the 12 registered editions meets the frozen 80% official-fixture floor. Otherwise label the run/candidate `descriptive_only`, make it promotion-ineligible, retain explicit failure reasons, and continue the complete open-core evaluation unchanged.
 
-3. **Global score support:** Do not assume `G = 15`. Before sealing, evaluate every integer `G` from 8 through 40 over every registered model/fold/track/boundary, choose the smallest global `G` for which every raw omitted joint-tail mass is `<= 1e-10`, and record/checksum the candidate audit and selected `G`. Fail sealing if no candidate passes; never adapt support after candidate scores are observed.
+3. **Global score support:** Do not assume `G = 15`. Freeze the range/tolerance/selection policy and all registration/settings hashes before folds, then evaluate every integer `G` from 8 through 40 over every registered model/fold/track/boundary. Choose the smallest global `G` for which every raw omitted joint-tail mass is `<= 1e-10`, record the normalized candidate audit in `score_support_audit.csv` with parent and row hashes, and bind its hash/selected G into the protocol, targets, and bundle checksum manifest. Fail sealing if no candidate passes or registration/settings hashes vary by fold; never adapt support after candidate scores are observed.
 
 ## Sources
 
