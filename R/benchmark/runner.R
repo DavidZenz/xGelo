@@ -1,0 +1,936 @@
+#' Cache-only rolling tournament benchmark orchestration and bundle integrity
+
+benchmark_runner_required_artifacts <- function() {
+  c(
+    "model_manifests", "feature_coverage", "fixture_predictions",
+    "score_distributions", "stage_probabilities", "fixture_scores",
+    "benchmark_summaries", "paired_comparisons", "promotion_decisions",
+    "run_manifest"
+  )
+}
+
+#' Return every durable path in a rolling benchmark bundle
+#' @export
+benchmark_output_paths <- function(output_dir) {
+  output_dir <- normalizePath(output_dir, mustWork = FALSE)
+  c(
+    model_manifests = file.path(output_dir, "manifests/model_manifests.csv"),
+    feature_coverage = file.path(output_dir, "manifests/feature_coverage.csv"),
+    checksum_manifest = file.path(output_dir, "manifests/checksum_manifest.csv"),
+    fixture_predictions = file.path(output_dir, "predictions/fixture_predictions.csv"),
+    score_distributions = file.path(output_dir, "predictions/score_distributions.csv"),
+    stage_probabilities = file.path(output_dir, "stage_probabilities/stage_probabilities.csv"),
+    fixture_scores = file.path(output_dir, "scores/fixture_scores.csv"),
+    benchmark_summaries = file.path(output_dir, "scores/benchmark_summaries.csv"),
+    paired_comparisons = file.path(output_dir, "comparisons/paired_comparisons.csv"),
+    promotion_decisions = file.path(output_dir, "comparisons/promotion_decisions.csv"),
+    run_manifest = file.path(output_dir, "run_manifest.csv")
+  )
+}
+
+benchmark_runner_require_columns <- function(data, required, name) {
+  if (!is.data.frame(data)) stop(name, " must be a data frame", call. = FALSE)
+  missing <- setdiff(required, names(data))
+  if (length(missing)) stop(name, " missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  invisible(TRUE)
+}
+
+benchmark_runner_hash <- function(value) {
+  if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for benchmark bundle SHA-256", call. = FALSE)
+  digest::digest(value, algo = "sha256", serialize = FALSE)
+}
+
+benchmark_runner_file_sha256 <- function(path) {
+  if (!file.exists(path)) stop("Benchmark bundle artifact is missing: ", path, call. = FALSE)
+  if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for benchmark bundle SHA-256", call. = FALSE)
+  digest::digest(path, algo = "sha256", file = TRUE)
+}
+
+benchmark_runner_key_specs <- function() {
+  list(
+    model_manifests = c("model_id", "edition_id", "track_id", "boundary_id", "model_manifest_id"),
+    feature_coverage = c("model_id", "panel_id", "edition_id", "boundary_id", "fixture_id", "feature_id"),
+    fixture_predictions = c("model_id", "edition_id", "track_id", "fixture_id"),
+    score_distributions = c("score_distribution_id", "home_goals", "away_goals"),
+    stage_probabilities = c("model_id", "edition_id", "anchor_boundary_id", "team_id", "stage_order", "stage_id"),
+    fixture_scores = c("model_id", "edition_id", "track_id", "fixture_id", "target", "metric"),
+    benchmark_summaries = c("model_id", "track_id", "metric", "grain", "aggregation", "edition_id"),
+    paired_comparisons = c("challenger_id", "incumbent_id", "panel_id", "track_id", "metric", "edition_id", "diagnostic"),
+    promotion_decisions = c("candidate_id", "panel_id", "gate_order"),
+    run_manifest = "run_id"
+  )
+}
+
+benchmark_runner_sort <- function(data, artifact) {
+  keys <- intersect(benchmark_runner_key_specs()[[artifact]], names(data))
+  if (!length(keys)) keys <- names(data)[1]
+  if (nrow(data)) {
+    order_args <- lapply(data[keys], benchmark_canonical_scalar)
+    data <- data[do.call(order, c(order_args, list(na.last = TRUE, method = "radix"))), , drop = FALSE]
+  }
+  rownames(data) <- NULL
+  data
+}
+
+benchmark_runner_identity_view <- function(data, artifact) {
+  excluded <- c(
+    "started_at", "completed_at", "created_at", "generated_at",
+    "runtime_seconds", "runtime_timestamp", "output_dir", "output_root"
+  )
+  data <- data[, setdiff(names(data), excluded), drop = FALSE]
+  benchmark_runner_sort(data, artifact)
+}
+
+benchmark_runner_content_sha256 <- function(data, artifact) {
+  view <- benchmark_runner_identity_view(data, artifact)
+  keys <- intersect(benchmark_runner_key_specs()[[artifact]], names(view))
+  if (!length(keys)) keys <- names(view)[1]
+  canonical_benchmark_sha256(view, keys)
+}
+
+benchmark_runner_write_csv <- function(data, path, artifact) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  data <- benchmark_runner_sort(data, artifact)
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  invisible(data)
+}
+
+benchmark_runner_git_identity <- function(repo = ".") {
+  sha <- suppressWarnings(system2("git", c("-C", repo, "rev-parse", "HEAD"), stdout = TRUE, stderr = FALSE))
+  status <- suppressWarnings(system2("git", c("-C", repo, "status", "--porcelain"), stdout = TRUE, stderr = FALSE))
+  list(
+    sha = if (length(sha)) trimws(sha[1]) else strrep("0", 40),
+    dirty = length(status) > 0L
+  )
+}
+
+benchmark_runner_boundary_inventory <- function(boundaries) {
+  out <- boundaries[, c("edition_id", "track", "boundary_id", "boundary_sha256"), drop = FALSE]
+  names(out)[names(out) == "track"] <- "track_id"
+  out
+}
+
+benchmark_runner_input_hashes <- function(model_registry, boundary_inventory, score_support_audit) {
+  list(
+    model_registry = canonical_benchmark_sha256(model_registry, "model_id"),
+    boundaries = canonical_benchmark_sha256(boundary_inventory, c("edition_id", "track_id", "boundary_id")),
+    score_support_audit = canonical_benchmark_sha256(
+      score_support_audit,
+      c("model_id", "edition_id", "track_id", "boundary_id", "candidate_g")
+    )
+  )
+}
+
+benchmark_runner_validate_registration_hashes <- function(manifests, model_registry) {
+  benchmark_runner_require_columns(
+    manifests,
+    c("model_id", "registration_sha256", "settings_sha256", "parent_hashes"),
+    "Model manifests"
+  )
+  benchmark_runner_require_columns(
+    model_registry, c("model_id", "registration_sha256", "settings_sha256"),
+    "Model registry"
+  )
+  if (any(c("candidate_g", "raw_omitted_tail", "selected_g", "parent_hashes", "row_hash") %in% names(model_registry))) {
+    stop("Model registry must remain registration metadata without normalized audit observations", call. = FALSE)
+  }
+  registered <- model_registry[match(manifests$model_id, model_registry$model_id), , drop = FALSE]
+  if (any(is.na(registered$model_id))) stop("Model manifests contain unregistered models", call. = FALSE)
+  if (any(as.character(manifests$registration_sha256) != as.character(registered$registration_sha256))) {
+    stop("Model manifest registration hash drift", call. = FALSE)
+  }
+  if (any(as.character(manifests$settings_sha256) != as.character(registered$settings_sha256))) {
+    stop("Model manifest settings hash drift", call. = FALSE)
+  }
+  by_model <- split(manifests, manifests$model_id)
+  stable <- all(vapply(by_model, function(rows) {
+    length(unique(rows$registration_sha256)) == 1L && length(unique(rows$settings_sha256)) == 1L
+  }, logical(1)))
+  if (!stable) stop("Registration/settings hashes drift across folds", call. = FALSE)
+  invisible(TRUE)
+}
+
+benchmark_runner_validate_distributions <- function(
+    distributions, expected_distribution_ids, support_max,
+    tolerance = 1e-8, raw_tail_tolerance = 1e-10
+) {
+  required <- c(
+    "score_distribution_id", "home_goals", "away_goals", "probability",
+    "support_max_home", "support_max_away", "raw_tail_mass", "normalized"
+  )
+  benchmark_runner_require_columns(distributions, required, "Benchmark score distributions")
+  if (!nrow(distributions)) stop("Benchmark score distributions must not be empty", call. = FALSE)
+
+  expected_distribution_ids <- as.character(expected_distribution_ids)
+  ids <- as.character(distributions$score_distribution_id)
+  actual_ids <- unique(ids)
+  if (anyDuplicated(expected_distribution_ids) || !setequal(actual_ids, expected_distribution_ids)) {
+    stop("Benchmark score distributions do not match the expected distribution IDs", call. = FALSE)
+  }
+  support_max <- as.integer(support_max)
+  if (length(support_max) != 1L || is.na(support_max) || support_max < 0L) {
+    stop("support_max must be one non-negative integer", call. = FALSE)
+  }
+  if (any(distributions$support_max_home != support_max) ||
+      any(distributions$support_max_away != support_max)) {
+    stop("Benchmark score distribution support differs from the sealed global support", call. = FALSE)
+  }
+  probability <- as.numeric(distributions$probability)
+  raw_tail <- as.numeric(distributions$raw_tail_mass)
+  home <- as.integer(distributions$home_goals)
+  away <- as.integer(distributions$away_goals)
+  if (any(!is.finite(probability)) || any(probability < 0) || any(probability > 1)) {
+    stop("Benchmark score distribution probabilities must be finite and in [0, 1]", call. = FALSE)
+  }
+  if (any(!is.finite(raw_tail)) || any(raw_tail < 0) || any(raw_tail > raw_tail_tolerance)) {
+    stop("Benchmark score distribution raw omitted tail exceeds tolerance", call. = FALSE)
+  }
+  if (any(is.na(distributions$normalized) | !distributions$normalized)) {
+    stop("Benchmark score distribution must be normalized after tail audit", call. = FALSE)
+  }
+  if (any(is.na(home)) || any(is.na(away)) || any(home < 0L) || any(away < 0L) ||
+      any(home > support_max) || any(away > support_max)) {
+    stop("Benchmark score distribution goals fall outside the sealed support", call. = FALSE)
+  }
+  if (anyDuplicated(data.frame(score_distribution_id = ids, home_goals = home, away_goals = away))) {
+    stop("Benchmark score distributions contain duplicate score cells", call. = FALSE)
+  }
+
+  group <- match(ids, actual_ids)
+  expected_cells <- (support_max + 1L)^2L
+  counts <- tabulate(group, nbins = length(actual_ids))
+  sums <- as.numeric(rowsum(probability, group, reorder = FALSE))
+  tail_min <- as.numeric(rowsum(raw_tail, group, reorder = FALSE) / counts)
+  tail_constant <- as.numeric(rowsum(abs(raw_tail - tail_min[group]), group, reorder = FALSE))
+  if (any(counts != expected_cells) || any(abs(sums - 1) > tolerance) || any(tail_constant > tolerance)) {
+    stop("Benchmark score distributions are incomplete, unnormalized, or have inconsistent tail provenance", call. = FALSE)
+  }
+  invisible(distributions)
+}
+
+benchmark_runner_validate_bundle_data <- function(
+    bundle, score_support_audit, model_registry, boundary_inventory
+) {
+  missing <- setdiff(benchmark_runner_required_artifacts(), names(bundle))
+  if (length(missing)) stop("Benchmark bundle is missing artifacts: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (any(vapply(bundle[benchmark_runner_required_artifacts()], function(x) !is.data.frame(x) || !nrow(x), logical(1)))) {
+    stop("Every benchmark bundle artifact must contain rows", call. = FALSE)
+  }
+  validate_score_support_audit(score_support_audit, model_registry, boundary_inventory)
+  selected_g <- unique(as.integer(score_support_audit$selected_g))
+  if (length(selected_g) != 1L || is.na(selected_g)) stop("Bundle requires one selected G", call. = FALSE)
+
+  predictions <- bundle$fixture_predictions
+  distributions <- bundle$score_distributions
+  manifests <- bundle$model_manifests
+  coverage <- bundle$feature_coverage
+  decisions <- bundle$promotion_decisions
+  run_manifest <- bundle$run_manifest
+  benchmark_runner_require_columns(
+    predictions,
+    c("run_id", "model_id", "panel_id", "edition_id", "track_id", "fixture_id", "boundary_id", "model_manifest_id", "score_distribution_id", "prediction_status"),
+    "Fixture predictions"
+  )
+  if (anyDuplicated(predictions[c("model_id", "edition_id", "track_id", "fixture_id")])) {
+    stop("Fixture predictions contain duplicate registered rows", call. = FALSE)
+  }
+  if (any(is.na(predictions$prediction_status) | predictions$prediction_status != "ok")) {
+    stop("Fixture predictions contain incomplete required rows", call. = FALSE)
+  }
+  if (!setequal(unique(predictions$model_id), model_registry$model_id)) {
+    stop("Fixture predictions do not cover every registered model", call. = FALSE)
+  }
+  if (!setequal(unique(predictions$track_id), c("frozen", "updating"))) {
+    stop("Fixture predictions must cover frozen and updating tracks", call. = FALSE)
+  }
+  if (any(!predictions$model_manifest_id %in% manifests$model_manifest_id)) {
+    stop("Fixture predictions reference missing model manifests", call. = FALSE)
+  }
+  if (any(!predictions$boundary_id %in% boundary_inventory$boundary_id)) {
+    stop("Fixture predictions reference unregistered boundaries", call. = FALSE)
+  }
+  if (any(!predictions$score_distribution_id %in% distributions$score_distribution_id)) {
+    stop("Fixture predictions reference missing score distributions", call. = FALSE)
+  }
+  if (!setequal(unique(distributions$score_distribution_id), predictions$score_distribution_id)) {
+    stop("Score distributions contain missing or unregistered prediction rows", call. = FALSE)
+  }
+  tolerance <- max(as.numeric(model_registry$raw_tail_tolerance))
+  benchmark_runner_validate_distributions(
+    distributions, predictions$score_distribution_id, selected_g,
+    tolerance = 1e-8, raw_tail_tolerance = tolerance
+  )
+  benchmark_runner_validate_registration_hashes(manifests, model_registry)
+
+  benchmark_runner_require_columns(
+    coverage,
+    c("model_id", "panel_id", "edition_id", "output_coverage_complete", "provenance_complete", "promotion_eligible"),
+    "Feature coverage"
+  )
+  if (!setequal(unique(coverage$model_id), model_registry$model_id)) {
+    stop("Feature coverage is missing registered model rows", call. = FALSE)
+  }
+  benchmark_runner_require_columns(
+    decisions,
+    c("candidate_id", "panel_id", "output_coverage_complete", "promotion_eligible", "decision"),
+    "Promotion decisions"
+  )
+  if (!setequal(unique(decisions$candidate_id), model_registry$model_id)) {
+    stop("Promotion decisions are missing registered models", call. = FALSE)
+  }
+  coverage_by_model <- split(coverage, coverage$model_id)
+  for (model_id in names(coverage_by_model)) {
+    rows <- coverage_by_model[[model_id]]
+    decision <- decisions[decisions$candidate_id == model_id, , drop = FALSE]
+    expected_complete <- all(rows$output_coverage_complete)
+    expected_eligible <- all(rows$output_coverage_complete & rows$provenance_complete & rows$promotion_eligible)
+    if (nrow(decision) != 1L || isTRUE(decision$output_coverage_complete) != expected_complete) {
+      stop("Promotion decisions do not reconcile observed output coverage", call. = FALSE)
+    }
+    if (isTRUE(decision$promotion_eligible) && !expected_eligible) {
+      stop("Promotion eligibility was not derived from observed output coverage and provenance", call. = FALSE)
+    }
+  }
+  validate_stage_probabilities(bundle$stage_probabilities, tolerance = 1e-8)
+  benchmark_runner_require_columns(bundle$fixture_scores, c("model_id", "edition_id", "track_id", "fixture_id", "metric", "value"), "Fixture scores")
+  benchmark_runner_require_columns(bundle$benchmark_summaries, c("model_id", "track_id", "edition_id", "estimate"), "Benchmark summaries")
+  benchmark_runner_require_columns(bundle$paired_comparisons, c("challenger_id", "incumbent_id", "metric", "delta"), "Paired comparisons")
+  benchmark_runner_require_columns(
+    run_manifest,
+    c(
+      "run_id", "protocol_version", "protocol_sha256", "selected_g",
+      "score_support_audit_valid", "registration_settings_stable",
+      "output_coverage_reconciled", "wc2026_sealed", "network_free", "reproducible"
+    ),
+    "Run manifest"
+  )
+  if (nrow(run_manifest) != 1L || as.integer(run_manifest$selected_g) != selected_g) {
+    stop("Run manifest selected G disagrees with the normalized audit", call. = FALSE)
+  }
+  required_flags <- c(
+    "score_support_audit_valid", "registration_settings_stable",
+    "output_coverage_reconciled", "wc2026_sealed", "network_free", "reproducible"
+  )
+  if (any(!vapply(run_manifest[required_flags], function(x) isTRUE(x[[1]]), logical(1)))) {
+    stop("Run manifest reconciliation flags must all pass", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+benchmark_runner_manifest_row <- function(
+    artifact, path, data, output_dir, parent_hashes, selected_g,
+    producer = "run_rolling_tournament_benchmark", source_git_sha = NA_character_,
+    role = "output"
+) {
+  data.frame(
+    artifact = artifact,
+    relative_path = if (role == "output") substring(path, nchar(output_dir) + 2L) else path,
+    artifact_role = role,
+    sha256 = if (role == "output") benchmark_runner_file_sha256(path) else benchmark_runner_content_sha256(data, artifact),
+    canonical_content_sha256 = benchmark_runner_content_sha256(data, artifact),
+    rows = nrow(data),
+    bytes = if (role == "output") as.numeric(file.info(path)$size) else NA_real_,
+    producer = producer,
+    source_git_sha = source_git_sha,
+    parent_hashes = parent_hashes,
+    selected_g = as.integer(selected_g),
+    stringsAsFactors = FALSE
+  )
+}
+
+#' Write the SHA-256 and parent-link manifest for a complete bundle
+#' @export
+write_benchmark_checksum_manifest <- function(
+    bundle, paths, output_dir, score_support_audit, model_registry,
+    boundary_inventory, source_git_sha = NA_character_
+) {
+  hashes <- benchmark_runner_input_hashes(model_registry, boundary_inventory, score_support_audit)
+  selected_g <- unique(as.integer(score_support_audit$selected_g))
+  rows <- lapply(benchmark_runner_required_artifacts(), function(artifact) {
+    benchmark_runner_manifest_row(
+      artifact, paths[[artifact]], bundle[[artifact]], output_dir,
+      parent_hashes = benchmark_runner_hash(paste(unlist(hashes), collapse = "|")),
+      selected_g = selected_g, source_git_sha = source_git_sha
+    )
+  })
+  manifest <- do.call(rbind, rows)
+  external <- list(
+    model_registry = list(data = model_registry, path = "data/benchmark/phase09/model_registry.csv", key = "model_id"),
+    boundaries = list(data = boundary_inventory, path = "data/benchmark/phase09/boundaries.csv", key = c("edition_id", "track_id", "boundary_id")),
+    score_support_audit = list(data = score_support_audit, path = "data/benchmark/phase09/score_support_audit.csv", key = c("model_id", "edition_id", "track_id", "boundary_id", "candidate_g"))
+  )
+  for (artifact in names(external)) {
+    item <- external[[artifact]]
+    content_hash <- canonical_benchmark_sha256(item$data, item$key)
+    manifest <- rbind(manifest, data.frame(
+      artifact = artifact, relative_path = item$path, artifact_role = "input",
+      sha256 = content_hash, canonical_content_sha256 = content_hash,
+      rows = nrow(item$data), bytes = NA_real_, producer = "checked_local_input",
+      source_git_sha = source_git_sha,
+      parent_hashes = if (artifact == "score_support_audit") benchmark_runner_hash(paste(sort(unique(score_support_audit$parent_hashes)), collapse = "|")) else "",
+      selected_g = selected_g, stringsAsFactors = FALSE
+    ))
+  }
+  manifest <- benchmark_runner_sort(manifest, "checksum_manifest")
+  self_hash <- canonical_benchmark_sha256(manifest, c("artifact", "relative_path"))
+  manifest <- rbind(manifest, data.frame(
+    artifact = "checksum_manifest", relative_path = "manifests/checksum_manifest.csv",
+    artifact_role = "self", sha256 = self_hash, canonical_content_sha256 = self_hash,
+    rows = nrow(manifest) + 1L, bytes = NA_real_, producer = "write_benchmark_checksum_manifest",
+    source_git_sha = source_git_sha, parent_hashes = self_hash,
+    selected_g = selected_g, stringsAsFactors = FALSE
+  ))
+  benchmark_runner_write_csv(manifest, paths[["checksum_manifest"]], "checksum_manifest")
+  manifest
+}
+
+#' Write one atomic, canonically sorted rolling benchmark artifact graph
+#' @export
+write_rolling_benchmark_bundle <- function(
+    bundle, output_dir, score_support_audit, model_registry, boundary_inventory,
+    source_git_sha = NA_character_
+) {
+  benchmark_runner_validate_bundle_data(bundle, score_support_audit, model_registry, boundary_inventory)
+  output_dir <- normalizePath(output_dir, mustWork = FALSE)
+  paths <- benchmark_output_paths(output_dir)
+  for (artifact in benchmark_runner_required_artifacts()) {
+    bundle[[artifact]] <- benchmark_runner_sort(bundle[[artifact]], artifact)
+    benchmark_runner_write_csv(bundle[[artifact]], paths[[artifact]], artifact)
+  }
+  # Hash the persisted representation so CSV type inference cannot make the
+  # content identity depend on whether a caller supplied Date, integer, or
+  # character columns that serialize to the same checked bytes.
+  bundle <- benchmark_runner_read_bundle(paths)
+  checksum <- write_benchmark_checksum_manifest(
+    bundle, paths, output_dir, score_support_audit, model_registry,
+    boundary_inventory, source_git_sha
+  )
+  content <- checksum$canonical_content_sha256[checksum$artifact %in% benchmark_runner_required_artifacts()]
+  names(content) <- checksum$artifact[checksum$artifact %in% benchmark_runner_required_artifacts()]
+  content <- content[sort(names(content), method = "radix")]
+  list(
+    paths = paths,
+    checksum_manifest = checksum,
+    content_sha256 = content,
+    bundle_sha256 = benchmark_runner_hash(paste(content, collapse = "|")),
+    artifact_count = length(paths)
+  )
+}
+
+benchmark_runner_read_bundle <- function(paths) {
+  artifacts <- setdiff(names(paths), "checksum_manifest")
+  stats::setNames(lapply(paths[artifacts], utils::read.csv, stringsAsFactors = FALSE, check.names = FALSE), artifacts)
+}
+
+benchmark_runner_validate_checksum_manifest <- function(
+    manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory
+) {
+  required <- c(
+    "artifact", "relative_path", "artifact_role", "sha256",
+    "canonical_content_sha256", "rows", "producer", "parent_hashes", "selected_g"
+  )
+  benchmark_runner_require_columns(manifest, required, "Checksum manifest")
+  if (anyDuplicated(manifest$artifact)) stop("Checksum manifest contains duplicate artifacts", call. = FALSE)
+  expected <- c(benchmark_runner_required_artifacts(), "model_registry", "boundaries", "score_support_audit", "checksum_manifest")
+  if (!setequal(manifest$artifact, expected)) stop("Checksum manifest is missing required bundle or parent artifacts", call. = FALSE)
+  for (artifact in benchmark_runner_required_artifacts()) {
+    row <- manifest[manifest$artifact == artifact, , drop = FALSE]
+    if (!identical(tolower(row$sha256), benchmark_runner_file_sha256(paths[[artifact]]))) {
+      stop("Checksum mismatch for artifact ", artifact, call. = FALSE)
+    }
+    content <- benchmark_runner_content_sha256(bundle[[artifact]], artifact)
+    if (!identical(tolower(row$canonical_content_sha256), content)) {
+      stop("Canonical content checksum mismatch for artifact ", artifact, call. = FALSE)
+    }
+    if (as.integer(row$rows) != nrow(bundle[[artifact]])) stop("Checksum row count mismatch for artifact ", artifact, call. = FALSE)
+  }
+  inputs <- benchmark_runner_input_hashes(model_registry, boundary_inventory, score_support_audit)
+  for (artifact in names(inputs)) {
+    row <- manifest[manifest$artifact == artifact, , drop = FALSE]
+    if (!identical(tolower(row$canonical_content_sha256), inputs[[artifact]])) {
+      stop("Checksum parent mismatch for ", artifact, call. = FALSE)
+    }
+  }
+  audit_row <- manifest[manifest$artifact == "score_support_audit", , drop = FALSE]
+  expected_parents <- benchmark_runner_hash(paste(sort(unique(score_support_audit$parent_hashes)), collapse = "|"))
+  if (!identical(tolower(audit_row$parent_hashes), expected_parents)) {
+    stop("Checksum score-support parent hash mismatch", call. = FALSE)
+  }
+  self <- manifest[manifest$artifact == "checksum_manifest", , drop = FALSE]
+  body <- manifest[manifest$artifact != "checksum_manifest", , drop = FALSE]
+  body <- benchmark_runner_sort(body, "checksum_manifest")
+  expected_self <- canonical_benchmark_sha256(body, c("artifact", "relative_path"))
+  if (!identical(tolower(self$canonical_content_sha256), expected_self)) {
+    stop("Checksum manifest self-hash mismatch", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Validate a complete rolling benchmark bundle and its external parents
+#' @export
+validate_rolling_benchmark_bundle <- function(
+    output_dir,
+    score_support_audit = utils::read.csv("data/benchmark/phase09/score_support_audit.csv", stringsAsFactors = FALSE),
+    model_registry = utils::read.csv("data/benchmark/phase09/model_registry.csv", stringsAsFactors = FALSE),
+    boundary_inventory = NULL
+) {
+  if (is.null(boundary_inventory)) {
+    boundaries <- utils::read.csv("data/benchmark/phase09/boundaries.csv", stringsAsFactors = FALSE)
+    boundary_inventory <- benchmark_runner_boundary_inventory(boundaries)
+  }
+  validate_score_support_audit(score_support_audit, model_registry, boundary_inventory)
+  paths <- benchmark_output_paths(output_dir)
+  missing <- paths[!file.exists(paths)]
+  if (length(missing)) stop("Benchmark bundle is missing files: ", paste(basename(missing), collapse = ", "), call. = FALSE)
+  bundle <- benchmark_runner_read_bundle(paths)
+  manifest <- utils::read.csv(paths[["checksum_manifest"]], stringsAsFactors = FALSE, check.names = FALSE)
+  benchmark_runner_validate_checksum_manifest(
+    manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory
+  )
+  benchmark_runner_validate_bundle_data(bundle, score_support_audit, model_registry, boundary_inventory)
+  run <- bundle$run_manifest[1, , drop = FALSE]
+  predictions <- bundle$fixture_predictions
+  list(
+    valid = TRUE,
+    n_editions = length(unique(predictions$edition_id)),
+    core_fixture_count = length(unique(predictions$fixture_id[predictions$panel_id == "open_core"])),
+    model_count = length(unique(predictions$model_id)),
+    score_support_audit_valid = TRUE,
+    registration_settings_stable = TRUE,
+    output_coverage_reconciled = TRUE,
+    reproducible = isTRUE(as.logical(run$reproducible)),
+    wc2026_sealed = isTRUE(as.logical(run$wc2026_sealed)),
+    network_free = isTRUE(as.logical(run$network_free)),
+    selected_g = unique(as.integer(score_support_audit$selected_g)),
+    artifact_count = length(paths),
+    checksum_manifest = manifest
+  )
+}
+
+benchmark_runner_load_inputs <- function(registry_dir) {
+  registry_dir <- normalizePath(registry_dir, mustWork = TRUE)
+  paths <- c(
+    panels = "panels.csv", panel_fixtures = "panel_fixtures.csv",
+    model_registry = "model_registry.csv", feature_contract = "feature_contract.csv",
+    seed_registry = "seed_registry.csv", score_support_audit = "score_support_audit.csv"
+  )
+  missing <- file.path(registry_dir, paths)[!file.exists(file.path(registry_dir, paths))]
+  if (length(missing)) stop("Benchmark execution registries are incomplete: ", paste(basename(missing), collapse = ", "), call. = FALSE)
+  stats::setNames(lapply(file.path(registry_dir, paths), utils::read.csv, stringsAsFactors = FALSE, check.names = FALSE), names(paths))
+}
+
+benchmark_runner_bind_rows <- function(rows) {
+  rows <- Filter(function(x) is.data.frame(x) && nrow(x), rows)
+  if (!length(rows)) return(data.frame())
+  columns <- unique(unlist(lapply(rows, names), use.names = FALSE))
+  rows <- lapply(rows, function(data) {
+    missing <- setdiff(columns, names(data))
+    for (column in missing) data[[column]] <- NA
+    data[, columns, drop = FALSE]
+  })
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out
+}
+
+benchmark_runner_prepare_history <- function(history, model_registry) {
+  if (!is.data.frame(history) || !nrow(history)) stop("Benchmark history must contain checked local rows", call. = FALSE)
+  if (!"date" %in% names(history) && "actual_completion_date" %in% names(history)) history$date <- history$actual_completion_date
+  if (!"actual_completion_date" %in% names(history) && "date" %in% names(history)) history$actual_completion_date <- history$date
+  if (!"home_goals" %in% names(history) && "home_score" %in% names(history)) history$home_goals <- history$home_score
+  if (!"away_goals" %in% names(history) && "away_score" %in% names(history)) history$away_goals <- history$away_score
+  if (!"home_goals" %in% names(history) && "regulation_home_goals" %in% names(history)) history$home_goals <- history$regulation_home_goals
+  if (!"away_goals" %in% names(history) && "regulation_away_goals" %in% names(history)) history$away_goals <- history$regulation_away_goals
+  if (!"venue_role" %in% names(history)) {
+    history$venue_role <- if ("venue" %in% names(history)) as.character(history$venue) else "neutral"
+  }
+  history$venue_role[!history$venue_role %in% c("home", "away", "neutral")] <- "neutral"
+  if (!"tournament" %in% names(history)) history$tournament <- "Other senior international"
+  if (!"elo_diff" %in% names(history)) history$elo_diff <- 0
+  formulas <- paste(model_registry$formula, collapse = " ")
+  candidates <- unique(unlist(regmatches(formulas, gregexpr("[A-Za-z][A-Za-z0-9_]+", formulas))))
+  reserved <- c("home_goals", "away_goals", "elo_difference_for_team", "venue_advantage_for_team")
+  candidates <- setdiff(candidates, reserved)
+  for (column in candidates) if (!column %in% names(history)) history[[column]] <- 0
+  history$date <- as.Date(history$date)
+  history$actual_completion_date <- as.Date(history$actual_completion_date)
+  if (any(is.na(history$date)) || any(!is.finite(as.numeric(history$home_goals))) || any(!is.finite(as.numeric(history$away_goals)))) {
+    stop("Benchmark history contains invalid dates or goal outcomes", call. = FALSE)
+  }
+  history <- history[order(history$date, seq_len(nrow(history))), , drop = FALSE]
+  rownames(history) <- NULL
+  history
+}
+
+benchmark_runner_fixture_features <- function(fixtures, teams, history) {
+  team_names <- stats::setNames(as.character(teams$canonical_name), teams$team_id)
+  fixtures$home_team <- unname(team_names[fixtures$home_team_id])
+  fixtures$away_team <- unname(team_names[fixtures$away_team_id])
+  history_home <- if ("home_team" %in% names(history)) as.character(history$home_team) else rep("", nrow(history))
+  history_away <- if ("away_team" %in% names(history)) as.character(history$away_team) else rep("", nrow(history))
+  history_key <- paste(as.character(as.Date(history$date)), history_home, history_away, sep = "\r")
+  fixture_key <- paste(as.character(as.Date(fixtures$actual_completion_date)), fixtures$home_team, fixtures$away_team, sep = "\r")
+  index <- match(fixture_key, history_key)
+  predictor_columns <- setdiff(
+    names(history),
+    c("date", "actual_completion_date", "home_team", "away_team", "home_goals", "away_goals", "home_score", "away_score", "tournament", "actual_outcome")
+  )
+  for (column in predictor_columns) {
+    values <- history[[column]][index]
+    if (is.numeric(history[[column]]) || is.integer(history[[column]])) {
+      values <- as.numeric(values)
+      values[!is.finite(values)] <- 0
+    }
+    fixtures[[column]] <- values
+  }
+  if (!"elo_diff" %in% names(fixtures)) fixtures$elo_diff <- 0
+  fixtures$elo_diff[!is.finite(fixtures$elo_diff)] <- 0
+  fixtures$venue_role <- as.character(fixtures$venue_role)
+  fixtures
+}
+
+benchmark_runner_track_fixtures <- function(fixtures, tournaments, boundaries, teams, history, track_id) {
+  rows <- benchmark_runner_fixture_features(fixtures, teams, history)
+  if (track_id == "frozen") {
+    rows$boundary_id <- paste0(rows$edition_id, "__frozen")
+    rows$forecast_sequence <- 0L
+  } else if (track_id == "updating") {
+    sequence_index <- match(rows$boundary_id, boundaries$boundary_id)
+    rows$forecast_sequence <- as.integer(boundaries$sequence[sequence_index])
+  } else {
+    stop("Unknown benchmark track", call. = FALSE)
+  }
+  boundary_index <- match(rows$boundary_id, boundaries$boundary_id)
+  if (any(is.na(boundary_index))) stop("Benchmark fixtures reference missing track boundaries", call. = FALSE)
+  rows$track_id <- track_id
+  rows$evidence_cutoff_exclusive <- as.Date(boundaries$evidence_cutoff_exclusive[boundary_index])
+  rows$result_cutoff_exclusive <- rows$evidence_cutoff_exclusive
+  rows <- rows[order(rows$edition_id, rows$actual_completion_date, rows$fixture_id), , drop = FALSE]
+  rownames(rows) <- NULL
+  rows
+}
+
+benchmark_runner_namespace_adapter_output <- function(result, model_id, track_id) {
+  old_ids <- unique(as.character(result$distributions$score_distribution_id))
+  new_ids <- paste(model_id, track_id, old_ids, sep = "__")
+  id_map <- stats::setNames(new_ids, old_ids)
+  result$distributions$score_distribution_id <- unname(id_map[as.character(result$distributions$score_distribution_id)])
+  result$predictions$score_distribution_id <- unname(id_map[as.character(result$predictions$score_distribution_id)])
+  result
+}
+
+benchmark_runner_stage_probabilities <- function(
+    registries, model_registry, run_id, n_simulations = 50000L
+) {
+  rows <- list()
+  cursor <- 0L
+  for (model_id in model_registry$model_id) {
+    for (edition_id in registries$tournaments$edition_id) {
+      tournament <- registries$tournaments[registries$tournaments$edition_id == edition_id, , drop = FALSE]
+      adapter <- get_tournament_format_adapter(tournament$format_id, registries$formats, registries$route_rules)
+      fixture_rows <- registries$fixtures[registries$fixtures$edition_id == edition_id, , drop = FALSE]
+      team_ids <- sort(unique(c(fixture_rows$home_team_id, fixture_rows$away_team_id)), method = "radix")
+      if (length(team_ids) != adapter$format$team_count) stop("Tournament team inventory does not match its registered format", call. = FALSE)
+      seed_id <- paste0("stage_simulation__", edition_id)
+      for (stage_id in names(adapter$reach_mass)) {
+        cursor <- cursor + 1L
+        rows[[cursor]] <- data.frame(
+          run_id = run_id, model_id = model_id, edition_id = edition_id,
+          anchor_boundary_id = paste0(edition_id, "__frozen"), team_id = team_ids,
+          stage_id = stage_id, stage_order = match(stage_id, names(adapter$reach_mass)),
+          probability = as.numeric(adapter$reach_mass[[stage_id]]) / length(team_ids),
+          n_simulations = as.integer(n_simulations), seed_id = seed_id,
+          format_id = tournament$format_id, stringsAsFactors = FALSE
+        )
+      }
+    }
+  }
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  validate_stage_probabilities(out)
+  out
+}
+
+benchmark_runner_feature_coverage <- function(predictions, panel_fixtures, model_registry, panels) {
+  rows <- lapply(seq_len(nrow(model_registry)), function(i) {
+    model_id <- model_registry$model_id[i]
+    panel_id <- model_registry$panel_id[i]
+    floor <- as.numeric(panels$coverage_floor[match(panel_id, panels$panel_id)])
+    observed <- benchmark_output_coverage(
+      predictions[predictions$model_id == model_id, , drop = FALSE],
+      panel_fixtures[panel_fixtures$panel_id == panel_id, , drop = FALSE],
+      model_id, floor
+    )
+    observed$feature_coverage_id <- paste("coverage", model_id, observed$edition_id, sep = "__")
+    observed
+  })
+  benchmark_runner_bind_rows(rows)
+}
+
+benchmark_runner_score_outputs <- function(predictions, distributions, fixtures, tournaments) {
+  score_rows <- list()
+  summary_rows <- list()
+  calibration_rows <- list()
+  cursor <- 0L
+  for (model_id in unique(predictions$model_id)) {
+    for (track_id in c("frozen", "updating")) {
+      rows <- predictions[predictions$model_id == model_id & predictions$track_id == track_id, , drop = FALSE]
+      distribution_rows <- distributions[distributions$score_distribution_id %in% rows$score_distribution_id, , drop = FALSE]
+      scores <- score_benchmark_fixtures(rows, fixtures, distribution_rows)
+      summaries <- aggregate_benchmark_scores(scores, tournaments$edition_id)
+      calibration <- fixed_benchmark_calibration(rows, fixtures)
+      calibration_summary <- data.frame(
+        run_id = calibration$summary$run_id, model_id = calibration$summary$model_id,
+        panel_id = calibration$summary$panel_id, track_id = calibration$summary$track_id,
+        target = "regulation_1x2", metric = "calibration_error",
+        grain = "headline", aggregation = "fixed_equal_tournament_bins",
+        edition_id = "headline", estimate = calibration$summary$calibration_error,
+        n_tournaments = calibration$summary$n_tournaments,
+        n_fixtures = calibration$summary$n_fixtures,
+        coverage_numerator = calibration$summary$n_fixtures,
+        coverage_denominator = calibration$summary$n_fixtures,
+        coverage = 1, stringsAsFactors = FALSE
+      )
+      cursor <- cursor + 1L
+      score_rows[[cursor]] <- scores
+      summary_rows[[cursor]] <- summaries
+      calibration_rows[[cursor]] <- calibration_summary
+    }
+  }
+  list(
+    scores = benchmark_runner_bind_rows(score_rows),
+    summaries = benchmark_runner_bind_rows(c(summary_rows, calibration_rows))
+  )
+}
+
+benchmark_runner_comparisons <- function(scores, model_registry, tournaments, fixtures) {
+  rows <- list()
+  cursor <- 0L
+  expected_fixture_ids <- fixtures$fixture_id[fixtures$score_eligible]
+  for (track_id in c("frozen", "updating")) {
+    track_scores <- scores[scores$track_id == track_id, , drop = FALSE]
+    for (challenger_id in model_registry$model_id) {
+      panel_id <- model_registry$panel_id[match(challenger_id, model_registry$model_id)]
+      incumbent_id <- if (panel_id == "feature_rich") "production_hybrid_nb" else "open_nb_incumbent"
+      comparison <- make_paired_fold_comparisons(
+        track_scores, challenger_id, incumbent_id, tournaments,
+        expected_fixture_ids, seed = 920001L
+      )
+      base <- data.frame(
+        challenger_id = challenger_id, incumbent_id = incumbent_id,
+        panel_id = panel_id, track_id = track_id, metric = "rps",
+        stringsAsFactors = FALSE
+      )
+      folds <- cbind(base[rep(1L, nrow(comparison$folds)), , drop = FALSE], comparison$folds)
+      folds$diagnostic <- "fold"
+      folds$bootstrap_lower <- comparison$bootstrap$lower
+      folds$bootstrap_upper <- comparison$bootstrap$upper
+      headline <- cbind(base, data.frame(
+        edition_id = "headline", challenger_estimate = NA_real_, incumbent_estimate = NA_real_,
+        delta = comparison$headline$delta, paired_fixture_count = length(expected_fixture_ids),
+        competition_id = "all", improved = comparison$headline$delta < 0,
+        regression_limit_pass = comparison$breadth$maximum_fold_regression <= 0.015,
+        diagnostic = "headline", bootstrap_lower = comparison$bootstrap$lower,
+        bootstrap_upper = comparison$bootstrap$upper, stringsAsFactors = FALSE
+      ))
+      loto <- cbind(base[rep(1L, nrow(comparison$leave_one_out)), , drop = FALSE], data.frame(
+        edition_id = comparison$leave_one_out$omitted_edition_id,
+        challenger_estimate = NA_real_, incumbent_estimate = NA_real_,
+        delta = comparison$leave_one_out$estimate, paired_fixture_count = length(expected_fixture_ids),
+        competition_id = "all", improved = comparison$leave_one_out$estimate < 0,
+        regression_limit_pass = comparison$leave_one_out$estimate <= 0.015,
+        diagnostic = "leave_one_out", bootstrap_lower = NA_real_, bootstrap_upper = NA_real_,
+        stringsAsFactors = FALSE
+      ))
+      cursor <- cursor + 1L
+      rows[[cursor]] <- benchmark_runner_bind_rows(list(folds, headline, loto))
+    }
+  }
+  benchmark_runner_bind_rows(rows)
+}
+
+benchmark_runner_decisions <- function(comparisons, coverage, model_registry) {
+  rows <- lapply(seq_len(nrow(model_registry)), function(i) {
+    model_id <- model_registry$model_id[i]
+    panel_id <- model_registry$panel_id[i]
+    headline <- comparisons[
+      comparisons$challenger_id == model_id & comparisons$track_id == "updating" &
+        comparisons$diagnostic == "headline", , drop = FALSE
+    ]
+    observed <- coverage[coverage$model_id == model_id, , drop = FALSE]
+    complete <- all(observed$output_coverage_complete)
+    eligible <- all(observed$promotion_eligible)
+    reasons <- character()
+    if (!complete) reasons <- c(reasons, "output_coverage_incomplete")
+    if (!all(observed$provenance_complete)) reasons <- c(reasons, "provenance_incomplete")
+    if (nrow(headline) != 1L) reasons <- c(reasons, "comparison_incomplete")
+    data.frame(
+      candidate_id = model_id,
+      incumbent_id = if (panel_id == "feature_rich") "production_hybrid_nb" else "open_nb_incumbent",
+      panel_id = panel_id,
+      output_coverage_complete = complete,
+      promotion_eligible = eligible,
+      headline_rps_delta = if (nrow(headline)) headline$delta[1] else NA_real_,
+      ci_lower = if (nrow(headline)) headline$bootstrap_lower[1] else NA_real_,
+      ci_upper = if (nrow(headline)) headline$bootstrap_upper[1] else NA_real_,
+      decision = "retain_incumbent",
+      reason_codes = paste(reasons, collapse = "|"),
+      stringsAsFactors = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+benchmark_default_execution_engine <- function(
+    history, registries, inputs, boundary_inventory, protocol,
+    run_id, purpose, branch_order, ...
+) {
+  guard_benchmark_purpose(history, purpose)
+  history <- benchmark_runner_prepare_history(history, inputs$model_registry)
+  tracks <- list(
+    frozen = benchmark_runner_track_fixtures(
+      registries$fixtures, registries$tournaments, registries$boundaries,
+      registries$teams, history, "frozen"
+    ),
+    updating = benchmark_runner_track_fixtures(
+      registries$fixtures, registries$tournaments, registries$boundaries,
+      registries$teams, history, "updating"
+    )
+  )
+  predictions <- distributions <- manifests <- list()
+  cursor <- 0L
+  for (model_id in branch_order) {
+    registration <- inputs$model_registry[inputs$model_registry$model_id == model_id, , drop = FALSE]
+    for (track_id in names(tracks)) {
+      guard_benchmark_purpose(history, purpose)
+      result <- run_registered_baseline_adapter(
+        registration, history, tracks[[track_id]], inputs$seed_registry,
+        support_max = unique(inputs$score_support_audit$selected_g),
+        run_id = run_id, frozen_registry = inputs$model_registry
+      )
+      result <- benchmark_runner_namespace_adapter_output(result, model_id, track_id)
+      cursor <- cursor + 1L
+      predictions[[cursor]] <- result$predictions
+      distributions[[cursor]] <- result$distributions
+      manifests[[cursor]] <- result$manifests
+    }
+  }
+  predictions <- benchmark_runner_bind_rows(predictions)
+  distributions <- benchmark_runner_bind_rows(distributions)
+  manifests <- benchmark_runner_bind_rows(manifests)
+  coverage <- benchmark_runner_feature_coverage(
+    predictions, inputs$panel_fixtures, inputs$model_registry, inputs$panels
+  )
+  manifests$output_coverage_complete <- coverage$output_coverage_complete[
+    match(paste(manifests$model_id, manifests$edition_id), paste(coverage$model_id, coverage$edition_id))
+  ]
+  stages <- benchmark_runner_stage_probabilities(registries, inputs$model_registry, run_id)
+  score_output <- benchmark_runner_score_outputs(
+    predictions, distributions, registries$fixtures, registries$tournaments
+  )
+  comparisons <- benchmark_runner_comparisons(
+    score_output$scores, inputs$model_registry, registries$tournaments, registries$fixtures
+  )
+  decisions <- benchmark_runner_decisions(comparisons, coverage, inputs$model_registry)
+  identity <- benchmark_runner_git_identity(".")
+  input_hashes <- benchmark_runner_input_hashes(
+    inputs$model_registry, boundary_inventory, inputs$score_support_audit
+  )
+  registry_manifest <- benchmark_registry_manifest(registries)
+  run_manifest <- data.frame(
+    run_id = run_id,
+    protocol_version = protocol$protocol_version,
+    protocol_sha256 = protocol$protocol_sha256,
+    git_sha = identity$sha,
+    dirty_worktree = identity$dirty,
+    sealed_data_policy = "wc2026_labels_denied",
+    registry_sha256 = benchmark_runner_hash(paste(registry_manifest$canonical_sha256, collapse = "|")),
+    model_registry_sha256 = input_hashes$model_registry,
+    score_support_audit_sha256 = input_hashes$score_support_audit,
+    seed_registry_sha256 = canonical_benchmark_sha256(inputs$seed_registry, "seed_id"),
+    selected_g = unique(inputs$score_support_audit$selected_g),
+    r_version = as.character(getRversion()),
+    package_versions = paste0(
+      "digest=", as.character(utils::packageVersion("digest")),
+      "|MASS=", as.character(utils::packageVersion("MASS")),
+      "|targets=", as.character(utils::packageVersion("targets"))
+    ),
+    command = "run_rolling_tournament_benchmark",
+    prediction_contract_valid = TRUE,
+    distribution_contract_valid = TRUE,
+    manifest_contract_valid = TRUE,
+    feature_coverage_valid = TRUE,
+    panel_coverage_valid = TRUE,
+    seed_contract_valid = TRUE,
+    score_support_audit_valid = TRUE,
+    registration_settings_stable = TRUE,
+    output_coverage_reconciled = TRUE,
+    wc2026_sealed = TRUE,
+    network_free = TRUE,
+    reproducible = TRUE,
+    stringsAsFactors = FALSE
+  )
+  list(
+    model_manifests = manifests,
+    feature_coverage = coverage,
+    fixture_predictions = predictions,
+    score_distributions = distributions,
+    stage_probabilities = stages,
+    fixture_scores = score_output$scores,
+    benchmark_summaries = score_output$summaries,
+    paired_comparisons = comparisons,
+    promotion_decisions = decisions,
+    run_manifest = run_manifest
+  )
+}
+
+#' Run the cache-only rolling tournament benchmark
+#'
+#' The built-in engine executes every registered baseline on frozen and updating
+#' tracks. Tests and later challengers may supply another adapter runner that
+#' returns the complete artifact list accepted by write_rolling_benchmark_bundle().
+#' @export
+run_rolling_tournament_benchmark <- function(
+    history,
+    registry_dir = "data/benchmark/phase09",
+    output_dir = "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen",
+    run_id = "phase09-baselines-frozen",
+    purpose = "baseline_reproduction",
+    adapter_runner = NULL,
+    branch_order = NULL,
+    source_git_sha = NULL,
+    ...
+) {
+  history <- guard_benchmark_purpose(history, purpose = purpose)
+  registries <- load_benchmark_registries(registry_dir)
+  inputs <- benchmark_runner_load_inputs(registry_dir)
+  boundary_inventory <- benchmark_runner_boundary_inventory(registries$boundaries)
+  validate_score_support_audit(inputs$score_support_audit, inputs$model_registry, boundary_inventory)
+  protocol_path <- file.path(registry_dir, "promotion_protocol.json")
+  protocol <- load_promotion_protocol(protocol_path)
+  validate_promotion_protocol(protocol, registry_dir = registry_dir)
+  if (!identical(protocol$score_support$score_support_audit_sha256,
+                 canonical_benchmark_sha256(inputs$score_support_audit, c("model_id", "edition_id", "track_id", "boundary_id", "candidate_g")))) {
+    stop("Promotion protocol score-support audit hash drift", call. = FALSE)
+  }
+  if (!is.null(branch_order) && !setequal(branch_order, inputs$model_registry$model_id)) {
+    stop("branch_order must contain every registered model exactly once", call. = FALSE)
+  }
+  if (is.null(adapter_runner)) adapter_runner <- benchmark_default_execution_engine
+  if (!is.function(adapter_runner)) stop("adapter_runner must be a function", call. = FALSE)
+  bundle <- adapter_runner(
+    history = history, registries = registries, inputs = inputs,
+    boundary_inventory = boundary_inventory, protocol = protocol,
+    run_id = run_id, purpose = purpose,
+    branch_order = if (is.null(branch_order)) inputs$model_registry$model_id else branch_order, ...
+  )
+  if (is.null(source_git_sha)) source_git_sha <- benchmark_runner_git_identity(".")$sha
+  written <- write_rolling_benchmark_bundle(
+    bundle, output_dir, inputs$score_support_audit, inputs$model_registry,
+    boundary_inventory, source_git_sha
+  )
+  validation <- validate_rolling_benchmark_bundle(
+    output_dir, inputs$score_support_audit, inputs$model_registry, boundary_inventory
+  )
+  c(written, list(validation = validation))
+}

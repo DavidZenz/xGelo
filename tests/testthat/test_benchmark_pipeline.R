@@ -98,27 +98,29 @@ pipeline_bundle <- function(order_rows = FALSE) {
     )
   }))
 
-  manifests <- transform(
-    unique(keys[, c("run_id", "model_id", "edition_id", "track_id", "boundary_id", "model_manifest_id")]),
-    fit_status = "ok", registration_sha256 = models$registration_sha256[match(model_id, models$model_id)],
-    settings_sha256 = models$settings_sha256[match(model_id, models$model_id)],
-    parent_hashes = mapply(
-      function(registration, settings, boundary) pipeline_hash(c(registration, settings, boundary)),
-      registration_sha256, settings_sha256, boundary_id, USE.NAMES = FALSE
-    ), output_coverage_complete = TRUE
+  manifests <- unique(keys[, c("run_id", "model_id", "edition_id", "track_id", "boundary_id", "model_manifest_id")])
+  manifests$fit_status <- "ok"
+  manifests$registration_sha256 <- models$registration_sha256[match(manifests$model_id, models$model_id)]
+  manifests$settings_sha256 <- models$settings_sha256[match(manifests$model_id, models$model_id)]
+  manifests$parent_hashes <- mapply(
+    function(registration, settings, boundary) pipeline_hash(c(registration, settings, boundary)),
+    manifests$registration_sha256, manifests$settings_sha256, manifests$boundary_id,
+    USE.NAMES = FALSE
   )
+  manifests$output_coverage_complete <- TRUE
   coverage <- transform(
     unique(keys[, c("model_id", "panel_id", "edition_id")]),
     required_fixture_count = 1L, observed_fixture_count = 1L,
     output_coverage = 1, output_coverage_complete = TRUE,
     provenance_complete = TRUE, promotion_eligible = TRUE
   )
-  stages <- do.call(rbind, lapply(seq_len(nrow(keys)), function(i) data.frame(
-    run_id = "synthetic", model_id = keys$model_id[i], edition_id = keys$edition_id[i],
-    anchor_boundary_id = sub("__day1$", "__frozen", keys$boundary_id[i]),
+  stage_keys <- unique(keys[, c("model_id", "edition_id")])
+  stages <- do.call(rbind, lapply(seq_len(nrow(stage_keys)), function(i) data.frame(
+    run_id = "synthetic", model_id = stage_keys$model_id[i], edition_id = stage_keys$edition_id[i],
+    anchor_boundary_id = paste0(stage_keys$edition_id[i], "__frozen"),
     team_id = c("home", "away"), stage_id = "champion", stage_order = 1L,
     probability = c(0.5, 0.5), n_simulations = 50000L,
-    seed_id = paste0("stage_", keys$edition_id[i]), format_id = "synthetic", stringsAsFactors = FALSE
+    seed_id = paste0("stage_", stage_keys$edition_id[i]), format_id = "synthetic", stringsAsFactors = FALSE
   )))
   scores <- transform(
     keys[, c("run_id", "model_id", "panel_id", "edition_id", "track_id", "fixture_id")],
