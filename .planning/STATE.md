@@ -11,7 +11,7 @@
 **Milestone**: v1.0 - COMPLETE ✅
 **Status**: Archived
 **Next Milestone**: v2.0 (Ready for Planning)
-Last activity: 2026-07-15 - Completed quick task 260715-v8j: Label the final as fixed once both finalists are confirmed
+Last activity: 2026-07-20 - Completed quick task 260720-evo: Show Winner instead of Top title chances once the champion is confirmed
 
 ---
 
@@ -196,6 +196,7 @@ $ git status
 |---|-------------|------|--------|-----------|
 | 260715-v45 | Show only teams with a positive title probability in Top title chances | 2026-07-15 | a31ff43 | [260715-v45-show-only-teams-with-a-positive-title-pr](./quick/260715-v45-show-only-teams-with-a-positive-title-pr/) |
 | 260715-v8j | Label the final as fixed once both finalists are confirmed | 2026-07-15 | 3519c15 | [260715-v8j-label-the-final-as-fixed-once-both-final](./quick/260715-v8j-label-the-final-as-fixed-once-both-final/) |
+| 260720-evo | Show Winner instead of Top title chances once the champion is confirmed | 2026-07-20 | bf8a37f | [260720-evo-show-winner-instead-of-top-title-chances](./quick/260720-evo-show-winner-instead-of-top-title-chances/) |
 
 ---
 *Generated: 2026-06-05 | v1.0 Complete | v2.0 Ready*
