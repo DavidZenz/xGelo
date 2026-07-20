@@ -4,7 +4,7 @@
 2026-06-22,"Algeria","Algeria","J","ALG",1325.67385187187,"Jordan_Algeria_2026-06-22",TRUE
 2026-06-27,"Algeria","Algeria","J","ALG",1327.12986970653,"Algeria_Austria_2026-06-27",TRUE
 2026-07-02,"Algeria","Algeria","J","ALG",1315.30539557789,"Switzerland_Algeria_2026-07-02",TRUE
-2026-07-19,"Algeria","Algeria","J","ALG",1315.30539557789,"tournament_end",TRUE
+2026-07-20,"Algeria","Algeria","J","ALG",1315.30539557789,"tournament_end",TRUE
 2026-06-11,"Argentina","Argentina","J","ARG",1550.29667893704,"tournament_start",FALSE
 2026-06-16,"Argentina","Argentina","J","ARG",1561.38545612551,"Argentina_Algeria_2026-06-16",TRUE
 2026-06-22,"Argentina","Argentina","J","ARG",1572.16101886952,"Argentina_Austria_2026-06-22",TRUE
@@ -13,19 +13,20 @@
 2026-07-07,"Argentina","Argentina","J","ARG",1579.47898016441,"Argentina_Egypt_2026-07-07",TRUE
 2026-07-11,"Argentina","Argentina","J","ARG",1584.692247519,"Argentina_Switzerland_2026-07-11",TRUE
 2026-07-15,"Argentina","Argentina","J","ARG",1589.39183487863,"England_Argentina_2026-07-15",TRUE
-2026-07-19,"Argentina","Argentina","J","ARG",1589.39183487863,"tournament_end",TRUE
+2026-07-19,"Argentina","Argentina","J","ARG",1575.54202379015,"Spain_Argentina_2026-07-19",TRUE
+2026-07-20,"Argentina","Argentina","J","ARG",1575.54202379015,"tournament_end",TRUE
 2026-06-11,"Australia","Australia","D","AUS",1276.1899998849,"tournament_start",FALSE
 2026-06-13,"Australia","Australia","D","AUS",1302.20240909431,"Australia_Turkey_2026-06-13",TRUE
 2026-06-19,"Australia","Australia","D","AUS",1292.8400605452,"United States_Australia_2026-06-19",TRUE
 2026-06-25,"Australia","Australia","D","AUS",1290.15312015725,"Paraguay_Australia_2026-06-25",TRUE
 2026-07-03,"Australia","Australia","D","AUS",1291.21977779682,"Australia_Egypt_2026-07-03",TRUE
-2026-07-19,"Australia","Australia","D","AUS",1291.21977779682,"tournament_end",TRUE
+2026-07-20,"Australia","Australia","D","AUS",1291.21977779682,"tournament_end",TRUE
 2026-06-11,"Austria","Austria","J","AUT",1315.71249034884,"tournament_start",FALSE
 2026-06-16,"Austria","Austria","J","AUT",1330.87213698853,"Austria_Jordan_2026-06-16",TRUE
 2026-06-22,"Austria","Austria","J","AUT",1319.8582679725,"Argentina_Austria_2026-06-22",TRUE
 2026-06-27,"Austria","Austria","J","AUT",1318.22060102648,"Algeria_Austria_2026-06-27",TRUE
 2026-07-02,"Austria","Austria","J","AUT",1311.02245937442,"Spain_Austria_2026-07-02",TRUE
-2026-07-19,"Austria","Austria","J","AUT",1311.02245937442,"tournament_end",TRUE
+2026-07-20,"Austria","Austria","J","AUT",1311.02245937442,"tournament_end",TRUE
 2026-06-11,"Belgium","Belgium","G","BEL",1379.07890616935,"tournament_start",FALSE
 2026-06-15,"Belgium","Belgium","G","BEL",1375.62645984153,"Belgium_Egypt_2026-06-15",TRUE
 2026-06-21,"Belgium","Belgium","G","BEL",1376.61941819133,"Belgium_Iran_2026-06-21",TRUE
@@ -33,75 +34,75 @@
 2026-07-01,"Belgium","Belgium","G","BEL",1390.03870533782,"Belgium_Senegal_2026-07-01",TRUE
 2026-07-06,"Belgium","Belgium","G","BEL",1398.23823715936,"United States_Belgium_2026-07-06",TRUE
 2026-07-10,"Belgium","Belgium","G","BEL",1389.22343427191,"Spain_Belgium_2026-07-10",TRUE
-2026-07-19,"Belgium","Belgium","G","BEL",1389.22343427191,"tournament_end",TRUE
+2026-07-20,"Belgium","Belgium","G","BEL",1389.22343427191,"tournament_end",TRUE
 2026-06-11,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1092.97980593899,"tournament_start",FALSE
 2026-06-12,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1105.42453852733,"Canada_Bosnia and Herzegovina_2026-06-12",TRUE
 2026-06-18,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1099.26031239036,"Switzerland_Bosnia and Herzegovina_2026-06-18",TRUE
 2026-06-24,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1110.47080302268,"Bosnia and Herzegovina_Qatar_2026-06-24",TRUE
 2026-07-01,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1105.87420786839,"United States_Bosnia and Herzegovina_2026-07-01",TRUE
-2026-07-19,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1105.87420786839,"tournament_end",TRUE
+2026-07-20,"Bosnia and Herzegovina","Bosnia and Herzegovina","B","BIH",1105.87420786839,"tournament_end",TRUE
 2026-06-11,"Brazil","Brazil","C","BRA",1475.22773778925,"tournament_start",FALSE
 2026-06-13,"Brazil","Brazil","C","BRA",1472.97184008995,"Brazil_Morocco_2026-06-13",TRUE
 2026-06-19,"Brazil","Brazil","C","BRA",1476.25513729661,"Brazil_Haiti_2026-06-19",TRUE
 2026-06-24,"Brazil","Brazil","C","BRA",1478.81676661144,"Scotland_Brazil_2026-06-24",TRUE
 2026-06-29,"Brazil","Brazil","C","BRA",1487.71126147585,"Brazil_Japan_2026-06-29",TRUE
 2026-07-05,"Brazil","Brazil","C","BRA",1474.93636930398,"Brazil_Norway_2026-07-05",TRUE
-2026-07-19,"Brazil","Brazil","C","BRA",1474.93636930398,"tournament_end",TRUE
+2026-07-20,"Brazil","Brazil","C","BRA",1474.93636930398,"tournament_end",TRUE
 2026-06-11,"Canada","Canada","B","CAN",1288.73597096389,"tournament_start",FALSE
 2026-06-12,"Canada","Canada","B","CAN",1282.34469543376,"Canada_Bosnia and Herzegovina_2026-06-12",TRUE
 2026-06-18,"Canada","Canada","B","CAN",1286.00620944609,"Canada_Qatar_2026-06-18",TRUE
 2026-06-24,"Canada","Canada","B","CAN",1275.02674242359,"Canada_Switzerland_2026-06-24",TRUE
 2026-06-28,"Canada","Canada","B","CAN",1280.2331601358,"South Africa_Canada_2026-06-28",TRUE
 2026-07-04,"Canada","Canada","B","CAN",1274.58597940206,"Canada_Morocco_2026-07-04",TRUE
-2026-07-19,"Canada","Canada","B","CAN",1274.58597940206,"tournament_end",TRUE
+2026-07-20,"Canada","Canada","B","CAN",1274.58597940206,"tournament_end",TRUE
 2026-06-11,"Cape Verde","Cape Verde","H","CPV",1161.14313617958,"tournament_start",FALSE
 2026-06-15,"Cape Verde","Cape Verde","H","CPV",1167.42933227017,"Spain_Cape Verde_2026-06-15",TRUE
 2026-06-21,"Cape Verde","Cape Verde","H","CPV",1170.44580438674,"Uruguay_Cape Verde_2026-06-21",TRUE
 2026-06-26,"Cape Verde","Cape Verde","H","CPV",1171.84875131978,"Cape Verde_Saudi Arabia_2026-06-26",TRUE
 2026-07-03,"Cape Verde","Cape Verde","H","CPV",1169.27863478819,"Argentina_Cape Verde_2026-07-03",TRUE
-2026-07-19,"Cape Verde","Cape Verde","H","CPV",1169.27863478819,"tournament_end",TRUE
+2026-07-20,"Cape Verde","Cape Verde","H","CPV",1169.27863478819,"tournament_end",TRUE
 2026-06-11,"Colombia","Colombia","K","COL",1426.0103443079,"tournament_start",FALSE
 2026-06-17,"Colombia","Colombia","K","COL",1432.74658693295,"Uzbekistan_Colombia_2026-06-17",TRUE
 2026-06-23,"Colombia","Colombia","K","COL",1437.63126871453,"Colombia_DR Congo_2026-06-23",TRUE
 2026-06-27,"Colombia","Colombia","K","COL",1438.7972283467,"Colombia_Portugal_2026-06-27",TRUE
 2026-07-03,"Colombia","Colombia","K","COL",1442.31157658407,"Colombia_Ghana_2026-07-03",TRUE
 2026-07-07,"Colombia","Colombia","K","COL",1437.82494125871,"Switzerland_Colombia_2026-07-07",TRUE
-2026-07-19,"Colombia","Colombia","K","COL",1437.82494125871,"tournament_end",TRUE
+2026-07-20,"Colombia","Colombia","K","COL",1437.82494125871,"tournament_end",TRUE
 2026-06-11,"Croatia","Croatia","L","CRO",1339.23648958809,"tournament_start",FALSE
 2026-06-17,"Croatia","Croatia","L","CRO",1319.42086108,"England_Croatia_2026-06-17",TRUE
 2026-06-23,"Croatia","Croatia","L","CRO",1324.79403128461,"Panama_Croatia_2026-06-23",TRUE
 2026-06-27,"Croatia","Croatia","L","CRO",1330.86477420708,"Croatia_Ghana_2026-06-27",TRUE
 2026-07-02,"Croatia","Croatia","L","CRO",1321.60372722578,"Portugal_Croatia_2026-07-02",TRUE
-2026-07-19,"Croatia","Croatia","L","CRO",1321.60372722578,"tournament_end",TRUE
+2026-07-20,"Croatia","Croatia","L","CRO",1321.60372722578,"tournament_end",TRUE
 2026-06-11,"Curaçao","Curacao","E","CUW",1025.46985139925,"tournament_start",FALSE
 2026-06-14,"Curaçao","Curacao","E","CUW",1022.60662282659,"Germany_Curaçao_2026-06-14",TRUE
 2026-06-20,"Curaçao","Curacao","E","CUW",1028.95539861059,"Ecuador_Curaçao_2026-06-20",TRUE
 2026-06-25,"Curaçao","Curacao","E","CUW",1025.85884464678,"Curaçao_Ivory Coast_2026-06-25",TRUE
-2026-07-19,"Curaçao","Curacao","E","CUW",1025.85884464678,"tournament_end",TRUE
+2026-07-20,"Curaçao","Curacao","E","CUW",1025.85884464678,"tournament_end",TRUE
 2026-06-11,"Czech Republic","Czechia","A","CZE",1240.89762085914,"tournament_start",FALSE
 2026-06-11,"Czech Republic","Czechia","A","CZE",1220.65054040166,"Korea Republic_Czech Republic_2026-06-11",TRUE
 2026-06-18,"Czech Republic","Czechia","A","CZE",1219.9561030818,"Czech Republic_South Africa_2026-06-18",TRUE
 2026-06-24,"Czech Republic","Czechia","A","CZE",1215.40634345086,"Mexico_Czech Republic_2026-06-24",TRUE
-2026-07-19,"Czech Republic","Czechia","A","CZE",1215.40634345086,"tournament_end",TRUE
+2026-07-20,"Czech Republic","Czechia","A","CZE",1215.40634345086,"tournament_end",TRUE
 2026-06-11,"DR Congo","DR Congo","K","COD",1177.19386962598,"tournament_start",FALSE
 2026-06-17,"DR Congo","DR Congo","K","COD",1182.00397510779,"Portugal_DR Congo_2026-06-17",TRUE
 2026-06-23,"DR Congo","DR Congo","K","COD",1176.903852122,"Colombia_DR Congo_2026-06-23",TRUE
 2026-06-27,"DR Congo","DR Congo","K","COD",1189.22374811822,"DR Congo_Uzbekistan_2026-06-27",TRUE
 2026-07-01,"DR Congo","DR Congo","K","COD",1183.76214994411,"England_DR Congo_2026-07-01",TRUE
-2026-07-19,"DR Congo","DR Congo","K","COD",1183.76214994411,"tournament_end",TRUE
+2026-07-20,"DR Congo","DR Congo","K","COD",1183.76214994411,"tournament_end",TRUE
 2026-06-11,"Ecuador","Ecuador","E","ECU",1377.4518840477,"tournament_start",FALSE
 2026-06-14,"Ecuador","Ecuador","E","ECU",1348.00088789636,"Ivory Coast_Ecuador_2026-06-14",TRUE
 2026-06-20,"Ecuador","Ecuador","E","ECU",1341.45678696577,"Ecuador_Curaçao_2026-06-20",TRUE
 2026-06-25,"Ecuador","Ecuador","E","ECU",1355.09425651259,"Ecuador_Germany_2026-06-25",TRUE
 2026-06-30,"Ecuador","Ecuador","E","ECU",1347.44274307147,"Mexico_Ecuador_2026-06-30",TRUE
-2026-07-19,"Ecuador","Ecuador","E","ECU",1347.44274307147,"tournament_end",TRUE
+2026-07-20,"Ecuador","Ecuador","E","ECU",1347.44274307147,"tournament_end",TRUE
 2026-06-11,"Egypt","Egypt","G","EGY",1261.52986863152,"tournament_start",FALSE
 2026-06-15,"Egypt","Egypt","G","EGY",1263.01496053513,"Belgium_Egypt_2026-06-15",TRUE
 2026-06-21,"Egypt","Egypt","G","EGY",1268.50313314898,"New Zealand_Egypt_2026-06-21",TRUE
 2026-06-26,"Egypt","Egypt","G","EGY",1272.32365871322,"Egypt_Iran_2026-06-26",TRUE
 2026-07-03,"Egypt","Egypt","G","EGY",1270.99296377748,"Australia_Egypt_2026-07-03",TRUE
 2026-07-07,"Egypt","Egypt","G","EGY",1266.99271249347,"Argentina_Egypt_2026-07-07",TRUE
-2026-07-19,"Egypt","Egypt","G","EGY",1266.99271249347,"tournament_end",TRUE
+2026-07-20,"Egypt","Egypt","G","EGY",1266.99271249347,"tournament_end",TRUE
 2026-06-11,"England","England","L","ENG",1405.58603304351,"tournament_start",FALSE
 2026-06-17,"England","England","L","ENG",1425.08264313822,"England_Croatia_2026-06-17",TRUE
 2026-06-23,"England","England","L","ENG",1418.84186294815,"England_Ghana_2026-06-23",TRUE
@@ -111,7 +112,7 @@
 2026-07-11,"England","England","L","ENG",1443.80653030507,"Norway_England_2026-07-11",TRUE
 2026-07-15,"England","England","L","ENG",1438.94058612519,"England_Argentina_2026-07-15",TRUE
 2026-07-18,"England","England","L","ENG",1448.37495481258,"France_England_2026-07-18",TRUE
-2026-07-19,"England","England","L","ENG",1448.37495481258,"tournament_end",TRUE
+2026-07-20,"England","England","L","ENG",1448.37495481258,"tournament_end",TRUE
 2026-06-11,"France","France","I","FRA",1443.69695715686,"tournament_start",FALSE
 2026-06-16,"France","France","I","FRA",1461.30603196805,"France_Senegal_2026-06-16",TRUE
 2026-06-22,"France","France","I","FRA",1466.10981250253,"France_Iraq_2026-06-22",TRUE
@@ -121,63 +122,63 @@
 2026-07-09,"France","France","I","FRA",1489.33668659601,"France_Morocco_2026-07-09",TRUE
 2026-07-14,"France","France","I","FRA",1481.35522878153,"France_Spain_2026-07-14",TRUE
 2026-07-18,"France","France","I","FRA",1471.78020692079,"France_England_2026-07-18",TRUE
-2026-07-19,"France","France","I","FRA",1471.78020692079,"tournament_end",TRUE
+2026-07-20,"France","France","I","FRA",1471.78020692079,"tournament_end",TRUE
 2026-06-11,"Germany","Germany","E","GER",1404.45211292776,"tournament_start",FALSE
 2026-06-14,"Germany","Germany","E","GER",1409.79896799989,"Germany_Curaçao_2026-06-14",TRUE
 2026-06-20,"Germany","Germany","E","GER",1417.60616118107,"Germany_Ivory Coast_2026-06-20",TRUE
 2026-06-25,"Germany","Germany","E","GER",1403.77924720115,"Ecuador_Germany_2026-06-25",TRUE
 2026-06-29,"Germany","Germany","E","GER",1401.4343812204,"Germany_Paraguay_2026-06-29",TRUE
-2026-07-19,"Germany","Germany","E","GER",1401.4343812204,"tournament_end",TRUE
+2026-07-20,"Germany","Germany","E","GER",1401.4343812204,"tournament_end",TRUE
 2026-06-11,"Ghana","Ghana","L","GHA",1087.36563872063,"tournament_start",FALSE
 2026-06-17,"Ghana","Ghana","L","GHA",1117.45720162651,"Ghana_Panama_2026-06-17",TRUE
 2026-06-23,"Ghana","Ghana","L","GHA",1123.48849038217,"England_Ghana_2026-06-23",TRUE
 2026-06-27,"Ghana","Ghana","L","GHA",1117.28326218324,"Croatia_Ghana_2026-06-27",TRUE
 2026-07-03,"Ghana","Ghana","L","GHA",1113.558306836,"Colombia_Ghana_2026-07-03",TRUE
-2026-07-19,"Ghana","Ghana","L","GHA",1113.558306836,"tournament_end",TRUE
+2026-07-20,"Ghana","Ghana","L","GHA",1113.558306836,"tournament_end",TRUE
 2026-06-11,"Haiti","Haiti","C","HAI",1144.65460442624,"tournament_start",FALSE
 2026-06-13,"Haiti","Haiti","C","HAI",1137.7793864843,"Haiti_Scotland_2026-06-13",TRUE
 2026-06-19,"Haiti","Haiti","C","HAI",1134.2809775969,"Brazil_Haiti_2026-06-19",TRUE
 2026-06-24,"Haiti","Haiti","C","HAI",1129.16711963351,"Morocco_Haiti_2026-06-24",TRUE
-2026-07-19,"Haiti","Haiti","C","HAI",1129.16711963351,"tournament_end",TRUE
+2026-07-20,"Haiti","Haiti","C","HAI",1129.16711963351,"tournament_end",TRUE
 2026-06-11,"Iran","Iran","G","IRN",1362.66087099587,"tournament_start",FALSE
 2026-06-15,"Iran","Iran","G","IRN",1354.21955295547,"Iran_New Zealand_2026-06-15",TRUE
 2026-06-21,"Iran","Iran","G","IRN",1351.89536768593,"Belgium_Iran_2026-06-21",TRUE
 2026-06-26,"Iran","Iran","G","IRN",1343.98729446359,"Egypt_Iran_2026-06-26",TRUE
-2026-07-19,"Iran","Iran","G","IRN",1343.98729446359,"tournament_end",TRUE
+2026-07-20,"Iran","Iran","G","IRN",1343.98729446359,"tournament_end",TRUE
 2026-06-11,"Iraq","Iraq","I","IRQ",1212.83240400903,"tournament_start",FALSE
 2026-06-16,"Iraq","Iraq","I","IRQ",1206.9064575818,"Iraq_Norway_2026-06-16",TRUE
 2026-06-22,"Iraq","Iraq","I","IRQ",1201.88283087148,"France_Iraq_2026-06-22",TRUE
 2026-06-26,"Iraq","Iraq","I","IRQ",1193.57016526852,"Senegal_Iraq_2026-06-26",TRUE
-2026-07-19,"Iraq","Iraq","I","IRQ",1193.57016526852,"tournament_end",TRUE
+2026-07-20,"Iraq","Iraq","I","IRQ",1193.57016526852,"tournament_end",TRUE
 2026-06-11,"Ivory Coast","Cote d'Ivoire","E","CIV",1262.08705881063,"tournament_start",FALSE
 2026-06-14,"Ivory Coast","Cote d'Ivoire","E","CIV",1276.5730417916,"Ivory Coast_Ecuador_2026-06-14",TRUE
 2026-06-20,"Ivory Coast","Cote d'Ivoire","E","CIV",1268.54450618903,"Germany_Ivory Coast_2026-06-20",TRUE
 2026-06-25,"Ivory Coast","Cote d'Ivoire","E","CIV",1271.48330783794,"Curaçao_Ivory Coast_2026-06-25",TRUE
 2026-06-30,"Ivory Coast","Cote d'Ivoire","E","CIV",1264.5920394014,"Ivory Coast_Norway_2026-06-30",TRUE
-2026-07-19,"Ivory Coast","Cote d'Ivoire","E","CIV",1264.5920394014,"tournament_end",TRUE
+2026-07-20,"Ivory Coast","Cote d'Ivoire","E","CIV",1264.5920394014,"tournament_end",TRUE
 2026-06-11,"Japan","Japan","F","JPN",1381.72222071309,"tournament_start",FALSE
 2026-06-14,"Japan","Japan","F","JPN",1377.94955487671,"Netherlands_Japan_2026-06-14",TRUE
 2026-06-20,"Japan","Japan","F","JPN",1385.72020386856,"Tunisia_Japan_2026-06-20",TRUE
 2026-06-25,"Japan","Japan","F","JPN",1383.79198823988,"Japan_Sweden_2026-06-25",TRUE
 2026-06-29,"Japan","Japan","F","JPN",1374.71994164712,"Brazil_Japan_2026-06-29",TRUE
-2026-07-19,"Japan","Japan","F","JPN",1374.71994164712,"tournament_end",TRUE
+2026-07-20,"Japan","Japan","F","JPN",1374.71994164712,"tournament_end",TRUE
 2026-06-11,"Jordan","Jordan","J","JOR",1174.78287732102,"tournament_start",FALSE
 2026-06-16,"Jordan","Jordan","J","JOR",1166.92236237203,"Austria_Jordan_2026-06-16",TRUE
 2026-06-22,"Jordan","Jordan","J","JOR",1162.31596166279,"Jordan_Algeria_2026-06-22",TRUE
 2026-06-27,"Jordan","Jordan","J","JOR",1160.98196785331,"Jordan_Argentina_2026-06-27",TRUE
-2026-07-19,"Jordan","Jordan","J","JOR",1160.98196785331,"tournament_end",TRUE
+2026-07-20,"Jordan","Jordan","J","JOR",1160.98196785331,"tournament_end",TRUE
 2026-06-11,"Korea Republic","South Korea","A","KOR",1298.70090966055,"tournament_start",FALSE
 2026-06-11,"Korea Republic","South Korea","A","KOR",1318.68603464902,"Korea Republic_Czech Republic_2026-06-11",TRUE
 2026-06-18,"Korea Republic","South Korea","A","KOR",1311.67334766725,"Mexico_Korea Republic_2026-06-18",TRUE
 2026-06-24,"Korea Republic","South Korea","A","KOR",1295.75651849256,"South Africa_Korea Republic_2026-06-24",TRUE
-2026-07-19,"Korea Republic","South Korea","A","KOR",1295.75651849256,"tournament_end",TRUE
+2026-07-20,"Korea Republic","South Korea","A","KOR",1295.75651849256,"tournament_end",TRUE
 2026-06-11,"Mexico","Mexico","A","MEX",1367.46113079602,"tournament_start",FALSE
 2026-06-11,"Mexico","Mexico","A","MEX",1370.60111547729,"Mexico_South Africa_2026-06-11",TRUE
 2026-06-18,"Mexico","Mexico","A","MEX",1377.35529118552,"Mexico_Korea Republic_2026-06-18",TRUE
 2026-06-24,"Mexico","Mexico","A","MEX",1381.69104650471,"Mexico_Czech Republic_2026-06-24",TRUE
 2026-06-30,"Mexico","Mexico","A","MEX",1389.13567183576,"Mexico_Ecuador_2026-06-30",TRUE
 2026-07-05,"Mexico","Mexico","A","MEX",1378.41892990919,"Mexico_England_2026-07-05",TRUE
-2026-07-19,"Mexico","Mexico","A","MEX",1378.41892990919,"tournament_end",TRUE
+2026-07-20,"Mexico","Mexico","A","MEX",1378.41892990919,"tournament_end",TRUE
 2026-06-11,"Morocco","Morocco","C","MAR",1378.33629331865,"tournament_start",FALSE
 2026-06-13,"Morocco","Morocco","C","MAR",1379.2797706595,"Brazil_Morocco_2026-06-13",TRUE
 2026-06-19,"Morocco","Morocco","C","MAR",1383.4840193059,"Scotland_Morocco_2026-06-19",TRUE
@@ -185,18 +186,18 @@
 2026-06-29,"Morocco","Morocco","C","MAR",1386.81273817959,"Netherlands_Morocco_2026-06-29",TRUE
 2026-07-04,"Morocco","Morocco","C","MAR",1392.25921250707,"Canada_Morocco_2026-07-04",TRUE
 2026-07-09,"Morocco","Morocco","C","MAR",1382.96711077148,"France_Morocco_2026-07-09",TRUE
-2026-07-19,"Morocco","Morocco","C","MAR",1382.96711077148,"tournament_end",TRUE
+2026-07-20,"Morocco","Morocco","C","MAR",1382.96711077148,"tournament_end",TRUE
 2026-06-11,"Netherlands","Netherlands","F","NED",1380.01058322165,"tournament_start",FALSE
 2026-06-14,"Netherlands","Netherlands","F","NED",1383.4039167292,"Netherlands_Japan_2026-06-14",TRUE
 2026-06-20,"Netherlands","Netherlands","F","NED",1391.76151388955,"Netherlands_Sweden_2026-06-20",TRUE
 2026-06-25,"Netherlands","Netherlands","F","NED",1395.29284400688,"Tunisia_Netherlands_2026-06-25",TRUE
 2026-06-29,"Netherlands","Netherlands","F","NED",1396.73312986592,"Netherlands_Morocco_2026-06-29",TRUE
-2026-07-19,"Netherlands","Netherlands","F","NED",1396.73312986592,"tournament_end",TRUE
+2026-07-20,"Netherlands","Netherlands","F","NED",1396.73312986592,"tournament_end",TRUE
 2026-06-11,"New Zealand","New Zealand","G","NZL",1150.50871733485,"tournament_start",FALSE
 2026-06-15,"New Zealand","New Zealand","G","NZL",1158.60201286524,"Iran_New Zealand_2026-06-15",TRUE
 2026-06-21,"New Zealand","New Zealand","G","NZL",1152.91431220293,"New Zealand_Egypt_2026-06-21",TRUE
 2026-06-26,"New Zealand","New Zealand","G","NZL",1149.56688920249,"New Zealand_Belgium_2026-06-26",TRUE
-2026-07-19,"New Zealand","New Zealand","G","NZL",1149.56688920249,"tournament_end",TRUE
+2026-07-20,"New Zealand","New Zealand","G","NZL",1149.56688920249,"tournament_end",TRUE
 2026-06-11,"Norway","Norway","I","NOR",1308.02689868579,"tournament_start",FALSE
 2026-06-16,"Norway","Norway","I","NOR",1319.48396320425,"Iraq_Norway_2026-06-16",TRUE
 2026-06-22,"Norway","Norway","I","NOR",1331.53471047118,"Norway_Senegal_2026-06-22",TRUE
@@ -204,53 +205,53 @@
 2026-06-30,"Norway","Norway","I","NOR",1333.27252131516,"Ivory Coast_Norway_2026-06-30",TRUE
 2026-07-05,"Norway","Norway","I","NOR",1345.83328822577,"Brazil_Norway_2026-07-05",TRUE
 2026-07-11,"Norway","Norway","I","NOR",1339.84291747978,"Norway_England_2026-07-11",TRUE
-2026-07-19,"Norway","Norway","I","NOR",1339.84291747978,"tournament_end",TRUE
+2026-07-20,"Norway","Norway","I","NOR",1339.84291747978,"tournament_end",TRUE
 2026-06-11,"Panama","Panama","L","PAN",1225.56255335293,"tournament_start",FALSE
 2026-06-17,"Panama","Panama","L","PAN",1210.21966450737,"Ghana_Panama_2026-06-17",TRUE
 2026-06-23,"Panama","Panama","L","PAN",1204.63806570199,"Panama_Croatia_2026-06-23",TRUE
 2026-06-27,"Panama","Panama","L","PAN",1201.15138291182,"Panama_England_2026-06-27",TRUE
-2026-07-19,"Panama","Panama","L","PAN",1201.15138291182,"tournament_end",TRUE
+2026-07-20,"Panama","Panama","L","PAN",1201.15138291182,"tournament_end",TRUE
 2026-06-11,"Paraguay","Paraguay","D","PAR",1257.88221816518,"tournament_start",FALSE
 2026-06-12,"Paraguay","Paraguay","D","PAR",1241.30159911671,"United States_Paraguay_2026-06-12",TRUE
 2026-06-19,"Paraguay","Paraguay","D","PAR",1261.11121531396,"Turkey_Paraguay_2026-06-19",TRUE
 2026-06-25,"Paraguay","Paraguay","D","PAR",1263.58772402773,"Paraguay_Australia_2026-06-25",TRUE
 2026-06-29,"Paraguay","Paraguay","D","PAR",1265.78607032321,"Germany_Paraguay_2026-06-29",TRUE
 2026-07-04,"Paraguay","Paraguay","D","PAR",1262.22740041124,"Paraguay_France_2026-07-04",TRUE
-2026-07-19,"Paraguay","Paraguay","D","PAR",1262.22740041124,"tournament_end",TRUE
+2026-07-20,"Paraguay","Paraguay","D","PAR",1262.22740041124,"tournament_end",TRUE
 2026-06-11,"Portugal","Portugal","K","POR",1425.25536465872,"tournament_start",FALSE
 2026-06-17,"Portugal","Portugal","K","POR",1415.23950106139,"Portugal_DR Congo_2026-06-17",TRUE
 2026-06-23,"Portugal","Portugal","K","POR",1421.10919245968,"Portugal_Uzbekistan_2026-06-23",TRUE
 2026-06-27,"Portugal","Portugal","K","POR",1419.78620090909,"Colombia_Portugal_2026-06-27",TRUE
 2026-07-02,"Portugal","Portugal","K","POR",1428.85838104521,"Portugal_Croatia_2026-07-02",TRUE
 2026-07-06,"Portugal","Portugal","K","POR",1422.09805315712,"Portugal_Spain_2026-07-06",TRUE
-2026-07-19,"Portugal","Portugal","K","POR",1422.09805315712,"tournament_end",TRUE
+2026-07-20,"Portugal","Portugal","K","POR",1422.09805315712,"tournament_end",TRUE
 2026-06-11,"Qatar","Qatar","B","QAT",1081.65545407476,"tournament_start",FALSE
 2026-06-13,"Qatar","Qatar","B","QAT",1088.56229883812,"Qatar_Switzerland_2026-06-13",TRUE
 2026-06-18,"Qatar","Qatar","B","QAT",1084.72038309088,"Canada_Qatar_2026-06-18",TRUE
 2026-06-24,"Qatar","Qatar","B","QAT",1073.32994434503,"Bosnia and Herzegovina_Qatar_2026-06-24",TRUE
-2026-07-19,"Qatar","Qatar","B","QAT",1073.32994434503,"tournament_end",TRUE
+2026-07-20,"Qatar","Qatar","B","QAT",1073.32994434503,"tournament_end",TRUE
 2026-06-11,"Saudi Arabia","Saudi Arabia","H","KSA",1160.2505407506,"tournament_start",FALSE
 2026-06-15,"Saudi Arabia","Saudi Arabia","H","KSA",1166.34854138348,"Saudi Arabia_Uruguay_2026-06-15",TRUE
 2026-06-21,"Saudi Arabia","Saudi Arabia","H","KSA",1162.36384815142,"Spain_Saudi Arabia_2026-06-21",TRUE
 2026-06-26,"Saudi Arabia","Saudi Arabia","H","KSA",1160.80072444442,"Cape Verde_Saudi Arabia_2026-06-26",TRUE
-2026-07-19,"Saudi Arabia","Saudi Arabia","H","KSA",1160.80072444442,"tournament_end",TRUE
+2026-07-20,"Saudi Arabia","Saudi Arabia","H","KSA",1160.80072444442,"tournament_end",TRUE
 2026-06-11,"Scotland","Scotland","C","SCO",1201.82986845443,"tournament_start",FALSE
 2026-06-13,"Scotland","Scotland","C","SCO",1215.21327816545,"Haiti_Scotland_2026-06-13",TRUE
 2026-06-19,"Scotland","Scotland","C","SCO",1210.79525742359,"Scotland_Morocco_2026-06-19",TRUE
 2026-06-24,"Scotland","Scotland","C","SCO",1208.04912824474,"Scotland_Brazil_2026-06-24",TRUE
-2026-07-19,"Scotland","Scotland","C","SCO",1208.04912824474,"tournament_end",TRUE
+2026-07-20,"Scotland","Scotland","C","SCO",1208.04912824474,"tournament_end",TRUE
 2026-06-11,"Senegal","Senegal","I","SEN",1344.72593009995,"tournament_start",FALSE
 2026-06-16,"Senegal","Senegal","I","SEN",1335.71282838633,"France_Senegal_2026-06-16",TRUE
 2026-06-22,"Senegal","Senegal","I","SEN",1323.44330736619,"Norway_Senegal_2026-06-22",TRUE
 2026-06-26,"Senegal","Senegal","I","SEN",1331.61725565168,"Senegal_Iraq_2026-06-26",TRUE
 2026-07-01,"Senegal","Senegal","I","SEN",1321.18553465903,"Belgium_Senegal_2026-07-01",TRUE
-2026-07-19,"Senegal","Senegal","I","SEN",1321.18553465903,"tournament_end",TRUE
+2026-07-20,"Senegal","Senegal","I","SEN",1321.18553465903,"tournament_end",TRUE
 2026-06-11,"South Africa","South Africa","A","RSA",1143.91998590051,"tournament_start",FALSE
 2026-06-11,"South Africa","South Africa","A","RSA",1140.57000769544,"Mexico_South Africa_2026-06-11",TRUE
 2026-06-18,"South Africa","South Africa","A","RSA",1141.03746957649,"Czech Republic_South Africa_2026-06-18",TRUE
 2026-06-24,"South Africa","South Africa","A","RSA",1156.75220873935,"South Africa_Korea Republic_2026-06-24",TRUE
 2026-06-28,"South Africa","South Africa","A","RSA",1151.41221229935,"South Africa_Canada_2026-06-28",TRUE
-2026-07-19,"South Africa","South Africa","A","RSA",1151.41221229935,"tournament_end",TRUE
+2026-07-20,"South Africa","South Africa","A","RSA",1151.41221229935,"tournament_end",TRUE
 2026-06-11,"Spain","Spain","H","ESP",1486.31253013442,"tournament_start",FALSE
 2026-06-15,"Spain","Spain","H","ESP",1473.31025450395,"Spain_Cape Verde_2026-06-15",TRUE
 2026-06-21,"Spain","Spain","H","ESP",1477.077454229,"Spain_Saudi Arabia_2026-06-21",TRUE
@@ -259,13 +260,14 @@
 2026-07-06,"Spain","Spain","H","ESP",1495.28099390248,"Portugal_Spain_2026-07-06",TRUE
 2026-07-10,"Spain","Spain","H","ESP",1504.1368544578,"Spain_Belgium_2026-07-10",TRUE
 2026-07-14,"Spain","Spain","H","ESP",1511.93342762046,"France_Spain_2026-07-14",TRUE
-2026-07-19,"Spain","Spain","H","ESP",1511.93342762046,"tournament_end",TRUE
+2026-07-19,"Spain","Spain","H","ESP",1525.59211941115,"Spain_Argentina_2026-07-19",TRUE
+2026-07-20,"Spain","Spain","H","ESP",1525.59211941115,"tournament_end",TRUE
 2026-06-11,"Sweden","Sweden","F","SWE",1249.15773607073,"tournament_start",FALSE
 2026-06-14,"Sweden","Sweden","F","SWE",1269.87248782746,"Sweden_Tunisia_2026-06-14",TRUE
 2026-06-20,"Sweden","Sweden","F","SWE",1261.29627514333,"Netherlands_Sweden_2026-06-20",TRUE
 2026-06-25,"Sweden","Sweden","F","SWE",1263.04273974069,"Japan_Sweden_2026-06-25",TRUE
 2026-06-30,"Sweden","Sweden","F","SWE",1256.97345474373,"France_Sweden_2026-06-30",TRUE
-2026-07-19,"Sweden","Sweden","F","SWE",1256.97345474373,"tournament_end",TRUE
+2026-07-20,"Sweden","Sweden","F","SWE",1256.97345474373,"tournament_end",TRUE
 2026-06-11,"Switzerland","Switzerland","B","SUI",1323.74801994038,"tournament_start",FALSE
 2026-06-13,"Switzerland","Switzerland","B","SUI",1309.59913227598,"Qatar_Switzerland_2026-06-13",TRUE
 2026-06-18,"Switzerland","Switzerland","B","SUI",1315.58235697184,"Switzerland_Bosnia and Herzegovina_2026-06-18",TRUE
@@ -273,31 +275,31 @@
 2026-07-02,"Switzerland","Switzerland","B","SUI",1337.93510746779,"Switzerland_Algeria_2026-07-02",TRUE
 2026-07-07,"Switzerland","Switzerland","B","SUI",1342.25064985799,"Switzerland_Colombia_2026-07-07",TRUE
 2026-07-11,"Switzerland","Switzerland","B","SUI",1336.87689056118,"Argentina_Switzerland_2026-07-11",TRUE
-2026-07-19,"Switzerland","Switzerland","B","SUI",1336.87689056118,"tournament_end",TRUE
+2026-07-20,"Switzerland","Switzerland","B","SUI",1336.87689056118,"tournament_end",TRUE
 2026-06-11,"Tunisia","Tunisia","F","TUN",1204.52499481194,"tournament_start",FALSE
 2026-06-14,"Tunisia","Tunisia","F","TUN",1193.94952488026,"Sweden_Tunisia_2026-06-14",TRUE
 2026-06-20,"Tunisia","Tunisia","F","TUN",1189.9090576778,"Tunisia_Japan_2026-06-20",TRUE
 2026-06-25,"Tunisia","Tunisia","F","TUN",1186.20046334899,"Tunisia_Netherlands_2026-06-25",TRUE
-2026-07-19,"Tunisia","Tunisia","F","TUN",1186.20046334899,"tournament_end",TRUE
+2026-07-20,"Tunisia","Tunisia","F","TUN",1186.20046334899,"tournament_end",TRUE
 2026-06-11,"Turkey","Turkiye","D","TUR",1326.31749404455,"tournament_start",FALSE
 2026-06-13,"Turkey","Turkiye","D","TUR",1300.05491537049,"Australia_Turkey_2026-06-13",TRUE
 2026-06-19,"Turkey","Turkiye","D","TUR",1289.98332895149,"Turkey_Paraguay_2026-06-19",TRUE
 2026-06-25,"Turkey","Turkiye","D","TUR",1301.23003913043,"United States_Turkey_2026-06-25",TRUE
-2026-07-19,"Turkey","Turkiye","D","TUR",1301.23003913043,"tournament_end",TRUE
+2026-07-20,"Turkey","Turkiye","D","TUR",1301.23003913043,"tournament_end",TRUE
 2026-06-11,"United States","United States","D","USA",1260.02109052834,"tournament_start",FALSE
 2026-06-12,"United States","United States","D","USA",1268.14712338438,"United States_Paraguay_2026-06-12",TRUE
 2026-06-19,"United States","United States","D","USA",1277.28027523338,"United States_Australia_2026-06-19",TRUE
 2026-06-25,"United States","United States","D","USA",1265.82203651691,"United States_Turkey_2026-06-25",TRUE
 2026-07-01,"United States","United States","D","USA",1270.20758935984,"United States_Bosnia and Herzegovina_2026-07-01",TRUE
 2026-07-06,"United States","United States","D","USA",1261.82539811345,"United States_Belgium_2026-07-06",TRUE
-2026-07-19,"United States","United States","D","USA",1261.82539811345,"tournament_end",TRUE
+2026-07-20,"United States","United States","D","USA",1261.82539811345,"tournament_end",TRUE
 2026-06-11,"Uruguay","Uruguay","H","URU",1353.09797837062,"tournament_start",FALSE
 2026-06-15,"Uruguay","Uruguay","H","URU",1339.29927889067,"Saudi Arabia_Uruguay_2026-06-15",TRUE
 2026-06-21,"Uruguay","Uruguay","H","URU",1332.96360405553,"Uruguay_Cape Verde_2026-06-21",TRUE
 2026-06-26,"Uruguay","Uruguay","H","URU",1323.43338339401,"Uruguay_Spain_2026-06-26",TRUE
-2026-07-19,"Uruguay","Uruguay","H","URU",1323.43338339401,"tournament_end",TRUE
+2026-07-20,"Uruguay","Uruguay","H","URU",1323.43338339401,"tournament_end",TRUE
 2026-06-11,"Uzbekistan","Uzbekistan","K","UZB",1214.54679030559,"tournament_start",FALSE
 2026-06-17,"Uzbekistan","Uzbekistan","K","UZB",1207.4646222823,"Uzbekistan_Colombia_2026-06-17",TRUE
 2026-06-23,"Uzbekistan","Uzbekistan","K","UZB",1201.37883434968,"Portugal_Uzbekistan_2026-06-23",TRUE
 2026-06-27,"Uzbekistan","Uzbekistan","K","UZB",1188.92829819991,"DR Congo_Uzbekistan_2026-06-27",TRUE
-2026-07-19,"Uzbekistan","Uzbekistan","K","UZB",1188.92829819991,"tournament_end",TRUE
+2026-07-20,"Uzbekistan","Uzbekistan","K","UZB",1188.92829819991,"tournament_end",TRUE
