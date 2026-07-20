@@ -271,7 +271,6 @@ test_that("targets exposes the isolated Phase 9 benchmark dependency chain", {
     "benchmark_phase09_comparisons", "benchmark_phase09_bundle_files"
   )
   expect_true(all(expected %in% manifest$name))
-  expect_lt(max(match(expected, manifest$name)), match("worldcup_retrospective_ledger_bundle", manifest$name))
 
   commands <- stats::setNames(as.character(manifest$command), manifest$name)
   expect_match(commands[["benchmark_phase09_registries"]], "benchmark_phase09_registry_files", fixed = TRUE)

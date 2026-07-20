@@ -46,6 +46,15 @@ source("R/evaluation/proper_scores.R")
 source("R/evaluation/worldcup_ledger.R")
 source("R/evaluation/worldcup_retrospective.R")
 source("R/visualization/worldcup_retrospective.R")
+source("R/benchmark/registry.R")
+source("R/benchmark/cutoffs.R")
+source("R/benchmark/weights.R")
+source("R/benchmark/contracts.R")
+source("R/benchmark/baselines.R")
+source("R/forecast/tournament_formats.R")
+source("R/evaluation/benchmark_scores.R")
+source("R/evaluation/promotion.R")
+source("R/benchmark/runner.R")
 
 xgelo_feature_cutoff_date <- function(default = Sys.Date() - 1L) {
   value <- Sys.getenv("XGELO_FEATURE_CUTOFF_DATE", unset = "")
@@ -422,6 +431,116 @@ list(
     {
       worldcup_dashboard_file
       publish_worldcup_dashboard_pages()
+    },
+    format = "file"
+  ),
+  tar_target(
+    benchmark_phase09_registry_files,
+    file.path("data/benchmark/phase09", c(
+      "tournaments.csv", "fixtures.csv", "teams.csv", "formats.csv",
+      "route_rules.csv", "corrections.csv", "boundaries.csv", "panels.csv",
+      "panel_fixtures.csv", "model_registry.csv", "score_support_audit.csv",
+      "feature_contract.csv", "seed_registry.csv", "promotion_protocol.json"
+    )),
+    format = "file"
+  ),
+  tar_target(
+    benchmark_phase09_registries,
+    {
+      benchmark_phase09_registry_files
+      registry_dir <- "data/benchmark/phase09"
+      registries <- load_benchmark_registries(registry_dir)
+      inputs <- benchmark_runner_load_inputs(registry_dir)
+      protocol <- load_promotion_protocol(file.path(registry_dir, "promotion_protocol.json"))
+      validate_promotion_protocol(protocol, registry_dir = registry_dir)
+      list(registries = registries, inputs = inputs, protocol = protocol)
+    }
+  ),
+  tar_target(
+    benchmark_phase09_boundaries,
+    {
+      context <- benchmark_phase09_registries
+      inventory <- benchmark_runner_boundary_inventory(context$registries$boundaries)
+      validate_score_support_audit(
+        context$inputs$score_support_audit,
+        context$inputs$model_registry,
+        inventory
+      )
+      list(context = context, boundary_inventory = inventory)
+    }
+  ),
+  tar_target(
+    benchmark_phase09_predictions,
+    {
+      execution <- benchmark_phase09_boundaries
+      score_support_audit <- execution$context$inputs$score_support_audit
+      selected_g <- unique(as.integer(score_support_audit$selected_g))
+      history <- read.csv("data/processed/goal_training_features_hybrid.csv", stringsAsFactors = FALSE)
+      date_column <- if ("date" %in% names(history)) "date" else "actual_completion_date"
+      history <- history[
+        as.Date(history[[date_column]]) <= max(as.Date(execution$context$registries$fixtures$actual_completion_date)),
+        , drop = FALSE
+      ]
+      guard_benchmark_purpose(history, "baseline_reproduction")
+      bundle <- benchmark_default_execution_engine(
+        history = history,
+        registries = execution$context$registries,
+        inputs = execution$context$inputs,
+        boundary_inventory = execution$boundary_inventory,
+        protocol = execution$context$protocol,
+        run_id = "phase09-baselines-frozen",
+        purpose = "baseline_reproduction",
+        branch_order = execution$context$inputs$model_registry$model_id,
+        selected_g = selected_g
+      )
+      list(bundle = bundle, execution = execution, score_support_audit = score_support_audit)
+    }
+  ),
+  tar_target(
+    benchmark_phase09_stage_probabilities,
+    {
+      benchmark_phase09_predictions$bundle$feature_coverage
+      benchmark_phase09_predictions$bundle$stage_probabilities
+    }
+  ),
+  tar_target(
+    benchmark_phase09_scores,
+    {
+      benchmark_phase09_predictions$bundle$fixture_predictions
+      benchmark_phase09_predictions$bundle$score_distributions
+      list(
+        fixture_scores = benchmark_phase09_predictions$bundle$fixture_scores,
+        benchmark_summaries = benchmark_phase09_predictions$bundle$benchmark_summaries
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase09_comparisons,
+    {
+      benchmark_phase09_scores
+      feature_coverage <- benchmark_phase09_predictions$bundle$feature_coverage
+      list(
+        paired_comparisons = benchmark_phase09_predictions$bundle$paired_comparisons,
+        promotion_decisions = benchmark_phase09_predictions$bundle$promotion_decisions,
+        feature_coverage = feature_coverage
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase09_bundle_files,
+    {
+      benchmark_phase09_stage_probabilities
+      benchmark_phase09_scores
+      benchmark_phase09_comparisons
+      execution <- benchmark_phase09_predictions$execution
+      result <- write_rolling_benchmark_bundle(
+        benchmark_phase09_predictions$bundle,
+        "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen",
+        execution$context$inputs$score_support_audit,
+        execution$context$inputs$model_registry,
+        execution$boundary_inventory
+      )
+      unname(result$paths)
     },
     format = "file"
   ),
