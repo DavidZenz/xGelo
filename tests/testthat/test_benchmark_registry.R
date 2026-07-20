@@ -13,7 +13,7 @@ test_that("canonical registry has the locked 12-edition and 630-fixture denomina
   expect_equal(nrow(registries$fixtures), 630L)
   expect_equal(anyDuplicated(registries$fixtures$fixture_id), 0L)
   counts <- table(registries$fixtures$edition_id)
-  expect_equal(unname(counts[expected$edition_id]), expected$expected_fixture_count)
+  expect_equal(as.integer(counts[expected$edition_id]), expected$expected_fixture_count)
 })
 
 test_that("edition, format, identity, and regulation contracts are explicit", {
@@ -50,7 +50,10 @@ test_that("canonical registry hashes ignore harmless row order", {
 })
 
 test_that("registry validation fails on denominator, identity, and provenance drift", {
-  registries <- synthetic_benchmark_registries()
+  registries <- load_benchmark_registries(
+    file.path(project_root, "data/benchmark/phase09"),
+    validate = FALSE
+  )
   short <- registries
   short$fixtures <- short$fixtures[-1, ]
   expect_error(validate_benchmark_registries(short), "630")
@@ -62,6 +65,33 @@ test_that("registry validation fails on denominator, identity, and provenance dr
   unverified <- registries
   unverified$corrections$verification_status <- "awaiting_human_approval"
   expect_error(benchmark_registry_manifest(unverified), "verified|approval")
+})
+
+test_that("registry validation rejects enum, score, and canonical hash tampering", {
+  registries <- load_benchmark_registries(
+    file.path(project_root, "data/benchmark/phase09"),
+    validate = FALSE
+  )
+
+  bad_status <- registries
+  bad_status$fixtures$status[1] <- "silently_dropped"
+  expect_error(validate_benchmark_registries(bad_status), "invalid status")
+
+  missing_score <- registries
+  missing_score$fixtures$regulation_home_goals[1] <- NA_integer_
+  expect_error(validate_benchmark_registries(missing_score), "verified regulation")
+
+  tampered <- registries
+  tampered$fixtures$result_source[1] <- paste(tampered$fixtures$result_source[1], "tampered")
+  expect_error(validate_benchmark_registries(tampered), "SHA-256 mismatch")
+})
+
+test_that("completion manifest seals every validated registry", {
+  registries <- load_benchmark_registries(file.path(project_root, "data/benchmark/phase09"))
+  manifest <- benchmark_registry_manifest(registries)
+  expect_setequal(manifest$artifact, paste0(names(registries), ".csv"))
+  expect_true(all(manifest$sealed))
+  expect_true(all(grepl("^[0-9a-f]{64}$", manifest$canonical_sha256)))
 })
 
 test_that("registry path validation rejects traversal and external absolute roots", {

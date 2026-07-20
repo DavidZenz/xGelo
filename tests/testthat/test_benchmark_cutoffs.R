@@ -11,11 +11,15 @@ test_that("canonical boundaries contain frozen and date-complete updating tracks
 
   expect_equal(sum(boundaries$track == "frozen"), 12L)
   expect_equal(sum(boundaries$track == "updating"), 272L)
+  frozen <- boundaries[boundaries$track == "frozen", ]
   expect_equal(
-    boundaries$evidence_cutoff_exclusive[boundaries$track == "frozen"],
-    registries$tournaments$opener_date
+    frozen$evidence_cutoff_exclusive,
+    registries$tournaments$opener_date[match(frozen$edition_id, registries$tournaments$edition_id)]
   )
   expect_silent(assert_benchmark_cutoffs(registries$fixtures, boundaries))
+  stored <- registries$boundaries[order(registries$boundaries$boundary_id), ]
+  generated <- boundaries[order(boundaries$boundary_id), ]
+  expect_identical(generated$boundary_sha256, stored$boundary_sha256)
 })
 
 test_that("same-date fixtures share one strictly prior evidence state", {
