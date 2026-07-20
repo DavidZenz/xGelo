@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "xGelo 2026 World Cup Forecast",
-    "generated_at": "2026-07-20 09:22:49.986148",
+    "generated_at": "2026-07-20 10:37:25.393562",
     "model_version": "hybrid",
     "feature_cutoff_date": "2026-07-19",
     "precompute_knockout_routes": false,
@@ -14739,7 +14739,7 @@
       "prematch_projected_winner_team": "Spain",
       "prematch_projected_winner": "Spain",
       "prematch_projected_winner_match_probability": 1,
-      "prematch_generated_at": "2026-07-20 09:22:49.986148",
+      "prematch_generated_at": "2026-07-20 10:37:25.393562",
       "prematch_feature_cutoff_date": "2026-07-19",
       "prematch_actual_results_cutoff_date": "2026-07-20",
       "prematch_forecast_source": "dashboard_bracket_archive",
