@@ -59,6 +59,52 @@ promotion_case <- function(optional = FALSE) {
 
 decision_for <- function(case) evaluate_promotion(case, frozen_protocol)
 
+complete_gate_value_names <- function() {
+  c(
+    "core_rps_delta", "core_ci_upper", "core_fold_wins",
+    "core_world_cup_wins", "core_euro_wins", "core_maximum_fold_regression",
+    "core_brier_relative_change", "core_log_loss_relative_change",
+    "core_calibration_change", "uses_optional_data",
+    "rich_incumbent_id", "rich_panel_declared",
+    "rich_output_coverage_by_edition", "rich_output_coverage_complete_by_edition",
+    "rich_provenance_complete_by_edition",
+    "rich_required_fixture_count_by_edition", "rich_observed_fixture_count_by_edition",
+    "rich_rps_delta", "rich_ci_upper", "rich_fold_wins",
+    "rich_world_cup_wins", "rich_euro_wins", "rich_maximum_fold_regression",
+    "rich_brier_relative_change", "rich_log_loss_relative_change",
+    "rich_calibration_change", "open_companion_incumbent_id",
+    "open_companion_fixture_count", "open_companion_default_open_mode",
+    "open_companion_rps_delta", "open_companion_ci_upper",
+    "open_companion_maximum_fold_regression",
+    "open_companion_brier_relative_change",
+    "open_companion_log_loss_relative_change",
+    "open_companion_calibration_change",
+    paste0("common_", names(all_contracts_pass())),
+    paste0("rich_", names(all_contracts_pass())),
+    paste0("open_companion_", names(all_contracts_pass()))
+  )
+}
+
+complete_gate_pass_names <- function() {
+  c(
+    paste0("common_", names(all_contracts_pass())),
+    "core_rps_effect", "core_ci", "core_fold_breadth",
+    "core_world_cup_breadth", "core_euro_breadth", "core_max_regression",
+    "core_brier", "core_log_loss", "core_calibration",
+    "rich_panel_declared", "rich_incumbent", "rich_output_coverage",
+    "rich_provenance", "rich_edition_coverage_floor",
+    paste0("rich_", names(all_contracts_pass())),
+    "rich_rps_effect", "rich_ci", "rich_fold_breadth",
+    "rich_world_cup_breadth", "rich_euro_breadth", "rich_max_regression",
+    "rich_brier", "rich_log_loss", "rich_calibration",
+    "open_companion_incumbent", "open_companion_coverage", "default_open_mode",
+    paste0("open_companion_", names(all_contracts_pass())),
+    "open_companion_rps_effect", "open_companion_ci",
+    "open_companion_max_regression", "open_companion_brier",
+    "open_companion_log_loss", "open_companion_calibration"
+  )
+}
+
 expect_eligible <- function(case) {
   expect_equal(decision_for(case)$decision, "eligible_for_final_holdout")
 }
@@ -82,6 +128,55 @@ test_that("the frozen promotion protocol validates and hashes canonically", {
   expect_equal(protocol$fixed_probability_bins, seq(0, 1, 0.1))
   expect_false(any(grepl("actual_(home|away)_goals|wc2026_result", canonicalize_promotion_protocol(protocol))))
   expect_length(promotion_veto_reasons(promotion_case(), protocol), 0L)
+})
+
+test_that("D-16 through D-20 expose complete full-precision values and booleans", {
+  candidate <- promotion_case(TRUE)
+  candidate$core$rps_delta <- -0.0030000000000004
+  result <- decision_for(candidate)
+
+  expect_identical(names(result$gate_values), complete_gate_value_names())
+  expect_identical(names(result$gate_passes), complete_gate_pass_names())
+  expect_identical(result$gate_values$core_rps_delta, candidate$core$rps_delta)
+  expect_identical(
+    result$gate_values$rich_output_coverage_by_edition,
+    stats::setNames(candidate$rich_panel$coverage_observations$output_coverage,
+                    candidate$rich_panel$coverage_observations$edition_id)
+  )
+  expect_true(all(vapply(result$gate_passes, is.logical, logical(1))))
+  expect_true(all(lengths(result$gate_passes) == 1L))
+})
+
+test_that("false gate booleans and ordered reasons agree one-to-one", {
+  candidate <- promotion_case(TRUE)
+  candidate$contracts$distribution_valid <- FALSE
+  candidate$core$rps_delta <- -0.002
+  candidate$rich_panel$coverage_observations$provenance_complete[1] <- FALSE
+  candidate$open_companion$default_open_mode <- FALSE
+
+  result <- decision_for(candidate)
+  failed <- names(result$gate_passes)[!unlist(result$gate_passes, use.names = FALSE)]
+  expect_identical(
+    result$reason_codes,
+    unname(promotion_gate_reason_map()[failed])
+  )
+  expect_false(anyNA(result$reason_codes))
+  expect_true(all(nzchar(result$reason_codes)))
+})
+
+test_that("clean and failed reason serialization preserve empty semantics", {
+  clean <- decision_for(promotion_case(TRUE))
+  expect_type(clean$reason_codes, "character")
+  expect_length(clean$reason_codes, 0L)
+  expect_identical(paste(clean$reason_codes, collapse = "|"), "")
+  expect_true(all(unlist(clean$gate_passes, use.names = FALSE)))
+  expect_length(promotion_contract_reasons(all_contracts_pass()), 0L)
+
+  failed_case <- promotion_case()
+  failed_case$core$ci_upper <- 0
+  failed <- decision_for(failed_case)
+  expect_true(nzchar(paste(failed$reason_codes, collapse = "|")))
+  expect_false(failed$gate_passes$core_ci)
 })
 
 test_that("core practical-effect boundaries are exact and unrounded", {
