@@ -557,3 +557,155 @@ test_that("knockout route estimator uses supplied hybrid forecast features", {
   expect_equal(with_precompute$slot1_expected_goals, with_features$slot1_expected_goals)
   expect_equal(with_precompute$slot2_expected_goals, with_features$slot2_expected_goals)
 })
+
+test_that("latest-before evidence distinguishes observed zero from missing default", {
+  source(file.path(project_root, "R/forecast/features.R"))
+
+  source_rows <- data.frame(
+    team = c("A", "B", "A"),
+    date = as.Date(c("2024-01-01", "2024-01-03", "2024-01-05")),
+    form_index = c(0, 0, NA_real_),
+    stringsAsFactors = FALSE
+  )
+  lookup <- make_latest_team_evidence_lookup(source_rows, "form_index", default = 0)
+
+  observed <- lookup("B", as.Date("2024-01-10"))
+  missing_value <- lookup("A", as.Date("2024-01-10"))
+  missing_source <- lookup("C", as.Date("2024-01-10"))
+
+  expect_equal(observed$value, 0)
+  expect_true(observed$source_present)
+  expect_true(observed$value_present)
+  expect_false(observed$imputed)
+  expect_equal(observed$source_date, as.Date("2024-01-03"))
+
+  expect_equal(missing_value$value, 0)
+  expect_true(missing_value$source_present)
+  expect_false(missing_value$value_present)
+  expect_true(missing_value$imputed)
+  expect_equal(missing_value$imputation_reason, "missing_source_value")
+  expect_equal(missing_value$source_date, as.Date("2024-01-05"))
+
+  expect_equal(missing_source$value, 0)
+  expect_false(missing_source$source_present)
+  expect_false(missing_source$value_present)
+  expect_true(missing_source$imputed)
+  expect_equal(missing_source$imputation_reason, "missing_source_row")
+  expect_true(is.na(missing_source$source_date))
+})
+
+test_that("forecast producer retains match keys and per-feature evidence companions", {
+  source(file.path(project_root, "R/forecast/features.R"))
+
+  matches <- data.frame(
+    match_id = c("observed-zero", "missing-zero"),
+    date = as.Date(c("2024-02-01", "2024-02-01")),
+    home_team_canonical = c("A", "C"),
+    away_team_canonical = c("B", "D"),
+    home_score = c(0, 0),
+    away_score = c(0, 0),
+    neutral = TRUE,
+    stringsAsFactors = FALSE
+  )
+  elo <- data.frame(
+    team = c("A", "B"),
+    date = as.Date(c("2024-01-01", "2024-01-04")),
+    rating = c(1500, 1500),
+    stringsAsFactors = FALSE
+  )
+  rolling <- data.frame(
+    team = c("A", "B"),
+    match_date = as.Date(c("2024-01-02", "2024-01-06")),
+    xgf_ewma = c(0, 0),
+    xga_ewma = c(0, 0),
+    xgd_ewma = c(0, 0),
+    shots_ewma = c(0, 0),
+    form_index = c(0, 0),
+    stringsAsFactors = FALSE
+  )
+
+  features <- build_forecast_feature_table(matches, elo, rolling_form = rolling)
+
+  expect_identical(features$match_id, matches$match_id)
+  expect_equal(features$xgf_ewma_diff, c(0, 0))
+  expect_identical(features$xgf_ewma_diff__source_present, c(TRUE, FALSE))
+  expect_identical(features$xgf_ewma_diff__value_present, c(TRUE, FALSE))
+  expect_identical(features$xgf_ewma_diff__imputed, c(FALSE, TRUE))
+  expect_equal(features$xgf_ewma_diff__source_date[1], as.Date("2024-01-06"))
+  expect_true(is.na(features$xgf_ewma_diff__source_date[2]))
+  expect_equal(features$xgf_ewma_diff__imputation_reason, c("", "missing_source_row"))
+
+  expect_equal(features$elo_diff, c(0, 0))
+  expect_identical(features$elo_diff__source_present, c(TRUE, FALSE))
+  expect_identical(features$elo_diff__imputed, c(FALSE, TRUE))
+})
+
+test_that("goal ability evidence uses actual latest prior result dates", {
+  source(file.path(project_root, "R/forecast/goal_ability.R"))
+
+  history <- data.frame(
+    date = as.Date(c("2024-01-02", "2024-01-05")),
+    home_team_canonical = c("A", "B"),
+    away_team_canonical = c("B", "A"),
+    home_score = c(1, 1),
+    away_score = c(1, 1),
+    tournament = "Friendly",
+    stringsAsFactors = FALSE
+  )
+  fixtures <- data.frame(
+    date = as.Date(c("2024-01-10", "2024-01-10")),
+    home_team_canonical = c("A", "C"),
+    away_team_canonical = c("B", "D"),
+    stringsAsFactors = FALSE
+  )
+
+  ability <- compute_goal_ability_features(fixtures, history)
+
+  expect_equal(ability$attack_ability_diff[1], 0)
+  expect_true(ability$attack_ability_diff__source_present[1])
+  expect_false(ability$attack_ability_diff__imputed[1])
+  expect_equal(ability$attack_ability_diff__source_date[1], as.Date("2024-01-05"))
+  expect_equal(ability$attack_ability_diff[2], 0)
+  expect_false(ability$attack_ability_diff__source_present[2])
+  expect_true(ability$attack_ability_diff__imputed[2])
+  expect_equal(ability$attack_ability_diff__imputation_reason[2], "missing_source_row")
+  expect_true(is.na(ability$attack_ability_diff__source_date[2]))
+})
+
+test_that("forecast evidence validator enforces complete strict companions", {
+  source(file.path(project_root, "R/forecast/features.R"))
+
+  feature_contract <- data.frame(
+    panel_id = "open_core",
+    feature_id = "elo_diff",
+    source_id = "elo_ratings_recursive_open",
+    stringsAsFactors = FALSE
+  )
+  features <- data.frame(
+    match_id = "M1",
+    date = as.Date("2024-02-01"),
+    elo_diff = 0,
+    elo_diff__value_present = TRUE,
+    elo_diff__source_present = TRUE,
+    elo_diff__source_date = as.Date("2024-01-04"),
+    elo_diff__imputed = FALSE,
+    elo_diff__imputation_reason = "",
+    stringsAsFactors = FALSE
+  )
+
+  expect_silent(validate_forecast_feature_evidence(features, feature_contract))
+  expect_error(
+    validate_forecast_feature_evidence(rbind(features, features), feature_contract),
+    "match_id"
+  )
+  bad <- features
+  bad$elo_diff__source_date <- bad$date
+  expect_error(validate_forecast_feature_evidence(bad, feature_contract), "strictly before")
+  bad <- features
+  bad$elo_diff__source_present <- FALSE
+  bad$elo_diff__value_present <- FALSE
+  bad$elo_diff__imputed <- TRUE
+  bad$elo_diff__source_date <- as.Date(NA)
+  bad$elo_diff__imputation_reason <- ""
+  expect_error(validate_forecast_feature_evidence(bad, feature_contract), "imputation reason")
+})
