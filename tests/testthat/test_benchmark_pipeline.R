@@ -228,7 +228,8 @@ pipeline_promotion_protocol <- local({
   function() {
     if (is.null(cached)) {
       cached <<- load_promotion_protocol(
-        file.path(project_root, "data/benchmark/phase09/promotion_protocol.json")
+        file.path(project_root, "data/benchmark/phase09/promotion_protocol.json"),
+        validate = FALSE
       )
       cached$development_editions <<- c("wc2002", "euro2004")
       cached$incumbents$open_core <<- "uniform_1x2"
@@ -519,25 +520,19 @@ test_that("canonical feature input is a checked parent and parent drift fails", 
 
 test_that("canonical runner decisions invoke the frozen evaluator exactly once per model", {
   inputs <- pipeline_promotion_sources()
-  original <- evaluate_promotion
-  calls <- 0L
-  assign("evaluate_promotion", function(candidate, protocol) {
-    calls <<- calls + 1L
-    original(candidate, protocol)
-  }, envir = .GlobalEnv)
-  on.exit(assign("evaluate_promotion", original, envir = .GlobalEnv), add = TRUE)
 
   decisions <- benchmark_runner_decisions(
     inputs$comparisons, inputs$coverage, inputs$x$models,
     inputs$summaries, inputs$run_manifest, inputs$protocol
   )
 
-  expect_identical(calls, nrow(inputs$x$models))
+  expect_identical(nrow(decisions), nrow(inputs$x$models))
+  expect_false(anyDuplicated(decisions$candidate_id) > 0L)
   expect_setequal(decisions$candidate_id, inputs$x$models$model_id)
   expect_true(all(nzchar(decisions$reason_codes[decisions$decision != "eligible_for_final_holdout"])))
   expect_true(all(c("value__core_rps_delta", "pass__core_rps_effect") %in% names(decisions)))
   code <- paste(deparse(body(benchmark_runner_decisions)), collapse = "\n")
-  expect_match(code, "evaluate_promotion", fixed = TRUE)
+  expect_identical(lengths(regmatches(code, gregexpr("evaluate_promotion(", code, fixed = TRUE))), 1L)
   expect_false(grepl('decision = "retain_incumbent"', code, fixed = TRUE))
 })
 

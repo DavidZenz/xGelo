@@ -367,7 +367,7 @@ test_that("multiple vetoes retain the frozen reason-code order", {
 })
 
 test_that("protocol validation detects normalized audit, selected G, and parent tampering", {
-  protocol <- load_promotion_protocol(protocol_path)
+  protocol <- frozen_protocol
   artifacts <- promotion_protocol_artifacts(registry_dir)
 
   bad_hash <- protocol
@@ -382,8 +382,8 @@ test_that("protocol validation detects normalized audit, selected G, and parent 
 
   bad_parent <- artifacts
   bad_parent$score_support_audit$parent_hashes[1] <- strrep("f", 64)
-  bad_parent$score_support_audit$row_hash <- benchmark_row_sha256(
-    bad_parent$score_support_audit, "row_hash"
+  bad_parent$score_support_audit$row_hash[1] <- benchmark_row_sha256(
+    bad_parent$score_support_audit[1, , drop = FALSE], "row_hash"
   )
   expect_error(validate_promotion_protocol(protocol, artifacts = bad_parent), "parent hash")
 })

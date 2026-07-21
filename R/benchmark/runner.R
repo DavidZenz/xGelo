@@ -375,7 +375,8 @@ benchmark_runner_validate_panel_outputs <- function(
 
 benchmark_runner_validate_bundle_data <- function(
     bundle, score_support_audit, model_registry, boundary_inventory,
-    require_reproducible = TRUE, panel_fixtures = NULL, feature_contract = NULL
+    require_reproducible = TRUE, panel_fixtures = NULL, feature_contract = NULL,
+    protocol = NULL
 ) {
   missing <- setdiff(benchmark_runner_required_artifacts(), names(bundle))
   if (length(missing)) stop("Benchmark bundle is missing artifacts: ", paste(missing, collapse = ", "), call. = FALSE)
@@ -463,6 +464,21 @@ benchmark_runner_validate_bundle_data <- function(
     if (isTRUE(decision$promotion_eligible) && !expected_eligible) {
       stop("Promotion eligibility was not derived from observed output coverage and provenance", call. = FALSE)
     }
+  }
+  if (!is.null(protocol)) {
+    promotion_coverage <- benchmark_runner_bind_rows(lapply(seq_len(nrow(model_registry)), function(i) {
+      model_id <- as.character(model_registry$model_id[i])
+      panel_id <- as.character(model_registry$panel_id[i])
+      floor <- as.numeric(protocol$panels[[panel_id]]$coverage_floor)
+      benchmark_output_coverage(
+        predictions[predictions$model_id == model_id, , drop = FALSE],
+        panel_fixtures[panel_fixtures$panel_id == panel_id, , drop = FALSE],
+        model_id, floor
+      )
+    }))
+    benchmark_runner_validate_promotion_decisions(
+      bundle, promotion_coverage, model_registry, protocol
+    )
   }
   validate_stage_probabilities(bundle$stage_probabilities, tolerance = 1e-8)
   benchmark_runner_require_columns(bundle$fixture_scores, c("model_id", "edition_id", "track_id", "fixture_id", "metric", "value"), "Fixture scores")
@@ -580,7 +596,8 @@ write_benchmark_checksum_manifest <- function(
 write_rolling_benchmark_bundle <- function(
     bundle, output_dir, score_support_audit, model_registry, boundary_inventory,
     source_git_sha = NA_character_, require_reproducible = TRUE,
-    additional_inputs = list(), panel_fixtures = NULL, feature_contract = NULL
+    additional_inputs = list(), panel_fixtures = NULL, feature_contract = NULL,
+    protocol = NULL
 ) {
   if (is.null(panel_fixtures) && !is.null(additional_inputs$panel_fixtures)) {
     panel_fixtures <- additional_inputs$panel_fixtures$data
@@ -591,7 +608,8 @@ write_rolling_benchmark_bundle <- function(
   benchmark_runner_validate_bundle_data(
     bundle, score_support_audit, model_registry, boundary_inventory,
     require_reproducible = require_reproducible,
-    panel_fixtures = panel_fixtures, feature_contract = feature_contract
+    panel_fixtures = panel_fixtures, feature_contract = feature_contract,
+    protocol = protocol
   )
   output_dir <- normalizePath(output_dir, mustWork = FALSE)
   paths <- benchmark_output_paths(output_dir)
@@ -693,7 +711,8 @@ validate_rolling_benchmark_bundle <- function(
     additional_inputs = NULL,
     require_reproducible = TRUE,
     panel_fixtures = NULL,
-    feature_contract = NULL
+    feature_contract = NULL,
+    protocol = NULL
 ) {
   if (is.null(score_support_audit) || is.null(model_registry)) {
     default_inputs <- benchmark_runner_load_inputs("data/benchmark/phase09")
@@ -735,7 +754,8 @@ validate_rolling_benchmark_bundle <- function(
   benchmark_runner_validate_bundle_data(
     bundle, score_support_audit, model_registry, boundary_inventory,
     require_reproducible = require_reproducible,
-    panel_fixtures = panel_fixtures, feature_contract = feature_contract
+    panel_fixtures = panel_fixtures, feature_contract = feature_contract,
+    protocol = protocol
   )
   run <- bundle$run_manifest[1, , drop = FALSE]
   predictions <- bundle$fixture_predictions
@@ -1080,36 +1100,280 @@ benchmark_runner_comparisons <- function(scores, model_registry, tournaments, pa
   benchmark_runner_bind_rows(rows)
 }
 
-benchmark_runner_decisions <- function(comparisons, coverage, model_registry) {
-  rows <- lapply(seq_len(nrow(model_registry)), function(i) {
-    model_id <- model_registry$model_id[i]
-    panel_id <- model_registry$panel_id[i]
-    headline <- comparisons[
-      comparisons$challenger_id == model_id & comparisons$track_id == "updating" &
-        comparisons$diagnostic == "headline", , drop = FALSE
-    ]
-    observed <- coverage[coverage$model_id == model_id, , drop = FALSE]
-    complete <- all(observed$output_coverage_complete)
-    eligible <- all(observed$promotion_eligible)
-    reasons <- character()
-    if (!complete) reasons <- c(reasons, "output_coverage_incomplete")
-    if (!all(observed$provenance_complete)) reasons <- c(reasons, "provenance_incomplete")
-    if (nrow(headline) != 1L) reasons <- c(reasons, "comparison_incomplete")
-    data.frame(
-      candidate_id = model_id,
-      incumbent_id = if (panel_id == "feature_rich") "production_hybrid_nb" else "open_nb_incumbent",
-      panel_id = panel_id,
-      output_coverage_complete = complete,
-      promotion_eligible = eligible,
-      headline_rps_delta = if (nrow(headline)) headline$delta[1] else NA_real_,
-      ci_lower = if (nrow(headline)) headline$bootstrap_lower[1] else NA_real_,
-      ci_upper = if (nrow(headline)) headline$bootstrap_upper[1] else NA_real_,
-      decision = "retain_incumbent",
-      reason_codes = paste(reasons, collapse = "|"),
-      stringsAsFactors = FALSE
+benchmark_runner_flag <- function(data, column) {
+  column %in% names(data) && nrow(data) == 1L && isTRUE(as.logical(data[[column]][1]))
+}
+
+benchmark_runner_contract_flags <- function(run_manifest, protocol) {
+  freeze <- protocol$freeze
+  identity_clean <- !isTRUE(as.logical(run_manifest$dirty_worktree[1]))
+  list(
+    probability_valid = benchmark_runner_flag(run_manifest, "prediction_contract_valid"),
+    distribution_valid = benchmark_runner_flag(run_manifest, "distribution_contract_valid"),
+    fixture_valid = benchmark_runner_flag(run_manifest, "prediction_contract_valid") &&
+      benchmark_runner_flag(run_manifest, "manifest_contract_valid"),
+    coverage_valid = benchmark_runner_flag(run_manifest, "panel_coverage_valid") &&
+      benchmark_runner_flag(run_manifest, "output_coverage_reconciled"),
+    provenance_valid = benchmark_runner_flag(run_manifest, "feature_coverage_valid"),
+    license_valid = benchmark_runner_flag(run_manifest, "feature_coverage_valid"),
+    seed_valid = benchmark_runner_flag(run_manifest, "seed_contract_valid"),
+    checksum_valid = benchmark_runner_flag(run_manifest, "score_support_audit_valid") &&
+      identical(as.character(run_manifest$protocol_sha256[1]), as.character(protocol$protocol_sha256)),
+    reproducible = benchmark_runner_flag(run_manifest, "reproducible"),
+    code_frozen = isTRUE(freeze$code_frozen) && identity_clean,
+    features_frozen = isTRUE(freeze$features_frozen) &&
+      benchmark_runner_flag(run_manifest, "feature_coverage_valid"),
+    settings_frozen = isTRUE(freeze$settings_frozen) &&
+      benchmark_runner_flag(run_manifest, "registration_settings_stable"),
+    panels_frozen = isTRUE(freeze$panels_frozen) &&
+      benchmark_runner_flag(run_manifest, "panel_coverage_valid"),
+    seeds_frozen = isTRUE(freeze$seeds_frozen) &&
+      benchmark_runner_flag(run_manifest, "seed_contract_valid"),
+    wc2026_sealed = isTRUE(freeze$sealed_before_final_labels) &&
+      benchmark_runner_flag(run_manifest, "wc2026_sealed") &&
+      identical(protocol$final_holdout$labels_status, "sealed") &&
+      !isTRUE(protocol$final_holdout$development_access_path)
+  )
+}
+
+benchmark_runner_metric_estimate <- function(summaries, model_id, metric) {
+  aggregation <- if (identical(metric, "calibration_error")) {
+    "fixed_equal_tournament_bins"
+  } else {
+    "equal_tournament"
+  }
+  rows <- summaries[
+    summaries$model_id == model_id & summaries$track_id == "updating" &
+      summaries$metric == metric & summaries$grain == "headline" &
+      summaries$aggregation == aggregation & summaries$edition_id == "headline",
+    , drop = FALSE
+  ]
+  if (nrow(rows) != 1L || !is.finite(as.numeric(rows$estimate[1]))) {
+    stop("Promotion candidate requires one finite updating headline ", metric,
+         " estimate for ", model_id, call. = FALSE)
+  }
+  as.numeric(rows$estimate[1])
+}
+
+benchmark_runner_supporting_changes <- function(summaries, candidate_id, incumbent_id) {
+  candidate <- vapply(
+    c("brier", "log_loss", "calibration_error"),
+    function(metric) benchmark_runner_metric_estimate(summaries, candidate_id, metric),
+    numeric(1)
+  )
+  incumbent <- vapply(
+    c("brier", "log_loss", "calibration_error"),
+    function(metric) benchmark_runner_metric_estimate(summaries, incumbent_id, metric),
+    numeric(1)
+  )
+  if (any(incumbent[c("brier", "log_loss")] <= 0)) {
+    stop("Promotion supporting-score incumbent estimates must be positive", call. = FALSE)
+  }
+  list(
+    brier_relative_change = unname((candidate[["brier"]] - incumbent[["brier"]]) / incumbent[["brier"]]),
+    log_loss_relative_change = unname((candidate[["log_loss"]] - incumbent[["log_loss"]]) / incumbent[["log_loss"]]),
+    calibration_change = unname(candidate[["calibration_error"]] - incumbent[["calibration_error"]])
+  )
+}
+
+benchmark_runner_comparison_gate <- function(
+    comparisons, summaries, challenger_id, incumbent_id, panel_id, protocol
+) {
+  rows <- comparisons[
+    comparisons$challenger_id == challenger_id &
+      comparisons$incumbent_id == incumbent_id &
+      comparisons$panel_id == panel_id & comparisons$track_id == "updating" &
+      comparisons$metric == "rps", , drop = FALSE
+  ]
+  headline <- rows[rows$diagnostic == "headline" & rows$edition_id == "headline", , drop = FALSE]
+  folds <- rows[rows$diagnostic == "fold", , drop = FALSE]
+  if (nrow(headline) != 1L || !setequal(as.character(folds$edition_id), protocol$development_editions) ||
+      nrow(folds) != length(protocol$development_editions)) {
+    stop("Promotion comparison evidence is incomplete for ", challenger_id, call. = FALSE)
+  }
+  folds <- folds[match(protocol$development_editions, folds$edition_id), , drop = FALSE]
+  deltas <- as.numeric(folds$delta)
+  if (any(!is.finite(deltas)) || !is.finite(as.numeric(headline$delta[1])) ||
+      !is.finite(as.numeric(headline$bootstrap_lower[1])) ||
+      !is.finite(as.numeric(headline$bootstrap_upper[1]))) {
+    stop("Promotion comparison evidence contains non-finite gate values", call. = FALSE)
+  }
+  supporting <- benchmark_runner_supporting_changes(summaries, challenger_id, incumbent_id)
+  c(list(
+    rps_delta = as.numeric(headline$delta[1]),
+    ci_lower = as.numeric(headline$bootstrap_lower[1]),
+    ci_upper = as.numeric(headline$bootstrap_upper[1]),
+    fold_wins = sum(deltas < 0),
+    world_cup_wins = sum(deltas[grepl("^wc", folds$edition_id)] < 0),
+    euro_wins = sum(deltas[grepl("^euro", folds$edition_id)] < 0),
+    maximum_fold_regression = max(deltas)
+  ), supporting)
+}
+
+benchmark_runner_candidate_contracts <- function(base, observed) {
+  flags <- base
+  flags$coverage_valid <- isTRUE(flags$coverage_valid) && nrow(observed) > 0L &&
+    isTRUE(all(as.logical(observed$output_coverage_complete)))
+  flags$provenance_valid <- isTRUE(flags$provenance_valid) && nrow(observed) > 0L &&
+    isTRUE(all(as.logical(observed$provenance_complete)))
+  flags$license_valid <- isTRUE(flags$license_valid) && nrow(observed) > 0L
+  flags
+}
+
+#' Build the exact evaluator input for one registered benchmark candidate
+#' @export
+benchmark_runner_promotion_candidate <- function(
+    candidate_id, comparisons, coverage, model_registry, summaries, run_manifest, protocol
+) {
+  registration <- model_registry[model_registry$model_id == candidate_id, , drop = FALSE]
+  if (nrow(registration) != 1L) stop("Promotion candidate is not uniquely registered", call. = FALSE)
+  panel_id <- as.character(registration$panel_id[1])
+  optional <- identical(panel_id, protocol$panels$feature_rich$panel_id)
+  open_incumbent <- as.character(protocol$incumbents$open_core)
+  rich_incumbent <- as.character(protocol$incumbents$production_hybrid)
+  core_challenger <- if (optional) open_incumbent else candidate_id
+  core_observed <- coverage[coverage$model_id == core_challenger, , drop = FALSE]
+  candidate_observed <- coverage[coverage$model_id == candidate_id, , drop = FALSE]
+  base_contracts <- benchmark_runner_contract_flags(run_manifest, protocol)
+  core <- benchmark_runner_comparison_gate(
+    comparisons, summaries, core_challenger, open_incumbent,
+    protocol$panels$open_core$panel_id, protocol
+  )
+  candidate <- list(
+    candidate_id = candidate_id,
+    incumbent_id = if (optional) rich_incumbent else open_incumbent,
+    uses_optional_data = optional,
+    contracts = benchmark_runner_candidate_contracts(base_contracts, candidate_observed),
+    core = core
+  )
+  if (optional) {
+    rich <- benchmark_runner_comparison_gate(
+      comparisons, summaries, candidate_id, rich_incumbent,
+      protocol$panels$feature_rich$panel_id, protocol
     )
+    open <- benchmark_runner_comparison_gate(
+      comparisons, summaries, open_incumbent, open_incumbent,
+      protocol$panels$open_core$panel_id, protocol
+    )
+    rich_observed <- coverage[coverage$model_id == candidate_id, , drop = FALSE]
+    rich_observed <- rich_observed[match(protocol$development_editions, rich_observed$edition_id), , drop = FALSE]
+    open_observed <- coverage[coverage$model_id == open_incumbent, , drop = FALSE]
+    candidate$rich_panel <- c(list(
+      incumbent_id = rich_incumbent,
+      panel_declared = identical(panel_id, protocol$panels$feature_rich$panel_id),
+      coverage_observations = rich_observed,
+      contracts = benchmark_runner_candidate_contracts(base_contracts, rich_observed)
+    ), rich)
+    candidate$open_companion <- c(list(
+      incumbent_id = open_incumbent,
+      fixture_count = as.integer(sum(open_observed$required_fixture_count)),
+      default_open_mode = isTRUE(protocol$panels$open_core$default_operating_mode),
+      contracts = benchmark_runner_candidate_contracts(base_contracts, open_observed)
+    ), open)
+  }
+  candidate
+}
+
+benchmark_runner_gate_value <- function(value) {
+  if (!length(value)) return(NA)
+  if (length(value) <= 1L) return(value)
+  labels <- names(value)
+  values <- vapply(value, function(item) {
+    if (is.numeric(item)) format(item, digits = 17, scientific = FALSE, trim = TRUE) else as.character(item)
+  }, character(1))
+  if (!is.null(labels)) paste0(labels, "=", values, collapse = "|") else paste(values, collapse = "|")
+}
+
+benchmark_runner_decision_row <- function(evaluation, candidate, coverage) {
+  values <- lapply(evaluation$gate_values, benchmark_runner_gate_value)
+  names(values) <- paste0("value__", names(values))
+  passes <- lapply(evaluation$gate_passes, isTRUE)
+  names(passes) <- paste0("pass__", names(passes))
+  observed <- coverage[coverage$model_id == candidate$candidate_id, , drop = FALSE]
+  base <- list(
+    candidate_id = evaluation$candidate_id,
+    incumbent_id = evaluation$incumbent_id,
+    panel_id = if (isTRUE(candidate$uses_optional_data)) "feature_rich" else "open_core",
+    gate_order = paste(names(evaluation$gate_passes), collapse = "|"),
+    output_coverage_complete = nrow(observed) > 0L && all(observed$output_coverage_complete),
+    promotion_eligible = identical(evaluation$decision, "eligible_for_final_holdout"),
+    headline_rps_delta = candidate$core$rps_delta,
+    ci_lower = candidate$core$ci_lower,
+    ci_upper = candidate$core$ci_upper,
+    decision = evaluation$decision,
+    reason_codes = paste(evaluation$reason_codes, collapse = "|")
+  )
+  as.data.frame(c(base, values, passes), stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+#' Derive canonical promotion decisions exclusively through evaluate_promotion()
+#' @export
+benchmark_runner_decisions <- function(
+    comparisons, coverage, model_registry, summaries, run_manifest, protocol
+) {
+  rows <- lapply(as.character(model_registry$model_id), function(model_id) {
+    candidate <- benchmark_runner_promotion_candidate(
+      model_id, comparisons, coverage, model_registry, summaries, run_manifest, protocol
+    )
+    evaluation <- evaluate_promotion(candidate, protocol)
+    benchmark_runner_decision_row(evaluation, candidate, coverage)
   })
-  do.call(rbind, rows)
+  benchmark_runner_bind_rows(rows)
+}
+
+#' Reconstruct evaluator output and reject persisted decision drift
+#' @export
+benchmark_runner_validate_promotion_decisions <- function(bundle, coverage, model_registry, protocol) {
+  expected <- benchmark_runner_decisions(
+    bundle$paired_comparisons, coverage, model_registry,
+    bundle$benchmark_summaries, bundle$run_manifest, protocol
+  )
+  actual <- bundle$promotion_decisions
+  if (!identical(names(actual), names(expected)) ||
+      !identical(
+        benchmark_runner_content_sha256(actual, "promotion_decisions"),
+        benchmark_runner_content_sha256(expected, "promotion_decisions")
+      )) {
+    stop("Promotion decisions failed evaluator reconstruction; persisted evidence may be tampered", call. = FALSE)
+  }
+  TRUE
+}
+
+#' Finalize promotion decisions only after independent pass reconciliation
+#' @export
+finalize_benchmark_promotion_decisions <- function(
+    first, second, first_coverage, second_coverage, model_registry, protocol
+) {
+  artifacts <- setdiff(intersect(names(first), names(second)), c("promotion_decisions", "run_manifest"))
+  for (artifact in artifacts) {
+    if (!identical(
+      benchmark_runner_content_sha256(first[[artifact]], artifact),
+      benchmark_runner_content_sha256(second[[artifact]], artifact)
+    )) stop("Independent benchmark passes disagree before reproducibility finalization", call. = FALSE)
+  }
+  first_manifest <- first$run_manifest
+  second_manifest <- second$run_manifest
+  first_manifest$reproducible <- FALSE
+  second_manifest$reproducible <- FALSE
+  if (!identical(
+    benchmark_runner_content_sha256(first_manifest, "run_manifest"),
+    benchmark_runner_content_sha256(second_manifest, "run_manifest")
+  )) stop("Independent benchmark run manifests disagree before reproducibility finalization", call. = FALSE)
+  first$run_manifest$reproducible <- TRUE
+  second$run_manifest$reproducible <- TRUE
+  first$promotion_decisions <- benchmark_runner_decisions(
+    first$paired_comparisons, first_coverage, model_registry,
+    first$benchmark_summaries, first$run_manifest, protocol
+  )
+  second$promotion_decisions <- benchmark_runner_decisions(
+    second$paired_comparisons, second_coverage, model_registry,
+    second$benchmark_summaries, second$run_manifest, protocol
+  )
+  if (!identical(
+    benchmark_runner_content_sha256(first$promotion_decisions, "promotion_decisions"),
+    benchmark_runner_content_sha256(second$promotion_decisions, "promotion_decisions")
+  )) stop("Independent benchmark promotion decisions disagree after reproducibility finalization", call. = FALSE)
+  list(first = first, second = second)
 }
 
 benchmark_default_execution_engine <- function(
@@ -1186,7 +1450,6 @@ benchmark_default_execution_engine <- function(
     score_output$scores, inputs$model_registry, registries$tournaments,
     inputs$panel_fixtures
   )
-  decisions <- benchmark_runner_decisions(comparisons, output_coverage, inputs$model_registry)
   identity <- benchmark_runner_git_identity(".")
   input_hashes <- benchmark_runner_input_hashes(
     inputs$model_registry, boundary_inventory, inputs$score_support_audit
@@ -1224,6 +1487,10 @@ benchmark_default_execution_engine <- function(
     network_free = TRUE,
     reproducible = FALSE,
     stringsAsFactors = FALSE
+  )
+  decisions <- benchmark_runner_decisions(
+    comparisons, output_coverage, inputs$model_registry,
+    score_output$summaries, run_manifest, protocol
   )
   list(
     model_manifests = manifests,
@@ -1292,29 +1559,58 @@ run_rolling_tournament_benchmark <- function(
       if (dir.exists(first_root)) unlink(first_root, recursive = TRUE)
       if (dir.exists(staged_root)) unlink(staged_root, recursive = TRUE)
     }, add = TRUE)
+    first_coverage <- benchmark_runner_output_coverage(
+      bundle$fixture_predictions, inputs$panel_fixtures,
+      inputs$model_registry, inputs$panels
+    )
+    first_sources <- bundle[c("benchmark_summaries", "paired_comparisons", "run_manifest")]
     first_written <- write_rolling_benchmark_bundle(
       bundle, first_root, inputs$score_support_audit, inputs$model_registry,
       boundary_inventory, source_git_sha, require_reproducible = FALSE,
-      additional_inputs = additional_inputs
+      additional_inputs = additional_inputs, protocol = protocol
     )
-    bundle$run_manifest$reproducible <- TRUE
-    first_hashes <- first_written$content_sha256
-    first_hashes[["run_manifest"]] <- benchmark_runner_content_sha256(
-      bundle$run_manifest, "run_manifest"
-    )
-    first_hashes <- first_hashes[sort(names(first_hashes), method = "radix")]
     rm(bundle)
     invisible(gc())
     bundle <- execute(rev(effective_order))
-    bundle$run_manifest$reproducible <- TRUE
+    second_coverage <- benchmark_runner_output_coverage(
+      bundle$fixture_predictions, inputs$panel_fixtures,
+      inputs$model_registry, inputs$panels
+    )
+    second_provisional <- write_rolling_benchmark_bundle(
+      bundle, staged_root, inputs$score_support_audit, inputs$model_registry,
+      boundary_inventory, source_git_sha, require_reproducible = FALSE,
+      additional_inputs = additional_inputs, protocol = protocol
+    )
+    compared <- setdiff(names(first_written$content_sha256), c("promotion_decisions", "run_manifest"))
+    if (!identical(
+      first_written$content_sha256[compared],
+      second_provisional$content_sha256[compared]
+    )) {
+      stop("Repeated benchmark runs produced different canonical content hashes", call. = FALSE)
+    }
+    second_sources <- bundle[c("benchmark_summaries", "paired_comparisons", "run_manifest")]
+    finalized <- finalize_benchmark_promotion_decisions(
+      first_sources, second_sources, first_coverage, second_coverage,
+      inputs$model_registry, protocol
+    )
+    bundle$run_manifest <- finalized$second$run_manifest
+    bundle$promotion_decisions <- finalized$second$promotion_decisions
+    first_hashes <- first_written$content_sha256
+    first_hashes[["run_manifest"]] <- benchmark_runner_content_sha256(
+      finalized$first$run_manifest, "run_manifest"
+    )
+    first_hashes[["promotion_decisions"]] <- benchmark_runner_content_sha256(
+      finalized$first$promotion_decisions, "promotion_decisions"
+    )
+    first_hashes <- first_hashes[sort(names(first_hashes), method = "radix")]
     written <- write_rolling_benchmark_bundle(
       bundle, staged_root, inputs$score_support_audit, inputs$model_registry,
-      boundary_inventory, source_git_sha, additional_inputs = additional_inputs
+      boundary_inventory, source_git_sha, additional_inputs = additional_inputs,
+      protocol = protocol
     )
-    second_hashes <- written$content_sha256
-    second_hashes <- second_hashes[sort(names(second_hashes), method = "radix")]
+    second_hashes <- written$content_sha256[sort(names(written$content_sha256), method = "radix")]
     if (!identical(first_hashes, second_hashes)) {
-      stop("Repeated benchmark runs produced different canonical content hashes", call. = FALSE)
+      stop("Finalized benchmark decisions differ across independent passes", call. = FALSE)
     }
     if (dir.exists(output_dir)) {
       backup_root <- tempfile(paste0(".", basename(output_dir), "-backup-"), tmpdir = dirname(output_dir))
@@ -1333,12 +1629,13 @@ run_rolling_tournament_benchmark <- function(
     written <- write_rolling_benchmark_bundle(
       bundle, output_dir, inputs$score_support_audit, inputs$model_registry,
       boundary_inventory, source_git_sha, require_reproducible = FALSE,
-      additional_inputs = additional_inputs
+      additional_inputs = additional_inputs, protocol = protocol
     )
   }
   validation <- validate_rolling_benchmark_bundle(
     output_dir, inputs$score_support_audit, inputs$model_registry, boundary_inventory,
-    additional_inputs, require_reproducible = verify_reproducibility
+    additional_inputs, require_reproducible = verify_reproducibility,
+    protocol = protocol
   )
   c(written, list(validation = validation))
 }
