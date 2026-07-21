@@ -223,6 +223,59 @@ pipeline_bundle <- function(order_rows = FALSE) {
   )
 }
 
+pipeline_promotion_protocol <- local({
+  cached <- NULL
+  function() {
+    if (is.null(cached)) {
+      cached <<- load_promotion_protocol(
+        file.path(project_root, "data/benchmark/phase09/promotion_protocol.json")
+      )
+      cached$development_editions <<- c("wc2002", "euro2004")
+      cached$incumbents$open_core <<- "uniform_1x2"
+      cached$optional_data_gate$open_companion$incumbent_id <<- "uniform_1x2"
+      cached$panels$open_core$fixture_count <<- 2L
+      cached$optional_data_gate$open_companion$fixture_count <<- 2L
+    }
+    cached
+  }
+})
+
+pipeline_promotion_sources <- function() {
+  x <- pipeline_bundle()
+  protocol <- pipeline_promotion_protocol()
+  metrics <- data.frame(
+    metric = c("rps", "brier", "log_loss", "calibration_error"),
+    aggregation = c(
+      "equal_tournament", "equal_tournament", "equal_tournament",
+      "fixed_equal_tournament_bins"
+    ),
+    stringsAsFactors = FALSE
+  )
+  summaries <- do.call(rbind, lapply(seq_len(nrow(x$models)), function(i) {
+    data.frame(
+      run_id = "synthetic", model_id = x$models$model_id[i],
+      panel_id = x$models$panel_id[i], track_id = "updating",
+      target = "regulation_1x2", metric = metrics$metric,
+      grain = "headline", aggregation = metrics$aggregation,
+      edition_id = "headline", estimate = c(0.2, 0.45, 0.65, 0.03),
+      n_tournaments = 2L, n_fixtures = 2L,
+      coverage_numerator = 2L, coverage_denominator = 2L, coverage = 1,
+      stringsAsFactors = FALSE
+    )
+  }))
+  coverage <- benchmark_runner_output_coverage(
+    x$bundle$fixture_predictions, x$panel_fixtures, x$models,
+    data.frame(panel_id = c("open_core", "feature_rich"), coverage_floor = 0.8)
+  )
+  manifest <- x$bundle$run_manifest
+  manifest$protocol_version <- protocol$protocol_version
+  manifest$protocol_sha256 <- protocol$protocol_sha256
+  list(
+    x = x, protocol = protocol, summaries = summaries, coverage = coverage,
+    comparisons = x$bundle$paired_comparisons, run_manifest = manifest
+  )
+}
+
 test_that("the cache-only bundle writer creates and validates every durable artifact", {
   x <- pipeline_bundle()
   out <- tempfile("benchmark-bundle-")
@@ -462,6 +515,109 @@ test_that("canonical feature input is a checked parent and parent drift fails", 
     ),
     "parent mismatch"
   )
+})
+
+test_that("canonical runner decisions invoke the frozen evaluator exactly once per model", {
+  inputs <- pipeline_promotion_sources()
+  original <- evaluate_promotion
+  calls <- 0L
+  assign("evaluate_promotion", function(candidate, protocol) {
+    calls <<- calls + 1L
+    original(candidate, protocol)
+  }, envir = .GlobalEnv)
+  on.exit(assign("evaluate_promotion", original, envir = .GlobalEnv), add = TRUE)
+
+  decisions <- benchmark_runner_decisions(
+    inputs$comparisons, inputs$coverage, inputs$x$models,
+    inputs$summaries, inputs$run_manifest, inputs$protocol
+  )
+
+  expect_identical(calls, nrow(inputs$x$models))
+  expect_setequal(decisions$candidate_id, inputs$x$models$model_id)
+  expect_true(all(nzchar(decisions$reason_codes[decisions$decision != "eligible_for_final_holdout"])))
+  expect_true(all(c("value__core_rps_delta", "pass__core_rps_effect") %in% names(decisions)))
+  code <- paste(deparse(body(benchmark_runner_decisions)), collapse = "\n")
+  expect_match(code, "evaluate_promotion", fixed = TRUE)
+  expect_false(grepl('decision = "retain_incumbent"', code, fixed = TRUE))
+})
+
+test_that("candidate assembly preserves source precision and optional companion facts", {
+  inputs <- pipeline_promotion_sources()
+  candidate <- benchmark_runner_promotion_candidate(
+    "production_hybrid_nb", inputs$comparisons, inputs$coverage,
+    inputs$x$models, inputs$summaries, inputs$run_manifest, inputs$protocol
+  )
+
+  expect_true(candidate$uses_optional_data)
+  expect_identical(candidate$rich_panel$incumbent_id, "production_hybrid_nb")
+  expect_identical(candidate$open_companion$incumbent_id, "uniform_1x2")
+  expect_identical(candidate$open_companion$fixture_count, 2L)
+  expect_identical(candidate$core$rps_delta, 0)
+  expect_identical(candidate$core$ci_upper, 0)
+  expect_identical(candidate$rich_panel$coverage_observations$edition_id, c("wc2002", "euro2004"))
+  expect_true(all(candidate$rich_panel$coverage_observations$output_coverage_complete))
+  expect_true(all(candidate$contracts[names(promotion_contract_reason_map())] |> unlist()))
+})
+
+test_that("promotion decisions are finalized only after matching independent passes", {
+  inputs <- pipeline_promotion_sources()
+  first <- inputs$x$bundle
+  second <- pipeline_bundle(order_rows = TRUE)$bundle
+  for (bundle_name in c("first", "second")) {
+    bundle <- get(bundle_name)
+    bundle$benchmark_summaries <- inputs$summaries
+    bundle$run_manifest <- inputs$run_manifest
+    bundle$run_manifest$reproducible <- FALSE
+    bundle$promotion_decisions <- NULL
+    assign(bundle_name, bundle)
+  }
+
+  finalized <- finalize_benchmark_promotion_decisions(
+    first, second, inputs$coverage, inputs$coverage,
+    inputs$x$models, inputs$protocol
+  )
+  expect_true(finalized$first$run_manifest$reproducible)
+  expect_true(finalized$second$run_manifest$reproducible)
+  expect_identical(
+    benchmark_runner_content_sha256(finalized$first$promotion_decisions, "promotion_decisions"),
+    benchmark_runner_content_sha256(finalized$second$promotion_decisions, "promotion_decisions")
+  )
+
+  second$benchmark_summaries$estimate[1] <- second$benchmark_summaries$estimate[1] + 1e-12
+  expect_error(
+    finalize_benchmark_promotion_decisions(
+      first, second, inputs$coverage, inputs$coverage,
+      inputs$x$models, inputs$protocol
+    ),
+    "independent passes|reproduc"
+  )
+})
+
+test_that("bundle promotion validation reconstructs decisions and rejects tampering", {
+  inputs <- pipeline_promotion_sources()
+  bundle <- inputs$x$bundle
+  bundle$benchmark_summaries <- inputs$summaries
+  bundle$run_manifest <- inputs$run_manifest
+  bundle$promotion_decisions <- benchmark_runner_decisions(
+    bundle$paired_comparisons, inputs$coverage, inputs$x$models,
+    bundle$benchmark_summaries, bundle$run_manifest, inputs$protocol
+  )
+  expect_true(benchmark_runner_validate_promotion_decisions(
+    bundle, inputs$coverage, inputs$x$models, inputs$protocol
+  ))
+
+  for (column in c("reason_codes", "value__core_rps_delta", "pass__core_rps_effect")) {
+    tampered <- bundle
+    if (column == "reason_codes") tampered$promotion_decisions[[column]][1] <- "tampered_reason"
+    if (column == "value__core_rps_delta") tampered$promotion_decisions[[column]][1] <- 123
+    if (column == "pass__core_rps_effect") tampered$promotion_decisions[[column]][1] <- TRUE
+    expect_error(
+      benchmark_runner_validate_promotion_decisions(
+        tampered, inputs$coverage, inputs$x$models, inputs$protocol
+      ),
+      "reconstruct|tamper|evaluator"
+    )
+  }
 })
 
 test_that("targets exposes the isolated Phase 9 benchmark dependency chain", {
