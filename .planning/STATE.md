@@ -4,41 +4,41 @@ milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 09
 current_phase_name: Rolling Tournament Benchmark Harness
-status: verifying
-stopped_at: Completed 09-04-PLAN.md
-last_updated: "2026-07-21T05:51:03.016Z"
-last_activity: 2026-07-20
-last_activity_desc: Phase 09 Plan 03 completed
+status: executing
+stopped_at: Completed 09-05-PLAN.md
+last_updated: "2026-07-21T09:25:58.265Z"
+last_activity: 2026-07-21
+last_activity_desc: Phase 09 Plan 05 completed
 progress:
   total_phases: 5
-  completed_phases: 2
-  total_plans: 7
-  completed_plans: 7
-  percent: 40
+  completed_phases: 1
+  total_plans: 11
+  completed_plans: 8
+  percent: 73
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 09 (Rolling Tournament Benchmark Harness) — COMPLETE
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-07-21 — Phase 09 Plan 04 completed; ready for verification
+Phase: 09 (Rolling Tournament Benchmark Harness) — EXECUTING
+Plan: 6 of 8
+Status: Ready to execute
+Last activity: 2026-07-21 — Phase 09 Plan 05 completed
 
-Progress: [████░░░░░░] 40%
+Progress: [███████░░░] 73%
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 8 | Forecast Ledger and WC 2026 Retrospective | Complete | 6/6 |
-| 9 | Rolling Tournament Benchmark Harness | Complete | 5/5 |
+| 9 | Rolling Tournament Benchmark Harness | In Progress | 5/5 |
 | 10 | Statistical Goal-Model Challengers | Pending | 4 |
 | 11 | Hybrid ML and Contextual Priors | Pending | 5 |
 | 12 | Calibration, Promotion, and Model Release | Pending | 5 |
 
-**Overall:** 7 of 7 currently planned plans complete (100%)
+**Overall:** 8 of 11 currently planned plans complete (73%)
 
 ## Project Reference
 
@@ -71,6 +71,9 @@ leakage-safe assessment folds.
 - [Phase 09]: Limit canonical benchmark parallelism to two independent model-track workers after a 4.935-second worst-case fit diagnostic. — Completes both sealed passes in bounded time without changing any fit or evidence semantics.
 - [Phase 09]: Preserve every matchday refit and G=40 support while optimizing only execution order, grid access, hashing, and staged publication. — Leakage safety and the frozen D-10 through D-15 statistical contract remain unchanged.
 - [Phase 09]: Parent every durable benchmark output to the complete frozen registry and promotion-protocol graph. — Independent validation can reject drift in any checked input, not only model, boundary, or support files.
+- [Phase 09]: Preserve source-row presence separately from numeric value presence. — Observed zero must remain distinguishable from missing-then-zero.
+- [Phase 09]: Hash feature coverage IDs from run, model, track, boundary, and fixture identity. — Frozen and updating prediction groups must never collide.
+- [Phase 09]: Represent venue advantage as checked fixture-derived evidence without a historical source date. — The fixture field is observable without fabricating point-in-time provenance.
 
 ## Blockers
 
@@ -82,15 +85,15 @@ None.
 
 ## Next Action
 
-Verify Phase 09.
+Execute 09-06-PLAN.md.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-07-21T05:50:29.582Z
-**Stopped at:** Completed 09-04-PLAN.md
+**Last session:** 2026-07-21T09:25:07.547Z
+**Stopped at:** Completed 09-05-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -101,3 +104,4 @@ Verify Phase 09.
 | Phase 09 P02 | 30min | 3 tasks | 13 files |
 | Phase 09 P03 | 18min | 2 tasks | 5 files |
 | Phase 09 P04 | 1h 12m | 3 tasks | 16 files |
+| Phase 09 P05 | 35min | 2 tasks | 10 files |
