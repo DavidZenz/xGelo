@@ -81,7 +81,7 @@ baseline and challenger will be compared.
 5. A checksum-backed promotion protocol defines practical improvement thresholds
    and tie-breaking rules before challenger selection begins.
 
-**Plans:** 7/8 plans executed
+**Plans:** 8/8 plans complete
 
 Plans:
 
@@ -92,7 +92,7 @@ Plans:
 - [x] 09-05-PLAN.md — Replace aggregate coverage with linked runtime feature evidence
 - [x] 09-06-PLAN.md — Enforce exact 630/609 frozen panels through every evaluation consumer
 - [x] 09-07-PLAN.md — Route every canonical decision through the frozen promotion evaluator
-- [ ] 09-08-PLAN.md — Regenerate, independently hash, regression-test, and re-verify the canonical bundle
+- [x] 09-08-PLAN.md — Regenerate, independently hash, regression-test, and re-verify the canonical bundle
 
 ### Phase 10: Statistical Goal-Model Challengers
 
@@ -177,7 +177,7 @@ information add stable value beyond the strongest statistical benchmark.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
-| 9. Rolling Tournament Benchmark Harness | 7/8 | In Progress|  |
+| 9. Rolling Tournament Benchmark Harness | 8/8 | Complete   | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 0/TBD | Not started | - |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |

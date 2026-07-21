@@ -4,41 +4,41 @@ milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 09
 current_phase_name: Rolling Tournament Benchmark Harness
-status: executing
-stopped_at: Completed 09-07-PLAN.md
-last_updated: "2026-07-21T11:10:36.156Z"
+status: verifying
+stopped_at: Completed 09-08-PLAN.md
+last_updated: "2026-07-21T19:48:36.114Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 09 Plan 07 completed
+last_activity_desc: Phase 09 Plan 08 completed
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 11
-  completed_plans: 10
-  percent: 91
+  completed_plans: 11
+  percent: 100
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 09 (Rolling Tournament Benchmark Harness) — EXECUTING
+Phase: 09 (Rolling Tournament Benchmark Harness) — VERIFYING
 Plan: 8 of 8
-Status: Ready to execute
-Last activity: 2026-07-21 — Phase 09 Plan 07 completed
+Status: Phase complete — ready for verification
+Last activity: 2026-07-21 — Phase 09 Plan 08 completed
 
-Progress: [█████████░] 91%
+Progress: [██████████] 100%
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 8 | Forecast Ledger and WC 2026 Retrospective | Complete | 6/6 |
-| 9 | Rolling Tournament Benchmark Harness | In Progress | 5/5 |
+| 9 | Rolling Tournament Benchmark Harness | Complete | 5/5 |
 | 10 | Statistical Goal-Model Challengers | Pending | 4 |
 | 11 | Hybrid ML and Contextual Priors | Pending | 5 |
 | 12 | Calibration, Promotion, and Model Release | Pending | 5 |
 
-**Overall:** 10 of 11 currently planned plans complete (91%)
+**Overall:** 11 of 11 currently planned plans complete (100%)
 
 ## Project Reference
 
@@ -48,8 +48,7 @@ milestone scope.
 **Core value:** Accurate, calibrated international-football forecasting without
 dependence on paid data feeds.
 
-**Current focus:** Phase 09 — Rolling Tournament Benchmark Harness
-leakage-safe assessment folds.
+**Current focus:** Phase 09 is complete and ready for goal verification.
 
 ## Decisions
 
@@ -80,6 +79,9 @@ leakage-safe assessment folds.
 - [Phase 09]: Canonical benchmark decisions call evaluate_promotion exactly once per registered model with no injectable or hard-coded policy path. — Prevents governance bypass and makes the frozen evaluator the sole authority.
 - [Phase 09]: Promotion reproducibility remains false until normal and reversed-order non-decision artifacts reconcile, then final evaluator hashes must match. — Reproducibility is derived evidence rather than a pre-decision assumption.
 - [Phase 09]: production_hybrid_nb promotion input combines its rich self-comparison with complete open-incumbent companion evidence. — Preserves the frozen D-19 optional-data shape and 630-fixture open companion contract.
+- [Phase 09]: Preserve the accepted seal until staged pre-validation and post-install validation both succeed. — Unique staging plus retained rollback backup prevents an invalid candidate from displacing the known-good bundle.
+- [Phase 09]: Evaluate canonical promotion decisions from CSV-persisted numeric views. — Durable read-back is the authority and eliminates sub-precision evaluator/hash drift.
+- [Phase 09]: Require fresh-process bundle acceptance with explicit validator dependencies. — Ambient producer-session state cannot serve as standalone validation evidence.
 
 ## Blockers
 
@@ -91,15 +93,15 @@ None.
 
 ## Next Action
 
-Execute 09-08-PLAN.md.
+Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-owned.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-07-21T11:10:36.149Z
-**Stopped at:** Completed 09-07-PLAN.md
+**Last session:** 2026-07-21T19:48:36.107Z
+**Stopped at:** Completed 09-08-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -113,3 +115,4 @@ Execute 09-08-PLAN.md.
 | Phase 09 P05 | 35min | 2 tasks | 10 files |
 | Phase 09 P06 | 56min | 2 tasks | 7 files |
 | Phase 09 P07 | 36min | 2 tasks | 4 files |
+| Phase 09 P08 | 1h 22m | 2 tasks | 9 files |

@@ -157,9 +157,17 @@ Recovery and execution outcomes were committed atomically:
 - **Verification:** The exact Task 1 and Task 2 fresh-process source sequences both passed.
 - **Committed in:** `03b3a1e`
 
+**4. [Rule 1 - Bug] Reconciled stale SDK-rendered completion state**
+- **Found during:** Final tracking updates
+- **Issue:** The state SDK reported 11/11 plans and 100% progress but persisted `percent: 40` plus stale Plan 07, executing, 91%, and next-action prose.
+- **Fix:** Reconciled `STATE.md` to the authoritative 11/11 plan count, Phase 09 completion, and verifier-ready next action while preserving SDK-written metrics and decisions.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** `STATE.md` now reports 100% and Phase 09 complete; `ROADMAP.md` reports 8/8 plans complete.
+- **Committed in:** Final tracking commit
+
 ---
 
-**Total deviations:** 3 auto-fixed (2 correctness bugs, 1 blocking dependency defect).
+**Total deviations:** 4 auto-fixed (3 correctness bugs, 1 blocking dependency defect).
 **Impact on plan:** All fixes strengthened staged publication, durable evaluator identity, and independent validation without changing scientific settings or scope.
 
 ## Issues Encountered
