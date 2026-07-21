@@ -81,6 +81,19 @@ baseline and challenger will be compared.
 5. A checksum-backed promotion protocol defines practical improvement thresholds
    and tie-breaking rules before challenger selection begins.
 
+**Plans:** 8 plans
+
+Plans:
+
+- [x] 09-01-PLAN.md — Freeze historical registries, deterministic boundaries, and the WC2026 seal
+- [x] 09-02-PLAN.md — Define common contracts and reproduce the five registered baselines
+- [x] 09-03-PLAN.md — Implement shared scoring, uncertainty, and the frozen promotion protocol
+- [x] 09-04-PLAN.md — Integrate targets and publish the initial sealed benchmark bundle
+- [ ] 09-05-PLAN.md — Replace aggregate coverage with linked runtime feature evidence
+- [ ] 09-06-PLAN.md — Enforce exact 630/609 frozen panels through every evaluation consumer
+- [ ] 09-07-PLAN.md — Route every canonical decision through the frozen promotion evaluator
+- [ ] 09-08-PLAN.md — Regenerate, independently hash, regression-test, and re-verify the canonical bundle
+
 ### Phase 10: Statistical Goal-Model Challengers
 
 **Goal:** Test interpretable score-model alternatives and simplify the incumbent
