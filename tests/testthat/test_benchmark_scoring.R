@@ -2,6 +2,7 @@ library(testthat)
 
 project_root <- normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."))
 source(file.path(project_root, "R/evaluation/proper_scores.R"))
+source(file.path(project_root, "R/benchmark/contracts.R"))
 source(file.path(project_root, "R/evaluation/benchmark_scores.R"))
 
 benchmark_test_distribution <- function(id = "dist_1") {
@@ -31,7 +32,8 @@ benchmark_test_fixture <- function(fixture_id = "f1", edition_id = "wc2002") {
 
 test_that("fixture scores preserve every locked hand-calculated scale", {
   scores <- score_benchmark_fixtures(
-    benchmark_test_prediction(), benchmark_test_fixture(), benchmark_test_distribution()
+    benchmark_test_prediction(), benchmark_test_fixture(), benchmark_test_distribution(),
+    expected_fixture_ids = "f1"
   )
   value <- function(metric) scores$value[scores$metric == metric]
 
@@ -53,7 +55,10 @@ test_that("scoring fails instead of shrinking registered fixture coverage", {
     benchmark_test_fixture("f2")
   )
   expect_error(
-    score_benchmark_fixtures(predictions, fixtures, benchmark_test_distribution()),
+    score_benchmark_fixtures(
+      predictions, fixtures, benchmark_test_distribution(),
+      expected_fixture_ids = c("f1", "f2")
+    ),
     "exactly the registered fixture IDs"
   )
 })
@@ -90,7 +95,9 @@ test_that("fixed calibration bins are shared and tournament weighted", {
   fixtures$regulation_home_goals <- 1L
   fixtures$regulation_away_goals <- 0L
 
-  calibration <- fixed_benchmark_calibration(predictions, fixtures, min_bin_count = 2L)
+  calibration <- fixed_benchmark_calibration(
+    predictions, fixtures, expected_fixture_ids = "f1", min_bin_count = 2L
+  )
   expect_equal(calibration$summary$calibration_error, (0.2 + 0.1 + 0.1) / 3)
   expect_equal(calibration$bins$bin_lower[calibration$bins$class == "home"], 0.8)
   expect_true(all(calibration$bins$sparse))
@@ -154,4 +161,97 @@ test_that("paired bootstrap uses 12 tournament deltas and the registered seed de
     paired_tournament_bootstrap(folds[-1, ], reps = 10000L, seed = 920001L),
     "exactly 12 tournament deltas"
   )
+})
+
+benchmark_panel_test_data <- function(panel_id) {
+  panel_fixtures <- read.csv(
+    file.path(project_root, "data/benchmark/phase09/panel_fixtures.csv"),
+    stringsAsFactors = FALSE
+  )
+  fixture_ids <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
+  declared <- panel_fixtures[
+    panel_fixtures$panel_id == panel_id & panel_fixtures$fixture_id %in% fixture_ids,
+    c("edition_id", "fixture_id"), drop = FALSE
+  ]
+  declared <- declared[match(fixture_ids, declared$fixture_id), , drop = FALSE]
+  fixtures <- transform(
+    declared,
+    regulation_home_goals = 1L,
+    regulation_away_goals = 0L,
+    score_eligible = TRUE
+  )
+  predictions <- data.frame(
+    run_id = "run_1", model_id = if (panel_id == "open_core") "open_nb_incumbent" else "production_hybrid_nb",
+    panel_id = panel_id, edition_id = declared$edition_id, track_id = "updating",
+    fixture_id = declared$fixture_id, score_distribution_id = "dist_1",
+    p_home = 0.3, p_draw = 0.6, p_away = 0.1,
+    p_over_2_5 = 0, p_under_2_5 = 1, p_btts = 0.4,
+    prediction_status = "ok", stringsAsFactors = FALSE
+  )
+  list(ids = fixture_ids, fixtures = fixtures, predictions = predictions)
+}
+
+test_that("open and rich scoring and calibration retain exact frozen denominators", {
+  expected <- c(open_core = 630L, feature_rich = 609L)
+  for (panel_id in names(expected)) {
+    x <- benchmark_panel_test_data(panel_id)
+    scores <- score_benchmark_fixtures(
+      x$predictions, x$fixtures, benchmark_test_distribution(),
+      expected_fixture_ids = x$ids
+    )
+    calibration <- fixed_benchmark_calibration(
+      x$predictions, x$fixtures, expected_fixture_ids = x$ids
+    )
+    testthat::expect_equal(length(unique(scores$fixture_id)), expected[[panel_id]])
+    testthat::expect_true(all(scores$panel_id == panel_id))
+    testthat::expect_equal(calibration$summary$n_fixtures, expected[[panel_id]])
+    testthat::expect_equal(length(unique(x$predictions$edition_id)), 12L)
+
+    extra <- rbind(x$predictions, transform(x$predictions[1, ], fixture_id = "out_of_panel"))
+    testthat::expect_error(
+      score_benchmark_fixtures(
+        extra, x$fixtures, benchmark_test_distribution(), expected_fixture_ids = x$ids
+      ),
+      "exact expected fixture IDs"
+    )
+    testthat::expect_error(
+      fixed_benchmark_calibration(extra, x$fixtures, expected_fixture_ids = x$ids),
+      "exact expected fixture IDs"
+    )
+  }
+})
+
+test_that("paired open and rich fold counts preserve all 12 tournaments", {
+  panel_fixtures <- read.csv(
+    file.path(project_root, "data/benchmark/phase09/panel_fixtures.csv"),
+    stringsAsFactors = FALSE
+  )
+  tournaments <- unique(panel_fixtures[, "edition_id", drop = FALSE])
+  tournaments$competition_id <- ifelse(
+    grepl("^wc", tournaments$edition_id), "world_cup", "euro"
+  )
+  tournaments <- tournaments[order(tournaments$edition_id), , drop = FALSE]
+
+  expected <- c(open_core = 630L, feature_rich = 609L)
+  for (panel_id in names(expected)) {
+    ids <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
+    declared <- panel_fixtures[
+      panel_fixtures$panel_id == panel_id & panel_fixtures$fixture_id %in% ids,
+      c("edition_id", "fixture_id"), drop = FALSE
+    ]
+    base <- data.frame(
+      model_id = "incumbent", edition_id = declared$edition_id,
+      fixture_id = declared$fixture_id, target = "regulation_1x2", metric = "rps",
+      value = 0.2, covered = TRUE, stringsAsFactors = FALSE
+    )
+    challenger <- base
+    challenger$model_id <- "challenger"
+    challenger$value <- 0.19
+    comparison <- make_paired_fold_comparisons(
+      rbind(challenger, base), "challenger", "incumbent", tournaments,
+      expected_fixture_ids = ids
+    )
+    testthat::expect_equal(nrow(comparison$folds), 12L)
+    testthat::expect_equal(sum(comparison$folds$paired_fixture_count), expected[[panel_id]])
+  }
 })

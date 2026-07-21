@@ -169,6 +169,95 @@ testthat::test_that("prediction coverage rejects missing rows and unknown seeds"
   )
 })
 
+testthat::test_that("frozen panel selectors enforce exact declared fixture sets", {
+  panel_fixtures <- read.csv(
+    file.path(project_root, "data/benchmark/phase09/panel_fixtures.csv"),
+    stringsAsFactors = FALSE
+  )
+  open_ids <- benchmark_panel_fixture_ids(panel_fixtures, "open_core")
+  rich_ids <- benchmark_panel_fixture_ids(panel_fixtures, "feature_rich")
+
+  testthat::expect_length(open_ids, 630L)
+  testthat::expect_length(rich_ids, 609L)
+  testthat::expect_identical(open_ids, sort(unique(open_ids)))
+  testthat::expect_identical(rich_ids, sort(unique(rich_ids)))
+  testthat::expect_setequal(
+    unique(panel_fixtures$edition_id[panel_fixtures$fixture_id %in% rich_ids]),
+    unique(panel_fixtures$edition_id)
+  )
+
+  duplicate <- rbind(panel_fixtures, panel_fixtures[1, , drop = FALSE])
+  testthat::expect_error(
+    benchmark_panel_fixture_ids(duplicate, "feature_rich"),
+    "duplicate declarations"
+  )
+  testthat::expect_error(
+    benchmark_panel_fixture_ids(panel_fixtures, "not_registered"),
+    "registered panel"
+  )
+})
+
+testthat::test_that("rich-panel projection excludes 21 audit-visible rows and validates strictly", {
+  panel_fixtures <- read.csv(
+    file.path(project_root, "data/benchmark/phase09/panel_fixtures.csv"),
+    stringsAsFactors = FALSE
+  )
+  fixture_ids <- benchmark_panel_fixture_ids(panel_fixtures, "open_core")
+  predictions <- data.frame(
+    model_id = "production_hybrid_nb", panel_id = "feature_rich",
+    fixture_id = fixture_ids, prediction_status = "ok",
+    stringsAsFactors = FALSE
+  )
+  selected <- select_benchmark_panel_predictions(
+    predictions, panel_fixtures, "production_hybrid_nb", "feature_rich"
+  )
+
+  testthat::expect_equal(nrow(selected), 609L)
+  testthat::expect_equal(attr(selected, "excluded_fixture_count"), 21L)
+  testthat::expect_equal(attr(selected, "declared_fixture_count"), 609L)
+  testthat::expect_silent(validate_panel_prediction_coverage(
+    selected, panel_fixtures, "production_hybrid_nb", "feature_rich"
+  ))
+
+  missing <- selected[-1, , drop = FALSE]
+  testthat::expect_error(
+    validate_panel_prediction_coverage(
+      missing, panel_fixtures, "production_hybrid_nb", "feature_rich"
+    ),
+    "exact declared fixture set"
+  )
+  duplicate <- rbind(selected, selected[1, , drop = FALSE])
+  testthat::expect_error(
+    validate_panel_prediction_coverage(
+      duplicate, panel_fixtures, "production_hybrid_nb", "feature_rich"
+    ),
+    "duplicate fixture"
+  )
+  extra <- rbind(selected, predictions[!predictions$fixture_id %in% selected$fixture_id, ][1, ])
+  testthat::expect_error(
+    validate_panel_prediction_coverage(
+      extra, panel_fixtures, "production_hybrid_nb", "feature_rich"
+    ),
+    "exact declared fixture set"
+  )
+  wrong_panel <- selected
+  wrong_panel$panel_id[1] <- "open_core"
+  testthat::expect_error(
+    validate_panel_prediction_coverage(
+      wrong_panel, panel_fixtures, "production_hybrid_nb", "feature_rich"
+    ),
+    "one model and panel identity"
+  )
+  incomplete <- selected
+  incomplete$prediction_status[1] <- "failed"
+  testthat::expect_error(
+    validate_panel_prediction_coverage(
+      incomplete, panel_fixtures, "production_hybrid_nb", "feature_rich"
+    ),
+    "incomplete"
+  )
+})
+
 testthat::test_that("manifests and feature coverage enforce point-in-time provenance", {
   manifest <- data.frame(
     model_manifest_id = "manifest_1", run_id = "run_1", model_id = "elo_goal_nb",
