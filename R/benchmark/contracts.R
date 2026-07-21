@@ -296,7 +296,16 @@ validate_feature_coverage <- function(coverage, expected_keys) {
   }
   invalid <- source_present & (is.na(source_date) | is.na(cutoff) | source_date >= cutoff)
   if (any(invalid) || any(is.na(cutoff))) {
-    stop("Feature coverage cutoff provenance is invalid", call. = FALSE)
+    bad <- which(invalid | is.na(cutoff))[1]
+    stop(
+      "Feature coverage cutoff provenance is invalid for ",
+      paste(
+        coverage$model_id[bad], coverage$track_id[bad], coverage$fixture_id[bad],
+        coverage$feature_id[bad], as.character(source_date[bad]),
+        as.character(cutoff[bad]), sep = "/"
+      ),
+      call. = FALSE
+    )
   }
   if (any(!source_present & !is.na(source_date))) {
     stop("Feature coverage source-absent rows cannot fabricate source dates", call. = FALSE)
@@ -312,11 +321,13 @@ validate_feature_coverage <- function(coverage, expected_keys) {
   if (any(!value_present & !imputed)) {
     stop("Missing feature values must remain explicitly imputed", call. = FALSE)
   }
-  if (any(imputed & (is.na(coverage$imputation_reason) | !nzchar(coverage$imputation_reason)))) {
+  imputation_reason <- as.character(coverage$imputation_reason)
+  if (any(imputed & (is.na(imputation_reason) | !nzchar(imputation_reason)))) {
     stop("Imputed features require an explicit missingness reason", call. = FALSE)
   }
+  imputation_reason[is.na(imputation_reason)] <- ""
   if (any(!imputed & !derived_fixture & !value_present) ||
-      any(!imputed & nzchar(as.character(coverage$imputation_reason)))) {
+      any(!imputed & nzchar(imputation_reason))) {
     stop("Feature coverage imputation flags and reasons are inconsistent", call. = FALSE)
   }
   invisible(coverage)
@@ -362,6 +373,69 @@ validate_prediction_feature_coverage_links <- function(predictions, coverage, fe
     }
   }
   invisible(TRUE)
+}
+
+#' Rebuild exact registered feature keys for durable bundle validation
+#' @export
+benchmark_expected_feature_coverage_keys <- function(predictions, model_registry, feature_contract) {
+  prediction_columns <- c(
+    "model_id", "panel_id", "edition_id", "track_id", "boundary_id", "fixture_id"
+  )
+  contract_columns <- c(
+    "panel_id", "feature_id", "source_id", "source_artifact_sha256",
+    "license_class", "row_sha256"
+  )
+  benchmark_contract_require_columns(predictions, prediction_columns, "Benchmark predictions")
+  benchmark_contract_require_columns(model_registry, c("model_id", "panel_id"), "Model registry")
+  benchmark_contract_require_columns(feature_contract, contract_columns, "Feature contract")
+  benchmark_contract_require_unique(
+    predictions, c("model_id", "track_id", "fixture_id"), "Benchmark predictions"
+  )
+  benchmark_contract_require_unique(model_registry, "model_id", "Model registry")
+  benchmark_contract_require_unique(feature_contract, c("panel_id", "feature_id"), "Feature contract")
+
+  registrations <- model_registry[match(predictions$model_id, model_registry$model_id), , drop = FALSE]
+  if (any(is.na(registrations$model_id))) {
+    stop("Benchmark predictions contain unregistered models", call. = FALSE)
+  }
+  if (any(as.character(predictions$panel_id) != as.character(registrations$panel_id))) {
+    stop("Benchmark prediction panel identity differs from model registration", call. = FALSE)
+  }
+
+  rows <- lapply(seq_len(nrow(predictions)), function(i) {
+    contract <- feature_contract[
+      as.character(feature_contract$panel_id) == as.character(predictions$panel_id[i]),
+      contract_columns, drop = FALSE
+    ]
+    if (!nrow(contract)) stop("Registered model panel has no feature contract rows", call. = FALSE)
+    identity <- predictions[rep(i, nrow(contract)), prediction_columns, drop = FALSE]
+    data.frame(
+      identity,
+      feature_id = as.character(contract$feature_id),
+      source_id = as.character(contract$source_id),
+      source_artifact_sha256 = tolower(as.character(contract$source_artifact_sha256)),
+      feature_contract_row_sha256 = tolower(as.character(contract$row_sha256)),
+      license_class = as.character(contract$license_class),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  })
+  expected <- do.call(rbind, rows)
+  rownames(expected) <- NULL
+  expected
+}
+
+#' Validate durable feature evidence and every prediction foreign key
+#' @export
+validate_benchmark_feature_evidence <- function(
+    predictions, feature_coverage, model_registry, feature_contract
+) {
+  expected <- benchmark_expected_feature_coverage_keys(
+    predictions, model_registry, feature_contract
+  )
+  validate_feature_coverage(feature_coverage, expected)
+  validate_prediction_feature_coverage_links(predictions, feature_coverage, feature_contract)
+  TRUE
 }
 
 #' Return the exact frozen fixture inventory for one benchmark panel

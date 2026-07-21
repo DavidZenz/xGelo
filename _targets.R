@@ -484,7 +484,19 @@ list(
       execution <- benchmark_phase09_boundaries
       score_support_audit <- execution$context$inputs$score_support_audit
       selected_g <- unique(as.integer(score_support_audit$selected_g))
-      history <- read.csv("data/processed/goal_training_features_hybrid.csv", stringsAsFactors = FALSE)
+      feature_input <- hybrid_goal_training_features_file
+      if (length(feature_input) != 1L || is.na(feature_input) || !file.exists(feature_input)) {
+        stop("Phase 9 benchmark requires the canonical hybrid goal training feature file")
+      }
+      history <- read.csv(feature_input, stringsAsFactors = FALSE)
+      validate_forecast_feature_evidence(
+        history,
+        execution$context$inputs$feature_contract,
+        derived_mappings = c(
+          elo_difference_for_team = "elo_diff",
+          venue_advantage_for_team = "elo_diff"
+        )
+      )
       date_column <- if ("date" %in% names(history)) "date" else "actual_completion_date"
       history <- history[
         as.Date(history[[date_column]]) <= max(as.Date(execution$context$registries$fixtures$actual_completion_date)),
@@ -502,7 +514,14 @@ list(
         branch_order = execution$context$inputs$model_registry$model_id,
         selected_g = selected_g
       )
-      list(bundle = bundle, execution = execution, score_support_audit = score_support_audit)
+      additional_inputs <- benchmark_runner_additional_input_specs(
+        "data/benchmark/phase09", feature_input
+      )
+      list(
+        bundle = bundle, execution = execution,
+        score_support_audit = score_support_audit,
+        additional_inputs = additional_inputs
+      )
     }
   ),
   tar_target(
@@ -547,7 +566,10 @@ list(
         "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen",
         execution$context$inputs$score_support_audit,
         execution$context$inputs$model_registry,
-        execution$boundary_inventory
+        execution$boundary_inventory,
+        additional_inputs = benchmark_phase09_predictions$additional_inputs,
+        panel_fixtures = execution$context$inputs$panel_fixtures,
+        feature_contract = execution$context$inputs$feature_contract
       )
       unname(result$paths)
     },

@@ -130,7 +130,18 @@ benchmark_runner_input_hashes <- function(model_registry, boundary_inventory, sc
   )
 }
 
-benchmark_runner_additional_input_specs <- function(registry_dir = "data/benchmark/phase09") {
+benchmark_runner_additional_input_specs <- function(
+    registry_dir = "data/benchmark/phase09",
+    goal_training_features_path = "data/processed/goal_training_features_hybrid.csv"
+) {
+  registry_dir <- normalizePath(registry_dir, mustWork = TRUE)
+  if (!file.exists(goal_training_features_path) &&
+      identical(goal_training_features_path, "data/processed/goal_training_features_hybrid.csv")) {
+    project_root <- dirname(dirname(dirname(registry_dir)))
+    goal_training_features_path <- file.path(
+      project_root, "data/processed/goal_training_features_hybrid.csv"
+    )
+  }
   files <- c(
     tournaments = "tournaments.csv", fixtures = "fixtures.csv", teams = "teams.csv",
     formats = "formats.csv", route_rules = "route_rules.csv", corrections = "corrections.csv",
@@ -165,6 +176,16 @@ benchmark_runner_additional_input_specs <- function(registry_dir = "data/benchma
     path = protocol_path, key = "protocol_sha256",
     canonical_content_sha256 = protocol$protocol_sha256,
     sha256 = benchmark_runner_file_sha256(protocol_path)
+  )
+  if (!file.exists(goal_training_features_path)) {
+    stop("Canonical hybrid goal training feature input is missing", call. = FALSE)
+  }
+  feature_hash <- benchmark_runner_file_sha256(goal_training_features_path)
+  specs$goal_training_features_hybrid <- list(
+    data = data.frame(content_sha256 = feature_hash, stringsAsFactors = FALSE),
+    path = normalizePath(goal_training_features_path, mustWork = TRUE),
+    key = "content_sha256", canonical_content_sha256 = feature_hash,
+    sha256 = feature_hash
   )
   specs
 }
@@ -256,9 +277,105 @@ benchmark_runner_validate_distributions <- function(
   invisible(distributions)
 }
 
+benchmark_runner_validate_panel_outputs <- function(
+    bundle, panel_fixtures, model_registry
+) {
+  benchmark_runner_require_columns(
+    panel_fixtures,
+    c("panel_id", "edition_id", "fixture_id", "eligible", "output_coverage_required"),
+    "Panel fixtures"
+  )
+  benchmark_runner_require_columns(model_registry, c("model_id", "panel_id"), "Model registry")
+  scores <- bundle$fixture_scores
+  summaries <- bundle$benchmark_summaries
+  comparisons <- bundle$paired_comparisons
+  benchmark_runner_require_columns(
+    scores, c("model_id", "panel_id", "track_id", "edition_id", "fixture_id", "metric"),
+    "Fixture scores"
+  )
+  benchmark_runner_require_columns(
+    summaries, c("model_id", "panel_id", "track_id", "edition_id", "n_fixtures"),
+    "Benchmark summaries"
+  )
+  benchmark_runner_require_columns(
+    comparisons,
+    c("challenger_id", "panel_id", "track_id", "edition_id", "diagnostic", "paired_fixture_count"),
+    "Paired comparisons"
+  )
+
+  for (i in seq_len(nrow(model_registry))) {
+    model_id <- as.character(model_registry$model_id[i])
+    panel_id <- as.character(model_registry$panel_id[i])
+    expected_ids <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
+    expected_panel <- panel_fixtures[
+      panel_fixtures$panel_id == panel_id & panel_fixtures$fixture_id %in% expected_ids,
+      , drop = FALSE
+    ]
+    edition_counts <- table(as.character(expected_panel$edition_id))
+    for (track_id in c("frozen", "updating")) {
+      score_rows <- scores[scores$model_id == model_id & scores$track_id == track_id, , drop = FALSE]
+      if (!nrow(score_rows) || any(as.character(score_rows$panel_id) != panel_id)) {
+        stop("Fixture scores are missing a registered model panel", call. = FALSE)
+      }
+      for (metric in unique(as.character(score_rows$metric))) {
+        metric_ids <- as.character(score_rows$fixture_id[score_rows$metric == metric])
+        if (anyDuplicated(metric_ids) || !setequal(metric_ids, expected_ids)) {
+          stop("Fixture scores contain missing, extra, or ineligible panel fixtures", call. = FALSE)
+        }
+      }
+
+      summary_rows <- summaries[
+        summaries$model_id == model_id & summaries$track_id == track_id,
+        , drop = FALSE
+      ]
+      if (!nrow(summary_rows) || any(as.character(summary_rows$panel_id) != panel_id)) {
+        stop("Benchmark summaries are missing a registered model panel", call. = FALSE)
+      }
+      tournament_rows <- summary_rows[summary_rows$edition_id %in% names(edition_counts), , drop = FALSE]
+      if (nrow(tournament_rows)) {
+        expected_n <- as.integer(edition_counts[as.character(tournament_rows$edition_id)])
+        if (any(as.integer(tournament_rows$n_fixtures) != expected_n)) {
+          stop("Benchmark summary tournament denominator drift", call. = FALSE)
+        }
+      }
+      headline_rows <- summary_rows[summary_rows$edition_id == "headline", , drop = FALSE]
+      if (nrow(headline_rows) && any(as.integer(headline_rows$n_fixtures) != length(expected_ids))) {
+        stop("Benchmark summary headline denominator drift", call. = FALSE)
+      }
+      if ("coverage_denominator" %in% names(summary_rows)) {
+        headline_denominators <- as.integer(headline_rows$coverage_denominator)
+        if (length(headline_denominators) && any(headline_denominators != length(expected_ids))) {
+          stop("Benchmark summary coverage denominator drift", call. = FALSE)
+        }
+      }
+
+      comparison_rows <- comparisons[
+        comparisons$challenger_id == model_id & comparisons$track_id == track_id,
+        , drop = FALSE
+      ]
+      if (!nrow(comparison_rows) || any(as.character(comparison_rows$panel_id) != panel_id)) {
+        stop("Paired comparisons are missing a registered model panel", call. = FALSE)
+      }
+      folds <- comparison_rows[comparison_rows$diagnostic == "fold", , drop = FALSE]
+      if (!setequal(as.character(folds$edition_id), names(edition_counts)) ||
+          sum(as.integer(folds$paired_fixture_count)) != length(expected_ids)) {
+        stop("Paired comparison fold denominator drift", call. = FALSE)
+      }
+      headline <- comparison_rows[comparison_rows$diagnostic == "headline", , drop = FALSE]
+      leave_one_out <- comparison_rows[comparison_rows$diagnostic == "leave_one_out", , drop = FALSE]
+      if (nrow(headline) != 1L || as.integer(headline$paired_fixture_count) != length(expected_ids) ||
+          nrow(leave_one_out) != length(edition_counts) ||
+          any(as.integer(leave_one_out$paired_fixture_count) != length(expected_ids))) {
+        stop("Paired comparison persisted denominator drift", call. = FALSE)
+      }
+    }
+  }
+  TRUE
+}
+
 benchmark_runner_validate_bundle_data <- function(
     bundle, score_support_audit, model_registry, boundary_inventory,
-    require_reproducible = TRUE
+    require_reproducible = TRUE, panel_fixtures = NULL, feature_contract = NULL
 ) {
   missing <- setdiff(benchmark_runner_required_artifacts(), names(bundle))
   if (length(missing)) stop("Benchmark bundle is missing artifacts: ", paste(missing, collapse = ", "), call. = FALSE)
@@ -311,14 +428,15 @@ benchmark_runner_validate_bundle_data <- function(
   )
   benchmark_runner_validate_registration_hashes(manifests, model_registry)
 
-  benchmark_runner_require_columns(
-    coverage,
-    c("model_id", "panel_id", "edition_id", "output_coverage_complete", "provenance_complete", "promotion_eligible"),
-    "Feature coverage"
-  )
-  if (!setequal(unique(coverage$model_id), model_registry$model_id)) {
-    stop("Feature coverage is missing registered model rows", call. = FALSE)
+  if (is.null(panel_fixtures) || is.null(feature_contract)) {
+    stop("Bundle validation requires frozen panel fixtures and feature contract", call. = FALSE)
   }
+  feature_coverage_valid <- validate_benchmark_feature_evidence(
+    predictions, coverage, model_registry, feature_contract
+  )
+  panel_coverage_valid <- benchmark_runner_validate_panel_outputs(
+    bundle, panel_fixtures, model_registry
+  )
   benchmark_runner_require_columns(
     decisions,
     c("candidate_id", "panel_id", "output_coverage_complete", "promotion_eligible", "decision"),
@@ -327,12 +445,18 @@ benchmark_runner_validate_bundle_data <- function(
   if (!setequal(unique(decisions$candidate_id), model_registry$model_id)) {
     stop("Promotion decisions are missing registered models", call. = FALSE)
   }
-  coverage_by_model <- split(coverage, coverage$model_id)
-  for (model_id in names(coverage_by_model)) {
-    rows <- coverage_by_model[[model_id]]
+  for (i in seq_len(nrow(model_registry))) {
+    model_id <- as.character(model_registry$model_id[i])
+    panel_id <- as.character(model_registry$panel_id[i])
+    floor <- 1
+    observed <- benchmark_output_coverage(
+      predictions[predictions$model_id == model_id, , drop = FALSE],
+      panel_fixtures[panel_fixtures$panel_id == panel_id, , drop = FALSE],
+      model_id, floor
+    )
     decision <- decisions[decisions$candidate_id == model_id, , drop = FALSE]
-    expected_complete <- all(rows$output_coverage_complete)
-    expected_eligible <- all(rows$output_coverage_complete & rows$provenance_complete & rows$promotion_eligible)
+    expected_complete <- all(observed$output_coverage_complete)
+    expected_eligible <- all(observed$promotion_eligible)
     if (nrow(decision) != 1L || isTRUE(decision$output_coverage_complete) != expected_complete) {
       stop("Promotion decisions do not reconcile observed output coverage", call. = FALSE)
     }
@@ -348,6 +472,7 @@ benchmark_runner_validate_bundle_data <- function(
     run_manifest,
     c(
       "run_id", "protocol_version", "protocol_sha256", "selected_g",
+      "feature_coverage_valid", "panel_coverage_valid",
       "score_support_audit_valid", "registration_settings_stable",
       "output_coverage_reconciled", "wc2026_sealed", "network_free", "reproducible"
     ),
@@ -357,12 +482,16 @@ benchmark_runner_validate_bundle_data <- function(
     stop("Run manifest selected G disagrees with the normalized audit", call. = FALSE)
   }
   required_flags <- c(
+    "feature_coverage_valid", "panel_coverage_valid",
     "score_support_audit_valid", "registration_settings_stable",
     "output_coverage_reconciled", "wc2026_sealed", "network_free"
   )
   if (isTRUE(require_reproducible)) required_flags <- c(required_flags, "reproducible")
   if (any(!vapply(run_manifest[required_flags], function(x) isTRUE(x[[1]]), logical(1)))) {
     stop("Run manifest reconciliation flags must all pass", call. = FALSE)
+  }
+  if (!isTRUE(feature_coverage_valid) || !isTRUE(panel_coverage_valid)) {
+    stop("Bundle evidence or panel reconciliation did not validate", call. = FALSE)
   }
   invisible(TRUE)
 }
@@ -451,11 +580,18 @@ write_benchmark_checksum_manifest <- function(
 write_rolling_benchmark_bundle <- function(
     bundle, output_dir, score_support_audit, model_registry, boundary_inventory,
     source_git_sha = NA_character_, require_reproducible = TRUE,
-    additional_inputs = list()
+    additional_inputs = list(), panel_fixtures = NULL, feature_contract = NULL
 ) {
+  if (is.null(panel_fixtures) && !is.null(additional_inputs$panel_fixtures)) {
+    panel_fixtures <- additional_inputs$panel_fixtures$data
+  }
+  if (is.null(feature_contract) && !is.null(additional_inputs$feature_contract)) {
+    feature_contract <- additional_inputs$feature_contract$data
+  }
   benchmark_runner_validate_bundle_data(
     bundle, score_support_audit, model_registry, boundary_inventory,
-    require_reproducible = require_reproducible
+    require_reproducible = require_reproducible,
+    panel_fixtures = panel_fixtures, feature_contract = feature_contract
   )
   output_dir <- normalizePath(output_dir, mustWork = FALSE)
   paths <- benchmark_output_paths(output_dir)
@@ -555,7 +691,9 @@ validate_rolling_benchmark_bundle <- function(
     model_registry = NULL,
     boundary_inventory = NULL,
     additional_inputs = NULL,
-    require_reproducible = TRUE
+    require_reproducible = TRUE,
+    panel_fixtures = NULL,
+    feature_contract = NULL
 ) {
   if (is.null(score_support_audit) || is.null(model_registry)) {
     default_inputs <- benchmark_runner_load_inputs("data/benchmark/phase09")
@@ -584,13 +722,20 @@ validate_rolling_benchmark_bundle <- function(
       additional_inputs <- standard[extra_names]
     }
   }
+  if (is.null(panel_fixtures) && !is.null(additional_inputs$panel_fixtures)) {
+    panel_fixtures <- additional_inputs$panel_fixtures$data
+  }
+  if (is.null(feature_contract) && !is.null(additional_inputs$feature_contract)) {
+    feature_contract <- additional_inputs$feature_contract$data
+  }
   benchmark_runner_validate_checksum_manifest(
     manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory,
     additional_inputs
   )
   benchmark_runner_validate_bundle_data(
     bundle, score_support_audit, model_registry, boundary_inventory,
-    require_reproducible = require_reproducible
+    require_reproducible = require_reproducible,
+    panel_fixtures = panel_fixtures, feature_contract = feature_contract
   )
   run <- bundle$run_manifest[1, , drop = FALSE]
   predictions <- bundle$fixture_predictions
@@ -716,7 +861,47 @@ benchmark_runner_fixture_features <- function(fixtures, teams, history) {
   fixtures
 }
 
-benchmark_runner_track_fixtures <- function(fixtures, tournaments, boundaries, teams, history, track_id) {
+benchmark_runner_apply_feature_cutoff <- function(rows, feature_contract) {
+  benchmark_runner_require_columns(
+    rows, "evidence_cutoff_exclusive", "Benchmark runtime fixtures"
+  )
+  benchmark_runner_require_columns(
+    feature_contract, "feature_id", "Feature contract"
+  )
+  producer_ids <- unique(ifelse(
+    as.character(feature_contract$feature_id) == "elo_difference_for_team",
+    "elo_diff", as.character(feature_contract$feature_id)
+  ))
+  producer_ids <- setdiff(producer_ids, "venue_advantage_for_team")
+  cutoff <- as.Date(rows$evidence_cutoff_exclusive)
+  for (producer_id in producer_ids) {
+    companions <- paste0(
+      producer_id,
+      c("__value_present", "__source_present", "__source_date", "__imputed", "__imputation_reason")
+    )
+    if (!producer_id %in% names(rows) || !all(companions %in% names(rows))) next
+    source_present_column <- paste0(producer_id, "__source_present")
+    source_date_column <- paste0(producer_id, "__source_date")
+    source_date <- as.Date(rows[[source_date_column]])
+    invalid <- as.logical(rows[[source_present_column]]) &
+      (is.na(source_date) | is.na(cutoff) | source_date >= cutoff)
+    invalid[is.na(invalid)] <- TRUE
+    if (!any(invalid)) next
+    rows[[producer_id]][invalid] <- 0
+    rows[[paste0(producer_id, "__value_present")]][invalid] <- FALSE
+    rows[[source_present_column]][invalid] <- FALSE
+    rows[[source_date_column]][invalid] <- NA
+    rows[[paste0(producer_id, "__imputed")]][invalid] <- TRUE
+    rows[[paste0(producer_id, "__imputation_reason")]][invalid] <-
+      "not_available_before_evidence_cutoff"
+  }
+  rows
+}
+
+benchmark_runner_track_fixtures <- function(
+    fixtures, tournaments, boundaries, teams, history, track_id,
+    feature_contract
+) {
   rows <- benchmark_runner_fixture_features(fixtures, teams, history)
   if (track_id == "frozen") {
     rows$boundary_id <- paste0(rows$edition_id, "__frozen")
@@ -732,6 +917,7 @@ benchmark_runner_track_fixtures <- function(fixtures, tournaments, boundaries, t
   rows$track_id <- track_id
   rows$evidence_cutoff_exclusive <- as.Date(boundaries$evidence_cutoff_exclusive[boundary_index])
   rows$result_cutoff_exclusive <- rows$evidence_cutoff_exclusive
+  rows <- benchmark_runner_apply_feature_cutoff(rows, feature_contract)
   rows <- rows[order(rows$edition_id, rows$actual_completion_date, rows$fixture_id), , drop = FALSE]
   rownames(rows) <- NULL
   rows
@@ -778,7 +964,17 @@ benchmark_runner_stage_probabilities <- function(
   out
 }
 
-benchmark_runner_feature_coverage <- function(predictions, panel_fixtures, model_registry, panels) {
+benchmark_runner_feature_coverage <- function(
+    adapter_results, predictions, model_registry, feature_contract
+) {
+  coverage <- benchmark_runner_bind_rows(lapply(adapter_results, `[[`, "feature_coverage"))
+  validate_benchmark_feature_evidence(
+    predictions, coverage, model_registry, feature_contract
+  )
+  coverage
+}
+
+benchmark_runner_output_coverage <- function(predictions, panel_fixtures, model_registry, panels) {
   rows <- lapply(seq_len(nrow(model_registry)), function(i) {
     model_id <- model_registry$model_id[i]
     panel_id <- model_registry$panel_id[i]
@@ -788,24 +984,32 @@ benchmark_runner_feature_coverage <- function(predictions, panel_fixtures, model
       panel_fixtures[panel_fixtures$panel_id == panel_id, , drop = FALSE],
       model_id, floor
     )
-    observed$feature_coverage_id <- paste("coverage", model_id, observed$edition_id, sep = "__")
     observed
   })
   benchmark_runner_bind_rows(rows)
 }
 
-benchmark_runner_score_outputs <- function(predictions, distributions, fixtures, tournaments) {
+benchmark_runner_score_outputs <- function(
+    predictions, distributions, fixtures, tournaments, panel_fixtures, model_registry
+) {
   score_rows <- list()
   summary_rows <- list()
   calibration_rows <- list()
   cursor <- 0L
-  for (model_id in unique(predictions$model_id)) {
+  for (model_id in model_registry$model_id) {
+    panel_id <- as.character(model_registry$panel_id[match(model_id, model_registry$model_id)])
+    expected_fixture_ids <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
     for (track_id in c("frozen", "updating")) {
       rows <- predictions[predictions$model_id == model_id & predictions$track_id == track_id, , drop = FALSE]
+      rows <- select_benchmark_panel_predictions(
+        rows, panel_fixtures, model_id, panel_id
+      )
       distribution_rows <- distributions[distributions$score_distribution_id %in% rows$score_distribution_id, , drop = FALSE]
-      scores <- score_benchmark_fixtures(rows, fixtures, distribution_rows)
+      scores <- score_benchmark_fixtures(
+        rows, fixtures, distribution_rows, expected_fixture_ids
+      )
       summaries <- aggregate_benchmark_scores(scores, tournaments$edition_id)
-      calibration <- fixed_benchmark_calibration(rows, fixtures)
+      calibration <- fixed_benchmark_calibration(rows, fixtures, expected_fixture_ids)
       calibration_summary <- data.frame(
         run_id = calibration$summary$run_id, model_id = calibration$summary$model_id,
         panel_id = calibration$summary$panel_id, track_id = calibration$summary$track_id,
@@ -830,14 +1034,14 @@ benchmark_runner_score_outputs <- function(predictions, distributions, fixtures,
   )
 }
 
-benchmark_runner_comparisons <- function(scores, model_registry, tournaments, fixtures) {
+benchmark_runner_comparisons <- function(scores, model_registry, tournaments, panel_fixtures) {
   rows <- list()
   cursor <- 0L
-  expected_fixture_ids <- fixtures$fixture_id[fixtures$score_eligible]
   for (track_id in c("frozen", "updating")) {
     track_scores <- scores[scores$track_id == track_id, , drop = FALSE]
     for (challenger_id in model_registry$model_id) {
       panel_id <- model_registry$panel_id[match(challenger_id, model_registry$model_id)]
+      expected_fixture_ids <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
       incumbent_id <- if (panel_id == "feature_rich") "production_hybrid_nb" else "open_nb_incumbent"
       comparison <- make_paired_fold_comparisons(
         track_scores, challenger_id, incumbent_id, tournaments,
@@ -918,11 +1122,11 @@ benchmark_default_execution_engine <- function(
   tracks <- list(
     frozen = benchmark_runner_track_fixtures(
       registries$fixtures, registries$tournaments, registries$boundaries,
-      registries$teams, history, "frozen"
+      registries$teams, history, "frozen", inputs$feature_contract
     ),
     updating = benchmark_runner_track_fixtures(
       registries$fixtures, registries$tournaments, registries$boundaries,
-      registries$teams, history, "updating"
+      registries$teams, history, "updating", inputs$feature_contract
     )
   )
   jobs <- expand.grid(
@@ -959,19 +1163,30 @@ benchmark_default_execution_engine <- function(
   distributions <- benchmark_runner_bind_rows(lapply(results, `[[`, "distributions"))
   manifests <- benchmark_runner_bind_rows(lapply(results, `[[`, "manifests"))
   coverage <- benchmark_runner_feature_coverage(
+    results, predictions, inputs$model_registry, inputs$feature_contract
+  )
+  feature_coverage_valid <- isTRUE(validate_benchmark_feature_evidence(
+    predictions, coverage, inputs$model_registry, inputs$feature_contract
+  ))
+  output_coverage <- benchmark_runner_output_coverage(
     predictions, inputs$panel_fixtures, inputs$model_registry, inputs$panels
   )
-  manifests$output_coverage_complete <- coverage$output_coverage_complete[
-    match(paste(manifests$model_id, manifests$edition_id), paste(coverage$model_id, coverage$edition_id))
+  manifests$output_coverage_complete <- output_coverage$output_coverage_complete[
+    match(
+      paste(manifests$model_id, manifests$edition_id),
+      paste(output_coverage$model_id, output_coverage$edition_id)
+    )
   ]
   stages <- benchmark_runner_stage_probabilities(registries, inputs$model_registry, run_id)
   score_output <- benchmark_runner_score_outputs(
-    predictions, distributions, registries$fixtures, registries$tournaments
+    predictions, distributions, registries$fixtures, registries$tournaments,
+    inputs$panel_fixtures, inputs$model_registry
   )
   comparisons <- benchmark_runner_comparisons(
-    score_output$scores, inputs$model_registry, registries$tournaments, registries$fixtures
+    score_output$scores, inputs$model_registry, registries$tournaments,
+    inputs$panel_fixtures
   )
-  decisions <- benchmark_runner_decisions(comparisons, coverage, inputs$model_registry)
+  decisions <- benchmark_runner_decisions(comparisons, output_coverage, inputs$model_registry)
   identity <- benchmark_runner_git_identity(".")
   input_hashes <- benchmark_runner_input_hashes(
     inputs$model_registry, boundary_inventory, inputs$score_support_audit
@@ -999,8 +1214,8 @@ benchmark_default_execution_engine <- function(
     prediction_contract_valid = TRUE,
     distribution_contract_valid = TRUE,
     manifest_contract_valid = TRUE,
-    feature_coverage_valid = TRUE,
-    panel_coverage_valid = TRUE,
+    feature_coverage_valid = feature_coverage_valid,
+    panel_coverage_valid = all(output_coverage$output_coverage_complete),
     seed_contract_valid = TRUE,
     score_support_audit_valid = TRUE,
     registration_settings_stable = TRUE,

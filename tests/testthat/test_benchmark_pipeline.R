@@ -61,9 +61,11 @@ pipeline_bundle <- function(order_rows = FALSE) {
   keys <- merge(models[, c("model_id", "panel_id")], boundaries, by = NULL)
   keys$fixture_id <- paste0(keys$edition_id, "_fixture")
   keys$run_id <- "synthetic"
-  keys$score_distribution_id <- paste(keys$model_id, keys$fixture_id, sep = "__")
+  keys$score_distribution_id <- paste(keys$model_id, keys$track_id, keys$fixture_id, sep = "__")
   keys$model_manifest_id <- paste(keys$run_id, keys$model_id, keys$boundary_id, sep = "__")
-  keys$feature_coverage_id <- paste(keys$run_id, keys$model_id, keys$fixture_id, sep = "__")
+  keys$feature_coverage_id <- paste(
+    keys$run_id, keys$model_id, keys$track_id, keys$fixture_id, sep = "__"
+  )
 
   grids <- lapply(keys$score_distribution_id, function(id) {
     grid <- expand.grid(home_goals = 0:2, away_goals = 0:2)
@@ -111,8 +113,8 @@ pipeline_bundle <- function(order_rows = FALSE) {
   feature_contract <- data.frame(
     panel_id = c("open_core", "feature_rich"), feature_id = c("elo_difference_for_team", "xgf_ewma_diff"),
     source_id = c("elo_ratings_recursive_open", "hybrid_goal_training_features"),
-    source_artifact_sha256 = c(strrep("1", 64), strrep("2", 64)),
-    license_class = "open", row_sha256 = c(strrep("3", 64), strrep("4", 64)),
+    source_artifact_sha256 = c(strrep("a", 64), strrep("b", 64)),
+    license_class = "open", row_sha256 = c(strrep("c", 64), strrep("d", 64)),
     stringsAsFactors = FALSE
   )
   coverage <- merge(
@@ -361,6 +363,29 @@ test_that("rich eligibility is derived from observed adapter output coverage", {
   expect_false(observed$promotion_eligible)
 })
 
+test_that("runtime fixture evidence at the exclusive cutoff is imputed", {
+  rows <- data.frame(
+    evidence_cutoff_exclusive = as.Date("2004-06-12"), elo_diff = 25,
+    elo_diff__value_present = TRUE, elo_diff__source_present = TRUE,
+    elo_diff__source_date = as.Date("2004-06-12"), elo_diff__imputed = FALSE,
+    elo_diff__imputation_reason = "", stringsAsFactors = FALSE
+  )
+  contract <- data.frame(
+    feature_id = c("elo_difference_for_team", "venue_advantage_for_team"),
+    stringsAsFactors = FALSE
+  )
+  checked <- benchmark_runner_apply_feature_cutoff(rows, contract)
+  expect_equal(checked$elo_diff, 0)
+  expect_false(checked$elo_diff__value_present)
+  expect_false(checked$elo_diff__source_present)
+  expect_true(is.na(checked$elo_diff__source_date))
+  expect_true(checked$elo_diff__imputed)
+  expect_identical(
+    checked$elo_diff__imputation_reason,
+    "not_available_before_evidence_cutoff"
+  )
+})
+
 test_that("runner binds feature-level adapter evidence and rejects aggregate substitutes", {
   x <- pipeline_bundle()
   result <- benchmark_runner_feature_coverage(
@@ -463,7 +488,7 @@ test_that("targets exposes the isolated Phase 9 benchmark dependency chain", {
   expect_match(commands[["benchmark_phase09_comparisons"]], "benchmark_phase09_scores", fixed = TRUE)
   expect_match(commands[["benchmark_phase09_comparisons"]], "feature_coverage", fixed = TRUE)
   expect_match(commands[["benchmark_phase09_bundle_files"]], "benchmark_phase09_comparisons", fixed = TRUE)
-  expect_match(commands[["benchmark_phase09_bundle_files"]], "goal_training_features_hybrid", fixed = TRUE)
+  expect_match(commands[["benchmark_phase09_bundle_files"]], "additional_inputs", fixed = TRUE)
 
   phase09_code <- paste(commands[expected], collapse = "\n")
   forbidden <- c("download", "dashboard", "worldcup_2026", "httr", "curl", "refresh")
