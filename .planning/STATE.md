@@ -5,16 +5,16 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 09
 current_phase_name: Rolling Tournament Benchmark Harness
 status: executing
-stopped_at: Completed 09-05-PLAN.md
-last_updated: "2026-07-21T09:25:58.265Z"
+stopped_at: Completed 09-06-PLAN.md
+last_updated: "2026-07-21T10:31:19.051Z"
 last_activity: 2026-07-21
-last_activity_desc: Phase 09 Plan 05 completed
+last_activity_desc: Phase 09 Plan 06 completed
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
-  percent: 73
+  completed_plans: 9
+  percent: 82
 ---
 
 # xGelo Project State
@@ -22,11 +22,11 @@ progress:
 ## Current Position
 
 Phase: 09 (Rolling Tournament Benchmark Harness) — EXECUTING
-Plan: 6 of 8
+Plan: 7 of 8
 Status: Ready to execute
-Last activity: 2026-07-21 — Phase 09 Plan 05 completed
+Last activity: 2026-07-21 — Phase 09 Plan 06 completed
 
-Progress: [███████░░░] 73%
+Progress: [████████░░] 82%
 
 ## Progress
 
@@ -38,7 +38,7 @@ Progress: [███████░░░] 73%
 | 11 | Hybrid ML and Contextual Priors | Pending | 5 |
 | 12 | Calibration, Promotion, and Model Release | Pending | 5 |
 
-**Overall:** 8 of 11 currently planned plans complete (73%)
+**Overall:** 9 of 11 currently planned plans complete (82%)
 
 ## Project Reference
 
@@ -74,6 +74,9 @@ leakage-safe assessment folds.
 - [Phase 09]: Preserve source-row presence separately from numeric value presence. — Observed zero must remain distinguishable from missing-then-zero.
 - [Phase 09]: Hash feature coverage IDs from run, model, track, boundary, and fixture identity. — Frozen and updating prediction groups must never collide.
 - [Phase 09]: Represent venue advantage as checked fixture-derived evidence without a historical source date. — The fixture field is observable without fabricating point-in-time provenance.
+- [Phase 09]: Keep all 6,300 prediction rows audit-visible while routing every evaluation consumer through the registered frozen panel. — Preserves the complete audit artifact while preventing output availability from redefining any evaluation denominator.
+- [Phase 09]: Separate adapter-emitted feature evidence from observed output coverage. — Evidence validation and post-output promotion eligibility have distinct contracts and must not be conflated.
+- [Phase 09]: Include the canonical hybrid goal-training feature content hash in the checked benchmark parent graph. — Bundle read-back must fail when the canonical analytical input drifts.
 
 ## Blockers
 
@@ -85,15 +88,15 @@ None.
 
 ## Next Action
 
-Execute 09-06-PLAN.md.
+Execute 09-07-PLAN.md.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-07-21T09:25:07.547Z
-**Stopped at:** Completed 09-05-PLAN.md
+**Last session:** 2026-07-21T10:31:19.043Z
+**Stopped at:** Completed 09-06-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -105,3 +108,4 @@ Execute 09-06-PLAN.md.
 | Phase 09 P03 | 18min | 2 tasks | 5 files |
 | Phase 09 P04 | 1h 12m | 3 tasks | 16 files |
 | Phase 09 P05 | 35min | 2 tasks | 10 files |
+| Phase 09 P06 | 56min | 2 tasks | 7 files |
