@@ -302,6 +302,70 @@ testthat::test_that("manifests and feature coverage enforce point-in-time proven
   testthat::expect_error(validate_feature_coverage(invalid, expected), "cutoff")
 })
 
+testthat::test_that("bundle feature keys are rebuilt from registrations and fail closed", {
+  predictions <- data.frame(
+    feature_coverage_id = "coverage_1", model_id = "elo_goal_nb",
+    panel_id = "open_core", edition_id = "wc2002", track_id = "updating",
+    boundary_id = "wc2002__day1", fixture_id = "wc2002_001",
+    stringsAsFactors = FALSE
+  )
+  models <- data.frame(
+    model_id = "elo_goal_nb", panel_id = "open_core", stringsAsFactors = FALSE
+  )
+  contract <- data.frame(
+    panel_id = "open_core", feature_id = c("elo_difference_for_team", "venue_advantage_for_team"),
+    source_id = c("elo_ratings_recursive_open", "fixture_registry"),
+    source_artifact_sha256 = c(strrep("a", 64), strrep("b", 64)),
+    license_class = c("open", "open"), row_sha256 = c(strrep("c", 64), strrep("d", 64)),
+    stringsAsFactors = FALSE
+  )
+  expected <- benchmark_expected_feature_coverage_keys(predictions, models, contract)
+  testthat::expect_equal(nrow(expected), 2L)
+  testthat::expect_setequal(expected$feature_id, contract$feature_id)
+
+  coverage <- transform(
+    expected,
+    schema_version = "1.0", feature_coverage_id = "coverage_1", run_id = "run_1",
+    value_present = TRUE, source_present = c(TRUE, FALSE),
+    source_date = as.Date(c("2002-05-30", NA)),
+    evidence_cutoff_exclusive = as.Date("2002-05-31"), cutoff_valid = TRUE,
+    imputed = FALSE, imputation_reason = "", active_in_fit = TRUE,
+    coverage_status = c("active_observed", "derived_fixture")
+  )
+  testthat::expect_true(validate_benchmark_feature_evidence(
+    predictions, coverage, models, contract
+  ))
+
+  aggregate <- data.frame(
+    model_id = "elo_goal_nb", panel_id = "open_core", edition_id = "wc2002",
+    output_coverage_complete = TRUE, provenance_complete = TRUE,
+    promotion_eligible = TRUE, stringsAsFactors = FALSE
+  )
+  testthat::expect_error(
+    validate_benchmark_feature_evidence(predictions, aggregate, models, contract),
+    "missing columns"
+  )
+  corruptions <- list(
+    dangling = transform(predictions, feature_coverage_id = "missing_group"),
+    orphan = transform(coverage, feature_coverage_id = "orphan_group"),
+    missing_key = coverage[-1, ],
+    extra_key = rbind(coverage, transform(coverage[1, ], feature_id = "unknown_feature")),
+    observed_zero = transform(coverage, value_present = FALSE, imputed = FALSE),
+    fabricated_date = transform(coverage, source_present = FALSE),
+    provenance = transform(coverage, source_artifact_sha256 = strrep("f", 64)),
+    license = transform(coverage, license_class = "restricted"),
+    contract_hash = transform(coverage, feature_contract_row_sha256 = strrep("0", 64))
+  )
+  for (name in names(corruptions)) {
+    prediction_rows <- if (name == "dangling") corruptions[[name]] else predictions
+    coverage_rows <- if (name == "dangling") coverage else corruptions[[name]]
+    testthat::expect_error(
+      validate_benchmark_feature_evidence(prediction_rows, coverage_rows, models, contract),
+      info = name
+    )
+  }
+})
+
 support_inventory <- function() {
   data.frame(
     edition_id = c("wc2002", "wc2002"), track_id = c("frozen", "updating"),
