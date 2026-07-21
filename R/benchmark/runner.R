@@ -1284,6 +1284,13 @@ benchmark_runner_gate_value <- function(value) {
   if (!is.null(labels)) paste0(labels, "=", values, collapse = "|") else paste(values, collapse = "|")
 }
 
+benchmark_runner_persisted_view <- function(data) {
+  path <- tempfile("benchmark-persisted-view-", fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+}
+
 benchmark_runner_decision_row <- function(evaluation, candidate, coverage) {
   values <- lapply(evaluation$gate_values, benchmark_runner_gate_value)
   names(values) <- paste0("value__", names(values))
@@ -1311,6 +1318,10 @@ benchmark_runner_decision_row <- function(evaluation, candidate, coverage) {
 benchmark_runner_decisions <- function(
     comparisons, coverage, model_registry, summaries, run_manifest, protocol
 ) {
+  comparisons <- benchmark_runner_persisted_view(comparisons)
+  coverage <- benchmark_runner_persisted_view(coverage)
+  summaries <- benchmark_runner_persisted_view(summaries)
+  run_manifest <- benchmark_runner_persisted_view(run_manifest)
   rows <- lapply(as.character(model_registry$model_id), function(model_id) {
     candidate <- benchmark_runner_promotion_candidate(
       model_id, comparisons, coverage, model_registry, summaries, run_manifest, protocol

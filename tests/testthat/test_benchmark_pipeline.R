@@ -559,6 +559,29 @@ test_that("candidate assembly preserves source precision and optional companion 
   expect_true(all(candidate$contracts[names(promotion_contract_reason_map())] |> unlist()))
 })
 
+test_that("canonical decisions evaluate the durable numeric representation", {
+  inputs <- pipeline_promotion_sources()
+  inputs$summaries$estimate[inputs$summaries$metric == "brier"] <-
+    c(0.450000000000003, 0.449999999999997)
+  decisions <- benchmark_runner_decisions(
+    inputs$comparisons, inputs$coverage, inputs$x$models,
+    inputs$summaries, inputs$run_manifest, inputs$protocol
+  )
+  reconstructed <- benchmark_runner_decisions(
+    benchmark_runner_persisted_view(inputs$comparisons),
+    benchmark_runner_persisted_view(inputs$coverage),
+    inputs$x$models,
+    benchmark_runner_persisted_view(inputs$summaries),
+    benchmark_runner_persisted_view(inputs$run_manifest),
+    inputs$protocol
+  )
+
+  expect_identical(
+    benchmark_runner_content_sha256(decisions, "promotion_decisions"),
+    benchmark_runner_content_sha256(reconstructed, "promotion_decisions")
+  )
+})
+
 test_that("promotion decisions are finalized only after matching independent passes", {
   inputs <- pipeline_promotion_sources()
   first <- inputs$x$bundle
