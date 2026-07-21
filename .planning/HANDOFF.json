@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-21T14:09:44.354Z",
+  "phase": "09",
+  "phase_name": "Rolling Tournament Benchmark Harness",
+  "phase_dir": ".planning/phases/09-rolling-tournament-benchmark-harness",
+  "plan": 8,
+  "task": 1,
+  "total_tasks": 2,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "Regenerate the complete canonical bundle with independent two-pass identity",
+      "status": "in_progress",
+      "progress": "Two full reconciliation attempts exposed and committed three runner fixes (a845df6, 58ff288, 03b3a1e). The executor was stopped on user request during the next corrected regeneration. The prior sealed bundle is restored and clean; no temporary repro bundle or 09-08-SUMMARY.md remains."
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 1,
+      "name": "Complete a fresh two-pass regeneration under the three corrective commits and atomically publish the accepted bundle",
+      "status": "in_progress"
+    },
+    {
+      "id": 2,
+      "name": "Run independent hashes, complete regressions, and target-isolation checks",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Plan 09-08 requires another full canonical regeneration after acceptance-derived runner fixes; prior runs took approximately 60-75 minutes each.",
+      "type": "technical",
+      "workaround": "Resume from commit 03b3a1e, generate into a unique staged directory, retain the existing seal until all checks pass, and run the exact 09-08 fail-fast acceptance block."
+    }
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "Validate staged output before install and restore the prior seal on any post-install failure.",
+      "rationale": "The first reconciliation attempt demonstrated that validation can fail after publication; a845df6 added staged validation and atomic rollback.",
+      "phase": "09"
+    },
+    {
+      "decision": "Evaluate promotion decisions from the durable CSV numeric representation.",
+      "rationale": "Sub-precision read-back drift changed evaluator evidence; 58ff288 canonicalizes promotion sources through persisted views.",
+      "phase": "09"
+    },
+    {
+      "decision": "Bundle validation must source all required benchmark definitions itself.",
+      "rationale": "The acceptance command runs in a fresh R process and exposed hidden dependence on ambient runner state; 03b3a1e made validation standalone.",
+      "phase": "09"
+    }
+  ],
+  "uncommitted_files": [
+    ".planning/config.json (pre-existing user change)",
+    ".planning/research/.cache/ (pre-existing untracked)",
+    "outputs/design_audit/ (pre-existing untracked)",
+    "outputs/reports/xgelo_elo_decision/ (pre-existing untracked)"
+  ],
+  "next_action": "Run $gsd-resume-work, acknowledge all blocking anti-patterns, then re-dispatch only 09-08 from commit 03b3a1e without reverting the three corrective commits. Treat the safe-resume PLAN-without-SUMMARY condition as an intentional partial-plan recovery, not a completed plan.",
+  "context_notes": "Plans 09-05, 09-06, and 09-07 are complete and independently gated. Plan 09-08 has no summary and is not complete. The executor was cleanly stopped. The old phase09-baselines-frozen bundle is present and git-clean. No R process, temp repro directory, or async job should be assumed to remain."
+}
