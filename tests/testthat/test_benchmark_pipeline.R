@@ -167,20 +167,25 @@ pipeline_bundle <- function(order_rows = FALSE) {
 test_that("the cache-only bundle writer creates and validates every durable artifact", {
   x <- pipeline_bundle()
   out <- tempfile("benchmark-bundle-")
+  additional <- benchmark_runner_additional_input_specs(
+    file.path(project_root, "data/benchmark/phase09")
+  )
   result <- write_rolling_benchmark_bundle(
     x$bundle, out, score_support_audit = x$audit,
-    model_registry = x$models, boundary_inventory = x$boundaries
+    model_registry = x$models, boundary_inventory = x$boundaries,
+    additional_inputs = additional
   )
   expect_true(all(file.exists(unname(benchmark_output_paths(out)))))
   validated <- validate_rolling_benchmark_bundle(
     out, score_support_audit = x$audit, model_registry = x$models,
-    boundary_inventory = x$boundaries
+    boundary_inventory = x$boundaries, additional_inputs = additional
   )
   expect_true(validated$valid)
   expect_true(validated$score_support_audit_valid)
   expect_true(validated$registration_settings_stable)
   expect_true(validated$output_coverage_reconciled)
   expect_equal(result$artifact_count, 11L)
+  expect_true(all(names(additional) %in% result$checksum_manifest$artifact))
 })
 
 test_that("bundle validation rejects missing rows and corrupted parent hashes", {
@@ -213,6 +218,15 @@ test_that("canonical content hashes ignore output roots, timestamps, and branch 
   a <- write_rolling_benchmark_bundle(first$bundle, tempfile("benchmark-a-"), first$audit, first$models, first$boundaries)
   b <- write_rolling_benchmark_bundle(second$bundle, tempfile("benchmark-b-"), second$audit, second$models, second$boundaries)
   expect_identical(a$content_sha256, b$content_sha256)
+})
+
+test_that("fixture scoring uses one distribution index instead of repeated full-grid scans", {
+  code <- readLines(file.path(project_root, "R/evaluation/benchmark_scores.R"), warn = FALSE)
+  expect_true(any(grepl("distribution_index <- split", code, fixed = TRUE)))
+  expect_false(any(grepl(
+    "distributions$score_distribution_id == prediction$score_distribution_id",
+    code, fixed = TRUE
+  )))
 })
 
 test_that("WC2026 labels are rejected before the runner invokes an adapter", {

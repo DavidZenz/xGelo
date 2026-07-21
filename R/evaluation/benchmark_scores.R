@@ -66,6 +66,11 @@ score_benchmark_fixtures <- function(predictions, fixtures, distributions) {
     stop("Benchmark predictions must contain exactly the registered fixture IDs for every model", call. = FALSE)
   }
 
+  distribution_index <- split(
+    seq_len(nrow(distributions)),
+    as.character(distributions$score_distribution_id)
+  )
+
   output <- vector("list", nrow(predictions))
   for (i in seq_len(nrow(predictions))) {
     prediction <- predictions[i, , drop = FALSE]
@@ -73,9 +78,12 @@ score_benchmark_fixtures <- function(predictions, fixtures, distributions) {
     if (as.character(prediction$edition_id) != as.character(fixture$edition_id)) {
       stop("Prediction edition identity does not match the fixture registry", call. = FALSE)
     }
+    distribution_rows <- distribution_index[[as.character(prediction$score_distribution_id)]]
+    if (is.null(distribution_rows)) {
+      stop("Benchmark prediction references a missing score distribution", call. = FALSE)
+    }
     distribution <- distributions[
-      distributions$score_distribution_id == prediction$score_distribution_id,
-      c("home_goals", "away_goals", "probability"), drop = FALSE
+      distribution_rows, c("home_goals", "away_goals", "probability"), drop = FALSE
     ]
     distribution <- validate_scoreline_distribution(distribution)
     probabilities <- c(

@@ -344,16 +344,17 @@ predict_registered_baseline <- function(fit, fixtures, support_max = NULL) {
       )
     }
   }
-  distributions <- do.call(rbind, distributions)
-  rownames(distributions) <- NULL
   predictions <- do.call(rbind, lapply(seq_len(nrow(fixtures)), function(i) {
-    id <- paste0(fixtures$fixture_id[i], "__score")
-    market <- derive_benchmark_markets(distributions[distributions$score_distribution_id == id, , drop = FALSE])
+    grid <- distributions[[i]]
+    id <- as.character(grid$score_distribution_id[1])
+    market <- derive_benchmark_markets(grid)
     data.frame(
       fixture_id = fixtures$fixture_id[i], score_distribution_id = id,
       as.data.frame(market, stringsAsFactors = FALSE), stringsAsFactors = FALSE
     )
   }))
+  distributions <- do.call(rbind, distributions)
+  rownames(distributions) <- NULL
   list(predictions = predictions, distributions = distributions)
 }
 

@@ -81,11 +81,20 @@ benchmark_runner_identity_view <- function(data, artifact) {
   benchmark_runner_sort(data, artifact)
 }
 
-benchmark_runner_content_sha256 <- function(data, artifact) {
-  view <- benchmark_runner_identity_view(data, artifact)
-  keys <- intersect(benchmark_runner_key_specs()[[artifact]], names(view))
-  if (!length(keys)) keys <- names(view)[1]
-  canonical_benchmark_sha256(view, keys)
+benchmark_runner_content_sha256 <- function(data, artifact, persisted_path = NULL) {
+  excluded <- c(
+    "started_at", "completed_at", "created_at", "generated_at",
+    "runtime_seconds", "runtime_timestamp", "output_dir", "output_root"
+  )
+  retained <- setdiff(names(data), excluded)
+  if (!is.null(persisted_path) && identical(retained, names(data))) {
+    return(benchmark_runner_file_sha256(persisted_path))
+  }
+  view <- benchmark_runner_sort(data[, retained, drop = FALSE], artifact)
+  path <- tempfile("benchmark-canonical-", fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  utils::write.csv(view, path, row.names = FALSE, na = "", quote = TRUE)
+  benchmark_runner_file_sha256(path)
 }
 
 benchmark_runner_write_csv <- function(data, path, artifact) {
@@ -119,6 +128,45 @@ benchmark_runner_input_hashes <- function(model_registry, boundary_inventory, sc
       c("model_id", "edition_id", "track_id", "boundary_id", "candidate_g")
     )
   )
+}
+
+benchmark_runner_additional_input_specs <- function(registry_dir = "data/benchmark/phase09") {
+  files <- c(
+    tournaments = "tournaments.csv", fixtures = "fixtures.csv", teams = "teams.csv",
+    formats = "formats.csv", route_rules = "route_rules.csv", corrections = "corrections.csv",
+    panels = "panels.csv", panel_fixtures = "panel_fixtures.csv",
+    feature_contract = "feature_contract.csv", seed_registry = "seed_registry.csv"
+  )
+  keys <- list(
+    tournaments = "edition_id", fixtures = "fixture_id", teams = "team_id",
+    formats = "format_id", route_rules = c("format_id", "rule_id"),
+    corrections = "correction_id", panels = "panel_id",
+    panel_fixtures = c("panel_id", "fixture_id"),
+    feature_contract = c("panel_id", "feature_id"), seed_registry = "seed_id"
+  )
+  paths <- file.path(registry_dir, files)
+  if (any(!file.exists(paths))) stop("Benchmark checksum parent registries are incomplete", call. = FALSE)
+  data <- lapply(paths, utils::read.csv, stringsAsFactors = FALSE, check.names = FALSE)
+  names(data) <- names(files)
+  for (name in names(data)) {
+    if ("schema_version" %in% names(data[[name]])) {
+      version <- as.character(data[[name]]$schema_version)
+      version[version == "1"] <- "1.0"
+      data[[name]]$schema_version <- version
+    }
+  }
+  specs <- stats::setNames(lapply(names(files), function(name) list(
+    data = data[[name]], path = file.path(registry_dir, files[[name]]), key = keys[[name]]
+  )), names(files))
+  protocol_path <- file.path(registry_dir, "promotion_protocol.json")
+  protocol <- load_promotion_protocol(protocol_path)
+  specs$promotion_protocol <- list(
+    data = data.frame(protocol_sha256 = protocol$protocol_sha256, stringsAsFactors = FALSE),
+    path = protocol_path, key = "protocol_sha256",
+    canonical_content_sha256 = protocol$protocol_sha256,
+    sha256 = benchmark_runner_file_sha256(protocol_path)
+  )
+  specs
 }
 
 benchmark_runner_validate_registration_hashes <- function(manifests, model_registry) {
@@ -209,7 +257,8 @@ benchmark_runner_validate_distributions <- function(
 }
 
 benchmark_runner_validate_bundle_data <- function(
-    bundle, score_support_audit, model_registry, boundary_inventory
+    bundle, score_support_audit, model_registry, boundary_inventory,
+    require_reproducible = TRUE
 ) {
   missing <- setdiff(benchmark_runner_required_artifacts(), names(bundle))
   if (length(missing)) stop("Benchmark bundle is missing artifacts: ", paste(missing, collapse = ", "), call. = FALSE)
@@ -309,8 +358,9 @@ benchmark_runner_validate_bundle_data <- function(
   }
   required_flags <- c(
     "score_support_audit_valid", "registration_settings_stable",
-    "output_coverage_reconciled", "wc2026_sealed", "network_free", "reproducible"
+    "output_coverage_reconciled", "wc2026_sealed", "network_free"
   )
+  if (isTRUE(require_reproducible)) required_flags <- c(required_flags, "reproducible")
   if (any(!vapply(run_manifest[required_flags], function(x) isTRUE(x[[1]]), logical(1)))) {
     stop("Run manifest reconciliation flags must all pass", call. = FALSE)
   }
@@ -327,7 +377,7 @@ benchmark_runner_manifest_row <- function(
     relative_path = if (role == "output") substring(path, nchar(output_dir) + 2L) else path,
     artifact_role = role,
     sha256 = if (role == "output") benchmark_runner_file_sha256(path) else benchmark_runner_content_sha256(data, artifact),
-    canonical_content_sha256 = benchmark_runner_content_sha256(data, artifact),
+    canonical_content_sha256 = benchmark_runner_content_sha256(data, artifact, path),
     rows = nrow(data),
     bytes = if (role == "output") as.numeric(file.info(path)$size) else NA_real_,
     producer = producer,
@@ -342,14 +392,20 @@ benchmark_runner_manifest_row <- function(
 #' @export
 write_benchmark_checksum_manifest <- function(
     bundle, paths, output_dir, score_support_audit, model_registry,
-    boundary_inventory, source_git_sha = NA_character_
+    boundary_inventory, source_git_sha = NA_character_, additional_inputs = list()
 ) {
   hashes <- benchmark_runner_input_hashes(model_registry, boundary_inventory, score_support_audit)
+  additional_hashes <- lapply(additional_inputs, function(item) {
+    if (!is.null(item$canonical_content_sha256)) item$canonical_content_sha256 else canonical_benchmark_sha256(item$data, item$key)
+  })
+  all_hashes <- c(hashes, additional_hashes)
+  all_hashes <- all_hashes[sort(names(all_hashes), method = "radix")]
+  graph_parent_hash <- benchmark_runner_hash(paste(unlist(all_hashes, use.names = FALSE), collapse = "|"))
   selected_g <- unique(as.integer(score_support_audit$selected_g))
   rows <- lapply(benchmark_runner_required_artifacts(), function(artifact) {
     benchmark_runner_manifest_row(
       artifact, paths[[artifact]], bundle[[artifact]], output_dir,
-      parent_hashes = benchmark_runner_hash(paste(unlist(hashes), collapse = "|")),
+      parent_hashes = graph_parent_hash,
       selected_g = selected_g, source_git_sha = source_git_sha
     )
   })
@@ -359,12 +415,18 @@ write_benchmark_checksum_manifest <- function(
     boundaries = list(data = boundary_inventory, path = "data/benchmark/phase09/boundaries.csv", key = c("edition_id", "track_id", "boundary_id")),
     score_support_audit = list(data = score_support_audit, path = "data/benchmark/phase09/score_support_audit.csv", key = c("model_id", "edition_id", "track_id", "boundary_id", "candidate_g"))
   )
+  external <- c(external, additional_inputs[setdiff(names(additional_inputs), names(external))])
   for (artifact in names(external)) {
     item <- external[[artifact]]
-    content_hash <- canonical_benchmark_sha256(item$data, item$key)
+    content_hash <- if (!is.null(item$canonical_content_sha256)) {
+      item$canonical_content_sha256
+    } else {
+      canonical_benchmark_sha256(item$data, item$key)
+    }
+    file_hash <- if (!is.null(item$sha256)) item$sha256 else content_hash
     manifest <- rbind(manifest, data.frame(
       artifact = artifact, relative_path = item$path, artifact_role = "input",
-      sha256 = content_hash, canonical_content_sha256 = content_hash,
+      sha256 = file_hash, canonical_content_sha256 = content_hash,
       rows = nrow(item$data), bytes = NA_real_, producer = "checked_local_input",
       source_git_sha = source_git_sha,
       parent_hashes = if (artifact == "score_support_audit") benchmark_runner_hash(paste(sort(unique(score_support_audit$parent_hashes)), collapse = "|")) else "",
@@ -388,9 +450,13 @@ write_benchmark_checksum_manifest <- function(
 #' @export
 write_rolling_benchmark_bundle <- function(
     bundle, output_dir, score_support_audit, model_registry, boundary_inventory,
-    source_git_sha = NA_character_
+    source_git_sha = NA_character_, require_reproducible = TRUE,
+    additional_inputs = list()
 ) {
-  benchmark_runner_validate_bundle_data(bundle, score_support_audit, model_registry, boundary_inventory)
+  benchmark_runner_validate_bundle_data(
+    bundle, score_support_audit, model_registry, boundary_inventory,
+    require_reproducible = require_reproducible
+  )
   output_dir <- normalizePath(output_dir, mustWork = FALSE)
   paths <- benchmark_output_paths(output_dir)
   for (artifact in benchmark_runner_required_artifacts()) {
@@ -403,7 +469,7 @@ write_rolling_benchmark_bundle <- function(
   bundle <- benchmark_runner_read_bundle(paths)
   checksum <- write_benchmark_checksum_manifest(
     bundle, paths, output_dir, score_support_audit, model_registry,
-    boundary_inventory, source_git_sha
+    boundary_inventory, source_git_sha, additional_inputs
   )
   content <- checksum$canonical_content_sha256[checksum$artifact %in% benchmark_runner_required_artifacts()]
   names(content) <- checksum$artifact[checksum$artifact %in% benchmark_runner_required_artifacts()]
@@ -423,7 +489,8 @@ benchmark_runner_read_bundle <- function(paths) {
 }
 
 benchmark_runner_validate_checksum_manifest <- function(
-    manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory
+    manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory,
+    additional_inputs = list()
 ) {
   required <- c(
     "artifact", "relative_path", "artifact_role", "sha256",
@@ -431,25 +498,39 @@ benchmark_runner_validate_checksum_manifest <- function(
   )
   benchmark_runner_require_columns(manifest, required, "Checksum manifest")
   if (anyDuplicated(manifest$artifact)) stop("Checksum manifest contains duplicate artifacts", call. = FALSE)
-  expected <- c(benchmark_runner_required_artifacts(), "model_registry", "boundaries", "score_support_audit", "checksum_manifest")
+  expected <- c(
+    benchmark_runner_required_artifacts(), "model_registry", "boundaries",
+    "score_support_audit", names(additional_inputs), "checksum_manifest"
+  )
   if (!setequal(manifest$artifact, expected)) stop("Checksum manifest is missing required bundle or parent artifacts", call. = FALSE)
   for (artifact in benchmark_runner_required_artifacts()) {
     row <- manifest[manifest$artifact == artifact, , drop = FALSE]
     if (!identical(tolower(row$sha256), benchmark_runner_file_sha256(paths[[artifact]]))) {
       stop("Checksum mismatch for artifact ", artifact, call. = FALSE)
     }
-    content <- benchmark_runner_content_sha256(bundle[[artifact]], artifact)
+    content <- benchmark_runner_content_sha256(bundle[[artifact]], artifact, paths[[artifact]])
     if (!identical(tolower(row$canonical_content_sha256), content)) {
       stop("Canonical content checksum mismatch for artifact ", artifact, call. = FALSE)
     }
     if (as.integer(row$rows) != nrow(bundle[[artifact]])) stop("Checksum row count mismatch for artifact ", artifact, call. = FALSE)
   }
   inputs <- benchmark_runner_input_hashes(model_registry, boundary_inventory, score_support_audit)
+  if (length(additional_inputs)) {
+    inputs <- c(inputs, lapply(additional_inputs, function(item) {
+      if (!is.null(item$canonical_content_sha256)) item$canonical_content_sha256 else canonical_benchmark_sha256(item$data, item$key)
+    }))
+  }
   for (artifact in names(inputs)) {
     row <- manifest[manifest$artifact == artifact, , drop = FALSE]
     if (!identical(tolower(row$canonical_content_sha256), inputs[[artifact]])) {
       stop("Checksum parent mismatch for ", artifact, call. = FALSE)
     }
+  }
+  inputs <- inputs[sort(names(inputs), method = "radix")]
+  expected_graph_parent <- benchmark_runner_hash(paste(unlist(inputs, use.names = FALSE), collapse = "|"))
+  output_rows <- manifest[manifest$artifact %in% benchmark_runner_required_artifacts(), , drop = FALSE]
+  if (any(tolower(output_rows$parent_hashes) != expected_graph_parent)) {
+    stop("Checksum output parent graph mismatch", call. = FALSE)
   }
   audit_row <- manifest[manifest$artifact == "score_support_audit", , drop = FALSE]
   expected_parents <- benchmark_runner_hash(paste(sort(unique(score_support_audit$parent_hashes)), collapse = "|"))
@@ -472,7 +553,9 @@ validate_rolling_benchmark_bundle <- function(
     output_dir,
     score_support_audit = utils::read.csv("data/benchmark/phase09/score_support_audit.csv", stringsAsFactors = FALSE),
     model_registry = utils::read.csv("data/benchmark/phase09/model_registry.csv", stringsAsFactors = FALSE),
-    boundary_inventory = NULL
+    boundary_inventory = NULL,
+    additional_inputs = NULL,
+    require_reproducible = TRUE
 ) {
   if (is.null(boundary_inventory)) {
     boundaries <- utils::read.csv("data/benchmark/phase09/boundaries.csv", stringsAsFactors = FALSE)
@@ -484,10 +567,26 @@ validate_rolling_benchmark_bundle <- function(
   if (length(missing)) stop("Benchmark bundle is missing files: ", paste(basename(missing), collapse = ", "), call. = FALSE)
   bundle <- benchmark_runner_read_bundle(paths)
   manifest <- utils::read.csv(paths[["checksum_manifest"]], stringsAsFactors = FALSE, check.names = FALSE)
+  if (is.null(additional_inputs)) {
+    base_artifacts <- c(
+      benchmark_runner_required_artifacts(), "model_registry", "boundaries",
+      "score_support_audit", "checksum_manifest"
+    )
+    extra_names <- setdiff(manifest$artifact, base_artifacts)
+    additional_inputs <- list()
+    if (length(extra_names)) {
+      standard <- benchmark_runner_additional_input_specs()
+      additional_inputs <- standard[extra_names]
+    }
+  }
   benchmark_runner_validate_checksum_manifest(
-    manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory
+    manifest, paths, bundle, score_support_audit, model_registry, boundary_inventory,
+    additional_inputs
   )
-  benchmark_runner_validate_bundle_data(bundle, score_support_audit, model_registry, boundary_inventory)
+  benchmark_runner_validate_bundle_data(
+    bundle, score_support_audit, model_registry, boundary_inventory,
+    require_reproducible = require_reproducible
+  )
   run <- bundle$run_manifest[1, , drop = FALSE]
   predictions <- bundle$fixture_predictions
   list(
@@ -516,7 +615,18 @@ benchmark_runner_load_inputs <- function(registry_dir) {
   )
   missing <- file.path(registry_dir, paths)[!file.exists(file.path(registry_dir, paths))]
   if (length(missing)) stop("Benchmark execution registries are incomplete: ", paste(basename(missing), collapse = ", "), call. = FALSE)
-  stats::setNames(lapply(file.path(registry_dir, paths), utils::read.csv, stringsAsFactors = FALSE, check.names = FALSE), names(paths))
+  inputs <- stats::setNames(
+    lapply(file.path(registry_dir, paths), utils::read.csv, stringsAsFactors = FALSE, check.names = FALSE),
+    names(paths)
+  )
+  for (name in names(inputs)) {
+    if ("schema_version" %in% names(inputs[[name]])) {
+      version <- as.character(inputs[[name]]$schema_version)
+      version[version == "1"] <- "1.0"
+      inputs[[name]]$schema_version <- version
+    }
+  }
+  inputs
 }
 
 benchmark_runner_bind_rows <- function(rows) {
@@ -783,7 +893,8 @@ benchmark_runner_decisions <- function(comparisons, coverage, model_registry) {
 
 benchmark_default_execution_engine <- function(
     history, registries, inputs, boundary_inventory, protocol,
-    run_id, purpose, branch_order, ...
+    run_id, purpose, branch_order,
+    parallel_workers = getOption("xgelo.benchmark_workers", 2L), ...
 ) {
   guard_benchmark_purpose(history, purpose)
   history <- benchmark_runner_prepare_history(history, inputs$model_registry)
@@ -797,27 +908,38 @@ benchmark_default_execution_engine <- function(
       registries$teams, history, "updating"
     )
   )
-  predictions <- distributions <- manifests <- list()
-  cursor <- 0L
-  for (model_id in branch_order) {
+  jobs <- expand.grid(
+    model_id = branch_order, track_id = names(tracks),
+    stringsAsFactors = FALSE
+  )
+  execute_job <- function(job_index) {
+    model_id <- jobs$model_id[job_index]
+    track_id <- jobs$track_id[job_index]
     registration <- inputs$model_registry[inputs$model_registry$model_id == model_id, , drop = FALSE]
-    for (track_id in names(tracks)) {
-      guard_benchmark_purpose(history, purpose)
-      result <- run_registered_baseline_adapter(
-        registration, history, tracks[[track_id]], inputs$seed_registry,
-        support_max = unique(inputs$score_support_audit$selected_g),
-        run_id = run_id, frozen_registry = inputs$model_registry
-      )
-      result <- benchmark_runner_namespace_adapter_output(result, model_id, track_id)
-      cursor <- cursor + 1L
-      predictions[[cursor]] <- result$predictions
-      distributions[[cursor]] <- result$distributions
-      manifests[[cursor]] <- result$manifests
-    }
+    guard_benchmark_purpose(history, purpose)
+    result <- run_registered_baseline_adapter(
+      registration, history, tracks[[track_id]], inputs$seed_registry,
+      support_max = unique(inputs$score_support_audit$selected_g),
+      run_id = run_id, frozen_registry = inputs$model_registry
+    )
+    benchmark_runner_namespace_adapter_output(result, model_id, track_id)
   }
-  predictions <- benchmark_runner_bind_rows(predictions)
-  distributions <- benchmark_runner_bind_rows(distributions)
-  manifests <- benchmark_runner_bind_rows(manifests)
+  parallel_workers <- max(1L, min(as.integer(parallel_workers), nrow(jobs)))
+  results <- if (.Platform$OS.type != "windows" && parallel_workers > 1L) {
+    parallel::mclapply(
+      seq_len(nrow(jobs)), execute_job,
+      mc.cores = parallel_workers, mc.preschedule = TRUE
+    )
+  } else {
+    lapply(seq_len(nrow(jobs)), execute_job)
+  }
+  failures <- vapply(results, inherits, logical(1), what = "try-error")
+  if (any(failures)) {
+    stop("Parallel benchmark adapter failed: ", as.character(results[[which(failures)[1L]]]), call. = FALSE)
+  }
+  predictions <- benchmark_runner_bind_rows(lapply(results, `[[`, "predictions"))
+  distributions <- benchmark_runner_bind_rows(lapply(results, `[[`, "distributions"))
+  manifests <- benchmark_runner_bind_rows(lapply(results, `[[`, "manifests"))
   coverage <- benchmark_runner_feature_coverage(
     predictions, inputs$panel_fixtures, inputs$model_registry, inputs$panels
   )
@@ -867,7 +989,7 @@ benchmark_default_execution_engine <- function(
     output_coverage_reconciled = TRUE,
     wc2026_sealed = TRUE,
     network_free = TRUE,
-    reproducible = TRUE,
+    reproducible = FALSE,
     stringsAsFactors = FALSE
   )
   list(
@@ -899,11 +1021,13 @@ run_rolling_tournament_benchmark <- function(
     adapter_runner = NULL,
     branch_order = NULL,
     source_git_sha = NULL,
+    verify_reproducibility = TRUE,
     ...
 ) {
   history <- guard_benchmark_purpose(history, purpose = purpose)
   registries <- load_benchmark_registries(registry_dir)
   inputs <- benchmark_runner_load_inputs(registry_dir)
+  additional_inputs <- benchmark_runner_additional_input_specs(registry_dir)
   boundary_inventory <- benchmark_runner_boundary_inventory(registries$boundaries)
   validate_score_support_audit(inputs$score_support_audit, inputs$model_registry, boundary_inventory)
   protocol_path <- file.path(registry_dir, "promotion_protocol.json")
@@ -918,19 +1042,70 @@ run_rolling_tournament_benchmark <- function(
   }
   if (is.null(adapter_runner)) adapter_runner <- benchmark_default_execution_engine
   if (!is.function(adapter_runner)) stop("adapter_runner must be a function", call. = FALSE)
-  bundle <- adapter_runner(
-    history = history, registries = registries, inputs = inputs,
-    boundary_inventory = boundary_inventory, protocol = protocol,
-    run_id = run_id, purpose = purpose,
-    branch_order = if (is.null(branch_order)) inputs$model_registry$model_id else branch_order, ...
-  )
+  effective_order <- if (is.null(branch_order)) inputs$model_registry$model_id else branch_order
+  execute <- function(order) adapter_runner(
+      history = history, registries = registries, inputs = inputs,
+      boundary_inventory = boundary_inventory, protocol = protocol,
+      run_id = run_id, purpose = purpose, branch_order = order, ...
+    )
+  bundle <- execute(effective_order)
   if (is.null(source_git_sha)) source_git_sha <- benchmark_runner_git_identity(".")$sha
-  written <- write_rolling_benchmark_bundle(
-    bundle, output_dir, inputs$score_support_audit, inputs$model_registry,
-    boundary_inventory, source_git_sha
-  )
+  if (isTRUE(verify_reproducibility)) {
+    output_dir <- normalizePath(output_dir, mustWork = FALSE)
+    dir.create(dirname(output_dir), recursive = TRUE, showWarnings = FALSE)
+    first_root <- tempfile("phase09-repro-", tmpdir = dirname(output_dir))
+    staged_root <- tempfile(paste0(".", basename(output_dir), "-staged-"), tmpdir = dirname(output_dir))
+    on.exit({
+      if (dir.exists(first_root)) unlink(first_root, recursive = TRUE)
+      if (dir.exists(staged_root)) unlink(staged_root, recursive = TRUE)
+    }, add = TRUE)
+    first_written <- write_rolling_benchmark_bundle(
+      bundle, first_root, inputs$score_support_audit, inputs$model_registry,
+      boundary_inventory, source_git_sha, require_reproducible = FALSE,
+      additional_inputs = additional_inputs
+    )
+    bundle$run_manifest$reproducible <- TRUE
+    first_hashes <- first_written$content_sha256
+    first_hashes[["run_manifest"]] <- benchmark_runner_content_sha256(
+      bundle$run_manifest, "run_manifest"
+    )
+    first_hashes <- first_hashes[sort(names(first_hashes), method = "radix")]
+    rm(bundle)
+    invisible(gc())
+    bundle <- execute(rev(effective_order))
+    bundle$run_manifest$reproducible <- TRUE
+    written <- write_rolling_benchmark_bundle(
+      bundle, staged_root, inputs$score_support_audit, inputs$model_registry,
+      boundary_inventory, source_git_sha, additional_inputs = additional_inputs
+    )
+    second_hashes <- written$content_sha256
+    second_hashes <- second_hashes[sort(names(second_hashes), method = "radix")]
+    if (!identical(first_hashes, second_hashes)) {
+      stop("Repeated benchmark runs produced different canonical content hashes", call. = FALSE)
+    }
+    if (dir.exists(output_dir)) {
+      backup_root <- tempfile(paste0(".", basename(output_dir), "-backup-"), tmpdir = dirname(output_dir))
+      if (!file.rename(output_dir, backup_root)) stop("Could not stage the existing benchmark bundle for replacement", call. = FALSE)
+      installed <- file.rename(staged_root, output_dir)
+      if (!installed) {
+        file.rename(backup_root, output_dir)
+        stop("Could not install the reconciled benchmark bundle", call. = FALSE)
+      }
+      unlink(backup_root, recursive = TRUE)
+    } else if (!file.rename(staged_root, output_dir)) {
+      stop("Could not install the reconciled benchmark bundle", call. = FALSE)
+    }
+    written$paths <- benchmark_output_paths(output_dir)
+  } else {
+    written <- write_rolling_benchmark_bundle(
+      bundle, output_dir, inputs$score_support_audit, inputs$model_registry,
+      boundary_inventory, source_git_sha, require_reproducible = FALSE,
+      additional_inputs = additional_inputs
+    )
+  }
   validation <- validate_rolling_benchmark_bundle(
-    output_dir, inputs$score_support_audit, inputs$model_registry, boundary_inventory
+    output_dir, inputs$score_support_audit, inputs$model_registry, boundary_inventory,
+    additional_inputs, require_reproducible = verify_reproducibility
   )
   c(written, list(validation = validation))
 }
