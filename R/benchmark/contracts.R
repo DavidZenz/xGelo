@@ -364,26 +364,107 @@ validate_prediction_feature_coverage_links <- function(predictions, coverage, fe
   invisible(TRUE)
 }
 
-#' Validate exact declared fixture coverage for a model panel
+#' Return the exact frozen fixture inventory for one benchmark panel
 #' @export
-validate_panel_prediction_coverage <- function(predictions, panel_fixtures, model_id) {
+benchmark_panel_fixture_ids <- function(panel_fixtures, panel_id) {
   benchmark_contract_require_columns(
-    panel_fixtures, c("panel_id", "fixture_id", "eligible", "output_coverage_required"),
+    panel_fixtures,
+    c("panel_id", "fixture_id", "eligible", "output_coverage_required"),
     "Panel fixtures"
   )
-  benchmark_contract_require_columns(predictions, c("model_id", "panel_id", "fixture_id", "prediction_status"), "Benchmark predictions")
-  rows <- predictions[predictions$model_id == model_id, , drop = FALSE]
-  panel_ids <- unique(rows$panel_id)
-  if (!length(panel_ids)) panel_ids <- unique(panel_fixtures$panel_id)
-  if (length(panel_ids) != 1L) stop("Model predictions must identify exactly one registered panel", call. = FALSE)
-  required <- panel_fixtures$fixture_id[
-    panel_fixtures$panel_id == panel_ids & panel_fixtures$eligible & panel_fixtures$output_coverage_required
-  ]
-  missing <- setdiff(required, rows$fixture_id)
-  if (length(missing)) stop("Model predictions are missing required fixture rows", call. = FALSE)
-  required_rows <- rows[match(required, rows$fixture_id), , drop = FALSE]
-  if (any(required_rows$prediction_status != "ok")) stop("Required panel fixture outputs are incomplete", call. = FALSE)
+  panel_id <- as.character(panel_id)
+  if (length(panel_id) != 1L || is.na(panel_id) || !nzchar(panel_id)) {
+    stop("panel_id must identify one registered panel", call. = FALSE)
+  }
+  panel_rows <- panel_fixtures[as.character(panel_fixtures$panel_id) == panel_id, , drop = FALSE]
+  if (!nrow(panel_rows)) stop("panel_id does not identify a registered panel", call. = FALSE)
+  if (anyDuplicated(panel_rows$fixture_id)) {
+    stop("Panel fixtures contain duplicate declarations", call. = FALSE)
+  }
+  eligible <- as.logical(panel_rows$eligible)
+  required <- as.logical(panel_rows$output_coverage_required)
+  if (anyNA(eligible) || anyNA(required)) {
+    stop("Panel fixture eligibility and output requirements must be explicit", call. = FALSE)
+  }
+  fixture_ids <- sort(as.character(panel_rows$fixture_id[eligible & required]))
+  if (!length(fixture_ids) || any(is.na(fixture_ids) | !nzchar(fixture_ids))) {
+    stop("Registered panel has no valid required fixture IDs", call. = FALSE)
+  }
+  fixture_ids
+}
+
+#' Validate exact declared fixture coverage for a model panel
+#' @export
+validate_panel_prediction_coverage <- function(
+    predictions, panel_fixtures, model_id, panel_id = NULL
+) {
+  benchmark_contract_require_columns(
+    predictions, c("model_id", "panel_id", "fixture_id", "prediction_status"),
+    "Benchmark predictions"
+  )
+  model_id <- as.character(model_id)
+  if (length(model_id) != 1L || is.na(model_id) || !nzchar(model_id)) {
+    stop("model_id must identify one model", call. = FALSE)
+  }
+  if (is.null(panel_id)) {
+    panel_id <- unique(as.character(predictions$panel_id))
+    if (!length(panel_id) && length(unique(panel_fixtures$panel_id)) == 1L) {
+      panel_id <- unique(as.character(panel_fixtures$panel_id))
+    }
+  }
+  panel_id <- as.character(panel_id)
+  if (length(panel_id) != 1L || is.na(panel_id) || !nzchar(panel_id)) {
+    stop("Model predictions must identify one model and panel identity", call. = FALSE)
+  }
+  required <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
+  if (!nrow(predictions)) {
+    stop(
+      "Model predictions are missing required fixture rows; expected exact declared fixture set",
+      call. = FALSE
+    )
+  }
+  if (!identical(unique(as.character(predictions$model_id)), model_id) ||
+      !identical(unique(as.character(predictions$panel_id)), panel_id)) {
+    stop("Model predictions must identify one model and panel identity", call. = FALSE)
+  }
+  if (anyDuplicated(predictions$fixture_id)) {
+    stop("Model predictions contain duplicate fixture rows", call. = FALSE)
+  }
+  actual <- as.character(predictions$fixture_id)
+  if (!setequal(actual, required) || length(actual) != length(required)) {
+    stop("Model predictions must equal the exact declared fixture set", call. = FALSE)
+  }
+  if (any(is.na(predictions$prediction_status) | predictions$prediction_status != "ok")) {
+    stop("Required panel fixture outputs are incomplete", call. = FALSE)
+  }
   invisible(TRUE)
+}
+
+#' Project audit-visible predictions onto one exact frozen evaluation panel
+#' @export
+select_benchmark_panel_predictions <- function(
+    predictions, panel_fixtures, model_id, panel_id
+) {
+  benchmark_contract_require_columns(
+    predictions, c("model_id", "panel_id", "fixture_id", "prediction_status"),
+    "Benchmark predictions"
+  )
+  required <- benchmark_panel_fixture_ids(panel_fixtures, panel_id)
+  model_rows <- predictions[as.character(predictions$model_id) == as.character(model_id), , drop = FALSE]
+  if (!nrow(model_rows)) stop("Benchmark predictions do not contain the requested model", call. = FALSE)
+  if (!identical(unique(as.character(model_rows$panel_id)), as.character(panel_id))) {
+    stop("Model predictions must identify one model and panel identity", call. = FALSE)
+  }
+  if (anyDuplicated(model_rows$fixture_id)) {
+    stop("Model predictions contain duplicate fixture rows", call. = FALSE)
+  }
+  selected <- model_rows[match(required, as.character(model_rows$fixture_id)), , drop = FALSE]
+  validate_panel_prediction_coverage(selected, panel_fixtures, model_id, panel_id)
+  rownames(selected) <- NULL
+  attr(selected, "declared_fixture_count") <- length(required)
+  attr(selected, "excluded_fixture_count") <- nrow(model_rows) - nrow(selected)
+  attr(selected, "excluded_fixture_ids") <- sort(setdiff(as.character(model_rows$fixture_id), required))
+  selected
 }
 
 #' Canonical parent hash for score-support audit rows

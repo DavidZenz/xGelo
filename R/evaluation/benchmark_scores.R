@@ -33,7 +33,9 @@ benchmark_score_observed_class <- function(home_goals, away_goals) {
 
 #' Score every registered fixture once through the shared proper-score formulas
 #' @export
-score_benchmark_fixtures <- function(predictions, fixtures, distributions) {
+score_benchmark_fixtures <- function(
+    predictions, fixtures, distributions, expected_fixture_ids
+) {
   prediction_columns <- c(
     "run_id", "model_id", "panel_id", "edition_id", "track_id", "fixture_id",
     "score_distribution_id", "p_home", "p_draw", "p_away", "p_over_2_5",
@@ -47,23 +49,41 @@ score_benchmark_fixtures <- function(predictions, fixtures, distributions) {
   benchmark_score_require_columns(fixtures, fixture_columns, "Benchmark fixtures")
   benchmark_score_require_columns(distributions, distribution_columns, "Benchmark score distributions")
 
-  fixtures <- fixtures[fixtures$score_eligible, , drop = FALSE]
+  expected_fixture_ids <- as.character(expected_fixture_ids)
+  if (!length(expected_fixture_ids) || anyDuplicated(expected_fixture_ids) ||
+      any(is.na(expected_fixture_ids) | !nzchar(expected_fixture_ids))) {
+    stop("expected_fixture_ids must contain unique declared fixture IDs", call. = FALSE)
+  }
   if (!nrow(fixtures) || anyDuplicated(fixtures$fixture_id)) {
     stop("Benchmark fixtures require unique score-eligible fixture IDs", call. = FALSE)
   }
+  fixture_index <- match(expected_fixture_ids, as.character(fixtures$fixture_id))
+  if (anyNA(fixture_index)) {
+    stop("Benchmark fixtures do not contain every exact expected fixture ID", call. = FALSE)
+  }
+  fixtures <- fixtures[fixture_index, , drop = FALSE]
+  if (any(is.na(fixtures$score_eligible) | !fixtures$score_eligible)) {
+    stop("Every exact expected fixture ID must be score eligible", call. = FALSE)
+  }
   model_groups <- split(predictions, predictions$model_id)
-  expected_ids <- as.character(fixtures$fixture_id)
+  expected_ids <- expected_fixture_ids
   for (model_id in names(model_groups)) {
     rows <- model_groups[[model_id]]
     if (anyDuplicated(rows$fixture_id) || !setequal(as.character(rows$fixture_id), expected_ids)) {
-      stop("Benchmark predictions must contain exactly the registered fixture IDs for every model", call. = FALSE)
+      stop(
+        "Benchmark predictions must contain exactly the registered fixture IDs; exact expected fixture IDs required",
+        call. = FALSE
+      )
     }
     if (any(is.na(rows$prediction_status) | rows$prediction_status != "ok")) {
       stop("Benchmark predictions contain incomplete required outputs", call. = FALSE)
     }
   }
   if (any(!predictions$fixture_id %in% expected_ids)) {
-    stop("Benchmark predictions must contain exactly the registered fixture IDs for every model", call. = FALSE)
+    stop(
+      "Benchmark predictions must contain exactly the registered fixture IDs; exact expected fixture IDs required",
+      call. = FALSE
+    )
   }
 
   distribution_index <- split(
@@ -180,23 +200,45 @@ aggregate_benchmark_scores <- function(scores, expected_editions) {
 
 #' Fixed one-vs-rest calibration bins shared across benchmark models
 #' @export
-fixed_benchmark_calibration <- function(predictions, fixtures, min_bin_count = 10L) {
+fixed_benchmark_calibration <- function(
+    predictions, fixtures, expected_fixture_ids, min_bin_count = 10L
+) {
   prediction_columns <- c(
     "run_id", "model_id", "panel_id", "edition_id", "track_id", "fixture_id",
-    "p_home", "p_draw", "p_away"
+    "p_home", "p_draw", "p_away", "prediction_status"
   )
-  fixture_columns <- c("edition_id", "fixture_id", "regulation_home_goals", "regulation_away_goals")
+  fixture_columns <- c(
+    "edition_id", "fixture_id", "regulation_home_goals", "regulation_away_goals",
+    "score_eligible"
+  )
   benchmark_score_require_columns(predictions, prediction_columns, "Benchmark predictions")
   benchmark_score_require_columns(fixtures, fixture_columns, "Benchmark fixtures")
+  expected_fixture_ids <- as.character(expected_fixture_ids)
+  if (!length(expected_fixture_ids) || anyDuplicated(expected_fixture_ids) ||
+      any(is.na(expected_fixture_ids) | !nzchar(expected_fixture_ids))) {
+    stop("expected_fixture_ids must contain unique declared fixture IDs", call. = FALSE)
+  }
   if (anyDuplicated(fixtures$fixture_id)) stop("Benchmark fixtures contain duplicate IDs", call. = FALSE)
+  fixture_index <- match(expected_fixture_ids, as.character(fixtures$fixture_id))
+  if (anyNA(fixture_index)) {
+    stop("Benchmark fixtures do not contain every exact expected fixture ID", call. = FALSE)
+  }
+  fixtures <- fixtures[fixture_index, , drop = FALSE]
+  if (any(is.na(fixtures$score_eligible) | !fixtures$score_eligible)) {
+    stop("Every exact expected fixture ID must be score eligible", call. = FALSE)
+  }
   group_columns <- c("run_id", "model_id", "panel_id", "track_id")
   groups <- split(predictions, benchmark_score_group_key(predictions, group_columns))
   all_bins <- list()
   all_summaries <- list()
   cursor <- 0L
   for (rows in groups) {
-    if (anyDuplicated(rows$fixture_id) || !setequal(rows$fixture_id, fixtures$fixture_id)) {
-      stop("Calibration requires exactly the registered fixture IDs", call. = FALSE)
+    if (anyDuplicated(rows$fixture_id) ||
+        !setequal(as.character(rows$fixture_id), expected_fixture_ids)) {
+      stop("Calibration requires the exact expected fixture IDs", call. = FALSE)
+    }
+    if (any(is.na(rows$prediction_status) | rows$prediction_status != "ok")) {
+      stop("Calibration requires complete prediction outputs", call. = FALSE)
     }
     fixture_rows <- fixtures[match(rows$fixture_id, fixtures$fixture_id), , drop = FALSE]
     if (any(as.character(rows$edition_id) != as.character(fixture_rows$edition_id))) {
