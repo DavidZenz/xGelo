@@ -313,6 +313,26 @@ test_that("default bundle parents use the canonical registry normalization", {
   expect_identical(unique(inputs$model_registry$schema_version), "1.0")
 })
 
+test_that("standalone bundle validation loads its coverage dependency", {
+  withr::local_dir(project_root)
+  validation_env <- new.env(parent = baseenv())
+  sys.source(file.path(project_root, "R/benchmark/runner.R"), envir = validation_env)
+
+  expect_false(exists(
+    "benchmark_output_coverage",
+    envir = validation_env,
+    mode = "function",
+    inherits = FALSE
+  ))
+  expect_invisible(validation_env$benchmark_runner_require_validation_dependencies())
+  expect_true(exists(
+    "benchmark_output_coverage",
+    envir = validation_env,
+    mode = "function",
+    inherits = FALSE
+  ))
+})
+
 test_that("bundle validation rejects missing rows and corrupted parent hashes", {
   x <- pipeline_bundle()
   out <- tempfile("benchmark-corrupt-")

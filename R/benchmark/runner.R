@@ -40,6 +40,17 @@ benchmark_runner_hash <- function(value) {
   digest::digest(value, algo = "sha256", serialize = FALSE)
 }
 
+benchmark_runner_require_validation_dependencies <- function() {
+  runner_env <- environment(validate_rolling_benchmark_bundle)
+  if (!exists("benchmark_output_coverage", envir = runner_env, mode = "function", inherits = TRUE)) {
+    sys.source("R/benchmark/baselines.R", envir = runner_env)
+  }
+  if (!exists("benchmark_output_coverage", envir = runner_env, mode = "function", inherits = TRUE)) {
+    stop("benchmark_output_coverage is required for standalone bundle validation", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 benchmark_runner_file_sha256 <- function(path) {
   if (!file.exists(path)) stop("Benchmark bundle artifact is missing: ", path, call. = FALSE)
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for benchmark bundle SHA-256", call. = FALSE)
@@ -714,6 +725,7 @@ validate_rolling_benchmark_bundle <- function(
     feature_contract = NULL,
     protocol = NULL
 ) {
+  benchmark_runner_require_validation_dependencies()
   if (is.null(score_support_audit) || is.null(model_registry)) {
     default_inputs <- benchmark_runner_load_inputs("data/benchmark/phase09")
     if (is.null(score_support_audit)) score_support_audit <- default_inputs$score_support_audit
