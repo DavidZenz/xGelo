@@ -189,9 +189,14 @@ testthat::test_that("manifests and feature coverage enforce point-in-time proven
   testthat::expect_error(validate_model_manifests(leaked), "strictly before")
 
   feature <- data.frame(
-    feature_coverage_id = "coverage_1", model_id = "elo_goal_nb",
+    schema_version = "1.0", feature_coverage_id = "coverage_1", run_id = "run_1",
+    model_id = "elo_goal_nb", panel_id = "open_core", edition_id = "wc2002",
+    track_id = "updating",
     boundary_id = "wc2002__2002-05-31", fixture_id = "wc2002_001",
-    feature_id = c("elo_diff", "venue_role"), value_present = TRUE,
+    feature_id = c("elo_diff", "venue_role"), source_id = "elo_ratings_recursive_open",
+    source_artifact_sha256 = strrep("d", 64),
+    feature_contract_row_sha256 = c(strrep("e", 64), strrep("f", 64)),
+    value_present = TRUE,
     source_present = TRUE, source_date = as.Date("2002-05-30"),
     evidence_cutoff_exclusive = as.Date("2002-05-31"), cutoff_valid = TRUE,
     imputed = FALSE, imputation_reason = "", active_in_fit = TRUE,
