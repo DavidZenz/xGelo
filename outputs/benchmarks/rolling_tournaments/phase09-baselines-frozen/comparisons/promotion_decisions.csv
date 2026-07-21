@@ -1,0 +1,6 @@
+"candidate_id","incumbent_id","panel_id","output_coverage_complete","promotion_eligible","headline_rps_delta","ci_lower","ci_upper","decision","reason_codes"
+"elo_goal_nb","open_nb_incumbent","open_core",TRUE,TRUE,-0.00145656614084005,-0.00298250197596493,0.000239523968796235,"retain_incumbent",""
+"expanding_1x2","open_nb_incumbent","open_core",TRUE,TRUE,0.031216654553961,0.023607954466212,0.0386026259936753,"retain_incumbent",""
+"open_nb_incumbent","open_nb_incumbent","open_core",TRUE,TRUE,0,0,0,"retain_incumbent",""
+"production_hybrid_nb","production_hybrid_nb","feature_rich",TRUE,TRUE,0,0,0,"retain_incumbent",""
+"uniform_1x2","open_nb_incumbent","open_core",TRUE,TRUE,0.0275045223074437,0.0195857887391654,0.036227872854519,"retain_incumbent",""
