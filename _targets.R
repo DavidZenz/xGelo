@@ -230,6 +230,7 @@ list(
           ,
           drop = FALSE
         ]
+        training$match_id <- make.unique(as.character(training$match_id), sep = "__")
         elo <- read.csv("data/processed/elo_ratings.csv", stringsAsFactors = FALSE)
         rolling <- if (file.exists("data/processed/rolling_form.csv")) read.csv("data/processed/rolling_form.csv", stringsAsFactors = FALSE) else NULL
         squad <- read.csv(transfermarkt_squad_strength_file, stringsAsFactors = FALSE)
@@ -242,6 +243,14 @@ list(
           goal_ability = ability
         )
         assert_no_feature_leakage(features)
+        validate_forecast_feature_evidence(
+          features,
+          read.csv("data/benchmark/phase09/feature_contract.csv", stringsAsFactors = FALSE),
+          derived_mappings = c(
+            elo_difference_for_team = "elo_diff",
+            venue_advantage_for_team = "elo_diff"
+          )
+        )
         output_path <- "data/processed/goal_training_features_hybrid.csv"
         write.csv(features, output_path, row.names = FALSE)
         output_path

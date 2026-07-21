@@ -111,24 +111,119 @@ latest_team_value_before <- function(data, team, lookup_date, value_col, team_co
   ifelse(is.finite(value), value, default)
 }
 
-#' Create a fast latest-before lookup function
-#' @keywords internal
-make_latest_team_lookup <- function(data, value_col, team_col = "team", date_col = "date", default = NA_real_) {
+#' Create a fast evidence-returning latest-before lookup function
+#'
+#' The selected source row is retained even when its value is missing. This is
+#' essential for distinguishing a missing value in a real source row from a
+#' team with no prior source row at all.
+#'
+#' @param data Source data frame
+#' @param value_col Numeric value column
+#' @param team_col Team identifier column
+#' @param date_col Source date column
+#' @param default Registered fallback written when no finite value is available
+#' @return Function of team and lookup date returning value and evidence fields
+#' @export
+make_latest_team_evidence_lookup <- function(
+    data,
+    value_col,
+    team_col = "team",
+    date_col = "date",
+    default = NA_real_
+) {
+  missing_evidence <- function(reason, source_present = FALSE, source_date = as.Date(NA)) {
+    list(
+      value = as.numeric(default),
+      source_present = isTRUE(source_present),
+      source_date = as.Date(source_date),
+      value_present = FALSE,
+      imputed = TRUE,
+      imputation_reason = reason
+    )
+  }
+
   if (is.null(data) || nrow(data) == 0 || !all(c(team_col, date_col, value_col) %in% names(data))) {
-    return(function(team, lookup_date) default)
+    return(function(team, lookup_date) missing_evidence("missing_source_row"))
   }
   data[[date_col]] <- as.Date(data[[date_col]])
   data[[value_col]] <- suppressWarnings(as.numeric(data[[value_col]]))
-  data <- data[!is.na(data[[team_col]]) & !is.na(data[[date_col]]) & is.finite(data[[value_col]]), , drop = FALSE]
+  data <- data[!is.na(data[[team_col]]) & !is.na(data[[date_col]]), , drop = FALSE]
   split_data <- split(data[order(data[[date_col]]), , drop = FALSE], data[[team_col]])
+
   function(team, lookup_date) {
     team_rows <- split_data[[team]]
-    if (is.null(team_rows) || nrow(team_rows) == 0) return(default)
+    if (is.null(team_rows) || nrow(team_rows) == 0) {
+      return(missing_evidence("missing_source_row"))
+    }
     idx <- findInterval(as.Date(lookup_date) - 1, team_rows[[date_col]])
-    if (idx <= 0) return(default)
+    if (idx <= 0) return(missing_evidence("missing_source_row"))
+
+    source_date <- team_rows[[date_col]][idx]
     value <- team_rows[[value_col]][idx]
-    ifelse(is.finite(value), value, default)
+    if (!is.finite(value)) {
+      return(missing_evidence("missing_source_value", TRUE, source_date))
+    }
+    list(
+      value = as.numeric(value),
+      source_present = TRUE,
+      source_date = as.Date(source_date),
+      value_present = TRUE,
+      imputed = FALSE,
+      imputation_reason = ""
+    )
   }
+}
+
+#' Create a value-only latest-before lookup function
+#' @keywords internal
+make_latest_team_lookup <- function(data, value_col, team_col = "team", date_col = "date", default = NA_real_) {
+  evidence_lookup <- make_latest_team_evidence_lookup(
+    data = data,
+    value_col = value_col,
+    team_col = team_col,
+    date_col = date_col,
+    default = default
+  )
+  function(team, lookup_date) evidence_lookup(team, lookup_date)$value
+}
+
+#' Combine two team lookups into home-minus-away evidence
+#' @keywords internal
+forecast_difference_evidence <- function(home, away) {
+  source_present <- isTRUE(home$source_present) && isTRUE(away$source_present)
+  value_present <- isTRUE(home$value_present) && isTRUE(away$value_present)
+  source_date <- if (source_present) {
+    max(as.Date(c(home$source_date, away$source_date)), na.rm = TRUE)
+  } else {
+    as.Date(NA)
+  }
+  reason <- if (!source_present) {
+    "missing_source_row"
+  } else if (!value_present) {
+    "missing_source_value"
+  } else {
+    ""
+  }
+  list(
+    value = as.numeric(home$value) - as.numeric(away$value),
+    source_present = source_present,
+    source_date = as.Date(source_date),
+    value_present = value_present,
+    imputed = !value_present,
+    imputation_reason = reason
+  )
+}
+
+#' Add canonical evidence companions for one feature
+#' @keywords internal
+add_forecast_feature_evidence <- function(row, feature_id, evidence) {
+  row[[feature_id]] <- as.numeric(evidence$value)
+  row[[paste0(feature_id, "__value_present")]] <- isTRUE(evidence$value_present)
+  row[[paste0(feature_id, "__source_present")]] <- isTRUE(evidence$source_present)
+  row[[paste0(feature_id, "__source_date")]] <- as.Date(evidence$source_date)
+  row[[paste0(feature_id, "__imputed")]] <- isTRUE(evidence$imputed)
+  row[[paste0(feature_id, "__imputation_reason")]] <- as.character(evidence$imputation_reason)
+  row
 }
 
 #' Build a feature table for match forecasting
@@ -165,16 +260,24 @@ build_forecast_feature_table <- function(
   if (!is.null(squad_strength) && "team" %in% names(squad_strength)) {
     squad_strength$team <- canonicalise_feature_team_name(squad_strength$team)
   }
+  match_ids <- if ("match_id" %in% names(matches)) {
+    make.unique(as.character(matches$match_id), sep = "__")
+  } else {
+    make.unique(
+      paste(matches$home_team_canonical, matches$away_team_canonical, matches$date, sep = "_"),
+      sep = "__"
+    )
+  }
 
   lookup_dates <- if (is.null(cutoff_date)) matches$date else rep(as.Date(cutoff_date), nrow(matches))
   venue <- if ("neutral" %in% names(matches)) ifelse(as.logical(matches$neutral), "neutral", "home") else "home"
   if ("venue" %in% names(matches)) venue <- matches$venue
 
-  get_elo <- make_latest_team_lookup(elo_ratings, "rating", default = 1500)
+  get_elo <- make_latest_team_evidence_lookup(elo_ratings, "rating", default = 1500)
   form_lookups <- list()
   get_form <- function(team, date_value, col) {
     if (is.null(form_lookups[[col]])) {
-      form_lookups[[col]] <<- make_latest_team_lookup(rolling_form, col, date_col = "match_date", default = 0)
+      form_lookups[[col]] <<- make_latest_team_evidence_lookup(rolling_form, col, date_col = "match_date", default = 0)
     }
     form_lookups[[col]](team, date_value)
   }
@@ -182,7 +285,7 @@ build_forecast_feature_table <- function(
   squad_lookups <- list()
   get_squad <- function(team, date_value, col) {
     if (is.null(squad_lookups[[col]])) {
-      squad_lookups[[col]] <<- make_latest_team_lookup(squad_strength, col, date_col = squad_date_col, default = 0)
+      squad_lookups[[col]] <<- make_latest_team_evidence_lookup(squad_strength, col, date_col = squad_date_col, default = 0)
     }
     squad_lookups[[col]](team, date_value)
   }
@@ -194,21 +297,23 @@ build_forecast_feature_table <- function(
     away_team <- matches$away_team_canonical[i]
     home_elo <- get_elo(home_team, lookup_date)
     away_elo <- get_elo(away_team, lookup_date)
+    elo_evidence <- forecast_difference_evidence(home_elo, away_elo)
 
-    if (venue[i] == "home") home_elo <- home_elo + home_advantage
-    if (venue[i] == "away") away_elo <- away_elo + home_advantage
+    if (venue[i] == "home") elo_evidence$value <- elo_evidence$value + home_advantage
+    if (venue[i] == "away") elo_evidence$value <- elo_evidence$value - home_advantage
 
     row <- data.frame(
+      match_id = match_ids[i],
       date = matches$date[i],
       home_team = home_team,
       away_team = away_team,
       home_goals = matches$home_score[i],
       away_goals = matches$away_score[i],
       venue = venue[i],
-      feature_source_date = lookup_date - 1,
-      elo_diff = home_elo - away_elo,
+      feature_source_date = as.Date(NA),
       stringsAsFactors = FALSE
     )
+    row <- add_forecast_feature_evidence(row, "elo_diff", elo_evidence)
     row$actual_outcome <- if (is.na(row$home_goals) || is.na(row$away_goals)) {
       NA_character_
     } else if (row$home_goals > row$away_goals) {
@@ -221,7 +326,11 @@ build_forecast_feature_table <- function(
 
     form_cols <- c("xgf_ewma", "xga_ewma", "xgd_ewma", "shots_ewma", "form_index")
     for (col in form_cols) {
-      row[[paste0(col, "_diff")]] <- get_form(home_team, lookup_date, col) - get_form(away_team, lookup_date, col)
+      evidence <- forecast_difference_evidence(
+        get_form(home_team, lookup_date, col),
+        get_form(away_team, lookup_date, col)
+      )
+      row <- add_forecast_feature_evidence(row, paste0(col, "_diff"), evidence)
     }
 
     squad_cols <- c(
@@ -238,7 +347,11 @@ build_forecast_feature_table <- function(
     )
     for (col in squad_cols) {
       if (!is.null(squad_strength) && col %in% names(squad_strength)) {
-        row[[paste0(col, "_diff")]] <- get_squad(home_team, lookup_date, col) - get_squad(away_team, lookup_date, col)
+        evidence <- forecast_difference_evidence(
+          get_squad(home_team, lookup_date, col),
+          get_squad(away_team, lookup_date, col)
+        )
+        row <- add_forecast_feature_evidence(row, paste0(col, "_diff"), evidence)
       }
     }
 
@@ -249,7 +362,97 @@ build_forecast_feature_table <- function(
   if (!is.null(goal_ability) && nrow(goal_ability) == nrow(result)) {
     result <- cbind(result, goal_ability)
   }
+  source_date_cols <- grep("__source_date$", names(result), value = TRUE)
+  if (length(source_date_cols) > 0) {
+    source_dates <- do.call(cbind, lapply(result[source_date_cols], function(x) as.numeric(as.Date(x))))
+    latest <- apply(source_dates, 1, function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE))
+    result$feature_source_date <- as.Date(latest, origin = "1970-01-01")
+  }
   result
+}
+
+#' Validate producer-captured forecast feature evidence
+#'
+#' @param features Canonical wide feature table
+#' @param feature_contract Registered feature contract data frame
+#' @param derived_mappings Named mapping from adapter-derived IDs to producer IDs
+#' @return TRUE invisibly
+#' @export
+validate_forecast_feature_evidence <- function(
+    features,
+    feature_contract = read.csv("data/benchmark/phase09/feature_contract.csv", stringsAsFactors = FALSE),
+    derived_mappings = c(
+      elo_difference_for_team = "elo_diff",
+      venue_advantage_for_team = "elo_diff"
+    )
+) {
+  if (!all(c("match_id", "date") %in% names(features))) {
+    stop("Forecast features must contain match_id and date")
+  }
+  if (any(is.na(features$match_id) | !nzchar(as.character(features$match_id))) || anyDuplicated(features$match_id)) {
+    stop("Forecast feature match_id values must be non-empty and unique")
+  }
+  if (!all(c("feature_id", "source_id") %in% names(feature_contract))) {
+    stop("Feature contract must contain feature_id and source_id")
+  }
+
+  feature_ids <- unique(as.character(feature_contract$feature_id))
+  producer_ids <- vapply(feature_ids, function(feature_id) {
+    if (feature_id %in% names(derived_mappings)) unname(derived_mappings[[feature_id]]) else feature_id
+  }, character(1))
+  missing_features <- setdiff(unique(producer_ids), names(features))
+  if (length(missing_features) > 0) {
+    stop(paste("Forecast features missing registered values:", paste(missing_features, collapse = ", ")))
+  }
+
+  fixture_dates <- as.Date(features$date)
+  for (producer_id in unique(producer_ids)) {
+    companion_names <- paste0(
+      producer_id,
+      c("__value_present", "__source_present", "__source_date", "__imputed", "__imputation_reason")
+    )
+    missing_companions <- setdiff(companion_names, names(features))
+    if (length(missing_companions) > 0) {
+      stop(paste("Forecast evidence missing companions for", producer_id, ":", paste(missing_companions, collapse = ", ")))
+    }
+
+    value_present <- as.logical(features[[paste0(producer_id, "__value_present")]])
+    source_present <- as.logical(features[[paste0(producer_id, "__source_present")]])
+    source_date <- as.Date(features[[paste0(producer_id, "__source_date")]])
+    imputed <- as.logical(features[[paste0(producer_id, "__imputed")]])
+    reason <- as.character(features[[paste0(producer_id, "__imputation_reason")]])
+    reason[is.na(reason)] <- ""
+
+    if (anyNA(value_present) || anyNA(source_present) || anyNA(imputed)) {
+      stop(paste("Forecast evidence flags may not be missing for", producer_id))
+    }
+    if (any(value_present & !source_present)) {
+      stop(paste("Forecast value cannot be present without a source for", producer_id))
+    }
+    if (any(source_present & is.na(source_date))) {
+      stop(paste("Source-present forecast evidence requires a source date for", producer_id))
+    }
+    if (any(!source_present & !is.na(source_date))) {
+      stop(paste("Source-absent forecast evidence cannot fabricate a source date for", producer_id))
+    }
+    if (any(!is.na(source_date) & source_date >= fixture_dates)) {
+      stop(paste("Forecast evidence source dates must be strictly before fixture dates for", producer_id))
+    }
+    if (any(imputed != !value_present)) {
+      stop(paste("Forecast evidence imputed flag disagrees with value presence for", producer_id))
+    }
+    if (any(imputed & !nzchar(reason))) {
+      stop(paste("Forecast imputation reason is required for", producer_id))
+    }
+    if (any(!imputed & nzchar(reason))) {
+      stop(paste("Non-imputed forecast evidence cannot carry an imputation reason for", producer_id))
+    }
+    values <- suppressWarnings(as.numeric(features[[producer_id]]))
+    if (any(values == 0 & !source_present & !imputed, na.rm = TRUE)) {
+      stop(paste("Missing-source zero must remain explicitly imputed for", producer_id))
+    }
+  }
+  invisible(TRUE)
 }
 
 #' Convert dashboard fixtures to forecast feature input rows
