@@ -177,7 +177,7 @@ information add stable value beyond the strongest statistical benchmark.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
-| 9. Rolling Tournament Benchmark Harness | 8/8 | Complete   | 2026-07-21 |
+| 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 0/TBD | Not started | - |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |

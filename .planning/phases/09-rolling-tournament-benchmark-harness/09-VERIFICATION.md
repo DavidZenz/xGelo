@@ -1,242 +1,192 @@
 ---
 phase: 09-rolling-tournament-benchmark-harness
-verified: 2026-07-21T06:45:34Z
-status: gaps_found
-score: 16/25 must-haves verified
+verified: 2026-07-21T20:08:50Z
+status: passed
+score: 25/25 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "Every prediction is linked to a complete point-in-time feature-coverage and provenance audit."
-    status: failed
-    reason: "The canonical feature_coverage.csv is a 60-row model/edition output-coverage summary, not the required model/boundary/fixture/feature audit; none of the 6,300 prediction feature_coverage_id values resolve to it, and the bundle validator never calls validate_feature_coverage()."
-    artifacts:
-      - path: "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/feature_coverage.csv"
-        issue: "Missing boundary_id, fixture_id, feature_id, source_date, cutoff, imputation, active-feature, coverage-status, and license fields; all prediction references are dangling."
-      - path: "R/benchmark/runner.R"
-        issue: "Builds aggregate output coverage, validates only six aggregate columns, and hard-codes feature_coverage_valid = TRUE."
-      - path: "R/benchmark/baselines.R"
-        issue: "Emits fixture-level feature_coverage_id references but no corresponding feature-level coverage rows."
-    missing:
-      - "Emit one feature-coverage row per registered model/boundary/fixture/feature with source date, strict-cutoff status, imputation reason, active status, and license."
-      - "Make every prediction feature_coverage_id resolve to generated coverage evidence."
-      - "Call validate_feature_coverage() during bundle construction and validation; derive feature_coverage_valid from that result instead of a constant."
-  - truth: "Feature-rich models are scored and compared only on their frozen predeclared eligible panel while open_core remains all 630 fixtures."
-    status: failed
-    reason: "feature_rich declares 609 eligible fixtures, but production_hybrid_nb predicts and is scored on all 630; 21 ineligible fixtures enter its scores, and paired comparisons use the global 630-fixture set rather than panel_fixtures.csv."
-    artifacts:
-      - path: "data/benchmark/phase09/panel_fixtures.csv"
-        issue: "Correctly declares 609 eligible feature_rich fixtures, but the declaration is not enforced downstream."
-      - path: "R/evaluation/benchmark_scores.R"
-        issue: "score_benchmark_fixtures() requires the complete global fixture set for every model, preventing panel-specific scoring."
-      - path: "R/benchmark/runner.R"
-        issue: "benchmark_runner_comparisons() passes all score-eligible fixture IDs to every model comparison and never consults panel_fixtures.csv."
-      - path: "R/benchmark/contracts.R"
-        issue: "validate_panel_prediction_coverage() rejects missing required rows but does not reject extra out-of-panel rows."
-    missing:
-      - "Make prediction validation, scoring, calibration, and paired comparisons panel-aware."
-      - "Reject extra out-of-panel rows for feature_rich comparisons and use the exact 609 declared eligible fixture IDs."
-      - "Regenerate and reconcile the canonical bundle after fixing panel enforcement."
-  - truth: "Canonical promotion decisions are produced by the checksum-frozen D-16 through D-20 gate with complete ordered reasons and gate values."
-    status: failed
-    reason: "The pure gate exists and its tests pass, but runner.R never calls evaluate_promotion(); benchmark_runner_decisions() hard-codes retain_incumbent and emits only coverage/provenance reasons. Canonical rows that fail the RPS and CI gates have blank/NA reason_codes and no Brier, log-loss, calibration, breadth, regression, optional-panel, or common-veto evidence."
-    artifacts:
-      - path: "R/evaluation/promotion.R"
-        issue: "Substantive and tested, including commit 5f4c013's empty-reason fix, but orphaned from canonical runner decisions."
-      - path: "R/benchmark/runner.R"
-        issue: "benchmark_runner_decisions() sets decision = retain_incumbent without invoking evaluate_promotion() or serializing its result."
-      - path: "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/comparisons/promotion_decisions.csv"
-        issue: "All five rows have retain_incumbent and blank reasons; elo_goal_nb misses both the -0.003 effect and strict CI gates but has no reason code."
-    missing:
-      - "Build complete candidate gate inputs from proper-score, calibration, fold-breadth, regression, coverage, provenance, checksum, and reproducibility artifacts."
-      - "Invoke evaluate_promotion() for every canonical decision and persist ordered reason codes, gate values, and gate booleans."
-      - "Add pipeline/bundle tests that fail when a statistically ineligible candidate has no reason or when the runner bypasses the frozen protocol."
-      - "Regenerate and revalidate promotion_decisions.csv and the enclosing checksum graph."
+re_verification:
+  previous_status: gaps_found
+  previous_score: 16/25
+  gaps_closed:
+    - "Every prediction now resolves to producer-captured, pre-imputation point-in-time feature evidence."
+    - "Every evaluation consumer now enforces the exact frozen 630-fixture open and 609-fixture rich panels."
+    - "Every canonical decision now reconstructs through evaluate_promotion() with complete ordered gate evidence."
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 09: Rolling Tournament Benchmark Harness Verification Report
 
 **Phase Goal:** Create the common, leakage-safe evaluation contract under which every baseline and challenger will be compared.
-**Verified:** 2026-07-21T06:45:34Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Verified:** 2026-07-21T20:08:50Z
+**Status:** passed
+**Re-verification:** Yes — after closure of the three prior end-to-end gaps
 
 ## Verdict
 
-Phase 09 is not goal-complete. The historical folds, leakage controls, five baselines, score support, scoring services, deterministic bundle, targets graph, and frozen protocol are substantive and largely correct. However, the canonical end-to-end path breaks three required links: feature provenance does not flow into the bundle, the feature-rich panel denominator is ignored during scoring, and the runner bypasses the promotion gate. These are BLOCKERs because later challengers would not actually be compared under the declared common contract.
+Phase 09 is goal-complete. The former feature-provenance, frozen-panel, and promotion-wiring blockers are closed in source code and in the durable canonical bundle. Independent read-back validation reproduced bundle SHA-256 `977e119dd17e1212d2bfc57da2e676b6ee9d16bfba8b6c9bdbf1a97d302db069` exactly.
 
-The full repository suite passed with true failure exits, so these are coverage/wiring gaps rather than ordinary red-test failures.
+The verifier did not accept the summaries or the orchestrator's full-suite claim as proof. Evidence below comes from source inspection, focused failure-propagating tests, direct invariant assertions, evaluator reconstruction, external file hashes, streamed row counts, target-DAG inspection, and the canonical persisted artifacts.
 
 ## Goal Achievement
 
 ### Roadmap Success Criteria
 
-| # | Roadmap truth | Status | Evidence |
+| # | Truth | Status | Evidence |
 |---|---|---|---|
-| R1 | Deterministic complete-tournament folds cover the available World Cups/Euros and exclude WC2026 outcomes from development. | VERIFIED | 12 editions, 630 fixtures, 12 frozen + 272 updating boundaries, strict manifest dates, no `wc2026` values in the bundle; registry/cutoff/seal tests pass. |
-| R2 | All models emit one schema plus point-in-time feature contract, model manifest, cutoffs, and feature-coverage audit. | FAILED — BLOCKER | Predictions/distributions/manifests are complete, but 0/6,300 prediction `feature_coverage_id` values resolve; the 60-row coverage artifact lacks the required feature provenance schema. |
-| R3 | Naive, Elo-only, and incumbent NB baselines run on shared fixtures and seeds and reproduce registered outputs. | VERIFIED | Five model registrations; 6,300 successful predictions over 630 fixtures and two tracks; 10,590,300 G=40 cells; model-independent seed registry; stable registration/settings hashes. |
-| R4 | Harness reports proper scores, calibration, paired fold deltas, and uncertainty. | VERIFIED | 88,200 fixture-score rows, 1,970 summaries, 250 paired rows; tournament-first scoring, fixed bins, 12-fold deltas, LOTO, and 10,000-replicate paired bootstrap are implemented and tested. |
-| R5 | A checksum-backed promotion protocol governs practical thresholds and tie-breaking before challenger selection. | FAILED — BLOCKER | Protocol JSON and pure gate are valid, but the canonical runner does not apply the gate; decision rows are hard-coded and lack gate reasons/evidence. |
+| R1 | Deterministic complete-tournament folds cover available World Cups/Euros and exclude WC2026 outcomes from development. | VERIFIED | Registry validation returns 12 editions and 630 fixtures; 12 frozen plus 272 updating boundaries use strict exclusive cutoffs. All non-empty manifest fit/result/feature maxima are before their boundary cutoff. Focused cutoff and WC2026 seal files passed with true failure exits. |
+| R2 | All models emit one schema and retain point-in-time feature contracts, manifests, cutoffs, and feature-coverage audits. | VERIFIED | The bundle has 6,300 common-schema predictions, 1,420 model manifests, and 78,120 feature rows. All 6,300 unique `feature_coverage_id` groups resolve exactly and `validate_benchmark_feature_evidence()` passes. |
+| R3 | Naive, Elo-only, and incumbent NB baselines run on common fixtures/shared seeds and reproduce registered outputs. | VERIFIED | Five registered models, both tracks, 6,300 predictions, complete G=40 grids, stable model/settings hashes, and model-independent seed IDs validate. Bundle identity matches the supplied expected SHA. |
+| R4 | The harness reports proper scores, calibration, paired per-fold deltas, and uncertainty. | VERIFIED | 87,612 panel-exact fixture-score rows, 1,970 summaries, and 250 paired rows validate. Focused scoring tests passed equal-tournament aggregation, fixed calibration bins, exact pairing, 12-fold deltas, LOTO, and 10,000-replicate tournament bootstrap behavior. |
+| R5 | A checksum-backed promotion protocol predefines practical thresholds and tie-breaks. | VERIFIED | Protocol SHA `5535217768e395990c7717e2c607904635ce373f6cd4730ecac2f4bbe72aa08d` validates exact D-16–D-20 operators, thresholds, and tie-break order. Five durable decisions reconstruct byte-identically through `evaluate_promotion()` and contain 159 value/pass columns plus non-empty reasons for every non-eligible result. |
 
-**Roadmap score:** 3/5 verified.
+**Roadmap score:** 5/5 verified.
 
 ### Locked Decisions D-01 Through D-20
 
-| Decision | Status | Actual code/artifact evidence |
+| Decision | Status | Actual evidence |
 |---|---|---|
-| D-01 | VERIFIED | Exact IDs: WC 2002–2022 and Euro 2004–2024; 630 unique fixtures with registered 64/31/51 edition counts. |
-| D-02 | VERIFIED | `boundaries.csv` and `cutoffs.R` use chronological complete-date batches; direct manifest audit confirms all fit/result/feature maxima are strictly before the exclusive cutoff. |
-| D-03 | VERIFIED | Both `frozen` and `updating` tracks exist; updating cutoffs equal fixture completion dates, frozen cutoffs equal edition openers, and same-date fixtures share one boundary. |
-| D-04 | VERIFIED | `aggregate_benchmark_scores()` averages within edition before the equal-tournament headline and labels fixture-weighted pooling separately; unequal-size tests pass. |
-| D-05 | FAILED — BLOCKER | Open core remains 630, but the predeclared 609-fixture rich panel is not honored in scoring: 21 ineligible fixtures enter production-hybrid scores/comparisons. |
-| D-06 | VERIFIED | `weights.R` applies an expanding prior-only 730-day recency schedule to supervised fits. |
-| D-07 | VERIFIED | Elo registration records `not_applied_recursive_elo`; tests cover recursive all-history treatment without supervised double weighting. |
-| D-08 | VERIFIED | Frozen importance schedule is 1.8 finals, 1.3 qualifiers/Nations League, 0.6 friendlies, 1.0 otherwise. |
-| D-09 | VERIFIED | One named `benchmark_supervised_730d_v1` schedule is frozen in model registrations; snapshot weights normalize to mean one. |
-| D-10 | VERIFIED | 272 updating refit boundaries plus 12 pre-opener states; 1,420 manifests retain frozen settings and strict prior-only dates. |
-| D-11 | VERIFIED | `uniform_1x2` and `expanding_1x2` are registered and produce coherent complete grids. |
-| D-12 | VERIFIED | Elo-only formula is exactly goals on Elo difference + venue advantage; neutral symmetry and complete-grid/market reconciliation tests pass. |
-| D-13 | FAILED — BLOCKER | Both NB incumbents are registered, but `production_hybrid_nb` is executed/scored on 630 fixtures instead of its 609-fixture declared rich panel. |
-| D-14 | VERIFIED | `fold_specific_tuning_allowed` is false for all models; registration/settings hashes are invariant across all manifests; 8:40 support policy is frozen. |
-| D-15 | FAILED — BLOCKER | Common predictions, grids, manifests, identities, and seeds exist, but the required feature-level coverage/provenance artifact is absent and its IDs are disconnected; panel identity is also not enforced. |
-| D-16 | FAILED — BLOCKER | Exact `<= -0.003` and CI `< 0` logic exists in the pure gate, but canonical decisions bypass that gate. |
-| D-17 | FAILED — BLOCKER | 8/12, 2 WC, 2 Euro, and max-regression logic is implemented/tested but is not applied or persisted by the runner decision path. |
-| D-18 | FAILED — BLOCKER | Brier/log/calibration and common veto logic is implemented/tested but absent from canonical decisions and reason codes. |
-| D-19 | FAILED — BLOCKER | Pure rich/open companion gates exist, but canonical rich comparisons use 630 rather than 609 fixtures and decisions bypass `evaluate_promotion()`. |
-| D-20 | VERIFIED | Candidate inputs, thresholds, selected G, model/settings hashes, seeds, and protocol are checksummed; WC2026 remains sealed and no outcome appears in the bundle. |
+| D-01 | VERIFIED | Exact World Cups 2002–2022 and Euros 2004–2024; 630 unique official fixtures. |
+| D-02 | VERIFIED | Chronological complete-date blocks and strict prior-only manifest dates. |
+| D-03 | VERIFIED | Frozen and updating tracks both present; same-date cutoff tests pass. |
+| D-04 | VERIFIED | Tournament means precede equal-tournament headline aggregation; pooled results remain separately labelled. |
+| D-05 | VERIFIED | Open core is exactly 630 and rich panel exactly 609 throughout scoring, summaries, calibration, comparisons, and decisions. |
+| D-06 | VERIFIED | Expanding supervised history uses the frozen 730-day recency schedule. |
+| D-07 | VERIFIED | Elo retains recursive all-history treatment without supervised reweighting. |
+| D-08 | VERIFIED | Frozen importance weights remain 1.8 finals, 1.3 qualifiers/Nations League, 0.6 friendlies, 1.0 otherwise. |
+| D-09 | VERIFIED | One named supervised schedule is registered and hash-stable. |
+| D-10 | VERIFIED | 272 updating refit boundaries plus 12 pre-opener states; producer and manifest evidence is strictly prior-only. |
+| D-11 | VERIFIED | Uniform and expanding historical 1X2 controls are registered and emit complete outputs. |
+| D-12 | VERIFIED | Elo-only uses Elo difference and venue/neutral status and emits complete score distributions/markets. |
+| D-13 | VERIFIED | Open NB owns the 630 core; production hybrid NB is evaluated only on the 609 rich panel while all predictions remain audit-visible. |
+| D-14 | VERIFIED | Formulas, hyperparameters, weights, registrations, and G=40 are frozen; registration/settings hashes remain stable across manifests. |
+| D-15 | VERIFIED | Common identities, fixture keys, cutoffs, seeds, predictions, distributions, manifests, and exact feature evidence all validate. |
+| D-16 | VERIFIED | Evaluator applies RPS delta `<= -0.003` and CI upper `< 0` from persisted full-precision evidence. |
+| D-17 | VERIFIED | Evaluator applies 8/12, 2 World Cup, 2 Euro, and max-regression `<= 0.015` gates. |
+| D-18 | VERIFIED | Brier/log/calibration and all common contract vetoes are serialized and reconstructed. |
+| D-19 | VERIFIED | Rich-panel gate uses 609 fixtures and a mandatory 630-fixture open companion. |
+| D-20 | VERIFIED | Protocol, inputs, models/settings, features, panels, seeds, G, bundle outputs, and parent graph are checksummed; WC2026 remains sealed. |
 
-**Decision score:** 13/20 verified.
+**Decision score:** 20/20 verified.  
+**Combined score:** 25/25 contractual truths verified; 0 behavior-unverified.
 
-**Combined score:** 16/25 contractual truths verified.
+## Former Gap Closure
+
+### 1. Pre-imputation feature provenance — CLOSED
+
+- `make_latest_team_evidence_lookup()` returns source-row presence/date, value presence, imputation state, and reason together before defaults are written.
+- Direct checks distinguish observed numeric zero (`source_present=TRUE`, `imputed=FALSE`) from missing-value and missing-row zeros (`imputed=TRUE` with distinct reasons).
+- The canonical `goal_training_features_hybrid.csv` independently validated at 49,520 unique match rows, 260 columns, and 205 evidence-companion columns.
+- Adapters expand each prediction over its exact registered panel features, validate the evidence, and reject dangling or malformed links before returning.
+
+### 2. Exact 630/609 panels with durable evidence — CLOSED
+
+- `benchmark_panel_fixture_ids()` returns exactly 630 open and 609 rich IDs.
+- All 6,300 predictions remain in the audit artifact, while no rich-ineligible fixture appears in a `production_hybrid_nb` score.
+- Direct set-equality checks confirm every model/track/metric uses only its declared panel.
+- Bundle read-back validates summary denominators and paired fold/headline/LOTO counts against the frozen panel registry.
+
+### 3. Canonical evaluator-backed promotion decisions — CLOSED
+
+- `benchmark_runner_decisions()` round-trips summaries, comparisons, coverage, and run facts through persisted CSV views, assembles candidates, then invokes `evaluate_promotion()`.
+- Bundle validation reconstructs every decision and compares the canonical decision hash; tampered reasons, values, or booleans are rejected by tests.
+- Every non-eligible durable row has ordered reason codes. For example, `elo_goal_nb` records `core_rps_effect_failed` and `core_ci_failed` for delta `-0.00145656614084001` and CI upper `0.000239523968796261`.
+
+### 4. Final resealed bundle provenance — VERIFIED
+
+- Recomputed bundle SHA: `977e119dd17e1212d2bfc57da2e676b6ee9d16bfba8b6c9bdbf1a97d302db069` (exact expected match).
+- Ten output SHA-256 values, bytes, and 10,773,564 streamed manifest rows passed independently.
+- Checksum self-hash: `4fe638ab49014c9dbac98fe389709d7668715a9ac99840f52847d0297998c309`.
+- Complete 15-input parent graph: `19263239c52ceab8b9c2a345646a6475d103f38137ec5deebbc0993525701584`.
+- Source Git SHA `6fd618235edbc432e8c66b40c6ab3acb846900d9` exists and is the direct parent of publication commit `15ed965012bd231769d45253211ae01df327bda4`; no production source file changed between that source commit and HEAD.
 
 ## Required Artifacts
 
 | Artifact group | Status | Details |
 |---|---|---|
-| Historical registries and cutoffs | VERIFIED | 12 tournaments, 630 fixtures, 72 teams, 3 formats, 76 routes, 72 corrections, 284 boundaries; registry loader and canonical hashes pass. |
-| Registry/cutoff/seal services | VERIFIED | `registry.R` and `cutoffs.R` are substantive and wired into targets/runner; seal tests prove pre-adapter rejection. |
-| Common predictions and distributions | VERIFIED | 6,300 successful prediction rows and 10,590,300 complete 41×41 grids; bundle validation and external SHA-256 checks pass. |
-| Model manifests | VERIFIED | 1,420 manifests; strict dates, convergence/fallback status, and stable registration/settings hashes validate. |
-| Feature coverage | FAILED — BLOCKER | Artifact exists but is an aggregate output-coverage table, not the required feature-level audit; every prediction reference is dangling. |
-| Panel declarations | PARTIAL | Declarations are correct (630 open, 609 rich), but downstream scoring ignores rich eligibility. |
-| Score-support audit | VERIFIED | 46,860 normalized rows across G=8:40; G=40 is the smallest global pass; all G=40 rows pass. |
-| Scoring and calibration | VERIFIED | Shared proper-score formulas, equal-tournament summaries, fixed bins, paired bootstrap, breadth/regression/LOTO services and tests pass. |
-| Promotion protocol and pure gate | VERIFIED at L1/L2 | Canonical JSON, exact thresholds, hashes, tie-breaks, and boundary tests pass. |
-| Canonical promotion decisions | FAILED — BLOCKER | Runner does not wire the pure gate; decisions are hard-coded and incomplete. |
-| Targets graph | VERIFIED | All eight Phase 09 targets load and remain separate from dashboard/download targets. |
-| Canonical bundle | PARTIAL | All 11 files, row counts, SHA-256 values, parent graph, and reproducibility flags validate, but validator omissions allow the three semantic gaps above. |
+| Registries, boundaries, corrections | VERIFIED | 12 tournaments, 630 fixtures, 284 boundaries, 72 corrections; registry validator and source hashes pass. |
+| Common prediction/distribution schema | VERIFIED | 6,300 predictions and 10,590,300 normalized 41×41 cells at G=40. |
+| Model manifests | VERIFIED | 1,420 rows with strict cutoff dates and stable registration/settings hashes. |
+| Runtime feature evidence | VERIFIED | 78,120 feature rows, 6,300 exact groups, complete cutoff/imputation/provenance/license schema. |
+| Frozen panels | VERIFIED | 630 open and 609 rich; exact projection enforced at every evaluation entry point. |
+| Proper scoring/calibration/uncertainty | VERIFIED | 87,612 fixture scores, 1,970 summaries, 250 paired diagnostic rows. |
+| Promotion protocol and decisions | VERIFIED | Valid frozen protocol, pure evaluator, five reconstructable decisions, complete gate evidence. |
+| Checksum/run manifests | VERIFIED | 10 outputs, 15 inputs, one self row; reproducible/sealed/network-free flags validate. |
+| Targets DAG | VERIFIED | Eight Phase 09 targets, all 11 required edges, nine safe ancestors, zero forbidden dashboard/download/WC2026-retrospective ancestors. |
 
 ## Key Link Verification
 
-| From | To | Status | Details |
+| From | To | Status | Evidence |
 |---|---|---|---|
-| Registry files | `registry.R` | WIRED | Load, foreign-key, path, cardinality, provenance, and canonical-hash checks execute. |
-| `cutoffs.R` | baseline adapter path | WIRED | Purpose guard runs before adapter invocation; strict state manifests confirm prior-only evidence. |
-| Baseline adapters | prediction/distribution contracts | WIRED | Complete keys and G=40 grids are validated and scored. |
-| Predictions | model manifests/distributions/seeds | WIRED | All referenced manifests, grids, boundaries, and seed IDs resolve. |
-| Predictions | feature coverage | NOT WIRED — BLOCKER | 0/6,300 `feature_coverage_id` references resolve to the 60 coverage rows. |
-| `panel_fixtures.csv` | scoring/comparisons | NOT WIRED — BLOCKER | Runner passes the global 630 IDs; 21 rich-ineligible fixtures are scored. |
-| Score-support audit | protocol/checksum/run manifest | WIRED | Hash `95cbdef...15c9` and selected G=40 reconcile through the protocol and 25-row checksum graph. |
-| Scoring | paired comparisons/bootstrap | WIRED | Exact fixture pairing, 12 fold deltas, LOTO, and registered bootstrap seed are present. |
-| Promotion protocol/pure gate | canonical decisions | NOT WIRED — BLOCKER | `runner.R` contains no `evaluate_promotion()` call and hard-codes the decision. |
-| Phase 09 targets | dashboard/Phase 8 outputs | ISOLATED | Target manifest has no dashboard/download references; protected artifact diff is empty. |
+| Registry/cutoffs | Adapter execution | WIRED | Runner calls the purpose guard, constructs frozen/updating fixtures, and applies strict feature cutoffs before adapters. |
+| Producer features | Adapter feature evidence | WIRED | Companion columns survive history/fixture preparation and feed `build_registered_feature_coverage()`. |
+| Predictions | Durable feature coverage | WIRED | Exact 6,300-group foreign-key equality; construction and read-back validators pass. |
+| Panel registry | Scores/calibration/comparisons | WIRED | Explicit fixture-ID arguments and bundle denominator reconciliation enforce 630/609. |
+| Scores/comparisons/coverage | Promotion evaluator | WIRED | Candidate assembly consumes persisted source tables and calls `evaluate_promotion()`; read-back reconstruction passes. |
+| Inputs/outputs | Checksum manifest | WIRED | External hashes, rows, self-hash, selected G, and complete parent graph reconcile. |
+| Phase 09 targets | Production publication | ISOLATED | Target ancestry scan finds no dashboard, download, refresh, WC2026 ledger, or retrospective ancestors. |
 
 ## Data-Flow Trace
 
 | Output | Upstream source | Produces real data | Status |
 |---|---|---|---|
-| Fixture predictions | Registry → strict boundary snapshot → registered adapter | Yes, 6,300 successful rows | FLOWING |
-| Score distributions | Registered fits/controls → analytic full grids | Yes, 10,590,300 normalized cells | FLOWING |
-| Model manifests | Per-boundary fit state | Yes, 1,420 rows with strict dates/hashes | FLOWING |
-| Feature coverage | Panel declaration + prediction counts only | No per-feature runtime evidence | HOLLOW/DISCONNECTED |
-| Rich-panel scores | Global score-eligible fixture set | Real scores, wrong denominator | MISROUTED |
-| Promotion decisions | Comparison headline + aggregate coverage | Real deltas, but protocol gate bypassed | PARTIAL/HOLLOW |
+| Fixture predictions | Frozen registry → strict boundary state → registered baseline adapter | Yes | FLOWING |
+| Feature coverage | Producer evidence companions → runtime fixture evidence → exact registered feature expansion | Yes | FLOWING |
+| Panel scores | Audit predictions → frozen panel selector → shared scorer/calibrator | Yes, exact 630/609 | FLOWING |
+| Paired comparisons | Panel scores → exact fixture pairing → tournament deltas/bootstrap | Yes, all 12 folds | FLOWING |
+| Promotion decisions | Persisted summaries/comparisons/coverage/run facts → `evaluate_promotion()` | Yes, reconstructable | FLOWING |
+| Bundle identity | Ten durable output hashes + 15 frozen input parents + self hash | Yes | FLOWING |
 
 ## Behavioral Spot-Checks
 
-| Check | Command/result | Status |
+| Behavior | Result | Status |
 |---|---|---|
-| Registry validation | `load_benchmark_registries()` returned sealed 12/630/72/3/76/72/284 inventories. | PASS |
-| Strict cutoff audit | All manifest fit/result/feature dates `< evidence_cutoff_exclusive`; frozen/updating boundary reconciliation passed. | PASS |
-| Full repository tests with failure propagation | `testthat::test_dir(..., stop_on_failure = TRUE, stop_on_warning = TRUE)` completed with no failures or warnings. | PASS |
-| Targets manifest | Eight required `benchmark_phase09_*` targets loaded; no dashboard/download/refresh command references. | PASS |
-| Bundle validation in documented source order | `validate_rolling_benchmark_bundle()` returned valid, 12 editions, 630 core fixtures, 5 models, G=40, 11 artifacts, reproducible/sealed/network-free. | PASS, but validator is semantically incomplete |
-| External checksum audit | `/usr/bin/shasum -a 256` equivalents matched all ten durable output hashes, including the 981,073,624-byte distribution file. | PASS |
-| Exact Plan 09-04 acceptance command | Sourcing only `registry.R`, `contracts.R`, and `runner.R` failed: `load_promotion_protocol` not found. | WARNING — command under-specifies module dependencies |
-| Feature audit validator on canonical artifact | `validate_feature_coverage()` failed because 13 required feature-provenance columns are absent. | FAIL — BLOCKER |
-| Rich-panel denominator | Declared 609; production-hybrid predicted/scored 630; 21 out-of-panel fixtures; fold comparisons sum to 630 per track. | FAIL — BLOCKER |
-| Applied promotion reasons | `elo_goal_nb` has delta `-0.001456566` and CI upper `0.000239524`, failing both gates, but `reason_codes` reloads as `NA`. | FAIL — BLOCKER |
+| Strict date-complete cutoff states | `test_benchmark_cutoffs.R` passed 11 expectations. | PASS |
+| WC2026 rejection before callbacks | `test_benchmark_seal.R` passed 18 expectations. | PASS |
+| Proper scoring, panel exactness, calibration, pairing, uncertainty | `test_benchmark_scoring.R` passed 47 expectations. | PASS |
+| Adapter feature groups, seeds, baseline registration, G support | `test_benchmark_baselines.R` passed 75 expectations. | PASS |
+| Exact promotion boundaries, vetoes, rich/open gates, tie-breaks | `test_benchmark_promotion.R` passed 169 expectations. | PASS |
+| Canonical bundle semantic validation | Direct validator returned valid, 12 editions, five models, G=40, 11 artifacts, reproducible/sealed/network-free. | PASS |
+| Canonical producer evidence | 49,520-row validator plus observed-zero/missing-zero direct assertions passed. | PASS |
 
-### Test-command propagation finding
-
-The verifier's full-suite command used explicit failure/warning stops and returned success. However, most PLAN verification snippets call `testthat::test_file()` without `stop_on_failure = TRUE`; installed testthat 3.3.2 delegates to `test_files(..., stop_on_failure = FALSE)` by default. Those snippets can report failed expectations without a non-zero shell exit. Plan 09-04 Task 1 correctly supplied stop flags, but the combined quick-suite snippets should be hardened.
+The orchestrator separately reported a full `tests/testthat` run with failure/warning stops. This verdict does not depend on that report; the focused tests and direct checks above were executed by this verifier.
 
 ## Probe Execution
 
-No Phase 09 `probe-*.sh` files or declared probe commands exist. Probe execution was not applicable.
+No Phase 09 `probe-*.sh` files or declared probe commands exist. Probe execution is not applicable.
 
 ## Requirements Coverage
 
 | Requirement | Status | Evidence |
 |---|---|---|
-| BENCH-01 | SATISFIED | Exact 12/630 registry, 284 date-complete boundaries, strict prior-only manifests, deterministic cutoff tests. |
-| BENCH-02 | SATISFIED | WC2026 purpose guard rejects labels before callbacks; no WC2026 outcome appears in the bundle/protocol. |
-| BENCH-03 | BLOCKED | Common prediction/grid/manifest contracts exist, but feature-level coverage/provenance is absent and disconnected; exact rich-panel identity is not enforced. |
-| BENCH-04 | SATISFIED | Five registered baseline classes, both tracks, common seeds, complete grids, stable hashes, and baseline/legacy tests pass. Rich-panel execution remains a plan-contract gap captured under BENCH-03/05. |
-| BENCH-05 | BLOCKED | Shared seeds, paired deltas, uncertainty, and pure protocol exist, but canonical decisions bypass the gate and rich comparisons use the wrong fixture set. |
+| BENCH-01 | SATISFIED | Exact 12/630 registry, date-complete boundaries, prior-only manifest dates, and focused cutoff tests. |
+| BENCH-02 | SATISFIED | Purpose guard and focused seal tests reject WC2026 outcomes before model callbacks; bundle remains sealed. |
+| BENCH-03 | SATISFIED | Common predictions/distributions/manifests plus 78,120 linked pre-imputation feature rows and complete checksum parents. |
+| BENCH-04 | SATISFIED | Five registered baseline classes, both tracks, shared seeds, stable hashes, exact panels, reproducible bundle identity. |
+| BENCH-05 | SATISFIED | Proper scores, fixed calibration, paired fold uncertainty, complete gate evidence, frozen protocol, deterministic tie-breaks. |
 
-No orphaned Phase 09 requirements were found: BENCH-01 through BENCH-05 are claimed across the four plans and mapped to Phase 09 in `REQUIREMENTS.md`.
+No orphaned Phase 09 requirements exist; BENCH-01 through BENCH-05 are mapped to Phase 09 and claimed by its plans.
 
-## Anti-Patterns and Coverage Gaps
+## Anti-Patterns and Disconfirmation Pass
 
-| File | Line/area | Finding | Severity |
-|---|---|---|---|
-| `R/benchmark/runner.R` | `benchmark_runner_decisions()` | Hard-coded `decision = "retain_incumbent"`; protocol argument is not consumed. | BLOCKER |
-| `R/benchmark/runner.R` | run manifest assembly | Contract flags including `feature_coverage_valid`, `seed_contract_valid`, and `network_free` are assigned `TRUE` rather than derived from validators. | BLOCKER for feature coverage; warning for already independently checked seed/network facts |
-| `R/benchmark/runner.R` | feature coverage builder/validator | Renames aggregate panel output coverage as feature coverage and never checks prediction coverage IDs. | BLOCKER |
-| `R/evaluation/benchmark_scores.R` | fixture-set validation | Requires the global registered fixture set for every model, conflicting with the frozen rich panel. | BLOCKER |
-| `R/benchmark/contracts.R` | `validate_panel_prediction_coverage()` | Checks missing required rows but allows extra out-of-panel rows. | BLOCKER |
-| Phase verification snippets | multiple plans | `test_file()` commands generally omit explicit failure propagation. | WARNING |
+No unreferenced `TBD`, `FIXME`, or `XXX` markers, placeholder implementations, network/refresh calls, or hard-coded alternate promotion decisions were found in Phase 09 production files.
 
-No unreferenced `TBD`, `FIXME`, or `XXX` markers were found in Phase 09 production files. No Phase 10/11 challenger implementation was found; only generic challenger interfaces are present.
+| Finding | Classification | Assessment |
+|---|---|---|
+| `run_manifest.dirty_worktree=TRUE` causes all durable decisions to include `code_freeze_failed`. | INFO | Fail-closed and auditable, not a bypass. The source SHA exists, all Phase 09 code fixes are ancestors of it, and only planning/bundle artifacts changed afterward. No candidate is incorrectly promoted. |
+| The evaluator call-count test includes a static one-call-site assertion. | INFO | Not relied on alone: actual five-row decision generation and full canonical read-back reconstruction independently prove the runtime path. |
+| External source authority is represented by checked local martj42 goal/shootout artifacts. | INFO | All 72 corrections resolve to two existing local artifacts with exact SHA-256, source URLs, CC0 license, and row hashes. This satisfies the phase's declared open-data evidence contract. |
 
-## Regression and Scope Checks
+## Human Verification Required
 
-- Full suite passed, including dashboard, Phase 8 World Cup ledger/scoring/retrospective, legacy Euro benchmark, Elo, pipeline, and xG tests.
-- `git diff 9323851^..HEAD` shows no Phase 09 modifications under `outputs/dashboard`, `outputs/evaluation/wc2026`, legacy Euro implementation files, or the protected Phase 8/dashboard regression tests.
-- No regularized Poisson, Dixon-Coles/bivariate, random forest, socioeconomic, squad, or bookmaker challenger implementation was added.
-- All 20 implementation/fix commits named by the summaries exist, including `5f4c013`.
+None for Phase 09 goal achievement. The later pre-WC2026 label-opening governance approval remains an operational Phase 12 checkpoint, not an unresolved Phase 09 implementation truth.
 
-## Commit 5f4c013 Finding
+## Gaps Summary
 
-Commit `5f4c013` correctly fixes `promotion_contract_reasons()` to return `character()` when every contract passes, and the updated promotion unit suite passes. The fix is not applied to the canonical decision artifact because `benchmark_runner_decisions()` bypasses `promotion_veto_reasons()`/`evaluate_promotion()` entirely. Thus the pure service is fixed, but the end-to-end promotion path remains broken.
-
-## Human Verification Still Required
-
-These checks remain necessary after the blockers are fixed; they do not change the current `gaps_found` precedence.
-
-1. **Historical correction source-attribution review**
-   - Review all 72 correction rows against the two cited checked-local martj42 `goalscorers.csv`/`shootouts.csv` sources and decide whether this provenance is authoritative enough for the freeze.
-   - Automated validation confirms schema, local artifact SHA-256, row hashes, URL/title/license presence, and fixture linkage, but cannot judge source authority.
-
-2. **Pre-WC2026 governance sign-off**
-   - After regenerating the bundle, confirm the committed protocol, model/panel/feature/seed registries, selected G, corrected promotion decisions, and checksum parents before any WC2026 label-opening workflow.
-
-## Deferred-Phase Filter
-
-None of the three gaps is deferred. Phases 10 and 11 require this harness as an upstream contract, and Phase 12 consumes its promotion rule; their roadmap goals do not promise to repair Phase 09 feature provenance, panel denominators, or runner-to-gate wiring.
-
-## Gaps Summary and Next Action
-
-Three related end-to-end gaps block the phase goal:
-
-1. Replace aggregate-only `feature_coverage.csv` with the registered feature-level audit and wire/validate every prediction reference.
-2. Enforce `panel_fixtures.csv` in prediction validation, scoring, calibration, and paired comparisons; the rich denominator must be 609, not 630.
-3. Route canonical decisions through `evaluate_promotion()` with full score, uncertainty, breadth, regression, coverage, provenance, checksum, and reproducibility inputs; then regenerate the 962 MiB bundle and checksum graph.
-
-Use the structured frontmatter gaps as input to `$gsd-plan-phase 09 --gaps`. Re-run the full failure-propagating suite, external checksums, and this goal-backward verification after closure.
+No gaps remain. All three prior blockers are closed without regressions, all five roadmap criteria and BENCH requirements are verified, and no later milestone phase is being used to defer missing Phase 09 work.
 
 ---
 
-_Verified: 2026-07-21T06:45:34Z_
+_Verified: 2026-07-21T20:08:50Z_  
 _Verifier: the agent (gsd-verifier)_
