@@ -7,10 +7,43 @@ source(file.path(project_root, "R/benchmark/contracts.R"))
 source(file.path(project_root, "R/forecast/poisson.R"))
 for (path in c(
   "R/benchmark/weights.R", "R/benchmark/baselines.R",
-  "R/forecast/tournament_formats.R"
+  "R/forecast/tournament_formats.R", "R/benchmark/runner.R"
 )) {
   full_path <- file.path(project_root, path)
   if (file.exists(full_path)) source(full_path)
+}
+
+coverage_ready_fixtures <- function() {
+  fixtures <- data.frame(
+    schema_version = "1.0", edition_id = "wc2002", track_id = "frozen",
+    fixture_id = c("f1", "f2"), boundary_id = "wc2002__frozen",
+    forecast_sequence = 1:2, home_team_id = c("a", "b"), away_team_id = c("b", "a"),
+    venue_role = c("neutral", "home"), actual_completion_date = as.Date("2002-05-31"),
+    evidence_cutoff_exclusive = as.Date("2002-05-31"),
+    result_cutoff_exclusive = as.Date("2002-05-31"), stringsAsFactors = FALSE
+  )
+  producer_features <- c("elo_diff", "form_index_diff", "xga_ewma_diff", "xgd_ewma_diff", "xgf_ewma_diff")
+  for (feature_id in producer_features) {
+    fixtures[[feature_id]] <- 0
+    fixtures[[paste0(feature_id, "__value_present")]] <- TRUE
+    fixtures[[paste0(feature_id, "__source_present")]] <- TRUE
+    fixtures[[paste0(feature_id, "__source_date")]] <- as.Date("2002-05-30")
+    fixtures[[paste0(feature_id, "__imputed")]] <- FALSE
+    fixtures[[paste0(feature_id, "__imputation_reason")]] <- ""
+  }
+  fixtures
+}
+
+coverage_seed_registry <- function(fixtures) {
+  seeds <- data.frame(
+    schema_version = "1.0", seed_id = paste0("s", seq_len(nrow(fixtures))),
+    purpose = "fixture_prediction", edition_id = fixtures$edition_id,
+    boundary_id = fixtures$boundary_id, fixture_id = fixtures$fixture_id,
+    seed = seq_len(nrow(fixtures)) + 10L, model_independent = TRUE,
+    seed_key_sha256 = "", stringsAsFactors = FALSE
+  )
+  seeds$seed_key_sha256 <- benchmark_seed_key_sha256(seeds)
+  seeds
 }
 
 baseline_training_data <- function(n = 120L) {
@@ -153,6 +186,137 @@ test_that("the common adapter preserves fixture and model-independent seed keys"
   expect_equal(nrow(result$distributions), 2L * 81L)
   expect_silent(validate_model_manifests(result$manifests))
   expect_true(all(result$predictions$prediction_status == "ok"))
+})
+
+test_that("adapter emits exact deterministic feature coverage groups", {
+  history <- baseline_training_data()
+  registry <- baseline_registry_rows()
+  registration <- registry[registry$model_id == "uniform_1x2", , drop = FALSE]
+  feature_contract <- read.csv(
+    file.path(project_root, "data/benchmark/phase09/feature_contract.csv"),
+    stringsAsFactors = FALSE
+  )
+  feature_contract <- feature_contract[feature_contract$panel_id == registration$panel_id, , drop = FALSE]
+  fixtures <- coverage_ready_fixtures()
+
+  frozen_id <- benchmark_feature_coverage_id(
+    "test_run", registration$model_id, "frozen", "wc2002__frozen", "f1"
+  )
+  updating_id <- benchmark_feature_coverage_id(
+    "test_run", registration$model_id, "updating", "wc2002__day1", "f1"
+  )
+  expect_false(identical(frozen_id, updating_id))
+  expect_identical(
+    frozen_id,
+    benchmark_feature_coverage_id("test_run", registration$model_id, "frozen", "wc2002__frozen", "f1")
+  )
+
+  result <- run_registered_baseline_adapter(
+    registration, history, fixtures, coverage_seed_registry(fixtures),
+    support_max = 8L, run_id = "test_run", feature_contract = feature_contract
+  )
+  coverage <- result$feature_coverage
+  expected_features <- sort(unique(feature_contract$feature_id))
+
+  expect_equal(nrow(coverage), nrow(fixtures) * length(expected_features))
+  expect_setequal(coverage$feature_id, expected_features)
+  expect_true(all(c(
+    "schema_version", "feature_coverage_id", "run_id", "model_id", "panel_id",
+    "edition_id", "track_id", "boundary_id", "fixture_id", "feature_id",
+    "source_id", "source_artifact_sha256", "value_present", "source_present",
+    "source_date", "evidence_cutoff_exclusive", "cutoff_valid", "imputed",
+    "imputation_reason", "active_in_fit", "coverage_status", "license_class",
+    "feature_contract_row_sha256"
+  ) %in% names(coverage)))
+  expect_true(all(!coverage$active_in_fit))
+  expect_silent(validate_feature_coverage(coverage, coverage))
+  expect_silent(validate_prediction_feature_coverage_links(result$predictions, coverage, feature_contract))
+  expect_setequal(unique(coverage$feature_coverage_id), result$predictions$feature_coverage_id)
+})
+
+test_that("feature coverage rejects key, cutoff, imputation, provenance, and link drift", {
+  history <- baseline_training_data()
+  registration <- baseline_registry_rows()[1, , drop = FALSE]
+  feature_contract <- read.csv(
+    file.path(project_root, "data/benchmark/phase09/feature_contract.csv"),
+    stringsAsFactors = FALSE
+  )
+  feature_contract <- feature_contract[feature_contract$panel_id == registration$panel_id, , drop = FALSE]
+  fixtures <- coverage_ready_fixtures()
+  result <- run_registered_baseline_adapter(
+    registration, history, fixtures, coverage_seed_registry(fixtures),
+    support_max = 8L, run_id = "test_run", feature_contract = feature_contract
+  )
+  coverage <- result$feature_coverage
+  expected <- coverage
+
+  expect_error(validate_feature_coverage(coverage[-1, , drop = FALSE], expected), "registered keys")
+  extra <- rbind(coverage, transform(coverage[1, , drop = FALSE], feature_id = "unknown_feature"))
+  expect_error(validate_feature_coverage(extra, expected), "registered keys")
+
+  future <- coverage
+  future$source_date[1] <- future$evidence_cutoff_exclusive[1]
+  expect_error(validate_feature_coverage(future, expected), "cutoff")
+  fabricated <- coverage
+  fabricated$source_present[1] <- FALSE
+  expect_error(validate_feature_coverage(fabricated, expected), "source-absent")
+  inverted <- coverage
+  inverted$source_present[1] <- FALSE
+  inverted$source_date[1] <- as.Date(NA)
+  inverted$value_present[1] <- TRUE
+  expect_error(validate_feature_coverage(inverted, expected), "masquerade")
+  unreasoned <- coverage
+  unreasoned$value_present[1] <- FALSE
+  unreasoned$imputed[1] <- TRUE
+  unreasoned$imputation_reason[1] <- ""
+  expect_error(validate_feature_coverage(unreasoned, expected), "reason")
+
+  drifted <- coverage
+  drifted$source_artifact_sha256[1] <- strrep("0", 64)
+  expect_error(validate_feature_coverage(drifted, expected), "provenance")
+  drifted <- coverage
+  drifted$feature_contract_row_sha256[1] <- strrep("0", 64)
+  expect_error(validate_feature_coverage(drifted, expected), "contract hash")
+  drifted <- coverage
+  drifted$license_class[1] <- "unknown"
+  expect_error(validate_feature_coverage(drifted, expected), "license")
+
+  dangling <- result$predictions
+  dangling$feature_coverage_id[1] <- "missing_group"
+  expect_error(
+    validate_prediction_feature_coverage_links(dangling, coverage, feature_contract),
+    "dangling"
+  )
+})
+
+test_that("runner preserves producer evidence before applying numeric defaults", {
+  history <- data.frame(
+    date = as.Date("2002-05-31"), actual_completion_date = as.Date("2002-05-31"),
+    home_team = "A", away_team = "B", home_goals = 1, away_goals = 0,
+    venue_role = "neutral", tournament = "FIFA World Cup", elo_diff = NA_real_,
+    elo_diff__value_present = FALSE, elo_diff__source_present = FALSE,
+    elo_diff__source_date = as.Date(NA), elo_diff__imputed = TRUE,
+    elo_diff__imputation_reason = "missing_source_row", stringsAsFactors = FALSE
+  )
+  prepared <- benchmark_runner_prepare_history(history, baseline_registry_rows())
+  expect_true(is.na(prepared$elo_diff))
+  expect_false(prepared$elo_diff__source_present)
+  expect_true(prepared$elo_diff__imputed)
+  expect_equal(prepared$elo_diff__imputation_reason, "missing_source_row")
+
+  fixtures <- data.frame(
+    fixture_id = "f1", actual_completion_date = as.Date("2002-05-31"),
+    home_team_id = "a", away_team_id = "b", venue_role = "neutral",
+    stringsAsFactors = FALSE
+  )
+  teams <- data.frame(team_id = c("a", "b"), canonical_name = c("A", "B"), stringsAsFactors = FALSE)
+  features <- benchmark_runner_fixture_features(fixtures, teams, prepared)
+  expect_equal(features$elo_diff, 0)
+  expect_false(features$elo_diff__value_present)
+  expect_false(features$elo_diff__source_present)
+  expect_true(features$elo_diff__imputed)
+  expect_equal(features$elo_diff__imputation_reason, "missing_source_row")
+  expect_true(is.na(features$elo_diff__source_date))
 })
 
 test_that("support audit is complete, checksummed, globally minimal, and hard-fails without support", {
