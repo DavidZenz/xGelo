@@ -1318,7 +1318,13 @@ benchmark_runner_decisions <- function(
     evaluation <- evaluate_promotion(candidate, protocol)
     benchmark_runner_decision_row(evaluation, candidate, coverage)
   })
-  benchmark_runner_bind_rows(rows)
+  out <- benchmark_runner_bind_rows(rows)
+  text_values <- names(out)[
+    startsWith(names(out), "value__") &
+      vapply(out, is.character, logical(1))
+  ]
+  for (column in text_values) out[[column]][is.na(out[[column]])] <- ""
+  out
 }
 
 #' Reconstruct evaluator output and reject persisted decision drift
@@ -1374,6 +1380,42 @@ finalize_benchmark_promotion_decisions <- function(
     benchmark_runner_content_sha256(second$promotion_decisions, "promotion_decisions")
   )) stop("Independent benchmark promotion decisions disagree after reproducibility finalization", call. = FALSE)
   list(first = first, second = second)
+}
+
+benchmark_runner_install_staged_bundle <- function(staged_root, output_dir, validator) {
+  if (!dir.exists(staged_root)) stop("Staged benchmark bundle is missing", call. = FALSE)
+  if (!is.function(validator)) stop("Benchmark staged validator must be a function", call. = FALSE)
+  invisible(validator(staged_root))
+
+  had_existing <- dir.exists(output_dir)
+  backup_root <- NULL
+  if (had_existing) {
+    backup_root <- tempfile(paste0(".", basename(output_dir), "-backup-"), tmpdir = dirname(output_dir))
+    if (!file.rename(output_dir, backup_root)) {
+      stop("Could not stage the existing benchmark bundle for replacement", call. = FALSE)
+    }
+  }
+  if (!file.rename(staged_root, output_dir)) {
+    if (had_existing) file.rename(backup_root, output_dir)
+    stop("Could not install the reconciled benchmark bundle", call. = FALSE)
+  }
+
+  validation <- tryCatch(
+    validator(output_dir),
+    error = function(error) {
+      if (dir.exists(output_dir)) unlink(output_dir, recursive = TRUE)
+      restored <- !had_existing || file.rename(backup_root, output_dir)
+      if (!restored) {
+        stop(
+          "Installed benchmark validation failed and the sealed backup could not be restored: ",
+          conditionMessage(error), call. = FALSE
+        )
+      }
+      stop(error)
+    }
+  )
+  if (had_existing && dir.exists(backup_root)) unlink(backup_root, recursive = TRUE)
+  validation
 }
 
 benchmark_default_execution_engine <- function(
@@ -1548,6 +1590,7 @@ run_rolling_tournament_benchmark <- function(
       boundary_inventory = boundary_inventory, protocol = protocol,
       run_id = run_id, purpose = purpose, branch_order = order, ...
     )
+  validation <- NULL
   bundle <- execute(effective_order)
   if (is.null(source_git_sha)) source_git_sha <- benchmark_runner_git_identity(".")$sha
   if (isTRUE(verify_reproducibility)) {
@@ -1612,18 +1655,13 @@ run_rolling_tournament_benchmark <- function(
     if (!identical(first_hashes, second_hashes)) {
       stop("Finalized benchmark decisions differ across independent passes", call. = FALSE)
     }
-    if (dir.exists(output_dir)) {
-      backup_root <- tempfile(paste0(".", basename(output_dir), "-backup-"), tmpdir = dirname(output_dir))
-      if (!file.rename(output_dir, backup_root)) stop("Could not stage the existing benchmark bundle for replacement", call. = FALSE)
-      installed <- file.rename(staged_root, output_dir)
-      if (!installed) {
-        file.rename(backup_root, output_dir)
-        stop("Could not install the reconciled benchmark bundle", call. = FALSE)
-      }
-      unlink(backup_root, recursive = TRUE)
-    } else if (!file.rename(staged_root, output_dir)) {
-      stop("Could not install the reconciled benchmark bundle", call. = FALSE)
-    }
+    validate_candidate <- function(root) validate_rolling_benchmark_bundle(
+      root, inputs$score_support_audit, inputs$model_registry, boundary_inventory,
+      additional_inputs, require_reproducible = TRUE, protocol = protocol
+    )
+    validation <- benchmark_runner_install_staged_bundle(
+      staged_root, output_dir, validate_candidate
+    )
     written$paths <- benchmark_output_paths(output_dir)
   } else {
     written <- write_rolling_benchmark_bundle(
@@ -1632,10 +1670,12 @@ run_rolling_tournament_benchmark <- function(
       additional_inputs = additional_inputs, protocol = protocol
     )
   }
-  validation <- validate_rolling_benchmark_bundle(
-    output_dir, inputs$score_support_audit, inputs$model_registry, boundary_inventory,
-    additional_inputs, require_reproducible = verify_reproducibility,
-    protocol = protocol
-  )
+  if (is.null(validation)) {
+    validation <- validate_rolling_benchmark_bundle(
+      output_dir, inputs$score_support_audit, inputs$model_registry, boundary_inventory,
+      additional_inputs, require_reproducible = verify_reproducibility,
+      protocol = protocol
+    )
+  }
   c(written, list(validation = validation))
 }

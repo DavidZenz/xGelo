@@ -531,6 +531,11 @@ test_that("canonical runner decisions invoke the frozen evaluator exactly once p
   expect_setequal(decisions$candidate_id, inputs$x$models$model_id)
   expect_true(all(nzchar(decisions$reason_codes[decisions$decision != "eligible_for_final_holdout"])))
   expect_true(all(c("value__core_rps_delta", "pass__core_rps_effect") %in% names(decisions)))
+  text_values <- names(decisions)[
+    startsWith(names(decisions), "value__") &
+      vapply(decisions, is.character, logical(1))
+  ]
+  expect_false(anyNA(decisions[text_values]))
   code <- paste(deparse(body(benchmark_runner_decisions)), collapse = "\n")
   expect_identical(lengths(regmatches(code, gregexpr("evaluate_promotion(", code, fixed = TRUE))), 1L)
   expect_false(grepl('decision = "retain_incumbent"', code, fixed = TRUE))
@@ -601,6 +606,15 @@ test_that("bundle promotion validation reconstructs decisions and rejects tamper
     bundle, inputs$coverage, inputs$x$models, inputs$protocol
   ))
 
+  path <- tempfile(fileext = ".csv")
+  write.csv(bundle$promotion_decisions, path, row.names = FALSE, na = "", quote = TRUE)
+  bundle$promotion_decisions <- read.csv(
+    path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL
+  )
+  expect_true(benchmark_runner_validate_promotion_decisions(
+    bundle, inputs$coverage, inputs$x$models, inputs$protocol
+  ))
+
   for (column in c("reason_codes", "value__core_rps_delta", "pass__core_rps_effect")) {
     tampered <- bundle
     if (column == "reason_codes") tampered$promotion_decisions[[column]][1] <- "tampered_reason"
@@ -613,6 +627,29 @@ test_that("bundle promotion validation reconstructs decisions and rejects tamper
       "reconstruct|tamper|evaluator"
     )
   }
+})
+
+test_that("failed post-install validation restores the sealed benchmark bundle", {
+  output_dir <- tempfile("benchmark-sealed-")
+  staged_root <- tempfile("benchmark-staged-")
+  dir.create(output_dir)
+  dir.create(staged_root)
+  writeLines("sealed", file.path(output_dir, "marker.txt"))
+  writeLines("candidate", file.path(staged_root, "marker.txt"))
+  calls <- 0L
+  validator <- function(path) {
+    calls <<- calls + 1L
+    expect_true(file.exists(file.path(path, "marker.txt")))
+    if (calls == 2L) stop("semantic read-back failure")
+    TRUE
+  }
+
+  expect_error(
+    benchmark_runner_install_staged_bundle(staged_root, output_dir, validator),
+    "semantic read-back failure"
+  )
+  expect_identical(readLines(file.path(output_dir, "marker.txt")), "sealed")
+  expect_false(dir.exists(staged_root))
 })
 
 test_that("targets exposes the isolated Phase 9 benchmark dependency chain", {
