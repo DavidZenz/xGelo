@@ -104,11 +104,11 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 - ✓ Negative-binomial match forecasts, scoreline distributions, and Monte Carlo simulation — v1.0
 - ✓ 2026 World Cup group and knockout simulation with result conditioning and dashboard publication — post-v1.0
 - ✓ Automated tests, targets orchestration, model documentation, and forecast artifacts — v1.0
+- ✓ Trustworthy pre-kickoff 2026 forecast ledger and retrospective scorecard — validated in Phase 8
+- ✓ Leakage-safe rolling multi-tournament benchmark infrastructure and frozen promotion gates — validated in Phase 9
 
 ### Active
 
-- [ ] Build a trustworthy pre-kickoff 2026 forecast ledger and retrospective scorecard.
-- [ ] Create rolling multi-tournament benchmark infrastructure and promotion gates.
 - [ ] Implement and compare literature-backed goal and machine-learning challengers.
 - [ ] Improve strength, context, xG, squad, and calibration features only when they generalize out of sample.
 
@@ -236,6 +236,12 @@ Pipeline → Visualization & Docs (Phase 7)
 
 ## v2.0 Evaluation Principles
 
+Phase 9 is complete. The accepted benchmark now provides deterministic rolling
+World Cup and European Championship folds, common baseline contracts, durable
+point-in-time evidence, proper-score comparisons, and a checksum-backed promotion
+protocol. Phase 10 will evaluate statistical goal-model challengers against this
+frozen contract.
+
 - The 2026 World Cup is an untouched final holdout for model comparison, not a tuning set.
 - Candidate models must improve proper scoring and calibration across multiple rolling tournament folds.
 - Added complexity must beat simpler Elo and count-model baselines by a predeclared promotion rule.
@@ -243,4 +249,4 @@ Pipeline → Visualization & Docs (Phase 7)
 - Dashboard behavior remains stable while model evaluation and replacement happen behind explicit versioned contracts.
 
 ---
-*Last updated: 2026-07-20 after starting milestone v2.0*
+*Last updated: 2026-07-21 after Phase 9 completion*
