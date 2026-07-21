@@ -242,29 +242,126 @@ validate_model_manifests <- function(manifests) {
 validate_feature_coverage <- function(coverage, expected_keys) {
   key_columns <- c("model_id", "boundary_id", "fixture_id", "feature_id")
   required <- c(
-    "feature_coverage_id", key_columns, "value_present", "source_present", "source_date",
+    "schema_version", "feature_coverage_id", "run_id", "model_id", "panel_id",
+    "edition_id", "track_id", "boundary_id", "fixture_id", "feature_id",
+    "source_id", "source_artifact_sha256", "feature_contract_row_sha256",
+    "value_present", "source_present", "source_date",
     "evidence_cutoff_exclusive", "cutoff_valid", "imputed", "imputation_reason",
     "active_in_fit", "coverage_status", "license_class"
   )
   benchmark_contract_require_columns(coverage, required, "Feature coverage")
   benchmark_contract_require_columns(expected_keys, key_columns, "Expected feature coverage")
+  if (!nrow(coverage)) stop("Feature coverage must not be empty", call. = FALSE)
   benchmark_contract_require_unique(coverage, key_columns, "Feature coverage")
   actual <- do.call(paste, c(lapply(coverage[key_columns], as.character), sep = "|"))
   expected <- do.call(paste, c(lapply(expected_keys[key_columns], as.character), sep = "|"))
   if (!setequal(actual, expected)) stop("Feature coverage is missing or contains unknown registered keys", call. = FALSE)
+
+  expected_index <- match(actual, expected)
+  exact_columns <- intersect(
+    c("source_id", "source_artifact_sha256", "feature_contract_row_sha256", "license_class"),
+    names(expected_keys)
+  )
+  for (column in exact_columns) {
+    supplied <- as.character(coverage[[column]])
+    registered <- as.character(expected_keys[[column]][expected_index])
+    mismatch <- is.na(supplied) != is.na(registered) | (!is.na(supplied) & supplied != registered)
+    if (any(mismatch)) {
+      label <- switch(
+        column,
+        source_artifact_sha256 = "Feature coverage provenance drift",
+        feature_contract_row_sha256 = "Feature coverage contract hash drift",
+        license_class = "Feature coverage license drift",
+        "Feature coverage registered source drift"
+      )
+      stop(label, call. = FALSE)
+    }
+  }
+  hash_columns <- c("source_artifact_sha256", "feature_contract_row_sha256")
+  if (any(vapply(coverage[hash_columns], function(x) {
+    any(is.na(x) | !grepl("^[0-9a-f]{64}$", tolower(as.character(x))))
+  }, logical(1)))) {
+    stop("Feature coverage provenance and contract hashes must be canonical SHA-256 values", call. = FALSE)
+  }
+
   source_date <- as.Date(coverage$source_date)
   cutoff <- as.Date(coverage$evidence_cutoff_exclusive)
-  invalid <- coverage$source_present & (is.na(source_date) | is.na(cutoff) | source_date >= cutoff)
-  if (any(invalid) || any(is.na(coverage$cutoff_valid) | !coverage$cutoff_valid)) {
+  value_present <- as.logical(coverage$value_present)
+  source_present <- as.logical(coverage$source_present)
+  imputed <- as.logical(coverage$imputed)
+  active <- as.logical(coverage$active_in_fit)
+  derived_fixture <- coverage$coverage_status == "derived_fixture"
+  if (anyNA(value_present) || anyNA(source_present) || anyNA(imputed) || anyNA(active)) {
+    stop("Feature coverage evidence and fit flags must not be missing", call. = FALSE)
+  }
+  invalid <- source_present & (is.na(source_date) | is.na(cutoff) | source_date >= cutoff)
+  if (any(invalid) || any(is.na(cutoff))) {
     stop("Feature coverage cutoff provenance is invalid", call. = FALSE)
   }
-  if (any(coverage$imputed & (is.na(coverage$imputation_reason) | !nzchar(coverage$imputation_reason)))) {
+  if (any(!source_present & !is.na(source_date))) {
+    stop("Feature coverage source-absent rows cannot fabricate source dates", call. = FALSE)
+  }
+  computed_cutoff_valid <- (!source_present & is.na(source_date)) |
+    (source_present & !is.na(source_date) & source_date < cutoff)
+  if (any(is.na(coverage$cutoff_valid) | as.logical(coverage$cutoff_valid) != computed_cutoff_valid)) {
+    stop("Feature coverage cutoff validity flag is inconsistent", call. = FALSE)
+  }
+  if (any(value_present & !source_present & !derived_fixture)) {
+    stop("Feature coverage source-absent values cannot masquerade as observations", call. = FALSE)
+  }
+  if (any(!value_present & !imputed)) {
+    stop("Missing feature values must remain explicitly imputed", call. = FALSE)
+  }
+  if (any(imputed & (is.na(coverage$imputation_reason) | !nzchar(coverage$imputation_reason)))) {
     stop("Imputed features require an explicit missingness reason", call. = FALSE)
   }
-  if (any(!coverage$value_present & !coverage$imputed & coverage$coverage_status == "complete")) {
-    stop("Missing feature values cannot be encoded as genuine complete values", call. = FALSE)
+  if (any(!imputed & !derived_fixture & !value_present) ||
+      any(!imputed & nzchar(as.character(coverage$imputation_reason)))) {
+    stop("Feature coverage imputation flags and reasons are inconsistent", call. = FALSE)
   }
   invisible(coverage)
+}
+
+#' Validate prediction foreign keys into exact registered feature groups
+#' @export
+validate_prediction_feature_coverage_links <- function(predictions, coverage, feature_contract) {
+  prediction_columns <- c(
+    "feature_coverage_id", "model_id", "panel_id", "edition_id", "track_id",
+    "boundary_id", "fixture_id"
+  )
+  coverage_columns <- c(prediction_columns, "feature_id")
+  benchmark_contract_require_columns(predictions, prediction_columns, "Benchmark predictions")
+  benchmark_contract_require_columns(coverage, coverage_columns, "Feature coverage")
+  benchmark_contract_require_columns(feature_contract, c("panel_id", "feature_id"), "Feature contract")
+  benchmark_contract_require_unique(predictions, c("model_id", "track_id", "fixture_id"), "Benchmark predictions")
+
+  prediction_ids <- as.character(predictions$feature_coverage_id)
+  coverage_ids <- as.character(coverage$feature_coverage_id)
+  if (any(is.na(prediction_ids) | !nzchar(prediction_ids)) || any(!prediction_ids %in% coverage_ids)) {
+    stop("Benchmark predictions contain dangling feature coverage references", call. = FALSE)
+  }
+  if (!setequal(unique(prediction_ids), unique(coverage_ids))) {
+    stop("Feature coverage contains unreferenced or dangling prediction groups", call. = FALSE)
+  }
+
+  identity_columns <- setdiff(prediction_columns, "feature_coverage_id")
+  for (i in seq_len(nrow(predictions))) {
+    rows <- coverage[coverage_ids == prediction_ids[i], , drop = FALSE]
+    if (!nrow(rows)) stop("Benchmark prediction feature coverage group is dangling", call. = FALSE)
+    for (column in identity_columns) {
+      if (any(as.character(rows[[column]]) != as.character(predictions[[column]][i]))) {
+        stop("Feature coverage group identity does not match its prediction", call. = FALSE)
+      }
+    }
+    expected_features <- unique(as.character(
+      feature_contract$feature_id[feature_contract$panel_id == predictions$panel_id[i]]
+    ))
+    actual_features <- as.character(rows$feature_id)
+    if (!length(expected_features) || anyDuplicated(actual_features) || !setequal(actual_features, expected_features)) {
+      stop("Prediction feature coverage group does not contain its exact registered panel features", call. = FALSE)
+    }
+  }
+  invisible(TRUE)
 }
 
 #' Validate exact declared fixture coverage for a model panel

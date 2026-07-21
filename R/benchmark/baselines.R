@@ -387,11 +387,134 @@ benchmark_manifest_rows <- function(fit, registration, fixtures, history, run_id
   }))
 }
 
+#' Deterministic foreign key for one prediction's registered feature group
+#' @export
+benchmark_feature_coverage_id <- function(run_id, model_id, track_id, boundary_id, fixture_id) {
+  paste0(
+    "feature_coverage__",
+    benchmark_contract_sha256(c(run_id, model_id, track_id, boundary_id, fixture_id))
+  )
+}
+
+benchmark_feature_evidence_from_fixture <- function(fixture, feature_id) {
+  if (feature_id == "venue_advantage_for_team") {
+    present <- !is.na(fixture$venue_role) && fixture$venue_role %in% c("home", "away", "neutral")
+    return(list(
+      value_present = present,
+      source_present = FALSE,
+      source_date = as.Date(NA),
+      imputed = !present,
+      imputation_reason = if (present) "" else "missing_fixture_venue",
+      coverage_status = if (present) "derived_fixture" else "imputed_missing_fixture_venue"
+    ))
+  }
+  producer_id <- if (feature_id == "elo_difference_for_team") "elo_diff" else feature_id
+  companions <- paste0(
+    producer_id,
+    c("__value_present", "__source_present", "__source_date", "__imputed", "__imputation_reason")
+  )
+  if (!producer_id %in% names(fixture) || !all(companions %in% names(fixture))) {
+    return(list(
+      value_present = FALSE, source_present = FALSE, source_date = as.Date(NA),
+      imputed = TRUE, imputation_reason = "missing_producer_evidence",
+      coverage_status = "imputed_missing_producer_evidence"
+    ))
+  }
+  list(
+    value_present = isTRUE(as.logical(fixture[[paste0(producer_id, "__value_present")]])),
+    source_present = isTRUE(as.logical(fixture[[paste0(producer_id, "__source_present")]])),
+    source_date = as.Date(fixture[[paste0(producer_id, "__source_date")]]),
+    imputed = isTRUE(as.logical(fixture[[paste0(producer_id, "__imputed")]])),
+    imputation_reason = as.character(fixture[[paste0(producer_id, "__imputation_reason")]]),
+    coverage_status = "producer_evidence"
+  )
+}
+
+#' Build exact registered feature evidence for every adapter prediction
+#' @export
+build_registered_feature_coverage <- function(
+    registration, predictions, fixtures, feature_contract, manifests
+) {
+  if (!is.data.frame(registration) || nrow(registration) != 1L) {
+    stop("registration must contain exactly one model row", call. = FALSE)
+  }
+  required_contract <- c(
+    "schema_version", "panel_id", "feature_id", "source_id",
+    "source_artifact_sha256", "license_class", "row_sha256"
+  )
+  benchmark_contract_require_columns(feature_contract, required_contract, "Feature contract")
+  contract <- feature_contract[feature_contract$panel_id == registration$panel_id, , drop = FALSE]
+  if (!nrow(contract)) stop("Registered model panel has no feature contract rows", call. = FALSE)
+  benchmark_contract_require_unique(contract, c("panel_id", "feature_id"), "Feature contract")
+  fixture_index <- match(predictions$fixture_id, fixtures$fixture_id)
+  if (any(is.na(fixture_index))) stop("Predictions are missing runtime fixture features", call. = FALSE)
+
+  rows <- vector("list", nrow(predictions) * nrow(contract))
+  cursor <- 0L
+  for (i in seq_len(nrow(predictions))) {
+    fixture <- fixtures[fixture_index[i], , drop = FALSE]
+    manifest <- manifests[manifests$model_manifest_id == predictions$model_manifest_id[i], , drop = FALSE]
+    if (nrow(manifest) != 1L) stop("Prediction coverage requires exactly one boundary manifest", call. = FALSE)
+    active <- strsplit(as.character(manifest$active_predictors), "|", fixed = TRUE)[[1]]
+    dropped <- as.character(manifest$dropped_predictors_with_reason)
+    cutoff <- as.Date(predictions$evidence_cutoff_exclusive[i])
+    group_id <- benchmark_feature_coverage_id(
+      predictions$run_id[i], predictions$model_id[i], predictions$track_id[i],
+      predictions$boundary_id[i], predictions$fixture_id[i]
+    )
+
+    for (j in seq_len(nrow(contract))) {
+      cursor <- cursor + 1L
+      feature_id <- as.character(contract$feature_id[j])
+      evidence <- benchmark_feature_evidence_from_fixture(fixture, feature_id)
+      active_in_fit <- feature_id %in% active
+      status <- evidence$coverage_status
+      if (status == "producer_evidence") {
+        status <- if (evidence$imputed) {
+          if (active_in_fit) "active_imputed" else "inactive_imputed"
+        } else if (active_in_fit) {
+          "active_observed"
+        } else if (grepl(feature_id, dropped, fixed = TRUE)) {
+          "inactive_dropped"
+        } else {
+          "inactive_observed"
+        }
+      }
+      cutoff_valid <- if (evidence$source_present) {
+        !is.na(evidence$source_date) && !is.na(cutoff) && evidence$source_date < cutoff
+      } else {
+        is.na(evidence$source_date) && !is.na(cutoff)
+      }
+      rows[[cursor]] <- data.frame(
+        schema_version = "1.0", feature_coverage_id = group_id,
+        run_id = predictions$run_id[i], model_id = predictions$model_id[i],
+        panel_id = predictions$panel_id[i], edition_id = predictions$edition_id[i],
+        track_id = predictions$track_id[i], boundary_id = predictions$boundary_id[i],
+        fixture_id = predictions$fixture_id[i], feature_id = feature_id,
+        source_id = as.character(contract$source_id[j]),
+        source_artifact_sha256 = tolower(as.character(contract$source_artifact_sha256[j])),
+        value_present = evidence$value_present, source_present = evidence$source_present,
+        source_date = as.Date(evidence$source_date), evidence_cutoff_exclusive = cutoff,
+        cutoff_valid = cutoff_valid, imputed = evidence$imputed,
+        imputation_reason = evidence$imputation_reason,
+        active_in_fit = active_in_fit, coverage_status = status,
+        license_class = as.character(contract$license_class[j]),
+        feature_contract_row_sha256 = tolower(as.character(contract$row_sha256[j])),
+        stringsAsFactors = FALSE
+      )
+    }
+  }
+  coverage <- do.call(rbind, rows)
+  rownames(coverage) <- NULL
+  coverage
+}
+
 #' Run one registered baseline through the common output contract
 #' @export
 run_registered_baseline_adapter <- function(
     registration, history, fixtures, seed_registry, support_max,
-    run_id = "benchmark_run", frozen_registry = NULL
+    run_id = "benchmark_run", frozen_registry = NULL,
+    feature_contract = NULL
 ) {
   validate_seed_registry(seed_registry)
   required_fixture <- c(
@@ -428,7 +551,11 @@ run_registered_baseline_adapter <- function(
       evidence_cutoff_exclusive = as.Date(base$evidence_cutoff_exclusive),
       result_cutoff_exclusive = as.Date(base$result_cutoff_exclusive),
       model_manifest_id = manifest_id,
-      feature_coverage_id = paste(run_id, registration$model_id, base$fixture_id, sep = "__"),
+      feature_coverage_id = vapply(seq_len(nrow(base)), function(i) {
+        benchmark_feature_coverage_id(
+          run_id, registration$model_id, base$track_id[i], base$boundary_id[i], base$fixture_id[i]
+        )
+      }, character(1)),
       seed_id = seed$seed_id, score_distribution_id = market$score_distribution_id,
       p_home = market$p_home, p_draw = market$p_draw, p_away = market$p_away,
       expected_home_goals = market$expected_home_goals,
@@ -445,7 +572,25 @@ run_registered_baseline_adapter <- function(
   }))
   manifests <- manifests[!duplicated(manifests$model_manifest_id), , drop = FALSE]
   validate_model_manifests(manifests)
-  list(predictions = predictions, distributions = distributions, manifests = manifests)
+  if (is.null(feature_contract)) {
+    project_root <- normalizePath(
+      file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
+      mustWork = TRUE
+    )
+    feature_contract <- utils::read.csv(
+      file.path(project_root, "data/benchmark/phase09/feature_contract.csv"),
+      stringsAsFactors = FALSE
+    )
+  }
+  feature_coverage <- build_registered_feature_coverage(
+    registration, predictions, fixtures, feature_contract, manifests
+  )
+  validate_feature_coverage(feature_coverage, feature_coverage)
+  validate_prediction_feature_coverage_links(predictions, feature_coverage, feature_contract)
+  list(
+    predictions = predictions, distributions = distributions, manifests = manifests,
+    feature_coverage = feature_coverage
+  )
 }
 
 #' Build observed post-prediction panel coverage without changing declarations

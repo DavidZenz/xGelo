@@ -661,12 +661,24 @@ benchmark_runner_prepare_history <- function(history, model_registry) {
   }
   history$venue_role[!history$venue_role %in% c("home", "away", "neutral")] <- "neutral"
   if (!"tournament" %in% names(history)) history$tournament <- "Other senior international"
-  if (!"elo_diff" %in% names(history)) history$elo_diff <- 0
+  if (!"elo_diff" %in% names(history)) history$elo_diff <- NA_real_
   formulas <- paste(model_registry$formula, collapse = " ")
   candidates <- unique(unlist(regmatches(formulas, gregexpr("[A-Za-z][A-Za-z0-9_]+", formulas))))
   reserved <- c("home_goals", "away_goals", "elo_difference_for_team", "venue_advantage_for_team")
   candidates <- setdiff(candidates, reserved)
-  for (column in candidates) if (!column %in% names(history)) history[[column]] <- 0
+  for (column in candidates) {
+    if (!column %in% names(history)) {
+      history[[column]] <- NA_real_
+      defaults <- list(
+        value_present = FALSE, source_present = FALSE, source_date = as.Date(NA),
+        imputed = TRUE, imputation_reason = "missing_feature_column"
+      )
+      for (suffix in names(defaults)) {
+        companion <- paste0(column, "__", suffix)
+        if (!companion %in% names(history)) history[[companion]] <- defaults[[suffix]]
+      }
+    }
+  }
   history$date <- as.Date(history$date)
   history$actual_completion_date <- as.Date(history$actual_completion_date)
   if (any(is.na(history$date)) || any(!is.finite(as.numeric(history$home_goals))) || any(!is.finite(as.numeric(history$away_goals)))) {
@@ -688,7 +700,7 @@ benchmark_runner_fixture_features <- function(fixtures, teams, history) {
   index <- match(fixture_key, history_key)
   predictor_columns <- setdiff(
     names(history),
-    c("date", "actual_completion_date", "home_team", "away_team", "home_goals", "away_goals", "home_score", "away_score", "tournament", "actual_outcome")
+    c("match_id", "date", "actual_completion_date", "home_team", "away_team", "home_goals", "away_goals", "home_score", "away_score", "tournament", "actual_outcome")
   )
   for (column in predictor_columns) {
     values <- history[[column]][index]
@@ -925,7 +937,8 @@ benchmark_default_execution_engine <- function(
     result <- run_registered_baseline_adapter(
       registration, history, tracks[[track_id]], inputs$seed_registry,
       support_max = unique(inputs$score_support_audit$selected_g),
-      run_id = run_id, frozen_registry = inputs$model_registry
+      run_id = run_id, frozen_registry = inputs$model_registry,
+      feature_contract = inputs$feature_contract
     )
     benchmark_runner_namespace_adapter_output(result, model_id, track_id)
   }
