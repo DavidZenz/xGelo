@@ -551,12 +551,17 @@ benchmark_runner_validate_checksum_manifest <- function(
 #' @export
 validate_rolling_benchmark_bundle <- function(
     output_dir,
-    score_support_audit = utils::read.csv("data/benchmark/phase09/score_support_audit.csv", stringsAsFactors = FALSE),
-    model_registry = utils::read.csv("data/benchmark/phase09/model_registry.csv", stringsAsFactors = FALSE),
+    score_support_audit = NULL,
+    model_registry = NULL,
     boundary_inventory = NULL,
     additional_inputs = NULL,
     require_reproducible = TRUE
 ) {
+  if (is.null(score_support_audit) || is.null(model_registry)) {
+    default_inputs <- benchmark_runner_load_inputs("data/benchmark/phase09")
+    if (is.null(score_support_audit)) score_support_audit <- default_inputs$score_support_audit
+    if (is.null(model_registry)) model_registry <- default_inputs$model_registry
+  }
   if (is.null(boundary_inventory)) {
     boundaries <- utils::read.csv("data/benchmark/phase09/boundaries.csv", stringsAsFactors = FALSE)
     boundary_inventory <- benchmark_runner_boundary_inventory(boundaries)

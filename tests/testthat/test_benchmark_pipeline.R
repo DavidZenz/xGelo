@@ -188,6 +188,16 @@ test_that("the cache-only bundle writer creates and validates every durable arti
   expect_true(all(names(additional) %in% result$checksum_manifest$artifact))
 })
 
+test_that("default bundle parents use the canonical registry normalization", {
+  defaults <- formals(validate_rolling_benchmark_bundle)
+  expect_null(defaults$score_support_audit)
+  expect_null(defaults$model_registry)
+  inputs <- benchmark_runner_load_inputs(
+    file.path(project_root, "data/benchmark/phase09")
+  )
+  expect_identical(unique(inputs$model_registry$schema_version), "1.0")
+})
+
 test_that("bundle validation rejects missing rows and corrupted parent hashes", {
   x <- pipeline_bundle()
   out <- tempfile("benchmark-corrupt-")
