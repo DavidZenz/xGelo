@@ -425,6 +425,10 @@ predict_registered_challenger <- function(
     "derive_benchmark_markets",
     "R/benchmark/contracts.R"
   )
+  challenger_source_if_missing(
+    "statistical_mean_prediction_hash",
+    "R/forecast/score_dependence.R"
+  )
   if (candidate_id %in% c(
     "poisson_team_ridge", "poisson_team_ridge_elo",
     "poisson_team_ridge_elo_dc", "poisson_team_ridge_elo_bivpois"
@@ -636,6 +640,21 @@ run_registered_challenger_adapter <- function(
     )
   }))
   manifests <- manifests[!duplicated(manifests$model_manifest_id), , drop = FALSE]
+  mean_evidence <- do.call(rbind, lapply(pieces, function(piece) {
+    data.frame(
+      boundary_id = unique(as.character(piece$fixtures$boundary_id)),
+      mean_parent_candidate_id = unique(as.character(piece$result$means$mean_parent_id)),
+      mean_prediction_hash = unique(as.character(piece$result$means$mean_prediction_hash)),
+      stringsAsFactors = FALSE
+    )
+  }))
+  if (anyDuplicated(mean_evidence$boundary_id)) {
+    stop("challenger mean evidence must be unique by boundary", call. = FALSE)
+  }
+  mean_index <- match(manifests$boundary_id, mean_evidence$boundary_id)
+  if (any(is.na(mean_index))) stop("challenger manifests are missing mean evidence", call. = FALSE)
+  manifests$mean_parent_candidate_id <- mean_evidence$mean_parent_candidate_id[mean_index]
+  manifests$mean_prediction_hash <- mean_evidence$mean_prediction_hash[mean_index]
   feature_coverage <- build_registered_feature_coverage(
     baseline_registration, predictions, fixtures, protocol$feature_contract, manifests
   )
@@ -661,5 +680,104 @@ run_registered_challenger_adapter <- function(
     distributions = distributions,
     manifests = manifests,
     feature_coverage = feature_coverage
+  )
+}
+
+#' Build registered full-versus-Elo-only practical non-inferiority evidence
+#'
+#' @param comparison Named comparison inputs produced from the shared benchmark
+#'   score path.
+#' @param protocol Optional canonical validated challenger protocol.
+#' @param protocol_dir Canonical Phase 10 protocol directory.
+#' @return Auditable decision inputs, gates, feature sets, and decision.
+#' @export
+challenger_ablation_evidence <- function(
+    comparison, protocol = NULL,
+    protocol_dir = "data/benchmark/phase10"
+) {
+  if (!is.list(comparison)) {
+    stop("ablation comparison must be a named list", call. = FALSE)
+  }
+  required <- c(
+    "candidate_id", "parent_id", "updating_equal_tournament_rps_delta",
+    "brier_relative_change", "log_loss_relative_change", "calibration_change",
+    "maximum_fold_regression", "fold_wins", "world_cup_wins", "euro_wins",
+    "active_features", "inactive_features"
+  )
+  missing <- setdiff(required, names(comparison))
+  if (length(missing)) {
+    stop("ablation comparison is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  protocol <- challenger_load_validated_protocol(protocol, protocol_dir)
+  registry <- protocol$ablation_registry
+  scored <- registry[
+    as.character(registry$ablation_id) == "open_nb_elo_only_ablation",
+    , drop = FALSE
+  ]
+  if (nrow(scored) != 1L ||
+      !identical(as.character(comparison$candidate_id), as.character(scored$ablation_id)) ||
+      !identical(as.character(comparison$parent_id), as.character(scored$parent_candidate_id))) {
+    stop("ablation comparison does not match the registered scored sibling", call. = FALSE)
+  }
+  registered_active <- strsplit(
+    as.character(scored$retained_features), "|", fixed = TRUE
+  )[[1L]]
+  registered_inactive <- strsplit(
+    as.character(scored$removed_features), "|", fixed = TRUE
+  )[[1L]]
+  active_features <- as.character(comparison$active_features)
+  inactive_features <- as.character(comparison$inactive_features)
+  if (!identical(active_features, registered_active) ||
+      !setequal(inactive_features, registered_inactive)) {
+    stop("ablation active or inactive feature evidence drift", call. = FALSE)
+  }
+
+  metric_names <- c(
+    "updating_equal_tournament_rps_delta", "brier_relative_change",
+    "log_loss_relative_change", "calibration_change", "maximum_fold_regression",
+    "fold_wins", "world_cup_wins", "euro_wins"
+  )
+  metrics <- vapply(metric_names, function(name) as.numeric(comparison[[name]]), numeric(1))
+  if (any(!is.finite(metrics))) {
+    stop("ablation decision inputs must be finite", call. = FALSE)
+  }
+  thresholds <- protocol$thresholds
+  needed_thresholds <- c(
+    "simpler_noninferiority", "brier_relative", "log_relative", "calibration",
+    "maximum_fold_regression", "fold_wins", "world_cup_wins", "euro_wins"
+  )
+  if (!all(needed_thresholds %in% names(thresholds))) {
+    stop("validated selection protocol is missing ablation thresholds", call. = FALSE)
+  }
+  gates <- c(
+    rps = metrics[["updating_equal_tournament_rps_delta"]] <=
+      thresholds[["simpler_noninferiority"]],
+    brier = metrics[["brier_relative_change"]] <= thresholds[["brier_relative"]],
+    log_loss = metrics[["log_loss_relative_change"]] <= thresholds[["log_relative"]],
+    calibration = metrics[["calibration_change"]] <= thresholds[["calibration"]],
+    worst_fold = metrics[["maximum_fold_regression"]] <=
+      thresholds[["maximum_fold_regression"]],
+    fold_breadth = metrics[["fold_wins"]] >= thresholds[["fold_wins"]],
+    world_cup_breadth = metrics[["world_cup_wins"]] >= thresholds[["world_cup_wins"]],
+    euro_breadth = metrics[["euro_wins"]] >= thresholds[["euro_wins"]]
+  )
+  failed <- names(gates)[!gates]
+  list(
+    candidate_id = as.character(comparison$candidate_id),
+    parent_id = as.character(comparison$parent_id),
+    practically_non_inferior = all(gates),
+    reason_codes = if (length(failed)) paste(failed, collapse = "|") else "all_gates_pass",
+    updating_equal_tournament_rps_delta = unname(metrics[["updating_equal_tournament_rps_delta"]]),
+    brier_relative_change = unname(metrics[["brier_relative_change"]]),
+    log_loss_relative_change = unname(metrics[["log_loss_relative_change"]]),
+    calibration_change = unname(metrics[["calibration_change"]]),
+    maximum_fold_regression = unname(metrics[["maximum_fold_regression"]]),
+    fold_wins = as.integer(metrics[["fold_wins"]]),
+    world_cup_wins = as.integer(metrics[["world_cup_wins"]]),
+    euro_wins = as.integer(metrics[["euro_wins"]]),
+    active_features = active_features,
+    inactive_features = inactive_features,
+    gates = gates,
+    thresholds = thresholds[needed_thresholds]
   )
 }
