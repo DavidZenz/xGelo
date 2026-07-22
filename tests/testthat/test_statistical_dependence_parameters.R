@@ -73,7 +73,10 @@ test_that("one prior-fit fold-global parameter is emitted per dependence family"
   expect_identical(sort(fit$dependence_id), c("bivariate_poisson", "dixon_coles"))
   expect_identical(unique(fit$outer_edition_id), "wc2010")
   expect_false("track_id" %in% names(fit))
-  expect_equal(table(fit$dependence_id), c(bivariate_poisson = 1L, dixon_coles = 1L))
+  expect_identical(
+    as.integer(table(fit$dependence_id)),
+    c(1L, 1L)
+  )
   expect_true(all(is.finite(fit$parameter)))
   expect_true(all(fit$parameter > fit$lower_bound & fit$parameter < fit$upper_bound))
   expect_true(all(fit$training_count == 6L))
