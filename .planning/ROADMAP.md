@@ -103,6 +103,44 @@ where correlated or inactive predictors do not add out-of-sample value.
 
 **Depends on:** Phase 9
 
+**Plans:** 11 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 10-01-PLAN.md — Create shared fixtures and penalized-Poisson Wave 0 contracts
+- [ ] 10-02-PLAN.md — Verify official-CRAN dependency provenance and freeze the Phase 10 runtime environment
+- [ ] 10-09-PLAN.md — Freeze registries, grids, selection rules, and measured storage protocol
+- [ ] 10-10-PLAN.md — Create dynamic and dependence Wave 0 contracts
+- [ ] 10-11-PLAN.md — Create ablation, adapter, selection, bundle, targets, and coverage Wave 0 contracts
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 10-03-PLAN.md — Implement nested penalized-Poisson candidates
+- [ ] 10-04-PLAN.md — Implement dynamic attack/defence candidates
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 10-05-PLAN.md — Implement shared-mean score-dependence variants
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 10-06-PLAN.md — Integrate common adapters and incumbent ablations
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 10-07-PLAN.md — Build all-baseline evidence, shortlist, runner, and targets
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 10-08-PLAN.md — Execute, publish, and independently accept the canonical bundle
+
+**Execution waves:** Wave 0: 10-01, 10-02, 10-10, 10-11; Wave 1: 10-09
+after 10-02; Wave 2: 10-03 after 10-01/10-09 and 10-04 after
+10-01/10-10/10-09; Wave 3: 10-05 after 10-01/10-10/10-03; Wave 4:
+10-06 after 10-01/10-11/10-03/10-04/10-05; Wave 5: 10-07 after
+10-01/10-11/10-06; Wave 6: 10-08 after 10-07.
+
 **Success Criteria:**
 
 1. A team-specific regularized Poisson candidate is registered and evaluated under
@@ -178,7 +216,7 @@ information add stable value beyond the strongest statistical benchmark.
 |-------|----------------|--------|-----------|
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
-| 10. Statistical Goal-Model Challengers | 0/TBD | Not started | - |
+| 10. Statistical Goal-Model Challengers | 0/11 | Planned | - |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |
 

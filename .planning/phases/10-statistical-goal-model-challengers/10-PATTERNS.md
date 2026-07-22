@@ -30,6 +30,8 @@ The seven candidate registrations expected by the research are:
 | `data/benchmark/phase10/tuning_grid.csv` | create | config/registry | batch | `data/benchmark/phase09/score_support_audit.csv`; `build_score_support_audit()` | role-match |
 | `data/benchmark/phase10/ablation_registry.csv` | create | config/registry | batch | `data/benchmark/phase09/model_registry.csv` | partial |
 | `data/benchmark/phase10/selection_protocol.json` | create | config/protocol | batch | `data/benchmark/phase09/promotion_protocol.json`; `R/evaluation/promotion.R` | role-match, semantics differ |
+| `data/benchmark/phase10/storage_preflight.csv` | create | config/evidence | batch + file-I/O | Phase 9 bundle/checksum preflight | role-match |
+| `R/benchmark/challenger_protocol.R` | create | canonical registry/protocol validator | batch + file-I/O | `R/benchmark/registry.R`; `R/evaluation/promotion.R` | role-match |
 | `R/forecast/penalized_poisson.R` | create | model/service | transform + batch | `R/benchmark/baselines.R` | role-match |
 | `R/forecast/dynamic_goal_ability.R` | create | model/service | event-driven chronological batch | `R/forecast/goal_ability.R` | exact role/flow |
 | `R/forecast/score_dependence.R` | create | model/utility | transform | `benchmark_one_distribution()` plus score-grid validators | partial |
@@ -39,11 +41,22 @@ The seven candidate registrations expected by the research are:
 | `R/evaluation/challenger_selection.R` | create | evaluation service | transform + batch | `R/evaluation/benchmark_scores.R` | role-match |
 | `_targets.R` | modify | pipeline config | event-driven DAG + file-I/O | Phase 9 targets in `_targets.R` | exact |
 | `tests/testthat/helper_statistical_challengers.R` | create | test helper | transform | `tests/testthat/helper_benchmark.R` | exact |
-| `tests/testthat/test_statistical_penalized_poisson.R` | create | test | batch | `test_benchmark_baselines.R`; `test_benchmark_cutoffs.R` | role-match |
-| `tests/testthat/test_statistical_dynamic_ability.R` | create | test | event-driven chronological batch | `test_benchmark_cutoffs.R` | exact role/flow |
-| `tests/testthat/test_statistical_dependence.R` | create | test | transform | `test_benchmark_contracts.R`; `test_benchmark_baselines.R` | role-match |
-| `tests/testthat/test_statistical_ablations.R` | create | test | batch | `test_benchmark_baselines.R`; `test_benchmark_scoring.R` | role-match |
-| `tests/testthat/test_statistical_challenger_pipeline.R` | create | integration test | batch + file-I/O | `test_benchmark_pipeline.R` | exact role/flow |
+| `tests/testthat/test_statistical_penalized_poisson_design.R` | create | task-scoped test | batch | `test_benchmark_baselines.R` | role-match |
+| `tests/testthat/test_statistical_penalized_poisson_tuning.R` | create | task-scoped test | chronological batch | `test_benchmark_cutoffs.R` | role-match |
+| `tests/testthat/test_statistical_dynamic_state.R` | create | task-scoped test | event-driven chronological batch | `test_benchmark_cutoffs.R` | exact role/flow |
+| `tests/testthat/test_statistical_dynamic_tuning.R` | create | task-scoped test | chronological batch | `test_benchmark_cutoffs.R` | role-match |
+| `tests/testthat/test_statistical_dependence_pmf.R` | create | task-scoped test | transform | `test_benchmark_contracts.R` | role-match |
+| `tests/testthat/test_statistical_dependence_parameters.R` | create | task-scoped test | chronological batch | `test_benchmark_cutoffs.R` | role-match |
+| `tests/testthat/test_statistical_registry_protocol.R` | create | canonical mutation test | registry + chronology | `test_benchmark_pipeline.R`; `test_benchmark_promotion.R` | role-match |
+| `tests/testthat/test_statistical_storage_preflight.R` | create | canonical mutation test | protocol + file-I/O | `test_benchmark_pipeline.R`; `test_benchmark_promotion.R` | role-match |
+| `tests/testthat/test_statistical_ablation_hierarchy.R` | create | task-scoped test | batch | `test_benchmark_baselines.R` | role-match |
+| `tests/testthat/test_statistical_adapter_dispatch.R` | create | task-scoped integration test | batch | `test_benchmark_contracts.R` | exact role/flow |
+| `tests/testthat/test_statistical_ablation_selection.R` | create | task-scoped test | batch | `test_benchmark_scoring.R` | role-match |
+| `tests/testthat/test_statistical_selection.R` | create | task-scoped integration test | batch | `test_benchmark_scoring.R` | role-match |
+| `tests/testthat/test_statistical_bundle.R` | create | task-scoped integration test | batch + file-I/O | `test_benchmark_pipeline.R` | exact role/flow |
+| `tests/testthat/test_statistical_targets.R` | create | task-scoped DAG test | pipeline graph | `test_benchmark_pipeline.R` | exact role/flow |
+| `tests/testthat/phase10_core_coverage.R` | create | coverage gate | instrumentation | project covr patterns | role-match |
+| `tests/testthat/phase10_coverage_exceptions.csv` | create | coverage exception evidence | registry | no exact analog | partial |
 
 `R/forecast/poisson.R` need not change if the Elo-only predictor vector is kept private to `challengers.R`. If modified, add only a named predictor-set helper; do not alter the incumbent formula or fitter.
 
@@ -134,7 +147,7 @@ eligible <- eligible[do.call(order, c(args, list(na.last = TRUE, method = "radix
 
 **Analog:** `build_score_support_audit()` (`R/benchmark/baselines.R:622-668`).
 
-Use explicit candidate rows, deterministic traversal, objective values, a pass/selection flag, parent hashes, and row hashes. Keep the grid broad and predeclared; select penalties/hyperparameters only from the eligible inner editions and use deterministic largest-penalty tie-breaking.
+Plan 10-09 owns this artifact and its canonical validator. Use exact ordered rows, deterministic traversal, objective values, parent hashes, and row hashes. The locked specification has 13 ascending team-ridge values from `10^seq(-4,2,by=0.5)`, 13 ascending Elo-lasso values from `10^seq(-5,1,by=0.5)`, five pseudo-exposures `2,4,8,16,32` with 730-day half-life, then exact Dixon-Coles and bivariate-q bounded-continuous specifications. Select penalties/hyperparameters only from eligible inner editions and use deterministic strongest-shrinkage tie-breaking.
 
 ```r
 candidates <- seq.int(model_registry$candidate_min[m], model_registry$candidate_max[m])
@@ -143,7 +156,7 @@ audit$parent_hashes <- benchmark_support_parent_sha256(audit)
 audit$row_hash <- benchmark_row_sha256(audit, "row_hash")
 ```
 
-Unlike Phase 9 support selection, likely parameter dimensions include team ridge lambda, Elo offset lambda, dynamic pseudo-exposure/decay choices, and bounded dependence parameters. Record one selected setting per outer fold and reuse it unchanged for frozen and updating tracks.
+Unlike Phase 9 support selection, every value, dependence bound/policy, and row order is frozen. Canonical validation must compare exact content and recompute hashes, not merely recognize parameter IDs or SHA shape. Record one selected setting per outer fold and reuse it unchanged for frozen and updating tracks.
 
 ### `data/benchmark/phase10/ablation_registry.csv`
 
@@ -166,6 +179,14 @@ baseline_goal_predictors <- function() {
 Copy checksum-backed JSON serialization (`R/evaluation/promotion.R:18-34`) and fail-fast required-field validation (`R/evaluation/promotion.R:76-90`). Freeze the practical-gain, tie, non-inferiority, supporting-score, calibration, fold-breadth, and stability thresholds before assessment results are inspected.
 
 Do **not** copy `evaluate_promotion()` (`R/evaluation/promotion.R:451-470`), which emits `veto`, `retain_incumbent`, and `eligible_for_final_holdout`. Phase 10 protocol/output vocabulary should be research-only: `best_proper_score`, `simplest_non_inferior`, and `dependence_representative`, with evidence and reason fields but no `promote`, `release`, or final-holdout decision.
+
+### `R/benchmark/challenger_protocol.R` and `data/benchmark/phase10/storage_preflight.csv`
+
+**Analogs:** `R/benchmark/registry.R`, canonical promotion-protocol hashing in `R/evaluation/promotion.R`, and Phase 9 checksum/read-back validation.
+
+Plan 10-09 exclusively owns canonical registry, chronology, grid, ablation, selection, no-promotion, and storage validation. `challengers.R` and the runner consume `load_and_validate_challenger_protocol()`; they do not redefine raw registry loaders or trust stored pass booleans. Canonical validators recompute row/settings/JSON hashes from non-hash content, assert the exact accepted Phase 9 bundle SHA `977e119dd17e1212d2bfc57da2e676b6ee9d16bfba8b6c9bdbf1a97d302db069` plus durable registry/checksum graph evidence, and reject missing, extra, reordered, or mutated values.
+
+The chronology validator reconstructs the complete outer/inner relation from the four exact pre-2002 editions and Phase 9 tournaments, while the diagnostic executes only those pre-2002 rows and proves the frozen grid hash is unchanged. Selection validation checks exact numerical RPS, tie, supporting-score, calibration, fold-breadth, and stability thresholds; the complete ablation parent graph; exact shortlist order; and a recursive no-promotion/WC2026 boundary. Storage validation recomputes exact pilot cardinalities, schema/generator hashes, compressed bytes, projection operands, and free-space result.
 
 ### `R/forecast/penalized_poisson.R`
 
@@ -359,15 +380,15 @@ Use deterministic small data-frame constructors, not fixtures loaded from mutabl
 
 The Phase 9 helper constructs complete synthetic tournament/boundary graphs (`tests/testthat/helper_benchmark.R:16-168`) and explicit same-date history (`:170-190`). Add compact helpers for outer/inner folds, fixed sparse `Matrix` levels, independence/DC/BP oracle cells, cold-start fixtures, parent hashes, and a minimal Phase 10 bundle.
 
-### `tests/testthat/test_statistical_penalized_poisson.R`
+### `tests/testthat/test_statistical_penalized_poisson_design.R` and `test_statistical_penalized_poisson_tuning.R`
 
 **Analogs:** `test_benchmark_baselines.R` and `test_benchmark_cutoffs.R`.
 
-Copy the test-file bootstrap pattern (`test_benchmark_baselines.R:1-14`): `library(testthat)`, resolve `project_root`, source helpers/contracts/modules directly. Assert nested means, ridge-protected team columns, zero-selectable Elo offset, unseen-team global fallback, complete fixture retention, prior-edition-only tuning, shared selected penalties across tracks, deterministic tie-breaking, manifest hashes, and adapter contract compliance.
+Copy the test-file bootstrap pattern (`test_benchmark_baselines.R:1-14`): `library(testthat)`, resolve `project_root`, source helpers/contracts/modules directly. The design file owns only ridge-protected blocks, centering, cold starts, and completeness. The tuning file separately owns nested means, zero-selectable Elo, exact canonical provenance, prior-edition tuning, shared settings, poisoning, manifest hashes, and baseline pairing. This split lets Plan 10-03 Task 1 pass before Task 2 symbols exist.
 
 Poison outer-tournament outcomes and require predictions/tuning to remain unchanged. Follow the registry-drift failure style at `test_benchmark_baselines.R:138-160`.
 
-### `tests/testthat/test_statistical_dynamic_ability.R`
+### `tests/testthat/test_statistical_dynamic_state.R` and `test_statistical_dynamic_tuning.R`
 
 **Analog:** `tests/testthat/test_benchmark_cutoffs.R:25-56`.
 
@@ -382,13 +403,13 @@ second <- build_state(history[rev(seq_len(nrow(history))), ], fixtures[rev(seq_l
 expect_identical(first, second)
 ```
 
-Also test that same-date outcomes affect only later dates, inactivity converges toward global effects, tournament-cycle boundaries do not reset state, sparse teams stay forecastable, the Elo sibling is nested, and all evidence dates are strictly before cutoffs.
+The state file owns same-date effects, reversion, no reset/window, and sparse-team evidence. The tuning file separately owns the nested Elo sibling, prior-only hyperparameters, shared tracks, poisoning, and strict source cutoffs.
 
-### `tests/testthat/test_statistical_dependence.R`
+### `tests/testthat/test_statistical_dependence_pmf.R` and `test_statistical_dependence_parameters.R`
 
 **Analogs:** `test_benchmark_contracts.R` distribution tests and `test_benchmark_baselines.R:99-118` grid tests.
 
-Use hand-calculated cells and limiting cases. Assert:
+Use hand-calculated cells and limiting cases in the PMF file; reserve prior-fit parameter and poisoning behavior for the parameter file. Assert:
 
 - Dixon-Coles touches only the four low-score cells and all adjusted cells stay positive;
 - `rho = 0` and `q = 0` recover independent Poisson;
@@ -399,13 +420,13 @@ Use hand-calculated cells and limiting cases. Assert:
 
 Call `validate_benchmark_score_distributions()` rather than duplicating its checks.
 
-### `tests/testthat/test_statistical_ablations.R`
+### `tests/testthat/test_statistical_ablation_hierarchy.R`, `test_statistical_adapter_dispatch.R`, and `test_statistical_ablation_selection.R`
 
 **Analogs:** predictor/manifests tests in `test_benchmark_baselines.R` and paired evidence in `test_benchmark_scoring.R:127-163`.
 
-Assert that the full incumbent and Elo-only sibling use the same two-sided NB fitter, rows, weights, panels, and cutoffs; only the predictor set differs. Require xG/form values to remain zero-coded but evidence to show source/value absence, imputation, and inactive-fit status. Require deeper ablation rows to stay `not_activated_zero_coverage`. Test practical non-inferiority through out-of-sample RPS/supporting vetoes, never coefficient p-values.
+The hierarchy file asserts that the full incumbent and Elo-only sibling use the same two-sided NB fitter, rows, weights, panels, and cutoffs; only the predictor set differs. It requires xG/form values to remain zero-coded with source/value absence, imputation, and inactive-fit status, and deeper rows to stay `not_activated_zero_coverage`. The dispatch file owns only the seven common adapters. The selection file owns practical non-inferiority through out-of-sample RPS/supporting vetoes, never coefficient p-values.
 
-### `tests/testthat/test_statistical_challenger_pipeline.R`
+### `tests/testthat/test_statistical_selection.R`, `test_statistical_bundle.R`, and `test_statistical_targets.R`
 
 **Analog:** `tests/testthat/test_benchmark_pipeline.R`.
 
@@ -419,7 +440,13 @@ Copy these high-value patterns:
 - restore the old bundle after failed post-install validation (`:675-696`);
 - inspect the targets dependency graph (`:698-727`).
 
-Add Phase 10 assertions for the accepted Phase 9 parent hash, seven candidates, both tracks, candidate-by-five-baseline comparisons, exact 630/609 denominators, G=40, fresh-session deterministic registry/manifest/prediction/score/evidence/comparison/shortlist hashes, no `evaluate_promotion()` call, and no Phase 10 promotion artifact.
+The selection file owns exact all-baseline evidence and shortlist rules. The bundle file owns the accepted Phase 9 parent hash, seven candidates, both tracks, exact 630/609 denominators, G=40, fresh-session deterministic registry/manifest/prediction/score/evidence/comparison/shortlist hashes, no `evaluate_promotion()` call, and no Phase 10 promotion artifact. The targets file separately owns exact target names and forbidden ancestry so Plan 10-07 Task 2 can pass before Task 3 symbols exist.
+
+### `tests/testthat/test_statistical_registry_protocol.R` and `test_statistical_storage_preflight.R`
+
+**Analogs:** mutation matrices in `test_benchmark_pipeline.R` and exact protocol boundary tests in `test_benchmark_promotion.R`.
+
+These are Plan 10-09-owned test files, not Wave 0 production-family tests. The registry file deletes, inserts, reorders, mutates, and substitutes valid-shape hashes across parent, candidate, feature, tuning-grid, and complete 114-row chronology artifacts, then executes/asserts the pre-2002 diagnostic. The storage file applies the same fail-closed matrix to the complete ablation graph, exact threshold/shortlist/no-promotion protocol, and every storage projection operand/hash. Task 1 and Task 2 remain independently runnable.
 
 ### Generated Phase 10 Bundle
 
@@ -429,7 +456,7 @@ Every generated table should be canonically sorted and written with `row.names =
 
 Atomic publication must validate staging before replacement and validate again after installation. Copy rollback semantics from `benchmark_runner_install_staged_bundle()` (`R/benchmark/runner.R:1408-1441`): rename the existing bundle to a backup, install staged output, restore the backup on failed read-back validation, and remove the backup only after success.
 
-Because score grids dominate storage, write candidate partitions and run the Wave 0 disk pilot/preflight before the full seven-candidate run. The 6 GiB threshold in research is provisional until measured.
+Because score grids dominate storage, Plan 10-09 Task 2 runs in Wave 1 and generates a deterministic, format-identical, conservatively low-compressibility pilot before the full seven-candidate run. The pilot contains 630 fixtures x 2 tracks x 41 x 41 = 2,118,060 score rows. If `B` is its measured compressed size, freeze `score_projection = 7 * B`, `one_bundle_projection = score_projection + max(1 GiB, ceiling(0.25 * score_projection))`, and `minimum_free_bytes = ceiling(3 * one_bundle_projection * 1.10)` in `storage_preflight.csv`; no provisional fixed-GiB threshold remains.
 
 ## Shared Phase 9 Contracts To Reuse Unchanged
 

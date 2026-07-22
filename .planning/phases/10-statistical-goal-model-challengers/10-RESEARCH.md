@@ -177,12 +177,20 @@ The principal implementation risk is chronology rather than optimizer syntax. Pe
 
 **Installation:**
 
-```r
-install.packages("glmnet")
-stopifnot(as.character(utils::packageVersion("glmnet")) == "5.0")
-```
+Plan 10-02 must capture and hash the official CRAN repository index and `glmnet`
+5.0 metadata, inventory `Depends`, `Imports`, and `LinkingTo`, download the
+platform-selected source or binary archive without installing it, verify the
+archive against the checksum published in official repository metadata, and
+compute a SHA-256 over the verified archive. Installation then proceeds only
+from that verified local archive into the constrained Phase 10 library without
+updating unrelated packages. The preflight must hash the installed package
+contents and persist repository-index, package-metadata, dependency-inventory,
+archive, and installed-content hashes in the Phase 10 provenance artifact and
+every canonical run manifest. [ASSUMED; CITED: https://cran.r-project.org/package=glmnet]
 
-Pin `glmnet == 5.0` in the Phase 10 environment preflight and record the resolved version in every run manifest; this repository currently has neither `renv.lock` nor a package `DESCRIPTION`. [VERIFIED: repository file inventory; CITED: https://cran.r-project.org/package=glmnet]
+Pin `glmnet == 5.0` in the Phase 10 environment preflight; this repository
+currently has neither `renv.lock` nor a package `DESCRIPTION`. [VERIFIED:
+repository file inventory; CITED: https://cran.r-project.org/package=glmnet]
 
 ## Package Legitimacy Audit
 
@@ -190,7 +198,7 @@ The GSD legitimacy seam supports npm, PyPI, and crates.io but not CRAN, so it ca
 
 | Package | Registry | Published | Source/maintainer evidence | Verdict | Disposition |
 |---------|----------|-----------|----------------------------|---------|-------------|
-| `glmnet` | CRAN | 2026-05-04 (v5.0) | CRAN package page and official Stanford vignette. [CITED: https://cran.r-project.org/package=glmnet; CITED: https://glmnet.stanford.edu/articles/glmnet.html] | Manual authoritative audit; automated CRAN gate unavailable | Approved behind exact-version preflight |
+| `glmnet` | CRAN | 2026-05-04 (v5.0) | CRAN package page and official Stanford vignette. [CITED: https://cran.r-project.org/package=glmnet; CITED: https://glmnet.stanford.edu/articles/glmnet.html] | Manual authoritative audit; automated CRAN gate unavailable | Approved behind official-repository metadata, checksum, dependency-inventory, exact-version, and installed-content-hash preflights |
 
 **Packages removed due to SLOP:** none; no unsupported package is recommended for installation. [VERIFIED: recommended installation list above]  
 **Packages flagged as suspicious:** none, but the planner must include a human/environment checkpoint if CRAN installation or version verification fails. [ASSUMED]
@@ -245,23 +253,36 @@ data/benchmark/phase10/
 ├── tuning_editions.csv
 ├── tuning_grid.csv
 ├── ablation_registry.csv
-└── selection_protocol.json
+├── selection_protocol.json
+└── storage_preflight.csv
 R/forecast/
 ├── penalized_poisson.R
 ├── dynamic_goal_ability.R
 └── score_dependence.R
 R/benchmark/
+├── challenger_protocol.R
 ├── challengers.R
 └── challenger_runner.R
 R/evaluation/
 └── challenger_selection.R
 tests/testthat/
 ├── helper_statistical_challengers.R
-├── test_statistical_penalized_poisson.R
-├── test_statistical_dynamic_ability.R
-├── test_statistical_dependence.R
-├── test_statistical_ablations.R
-└── test_statistical_challenger_pipeline.R
+├── test_statistical_penalized_poisson_design.R
+├── test_statistical_penalized_poisson_tuning.R
+├── test_statistical_dynamic_state.R
+├── test_statistical_dynamic_tuning.R
+├── test_statistical_dependence_pmf.R
+├── test_statistical_dependence_parameters.R
+├── test_statistical_registry_protocol.R
+├── test_statistical_storage_preflight.R
+├── test_statistical_ablation_hierarchy.R
+├── test_statistical_adapter_dispatch.R
+├── test_statistical_ablation_selection.R
+├── test_statistical_selection.R
+├── test_statistical_bundle.R
+├── test_statistical_targets.R
+├── phase10_core_coverage.R
+└── phase10_coverage_exceptions.csv
 outputs/benchmarks/rolling_tournaments/
 └── phase10-statistical-challengers/
 ```
@@ -400,7 +421,7 @@ Produce three non-exclusive shortlist slots: best tournament-weighted proper-sco
 ### Pitfall 7: Disk Amplification During Atomic Publication
 **What goes wrong:** Score-grid staging exhausts disk before reconciliation. [ASSUMED]  
 **Why it happens:** Phase 9's score table is 924 MB and atomic publication temporarily holds staged and installed copies. [VERIFIED: local bundle sizes]  
-**How to avoid:** Reference Phase 9 artifacts, write candidate partitions, preflight at least 6 GiB free, and remove staging only after accepted publication. The 6 GiB threshold is a conservative project estimate, not a measured requirement. [ASSUMED]  
+**How to avoid:** Run Plan 10-09 Task 2's deterministic 2,118,060-row pilot, enforce its measured projection formula and frozen `minimum_free_bytes`, write candidate partitions, and remove staging only after accepted publication. [ASSUMED]  
 **Warning signs:** Free space below threshold or partial staging directories after failure. [ASSUMED]
 
 ## Code Examples
@@ -493,25 +514,39 @@ The exact numerical margins are discretion choices and should be treated as lock
 | A4 | `q * min(mu_home, mu_away)` is the bivariate shared-intensity parameterization. | Architecture Pattern 4 | It is a project adaptation, not the only valid one-global-parameter construction. |
 | A5 | The candidate IDs and seven-model registry are sufficient to satisfy D-01 through D-16 without model-zoo expansion. | Overlay Registry | Planner may rename IDs, but adding candidates increases runtime and weakens controlled attribution. |
 | A6 | RPS margins of 0.001, tie margin 0.0005, and existing supporting veto scales are practically appropriate. | Selection Protocol | Conclusions may change near thresholds; values must be locked before assessment. |
-| A7 | Six GiB free space is a safe publication preflight threshold. | Pitfall 7 | Actual candidate compression/staging may require more or less; Wave 0 should measure a pilot partition. |
+| A7 | Plan 10-09 Task 2's measured projection formula defines the publication preflight threshold. | Pitfall 7 | The deterministic 2,118,060-row pilot measures `B` and freezes `minimum_free_bytes = ceiling(3 * (7 * B + max(1 GiB, ceiling(0.25 * 7 * B))) * 1.10)`; no fixed-GiB estimate is accepted. |
 | A8 | Phase 9 baselines can be consumed directly by verified durable reference rather than copied into the Phase 10 bundle. | Repository Inventory | Downstream report code may require a lightweight reference manifest or views. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What exact hyperparameter grids should be frozen?**
-   - What we know: penalties and dynamic shrinkage must be selected from completed prior tournaments and frozen per outer fold. [VERIFIED: D-03]
-   - What's unclear: the useful numerical range is data-scale dependent. [ASSUMED]
-   - Recommendation: in Wave 0, run a chronology-safe pre-2002 diagnostic only to establish broad log-spaced grids; store the final grids before any 2002-2024 assessment run. [ASSUMED]
+1. **Frozen hyperparameter grids:** Plan 10-09 freezes and canonically validates team ridge lambda at
+   `10^seq(-4, 2, by = 0.5)`, Elo lasso lambda at
+   `10^seq(-5, 1, by = 0.5)`, and dynamic pseudo-exposure at
+   `c(2, 4, 8, 16, 32)` with the inherited 730-day half-life. The pre-2002
+   diagnostic confirms finite numerical reach only and cannot alter these
+   grids. Selection remains prior-edition-only and is frozen per outer fold for
+   both tracks. [VERIFIED: D-03; ASSUMED]
 
-2. **Should `bivpois` be available only for optional oracle tests?**
-   - What we know: production needs fixture-varying means, while `bivpois` documents a constant-parameter PMF/MLE and is not installed. [CITED: https://cran.r-project.org/web/packages/bivpois/refman/bivpois.html; VERIFIED: local package inventory]
-   - What's unclear: whether the execution environment permits an optional second CRAN install. [ASSUMED]
-   - Recommendation: do not install it by default; validate the custom PMF with analytical limiting cases and precomputed oracle fixtures checked into tests. [ASSUMED]
+2. **Bivariate-Poisson implementation:** production uses the custom
+   fixture-varying PMF in `R/forecast/score_dependence.R`, with analytical
+   limiting cases and deterministic checked-in oracle fixtures. `bivpois` is
+   neither installed nor declared as a runtime or test dependency. [ASSUMED;
+   CITED: https://cran.r-project.org/web/packages/bivpois/refman/bivpois.html]
 
-3. **How much disk does one Phase 10 candidate require after compression?**
-   - What we know: the Phase 9 five-model score distribution is approximately 924 MB, and 17 GiB was free during research. [VERIFIED: local filesystem audit]
-   - What's unclear: compression and partitioning ratios for the new candidates. [ASSUMED]
-   - Recommendation: make the first single-candidate partition a storage pilot and fail before the full run if the projected staged footprint exceeds available space. [ASSUMED]
+3. **Storage projection:** Plan 10-09 owns the protocol and generates a deterministic,
+   format-identical, conservatively low-compressibility pilot independent of any
+   fitted candidate. It contains exactly 630 fixtures x 2 tracks = 1,260
+   distributions and 1,260 x 41 x 41 = 2,118,060 G=40 score rows, with seeded
+   high-entropy IDs and normalized probabilities in the production CSV schema.
+   If `B` is the measured compressed pilot bytes, then
+   `score_projection = 7 * B`,
+   `one_bundle_projection = score_projection + max(1 GiB, ceiling(0.25 * score_projection))`,
+   and
+   `minimum_free_bytes = ceiling(3 * one_bundle_projection * 1.10)`.
+   The factor 3 covers normal staging, reversed-order staging, and the installed
+   or rollback bundle; the final 10% is filesystem headroom. The measured values
+   and formula inputs are frozen in `storage_preflight.csv` before Plan 10-03.
+   [ASSUMED]
 
 ## Environment Availability
 
@@ -545,11 +580,20 @@ The exact numerical margins are discretion choices and should be treated as lock
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|--------------|
-| STAT-01 | Sparse design is nested; team effects remain ridge-shrunk; Elo can select to zero; unseen teams forecast globally; penalties use prior editions and are shared by tracks; predictions pair with all five baselines. [ASSUMED] | Unit + integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_penalized_poisson.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 |
-| STAT-02 | Date batches are row-order invariant, same-day results update only later dates, inactivity approaches the global effect, no cycle reset/window occurs, and both dynamic variants satisfy the adapter. [ASSUMED] | Unit + replay integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_dynamic_ability.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 |
-| STAT-03 | DC low cells and BP PMF are correct; `rho=0`/`q=0` recover independence; BP marginals equal shared means; parameters are prior-fit/fold-global/frozen; all grids normalize at G=40; representative rules are deterministic. [ASSUMED] | Unit + integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_dependence.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 |
-| STAT-04 | Full versus Elo-only ablation keeps identical panel/weights/fitter; inactive xG/form evidence is explicit; deeper nodes remain gated at zero coverage; manifests identify retained sets; NI rules ignore p-values. [ASSUMED] | Unit + integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_ablations.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 |
-| STAT-01..04 | Bundle has exact 630/609 comparison panels, both tracks, G=40 grids, parent hashes, deterministic reruns, candidate-by-five-baseline comparisons, and no promotion/WC2026 access. [ASSUMED] | End-to-end contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_challenger_pipeline.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 |
+| STAT-01 | Sparse identified design, centering, and cold-start behavior. [ASSUMED] | Unit | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_penalized_poisson_design.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-01) |
+| STAT-01 | Nested Elo boundary, exact prior-only tuning, poisoning, and all-baseline pairing. [ASSUMED] | Unit + integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_penalized_poisson_tuning.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-01) |
+| STAT-02 | Date-batch state, order invariance, decay, and continuous reversion. [ASSUMED] | Unit + replay | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_dynamic_state.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-10) |
+| STAT-02 | Nested Elo variant and prior-only dynamic tuning. [ASSUMED] | Unit + integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_dynamic_tuning.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-10) |
+| STAT-03 | DC/BP PMF oracles, marginals, shared means, and G=40. [ASSUMED] | Unit | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_dependence_pmf.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-10) |
+| STAT-03 | Prior-fit fold-global dependence parameters and poisoning. [ASSUMED] | Unit + integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_dependence_parameters.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-10) |
+| STAT-01..04 | Exact parent/hash/grid/chronology validation and executed pre-2002 diagnostic. [ASSUMED] | Registry protocol | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_registry_protocol.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Plan 10-09 |
+| STAT-03..04 | Exact ablation/selection/no-promotion/storage validation. [ASSUMED] | Registry protocol | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_storage_preflight.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Plan 10-09 |
+| STAT-04 | Hierarchy and inactive-feature provenance. [ASSUMED] | Unit | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_ablation_hierarchy.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-11) |
+| STAT-01..04 | Exact seven-candidate common adapter dispatch. [ASSUMED] | Integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_adapter_dispatch.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-11) |
+| STAT-04 | Practical non-inferiority and no significance rule. [ASSUMED] | Unit | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_ablation_selection.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-11) |
+| STAT-01..04 | Exact all-baseline evidence and research shortlist. [ASSUMED] | Integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_selection.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-11) |
+| STAT-01..04 | Parent-complete deterministic bundle and no-promotion/WC2026 boundary. [ASSUMED] | End-to-end contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_bundle.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-11) |
+| STAT-01..04 | Exact target manifest and forbidden ancestry. [ASSUMED] | Pipeline structure | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_statistical_targets.R", reporter="summary", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | ❌ Wave 0 (10-11) |
 
 ### Required Assertions Beyond Happy Paths
 
@@ -564,19 +608,18 @@ The exact numerical margins are discretion choices and should be treated as lock
 ### Sampling Rate
 
 - **Per task commit:** Run the owning new test file plus `test_benchmark_baselines.R` (~7.4 seconds observed). [VERIFIED: local test run; ASSUMED]
-- **Per wave merge:** Run all five Phase 10 tests plus existing benchmark contracts, cutoffs, scoring, pipeline, and seal tests. [ASSUMED]
+- **Per wave merge:** Run only the task-scoped Phase 10 tests whose owning production tasks are complete, plus the applicable existing benchmark contracts, cutoffs, scoring, pipeline, and seal tests named in `10-VALIDATION.md`. Do not run still-RED sibling tests from later tasks. [ASSUMED]
 - **Phase gate:** Run the full test suite, a fresh-process deterministic bundle validation, exact panel/count reconciliation, and Phase 9 parent-hash verification before `$gsd-verify-work`. [ASSUMED]
 
 ### Wave 0 Gaps
 
 - [ ] `tests/testthat/helper_statistical_challengers.R` — synthetic matches, fixed sparse levels, PMF oracle fixtures, and fold helpers. [ASSUMED]
-- [ ] `tests/testthat/test_statistical_penalized_poisson.R` — STAT-01. [ASSUMED]
-- [ ] `tests/testthat/test_statistical_dynamic_ability.R` — STAT-02. [ASSUMED]
-- [ ] `tests/testthat/test_statistical_dependence.R` — STAT-03. [ASSUMED]
-- [ ] `tests/testthat/test_statistical_ablations.R` — STAT-04. [ASSUMED]
-- [ ] `tests/testthat/test_statistical_challenger_pipeline.R` — cross-requirement bundle/chronology contract. [ASSUMED]
+- [ ] Plan 10-01: `helper_statistical_challengers.R`, penalized design, and penalized tuning task-scoped files. [ASSUMED]
+- [ ] Plan 10-10: dynamic state/tuning and dependence PMF/parameter task-scoped files. [ASSUMED]
+- [ ] Plan 10-11: ablation hierarchy, adapter dispatch, ablation selection, selection, bundle, targets, coverage runner, and exception registry. [ASSUMED]
+- [ ] Plan 10-09: registry-protocol and storage-preflight mutation suites owned with `challenger_protocol.R` and all seven Phase 10 registry/storage artifacts. [ASSUMED]
 - [ ] Install and verify `glmnet` 5.0, then record it in targets package declarations and manifests. [CITED: https://cran.r-project.org/package=glmnet; ASSUMED]
-- [ ] Measure one candidate score partition and lock the disk preflight threshold before the full run. [ASSUMED]
+- [ ] Plan 10-09 Task 2 generates the deterministic, format-identical 2,118,060-row pilot and freezes the measured `B`, `score_projection = 7 * B`, `one_bundle_projection = score_projection + max(1 GiB, ceiling(0.25 * score_projection))`, and `minimum_free_bytes = ceiling(3 * one_bundle_projection * 1.10)` before the full run. [ASSUMED]
 
 ## Security Domain
 
