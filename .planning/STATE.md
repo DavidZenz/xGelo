@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 10
 current_phase_name: Statistical Goal-Model Challengers
 status: executing
-stopped_at: Completed 10-11-PLAN.md
-last_updated: "2026-07-22T13:24:57.389Z"
+stopped_at: Completed 10-09-PLAN.md
+last_updated: "2026-07-22T13:52:35.831Z"
 last_activity: 2026-07-22
 last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 22
-  completed_plans: 15
+  completed_plans: 16
   percent: 40
 ---
 
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 10 (Statistical Goal-Model Challengers) — EXECUTING
-Plan: 5 of 11
+Plan: 6 of 11
 Status: Ready to execute
 Last activity: 2026-07-22 — Phase 10 execution started
 
@@ -92,6 +92,10 @@ dependence on paid data feeds.
 - [Phase 10]: Keep each RED file gated only by the production APIs owned by its downstream task. — Sibling tasks can turn GREEN independently without later APIs.
 - [Phase 10]: Use synthetic normal/reversed publication execution in Wave 0. — Historical benchmark execution remains reserved for the explicit Phase 10 gate.
 - [Phase 10]: Allow only reproducible whole-file coverage instrumentation exceptions. — Exact source, command, error hash, evidence, and review notes keep the 80-percent gate fail-closed.
+- [Phase 10]: Use normalized canonical Phase 9 model-registry SHA semantics — Cross-check the reconstructed identity against both checksum and run manifests.
+- [Phase 10]: Hash sorted exact match identities for every eligible inner edition — Retain strict inner-final-date before outer-opener-date chronology.
+- [Phase 10]: Keep deeper xG and form ablations present but inactive — All 20,160 relevant Phase 9 open-core evidence rows are source-absent, value-absent, imputed, and inactive.
+- [Phase 10]: Measure storage using deterministic high-entropy identifiers and normalized probabilities — Use the exact production score-distribution CSV schema and require byte-identical seeded gzip replays.
 
 ## Blockers
 
@@ -110,8 +114,8 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 
 ## Session
 
-**Last session:** 2026-07-22T13:24:57.382Z
-**Stopped at:** Completed 10-11-PLAN.md
+**Last session:** 2026-07-22T13:52:35.824Z
+**Stopped at:** Completed 10-09-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -130,3 +134,4 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 | Phase 10 P02 | 11 min | 1 tasks | 3 files |
 | Phase 10 P10 | 7m | 1 tasks | 4 files |
 | Phase 10 P11 | 9 min | 1 tasks | 8 files |
+| Phase 10 P09 | 20 min | 2 tasks | 10 files |

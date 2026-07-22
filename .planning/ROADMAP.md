@@ -103,14 +103,14 @@ where correlated or inactive predictors do not add out-of-sample value.
 
 **Depends on:** Phase 9
 
-**Plans:** 4/11 plans executed
+**Plans:** 5/11 plans executed
 
 Plans:
 **Wave 1**
 
 - [x] 10-01-PLAN.md — Create shared fixtures and penalized-Poisson Wave 0 contracts
 - [x] 10-02-PLAN.md — Verify official-CRAN dependency provenance and freeze the Phase 10 runtime environment
-- [ ] 10-09-PLAN.md — Freeze registries, grids, selection rules, and measured storage protocol
+- [x] 10-09-PLAN.md — Freeze registries, grids, selection rules, and measured storage protocol
 - [x] 10-10-PLAN.md — Create dynamic and dependence Wave 0 contracts
 - [x] 10-11-PLAN.md — Create ablation, adapter, selection, bundle, targets, and coverage Wave 0 contracts
 
@@ -216,7 +216,7 @@ information add stable value beyond the strongest statistical benchmark.
 |-------|----------------|--------|-----------|
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
-| 10. Statistical Goal-Model Challengers | 4/11 | In Progress|  |
+| 10. Statistical Goal-Model Challengers | 5/11 | In Progress|  |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |
 
