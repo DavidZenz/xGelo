@@ -278,7 +278,7 @@ test_that("candidate comparisons preserve every Phase 9 baseline fixture key", {
     ]
     expected_count <- if (baseline_id == "production_hybrid_nb") 609L else 630L
     expect_equal(nrow(rows), expected_count, info = baseline_id)
-    expect_setequal(rows$fixture_id, panel$fixture_id, info = baseline_id)
-    expect_false(anyDuplicated(rows$fixture_id), info = baseline_id)
+    expect_setequal(rows$fixture_id, panel$fixture_id)
+    expect_equal(anyDuplicated(rows$fixture_id), 0L, info = baseline_id)
   }
 })
