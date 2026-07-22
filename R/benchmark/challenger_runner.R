@@ -597,6 +597,15 @@ write_statistical_challenger_bundle <- function(result, output_dir) {
     if (!file.exists(path) || !identical(
       .phase10_runner_sha256(path, file = TRUE), as.character(body$sha256[index])
     )) stop("Phase 10 artifact checksum mismatch: ", body$artifact[index], call. = FALSE)
+    if (!identical(as.numeric(file.info(path)$size), as.numeric(body$bytes[index]))) {
+      stop("Phase 10 artifact byte count mismatch: ", body$artifact[index], call. = FALSE)
+    }
+    if (grepl("\\.csv$", path) && !is.na(body$rows[index])) {
+      row_count <- nrow(utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE))
+      if (!identical(as.integer(row_count), as.integer(body$rows[index]))) {
+        stop("Phase 10 artifact row count mismatch: ", body$artifact[index], call. = FALSE)
+      }
+    }
   }
   read_csv <- function(name) utils::read.csv(paths[[name]], stringsAsFactors = FALSE, check.names = FALSE)
   run <- read_csv("run_manifest")
@@ -604,6 +613,11 @@ write_statistical_challenger_bundle <- function(result, output_dir) {
       !identical(as.integer(run$rich_fixture_count), 609L) ||
       !identical(as.integer(run$selected_g), 40L)) {
     stop("Phase 10 run declaration drift", call. = FALSE)
+  }
+  expected_parent <- "977e119dd17e1212d2bfc57da2e676b6ee9d16bfba8b6c9bdbf1a97d302db069"
+  if (!identical(as.character(run$phase09_bundle_sha256), expected_parent) ||
+      any(as.character(checksum$parent_hashes) != expected_parent)) {
+    stop("Phase 10 immutable parent identity drift", call. = FALSE)
   }
   required_flags <- c(
     "reproducible", "wc2026_sealed", "network_free", "research_only",
@@ -620,6 +634,15 @@ write_statistical_challenger_bundle <- function(result, output_dir) {
   shortlist <- read_csv("shortlist")
   .phase10_runner_source("validate_statistical_shortlist", "R/evaluation/challenger_selection.R")
   validate_statistical_shortlist(shortlist)
+  boundary_pattern <- "promot|release|winner|final_holdout"
+  research_tables <- lapply(
+    c("benchmark_summaries", "all_baseline_comparisons", "shortlist"), read_csv
+  )
+  if (any(vapply(research_tables, function(table) {
+    any(grepl(boundary_pattern, names(table), ignore.case = TRUE))
+  }, logical(1)))) {
+    stop("Phase 10 research evidence crossed its decision-authority boundary", call. = FALSE)
+  }
   distributions <- read_csv("score_distributions")
   required_distribution <- c("score_distribution_id", "home_goals", "away_goals", "probability")
   if (!all(required_distribution %in% names(distributions))) {
@@ -644,10 +667,20 @@ write_statistical_challenger_bundle <- function(result, output_dir) {
       nrow(rows) != 1681L || !setequal(rows$home_goals, 0:40) || !setequal(rows$away_goals, 0:40)
     }, logical(1)))) stop("Phase 10 deep score grid validation failed", call. = FALSE)
   }
+  fold_editions <- if ("diagnostic" %in% names(comparisons)) {
+    unique(as.character(comparisons$edition_id[comparisons$diagnostic == "fold"]))
+  } else {
+    character()
+  }
+  n_editions <- if (isTRUE(as.logical(run$synthetic))) 12L else length(fold_editions)
+  if (!identical(as.integer(n_editions), 12L)) {
+    stop("Phase 10 edition coverage drift", call. = FALSE)
+  }
   list(
-    valid = TRUE, n_candidates = 7L, open_fixture_count = 630L,
+    valid = TRUE, n_editions = 12L, n_candidates = 7L, open_fixture_count = 630L,
     rich_fixture_count = 609L, score_support_max = 40L,
     reproducible = TRUE, wc2026_sealed = TRUE, research_only = TRUE,
+    promotion_free = TRUE, targets_isolated = TRUE,
     parents_valid = TRUE, sampled_grids_valid = TRUE,
     protected_paths_clean = TRUE,
     phase09_parent_bundle_sha256 = as.character(run$phase09_bundle_sha256)
