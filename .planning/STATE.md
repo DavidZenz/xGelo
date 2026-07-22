@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 10
 current_phase_name: Statistical Goal-Model Challengers
 status: executing
-stopped_at: Completed 10-10-PLAN.md
-last_updated: "2026-07-22T13:11:41.258Z"
+stopped_at: Completed 10-11-PLAN.md
+last_updated: "2026-07-22T13:24:57.389Z"
 last_activity: 2026-07-22
 last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 22
-  completed_plans: 14
+  completed_plans: 15
   percent: 40
 ---
 
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 10 (Statistical Goal-Model Challengers) — EXECUTING
-Plan: 4 of 11
+Plan: 5 of 11
 Status: Ready to execute
 Last activity: 2026-07-22 — Phase 10 execution started
 
@@ -89,6 +89,9 @@ dependence on paid data feeds.
 - [Phase 10]: Make each Wave 0 API gate abort its current test with one explicit missing-production-API message so RED evidence cannot be confused with scaffold errors.
 - [Phase 10]: Keep dynamic-state and dependence-PMF contracts independent of later sibling tuning, fold-parameter, and manifest APIs.
 - [Phase 10]: Use inherited benchmark distribution and market validators for every complete 0:40 dependence grid.
+- [Phase 10]: Keep each RED file gated only by the production APIs owned by its downstream task. — Sibling tasks can turn GREEN independently without later APIs.
+- [Phase 10]: Use synthetic normal/reversed publication execution in Wave 0. — Historical benchmark execution remains reserved for the explicit Phase 10 gate.
+- [Phase 10]: Allow only reproducible whole-file coverage instrumentation exceptions. — Exact source, command, error hash, evidence, and review notes keep the 80-percent gate fail-closed.
 
 ## Blockers
 
@@ -107,8 +110,8 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 
 ## Session
 
-**Last session:** 2026-07-22T13:11:41.251Z
-**Stopped at:** Completed 10-10-PLAN.md
+**Last session:** 2026-07-22T13:24:57.382Z
+**Stopped at:** Completed 10-11-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -126,3 +129,4 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 | Phase 10 P01 | 8 min | 1 tasks | 3 files |
 | Phase 10 P02 | 11 min | 1 tasks | 3 files |
 | Phase 10 P10 | 7m | 1 tasks | 4 files |
+| Phase 10 P11 | 9 min | 1 tasks | 8 files |
