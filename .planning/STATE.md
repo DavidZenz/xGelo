@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 10
 current_phase_name: Statistical Goal-Model Challengers
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-07-22T12:28:32.023Z"
-last_activity: 2026-07-21
-last_activity_desc: Phase 09 complete, transitioned to Phase 10
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-07-22T12:59:51.178Z"
+last_activity: 2026-07-22
+last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 2
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 22
+  completed_plans: 13
   percent: 40
 ---
 
@@ -21,10 +21,10 @@ progress:
 
 ## Current Position
 
-Phase: 10 (Statistical Goal-Model Challengers) — READY FOR DISCUSSION
-Plan: Not planned
+Phase: 10 (Statistical Goal-Model Challengers) — EXECUTING
+Plan: 3 of 11
 Status: Ready to execute
-Last activity: 2026-07-21 — Phase 09 complete, transitioned to Phase 10
+Last activity: 2026-07-22 — Phase 10 execution started
 
 Progress: [████------] 40%
 
@@ -48,7 +48,7 @@ milestone scope.
 **Core value:** Accurate, calibrated international-football forecasting without
 dependence on paid data feeds.
 
-**Current focus:** Phase 10 statistical goal-model challenger discussion and planning.
+**Current focus:** Phase 10 — Statistical Goal-Model Challengers
 
 ## Decisions
 
@@ -82,6 +82,10 @@ dependence on paid data feeds.
 - [Phase 09]: Preserve the accepted seal until staged pre-validation and post-install validation both succeed. — Unique staging plus retained rollback backup prevents an invalid candidate from displacing the known-good bundle.
 - [Phase 09]: Evaluate canonical promotion decisions from CSV-persisted numeric views. — Durable read-back is the authority and eliminates sub-precision evaluator/hash drift.
 - [Phase 09]: Require fresh-process bundle acceptance with explicit validator dependencies. — Ambient producer-session state cannot serve as standalone validation evidence.
+- [Phase 10]: Keep Plan 10-03 Task 1 design contracts free of Task 2 tuning, Elo-offset, and manifest APIs. — This preserves independent RED-to-GREEN ownership for the two production tasks.
+- [Phase 10]: Install the official glmnet 5.0 source archive into the ignored project-local Phase 10 library with dependencies disabled. — One retained verified artifact prevents unrelated dependency updates and supports offline replay.
+- [Phase 10]: Use official PACKAGES.gz bytes plus the selected package-row hash as repository identity, with C++17 read from the checksum-verified archive DESCRIPTION. — CRAN source index metadata omits SystemRequirements while the verified source DESCRIPTION retains it.
+- [Phase 10]: Require complete Phase 9 output hashes, checksum self-hash, parent graph, sealed run flags, and bundle SHA before challenger work. — Manifest declarations alone cannot detect output-byte tampering.
 
 ## Blockers
 
@@ -100,9 +104,9 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 
 ## Session
 
-**Last session:** 2026-07-22T09:36:18.456Z
-**Stopped at:** Phase 10 context gathered
-**Resume file:** .planning/phases/10-statistical-goal-model-challengers/10-CONTEXT.md
+**Last session:** 2026-07-22T12:59:35.577Z
+**Stopped at:** Completed 10-02-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -116,3 +120,5 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 | Phase 09 P06 | 56min | 2 tasks | 7 files |
 | Phase 09 P07 | 36min | 2 tasks | 4 files |
 | Phase 09 P08 | 1h 22m | 2 tasks | 9 files |
+| Phase 10 P01 | 8 min | 1 tasks | 3 files |
+| Phase 10 P02 | 11 min | 1 tasks | 3 files |

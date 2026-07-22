@@ -24,10 +24,10 @@
 
 ### Statistical Challengers
 
-- [ ] **STAT-01**: The analyst can benchmark a team-specific penalized Poisson model against the registered baselines.
-- [ ] **STAT-02**: The analyst can benchmark dynamic attack and defence ratings whose updates use only prior matches.
-- [ ] **STAT-03**: The analyst can compare Dixon-Coles and bivariate-Poisson score-dependence corrections under the common benchmark contract.
-- [ ] **STAT-04**: The analyst can run controlled ablations of the incumbent model's correlated predictors and identify each retained feature set.
+- [x] **STAT-01**: The analyst can benchmark a team-specific penalized Poisson model against the registered baselines.
+- [x] **STAT-02**: The analyst can benchmark dynamic attack and defence ratings whose updates use only prior matches.
+- [x] **STAT-03**: The analyst can compare Dixon-Coles and bivariate-Poisson score-dependence corrections under the common benchmark contract.
+- [x] **STAT-04**: The analyst can run controlled ablations of the incumbent model's correlated predictors and identify each retained feature set.
 
 ### Hybrid Models and Features
 
@@ -81,10 +81,10 @@ Each active v2.0 requirement maps to exactly one roadmap phase.
 | BENCH-03 | 9 | Complete |
 | BENCH-04 | 9 | Complete |
 | BENCH-05 | 9 | Complete |
-| STAT-01 | 10 | Pending |
-| STAT-02 | 10 | Pending |
-| STAT-03 | 10 | Pending |
-| STAT-04 | 10 | Pending |
+| STAT-01 | 10 | Complete |
+| STAT-02 | 10 | Complete |
+| STAT-03 | 10 | Complete |
+| STAT-04 | 10 | Complete |
 | HYBRID-01 | 11 | Pending |
 | HYBRID-02 | 11 | Pending |
 | HYBRID-03 | 11 | Pending |
