@@ -83,7 +83,10 @@ test_that("canonical candidate, grid, and chronology definitions are exact", {
   expect_identical(unique(relations$inner_edition_id[relations$inner_source == "pre2002_diagnostic"]),
                    c("wc1994", "euro1996", "wc1998", "euro2000"))
   expect_true(all(as.Date(relations$inner_final_date) < as.Date(relations$outer_opener_date)))
-  expect_identical(as.integer(table(relations$outer_edition_id)), 4:15)
+  expect_identical(
+    as.integer(table(factor(relations$outer_edition_id, levels = constants$outer_edition_ids))),
+    4:15
+  )
 })
 
 test_that("untouched Task 1 files validate and inherited feature rows remain exact", {
