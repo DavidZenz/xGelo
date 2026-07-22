@@ -118,3 +118,72 @@ test_that("normal and reversed synthetic runs reconcile before atomic publicatio
   expect_identical(first$declared_rich_fixture_count, 609L)
   expect_identical(first$declared_support_max, 40L)
 })
+
+synthetic_challenger_result <- function() {
+  engine <- function(candidate_order, ...) {
+    list(
+      candidates = data.frame(
+        candidate_id = candidate_order,
+        artifact_sha256 = vapply(candidate_order, function(id) {
+          digest::digest(id, algo = "sha256", serialize = FALSE)
+        }, character(1)),
+        stringsAsFactors = FALSE
+      ),
+      declared_open_fixture_count = 630L,
+      declared_rich_fixture_count = 609L,
+      declared_support_max = 40L
+    )
+  }
+  run_statistical_challenger_benchmark(
+    execution_engine = engine, synthetic = TRUE, publish = FALSE
+  )
+}
+
+test_that("synthetic bundle round-trips through checksums and deep contracts", {
+  output <- tempfile("phase10-synthetic-bundle-")
+  on.exit(unlink(output, recursive = TRUE), add = TRUE)
+  result <- synthetic_challenger_result()
+  installed <- write_statistical_challenger_bundle(result, output)
+  expect_true(installed$valid)
+  expect_identical(installed$n_candidates, 7L)
+  expect_identical(installed$open_fixture_count, 630L)
+  expect_identical(installed$rich_fixture_count, 609L)
+  expect_identical(installed$score_support_max, 40L)
+  expect_true(installed$reproducible)
+  expect_true(installed$wc2026_sealed)
+  expect_true(installed$research_only)
+  expect_true(installed$protected_paths_clean)
+  expect_true(smoke_statistical_challenger_bundle(output)$sampled_grids_valid)
+  expect_true(validate_statistical_challenger_bundle(output)$valid)
+})
+
+test_that("tampering is rejected and a failed stage cannot replace accepted evidence", {
+  output <- tempfile("phase10-atomic-bundle-")
+  on.exit(unlink(output, recursive = TRUE), add = TRUE)
+  result <- synthetic_challenger_result()
+  write_statistical_challenger_bundle(result, output)
+  accepted_manifest <- digest::digest(
+    file = phase10_output_paths(output)[["checksum_manifest"]],
+    algo = "sha256", serialize = FALSE
+  )
+
+  invalid <- result
+  invalid$candidates <- invalid$candidates[-1L, , drop = FALSE]
+  expect_error(
+    write_statistical_challenger_bundle(invalid, output),
+    "candidate identity"
+  )
+  expect_identical(
+    digest::digest(
+      file = phase10_output_paths(output)[["checksum_manifest"]],
+      algo = "sha256", serialize = FALSE
+    ),
+    accepted_manifest
+  )
+
+  shortlist_path <- phase10_output_paths(output)[["shortlist"]]
+  shortlist <- read.csv(shortlist_path, stringsAsFactors = FALSE, check.names = FALSE)
+  shortlist$non_exclusive[1] <- FALSE
+  write.csv(shortlist, shortlist_path, row.names = FALSE, na = "")
+  expect_error(smoke_statistical_challenger_bundle(output), "checksum mismatch")
+})
