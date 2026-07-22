@@ -4,6 +4,7 @@ project_root <- normalizePath(file.path(getwd(), if (basename(getwd()) == "testt
 source(file.path(project_root, "tests/testthat/helper_statistical_challengers.R"))
 source(file.path(project_root, "R/evaluation/proper_scores.R"))
 source(file.path(project_root, "R/evaluation/benchmark_scores.R"))
+source(file.path(project_root, "R/benchmark/contracts.R"))
 selection_module <- file.path(project_root, "R/evaluation/challenger_selection.R")
 if (file.exists(selection_module)) source(selection_module)
 
@@ -94,6 +95,35 @@ test_that("dependence representative prefers Dixon-Coles under a practical tie",
   expect_identical(no_gain$preferred_candidate_id, "poisson_team_ridge_elo")
 })
 
+test_that("dependence selection enforces exact gain and every supporting veto boundary", {
+  require_statistical_selection_api()
+  evidence <- data.frame(
+    candidate_id = c(
+      "poisson_team_ridge_elo", "poisson_team_ridge_elo_dc",
+      "poisson_team_ridge_elo_bivpois"
+    ),
+    updating_rps_delta = c(0, -0.0015, -0.001),
+    brier_veto = FALSE, log_loss_veto = FALSE, calibration_veto = FALSE,
+    fold_breadth_veto = FALSE, stability_veto = FALSE,
+    stringsAsFactors = FALSE
+  )
+  at_tie <- select_dependence_representative(evidence, -0.001, 0.0005)
+  expect_identical(at_tie$representative_id, "poisson_team_ridge_elo_dc")
+  expect_true(at_tie$meaningful_gain)
+
+  veto_columns <- c(
+    "brier_veto", "log_loss_veto", "calibration_veto",
+    "fold_breadth_veto", "stability_veto"
+  )
+  for (column in veto_columns) {
+    vetoed <- evidence
+    vetoed[[column]][2] <- TRUE
+    selected <- select_dependence_representative(vetoed, -0.001, 0.0005)
+    expect_identical(selected$representative_id, "poisson_team_ridge_elo_bivpois")
+    expect_identical(selected$preferred_candidate_id, "poisson_team_ridge_elo_bivpois")
+  }
+})
+
 test_that("shortlist is research-only, ordered, non-exclusive, and evidence-linked", {
   require_statistical_selection_api()
   evidence <- data.frame(
@@ -116,4 +146,12 @@ test_that("shortlist is research-only, ordered, non-exclusive, and evidence-link
   forbidden <- "promotion|release|winner|final_holdout|wc2026"
   expect_false(any(grepl(forbidden, names(shortlist), ignore.case = TRUE)))
   expect_false(any(grepl(forbidden, unlist(shortlist), ignore.case = TRUE)))
+
+  replay <- build_statistical_shortlist(
+    evidence[rev(seq_len(nrow(evidence))), , drop = FALSE],
+    dependence_representative = "poisson_team_ridge_elo_dc"
+  )
+  expect_identical(replay, shortlist)
+  source_text <- paste(readLines(selection_module, warn = FALSE), collapse = "\n")
+  expect_false(grepl("evaluate_promotion\\s*\\(", source_text))
 })
