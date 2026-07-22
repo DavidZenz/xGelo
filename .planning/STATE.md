@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 10
 current_phase_name: Statistical Goal-Model Challengers
 status: executing
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-07-22T14:14:12.959Z"
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-07-22T14:28:57.682Z"
 last_activity: 2026-07-22
 last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 22
-  completed_plans: 17
+  completed_plans: 18
   percent: 40
 ---
 
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 10 (Statistical Goal-Model Challengers) — EXECUTING
-Plan: 7 of 11
+Plan: 8 of 11
 Status: Ready to execute
 Last activity: 2026-07-22 — Phase 10 execution started
 
@@ -99,6 +99,9 @@ dependence on paid data feeds.
 - [Phase 10]: Plan 10-03: Treat registered zero-prior and unseen teams as global-zero centered effects while retaining full sparse coefficient blocks and cold-start evidence.
 - [Phase 10]: Plan 10-03: Fit canonical Elo only as a no-intercept lasso increment over the immutable centered team-model predictor, preserving exact nesting at zero.
 - [Phase 10]: Plan 10-03: Select ridge then Elo penalties from equal-weight completed prior tournaments and reuse one settings identity across frozen and updating tracks.
+- [Phase 10]: Represent dynamic evidence as decayed GF, GA, and W sufficient statistics while keeping global pseudo-exposure fixed. — This makes inactivity continuously remove team effects without deleting historical match counts or resetting tournament cycles.
+- [Phase 10]: Select dynamic pseudo-exposure by equal-weight completed-prior-tournament updating RPS with the largest pseudo-exposure tie-break. — One deterministic setting identity is selected without assessed-tournament labels and reused across frozen and updating tracks.
+- [Phase 10]: Fit Elo only as one signed adapter-supplied point-in-time increment over immutable standalone dynamic log-means. — This preserves exact nesting and prohibits raw rating reads, reconstruction, and nearest-date model-layer lookups.
 
 ## Blockers
 
@@ -117,8 +120,8 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 
 ## Session
 
-**Last session:** 2026-07-22T14:14:12.951Z
-**Stopped at:** Completed 10-03-PLAN.md
+**Last session:** 2026-07-22T14:28:57.675Z
+**Stopped at:** Completed 10-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -139,3 +142,4 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 | Phase 10 P11 | 9 min | 1 tasks | 8 files |
 | Phase 10 P09 | 20 min | 2 tasks | 10 files |
 | Phase 10 P03 | 15 min | 2 tasks | 2 files |
+| Phase 10 P04 | 9 min | 2 tasks | 1 files |
