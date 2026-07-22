@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "protocol_version": "phase10-d11-d16-v1",
+  "protocol_sha256": "e89521cd074b19988898e39961585888d87e4a2f4c9fdfc9c11c242faa168192",
+  "primary_metric": {
+    "id": "tournament_weighted_rps",
+    "direction": "lower",
+    "delta_direction": "challenger_minus_reference",
+    "primary_track": "updating"
+  },
+  "thresholds": {
+    "dependence_meaningful_rps_delta": {
+      "operator": "<=",
+      "value": -0.001
+    },
+    "practical_tie": {
+      "operator": "abs<=",
+      "value": 0.00050000000000000001
+    },
+    "simpler_noninferiority": {
+      "operator": "<=",
+      "value": 0.001
+    },
+    "brier_relative": {
+      "operator": "<=",
+      "value": 0.01
+    },
+    "log_relative": {
+      "operator": "<=",
+      "value": 0.01
+    },
+    "calibration": {
+      "operator": "<=",
+      "value": 0.01
+    },
+    "maximum_fold_regression": {
+      "operator": "<=",
+      "value": 0.014999999999999999
+    },
+    "fold_wins": {
+      "operator": ">=",
+      "value": 8
+    },
+    "world_cup_wins": {
+      "operator": ">=",
+      "value": 2
+    },
+    "euro_wins": {
+      "operator": ">=",
+      "value": 2
+    }
+  },
+  "fold_breadth": {
+    "development_editions": [
+      "wc2002",
+      "euro2004",
+      "wc2006",
+      "euro2008",
+      "wc2010",
+      "euro2012",
+      "wc2014",
+      "euro2016",
+      "wc2018",
+      "euro2020",
+      "wc2022",
+      "euro2024"
+    ],
+    "edition_count": 12,
+    "world_cup_count": 6,
+    "euro_count": 6,
+    "tournament_weighting": "equal",
+    "ties_count_as_wins": false
+  },
+  "shortlist": {
+    "slots": [
+      "best_proper_score",
+      "simplest_non_inferior",
+      "dependence_representative"
+    ],
+    "non_exclusive": true,
+    "best_proper_score_rule": "lowest_valid_tournament_weighted_updating_rps",
+    "simplest_rule": "lowest_complexity_rank_within_noninferiority_and_without_veto",
+    "dependence_rule": "best_valid_dependence_rps_with_dixon_coles_practical_tie_preference"
+  },
+  "supporting_vetoes": [
+    "brier_relative",
+    "log_relative",
+    "calibration",
+    "maximum_fold_regression"
+  ],
+  "dependence": {
+    "shared_mean_parent": "poisson_team_ridge_elo",
+    "ordered_candidates": [
+      "poisson_team_ridge_elo_dc",
+      "poisson_team_ridge_elo_bivpois"
+    ],
+    "practical_tie_preference": "poisson_team_ridge_elo_dc",
+    "no_meaningful_gain_preference": "poisson_team_ridge_elo"
+  },
+  "ablation": {
+    "root": "open_nb_incumbent",
+    "scored_child": "open_nb_elo_only_ablation",
+    "inactive_children": [
+      "attack_xg",
+      "defence_xg",
+      "xgd",
+      "form"
+    ],
+    "inactive_reason": "phase09_open_core_source_and_value_coverage_zero"
+  },
+  "governance": {
+    "scope": "research_shortlist_only",
+    "decision_authority": "phase12",
+    "downstream_decision_surface": "absent",
+    "evaluator_callback": "unreachable"
+  },
+  "source_paths": [
+    "data/benchmark/phase10/model_registry.csv",
+    "data/benchmark/phase10/ablation_registry.csv",
+    "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/scores/benchmark_summaries.csv"
+  ]
+}

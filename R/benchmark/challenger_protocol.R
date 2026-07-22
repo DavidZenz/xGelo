@@ -121,7 +121,10 @@ phase10_protocol_constants <- function() {
     ),
     pre2002_edition_ids = c("wc1994", "euro1996", "wc1998", "euro2000"),
     score_support_max = 40L,
-    pre2002_history_rows = 26134L
+    pre2002_history_rows = 26134L,
+    storage_pilot_compressed_bytes = 27170610,
+    storage_pilot_content_sha256 = "eb13096422d8482a4ca1450277e31ff516b09a932529d9248e4c0be265075f1f",
+    storage_pilot_available_bytes = 17110360064
   )
 }
 
@@ -366,7 +369,10 @@ canonical_phase10_tuning_relations <- function() {
 validate_phase09_parent_identity <- function() {
   if (exists("phase09_parent", .phase10_cache, inherits = FALSE)) return(get("phase09_parent", .phase10_cache))
   if (!exists("require_challenger_environment", mode = "function")) {
-    stop("require_challenger_environment() must be sourced before parent validation", call. = FALSE)
+    source(.phase10_project_path("R", "benchmark", "challenger_preflight.R"), local = globalenv())
+  }
+  if (!exists("require_challenger_environment", mode = "function")) {
+    stop("require_challenger_environment() is unavailable for parent validation", call. = FALSE)
   }
   constants <- phase10_protocol_constants()
   environment <- require_challenger_environment("data/benchmark/phase10/glmnet_provenance.csv")
@@ -468,6 +474,483 @@ validate_phase09_parent_identity <- function() {
   .phase10_write_csv(canonical_phase10_tuning_relations(), file.path(protocol_dir, "tuning_editions.csv"))
   .phase10_write_csv(canonical_phase10_tuning_grid(), file.path(protocol_dir, "tuning_grid.csv"))
   .phase10_validate_task1_files(protocol_dir)
+}
+
+.phase10_zero_coverage_facts <- function() {
+  cache_key <- "zero_coverage_facts"
+  if (exists(cache_key, .phase10_cache, inherits = FALSE)) return(get(cache_key, .phase10_cache))
+  path <- .phase10_project_path(
+    "outputs", "benchmarks", "rolling_tournaments", "phase09-baselines-frozen",
+    "manifests", "feature_coverage.csv"
+  )
+  coverage <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  features <- c("xgf_ewma_diff", "xga_ewma_diff", "xgd_ewma_diff", "form_index_diff")
+  rows <- coverage[coverage$panel_id == "open_core" & coverage$feature_id %in% features, , drop = FALSE]
+  expected_rows <- 4L * 5040L
+  if (nrow(rows) != expected_rows || !setequal(rows$feature_id, features) ||
+      any(as.logical(rows$source_present)) || any(as.logical(rows$value_present)) ||
+      any(!as.logical(rows$imputed)) || any(as.logical(rows$active_in_fit)) ||
+      any(rows$imputation_reason != "missing_source_row")) {
+    stop("Phase 10 ablation zero-coverage parent evidence drift", call. = FALSE)
+  }
+  facts <- list(
+    valid = TRUE,
+    rows = nrow(rows),
+    rows_per_feature = as.integer(table(factor(rows$feature_id, levels = features))),
+    sha256 = .phase10_sha256(path, file = TRUE)
+  )
+  expected_sha <- "07ff58a4c559ddd04ee873e911efbd7014bdae9b4417e3f6db4a21d3d99c9f29"
+  if (!identical(facts$sha256, expected_sha)) {
+    stop("Phase 10 ablation coverage artifact SHA-256 drift", call. = FALSE)
+  }
+  assign(cache_key, facts, .phase10_cache)
+  facts
+}
+
+.canonical_phase10_ablation_registry <- function() {
+  evidence <- .phase10_zero_coverage_facts()
+  registry <- data.frame(
+    schema_version = rep("1.0", 6L),
+    node_order = as.character(1:6),
+    ablation_id = c(
+      "open_nb_incumbent", "open_nb_elo_only_ablation", "attack_xg",
+      "defence_xg", "xgd", "form"
+    ),
+    parent_candidate_id = c("", rep("open_nb_incumbent", 5L)),
+    feature_block_id = c("full_incumbent", "elo_only", "attack_xg", "defence_xg", "xgd", "form"),
+    retained_features = c(
+      "elo_diff|xgf_ewma_diff|xga_ewma_diff|xgd_ewma_diff|form_index_diff",
+      "elo_diff", "elo_diff|xga_ewma_diff|xgd_ewma_diff|form_index_diff",
+      "elo_diff|xgf_ewma_diff|xgd_ewma_diff|form_index_diff",
+      "elo_diff|xgf_ewma_diff|xga_ewma_diff|form_index_diff",
+      "elo_diff|xgf_ewma_diff|xga_ewma_diff|xgd_ewma_diff"
+    ),
+    removed_features = c("", "xgf_ewma_diff|xga_ewma_diff|xgd_ewma_diff|form_index_diff", "xgf_ewma_diff", "xga_ewma_diff", "xgd_ewma_diff", "form_index_diff"),
+    activation_status = c("reference_parent", "scored", rep("not_activated_zero_coverage", 4L)),
+    activation_reason = c(
+      "phase09_registered_full_incumbent", "registered_level_one_ablation",
+      rep("phase09_open_core_source_and_value_coverage_zero", 4L)
+    ),
+    source_present = c("false", "false", rep("false", 4L)),
+    value_present = c("false", "false", rep("false", 4L)),
+    imputed = c("true", "true", rep("true", 4L)),
+    active_in_fit = c("true", "true", rep("false", 4L)),
+    complexity_rank = c("5", "1", "4", "4", "4", "4"),
+    coverage_evidence_rows = rep(as.character(evidence$rows), 6L),
+    coverage_evidence_sha256 = rep(evidence$sha256, 6L),
+    settings_sha256 = "",
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  settings_fields <- setdiff(names(registry), c("settings_sha256", "row_sha256"))
+  registry$settings_sha256 <- .phase10_subset_sha256(registry, settings_fields)
+  registry$row_sha256 <- .phase10_row_sha256(registry, "row_sha256")
+  registry
+}
+
+.phase10_sort_json <- function(value) {
+  if (!is.list(value)) return(value)
+  named <- !is.null(names(value)) && length(names(value)) && all(nzchar(names(value)))
+  if (named) value <- value[sort(names(value), method = "radix")]
+  lapply(value, .phase10_sort_json)
+}
+
+.phase10_canonical_json <- function(protocol) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite is required for Phase 10 selection protocol validation", call. = FALSE)
+  }
+  protocol$protocol_sha256 <- NULL
+  as.character(jsonlite::toJSON(
+    .phase10_sort_json(protocol), auto_unbox = TRUE, null = "null", na = "null",
+    digits = 17, pretty = FALSE, force = TRUE
+  ))
+}
+
+.phase10_protocol_sha256 <- function(protocol) .phase10_sha256(.phase10_canonical_json(protocol))
+
+#' Build the canonical research-only Phase 10 selection protocol
+#'
+#' @return Nested list with exact rules and self-checksum.
+#' @export
+canonical_phase10_selection_protocol <- function() {
+  protocol <- list(
+    schema_version = "1.0",
+    protocol_version = "phase10-d11-d16-v1",
+    protocol_sha256 = "",
+    primary_metric = list(
+      id = "tournament_weighted_rps", direction = "lower",
+      delta_direction = "challenger_minus_reference", primary_track = "updating"
+    ),
+    thresholds = list(
+      dependence_meaningful_rps_delta = list(operator = "<=", value = -0.001),
+      practical_tie = list(operator = "abs<=", value = 0.0005),
+      simpler_noninferiority = list(operator = "<=", value = 0.001),
+      brier_relative = list(operator = "<=", value = 0.01),
+      log_relative = list(operator = "<=", value = 0.01),
+      calibration = list(operator = "<=", value = 0.01),
+      maximum_fold_regression = list(operator = "<=", value = 0.015),
+      fold_wins = list(operator = ">=", value = 8L),
+      world_cup_wins = list(operator = ">=", value = 2L),
+      euro_wins = list(operator = ">=", value = 2L)
+    ),
+    fold_breadth = list(
+      development_editions = as.list(phase10_protocol_constants()$outer_edition_ids),
+      edition_count = 12L, world_cup_count = 6L, euro_count = 6L,
+      tournament_weighting = "equal", ties_count_as_wins = FALSE
+    ),
+    shortlist = list(
+      slots = as.list(c("best_proper_score", "simplest_non_inferior", "dependence_representative")),
+      non_exclusive = TRUE,
+      best_proper_score_rule = "lowest_valid_tournament_weighted_updating_rps",
+      simplest_rule = "lowest_complexity_rank_within_noninferiority_and_without_veto",
+      dependence_rule = "best_valid_dependence_rps_with_dixon_coles_practical_tie_preference"
+    ),
+    supporting_vetoes = as.list(c("brier_relative", "log_relative", "calibration", "maximum_fold_regression")),
+    dependence = list(
+      shared_mean_parent = "poisson_team_ridge_elo",
+      ordered_candidates = as.list(c("poisson_team_ridge_elo_dc", "poisson_team_ridge_elo_bivpois")),
+      practical_tie_preference = "poisson_team_ridge_elo_dc",
+      no_meaningful_gain_preference = "poisson_team_ridge_elo"
+    ),
+    ablation = list(
+      root = "open_nb_incumbent", scored_child = "open_nb_elo_only_ablation",
+      inactive_children = as.list(c("attack_xg", "defence_xg", "xgd", "form")),
+      inactive_reason = "phase09_open_core_source_and_value_coverage_zero"
+    ),
+    governance = list(
+      scope = "research_shortlist_only", decision_authority = "phase12",
+      downstream_decision_surface = "absent", evaluator_callback = "unreachable"
+    ),
+    source_paths = as.list(c(
+      "data/benchmark/phase10/model_registry.csv",
+      "data/benchmark/phase10/ablation_registry.csv",
+      "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/scores/benchmark_summaries.csv"
+    ))
+  )
+  protocol$protocol_sha256 <- .phase10_protocol_sha256(protocol)
+  protocol
+}
+
+.phase10_recursive_strings <- function(value, prefix = "") {
+  results <- character()
+  if (!is.null(names(value))) {
+    keys <- names(value)
+    results <- c(results, paste0(prefix, keys))
+  }
+  if (is.list(value)) {
+    for (index in seq_along(value)) {
+      name <- if (!is.null(names(value)) && nzchar(names(value)[index])) names(value)[index] else as.character(index)
+      results <- c(results, .phase10_recursive_strings(value[[index]], paste0(prefix, name, ".")))
+    }
+  } else if (is.character(value)) {
+    results <- c(results, value)
+  }
+  results
+}
+
+.phase10_validate_no_decision_surface <- function(protocol) {
+  values <- tolower(.phase10_recursive_strings(protocol))
+  forbidden <- "promot|release|final[_ .-]?holdout|eligible[_ .-]?for[_ .-]?final|wc.?2026|world cup 2026"
+  bad <- values[grepl(forbidden, values, perl = TRUE)]
+  if (length(bad)) stop("Phase 10 selection protocol contains forbidden decision surface: ", bad[1], call. = FALSE)
+  invisible(TRUE)
+}
+
+.phase10_threshold_vector <- function(protocol) {
+  rules <- protocol$thresholds
+  values <- c(
+    dependence_rps_gain = rules$dependence_meaningful_rps_delta$value,
+    practical_tie = rules$practical_tie$value,
+    simpler_noninferiority = rules$simpler_noninferiority$value,
+    brier_relative = rules$brier_relative$value,
+    log_relative = rules$log_relative$value,
+    calibration = rules$calibration$value,
+    maximum_fold_regression = rules$maximum_fold_regression$value,
+    fold_wins = rules$fold_wins$value,
+    world_cup_wins = rules$world_cup_wins$value,
+    euro_wins = rules$euro_wins$value
+  )
+  as.numeric(values) |> stats::setNames(names(values))
+}
+
+.phase10_validate_selection_protocol <- function(protocol) {
+  if (!is.list(protocol)) stop("Phase 10 selection protocol must be a JSON object", call. = FALSE)
+  .phase10_validate_no_decision_surface(protocol)
+  actual_hash <- tolower(as.character(protocol$protocol_sha256))
+  if (length(actual_hash) != 1L || !grepl("^[0-9a-f]{64}$", actual_hash) ||
+      !identical(actual_hash, .phase10_protocol_sha256(protocol))) {
+    stop("Phase 10 selection protocol SHA-256 mismatch", call. = FALSE)
+  }
+  expected <- canonical_phase10_selection_protocol()
+  if (!identical(.phase10_canonical_json(protocol), .phase10_canonical_json(expected))) {
+    stop("Phase 10 selection protocol canonical content or order drift", call. = FALSE)
+  }
+  slots <- unname(unlist(protocol$shortlist$slots, use.names = FALSE))
+  if (!identical(slots, c("best_proper_score", "simplest_non_inferior", "dependence_representative"))) {
+    stop("Phase 10 shortlist order drift", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+.phase10_validate_ablation_registry <- function(data) {
+  expected <- .canonical_phase10_ablation_registry()
+  if (!identical(names(data), names(expected))) stop("Ablation registry Phase 10 schema drift", call. = FALSE)
+  settings_fields <- setdiff(names(data), c("settings_sha256", "row_sha256"))
+  .phase10_validate_hash(data, "settings_sha256", "Ablation registry", settings_fields)
+  .phase10_validate_hash(data, "row_sha256", "Ablation registry")
+  if (anyDuplicated(data$ablation_id)) stop("Ablation registry Phase 10 duplicate node", call. = FALSE)
+  for (node in data$ablation_id) {
+    seen <- character()
+    current <- node
+    repeat {
+      parent <- data$parent_candidate_id[match(current, data$ablation_id)]
+      if (!length(parent) || is.na(parent) || !nzchar(parent) || !parent %in% data$ablation_id) break
+      if (parent %in% seen || identical(parent, node)) stop("Ablation registry Phase 10 graph cycle", call. = FALSE)
+      seen <- c(seen, parent)
+      current <- parent
+    }
+  }
+  .phase10_assert_exact(data, expected, "Ablation registry")
+}
+
+.phase10_storage_columns <- function() {
+  c(
+    "schema_version", "pilot_format", "fixture_count", "track_count", "distribution_count",
+    "support_max", "rows_per_distribution", "pilot_row_count", "compressed_bytes",
+    "score_projection_factor", "score_projection", "headroom_fraction", "headroom_floor_bytes",
+    "one_bundle_projection", "bundle_copy_count", "filesystem_headroom_multiplier",
+    "minimum_free_bytes", "worker_ceiling", "measured_available_bytes", "schema_sha256",
+    "generator_sha256", "content_sha256", "deterministic_replay_sha256",
+    "cardinality_valid", "formula_valid", "free_space_pass", "row_sha256"
+  )
+}
+
+.phase10_storage_schema_sha256 <- function() {
+  schema <- paste(c(
+    "score_distribution_id:character", "home_goals:integer", "away_goals:integer",
+    "probability:numeric", "support_max_home:integer", "support_max_away:integer",
+    "raw_tail_mass:numeric", "normalized:logical"
+  ), collapse = "|")
+  .phase10_sha256(schema)
+}
+
+.phase10_storage_generator_sha256 <- function() {
+  .phase10_sha256(paste(c(
+    "phase10-storage-pilot-v1", "seed=1009001", "fixtures=630", "tracks=frozen|updating",
+    "support=0:40x0:40", "raw=runif-normalized-per-distribution", "csv=write.table-quote",
+    "gzip=level9", "ids=sha256(seed|track|fixture)"
+  ), collapse = "|"))
+}
+
+.phase10_available_bytes <- function(path = ".") {
+  output <- suppressWarnings(system2("df", c("-Pk", normalizePath(path, mustWork = TRUE)), stdout = TRUE, stderr = TRUE))
+  if (length(output) < 2L) stop("Phase 10 storage preflight could not measure free space", call. = FALSE)
+  fields <- strsplit(trimws(output[length(output)]), "[[:space:]]+")[[1]]
+  kilobytes <- suppressWarnings(as.numeric(fields[4]))
+  if (!is.finite(kilobytes) || kilobytes < 0) stop("Phase 10 storage preflight free-space result is invalid", call. = FALSE)
+  kilobytes * 1024
+}
+
+.phase10_write_storage_pilot <- function(path) {
+  set.seed(1009001L)
+  connection <- gzfile(path, open = "wb", compression = 9)
+  on.exit(close(connection), add = TRUE)
+  tracks <- c("frozen", "updating")
+  grid <- expand.grid(home_goals = 0:40, away_goals = 0:40)
+  first <- TRUE
+  for (track in tracks) {
+    for (fixture in seq_len(630L)) {
+      raw <- stats::runif(nrow(grid), min = 1e-9, max = 1)
+      id <- paste0(
+        "phase10_storage_pilot__", track, "__",
+        .phase10_sha256(paste(1009001L, track, fixture, sep = "|")), "__score"
+      )
+      rows <- data.frame(
+        score_distribution_id = id,
+        home_goals = grid$home_goals,
+        away_goals = grid$away_goals,
+        probability = raw / sum(raw),
+        support_max_home = 40L,
+        support_max_away = 40L,
+        raw_tail_mass = (fixture %% 17L + 1L) * 1e-12,
+        normalized = TRUE,
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+      utils::write.table(
+        rows, connection, sep = ",", row.names = FALSE, col.names = first,
+        append = !first, na = "", quote = TRUE, qmethod = "double"
+      )
+      first <- FALSE
+    }
+  }
+  invisible(path)
+}
+
+#' Measure the exact deterministic G=40 Phase 10 storage partition
+#'
+#' @param output_path Optional durable storage-preflight CSV path.
+#' @return One-row all-character preflight record.
+#' @export
+measure_challenger_partition_storage <- function(
+    output_path = NULL
+) {
+  first <- tempfile("phase10-storage-pilot-", fileext = ".csv.gz")
+  second <- tempfile("phase10-storage-replay-", fileext = ".csv.gz")
+  on.exit(unlink(c(first, second), force = TRUE), add = TRUE)
+  .phase10_write_storage_pilot(first)
+  .phase10_write_storage_pilot(second)
+  first_hash <- .phase10_sha256(first, file = TRUE)
+  second_hash <- .phase10_sha256(second, file = TRUE)
+  first_bytes <- as.numeric(file.info(first)$size)
+  second_bytes <- as.numeric(file.info(second)$size)
+  if (!identical(first_hash, second_hash) || !identical(first_bytes, second_bytes)) {
+    stop("Phase 10 storage pilot is not byte-deterministic", call. = FALSE)
+  }
+  score_projection <- 7 * first_bytes
+  one_bundle <- score_projection + max(1024^3, ceiling(0.25 * score_projection))
+  minimum_free <- ceiling(3 * one_bundle * 1.10)
+  available <- .phase10_available_bytes(.phase10_project_root("."))
+  record <- data.frame(
+    schema_version = "1.0",
+    pilot_format = "production_score_distributions_csv_gzip_level9",
+    fixture_count = "630",
+    track_count = "2",
+    distribution_count = "1260",
+    support_max = "40",
+    rows_per_distribution = "1681",
+    pilot_row_count = "2118060",
+    compressed_bytes = format(first_bytes, scientific = FALSE, trim = TRUE),
+    score_projection_factor = "7",
+    score_projection = format(score_projection, scientific = FALSE, trim = TRUE),
+    headroom_fraction = "0.25",
+    headroom_floor_bytes = format(1024^3, scientific = FALSE, trim = TRUE),
+    one_bundle_projection = format(one_bundle, scientific = FALSE, trim = TRUE),
+    bundle_copy_count = "3",
+    filesystem_headroom_multiplier = "1.10",
+    minimum_free_bytes = format(minimum_free, scientific = FALSE, trim = TRUE),
+    worker_ceiling = "2",
+    measured_available_bytes = format(available, scientific = FALSE, trim = TRUE),
+    schema_sha256 = .phase10_storage_schema_sha256(),
+    generator_sha256 = .phase10_storage_generator_sha256(),
+    content_sha256 = first_hash,
+    deterministic_replay_sha256 = second_hash,
+    cardinality_valid = "true",
+    formula_valid = "true",
+    free_space_pass = if (available >= minimum_free) "true" else "false",
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  record$row_sha256 <- .phase10_row_sha256(record, "row_sha256")
+  if (!is.null(output_path)) .phase10_write_csv(record, output_path)
+  record
+}
+
+#' Validate the measured storage record and current free-space hard gate
+#'
+#' @param storage One-row preflight data frame.
+#' @return `TRUE`, invisibly, or an error.
+#' @export
+validate_challenger_storage_preflight <- function(storage) {
+  if (!is.data.frame(storage) || nrow(storage) != 1L || !identical(names(storage), .phase10_storage_columns())) {
+    stop("Phase 10 storage preflight schema or row drift", call. = FALSE)
+  }
+  storage[] <- lapply(storage, .phase10_scalar)
+  .phase10_validate_hash(storage, "row_sha256", "Storage preflight")
+  number <- function(field) suppressWarnings(as.numeric(storage[[field]]))
+  fixture_count <- number("fixture_count")
+  track_count <- number("track_count")
+  support_max <- number("support_max")
+  distributions <- number("distribution_count")
+  rows_per <- number("rows_per_distribution")
+  pilot_rows <- number("pilot_row_count")
+  bytes <- number("compressed_bytes")
+  score_projection <- number("score_projection")
+  one_bundle <- number("one_bundle_projection")
+  minimum_free <- number("minimum_free_bytes")
+  cardinality_valid <- identical(distributions, fixture_count * track_count) &&
+    identical(rows_per, (support_max + 1)^2) && identical(pilot_rows, distributions * rows_per) &&
+    identical(pilot_rows, 2118060)
+  expected_score <- 7 * bytes
+  expected_bundle <- expected_score + max(1024^3, ceiling(0.25 * expected_score))
+  expected_minimum <- ceiling(3 * expected_bundle * 1.10)
+  formula_valid <- identical(number("score_projection_factor"), 7) &&
+    identical(score_projection, expected_score) && identical(number("headroom_fraction"), 0.25) &&
+    identical(number("headroom_floor_bytes"), 1024^3) && identical(one_bundle, expected_bundle) &&
+    identical(number("bundle_copy_count"), 3) &&
+    identical(number("filesystem_headroom_multiplier"), 1.10) &&
+    identical(minimum_free, expected_minimum) && identical(number("worker_ceiling"), 2)
+  constants <- phase10_protocol_constants()
+  hashes_valid <- identical(storage$schema_sha256, .phase10_storage_schema_sha256()) &&
+    identical(storage$generator_sha256, .phase10_storage_generator_sha256()) &&
+    identical(storage$content_sha256, storage$deterministic_replay_sha256) &&
+    identical(storage$content_sha256, constants$storage_pilot_content_sha256) &&
+    identical(bytes, constants$storage_pilot_compressed_bytes) &&
+    identical(number("measured_available_bytes"), constants$storage_pilot_available_bytes)
+  current_available <- .phase10_available_bytes(.phase10_project_root("."))
+  current_pass <- current_available >= minimum_free
+  if (!cardinality_valid || !formula_valid || !hashes_valid ||
+      !identical(storage$cardinality_valid, "true") || !identical(storage$formula_valid, "true") ||
+      !identical(storage$free_space_pass, "true") || !isTRUE(current_pass)) {
+    stop("Phase 10 storage cardinality, hash, projection formula, or free-space gate failed", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+.phase10_validate_task2_files <- function(protocol_dir = "data/benchmark/phase10") {
+  ablation <- .phase10_read_csv(file.path(protocol_dir, "ablation_registry.csv"))
+  selection_path <- file.path(protocol_dir, "selection_protocol.json")
+  if (!file.exists(selection_path)) stop("Phase 10 protocol file is missing: selection_protocol.json", call. = FALSE)
+  if (!requireNamespace("jsonlite", quietly = TRUE)) stop("jsonlite is required for Phase 10 protocol", call. = FALSE)
+  selection <- jsonlite::read_json(selection_path, simplifyVector = FALSE)
+  storage <- .phase10_read_csv(file.path(protocol_dir, "storage_preflight.csv"))
+  .phase10_validate_ablation_registry(ablation)
+  .phase10_validate_selection_protocol(selection)
+  validate_challenger_storage_preflight(storage)
+  list(valid = TRUE, ablation_registry = ablation, selection = selection, storage = storage)
+}
+
+.phase10_write_json <- function(value, path) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  jsonlite::write_json(value, path, auto_unbox = TRUE, pretty = TRUE, digits = 17, null = "null")
+  invisible(path)
+}
+
+.write_phase10_task2_protocol <- function(protocol_dir = "data/benchmark/phase10", storage = NULL) {
+  .phase10_write_csv(.canonical_phase10_ablation_registry(), file.path(protocol_dir, "ablation_registry.csv"))
+  .phase10_write_json(canonical_phase10_selection_protocol(), file.path(protocol_dir, "selection_protocol.json"))
+  if (!is.null(storage)) .phase10_write_csv(storage, file.path(protocol_dir, "storage_preflight.csv"))
+  invisible(TRUE)
+}
+
+#' Load and validate the complete Phase 10 challenger protocol
+#'
+#' @param protocol_dir Directory containing all canonical Phase 10 artifacts.
+#' @param validate_parent Reconstruct the immutable Phase 9 parent; false is for isolated mutation tests only.
+#' @return Validated protocol facts for later adapters and runners.
+#' @export
+load_and_validate_challenger_protocol <- function(
+    protocol_dir = "data/benchmark/phase10", validate_parent = TRUE
+) {
+  task1 <- .phase10_validate_task1_files(protocol_dir)
+  task2 <- .phase10_validate_task2_files(protocol_dir)
+  parent <- if (isTRUE(validate_parent)) validate_phase09_parent_identity() else NULL
+  slots <- unname(unlist(task2$selection$shortlist$slots, use.names = FALSE))
+  list(
+    valid = TRUE,
+    parent = parent,
+    model_registry = task1$model_registry,
+    feature_contract = task1$feature_contract,
+    tuning_editions = task1$tuning_editions,
+    tuning_grid = task1$tuning_grid,
+    ablation_registry = task2$ablation_registry,
+    selection = task2$selection,
+    storage = task2$storage,
+    shortlist_slots = slots,
+    thresholds = .phase10_threshold_vector(task2$selection)
+  )
 }
 
 #' Execute the read-only four-edition pre-2002 numerical grid diagnostic
