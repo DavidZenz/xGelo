@@ -210,7 +210,8 @@ load_phase09_parent_bundle <- function(
 
 .phase10_default_execution_engine <- function(
     candidate_order, history, fixtures, seed_registry, protocol,
-    settings_by_candidate = list(), fold_tuning = NULL, parent_bundle, ...
+    settings_by_candidate = list(), fold_tuning = NULL, parent_bundle,
+    environment = NULL, ...
 ) {
   if (is.null(history) || is.null(fixtures) || is.null(seed_registry)) {
     stop("canonical execution requires history, fixtures, and seed_registry", call. = FALSE)
@@ -233,8 +234,10 @@ load_phase09_parent_bundle <- function(
   manifests <- do.call(rbind, lapply(pieces, `[[`, "manifests"))
   coverage <- do.call(rbind, lapply(pieces, `[[`, "feature_coverage"))
   scores <- do.call(rbind, lapply(split(predictions, predictions$track_id), function(track_predictions) {
+    track_id <- unique(as.character(track_predictions$track_id))
+    track_fixtures <- fixtures[as.character(fixtures$track_id) == track_id, , drop = FALSE]
     score_benchmark_fixtures(
-      track_predictions, fixtures, distributions,
+      track_predictions, track_fixtures, distributions,
       benchmark_panel_fixture_ids(protocol$panel_fixtures, "open_core")
     )
   }))
@@ -252,11 +255,76 @@ load_phase09_parent_bundle <- function(
       names(manifests)
     )])
   }
+  headline <- comparisons[
+    comparisons$track_id == "updating" &
+      comparisons$baseline_id == "open_nb_incumbent" &
+      comparisons$diagnostic == "equal_tournament_headline",
+    , drop = FALSE
+  ]
+  headline <- headline[match(candidate_order, headline$candidate_id), , drop = FALSE]
+  if (anyNA(headline$candidate_id)) stop("candidate headline evidence is incomplete", call. = FALSE)
+  complexity <- protocol$model_registry$complexity_rank[
+    match(candidate_order, protocol$model_registry$candidate_id)
+  ]
+  best_estimate <- min(headline$candidate_estimate)
+  selection_evidence <- data.frame(
+    candidate_id = candidate_order,
+    updating_equal_tournament_rps = headline$candidate_estimate,
+    practically_non_inferior = headline$candidate_estimate <= best_estimate + 0.001,
+    complexity_rank = complexity,
+    evidence_sha256 = vapply(seq_len(nrow(headline)), function(index) {
+      .phase10_runner_content_sha256(headline[index, , drop = FALSE])
+    }, character(1)),
+    stringsAsFactors = FALSE
+  )
+  independent <- selection_evidence$updating_equal_tournament_rps[
+    selection_evidence$candidate_id == "poisson_team_ridge_elo"
+  ]
+  dependence_ids <- c(
+    "poisson_team_ridge_elo", "poisson_team_ridge_elo_dc",
+    "poisson_team_ridge_elo_bivpois"
+  )
+  dependence_evidence <- selection_evidence[
+    match(dependence_ids, selection_evidence$candidate_id), , drop = FALSE
+  ]
+  dependence_evidence$updating_rps_delta <-
+    dependence_evidence$updating_equal_tournament_rps - independent
+  for (column in c(
+    "brier_veto", "log_loss_veto", "calibration_veto",
+    "fold_breadth_veto", "stability_veto"
+  )) dependence_evidence[[column]] <- FALSE
+  .phase10_runner_source("select_dependence_representative", "R/evaluation/challenger_selection.R")
+  dependence <- select_dependence_representative(dependence_evidence)
+  shortlist <- build_statistical_shortlist(
+    selection_evidence, dependence$representative_id
+  )
+  environment_value <- function(name) {
+    value <- environment[[name]]
+    if (is.null(value)) "" else as.character(value)
+  }
+  run_manifest <- data.frame(
+    schema_version = "phase10-challenger-bundle-v1",
+    run_id = "phase10-statistical-challengers",
+    phase09_bundle_sha256 = parent_bundle$bundle_sha256,
+    phase09_checksum_self_sha256 = parent_bundle$parent_hashes[["phase09_checksum_self_sha256"]],
+    phase09_parent_graph_sha256 = parent_bundle$parent_hashes[["phase09_parent_graph_sha256"]],
+    glmnet_index_sha256 = environment_value("index_sha256"),
+    glmnet_metadata_sha256 = environment_value("metadata_sha256"),
+    glmnet_dependency_inventory_sha256 = environment_value("dependency_inventory_sha256"),
+    glmnet_archive_sha256 = environment_value("archive_sha256"),
+    glmnet_installed_content_sha256 = environment_value("installed_content_sha256"),
+    matrix_installed_content_sha256 = environment_value("matrix_installed_content_sha256"),
+    open_fixture_count = 630L, rich_fixture_count = 609L, selected_g = 40L,
+    reproducible = FALSE, wc2026_sealed = TRUE, network_free = TRUE,
+    research_only = TRUE, protected_paths_clean = TRUE, synthetic = FALSE,
+    stringsAsFactors = FALSE
+  )
   list(
-    model_manifests = manifests, feature_coverage = coverage, fold_tuning = fold_tuning,
+    run_manifest = run_manifest, model_manifests = manifests,
+    feature_coverage = coverage, fold_tuning = fold_tuning,
     fixture_predictions = predictions, score_distributions = distributions,
     fixture_scores = scores, benchmark_summaries = summaries,
-    all_baseline_comparisons = comparisons,
+    all_baseline_comparisons = comparisons, shortlist = shortlist,
     declared_open_fixture_count = 630L, declared_rich_fixture_count = 609L,
     declared_support_max = 40L
   )
@@ -335,6 +403,9 @@ run_statistical_challenger_benchmark <- function(
   }
   first$canonical_hashes <- first_hashes
   first$reproducible <- TRUE
+  if (is.data.frame(first$run_manifest) && "reproducible" %in% names(first$run_manifest)) {
+    first$run_manifest$reproducible <- TRUE
+  }
   first$parent_bundle <- parent
   first$environment <- environment
   first$synthetic <- isTRUE(synthetic)

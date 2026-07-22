@@ -61,6 +61,13 @@ source("R/forecast/tournament_formats.R")
 source("R/evaluation/benchmark_scores.R")
 source("R/evaluation/promotion.R")
 source("R/benchmark/runner.R")
+source("R/benchmark/challenger_protocol.R")
+source("R/forecast/penalized_poisson.R")
+source("R/forecast/dynamic_goal_ability.R")
+source("R/forecast/score_dependence.R")
+source("R/benchmark/challengers.R")
+source("R/evaluation/challenger_selection.R")
+source("R/benchmark/challenger_runner.R")
 
 xgelo_feature_cutoff_date <- function(default = Sys.Date() - 1L) {
   value <- Sys.getenv("XGELO_FEATURE_CUTOFF_DATE", unset = "")
@@ -578,6 +585,129 @@ list(
         feature_contract = execution$context$inputs$feature_contract
       )
       unname(result$paths)
+    },
+    format = "file"
+  ),
+  tar_target(
+    benchmark_phase10_registry_files,
+    c(
+      file.path("data/benchmark/phase10", c(
+        "model_registry.csv", "feature_contract.csv", "tuning_editions.csv",
+        "tuning_grid.csv", "ablation_registry.csv", "selection_protocol.json",
+        "storage_preflight.csv", "glmnet_provenance.csv"
+      )),
+      file.path("data/benchmark/phase09", c(
+        "tournaments.csv", "fixtures.csv", "teams.csv", "formats.csv",
+        "route_rules.csv", "corrections.csv", "boundaries.csv", "panels.csv",
+        "panel_fixtures.csv", "model_registry.csv", "score_support_audit.csv",
+        "feature_contract.csv", "seed_registry.csv"
+      )),
+      file.path(
+        "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen",
+        c(
+          "run_manifest.csv", "manifests/checksum_manifest.csv",
+          "scores/fixture_scores.csv"
+        )
+      ),
+      "data/processed/goal_training_features_hybrid.csv"
+    ),
+    format = "file"
+  ),
+  tar_target(
+    benchmark_phase10_registries,
+    {
+      benchmark_phase10_registry_files
+      phase09_dir <- "data/benchmark/phase09"
+      phase10_dir <- "data/benchmark/phase10"
+      environment <- require_challenger_environment(
+        file.path(phase10_dir, "glmnet_provenance.csv")
+      )
+      protocol <- load_and_validate_challenger_protocol(phase10_dir)
+      phase09_registries <- load_benchmark_registries(phase09_dir)
+      phase09_inputs <- benchmark_runner_load_inputs(phase09_dir)
+      parent <- load_phase09_parent_bundle(
+        "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen"
+      )
+      feature_input <- "data/processed/goal_training_features_hybrid.csv"
+      feature_input_sha256 <- benchmark_runner_file_sha256(feature_input)
+      list(
+        environment = environment, protocol = protocol,
+        phase09_registries = phase09_registries, phase09_inputs = phase09_inputs,
+        parent = parent, feature_input = feature_input,
+        feature_input_sha256 = feature_input_sha256
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase10_predictions,
+    {
+      context <- benchmark_phase10_registries
+      history <- read.csv(context$feature_input, stringsAsFactors = FALSE)
+      validate_forecast_feature_evidence(
+        history, context$phase09_inputs$feature_contract,
+        derived_mappings = c(
+          elo_difference_for_team = "elo_diff",
+          venue_advantage_for_team = "elo_diff"
+        )
+      )
+      date_column <- if ("date" %in% names(history)) "date" else "actual_completion_date"
+      history <- history[
+        as.Date(history[[date_column]]) <= max(as.Date(
+          context$phase09_registries$fixtures$actual_completion_date
+        )),
+        , drop = FALSE
+      ]
+      guard_benchmark_purpose(history, "candidate_selection")
+      tracks <- lapply(c("frozen", "updating"), function(track_id) {
+        benchmark_runner_track_fixtures(
+          context$phase09_registries$fixtures,
+          context$phase09_registries$tournaments,
+          context$phase09_registries$boundaries,
+          context$phase09_registries$teams,
+          history, track_id, context$phase09_inputs$feature_contract
+        )
+      })
+      fixtures <- do.call(rbind, tracks)
+      run_statistical_challenger_benchmark(
+        history = history, fixtures = fixtures,
+        seed_registry = context$phase09_inputs$seed_registry,
+        synthetic = FALSE, publish = FALSE
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase10_scores,
+    {
+      benchmark_phase10_predictions$fixture_predictions
+      benchmark_phase10_predictions$score_distributions
+      list(
+        fixture_scores = benchmark_phase10_predictions$fixture_scores,
+        benchmark_summaries = benchmark_phase10_predictions$benchmark_summaries
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase10_comparisons,
+    {
+      benchmark_phase10_scores
+      list(
+        all_baseline_comparisons =
+          benchmark_phase10_predictions$all_baseline_comparisons,
+        shortlist = benchmark_phase10_predictions$shortlist
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase10_bundle_files,
+    {
+      benchmark_phase10_comparisons
+      write_statistical_challenger_bundle(
+        benchmark_phase10_predictions,
+        "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers"
+      )
+      unname(phase10_output_paths(
+        "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers"
+      ))
     },
     format = "file"
   ),
