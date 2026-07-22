@@ -1,6 +1,9 @@
 # xGelo Pipeline Definition
 # This file defines an executable targets pipeline for the xGelo forecasting system.
 
+phase10_library <- file.path("data", "cache", "phase10-library")
+if (dir.exists(phase10_library)) .libPaths(unique(c(normalizePath(phase10_library), .libPaths())))
+
 library(targets)
 
 tar_option_set(
@@ -9,6 +12,8 @@ tar_option_set(
     "jsonlite",
     "lubridate",
     "MASS",
+    "Matrix",
+    "glmnet",
     "pROC",
     "tidymodels",
     "ggplot2",
@@ -47,6 +52,7 @@ source("R/evaluation/worldcup_ledger.R")
 source("R/evaluation/worldcup_retrospective.R")
 source("R/visualization/worldcup_retrospective.R")
 source("R/benchmark/registry.R")
+source("R/benchmark/challenger_preflight.R")
 source("R/benchmark/cutoffs.R")
 source("R/benchmark/weights.R")
 source("R/benchmark/contracts.R")
