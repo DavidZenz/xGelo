@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 10
 current_phase_name: Statistical Goal-Model Challengers
 status: executing
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-07-22T12:59:51.178Z"
+stopped_at: Completed 10-10-PLAN.md
+last_updated: "2026-07-22T13:11:41.258Z"
 last_activity: 2026-07-22
 last_activity_desc: Phase 10 execution started
 progress:
   total_phases: 5
   completed_phases: 2
   total_plans: 22
-  completed_plans: 13
+  completed_plans: 14
   percent: 40
 ---
 
@@ -22,7 +22,7 @@ progress:
 ## Current Position
 
 Phase: 10 (Statistical Goal-Model Challengers) — EXECUTING
-Plan: 3 of 11
+Plan: 4 of 11
 Status: Ready to execute
 Last activity: 2026-07-22 — Phase 10 execution started
 
@@ -86,6 +86,9 @@ dependence on paid data feeds.
 - [Phase 10]: Install the official glmnet 5.0 source archive into the ignored project-local Phase 10 library with dependencies disabled. — One retained verified artifact prevents unrelated dependency updates and supports offline replay.
 - [Phase 10]: Use official PACKAGES.gz bytes plus the selected package-row hash as repository identity, with C++17 read from the checksum-verified archive DESCRIPTION. — CRAN source index metadata omits SystemRequirements while the verified source DESCRIPTION retains it.
 - [Phase 10]: Require complete Phase 9 output hashes, checksum self-hash, parent graph, sealed run flags, and bundle SHA before challenger work. — Manifest declarations alone cannot detect output-byte tampering.
+- [Phase 10]: Make each Wave 0 API gate abort its current test with one explicit missing-production-API message so RED evidence cannot be confused with scaffold errors.
+- [Phase 10]: Keep dynamic-state and dependence-PMF contracts independent of later sibling tuning, fold-parameter, and manifest APIs.
+- [Phase 10]: Use inherited benchmark distribution and market validators for every complete 0:40 dependence grid.
 
 ## Blockers
 
@@ -104,8 +107,8 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 
 ## Session
 
-**Last session:** 2026-07-22T12:59:35.577Z
-**Stopped at:** Completed 10-02-PLAN.md
+**Last session:** 2026-07-22T13:11:41.251Z
+**Stopped at:** Completed 10-10-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -122,3 +125,4 @@ Run the standard Phase 09 goal verifier; `09-VERIFICATION.md` remains verifier-o
 | Phase 09 P08 | 1h 22m | 2 tasks | 9 files |
 | Phase 10 P01 | 8 min | 1 tasks | 3 files |
 | Phase 10 P02 | 11 min | 1 tasks | 3 files |
+| Phase 10 P10 | 7m | 1 tasks | 4 files |
