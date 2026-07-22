@@ -103,7 +103,7 @@ where correlated or inactive predictors do not add out-of-sample value.
 
 **Depends on:** Phase 9
 
-**Plans:** 5/11 plans executed
+**Plans:** 6/11 plans executed
 
 Plans:
 **Wave 1**
@@ -116,7 +116,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 10-03-PLAN.md — Implement nested penalized-Poisson candidates
+- [x] 10-03-PLAN.md — Implement nested penalized-Poisson candidates
 - [ ] 10-04-PLAN.md — Implement dynamic attack/defence candidates
 
 **Wave 3** *(blocked on Wave 2 completion)*
@@ -216,7 +216,7 @@ information add stable value beyond the strongest statistical benchmark.
 |-------|----------------|--------|-----------|
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
-| 10. Statistical Goal-Model Challengers | 5/11 | In Progress|  |
+| 10. Statistical Goal-Model Challengers | 6/11 | In Progress|  |
 | 11. Hybrid ML and Contextual Priors | 0/TBD | Not started | - |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |
 
