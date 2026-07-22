@@ -303,10 +303,7 @@ fit_registered_challenger <- function(
   challenger_validate_runtime_settings(settings, registration)
   candidate_id <- as.character(candidate_id)
   if (!is.null(fit_callback)) {
-    return(fit_callback(
-      candidate_id = candidate_id, history = history, settings = settings,
-      cutoff = cutoff, registration = registration, protocol = protocol
-    ))
+    stop("fit_callback is forbidden by the challenger dispatch allowlist", call. = FALSE)
   }
   fit <- switch(
     candidate_id,
