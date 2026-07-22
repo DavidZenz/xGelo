@@ -27,8 +27,12 @@ test_that("level-one ablation changes only the active predictor set", {
   cutoff <- max(history$date) + 1L
   weights <- benchmark_observation_weights(history, cutoff)
 
-  full <- fit_open_nb_incumbent(history, cutoff, observation_weights = weights)
-  simpler <- fit_open_nb_elo_only_ablation(history, cutoff, observation_weights = weights)
+  full <- suppressWarnings(
+    fit_open_nb_incumbent(history, cutoff, observation_weights = weights)
+  )
+  simpler <- suppressWarnings(
+    fit_open_nb_elo_only_ablation(history, cutoff, observation_weights = weights)
+  )
 
   expect_identical(elo_only_goal_predictors(), "elo_diff")
   expect_identical(full$model_family, simpler$model_family)
@@ -51,7 +55,9 @@ test_that("zero-coded compatibility features remain explicitly unavailable", {
     history[[paste0(feature, "__imputed")]] <- TRUE
     history[[paste0(feature, "__imputation_reason")]] <- "point_in_time_source_coverage_zero"
   }
-  fit <- fit_open_nb_elo_only_ablation(history, max(history$date) + 1L)
+  fit <- suppressWarnings(
+    fit_open_nb_elo_only_ablation(history, max(history$date) + 1L)
+  )
   evidence <- fit$compatibility_feature_evidence
 
   expect_setequal(evidence$feature_id, ablation_zero_coverage_features())
@@ -67,7 +73,9 @@ test_that("zero coverage leaves every deeper child auditable and unfit", {
   require_ablation_hierarchy_api()
   history <- synthetic_statistical_history(include_outer = FALSE)
   for (feature in ablation_zero_coverage_features()) history[[feature]] <- 0
-  fit <- fit_open_nb_elo_only_ablation(history, max(history$date) + 1L)
+  fit <- suppressWarnings(
+    fit_open_nb_elo_only_ablation(history, max(history$date) + 1L)
+  )
   nodes <- fit$ablation_nodes
 
   expect_identical(nodes$node_id, c("attack_xg", "defence_xg", "xgd", "form"))

@@ -13,6 +13,14 @@ baseline_goal_predictors <- function() {
   c("elo_diff", "xgf_ewma_diff", "xga_ewma_diff", "xgd_ewma_diff", "form_index_diff")
 }
 
+#' Elo-only incumbent ablation predictors
+#'
+#' @return Character vector containing the registered Elo predictor
+#' @export
+elo_only_goal_predictors <- function() {
+  "elo_diff"
+}
+
 #' Hybrid goal-model predictors
 #'
 #' @return Character vector of hybrid predictor columns
