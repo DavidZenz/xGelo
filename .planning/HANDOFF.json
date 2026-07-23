@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-07-23T04:55:57.956Z",
+  "phase": "10",
+  "phase_name": "Statistical Goal-Model Challengers",
+  "phase_dir": ".planning/phases/10-statistical-goal-model-challengers",
+  "plan": 8,
+  "task": 1,
+  "total_tasks": 2,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "Run, reconcile, and atomically publish the canonical Phase 10 bundle",
+      "status": "in_progress",
+      "progress": "Canonical integration wiring and both tuning caches are complete. The first normal-order attempt ran 168 jobs for about 5.6 hours but failed before aggregation because history fixture_id overwrote canonical benchmark fixture identity. The identity fix, a global pre-fit seed guard, direct fork-error reporting, focused tests, and one full poisson_team_ridge/euro2004/frozen adapter check now pass. No canonical stage or accepted output was written."
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 1,
+      "name": "Run a bounded all-candidate preflight, then rerun normal and reversed canonical orders, reconcile hashes, and atomically publish",
+      "status": "in_progress"
+    },
+    {
+      "id": 2,
+      "name": "Run focused independent integrity and Phase 12 boundary smoke acceptance",
+      "status": "not_started"
+    },
+    {
+      "id": 3,
+      "name": "Run the final Phase 10 deep validation, complete test suite, coverage gate, and phase verifier",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "The durable Phase 10 bundle does not exist because the first full normal-order attempt failed at the post-fit seed join.",
+      "type": "technical",
+      "workaround": "The fixture identity overwrite and fail-fast diagnostics are fixed and tested. Before another full run, execute every candidate on a bounded one-edition fixture slice through the complete adapter contract."
+    }
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [],
+  "decisions": [
+    {
+      "decision": "Pause before rerunning the expensive benchmark.",
+      "rationale": "The repaired workload is estimated at 5.5-6 hours per candidate order and 12-13 hours through reconciliation and verification; a bounded all-candidate preflight must pass first.",
+      "phase": "10"
+    },
+    {
+      "decision": "Protect canonical benchmark identity from history feature joins and validate all shared seeds before fitting.",
+      "rationale": "The failed run showed that copying history fixture_id onto registry fixtures deferred a deterministic identity error until after every expensive fit.",
+      "phase": "10"
+    }
+  ],
+  "uncommitted_files": [
+    "R/benchmark/challenger_runner.R",
+    "R/benchmark/runner.R",
+    "R/evaluation/challenger_selection.R",
+    "R/forecast/dynamic_goal_ability.R",
+    "R/forecast/penalized_poisson.R",
+    "_targets.R",
+    "tests/testthat/test_benchmark_baselines.R",
+    "tests/testthat/test_statistical_bundle.R"
+  ],
+  "next_action": "Read the handoff and Plan 10-08, acknowledge the blocking preflight constraint, verify /tmp tuning caches, run all seven candidates on one edition through run_registered_challenger_adapter, then rerun /tmp/xgelo_phase10_canonical_run.R normal only.",
+  "context_notes": "HEAD is 1f8f57b. Reuse /tmp/phase10_penalized_all.rds and /tmp/phase10_dynamic_all.rds if present; they completed successfully. Temporary drivers are /tmp/xgelo_phase10_canonical_run.R and /tmp/xgelo_phase10_reconcile_publish.R. The normal stage path is absent. Accepted Phase 9/dashboard/WC2026 paths are unchanged. Preserve the user's .planning/config.json edit and untracked .planning/research/.cache, outputs/design_audit, and outputs/reports/xgelo_elo_decision paths."
+}
