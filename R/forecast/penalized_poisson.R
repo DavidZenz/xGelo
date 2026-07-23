@@ -472,9 +472,14 @@ penalized_poisson_score_means <- function(mu_home, mu_away, observed, support_ma
     stats::dpois(grid$away_goals, mu_away)
   grid$probability <- grid$probability / sum(grid$probability)
   markets <- derive_benchmark_markets(grid)
+  probabilities <- c(
+    home = markets$p_home, draw = markets$p_draw, away = markets$p_away
+  )
+  probabilities <- pmax(0, pmin(1, probabilities))
+  probabilities <- probabilities / sum(probabilities)
+  names(probabilities) <- c("home", "draw", "away")
   ranked_probability_score(
-    c(home = markets$p_home, draw = markets$p_draw, away = markets$p_away),
-    observed
+    probabilities, observed
   )
 }
 

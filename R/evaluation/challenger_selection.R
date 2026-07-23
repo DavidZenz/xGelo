@@ -112,6 +112,8 @@ challenger_selection_comparison_rows <- function(
     stringsAsFactors = FALSE
   )
   headline <- data.frame(
+    challenger_estimate = mean(paired$folds$challenger_estimate),
+    incumbent_estimate = mean(paired$folds$incumbent_estimate),
     delta = paired$headline$delta,
     paired_fixture_count = nrow(paired$fixtures),
     stringsAsFactors = FALSE
@@ -306,20 +308,32 @@ build_statistical_shortlist <- function(evidence, dependence_representative) {
 #' Validate the exact research-only shortlist schema and slot order
 #' @export
 validate_statistical_shortlist <- function(shortlist) {
-  required <- c(
-    "slot", "candidate_id", "evidence_sha256", "selection_basis", "non_exclusive"
-  )
+  durable <- "shortlist_slot" %in% names(shortlist)
+  required <- if (durable) {
+    c(
+      "shortlist_slot", "challenger_id", "evidence_sha256", "selection_basis",
+      "selection_protocol_sha256", "non_exclusive"
+    )
+  } else {
+    c("slot", "candidate_id", "evidence_sha256", "selection_basis", "non_exclusive")
+  }
   challenger_selection_require_columns(shortlist, required, "statistical shortlist")
+  slot_column <- if (durable) "shortlist_slot" else "slot"
+  candidate_column <- if (durable) "challenger_id" else "candidate_id"
   if (!identical(names(shortlist), required) || !identical(
-    as.character(shortlist$slot),
+    as.character(shortlist[[slot_column]]),
     c("best_proper_score", "simplest_non_inferior", "dependence_representative")
   )) {
     stop("statistical shortlist schema or frozen slot order drifted", call. = FALSE)
   }
-  if (nrow(shortlist) != 3L || any(is.na(shortlist$candidate_id) | !nzchar(shortlist$candidate_id)) ||
+  if (nrow(shortlist) != 3L ||
+      any(is.na(shortlist[[candidate_column]]) | !nzchar(shortlist[[candidate_column]])) ||
       any(!grepl("^[0-9a-f]{64}$", shortlist$evidence_sha256)) ||
       any(is.na(shortlist$non_exclusive) | !shortlist$non_exclusive)) {
     stop("statistical shortlist contains invalid research evidence", call. = FALSE)
+  }
+  if (durable && any(!grepl("^[0-9a-f]{64}$", shortlist$selection_protocol_sha256))) {
+    stop("statistical shortlist selection protocol identity is invalid", call. = FALSE)
   }
   forbidden <- "promot|release|winner|final_holdout|wc2026"
   if (any(grepl(forbidden, names(shortlist), ignore.case = TRUE)) ||

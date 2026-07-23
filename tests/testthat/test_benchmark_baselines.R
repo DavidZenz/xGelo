@@ -319,6 +319,43 @@ test_that("runner preserves producer evidence before applying numeric defaults",
   expect_true(is.na(features$elo_diff__source_date))
 })
 
+test_that("fixture feature joins cannot overwrite canonical benchmark identity", {
+  fixtures <- data.frame(
+    schema_version = "1.0", fixture_id = "wc2002_001", edition_id = "wc2002",
+    track_id = "frozen", boundary_id = "wc2002__frozen", forecast_sequence = 0L,
+    actual_completion_date = as.Date("2002-05-31"),
+    evidence_cutoff_exclusive = as.Date("2002-05-31"),
+    result_cutoff_exclusive = as.Date("2002-05-31"),
+    home_team_id = "a", away_team_id = "b", venue_role = "neutral",
+    stringsAsFactors = FALSE
+  )
+  history <- data.frame(
+    fixture_id = "Senegal_France_2002-05-31", edition_id = "source_edition",
+    track_id = "source_track", boundary_id = "source_boundary",
+    forecast_sequence = 99L, date = as.Date("2002-05-31"),
+    actual_completion_date = as.Date("2002-05-31"),
+    evidence_cutoff_exclusive = as.Date("1900-01-01"),
+    result_cutoff_exclusive = as.Date("1900-01-01"),
+    home_team = "A", away_team = "B", home_team_id = "source_a",
+    away_team_id = "source_b", venue_role = "home", home_goals = 0L,
+    away_goals = 1L, elo_diff = 42, stringsAsFactors = FALSE
+  )
+  teams <- data.frame(
+    team_id = c("a", "b"), canonical_name = c("A", "B"),
+    stringsAsFactors = FALSE
+  )
+
+  joined <- benchmark_runner_fixture_features(fixtures, teams, history)
+
+  identity <- c(
+    "schema_version", "fixture_id", "edition_id", "track_id", "boundary_id",
+    "forecast_sequence", "actual_completion_date", "evidence_cutoff_exclusive",
+    "result_cutoff_exclusive", "home_team_id", "away_team_id", "venue_role"
+  )
+  expect_identical(joined[identity], fixtures[identity])
+  expect_equal(joined$elo_diff, 42)
+})
+
 test_that("support audit is complete, checksummed, globally minimal, and hard-fails without support", {
   registry <- baseline_registry_rows()[1:2, ]
   registry$candidate_min <- 8L

@@ -650,6 +650,7 @@ list(
           venue_advantage_for_team = "elo_diff"
         )
       )
+      history <- .phase10_runner_prepare_history(history, context$protocol)
       date_column <- if ("date" %in% names(history)) "date" else "actual_completion_date"
       history <- history[
         as.Date(history[[date_column]]) <= max(as.Date(
@@ -691,8 +692,8 @@ list(
     {
       benchmark_phase10_scores
       list(
-        all_baseline_comparisons =
-          benchmark_phase10_predictions$all_baseline_comparisons,
+        all_baseline_paired_comparisons =
+          benchmark_phase10_predictions$all_baseline_paired_comparisons,
         shortlist = benchmark_phase10_predictions$shortlist
       )
     }

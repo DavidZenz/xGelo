@@ -877,7 +877,13 @@ benchmark_runner_fixture_features <- function(fixtures, teams, history) {
   index <- match(fixture_key, history_key)
   predictor_columns <- setdiff(
     names(history),
-    c("match_id", "date", "actual_completion_date", "home_team", "away_team", "home_goals", "away_goals", "home_score", "away_score", "tournament", "actual_outcome")
+    c(
+      "schema_version", "match_id", "fixture_id", "edition_id", "track_id",
+      "boundary_id", "forecast_sequence", "date", "actual_completion_date",
+      "evidence_cutoff_exclusive", "result_cutoff_exclusive", "home_team",
+      "away_team", "home_team_id", "away_team_id", "venue_role", "home_goals",
+      "away_goals", "home_score", "away_score", "tournament", "actual_outcome"
+    )
   )
   for (column in predictor_columns) {
     values <- history[[column]][index]

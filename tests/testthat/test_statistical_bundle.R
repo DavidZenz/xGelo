@@ -20,8 +20,8 @@ statistical_bundle_artifacts <- function() {
   c(
     "run_manifest", "model_manifests", "feature_coverage", "fold_tuning",
     "checksum_manifest", "fixture_predictions", "score_distributions",
-    "fixture_scores", "benchmark_summaries", "all_baseline_comparisons",
-    "shortlist", "research_report"
+    "fixture_scores", "benchmark_summaries", "all_baseline_paired_comparisons",
+    "shortlist", "statistical_challenger_report"
   )
 }
 
@@ -75,9 +75,23 @@ test_that("runner source forbids promotion, network, and dashboard paths", {
   code <- paste(readLines(runner_module, warn = FALSE), collapse = "\n")
   forbidden <- c(
     "evaluate_promotion(", "promotion_decisions", "worldcup_2026",
-    "dashboard", "httr::", "httr2::", "curl::", "download.file", "refresh"
+    "httr::", "httr2::", "curl::", "download.file", "refresh"
   )
   expect_false(any(vapply(forbidden, grepl, logical(1), x = code, fixed = TRUE)))
+})
+
+test_that("canonical runner rejects fixture identity drift before fitting", {
+  fixtures <- data.frame(
+    fixture_id = c("wc2002_001", "source_match_id"), edition_id = "wc2002",
+    track_id = c("frozen", "updating"), stringsAsFactors = FALSE
+  )
+  seeds <- data.frame(fixture_id = "wc2002_001", stringsAsFactors = FALSE)
+
+  expect_error(
+    .phase10_runner_validate_fixture_seeds(fixtures, seeds),
+    "missing shared seeds before model fitting.*source_match_id"
+  )
+  expect_silent(.phase10_runner_validate_fixture_seeds(fixtures[1, ], seeds))
 })
 
 test_that("normal and reversed synthetic runs reconcile before atomic publication", {

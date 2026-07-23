@@ -4,6 +4,8 @@
 #' statistics.  The global pseudo-exposure is fixed, so observed evidence can
 #' decay continuously without changing the global prior.
 
+.dynamic_goal_tuning_cache <- new.env(parent = emptyenv())
+
 dynamic_goal_required_columns <- function(data, required, label) {
   missing <- setdiff(required, names(data))
   if (length(missing)) {
@@ -352,15 +354,19 @@ replay_dynamic_goal_states <- function(history, fixtures, initial_state, half_li
     state$as_of_date <- min(c(state$as_of_date, history_dates))
   }
   ordered_dates <- sort(unique(c(history_dates, fixture_dates)))
+  history_groups <- split(seq_len(nrow(history)), match(history_dates, ordered_dates))
+  fixture_groups <- split(seq_len(nrow(fixtures)), match(fixture_dates, ordered_dates))
   prediction_parts <- list()
   snapshot_parts <- list()
   prediction_index <- 0L
   snapshot_index <- 0L
 
-  for (date_value in ordered_dates) {
+  for (date_index in seq_along(ordered_dates)) {
+    date_value <- ordered_dates[[date_index]]
     date_value <- as.Date(date_value, origin = "1970-01-01")
     state <- decay_dynamic_goal_state(state, date_value, half_life_days = half_life_days)
-    fixture_rows <- fixtures[fixture_dates == date_value, , drop = FALSE]
+    fixture_index <- fixture_groups[[as.character(date_index)]]
+    fixture_rows <- fixtures[fixture_index, , drop = FALSE]
     if (nrow(fixture_rows)) {
       prediction_index <- prediction_index + 1L
       prediction_parts[[prediction_index]] <- predict_dynamic_goal_batch(state, fixture_rows)
@@ -378,7 +384,8 @@ replay_dynamic_goal_states <- function(history, fixtures, initial_state, half_li
         )
       }
     }
-    history_rows <- history[history_dates == date_value, , drop = FALSE]
+    history_index <- history_groups[[as.character(date_index)]]
+    history_rows <- history[history_index, , drop = FALSE]
     if (nrow(history_rows)) state <- update_dynamic_goal_batch(state, history_rows)
   }
 
@@ -445,6 +452,28 @@ dynamic_goal_rps <- function(probabilities, home_goals, away_goals) {
   mean((cumulative_prediction - cumulative_observed)^2)
 }
 
+dynamic_goal_tuning_cache_key <- function(
+    history, inner_edition_id, pseudo_exposure, half_life_days, support_max
+) {
+  history <- dynamic_goal_as_results(history)
+  assessment <- history$edition_id == inner_edition_id
+  if (!any(assessment)) stop("inner edition has no eligible history rows: ", inner_edition_id, call. = FALSE)
+  opener <- min(history$match_date[assessment])
+  prior <- history$match_date < opener
+  cache_rows <- history[prior | assessment, c(
+    "match_id", "edition_id", "match_date", "home_team_id", "away_team_id",
+    "home_goals", "away_goals"
+  ), drop = FALSE]
+  cache_rows <- cache_rows[
+    order(cache_rows$match_date, cache_rows$match_id, method = "radix"), , drop = FALSE
+  ]
+  dynamic_goal_hash(list(
+    rows = cache_rows, inner_edition_id = inner_edition_id,
+    pseudo_exposure = as.numeric(pseudo_exposure),
+    half_life_days = as.numeric(half_life_days), support_max = as.integer(support_max)
+  ))
+}
+
 dynamic_goal_candidate_rps <- function(history, inner_edition_id, pseudo_exposure, half_life_days, support_max) {
   history <- dynamic_goal_as_results(history)
   dynamic_goal_required_columns(history, c("edition_id", "home_team_id", "away_team_id"), "history")
@@ -452,6 +481,12 @@ dynamic_goal_candidate_rps <- function(history, inner_edition_id, pseudo_exposur
   if (!any(assessment)) stop("inner edition has no eligible history rows: ", inner_edition_id, call. = FALSE)
   opener <- min(history$match_date[assessment])
   prior <- history$match_date < opener
+  cache_key <- dynamic_goal_tuning_cache_key(
+    history, inner_edition_id, pseudo_exposure, half_life_days, support_max
+  )
+  if (exists(cache_key, envir = .dynamic_goal_tuning_cache, inherits = FALSE)) {
+    return(get(cache_key, envir = .dynamic_goal_tuning_cache, inherits = FALSE))
+  }
   team_ids <- sort(unique(c(history$home_team_id[prior | assessment], history$away_team_id[prior | assessment])), method = "radix")
   prior_goals <- c(history$home_goals[prior], history$away_goals[prior])
   global_rate <- if (length(prior_goals) && is.finite(mean(prior_goals)) && mean(prior_goals) > 0) {
@@ -463,12 +498,12 @@ dynamic_goal_candidate_rps <- function(history, inner_edition_id, pseudo_exposur
   state <- initialize_dynamic_goal_state(team_ids, global_rate, pseudo_exposure, first_date)
   evaluation_rows <- history[prior | assessment, , drop = FALSE]
   evaluation_rows <- evaluation_rows[order(evaluation_rows$match_date, evaluation_rows$match_id, method = "radix"), , drop = FALSE]
-  ordered_dates <- sort(unique(evaluation_rows$match_date))
+  date_groups <- split(seq_len(nrow(evaluation_rows)), evaluation_rows$match_date)
   scores <- numeric()
-  for (date_value in ordered_dates) {
-    date_value <- as.Date(date_value, origin = "1970-01-01")
+  for (date_index in seq_along(date_groups)) {
+    date_rows <- evaluation_rows[date_groups[[date_index]], , drop = FALSE]
+    date_value <- as.Date(date_rows$match_date[1L])
     state <- decay_dynamic_goal_state(state, date_value, half_life_days)
-    date_rows <- evaluation_rows[evaluation_rows$match_date == date_value, , drop = FALSE]
     if (any(date_rows$edition_id == inner_edition_id)) {
       assessment_rows <- date_rows[date_rows$edition_id == inner_edition_id, , drop = FALSE]
       fixtures <- data.frame(
@@ -488,7 +523,9 @@ dynamic_goal_candidate_rps <- function(history, inner_edition_id, pseudo_exposur
     state <- update_dynamic_goal_batch(state, date_rows)
   }
   if (!length(scores) || any(!is.finite(scores))) stop("dynamic tuning produced nonfinite RPS", call. = FALSE)
-  mean(scores)
+  result <- mean(scores)
+  assign(cache_key, result, envir = .dynamic_goal_tuning_cache)
+  result
 }
 
 #' Select dynamic pseudo-exposure from completed prior tournaments
@@ -625,12 +662,13 @@ dynamic_goal_validate_elo_provenance <- function(data, cutoffs, label = "history
   source_dates <- as.Date(data$elo_diff__source_date)
   imputed <- as.logical(data$elo_diff__imputed)
   reasons <- as.character(data$elo_diff__imputation_reason)
+  reasons[is.na(reasons)] <- ""
   cutoffs <- as.Date(cutoffs)
   if (length(cutoffs) == 1L) cutoffs <- rep(cutoffs, nrow(data))
   if (length(cutoffs) != nrow(data)) stop(label, " Elo chronology cutoffs do not align", call. = FALSE)
   if (anyNA(source_present) || any(!source_present) || anyNA(value_present) || any(!value_present) ||
       anyNA(imputed) || any(imputed) || any(!is.finite(values)) || anyNA(source_dates) ||
-      any(source_dates >= cutoffs) || any(is.na(reasons)) || any(nzchar(reasons))) {
+      any(source_dates >= cutoffs) || any(nzchar(reasons))) {
     stop(label, " Elo provenance must be observed, non-imputed, and source dated strictly before its prediction cutoff", call. = FALSE)
   }
   invisible(TRUE)
@@ -663,18 +701,23 @@ fit_dynamic_elo_coefficient <- function(
   }
   dynamic_goal_validate_elo_provenance(training, training_cutoffs, "prior training frame")
   training <- dynamic_goal_as_results(training)
+  training$match_id <- iconv(
+    as.character(training$match_id), from = "", to = "UTF-8", sub = "byte"
+  )
   training <- training[order(training$match_date, training$match_id, method = "radix"), , drop = FALSE]
   team_ids <- sort(unique(c(training$home_team_id, training$away_team_id)), method = "radix")
   global_rate <- mean(c(training$home_goals, training$away_goals))
   if (!is.finite(global_rate) || global_rate <= 0) global_rate <- 1.25
   state <- initialize_dynamic_goal_state(team_ids, global_rate, pseudo_exposure, min(training$match_date))
-  offsets <- numeric()
-  predictors <- numeric()
-  outcomes <- numeric()
-  for (date_value in sort(unique(training$match_date))) {
-    date_value <- as.Date(date_value, origin = "1970-01-01")
+  offsets <- numeric(2L * nrow(training))
+  predictors <- numeric(2L * nrow(training))
+  outcomes <- numeric(2L * nrow(training))
+  cursor <- 0L
+  date_groups <- split(seq_len(nrow(training)), training$match_date)
+  for (date_index in seq_along(date_groups)) {
+    rows <- training[date_groups[[date_index]], , drop = FALSE]
+    date_value <- as.Date(rows$match_date[1L])
     state <- decay_dynamic_goal_state(state, date_value, half_life_days)
-    rows <- training[training$match_date == date_value, , drop = FALSE]
     fixtures <- data.frame(
       fixture_id = as.character(rows$match_id),
       match_date = rows$match_date,
@@ -684,9 +727,11 @@ fit_dynamic_elo_coefficient <- function(
     )
     means <- predict_dynamic_goal_batch(state, fixtures)
     rows <- rows[match(means$fixture_id, rows$match_id), , drop = FALSE]
-    offsets <- c(offsets, means$dynamic_log_mu_home, means$dynamic_log_mu_away)
-    predictors <- c(predictors, as.numeric(rows$elo_diff), -as.numeric(rows$elo_diff))
-    outcomes <- c(outcomes, rows$home_goals, rows$away_goals)
+    positions <- cursor + seq_len(2L * nrow(rows))
+    offsets[positions] <- c(means$dynamic_log_mu_home, means$dynamic_log_mu_away)
+    predictors[positions] <- c(as.numeric(rows$elo_diff), -as.numeric(rows$elo_diff))
+    outcomes[positions] <- c(rows$home_goals, rows$away_goals)
+    cursor <- cursor + length(positions)
     state <- update_dynamic_goal_batch(state, rows)
   }
   objective <- function(coefficient) {
