@@ -15,8 +15,13 @@ hybrid_source_if_present <- function(relative_path) {
 hybrid_source_if_present("R/evaluation/proper_scores.R")
 hybrid_source_if_present("R/benchmark/contracts.R")
 hybrid_source_if_present("R/benchmark/baselines.R")
+hybrid_source_if_present("R/forecast/xg_usage_audit.R")
+hybrid_source_if_present("R/forecast/goal_ability.R")
+hybrid_source_if_present("R/forecast/dynamic_goal_ability.R")
+hybrid_source_if_present("R/benchmark/hybrid_protocol.R")
 hybrid_source_if_present("R/forecast/hybrid_rf.R")
 hybrid_source_if_present("R/forecast/context_features.R")
+hybrid_source_if_present("R/forecast/structural_prior.R")
 
 hybrid_require_api <- function(required, owner) {
   missing <- required[!vapply(required, exists, logical(1), mode = "function")]
@@ -44,6 +49,118 @@ hybrid_require_rf_api <- function() {
 
 hybrid_require_context_api <- function() {
   hybrid_require_api("build_open_context_features", "context")
+}
+
+hybrid_require_xg_api <- function() {
+  hybrid_require_api("evaluate_hybrid_xg_gate", "xG gate")
+}
+
+hybrid_require_structural_api <- function() {
+  hybrid_require_api(
+    c(
+      "load_structural_prior_snapshots", "compute_structural_prior_signal",
+      "effective_recent_match_count", "apply_structural_sparse_shrinkage"
+    ),
+    "structural prior"
+  )
+}
+
+hybrid_xg_current_files <- function() {
+  list(
+    feature_table = file.path(hybrid_project_root, "data/processed/goal_training_features_hybrid.csv"),
+    home_model = file.path(hybrid_project_root, "models/home_goal_model_hybrid.rds"),
+    away_model = file.path(hybrid_project_root, "models/away_goal_model_hybrid.rds"),
+    rolling_form = file.path(hybrid_project_root, "data/processed/rolling_form.csv"),
+    forecast_features = file.path(
+      hybrid_project_root,
+      "data/processed/worldcup_2026_forecast_features_hybrid.csv"
+    )
+  )
+}
+
+hybrid_xg_gate_thresholds <- function() {
+  list(
+    minimum_source_coverage = 0.80,
+    minimum_nonzero_variance = 1e-8,
+    require_complete_provenance = TRUE
+  )
+}
+
+hybrid_result_field <- function(result, field) {
+  if (is.data.frame(result)) return(result[[field]][1L])
+  result[[field]]
+}
+
+hybrid_structural_snapshot_fixture <- function() {
+  if (!requireNamespace("digest", quietly = TRUE)) {
+    stop("digest is required for structural test fixtures", call. = FALSE)
+  }
+  directory <- tempfile("hybrid-structural-")
+  dir.create(directory, recursive = TRUE)
+  snapshots <- data.frame(
+    country_iso3 = c("DEU", "FRA", "ITA", "DEU", "FRA", "ITA"),
+    country_name = c("Germany", "France", "Italy", "Germany", "France", "Italy"),
+    indicator_id = rep(c("gdp_per_capita", "population"), each = 3L),
+    indicator_name = rep(c("GDP per capita", "Population"), each = 3L),
+    indicator_definition = rep(c("synthetic GDP proxy", "synthetic population proxy"), each = 3L),
+    source_year = rep(2009L, 6L),
+    snapshot_year = rep(2009L, 6L),
+    source_date = as.Date(rep("2009-12-31", 6L)),
+    vintage_id = rep("synthetic_2009_v1", 6L),
+    value = c(42000, 39000, 36000, 82000000, 67000000, 60000000),
+    transformation = rep("registered_synthetic_fixture", 6L),
+    source_name = rep("synthetic-open-structural-source", 6L),
+    source_url_or_label = rep("synthetic test fixture", 6L),
+    license_class = rep("open-or-derived-open", 6L),
+    retrieved_at_utc = rep("2010-01-10T00:00:00Z", 6L),
+    parent_source_sha256 = rep(strrep("a", 64), 6L),
+    row_sha256 = rep(strrep("0", 64), 6L),
+    stringsAsFactors = FALSE
+  )
+  snapshots$row_sha256 <- benchmark_contract_row_hash(snapshots, "row_sha256")
+  snapshot_path <- file.path(directory, "structural_sources.csv")
+  utils::write.csv(snapshots, snapshot_path, row.names = FALSE)
+
+  metadata <- data.frame(
+    vintage_id = "synthetic_2009_v1",
+    snapshot_year = 2009L,
+    source_date = as.Date("2009-12-31"),
+    source_name = "synthetic-open-structural-source",
+    source_url_or_label = "synthetic test fixture",
+    license_class = "open-or-derived-open",
+    indicator_definition = "GDP/population proxies used only to form a sparse-team prior",
+    transformation_policy = "registered_synthetic_fixture",
+    acquisition_note = "manual deterministic test fixture; no network access",
+    stringsAsFactors = FALSE
+  )
+  metadata_path <- file.path(directory, "structural_sources_metadata.csv")
+  utils::write.csv(metadata, metadata_path, row.names = FALSE)
+
+  checksums <- data.frame(
+    artifact_path = c(
+      "structural_sources.csv", "structural_sources_metadata.csv", "structural_sources_rows"
+    ),
+    artifact_kind = c("snapshot", "metadata", "canonical_row_set"),
+    sha256 = c(
+      digest::digest(file = snapshot_path, algo = "sha256"),
+      digest::digest(file = metadata_path, algo = "sha256"),
+      digest::digest(snapshots, algo = "sha256", serialize = TRUE)
+    ),
+    vintage_id = "synthetic_2009_v1",
+    stringsAsFactors = FALSE
+  )
+  checksums_path <- file.path(directory, "structural_sources_checksums.csv")
+  utils::write.csv(checksums, checksums_path, row.names = FALSE)
+
+  list(
+    directory = directory,
+    snapshot_path = snapshot_path,
+    metadata_path = metadata_path,
+    checksums_path = checksums_path,
+    snapshots = snapshots,
+    metadata = metadata,
+    checksums = checksums
+  )
 }
 
 hybrid_rf_settings <- function() {
