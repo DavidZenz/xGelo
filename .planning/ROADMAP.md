@@ -184,13 +184,13 @@ information add stable value beyond the strongest statistical benchmark.
 5. Squad information and bookmaker consensus, when available, remain separately
    labelled enriched or external modes with explicit licensing and provenance.
 
-**Plans:** 7 plans
+**Plans:** 2/7 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 11-01-PLAN.md — Create Phase 11 Wave 0 RF, context, xG, structural, mode, and targets contracts
-- [ ] 11-07-PLAN.md — Provision verified project-local ranger dependency for RF execution
+- [x] 11-01-PLAN.md — Create Phase 11 Wave 0 RF, context, xG, structural, mode, and targets contracts
+- [x] 11-07-PLAN.md — Provision verified project-local ranger dependency for RF execution
 - [ ] 11-02-PLAN.md — Prove the open RF challenger tracer through the common benchmark contract
 
 **Wave 2** *(blocked on Wave 1 completion)*
@@ -244,7 +244,7 @@ Plans:
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
-| 11. Hybrid ML and Contextual Priors | 0/7 | Not started | - |
+| 11. Hybrid ML and Contextual Priors | 2/7 | In Progress|  |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |
 
 ## Completed Milestones
