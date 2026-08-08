@@ -42,7 +42,147 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
 
 .hybrid_adapter_is_context <- function(registration) {
   is.data.frame(registration) && nrow(registration) == 1L &&
-    grepl("context", as.character(registration$candidate_id[[1L]]), fixed = TRUE)
+    grepl("context", as.character(registration$candidate_id[[1L]]), fixed = TRUE) &&
+    !grepl("xg_gated", as.character(registration$candidate_id[[1L]]), fixed = TRUE)
+}
+
+.hybrid_adapter_is_xg <- function(registration) {
+  is.data.frame(registration) && nrow(registration) == 1L &&
+    grepl("xg_gated", as.character(registration$candidate_id[[1L]]), fixed = TRUE)
+}
+
+.hybrid_adapter_xg_gate <- function(protocol, registration) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c("validate_phase11_xg_gate_manifest", ".phase11_file_sha256")
+  )
+  if (!"xg_gate_manifest" %in% names(protocol)) {
+    stop("D-12 xG-gated candidate requires a registered xG gate manifest", call. = FALSE)
+  }
+  gate <- protocol$xg_gate_manifest
+  validate_phase11_xg_gate_manifest(gate)
+  if (as.character(registration$gate_id[[1L]]) != as.character(gate$gate_id[[1L]]) ||
+      as.character(registration$candidate_id[[1L]]) != as.character(gate$candidate_id[[1L]])) {
+    stop("xG candidate registration does not match the D-12 gate manifest", call. = FALSE)
+  }
+  invisible(gate)
+}
+
+.hybrid_xg_registered_settings <- function(settings, registration) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c("load_and_validate_hybrid_protocol", "hybrid_registration")
+  )
+  .hybrid_adapter_source_if_missing("R/forecast/hybrid_rf.R", c("hybrid_rf_registered_settings"))
+  base_protocol <- load_and_validate_hybrid_protocol()
+  base_registration <- hybrid_registration(base_protocol, "phase11_rf_dynamic_elo_open")
+  base_settings <- settings[setdiff(names(settings), c("feature_set_id", "rf_feature_set_id"))]
+  resolved <- hybrid_rf_registered_settings(base_settings, base_registration, candidate_id = "phase11_rf_dynamic_elo_open")
+  resolved$candidate_id <- as.character(registration$candidate_id[[1L]])
+  resolved$feature_set_id <- as.character(registration$feature_set_id[[1L]])
+  resolved$rf_feature_set_id <- as.character(registration$rf_feature_set_id[[1L]])
+  resolved$registration_sha256 <- as.character(registration$registration_sha256[[1L]])
+  resolved$settings_sha256 <- as.character(registration$settings_sha256[[1L]])
+  resolved$gate_id <- as.character(registration$gate_id[[1L]])
+  resolved$gate_parent_sha256 <- as.character(registration$gate_parent_sha256[[1L]])
+  resolved
+}
+
+.hybrid_xg_inactive_manifests <- function(registration, fixtures, run_id, gate, settings) {
+  date_col <- if ("actual_completion_date" %in% names(fixtures)) "actual_completion_date" else "evidence_cutoff_exclusive"
+  boundaries <- unique(fixtures[c("edition_id", "track_id", "boundary_id", "evidence_cutoff_exclusive")])
+  rows <- lapply(seq_len(nrow(boundaries)), function(index) {
+    boundary <- boundaries[index, , drop = FALSE]
+    cutoff <- as.Date(boundary$evidence_cutoff_exclusive[[1L]])
+    prior_date <- cutoff - 1
+    data.frame(
+      model_manifest_id = paste(run_id, registration$candidate_id[[1L]], boundary$boundary_id[[1L]], sep = "__"),
+      run_id = run_id,
+      model_id = registration$candidate_id[[1L]],
+      edition_id = boundary$edition_id[[1L]],
+      track_id = boundary$track_id[[1L]],
+      boundary_id = boundary$boundary_id[[1L]],
+      fit_status = "inactive",
+      fit_row_count = 0L,
+      fit_min_date = prior_date,
+      fit_max_date = prior_date,
+      max_result_date = prior_date,
+      max_feature_source_date = prior_date,
+      evidence_cutoff_exclusive = cutoff,
+      active_predictors = "",
+      dropped_predictors_with_reason = "xG gate failed: no model fit or score rows",
+      model_family = as.character(registration$model_family[[1L]]),
+      convergence_status = "not_run",
+      fallback_status = "inactive_gate_failed",
+      adapter_version = as.character(registration$adapter_version[[1L]]),
+      code_version = "phase11-v1",
+      r_version = as.character(getRversion()),
+      package_versions = "",
+      registration_sha256 = settings$registration_sha256,
+      settings_sha256 = settings$settings_sha256,
+      parent_hashes = .phase11_sha256(paste(
+        settings$registration_sha256, settings$settings_sha256,
+        gate$gate_parent_sha256[[1L]], boundary$boundary_id[[1L]], sep = "|"
+      )),
+      mean_parent_candidate_id = registration$candidate_id[[1L]],
+      mean_prediction_hash = .phase11_sha256(character()),
+      ranger_package = settings$ranger_package,
+      ranger_version = settings$ranger_version,
+      ranger_provenance_id = settings$ranger_provenance_id,
+      research_only = TRUE,
+      wc2026_sealed = TRUE,
+      mode_id = registration$mode_id[[1L]],
+      open_fixture_count = as.integer(registration$open_fixture_count[[1L]]),
+      rich_fixture_count = as.integer(registration$rich_fixture_count[[1L]]),
+      score_support_g = as.integer(registration$score_support_g[[1L]]),
+      active_status = "inactive",
+      score_status = "no_score_gate_failed",
+      inactive_reason = as.character(gate$inactive_reason[[1L]]),
+      gate_id = as.character(gate$gate_id[[1L]]),
+      gate_parent_sha256 = as.character(gate$gate_parent_sha256[[1L]]),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+.hybrid_xg_inactive_result <- function(registration, fixtures, seed_registry, run_id, protocol, settings, gate) {
+  manifests <- .hybrid_xg_inactive_manifests(registration, fixtures, run_id, gate, settings)
+  validate_model_manifests(manifests)
+  evidence <- data.frame(
+    candidate_id = as.character(registration$candidate_id[[1L]]),
+    gate_id = as.character(gate$gate_id[[1L]]),
+    active_status = "inactive",
+    score_status = "no_score_gate_failed",
+    coverage = as.numeric(gate$coverage[[1L]]),
+    variance = as.numeric(gate$variance[[1L]]),
+    provenance = as.logical(gate$provenance[[1L]]),
+    inactive_reason = as.character(gate$inactive_reason[[1L]]),
+    score_row_count = 0L,
+    research_only = TRUE,
+    wc2026_sealed = TRUE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(
+    candidate_id = as.character(registration$candidate_id[[1L]]),
+    registration = registration,
+    settings = settings,
+    protocol = protocol,
+    predictions = data.frame(stringsAsFactors = FALSE),
+    distributions = data.frame(stringsAsFactors = FALSE),
+    means = data.frame(stringsAsFactors = FALSE),
+    manifests = manifests,
+    feature_coverage = data.frame(stringsAsFactors = FALSE),
+    seed_registry = seed_registry,
+    environment = NULL,
+    inactive = TRUE,
+    inactive_evidence = evidence,
+    gate = gate,
+    research_only = TRUE,
+    wc2026_sealed = TRUE
+  )
 }
 
 .hybrid_adapter_context_removed_feature <- function(registration) {
@@ -560,7 +700,16 @@ run_registered_hybrid_adapter <- function(
   fixtures <- hybrid_normalize_fixtures(fixtures)
   if (!is.data.frame(history) || !nrow(history)) stop("Hybrid adapter history must contain rows", call. = FALSE)
   seed_registry <- .hybrid_adapter_seed_registry(fixtures, seed_registry)
-  settings <- if (.hybrid_adapter_is_context(registration)) {
+  if (.hybrid_adapter_is_xg(registration)) {
+    gate <- .hybrid_adapter_xg_gate(protocol, registration)
+    settings <- .hybrid_xg_registered_settings(settings, registration)
+    if (!.phase11_bool(gate$active[[1L]], "xG gate active")) {
+      return(.hybrid_xg_inactive_result(registration, fixtures, seed_registry, run_id, protocol, settings, gate))
+    }
+  }
+  settings <- if (.hybrid_adapter_is_xg(registration)) {
+    .hybrid_xg_registered_settings(settings, registration)
+  } else if (.hybrid_adapter_is_context(registration)) {
     .hybrid_context_registered_settings(settings, registration)
   } else {
     hybrid_rf_registered_settings(settings, registration)

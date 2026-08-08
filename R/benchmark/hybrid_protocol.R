@@ -71,7 +71,11 @@
 }
 
 .phase11_file_sha256 <- function(relative_path) {
-  path <- .phase11_protocol_path(relative_path)
+  path <- if (grepl("^(/|[A-Za-z]:[/\\\\])", as.character(relative_path))) {
+    normalizePath(relative_path, mustWork = FALSE)
+  } else {
+    .phase11_protocol_path(relative_path)
+  }
   if (!file.exists(path)) stop("Phase 11 protocol parent artifact is missing: ", relative_path, call. = FALSE)
   .phase11_sha256(path, file = TRUE)
 }
@@ -133,6 +137,354 @@
     stop(label, " must be true or false", call. = FALSE)
   }
   identical(value, "true")
+}
+
+.phase11_bool_vector <- function(value, label, n = length(value)) {
+  if (length(value) != n) stop(label, " has the wrong row count", call. = FALSE)
+  if (is.logical(value)) result <- value else {
+    normalized <- tolower(trimws(as.character(value)))
+    result <- ifelse(normalized == "true", TRUE, ifelse(normalized == "false", FALSE, NA))
+  }
+  if (anyNA(result)) stop(label, " must contain only true/false values", call. = FALSE)
+  result
+}
+
+.phase11_input_sha256 <- function(value) {
+  if (!requireNamespace("digest", quietly = TRUE)) {
+    stop("digest is required for Phase 11 input hashes", call. = FALSE)
+  }
+  if (is.character(value) && length(value) == 1L && file.exists(value)) {
+    return(.phase11_sha256(value, file = TRUE))
+  }
+  if (is.null(value)) return(.phase11_sha256("", file = FALSE))
+  digest::digest(value, algo = "sha256", serialize = TRUE)
+}
+
+.phase11_xg_gate_threshold_defaults <- function() {
+  list(
+    minimum_source_coverage = 0.80,
+    minimum_nonzero_variance = 1e-8,
+    require_complete_provenance = TRUE,
+    require_active_model = TRUE,
+    minimum_forecast_coverage = 0.80
+  )
+}
+
+.phase11_xg_gate_companion_suffixes <- function() {
+  c("__source_date", "__source_present", "__value_present", "__imputed", "__imputation_reason")
+}
+
+.phase11_xg_table_coverage <- function(data, predictors, cutoff) {
+  if (!is.data.frame(data) || !nrow(data)) {
+    return(list(
+      coverage = 0,
+      by_predictor = stats::setNames(rep(0, length(predictors)), predictors),
+      provenance_complete = FALSE,
+      invalid_rows = 0L
+    ))
+  }
+  cutoff <- as.Date(cutoff)
+  by_predictor <- stats::setNames(rep(0, length(predictors)), predictors)
+  valid_rows <- vector("list", length(predictors))
+  invalid_rows <- 0L
+  for (index in seq_along(predictors)) {
+    predictor <- predictors[[index]]
+    companions <- paste0(predictor, .phase11_xg_gate_companion_suffixes())
+    complete_columns <- all(c(predictor, companions) %in% names(data))
+    if (!complete_columns) {
+      valid_rows[[index]] <- rep(FALSE, nrow(data))
+      next
+    }
+    values <- suppressWarnings(as.numeric(data[[predictor]]))
+    source_date <- as.Date(data[[paste0(predictor, "__source_date")]])
+    source_present <- .phase11_bool_vector(
+      data[[paste0(predictor, "__source_present")]],
+      paste0(predictor, " source presence"), nrow(data)
+    )
+    value_present <- .phase11_bool_vector(
+      data[[paste0(predictor, "__value_present")]],
+      paste0(predictor, " value presence"), nrow(data)
+    )
+    imputed <- .phase11_bool_vector(
+      data[[paste0(predictor, "__imputed")]],
+      paste0(predictor, " imputation"), nrow(data)
+    )
+    valid <- source_present & value_present & !imputed & is.finite(values) &
+      !is.na(source_date) & source_date < cutoff
+    by_predictor[[predictor]] <- mean(valid)
+    valid_rows[[index]] <- valid
+    invalid_rows <- invalid_rows + sum(source_present & (is.na(source_date) | source_date >= cutoff))
+  }
+  row_coverage <- if (length(valid_rows)) {
+    Reduce(`&`, valid_rows)
+  } else {
+    rep(FALSE, nrow(data))
+  }
+  provenance_complete <- all(vapply(valid_rows, length, integer(1)) == nrow(data)) &&
+    invalid_rows == 0L && any(row_coverage)
+  list(
+    coverage = if (length(by_predictor)) min(by_predictor) else 0,
+    by_predictor = by_predictor,
+    provenance_complete = provenance_complete,
+    invalid_rows = as.integer(invalid_rows)
+  )
+}
+
+#' Evaluate the registered point-in-time xG activation gate.
+#'
+#' D-12 deliberately treats source presence, value presence, imputation, and
+#' variance as separate facts.  A feature table containing zero placeholders
+#' therefore cannot activate xG unless its evidence companions also qualify.
+#' @export
+evaluate_hybrid_xg_gate <- function(
+    feature_table = "data/processed/goal_training_features_hybrid.csv",
+    home_model = "models/home_goal_model_hybrid.rds",
+    away_model = "models/away_goal_model_hybrid.rds",
+    rolling_form = "data/processed/rolling_form.csv",
+    forecast_features = "data/processed/worldcup_2026_forecast_features_hybrid.csv",
+    predictors = NULL,
+    thresholds = NULL,
+    evidence_cutoff_exclusive = as.Date("2026-06-05"),
+    gate_id = "phase11_xg_gate_d12_v1",
+    candidate_id = "phase11_rf_dynamic_elo_context_xg_gated_open"
+) {
+  .phase11_protocol_source_if_missing <- function(relative_path, symbols) {
+    missing <- symbols[!vapply(symbols, exists, logical(1), mode = "function")]
+    if (!length(missing)) return(invisible(TRUE))
+    path <- .phase11_protocol_path(relative_path)
+    if (!file.exists(path)) stop("Phase 11 xG gate dependency is missing: ", relative_path, call. = FALSE)
+    source(path, local = .GlobalEnv)
+    invisible(TRUE)
+  }
+  .phase11_protocol_source_if_missing("R/forecast/xg_usage_audit.R", c("audit_xg_feature_usage", "xg_form_predictors"))
+  predictors <- if (is.null(predictors)) xg_form_predictors() else as.character(predictors)
+  if (!length(predictors) || anyNA(predictors) || any(!nzchar(predictors)) || anyDuplicated(predictors)) {
+    stop("xG gate predictors must be a non-empty unique character vector", call. = FALSE)
+  }
+  defaults <- .phase11_xg_gate_threshold_defaults()
+  thresholds <- modifyList(defaults, if (is.null(thresholds)) list() else thresholds)
+  required_thresholds <- names(defaults)
+  missing_thresholds <- setdiff(required_thresholds, names(thresholds))
+  if (length(missing_thresholds)) stop("xG gate thresholds are missing: ", paste(missing_thresholds, collapse = ", "), call. = FALSE)
+  numeric_thresholds <- c("minimum_source_coverage", "minimum_nonzero_variance", "minimum_forecast_coverage")
+  for (name in numeric_thresholds) {
+    value <- suppressWarnings(as.numeric(thresholds[[name]]))
+    if (length(value) != 1L || is.na(value) || !is.finite(value) || value < 0) {
+      stop("xG gate threshold is invalid: ", name, call. = FALSE)
+    }
+    thresholds[[name]] <- value
+  }
+  thresholds$require_complete_provenance <- .phase11_bool(thresholds$require_complete_provenance, "require_complete_provenance")
+  thresholds$require_active_model <- .phase11_bool(thresholds$require_active_model, "require_active_model")
+
+  cutoff <- as.Date(evidence_cutoff_exclusive)
+  if (length(cutoff) != 1L || is.na(cutoff)) stop("xG gate evidence cutoff must be one valid date", call. = FALSE)
+  audit <- audit_xg_feature_usage(
+    feature_table = feature_table,
+    home_model = home_model,
+    away_model = away_model,
+    rolling_form = rolling_form,
+    forecast_features = forecast_features,
+    predictors = predictors
+  )
+  feature_data <- read_audit_table(feature_table, "feature_table")
+  forecast_data <- read_audit_table(forecast_features, "forecast_features", required = FALSE)
+  training <- .phase11_xg_table_coverage(feature_data, predictors, cutoff)
+  forecast <- .phase11_xg_table_coverage(forecast_data, predictors, cutoff)
+  forecast_coverage <- if (is.data.frame(forecast_data) && nrow(forecast_data)) forecast$coverage else 0
+
+  variance_by_predictor <- stats::setNames(rep(0, length(predictors)), predictors)
+  if (nrow(audit)) {
+    for (predictor in predictors) {
+      row <- audit[as.character(audit$predictor) == predictor, , drop = FALSE]
+      if (nrow(row) == 1L) {
+        value <- suppressWarnings(as.numeric(row$sd[[1L]]))
+        variance_by_predictor[[predictor]] <- if (is.finite(value)) value^2 else 0
+      }
+    }
+  }
+  variance <- if (length(variance_by_predictor)) min(variance_by_predictor) else 0
+  model_labels <- if (nrow(audit)) as.logical(audit$active_in_model) else logical()
+  model_labelled <- length(model_labels) == length(predictors) && all(model_labels)
+  provenance <- isTRUE(training$provenance_complete) &&
+    isTRUE(forecast$provenance_complete) &&
+    all(is.finite(unlist(variance_by_predictor))) &&
+    nrow(audit) == length(predictors)
+
+  source_hashes <- c(
+    feature_table = .phase11_input_sha256(feature_table),
+    home_model = .phase11_input_sha256(home_model),
+    away_model = .phase11_input_sha256(away_model),
+    rolling_form = .phase11_input_sha256(rolling_form),
+    forecast_features = .phase11_input_sha256(forecast_features),
+    audit = .phase11_input_sha256(audit)
+  )
+  gate_parent_sha256 <- .phase11_sha256(paste(unname(source_hashes), collapse = "|"))
+  reasons <- character()
+  if (training$coverage < thresholds$minimum_source_coverage) {
+    reasons <- c(reasons, sprintf("coverage %.6f < %.6f", training$coverage, thresholds$minimum_source_coverage))
+  }
+  if (forecast_coverage < thresholds$minimum_forecast_coverage) {
+    reasons <- c(reasons, sprintf("forecast coverage %.6f < %.6f", forecast_coverage, thresholds$minimum_forecast_coverage))
+  }
+  if (variance < thresholds$minimum_nonzero_variance) {
+    reasons <- c(reasons, sprintf("variance %.12g < %.12g", variance, thresholds$minimum_nonzero_variance))
+  }
+  if (thresholds$require_complete_provenance && !provenance) reasons <- c(reasons, "provenance incomplete")
+  if (thresholds$require_active_model && !model_labelled) reasons <- c(reasons, "xG predictors are not actively retained by both labelled models")
+  active <- training$coverage >= thresholds$minimum_source_coverage &&
+    forecast_coverage >= thresholds$minimum_forecast_coverage &&
+    variance >= thresholds$minimum_nonzero_variance &&
+    (!thresholds$require_complete_provenance || provenance) &&
+    (!thresholds$require_active_model || model_labelled)
+  inactive_reason <- if (active) "" else paste(c("D-12 xG gate failed:", reasons), collapse = "; ")
+  list(
+    schema_version = "phase11-xg-gate-v1",
+    gate_id = as.character(gate_id),
+    candidate_id = as.character(candidate_id),
+    evidence_cutoff_exclusive = cutoff,
+    predictors = predictors,
+    audit = audit,
+    coverage_by_predictor = training$by_predictor,
+    forecast_coverage_by_predictor = forecast$by_predictor,
+    variance_by_predictor = variance_by_predictor,
+    coverage = as.numeric(training$coverage),
+    forecast_coverage = as.numeric(forecast_coverage),
+    variance = as.numeric(variance),
+    provenance = isTRUE(provenance),
+    model_labelled = isTRUE(model_labelled),
+    thresholds = thresholds,
+    active = isTRUE(active),
+    active_status = if (active) "active" else "inactive",
+    score_status = if (active) "score_eligible" else "no_score_gate_failed",
+    inactive_reason = inactive_reason,
+    source_hashes = source_hashes,
+    gate_parent_sha256 = gate_parent_sha256,
+    research_only = TRUE,
+    wc2026_sealed = TRUE
+  )
+}
+
+.phase11_xg_gate_manifest_row <- function(gate) {
+  thresholds <- gate$thresholds
+  hashes <- gate$source_hashes
+  row <- data.frame(
+    schema_version = "1.0",
+    gate_id = as.character(gate$gate_id),
+    candidate_id = as.character(gate$candidate_id),
+    decision_rule = "D-12: activate only when point-in-time coverage, variance, provenance, and model labelling thresholds pass",
+    predictors = paste(as.character(gate$predictors), collapse = "|"),
+    evidence_cutoff_exclusive = as.Date(gate$evidence_cutoff_exclusive),
+    minimum_source_coverage = as.numeric(thresholds$minimum_source_coverage),
+    minimum_forecast_coverage = as.numeric(thresholds$minimum_forecast_coverage),
+    minimum_nonzero_variance = as.numeric(thresholds$minimum_nonzero_variance),
+    require_complete_provenance = isTRUE(thresholds$require_complete_provenance),
+    require_active_model = isTRUE(thresholds$require_active_model),
+    coverage = as.numeric(gate$coverage),
+    forecast_coverage = as.numeric(gate$forecast_coverage),
+    variance = as.numeric(gate$variance),
+    provenance = isTRUE(gate$provenance),
+    model_labelled = isTRUE(gate$model_labelled),
+    active = isTRUE(gate$active),
+    active_status = as.character(gate$active_status),
+    score_status = as.character(gate$score_status),
+    inactive_reason = as.character(gate$inactive_reason),
+    source_hash_feature_table = unname(hashes[["feature_table"]]),
+    source_hash_home_model = unname(hashes[["home_model"]]),
+    source_hash_away_model = unname(hashes[["away_model"]]),
+    source_hash_rolling_form = unname(hashes[["rolling_form"]]),
+    source_hash_forecast_features = unname(hashes[["forecast_features"]]),
+    source_hash_audit = unname(hashes[["audit"]]),
+    gate_parent_sha256 = as.character(gate$gate_parent_sha256),
+    source_hashes = paste(paste(names(hashes), unname(hashes), sep = "="), collapse = "|"),
+    active_candidate_rule = "xG-informed candidates are rejected unless active_status=active",
+    research_only = TRUE,
+    wc2026_sealed = TRUE,
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  row$row_sha256 <- .phase11_row_sha256(row, "row_sha256")
+  row
+}
+
+#' Validate the durable xG gate manifest.
+#' @export
+validate_phase11_xg_gate_manifest <- function(data) {
+  required <- c(
+    "schema_version", "gate_id", "candidate_id", "decision_rule", "predictors",
+    "evidence_cutoff_exclusive", "minimum_source_coverage", "minimum_forecast_coverage",
+    "minimum_nonzero_variance", "require_complete_provenance", "require_active_model",
+    "coverage", "forecast_coverage", "variance", "provenance", "model_labelled", "active",
+    "active_status", "score_status", "inactive_reason", "source_hash_feature_table",
+    "source_hash_home_model", "source_hash_away_model", "source_hash_rolling_form",
+    "source_hash_forecast_features", "source_hash_audit", "gate_parent_sha256",
+    "source_hashes", "active_candidate_rule", "research_only", "wc2026_sealed", "row_sha256"
+  )
+  missing <- setdiff(required, names(data))
+  if (length(missing)) stop("Phase 11 xG gate manifest is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (!is.data.frame(data) || nrow(data) != 1L) stop("Phase 11 xG gate manifest must contain exactly one row", call. = FALSE)
+  if (as.character(data$gate_id) != "phase11_xg_gate_d12_v1") stop("Phase 11 xG gate must cite the registered D-12 gate", call. = FALSE)
+  if (as.character(data$candidate_id) != "phase11_rf_dynamic_elo_context_xg_gated_open") stop("Phase 11 xG gate candidate identity is not registered", call. = FALSE)
+  if (length(strsplit(as.character(data$predictors), "|", fixed = TRUE)[[1L]]) < 1L) stop("Phase 11 xG gate predictors are empty", call. = FALSE)
+  cutoff <- as.Date(data$evidence_cutoff_exclusive)
+  if (is.na(cutoff)) stop("Phase 11 xG gate evidence cutoff is invalid", call. = FALSE)
+  threshold_names <- c("minimum_source_coverage", "minimum_forecast_coverage", "minimum_nonzero_variance")
+  if (any(!vapply(data[threshold_names], function(x) is.finite(as.numeric(x[[1L]])) && as.numeric(x[[1L]]) >= 0, logical(1)))) {
+    stop("Phase 11 xG gate thresholds are invalid", call. = FALSE)
+  }
+  bool_names <- c("require_complete_provenance", "require_active_model", "provenance", "model_labelled", "active", "research_only", "wc2026_sealed")
+  for (name in bool_names) .phase11_bool(data[[name]][[1L]], paste0("xG gate ", name))
+  hash_names <- c(
+    "source_hash_feature_table", "source_hash_home_model", "source_hash_away_model",
+    "source_hash_rolling_form", "source_hash_forecast_features", "source_hash_audit",
+    "gate_parent_sha256"
+  )
+  if (any(!vapply(data[hash_names], function(x) grepl("^[0-9a-f]{64}$", tolower(as.character(x[[1L]]))), logical(1)))) {
+    stop("Phase 11 xG gate source hashes must be canonical SHA-256 values", call. = FALSE)
+  }
+  expected_parent <- .phase11_sha256(paste(
+    as.character(data$source_hash_feature_table), as.character(data$source_hash_home_model),
+    as.character(data$source_hash_away_model), as.character(data$source_hash_rolling_form),
+    as.character(data$source_hash_forecast_features), as.character(data$source_hash_audit),
+    sep = "|"
+  ))
+  if (!identical(tolower(as.character(data$gate_parent_sha256)), expected_parent)) stop("Phase 11 xG gate parent hash mismatch", call. = FALSE)
+  .phase11_assert_hash(data, "row_sha256", "Phase 11 xG gate manifest")
+  active <- .phase11_bool(data$active[[1L]], "xG gate active")
+  provenance_requirement_failed <- .phase11_bool(data$require_complete_provenance[[1L]], "xG gate require_complete_provenance") &&
+    !.phase11_bool(data$provenance[[1L]], "xG gate provenance")
+  model_requirement_failed <- .phase11_bool(data$require_active_model[[1L]], "xG gate require_active_model") &&
+    !.phase11_bool(data$model_labelled[[1L]], "xG gate model_labelled")
+  if (active && (
+    as.numeric(data$coverage) < as.numeric(data$minimum_source_coverage) ||
+      as.numeric(data$forecast_coverage) < as.numeric(data$minimum_forecast_coverage) ||
+      as.numeric(data$variance) < as.numeric(data$minimum_nonzero_variance) ||
+      provenance_requirement_failed || model_requirement_failed
+  )) {
+    stop("D-12 xG gate cannot be active below a declared threshold", call. = FALSE)
+  }
+  if (active && as.character(data$active_status) != "active") stop("Active xG gate must be labelled active", call. = FALSE)
+  if (!active && (as.character(data$active_status) != "inactive" || as.character(data$score_status) != "no_score_gate_failed" || !nzchar(as.character(data$inactive_reason)))) {
+    stop("Inactive xG gate must publish explicit inactive/no-score evidence", call. = FALSE)
+  }
+  invisible(data)
+}
+
+#' Build and write the canonical current xG gate manifest.
+#' @export
+write_phase11_xg_gate_manifest <- function(
+    manifest_path = "data/benchmark/phase11/xg_gate_manifest.csv",
+    gate = NULL
+) {
+  root <- .phase11_protocol_root(".")
+  path <- if (grepl("^(/|[A-Za-z]:[/\\\\])", manifest_path)) manifest_path else file.path(root, manifest_path)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  if (is.null(gate)) gate <- evaluate_hybrid_xg_gate()
+  row <- .phase11_xg_gate_manifest_row(gate)
+  utils::write.csv(row, path, row.names = FALSE, na = "", quote = TRUE)
+  validate_phase11_xg_gate_manifest(.phase11_read_csv(path))
+  invisible(row)
 }
 
 #' Return immutable Phase 11 RF protocol constants.
@@ -213,6 +565,15 @@ canonical_phase11_model_registry <- function() {
     context_parent_hashes = "",
     centroid_registry_sha256 = "",
     centroid_metadata_sha256 = "",
+    panel_rule = "open_core",
+    feature_rule = "registered_dynamic_elo_features_only",
+    gate_id = "",
+    gate_parent_sha256 = "",
+    structural_prior_manifest_sha256 = "",
+    structural_snapshot_vintage_id = "",
+    prior_strength = "",
+    effective_count_formula = "",
+    settings_identity = "",
     settings_sha256 = "",
     registration_sha256 = "",
     stringsAsFactors = FALSE,
@@ -222,6 +583,37 @@ canonical_phase11_model_registry <- function() {
   registration$tuning_grid_sha256 <- .phase11_rf_tuning_grid_sha256(registration)
   registration$registration_sha256 <- .phase11_row_sha256(registration, "registration_sha256")
   registration
+}
+
+.phase11_xg_model_row <- function(open_registration) {
+  row <- open_registration
+  row$candidate_id <- "phase11_rf_dynamic_elo_context_xg_gated_open"
+  row$model_family <- "random_forest_goal_means_xg_gated"
+  row$mean_model_id <- "phase11_rf_dynamic_elo_context_xg_gated_open_v1"
+  row$mean_parent_candidate_id <- "phase11_rf_dynamic_elo_context_open"
+  row$nested_parent_candidate_id <- "phase11_rf_dynamic_elo_context_open"
+  row$feature_set_id <- "phase11_rf_dynamic_elo_context_xg_gated_open"
+  row$rf_feature_set_id <- "phase11_rf_dynamic_elo_context_xg_gated_open"
+  row$complexity_rank <- "10"
+  row$settings <- paste(
+    "num.trees=64", "mtry=3", "min.node.size=1",
+    "seed_policy=registered_seed", "rf_feature_set_id=phase11_rf_dynamic_elo_context_xg_gated_open",
+    "feature_rule=open_context_plus_xg_only_after_gate",
+    "gate_id=phase11_xg_gate_d12_v1",
+    "home_away_tuning_relationship=shared_registered_settings",
+    "nb_dispersion_source=registered_nb_theta", "home_theta=8", "away_theta=8",
+    sep = ";"
+  )
+  row$context_feature_set_id <- "phase11_rf_dynamic_elo_context_open"
+  row$panel_rule <- "open_core_when_gate_active"
+  row$feature_rule <- "open_context_plus_xg_only_after_gate"
+  row$gate_id <- "phase11_xg_gate_d12_v1"
+  row$gate_parent_sha256 <- .phase11_file_sha256("data/benchmark/phase11/xg_gate_manifest.csv")
+  row$context_parent_hashes <- .phase11_context_centroid_file_hashes()$parent
+  row$settings_sha256 <- .phase11_model_settings_sha256(row)
+  row$tuning_grid_sha256 <- .phase11_rf_tuning_grid_sha256(row)
+  row$registration_sha256 <- .phase11_row_sha256(row, "registration_sha256")
+  row
 }
 
 .phase11_context_feature_ids <- function() {
@@ -295,7 +687,8 @@ canonical_phase11_model_registry_rows <- function() {
       if (index == 1L) "" else .phase11_context_feature_ids()[[index - 1L]]
     )
   }))
-  rbind(open_registration, context)
+  xg <- .phase11_xg_model_row(open_registration)
+  rbind(open_registration, context, xg)
 }
 
 #' Return the registered context bundle and one-feature-drop ablation rows.
@@ -599,7 +992,10 @@ validate_hybrid_model_registry <- function(data) {
   if (any(as.character(data$native_panel_id) != as.character(data$panel_id))) {
     stop("Phase 11 model registry panel aliases drifted", call. = FALSE)
   }
-  if (any(as.character(data$model_family) != "random_forest_goal_means") ||
+  if (any(!as.character(data$model_family) %in% c(
+    "random_forest_goal_means", "random_forest_goal_means_xg_gated",
+    "random_forest_goal_means_structural_prior"
+  )) ||
       any(as.character(data$adapter_id) != "phase11_hybrid_rf") ||
       any(as.character(data$ranger_package) != "ranger") ||
       any(as.character(data$ranger_version) != "0.18.0")) {
@@ -613,7 +1009,8 @@ validate_hybrid_model_registry <- function(data) {
   }
   .phase11_assert_hash(data, "settings_sha256", "Phase 11 model registry settings")
   .phase11_assert_hash(data, "registration_sha256", "Phase 11 model registry registration")
-  context_rows <- data[grepl("context", as.character(data$candidate_id), fixed = TRUE), , drop = FALSE]
+  context_rows <- data[grepl("context", as.character(data$candidate_id), fixed = TRUE) &
+    !grepl("xg_gated", as.character(data$candidate_id), fixed = TRUE), , drop = FALSE]
   if (nrow(context_rows)) {
     expected_context <- .phase11_context_candidate_ids()
     if (!setequal(as.character(context_rows$candidate_id), expected_context) ||
@@ -640,6 +1037,20 @@ validate_hybrid_model_registry <- function(data) {
     actual_removed <- as.character(context_rows$removed_feature_id[match(expected_context, context_rows$candidate_id)])
     if (!identical(actual_removed, expected_removed)) {
       stop("Phase 11 context model registry removed-feature identities drifted", call. = FALSE)
+    }
+  }
+  xg_rows <- data[as.character(data$candidate_id) == "phase11_rf_dynamic_elo_context_xg_gated_open", , drop = FALSE]
+  if (nrow(xg_rows)) {
+    required_xg <- c("panel_rule", "feature_rule", "gate_id", "gate_parent_sha256", "context_feature_set_id")
+    benchmark_contract_require_columns(xg_rows, required_xg, "Phase 11 xG-gated model registry")
+    if (as.character(xg_rows$panel_rule) != "open_core_when_gate_active" ||
+        as.character(xg_rows$feature_rule) != "open_context_plus_xg_only_after_gate" ||
+        as.character(xg_rows$gate_id) != "phase11_xg_gate_d12_v1" ||
+        !grepl("^[0-9a-f]{64}$", tolower(as.character(xg_rows$gate_parent_sha256)))) {
+      stop("Phase 11 xG candidate must carry the registered D-12 gate parent and activation rules", call. = FALSE)
+    }
+    if (as.character(xg_rows$panel_id) != "open_core" || as.character(xg_rows$mode_id) != "open_default") {
+      stop("Phase 11 xG candidate must remain open_default on open_core", call. = FALSE)
     }
   }
   invisible(data)
@@ -722,6 +1133,15 @@ load_and_validate_hybrid_protocol <- function(
       path, stringsAsFactors = FALSE, check.names = FALSE, colClasses = "character"
     )
   }
+  if ("xg_gate_manifest" %in% names(result)) {
+    validate_phase11_xg_gate_manifest(result$xg_gate_manifest)
+    xg_rows <- model_registry[as.character(model_registry$candidate_id) == "phase11_rf_dynamic_elo_context_xg_gated_open", , drop = FALSE]
+    if (nrow(xg_rows) != 1L) stop("Phase 11 xG gate manifest requires one registered xG-gated model row", call. = FALSE)
+    manifest_hash <- .phase11_file_sha256(file.path(directory, "xg_gate_manifest.csv"))
+    if (!identical(tolower(as.character(xg_rows$gate_parent_sha256)), manifest_hash)) {
+      stop("Phase 11 xG-gated model registry does not parent the checked gate manifest", call. = FALSE)
+    }
+  }
   if (file.exists(file.path(directory, "country_centroids.csv")) &&
       file.exists(file.path(directory, "country_centroids_metadata.csv"))) {
     .phase11_protocol_source_if_missing <- function(relative_path, symbols) {
@@ -773,6 +1193,7 @@ write_phase11_hybrid_protocol <- function(protocol_dir = "data/benchmark/phase11
     file.path(root, protocol_dir)
   }
   dir.create(directory, recursive = TRUE, showWarnings = FALSE)
+  write_phase11_xg_gate_manifest(file.path(directory, "xg_gate_manifest.csv"))
   utils::write.csv(
     canonical_phase11_feature_contract(), file.path(directory, "feature_contract.csv"),
     row.names = FALSE, na = "", quote = TRUE
