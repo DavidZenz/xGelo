@@ -1,0 +1,6 @@
+"artifact_path","artifact_kind","sha256","vintage_id"
+"structural_sources.csv","snapshot","c34cf5289eba4d847a9e15bc276c7a4dba289f31245b107ad1f26618d425534a","worldbank_wdi_2000_v1"
+"structural_sources_metadata.csv","metadata","6e134d924cc2be2cb85aeb5aada29fdb3bab4f4006080c092f370f03b74caba9","worldbank_wdi_2000_v1"
+"structural_sources_rows","canonical_row_set","7724639b08dea0499bdbbdd5d9f1cc86e8bb93dce65b0c5fba3ea6e0a6d236e9","worldbank_wdi_2000_v1"
+"worldbank_wdi_gdp_parent","source_parent","30fc8bf79b38e7f8afaa714a6ec14f630c59bc8925f0c45e7e6214517eda434c","worldbank_wdi_2000_v1"
+"worldbank_wdi_population_parent","source_parent","b8a8237bab0dba3cfe554333c2dd45983033809eb91082d0d8e80f3041f58640","worldbank_wdi_2000_v1"

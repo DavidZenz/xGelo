@@ -487,6 +487,162 @@ write_phase11_xg_gate_manifest <- function(
   invisible(row)
 }
 
+#' Validate the committed, checksum-backed structural source snapshot.
+#'
+#' This protocol-level wrapper keeps structural input validation discoverable
+#' from the same registry loader as the RF and xG gates.  The implementation
+#' lives in `R/forecast/structural_prior.R` so it can also be used directly by
+#' fold-local adapters.
+#' @export
+validate_phase11_structural_source_manifest <- function(
+    snapshot_path = "data/benchmark/phase11/structural_sources.csv",
+    metadata_path = "data/benchmark/phase11/structural_sources_metadata.csv",
+    checksums_path = "data/benchmark/phase11/structural_sources_checksums.csv",
+    evidence_cutoff_exclusive = as.Date("2026-06-05"),
+    registered_vintage_id = NULL
+) {
+  if (!exists("load_structural_prior_snapshots", mode = "function")) {
+    source(.phase11_protocol_path("R", "forecast", "structural_prior.R"), local = .GlobalEnv)
+  }
+  load_structural_prior_snapshots(
+    snapshot_path = snapshot_path,
+    metadata_path = metadata_path,
+    checksums_path = checksums_path,
+    evidence_cutoff_exclusive = evidence_cutoff_exclusive,
+    registered_vintage_id = registered_vintage_id
+  )
+}
+
+.phase11_structural_manifest_paths <- function() {
+  list(
+    snapshot = "data/benchmark/phase11/structural_sources.csv",
+    metadata = "data/benchmark/phase11/structural_sources_metadata.csv",
+    checksums = "data/benchmark/phase11/structural_sources_checksums.csv"
+  )
+}
+
+#' Build the canonical structural-prior manifest parent.
+#' @export
+canonical_phase11_structural_prior_manifest <- function(
+    snapshot_path = "data/benchmark/phase11/structural_sources.csv",
+    metadata_path = "data/benchmark/phase11/structural_sources_metadata.csv",
+    checksums_path = "data/benchmark/phase11/structural_sources_checksums.csv",
+    evidence_cutoff_exclusive = as.Date("2026-06-05"),
+    candidate_id = "phase11_structural_sparse_prior_open",
+    prior_strength = 4,
+    evidence_half_life_days = 730,
+    prior_scale = 0.15,
+    prior_bounds = c(0.65, 1.55)
+) {
+  loaded <- validate_phase11_structural_source_manifest(
+    snapshot_path, metadata_path, checksums_path, evidence_cutoff_exclusive
+  )
+  paths <- .phase11_structural_manifest_paths()
+  metadata <- attr(loaded, "structural_metadata")
+  vintage_id <- unique(as.character(loaded$vintage_id))
+  indicator_ids <- unique(as.character(loaded$indicator_id))
+  indicator_definitions <- unique(paste(as.character(loaded$indicator_id), as.character(loaded$indicator_definition), sep = "="))
+  transformations <- unique(as.character(loaded$transformation))
+  parent_hashes <- unique(as.character(loaded$parent_source_sha256))
+  if (length(vintage_id) != 1L) stop("Structural prior manifest requires one frozen snapshot vintage", call. = FALSE)
+  row <- data.frame(
+    schema_version = "1.0",
+    manifest_id = "phase11_structural_prior_manifest_d09_d11_v1",
+    candidate_id = as.character(candidate_id),
+    decision_rule = "D-09/D-10/D-11: structural values may affect sparse goal means only through continuous evidence-weighted prior shrinkage",
+    snapshot_path = paths$snapshot,
+    metadata_path = paths$metadata,
+    checksums_path = paths$checksums,
+    snapshot_vintage_id = vintage_id,
+    source_year = as.integer(unique(loaded$source_year)[[1L]]),
+    source_date = as.Date(unique(loaded$source_date)[[1L]]),
+    indicator_ids = paste(indicator_ids, collapse = "|"),
+    indicator_definitions = paste(indicator_definitions, collapse = "|"),
+    transformations = paste(transformations, collapse = "|"),
+    source_name = paste(unique(as.character(loaded$source_name)), collapse = "|"),
+    license_class = paste(unique(as.character(loaded$license_class)), collapse = "|"),
+    parent_source_sha256 = paste(parent_hashes, collapse = "|"),
+    source_snapshot_sha256 = as.character(attr(loaded, "structural_snapshot_sha256")),
+    source_metadata_sha256 = as.character(attr(loaded, "structural_metadata_sha256")),
+    source_rows_sha256 = as.character(attr(loaded, "structural_rows_sha256")),
+    checksum_registry_sha256 = .phase11_file_sha256(checksums_path),
+    prior_strength = as.numeric(prior_strength),
+    prior_scale = as.numeric(prior_scale),
+    prior_lower_bound = as.numeric(prior_bounds[[1L]]),
+    prior_upper_bound = as.numeric(prior_bounds[[2L]]),
+    evidence_half_life_days = as.numeric(evidence_half_life_days),
+    effective_count_formula = "effective_match_count=sum(exp(-log(2) * (evidence_cutoff_exclusive - match_date) / evidence_half_life_days))",
+    prior_application_rule = "post=(1-prior_weight)*baseline_mean+prior_weight*structural_prior; prior_weight=prior_strength/(prior_strength+effective_match_count)",
+    raw_structural_predictors_allowed = FALSE,
+    acquisition_note = paste(unique(as.character(metadata$acquisition_note)), collapse = "|"),
+    evidence_cutoff_exclusive = as.Date(evidence_cutoff_exclusive),
+    research_only = TRUE,
+    wc2026_sealed = TRUE,
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  row$row_sha256 <- .phase11_row_sha256(row, "row_sha256")
+  row
+}
+
+#' Validate the durable structural-prior manifest.
+#' @export
+validate_phase11_structural_prior_manifest <- function(data) {
+  required <- c(
+    "schema_version", "manifest_id", "candidate_id", "decision_rule",
+    "snapshot_path", "metadata_path", "checksums_path", "snapshot_vintage_id",
+    "source_year", "source_date", "indicator_ids", "indicator_definitions",
+    "transformations", "source_name", "license_class", "parent_source_sha256",
+    "source_snapshot_sha256", "source_metadata_sha256", "source_rows_sha256",
+    "checksum_registry_sha256", "prior_strength", "prior_scale", "prior_lower_bound",
+    "prior_upper_bound", "evidence_half_life_days", "effective_count_formula",
+    "prior_application_rule", "raw_structural_predictors_allowed", "acquisition_note",
+    "evidence_cutoff_exclusive", "research_only", "wc2026_sealed", "row_sha256"
+  )
+  missing <- setdiff(required, names(data))
+  if (length(missing)) stop("Phase 11 structural prior manifest is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (!is.data.frame(data) || nrow(data) != 1L) stop("Phase 11 structural prior manifest must contain exactly one row", call. = FALSE)
+  if (as.character(data$candidate_id) != "phase11_structural_sparse_prior_open") stop("Structural prior manifest candidate identity is not registered", call. = FALSE)
+  if (as.character(data$license_class) != "open-or-derived-open") stop("Structural prior manifest license is not open", call. = FALSE)
+  if (.phase11_bool(data$raw_structural_predictors_allowed[[1L]], "structural prior raw_structural_predictors_allowed")) {
+    stop("Structural prior manifest cannot permit raw structural predictors", call. = FALSE)
+  }
+  hashes <- c(
+    data$parent_source_sha256, data$source_snapshot_sha256, data$source_metadata_sha256,
+    data$source_rows_sha256, data$checksum_registry_sha256
+  )
+  if (any(!grepl("^[0-9a-f]{64}(\\|[0-9a-f]{64})*$", tolower(as.character(hashes))))) {
+    stop("Structural prior manifest contains noncanonical source hashes", call. = FALSE)
+  }
+  cutoff <- as.Date(data$evidence_cutoff_exclusive)
+  source_date <- as.Date(data$source_date)
+  if (is.na(cutoff) || is.na(source_date) || source_date >= cutoff || as.integer(data$source_year) >= as.integer(format(cutoff, "%Y"))) {
+    stop("Structural prior manifest source vintage is not strictly pre-cutoff", call. = FALSE)
+  }
+  if (!grepl("prior_weight=prior_strength/(prior_strength+effective_match_count)", as.character(data$prior_application_rule), fixed = TRUE) ||
+      !grepl("effective_match_count", as.character(data$effective_count_formula), fixed = TRUE)) {
+    stop("Structural prior manifest must declare continuous effective-count weighting", call. = FALSE)
+  }
+  for (name in c("research_only", "wc2026_sealed")) .phase11_bool(data[[name]][[1L]], paste0("structural prior ", name))
+  .phase11_assert_hash(data, "row_sha256", "Phase 11 structural prior manifest")
+  invisible(data)
+}
+
+#' Write the canonical structural-prior manifest.
+#' @export
+write_phase11_structural_prior_manifest <- function(
+    manifest_path = "data/benchmark/phase11/structural_prior_manifest.csv", ...
+) {
+  root <- .phase11_protocol_root(".")
+  path <- if (grepl("^(/|[A-Za-z]:[/\\\\])", manifest_path)) manifest_path else file.path(root, manifest_path)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  row <- canonical_phase11_structural_prior_manifest(...)
+  utils::write.csv(row, path, row.names = FALSE, na = "", quote = TRUE)
+  validate_phase11_structural_prior_manifest(.phase11_read_csv(path))
+  invisible(row)
+}
+
 #' Return immutable Phase 11 RF protocol constants.
 #'
 #' @export
@@ -1142,6 +1298,20 @@ load_and_validate_hybrid_protocol <- function(
       stop("Phase 11 xG-gated model registry does not parent the checked gate manifest", call. = FALSE)
     }
   }
+  if ("structural_prior_manifest" %in% names(result)) {
+    if (!exists("load_structural_prior_snapshots", mode = "function")) {
+      source(.phase11_protocol_path("R", "forecast", "structural_prior.R"), local = .GlobalEnv)
+    }
+    validate_phase11_structural_prior_manifest(result$structural_prior_manifest)
+    structural_row <- result$structural_prior_manifest[1L, , drop = FALSE]
+    validate_phase11_structural_source_manifest(
+      snapshot_path = as.character(structural_row$snapshot_path[[1L]]),
+      metadata_path = as.character(structural_row$metadata_path[[1L]]),
+      checksums_path = as.character(structural_row$checksums_path[[1L]]),
+      evidence_cutoff_exclusive = as.Date(structural_row$evidence_cutoff_exclusive[[1L]]),
+      registered_vintage_id = as.character(structural_row$snapshot_vintage_id[[1L]])
+    )
+  }
   if (file.exists(file.path(directory, "country_centroids.csv")) &&
       file.exists(file.path(directory, "country_centroids_metadata.csv"))) {
     .phase11_protocol_source_if_missing <- function(relative_path, symbols) {
@@ -1194,6 +1364,18 @@ write_phase11_hybrid_protocol <- function(protocol_dir = "data/benchmark/phase11
   }
   dir.create(directory, recursive = TRUE, showWarnings = FALSE)
   write_phase11_xg_gate_manifest(file.path(directory, "xg_gate_manifest.csv"))
+  structural_paths <- file.path(
+    directory,
+    c("structural_sources.csv", "structural_sources_metadata.csv", "structural_sources_checksums.csv")
+  )
+  if (all(file.exists(structural_paths)) && exists("write_phase11_structural_prior_manifest", mode = "function")) {
+    write_phase11_structural_prior_manifest(
+      file.path(directory, "structural_prior_manifest.csv"),
+      snapshot_path = structural_paths[[1L]],
+      metadata_path = structural_paths[[2L]],
+      checksums_path = structural_paths[[3L]]
+    )
+  }
   utils::write.csv(
     canonical_phase11_feature_contract(), file.path(directory, "feature_contract.csv"),
     row.names = FALSE, na = "", quote = TRUE

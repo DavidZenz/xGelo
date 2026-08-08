@@ -97,3 +97,64 @@ test_that("HYBRID-04 / D-10 and D-11 shrink continuously toward a registered str
   expect_true(any(shrunk$prior_weight > 0 & shrunk$prior_weight < 1))
   expect_false(any(grepl("gdp|population", names(shrunk), ignore.case = TRUE)))
 })
+
+test_that("HYBRID-04 / D-09 rejects post-cutoff, current, and ad hoc snapshots", {
+  files <- hybrid_structural_snapshot_fixture()
+  cutoff <- as.Date("2010-06-11")
+  post_cutoff <- files$snapshots
+  post_cutoff$source_date[[1L]] <- cutoff
+  post_cutoff$row_sha256 <- benchmark_contract_row_hash(post_cutoff, "row_sha256")
+  post_directory <- tempfile("hybrid-structural-post-")
+  dir.create(post_directory, recursive = TRUE)
+  post_path <- file.path(post_directory, "structural_sources.csv")
+  post_metadata_path <- file.path(post_directory, "structural_sources_metadata.csv")
+  post_checksums_path <- file.path(post_directory, "structural_sources_checksums.csv")
+  utils::write.csv(post_cutoff, post_path, row.names = FALSE)
+  file.copy(files$metadata_path, post_metadata_path)
+  file.copy(files$checksums_path, post_checksums_path)
+  expect_error(
+    load_structural_prior_snapshots(
+      snapshot_path = post_path,
+      metadata_path = post_metadata_path,
+      checksums_path = post_checksums_path,
+      evidence_cutoff_exclusive = cutoff
+    ),
+    "cutoff|source date|source year",
+    ignore.case = TRUE
+  )
+
+  current_snapshot <- files$snapshots
+  current_snapshot$vintage_id <- "current"
+  current_snapshot$row_sha256 <- benchmark_contract_row_hash(current_snapshot, "row_sha256")
+  current_directory <- tempfile("hybrid-structural-current-")
+  dir.create(current_directory, recursive = TRUE)
+  current_path <- file.path(current_directory, "structural_sources.csv")
+  current_metadata_path <- file.path(current_directory, "structural_sources_metadata.csv")
+  current_checksums_path <- file.path(current_directory, "structural_sources_checksums.csv")
+  utils::write.csv(current_snapshot, current_path, row.names = FALSE)
+  file.copy(files$metadata_path, current_metadata_path)
+  file.copy(files$checksums_path, current_checksums_path)
+  expect_error(
+    load_structural_prior_snapshots(
+      snapshot_path = current_path,
+      metadata_path = current_metadata_path,
+      checksums_path = current_checksums_path,
+      evidence_cutoff_exclusive = cutoff
+    ),
+    "current|latest|checksum|registered",
+    ignore.case = TRUE
+  )
+
+  ad_hoc_path <- file.path(files$directory, "ad_hoc_structural.csv")
+  file.copy(files$snapshot_path, ad_hoc_path, overwrite = TRUE)
+  expect_error(
+    load_structural_prior_snapshots(
+      snapshot_path = ad_hoc_path,
+      metadata_path = files$metadata_path,
+      checksums_path = files$checksums_path,
+      evidence_cutoff_exclusive = cutoff
+    ),
+    "checksum|registered|parent",
+    ignore.case = TRUE
+  )
+})
