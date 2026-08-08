@@ -4,10 +4,11 @@ source(file.path(
   normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else ".")),
   "tests/testthat/helper_hybrid_phase11.R"
 ))
+hybrid_source_if_present("R/evaluation/challenger_selection.R")
 hybrid_require_targets_api()
-hybrid_require_phase11_target_nodes()
 
 test_that("HYBRID-01 through HYBRID-05 expose the six Phase 11 target nodes", {
+  hybrid_require_phase11_target_nodes()
   withr::local_dir(hybrid_project_root)
   manifest <- targets::tar_manifest(fields = c("name", "command"))
   expect_true(all(hybrid_phase11_target_names() %in% manifest$name))
@@ -78,4 +79,12 @@ test_that("Phase 11 registry parents and runner flags are explicit", {
   expect_false(grepl("release_decision|final_selection", runner_code, ignore.case = TRUE))
   expect_true(is.function(run_hybrid_challenger_benchmark))
   expect_true(is.function(validate_hybrid_challenger_bundle))
+})
+
+test_that("Phase 11 runner exposes durable bundle and research-shortlist contracts", {
+  expect_true(is.function(write_hybrid_challenger_bundle))
+  expect_true(is.function(hybrid_output_paths))
+  expect_true(is.function(build_hybrid_research_shortlist))
+  expect_true(is.function(validate_hybrid_research_shortlist))
+  expect_true(is.function(hybrid_all_baseline_comparisons))
 })
