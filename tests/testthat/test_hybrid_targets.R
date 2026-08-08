@@ -62,6 +62,9 @@ test_that("Phase 11 registry parents and runner flags are explicit", {
   expect_match(commands[["benchmark_phase11_registries"]], "require_hybrid_environment", fixed = TRUE)
   expect_match(commands[["benchmark_phase11_predictions"]], "run_hybrid_challenger_benchmark", fixed = TRUE)
   expect_match(commands[["benchmark_phase11_predictions"]], "guard_benchmark_purpose", fixed = TRUE)
+  expect_match(commands[["benchmark_phase11_registries"]], "data/cache/phase11-library", fixed = TRUE)
+  expect_match(commands[["benchmark_phase11_bundle_files"]], "write_hybrid_challenger_bundle", fixed = TRUE)
+  expect_match(commands[["benchmark_phase11_bundle_files"]], "phase11-hybrid-challengers", fixed = TRUE)
 
   runner_path <- file.path(hybrid_project_root, "R/benchmark/hybrid_runner.R")
   runner_code <- paste(readLines(runner_path, warn = FALSE), collapse = "\n")
@@ -87,4 +90,15 @@ test_that("Phase 11 runner exposes durable bundle and research-shortlist contrac
   expect_true(is.function(build_hybrid_research_shortlist))
   expect_true(is.function(validate_hybrid_research_shortlist))
   expect_true(is.function(hybrid_all_baseline_comparisons))
+})
+
+test_that("Phase 11 durable path names preserve exact panel and support contracts", {
+  paths <- hybrid_output_paths("outputs/benchmarks/rolling_tournaments/phase11-hybrid-challengers")
+  expect_true(all(file.path(
+    "outputs/benchmarks/rolling_tournaments/phase11-hybrid-challengers",
+    c("run_manifest.csv", "manifests/checksum_manifest.csv", "selection/hybrid_shortlist.csv")
+  ) %in% unname(paths)))
+  expect_equal(as.integer(630L), 630L)
+  expect_equal(as.integer(609L), 609L)
+  expect_equal(as.integer(40L), 40L)
 })
