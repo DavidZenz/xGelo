@@ -184,6 +184,17 @@ information add stable value beyond the strongest statistical benchmark.
 5. Squad information and bookmaker consensus, when available, remain separately
    labelled enriched or external modes with explicit licensing and provenance.
 
+**Plans:** 6 plans
+
+Plans:
+
+- [ ] 11-01-PLAN.md — Create Phase 11 Wave 0 RF, context, xG, structural, mode, and targets contracts
+- [ ] 11-02-PLAN.md — Prove the open RF challenger tracer through the common benchmark contract
+- [ ] 11-03-PLAN.md — Register open-context features and individual ablations
+- [ ] 11-04-PLAN.md — Implement fail-closed xG gating and structural sparse-team priors
+- [ ] 11-05-PLAN.md — Separate enriched squad and manual external market modes
+- [ ] 11-06-PLAN.md — Integrate Phase 11 targets and publish the research-only bundle
+
 ### Phase 12: Calibration, Promotion, and Model Release
 
 **Goal:** Freeze the candidate set, calibrate without outer-fold leakage, open the
