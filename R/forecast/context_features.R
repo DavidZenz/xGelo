@@ -158,7 +158,8 @@ validate_phase11_country_centroids <- function(
       if (!identical(metadata_hash, expected_metadata_hash[[1L]])) {
         stop("Country-centroid metadata row SHA-256 mismatch", call. = FALSE)
       }
-      expected_rows_hash <- .phase11_context_hash(country_centroids, serialize = TRUE)
+      registry_for_hash <- country_centroids[, names(country_centroids), drop = FALSE]
+      expected_rows_hash <- .phase11_context_hash(registry_for_hash, serialize = TRUE)
       if (!identical(
         tolower(as.character(metadata$registry_rows_sha256[[1L]])),
         tolower(expected_rows_hash)
@@ -581,7 +582,7 @@ build_open_context_features <- function(
     travel_value <- if (travel_present) sum(travel_values) else NA_real_
     travel_evidence <- .phase11_context_row_value(
       travel_value, travel_present && is.finite(travel_value), travel_present,
-      if (length(travel_dates)) max(travel_dates) else as.Date(NA),
+      if (travel_present && length(travel_dates)) max(travel_dates) else as.Date(NA),
       "missing_prior_location_or_country_centroid", "phase09_fixture_history+natural_earth_centroids",
       "point-in-time context-history-v1",
       "point-in-time country-centroid proxy; prior venue country preferred and prior host-country centroid is fallback",

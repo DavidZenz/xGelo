@@ -117,8 +117,8 @@ run_hybrid_challenger_benchmark <- function(
   if (is.null(protocol)) protocol <- load_and_validate_hybrid_protocol()
   candidate_order <- as.character(candidate_order)
   registered <- hybrid_phase11_candidate_ids(protocol)
-  if (length(candidate_order) != 1L || anyNA(candidate_order) || !identical(candidate_order, registered)) {
-    stop("candidate_order must contain the exact registered Phase 11 RF candidate", call. = FALSE)
+  if (!length(candidate_order) || anyNA(candidate_order) || any(!candidate_order %in% registered) || anyDuplicated(candidate_order)) {
+    stop("candidate_order must contain one or more registered Phase 11 hybrid candidates", call. = FALSE)
   }
   if (!is.data.frame(history) || !nrow(history)) stop("Hybrid runner history must contain rows", call. = FALSE)
   if (exists("guard_benchmark_purpose", mode = "function")) {
@@ -134,24 +134,62 @@ run_hybrid_challenger_benchmark <- function(
     if (is.list(settings) && "provenance_path" %in% names(settings)) settings$provenance_path else "data/benchmark/phase11/ranger_provenance.csv",
     offline = TRUE
   )
-  adapter <- run_registered_hybrid_adapter(
-    candidate_id = candidate_order[[1L]], history = history, fixtures = fixtures,
-    seed_registry = seed_registry, support_max = 40L, run_id = run_id,
-    protocol = protocol, settings = settings
-  )
-  scores <- score_benchmark_fixtures(
-    predictions = adapter$predictions,
-    fixtures = fixtures,
-    distributions = adapter$distributions,
-    expected_fixture_ids = as.character(fixtures$fixture_id)
-  )
-  registration <- adapter$registration
+  adapters <- lapply(candidate_order, function(candidate_id) {
+    candidate_settings <- .hybrid_runner_settings_for(settings_by_candidate, candidate_id)
+    run_registered_hybrid_adapter(
+      candidate_id = candidate_id, history = history, fixtures = fixtures,
+      seed_registry = seed_registry, support_max = 40L, run_id = run_id,
+      protocol = protocol, settings = candidate_settings
+    )
+  })
+  names(adapters) <- candidate_order
+  scores <- do.call(rbind, lapply(adapters, function(adapter) {
+    score_benchmark_fixtures(
+      predictions = adapter$predictions,
+      fixtures = fixtures,
+      distributions = adapter$distributions,
+      expected_fixture_ids = as.character(fixtures$fixture_id)
+    )
+  }))
+  predictions <- do.call(rbind, lapply(adapters, `[[`, "predictions"))
+  distributions <- do.call(rbind, lapply(adapters, `[[`, "distributions"))
+  means <- do.call(rbind, lapply(adapters, `[[`, "means"))
+  manifests <- do.call(rbind, lapply(adapters, `[[`, "manifests"))
+  feature_coverage <- do.call(rbind, lapply(adapters, `[[`, "feature_coverage"))
+  registration <- do.call(rbind, lapply(adapters, `[[`, "registration"))
+  candidate_evidence <- do.call(rbind, lapply(adapters, function(adapter) {
+    row <- adapter$registration
+    data.frame(
+      candidate_id = as.character(row$candidate_id[[1L]]),
+      feature_set_id = as.character(row$feature_set_id[[1L]]),
+      removed_feature_id = if ("removed_feature_id" %in% names(row)) as.character(row$removed_feature_id[[1L]]) else "",
+      panel_id = as.character(row$panel_id[[1L]]),
+      open_fixture_count = as.integer(row$open_fixture_count[[1L]]),
+      rich_fixture_count = as.integer(row$rich_fixture_count[[1L]]),
+      score_support_g = as.integer(row$score_support_g[[1L]]),
+      context_parent_hashes = if ("context_parent_hashes" %in% names(row)) as.character(row$context_parent_hashes[[1L]]) else "",
+      inactive_reason = "",
+      error_reason = "",
+      research_only = TRUE,
+      wc2026_sealed = TRUE,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  }))
+  adapter <- adapters[[1L]]
+  adapter$predictions <- predictions
+  adapter$distributions <- distributions
+  adapter$means <- means
+  adapter$manifests <- manifests
+  adapter$feature_coverage <- feature_coverage
+  adapter$registration <- registration
+  adapter$candidate_evidence <- candidate_evidence
   run_manifest <- data.frame(
     schema_version = "phase11-hybrid-challenger-bundle-v1",
     run_id = run_id,
     source_git_sha = .hybrid_runner_git_sha(),
     r_version = as.character(getRversion()),
-    candidate_count = 1L,
+    candidate_count = length(candidate_order),
     track_count = length(unique(fixtures$track_id)),
     edition_count = length(unique(fixtures$edition_id)),
     fixture_slice = TRUE,
@@ -173,9 +211,13 @@ run_hybrid_challenger_benchmark <- function(
     ranger_provenance_id = registration$ranger_provenance_id[[1L]],
     model_registry_sha256 = .hybrid_runner_file_sha256("data/benchmark/phase11/model_registry.csv"),
     feature_contract_sha256 = .hybrid_runner_file_sha256("data/benchmark/phase11/feature_contract.csv"),
-    registration_sha256 = registration$registration_sha256[[1L]],
-    settings_sha256 = registration$settings_sha256[[1L]],
-    candidate_id = candidate_order[[1L]],
+    context_ablation_registry_sha256 = .hybrid_runner_file_sha256("data/benchmark/phase11/context_ablation_registry.csv"),
+    centroid_registry_sha256 = .hybrid_runner_file_sha256("data/benchmark/phase11/country_centroids.csv"),
+    centroid_metadata_sha256 = .hybrid_runner_file_sha256("data/benchmark/phase11/country_centroids_metadata.csv"),
+    registration_sha256 = paste(as.character(registration$registration_sha256), collapse = "|"),
+    settings_sha256 = paste(as.character(registration$settings_sha256), collapse = "|"),
+    candidate_id = paste(candidate_order, collapse = "|"),
+    candidate_ids = paste(candidate_order, collapse = "|"),
     output_dir = if (is.null(output_dir)) "" else output_dir,
     stringsAsFactors = FALSE,
     check.names = FALSE

@@ -22,7 +22,7 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
     protocol <- load_and_validate_hybrid_protocol()
   }
   ids <- as.character(protocol$model_registry$candidate_id)
-  ids[ids == "phase11_rf_dynamic_elo_open"]
+  ids
 }
 
 .hybrid_adapter_registration <- function(protocol, candidate_id) {
@@ -34,10 +34,21 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
     stop("hybrid adapter requires a validated Phase 11 protocol", call. = FALSE)
   }
   allowed <- hybrid_phase11_candidate_ids(protocol)
-  if (!identical(as.character(candidate_id), allowed)) {
+  if (length(candidate_id) != 1L || !as.character(candidate_id) %in% allowed) {
     stop("unknown or inactive Phase 11 hybrid candidate_id", call. = FALSE)
   }
   hybrid_registration(protocol, candidate_id)
+}
+
+.hybrid_adapter_is_context <- function(registration) {
+  is.data.frame(registration) && nrow(registration) == 1L &&
+    grepl("context", as.character(registration$candidate_id[[1L]]), fixed = TRUE)
+}
+
+.hybrid_adapter_context_removed_feature <- function(registration) {
+  if (!.hybrid_adapter_is_context(registration) || !"removed_feature_id" %in% names(registration)) return("")
+  value <- as.character(registration$removed_feature_id[[1L]])
+  if (is.na(value)) "" else value
 }
 
 #' Normalize only benchmark identity and chronology fields; source features are
@@ -173,7 +184,9 @@ hybrid_default_seed_registry <- function(fixtures, seed = 920001L) {
       max_feature_source_date = fit$max_feature_source_date,
       evidence_cutoff_exclusive = cutoff,
       active_predictors = paste(fit$active_predictors, collapse = "|"),
-      dropped_predictors_with_reason = "",
+      dropped_predictors_with_reason = if (length(fit$dropped_predictors)) {
+        paste(fit$dropped_predictors, collapse = "|")
+      } else "",
       model_family = fit$model_family,
       convergence_status = fit$convergence_status,
       fallback_status = fit$fallback_status,
@@ -184,7 +197,9 @@ hybrid_default_seed_registry <- function(fixtures, seed = 920001L) {
       registration_sha256 = fit$registration_sha256,
       settings_sha256 = fit$settings_sha256,
       parent_hashes = benchmark_contract_sha256(c(
-        fit$registration_sha256, fit$settings_sha256, fit$fit_data_sha256, boundary$boundary_id[[1L]]
+        fit$registration_sha256, fit$settings_sha256, fit$fit_data_sha256,
+        if (!is.null(fit$context_parent_hashes)) fit$context_parent_hashes else "",
+        boundary$boundary_id[[1L]]
       )),
       mean_parent_candidate_id = registration$candidate_id[[1L]],
       mean_prediction_hash = mean_hash,
@@ -197,6 +212,13 @@ hybrid_default_seed_registry <- function(fixtures, seed = 920001L) {
       open_fixture_count = as.integer(registration$open_fixture_count[[1L]]),
       rich_fixture_count = as.integer(registration$rich_fixture_count[[1L]]),
       score_support_g = as.integer(registration$score_support_g[[1L]]),
+      context_feature_set_id = if ("context_feature_set_id" %in% names(registration)) {
+        as.character(registration$context_feature_set_id[[1L]])
+      } else "",
+      removed_feature_id = if ("removed_feature_id" %in% names(registration)) {
+        as.character(registration$removed_feature_id[[1L]])
+      } else "",
+      context_parent_hashes = if (!is.null(fit$context_parent_hashes)) fit$context_parent_hashes else "",
       stringsAsFactors = FALSE,
       check.names = FALSE
     )
@@ -222,6 +244,290 @@ hybrid_default_seed_registry <- function(fixtures, seed = 920001L) {
     )
   })
   result <- do.call(rbind, rows)
+  rownames(result) <- NULL
+  result
+}
+
+.hybrid_context_base_feature_ids <- function() {
+  c(
+    "home_attack_effect", "home_defence_effect",
+    "away_attack_effect", "away_defence_effect", "elo_diff"
+  )
+}
+
+.hybrid_context_all_feature_ids <- function() {
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/context_features.R", c("phase11_context_feature_names")
+  )
+  c(.hybrid_context_base_feature_ids(), phase11_context_feature_names())
+}
+
+.hybrid_context_complete_rows <- function(data) {
+  features <- phase11_context_feature_names()
+  complete <- vapply(seq_len(nrow(data)), function(index) {
+    all(vapply(features, function(feature) {
+      isTRUE(as.logical(data[[paste0(feature, "__value_present")]][index])) &&
+        !isTRUE(as.logical(data[[paste0(feature, "__imputed")]][index]))
+    }, logical(1)))
+  }, logical(1))
+  complete
+}
+
+.hybrid_context_registered_settings <- function(settings, registration) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c("load_and_validate_hybrid_protocol", "hybrid_registration")
+  )
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/hybrid_rf.R",
+    c("hybrid_rf_registered_settings")
+  )
+  if (!is.list(settings)) stop("Context RF settings must be a named list", call. = FALSE)
+  if ("feature_set_id" %in% names(settings) &&
+      !identical(as.character(settings$feature_set_id[[1L]]), as.character(registration$feature_set_id[[1L]]))) {
+    stop("Context RF feature_set_id is not registered for this candidate", call. = FALSE)
+  }
+  if ("rf_feature_set_id" %in% names(settings) &&
+      !identical(as.character(settings$rf_feature_set_id[[1L]]), as.character(registration$rf_feature_set_id[[1L]]))) {
+    stop("Context RF rf_feature_set_id is not registered for this candidate", call. = FALSE)
+  }
+  base_protocol <- load_and_validate_hybrid_protocol()
+  base_registration <- hybrid_registration(base_protocol, "phase11_rf_dynamic_elo_open")
+  base_settings <- settings[setdiff(names(settings), c("feature_set_id", "rf_feature_set_id"))]
+  resolved <- hybrid_rf_registered_settings(
+    base_settings, base_registration, candidate_id = "phase11_rf_dynamic_elo_open"
+  )
+  resolved$candidate_id <- as.character(registration$candidate_id[[1L]])
+  resolved$feature_set_id <- as.character(registration$feature_set_id[[1L]])
+  resolved$rf_feature_set_id <- as.character(registration$rf_feature_set_id[[1L]])
+  resolved$registration_sha256 <- as.character(registration$registration_sha256[[1L]])
+  resolved$settings_sha256 <- as.character(registration$settings_sha256[[1L]])
+  resolved
+}
+
+.hybrid_context_prepare_boundary <- function(history, fixtures, centroid_path = NULL, metadata_path = NULL) {
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/context_features.R",
+    c("load_phase11_country_centroids", "build_open_context_features", "validate_open_context_feature_evidence")
+  )
+  centroids <- if (is.null(centroid_path)) {
+    load_phase11_country_centroids()
+  } else {
+    load_phase11_country_centroids(centroid_path, metadata_path)
+  }
+  history_date_col <- .phase11_context_date_column(history, "Context history")
+  history_dates <- as.Date(history[[history_date_col]])
+  boundary_cutoff <- as.Date(unique(fixtures$evidence_cutoff_exclusive))
+  if (length(boundary_cutoff) != 1L || is.na(boundary_cutoff)) {
+    stop("Context boundary requires one exclusive evidence cutoff", call. = FALSE)
+  }
+  history <- history[!is.na(history_dates) & history_dates < boundary_cutoff, , drop = FALSE]
+  if (!nrow(history)) stop("Context boundary has no pre-cutoff history", call. = FALSE)
+  history_context <- build_open_context_features(
+    fixtures = history, history = history, country_centroids = centroids,
+    strict_common_panel = FALSE
+  )
+  fixture_context <- build_open_context_features(
+    fixtures = fixtures, history = history, country_centroids = centroids,
+    strict_common_panel = TRUE
+  )
+  list(
+    history = history,
+    history_context = history_context,
+    fixture_context = fixture_context,
+    centroids = centroids,
+    parent_hashes = paste(
+      attr(centroids, "phase11_context_registry_sha256"),
+      attr(centroids, "phase11_context_metadata_sha256"),
+      sep = "#"
+    )
+  )
+}
+
+.hybrid_context_fit <- function(history_context, cutoff, settings, registration) {
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/hybrid_rf.R",
+    c("hybrid_rf_registered_settings", "hybrid_rf_validate_evidence", ".hybrid_rf_goal_columns", ".hybrid_rf_date_column")
+  )
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/challenger_preflight.R", c("require_hybrid_environment")
+  )
+  settings <- .hybrid_context_registered_settings(settings, registration)
+  environment <- require_hybrid_environment(settings$provenance_path, offline = TRUE)
+  if (!is.data.frame(history_context) || !nrow(history_context)) stop("Context RF history must contain rows", call. = FALSE)
+  date_col <- .hybrid_rf_date_column(history_context, "Context RF history")
+  response <- .hybrid_rf_goal_columns(history_context, "Context RF history")
+  cutoff <- as.Date(cutoff)
+  dates <- as.Date(history_context[[date_col]])
+  if (length(cutoff) != 1L || is.na(cutoff) || anyNA(dates)) stop("Context RF chronology is incomplete", call. = FALSE)
+  training <- history_context[dates < cutoff, , drop = FALSE]
+  if (!nrow(training)) stop("Context RF history has no rows before the exclusive cutoff", call. = FALSE)
+  complete <- .hybrid_context_complete_rows(training)
+  if (!all(complete)) training <- training[complete, , drop = FALSE]
+  if (!nrow(training)) stop("Context RF has no complete point-in-time context training rows", call. = FALSE)
+  hybrid_rf_validate_evidence(
+    training, as.Date(training[[date_col]]),
+    feature_ids = .hybrid_context_base_feature_ids(), label = "Context RF training history"
+  )
+  validate_open_context_feature_evidence(training, strict_common_panel = TRUE, date_col = "date")
+  context_ids <- phase11_context_feature_names()
+  removed <- .hybrid_adapter_context_removed_feature(registration)
+  active_context <- setdiff(context_ids, removed)
+  feature_ids <- c(.hybrid_context_base_feature_ids(), active_context)
+  goals <- training[, unname(response), drop = FALSE]
+  for (column in names(goals)) goals[[column]] <- suppressWarnings(as.numeric(goals[[column]]))
+  if (any(!is.finite(as.matrix(goals))) || any(as.matrix(goals) < 0)) {
+    stop("Context RF training goals must be finite non-negative values", call. = FALSE)
+  }
+  predictors <- training[, feature_ids, drop = FALSE]
+  if ("stage_id" %in% feature_ids) {
+    predictors$stage_id <- factor(as.character(predictors$stage_id))
+  }
+  if (any(vapply(predictors, function(value) anyNA(value), logical(1)))) {
+    stop("Context RF training predictors contain missing values", call. = FALSE)
+  }
+  model_data <- cbind(goals, predictors)
+  home_formula <- stats::reformulate(feature_ids, response = response[["home"]])
+  away_formula <- stats::reformulate(feature_ids, response = response[["away"]])
+  fit_arguments <- list(
+    data = model_data, num.trees = settings$`num.trees`, mtry = settings$mtry,
+    min.node.size = settings$`min.node.size`, importance = "none", write.forest = TRUE,
+    num.threads = 1L, verbose = FALSE, seed = settings$seed
+  )
+  home_model <- do.call(ranger::ranger, c(list(formula = home_formula), fit_arguments))
+  away_arguments <- fit_arguments
+  away_arguments$seed <- settings$seed + 1L
+  away_model <- do.call(ranger::ranger, c(list(formula = away_formula), away_arguments))
+  source_dates <- unlist(lapply(.hybrid_context_all_feature_ids(), function(feature) {
+    if (!paste0(feature, "__source_date") %in% names(training)) return(as.Date(NA))
+    as.Date(training[[paste0(feature, "__source_date")]])
+  }))
+  fit_columns <- unique(c("fixture_id", date_col, unname(response), feature_ids))
+  fit_columns <- intersect(fit_columns, names(training))
+  fit_data_sha256 <- digest::digest(training[, fit_columns, drop = FALSE], algo = "sha256", serialize = TRUE)
+  structure(list(
+    model_id = as.character(registration$mean_model_id[[1L]]),
+    candidate_id = as.character(registration$candidate_id[[1L]]),
+    model_family = "random_forest_goal_means",
+    panel_id = as.character(registration$panel_id[[1L]]),
+    home_model = home_model,
+    away_model = away_model,
+    feature_ids = feature_ids,
+    registered_feature_ids = .hybrid_context_all_feature_ids(),
+    active_predictors = feature_ids,
+    dropped_predictors = if (nzchar(removed)) removed else character(),
+    training_dates = as.Date(training[[date_col]]),
+    fit_training_dates = as.Date(training[[date_col]]),
+    fit_row_count = nrow(training),
+    cutoff = cutoff,
+    registration = registration,
+    runtime_settings = settings,
+    environment = environment,
+    ranger_provenance_id = settings$ranger_provenance_id,
+    ranger_package = settings$ranger_package,
+    ranger_version = settings$ranger_version,
+    settings_sha256 = settings$settings_sha256,
+    registration_sha256 = settings$registration_sha256,
+    max_feature_source_date = max(source_dates[!is.na(source_dates)]),
+    convergence_status = "converged",
+    fallback_status = if (all(complete)) "none" else "context_training_rows_excluded_for_missing_evidence",
+    fit_data_sha256 = fit_data_sha256,
+    context_parent_hashes = as.character(registration$context_parent_hashes[[1L]]),
+    seed_home = settings$seed,
+    seed_away = settings$seed + 1L,
+    stage_levels = levels(predictors$stage_id)
+  ), class = "hybrid_context_two_goal_rf")
+}
+
+.hybrid_context_predict_means <- function(fit, fixtures, settings) {
+  if (!inherits(fit, "hybrid_context_two_goal_rf") || !is.list(fit)) {
+    stop("Context RF fit must be a hybrid_context_two_goal_rf", call. = FALSE)
+  }
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/hybrid_rf.R", c("hybrid_rf_registered_settings", "hybrid_rf_validate_evidence")
+  )
+  settings <- .hybrid_context_registered_settings(settings, fit$registration)
+  if (!is.data.frame(fixtures) || !nrow(fixtures)) stop("Context RF prediction fixtures must contain rows", call. = FALSE)
+  cutoff_col <- if ("evidence_cutoff_exclusive" %in% names(fixtures)) "evidence_cutoff_exclusive" else "date"
+  cutoffs <- as.Date(fixtures[[cutoff_col]])
+  if (anyNA(cutoffs)) stop("Context RF prediction cutoffs are incomplete", call. = FALSE)
+  hybrid_rf_validate_evidence(
+    fixtures, cutoffs, feature_ids = .hybrid_context_base_feature_ids(),
+    label = "Context RF prediction fixtures"
+  )
+  validate_open_context_feature_evidence(fixtures, strict_common_panel = TRUE, date_col = "date")
+  predictor_data <- fixtures[, fit$feature_ids, drop = FALSE]
+  if ("stage_id" %in% fit$feature_ids) {
+    predictor_data$stage_id <- factor(as.character(predictor_data$stage_id), levels = fit$stage_levels)
+  }
+  if (anyNA(predictor_data)) stop("Context RF prediction contains an unseen or missing stage", call. = FALSE)
+  home_means <- as.numeric(stats::predict(fit$home_model, data = predictor_data)$predictions)
+  away_means <- as.numeric(stats::predict(fit$away_model, data = predictor_data)$predictions)
+  home_means <- pmax(home_means, .Machine$double.eps)
+  away_means <- pmax(away_means, .Machine$double.eps)
+  if (any(!is.finite(home_means) | !is.finite(away_means))) stop("Context RF prediction produced non-finite goal means", call. = FALSE)
+  identity_columns <- intersect(
+    c("fixture_id", "edition_id", "track_id", "boundary_id", "home_team_id", "away_team_id",
+      "venue_role", "actual_completion_date", "evidence_cutoff_exclusive", "date"),
+    names(fixtures)
+  )
+  output <- fixtures[, identity_columns, drop = FALSE]
+  for (feature in fit$registered_feature_ids) output[[feature]] <- fixtures[[feature]]
+  companions <- unlist(lapply(fit$registered_feature_ids, function(feature) paste0(feature, c(
+    "__source_date", "__source_present", "__value_present", "__imputed", "__imputation_reason",
+    "__source_id", "__source_vintage", "__derivation_rule", "__parent_hashes", "__license_class"
+  ))), use.names = FALSE)
+  for (column in companions) output[[column]] <- fixtures[[column]]
+  output$mu_home <- home_means
+  output$mu_away <- away_means
+  output$model_id <- fit$model_id
+  output$candidate_id <- fit$candidate_id
+  output$panel_id <- fit$panel_id
+  output$prediction_status <- "ok"
+  output$settings_sha256 <- settings$settings_sha256
+  output$registration_sha256 <- settings$registration_sha256
+  output$ranger_package <- settings$ranger_package
+  output$ranger_version <- settings$ranger_version
+  output$ranger_provenance_id <- settings$ranger_provenance_id
+  output$context_parent_hashes <- fit$context_parent_hashes
+  output$mean_prediction_hash <- vapply(seq_len(nrow(output)), function(index) {
+    digest::digest(
+      paste(as.character(output$fixture_id[index]), format(home_means[index], digits = 17), format(away_means[index], digits = 17), sep = "|"),
+      algo = "sha256", serialize = FALSE
+    )
+  }, character(1))
+  rownames(output) <- NULL
+  output
+}
+
+.hybrid_context_nb_score_distributions <- function(means, support_max = 40L, settings) {
+  .hybrid_adapter_source_if_missing("R/benchmark/baselines.R", c("benchmark_one_distribution"))
+  if (!is.data.frame(means) || !nrow(means) || !all(c("fixture_id", "mu_home", "mu_away") %in% names(means))) {
+    stop("Context RF means require fixture_id, mu_home, and mu_away", call. = FALSE)
+  }
+  support_max <- as.integer(support_max)
+  if (length(support_max) != 1L || is.na(support_max) || support_max != 40L) {
+    stop("Context RF score distributions must use sealed G=40 support", call. = FALSE)
+  }
+  if (anyDuplicated(as.character(means$fixture_id))) stop("Context RF means fixture IDs must be unique", call. = FALSE)
+  home <- suppressWarnings(as.numeric(means$mu_home)); away <- suppressWarnings(as.numeric(means$mu_away))
+  if (any(!is.finite(home) | home <= 0 | !is.finite(away) | away <= 0)) stop("Context RF means must be finite and positive", call. = FALSE)
+  goals <- 0:support_max
+  prefix <- if ("distribution_id_prefix" %in% names(settings)) settings$distribution_id_prefix else settings$candidate_id
+  grids <- lapply(seq_len(nrow(means)), function(index) {
+    home_probability <- stats::dnbinom(goals, size = as.numeric(settings$home_theta), mu = home[[index]])
+    away_probability <- stats::dnbinom(goals, size = as.numeric(settings$away_theta), mu = away[[index]])
+    raw_tail <- max(0, 1 - sum(home_probability) * sum(away_probability))
+    id <- paste0(prefix, "__", as.character(means$fixture_id[index]), "__score")
+    grid <- benchmark_one_distribution(id, home_probability, away_probability, raw_tail, support_max)
+    grid$mean_parent_id <- as.character(means$fixture_id[index])
+    grid$settings_sha256 <- settings$settings_sha256
+    grid$registration_sha256 <- settings$registration_sha256
+    grid$ranger_provenance_id <- settings$ranger_provenance_id
+    grid$context_parent_hashes <- if ("context_parent_hashes" %in% names(settings)) settings$context_parent_hashes else ""
+    grid
+  })
+  result <- do.call(rbind, grids)
   rownames(result) <- NULL
   result
 }
@@ -254,7 +560,15 @@ run_registered_hybrid_adapter <- function(
   fixtures <- hybrid_normalize_fixtures(fixtures)
   if (!is.data.frame(history) || !nrow(history)) stop("Hybrid adapter history must contain rows", call. = FALSE)
   seed_registry <- .hybrid_adapter_seed_registry(fixtures, seed_registry)
-  settings <- hybrid_rf_registered_settings(settings, registration)
+  settings <- if (.hybrid_adapter_is_context(registration)) {
+    .hybrid_context_registered_settings(settings, registration)
+  } else {
+    hybrid_rf_registered_settings(settings, registration)
+  }
+  if (.hybrid_adapter_is_context(registration)) {
+    settings$distribution_id_prefix <- as.character(registration$candidate_id[[1L]])
+    settings$context_parent_hashes <- as.character(registration$context_parent_hashes[[1L]])
+  }
   if (as.integer(support_max) != settings$support_max) stop("Hybrid adapter support differs from registered G=40", call. = FALSE)
 
   boundary_groups <- split(seq_len(nrow(fixtures)), as.character(fixtures$boundary_id))
@@ -262,17 +576,37 @@ run_registered_hybrid_adapter <- function(
     boundary_fixtures <- fixtures[index, , drop = FALSE]
     cutoffs <- unique(as.Date(boundary_fixtures$evidence_cutoff_exclusive))
     if (length(cutoffs) != 1L || is.na(cutoffs[[1L]])) stop("Hybrid boundary requires one exclusive evidence cutoff", call. = FALSE)
-    fit <- fit_hybrid_two_goal_rf(history, cutoffs[[1L]], settings, registration)
-    means <- predict_hybrid_rf_means(fit, boundary_fixtures, settings)
-    distributions <- hybrid_rf_nb_score_distributions(means, settings$support_max, settings)
+    if (.hybrid_adapter_is_context(registration)) {
+      prepared <- .hybrid_context_prepare_boundary(history, boundary_fixtures)
+      fit <- .hybrid_context_fit(prepared$history_context, cutoffs[[1L]], settings, registration)
+      means <- .hybrid_context_predict_means(fit, prepared$fixture_context, settings)
+      distributions <- .hybrid_context_nb_score_distributions(means, settings$support_max, settings)
+      piece_history <- prepared$history
+      context_parent_hashes <- prepared$parent_hashes
+    } else {
+      fit <- fit_hybrid_two_goal_rf(history, cutoffs[[1L]], settings, registration)
+      means <- predict_hybrid_rf_means(fit, boundary_fixtures, settings)
+      distributions <- hybrid_rf_nb_score_distributions(means, settings$support_max, settings)
+      piece_history <- history
+      context_parent_hashes <- NULL
+    }
     markets <- .hybrid_adapter_markets(distributions, as.character(boundary_fixtures$fixture_id))
-    list(fit = fit, fixtures = boundary_fixtures, means = means, distributions = distributions, markets = markets)
+    list(
+      fit = fit, fixtures = boundary_fixtures, means = means, distributions = distributions,
+      markets = markets, history = piece_history, context_parent_hashes = context_parent_hashes
+    )
   })
   distributions <- do.call(rbind, lapply(pieces, `[[`, "distributions"))
   means <- do.call(rbind, lapply(pieces, `[[`, "means"))
   markets <- do.call(rbind, lapply(pieces, `[[`, "markets"))
   manifests <- do.call(rbind, lapply(pieces, function(piece) {
-    .hybrid_manifest_rows(piece$fit, registration, piece$fixtures, history, run_id, piece$means)
+    manifest <- .hybrid_manifest_rows(
+      piece$fit, registration, piece$fixtures, piece$history, run_id, piece$means
+    )
+    if (!is.null(piece$context_parent_hashes) && "context_parent_hashes" %in% names(manifest)) {
+      manifest$context_parent_hashes <- piece$context_parent_hashes
+    }
+    manifest
   }))
   manifests <- manifests[!duplicated(manifests$model_manifest_id), , drop = FALSE]
   fixture_index <- match(as.character(fixtures$fixture_id), as.character(markets$fixture_id))
@@ -329,6 +663,14 @@ run_registered_hybrid_adapter <- function(
   validate_model_manifests(manifests)
   validate_benchmark_predictions(predictions, fixtures, distributions, seed_registry, settings$support_max)
   feature_contract <- protocol$feature_contract
+  if ("feature_set_id" %in% names(feature_contract) && "feature_set_id" %in% names(registration)) {
+    feature_sets <- as.character(registration$feature_set_id[[1L]])
+    if (.hybrid_adapter_is_context(registration)) {
+      feature_sets <- c("phase11_rf_dynamic_elo_open", feature_sets)
+    }
+    feature_contract <- feature_contract[as.character(feature_contract$feature_set_id) %in% feature_sets, , drop = FALSE]
+  }
+  if (!nrow(feature_contract)) stop("Registered hybrid candidate has no feature-contract rows", call. = FALSE)
   feature_coverage <- build_registered_feature_coverage(
     registration, predictions, fixtures, feature_contract, manifests
   )

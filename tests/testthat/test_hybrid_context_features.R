@@ -5,6 +5,10 @@ source(file.path(
   "tests/testthat/helper_hybrid_phase11.R"
 ))
 hybrid_require_context_api()
+# The shared helper intentionally stops before the adapter layer so Wave 0
+# context tests can exercise the registry contract independently.  This plan's
+# registry test also covers the adapter candidate allow-list explicitly.
+hybrid_source_if_present("R/benchmark/hybrid_adapters.R")
 
 test_that("HYBRID-02 / D-05 and D-08 return named open-context evidence", {
   features <- build_open_context_features(
@@ -111,4 +115,53 @@ test_that("HYBRID-02 / D-06 and D-07 keep context provenance and the open denomi
   expect_true(all(as.character(context_rows$panel_id) == "open_core"))
   expect_true(all(as.integer(context_rows$open_fixture_count) == 630L))
   expect_true(all(as.character(context_rows$mode_id) == "open_default"))
+})
+
+test_that("HYBRID-02 dispatches the context bundle and ablations through the common runner", {
+  history <- hybrid_rf_history()
+  history$edition_id <- "wc2010"
+  history$venue_country <- rep(c("DEU", "FRA", "ITA"), length.out = nrow(history))
+  history$host_country <- history$venue_country
+  history$host_team_id <- history$home_team_id
+  history$neutral <- FALSE
+  history$stage_id <- "group"
+
+  fixtures <- hybrid_rf_fixtures()
+  fixtures$venue_country <- c("DEU", "ITA")
+  fixtures$host_country <- c("DEU", "ITA")
+  fixtures$host_team_id <- c("team_alpha", "team_beta")
+  fixtures$neutral <- c(FALSE, TRUE)
+  fixtures$stage_id <- "group"
+  fixtures$track_id <- "frozen"
+  fixtures$forecast_sequence <- seq_len(nrow(fixtures))
+  fixtures$result_cutoff_exclusive <- fixtures$evidence_cutoff_exclusive
+  fixtures$regulation_home_goals <- c(1L, 0L)
+  fixtures$regulation_away_goals <- c(0L, 1L)
+  fixtures$score_eligible <- TRUE
+
+  candidates <- c(
+    "phase11_rf_dynamic_elo_context_open",
+    "phase11_rf_dynamic_elo_context_drop_host_open",
+    "phase11_rf_dynamic_elo_context_drop_neutral_open",
+    "phase11_rf_dynamic_elo_context_drop_rest_open",
+    "phase11_rf_dynamic_elo_context_drop_travel_open",
+    "phase11_rf_dynamic_elo_context_drop_stage_open"
+  )
+  result <- run_hybrid_challenger_benchmark(
+    history = history,
+    fixtures = fixtures,
+    candidate_order = candidates,
+    run_id = "phase11_context_runner_test"
+  )
+
+  expect_equal(as.integer(result$run_manifest$candidate_count[[1L]]), length(candidates))
+  expect_setequal(as.character(result$candidate_evidence$candidate_id), candidates)
+  expect_equal(nrow(result$predictions), length(candidates) * nrow(fixtures))
+  expect_equal(nrow(result$distributions), length(candidates) * nrow(fixtures) * 41L * 41L)
+  expect_true(nrow(result$scores) > 0L)
+  expect_true(all(as.integer(result$candidate_evidence$open_fixture_count) == 630L))
+  expect_true(all(as.integer(result$candidate_evidence$rich_fixture_count) == 609L))
+  expect_true(all(as.integer(result$candidate_evidence$score_support_g) == 40L))
+  expect_true(isTRUE(result$run_manifest$research_only[[1L]]))
+  expect_true(isTRUE(result$run_manifest$wc2026_sealed[[1L]]))
 })
