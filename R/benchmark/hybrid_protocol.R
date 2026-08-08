@@ -665,6 +665,298 @@ phase11_protocol_constants <- function() {
   )
 }
 
+.phase11_mode_registry_columns <- function() {
+  c(
+    "schema_version", "mode_id", "mode_label", "panel_id", "panel_rule",
+    "vintage_id", "source_id", "source_artifact_path", "source_artifact_sha256",
+    "source_metadata_path", "source_metadata_sha256", "feature_set_id", "adapter_id",
+    "adapter_version", "derived_only_publication", "raw_source_publication_allowed",
+    "license_class", "active_status", "inactive_reason", "open_mode_compatible",
+    "promotion_boundary", "research_only", "wc2026_sealed", "open_fixture_count",
+    "rich_fixture_count", "score_support_g", "row_sha256"
+  )
+}
+
+.phase11_manual_market_manifest_columns <- function() {
+  c(
+    "snapshot_id", "fixture_id", "home_team_id", "away_team_id", "market_date",
+    "captured_at_utc", "source_name", "source_url_or_label", "license_class",
+    "redistribution_allowed", "manual_freeze_operator", "p_home", "p_draw", "p_away",
+    "source_sha256", "row_sha256", "active_status"
+  )
+}
+
+.phase11_empty_character_frame <- function(columns) {
+  result <- as.data.frame(
+    setNames(lapply(columns, function(...) character()), columns),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  result
+}
+
+.phase11_mode_digest <- function(relative_path, absent_label) {
+  path <- .phase11_protocol_path(relative_path)
+  if (file.exists(path) && !dir.exists(path)) {
+    return(.phase11_sha256(path, file = TRUE))
+  }
+  .phase11_sha256(absent_label)
+}
+
+.phase11_mode_bool_vector <- function(value, label) {
+  normalized <- if (is.logical(value)) {
+    ifelse(is.na(value), NA_character_, ifelse(value, "true", "false"))
+  } else {
+    tolower(trimws(as.character(value)))
+  }
+  if (any(is.na(normalized) | !normalized %in% c("true", "false"))) {
+    stop(label, " must contain only true/false values", call. = FALSE)
+  }
+  normalized == "true"
+}
+
+.phase11_transfermarkt_mode_state <- function() {
+  artifact_path <- "data/processed/transfermarkt_squad_strength.csv"
+  metadata_path <- "data/raw/transfermarkt/SNAPSHOT-METADATA.csv"
+  artifact <- .phase11_protocol_path(artifact_path)
+  active <- FALSE
+  reason <- "derived Transfermarkt squad aggregate is unavailable"
+  if (file.exists(artifact) && !dir.exists(artifact)) {
+    header <- tryCatch(
+      names(utils::read.csv(artifact, nrows = 1L, stringsAsFactors = FALSE, check.names = FALSE)),
+      error = function(error) character()
+    )
+    required <- c("team", "as_of_date", "feature_source_date", "log_squad_value")
+    restricted <- grepl(
+      "player_id|market_value|current_club|raw_bookmaker|raw_player",
+      header,
+      ignore.case = TRUE
+    )
+    active <- all(required %in% header) && !any(restricted)
+    if (active) reason <- ""
+    if (!active) reason <- "derived squad aggregate schema is missing or exposes restricted raw fields"
+  }
+  list(
+    active_status = if (active) "active" else "inactive",
+    inactive_reason = reason,
+    source_artifact_sha256 = .phase11_mode_digest(
+      artifact_path, "phase11_transfermarkt_derived_aggregate_absent"
+    ),
+    source_metadata_sha256 = .phase11_mode_digest(
+      metadata_path, "phase11_transfermarkt_snapshot_metadata_absent"
+    ),
+    source_artifact_path = artifact_path,
+    source_metadata_path = metadata_path
+  )
+}
+
+.phase11_manual_market_mode_state <- function() {
+  snapshot_path <- "data/manual/bookmaker/phase11_manual_market_snapshot.csv"
+  manifest_path <- "data/benchmark/phase11/manual_market_manifest.csv"
+  path <- .phase11_protocol_path(snapshot_path)
+  active <- FALSE
+  reason <- paste("manual bookmaker snapshot unavailable:", snapshot_path, "is absent")
+  if (file.exists(path) && !dir.exists(path)) {
+    if (!exists("read_manual_market_snapshot", mode = "function")) {
+      external_path <- .phase11_protocol_path("R/forecast/external_market.R")
+      if (file.exists(external_path)) source(external_path, local = .GlobalEnv)
+    }
+    checked <- tryCatch(
+      read_manual_market_snapshot(path, allow_missing = FALSE),
+      error = function(error) error
+    )
+    if (inherits(checked, "error")) {
+      reason <- paste("manual bookmaker snapshot inactive:", conditionMessage(checked))
+    } else if (!nrow(checked)) {
+      reason <- "manual bookmaker snapshot inactive: no active rows"
+    } else {
+      active <- TRUE
+      reason <- ""
+    }
+  }
+  list(
+    active_status = if (active) "active" else "inactive",
+    inactive_reason = reason,
+    source_artifact_sha256 = .phase11_mode_digest(
+      snapshot_path, "phase11_manual_bookmaker_snapshot_absent"
+    ),
+    source_metadata_sha256 = .phase11_mode_digest(
+      manifest_path, "phase11_manual_market_manifest_schema_absent"
+    ),
+    source_artifact_path = snapshot_path,
+    source_metadata_path = manifest_path
+  )
+}
+
+#' Build the canonical Phase 11 open, enriched, and external mode registry.
+#'
+#' Optional sources are inspected locally only.  Missing or invalid optional
+#' artifacts become explicit inactive rows; they never change the open default.
+#' @export
+canonical_phase11_mode_registry <- function() {
+  transfermarkt <- .phase11_transfermarkt_mode_state()
+  external <- .phase11_manual_market_mode_state()
+  open_source <- "data/benchmark/phase09/panel_fixtures.csv"
+  open_metadata <- "data/benchmark/phase09/feature_contract.csv"
+  rows <- data.frame(
+    schema_version = rep("1.0", 3L),
+    mode_id = c("open_default", "enriched_squad", "external_market"),
+    mode_label = c("Open default", "Enriched squad", "External market reference"),
+    panel_id = c("open_core", "feature_rich", "external_reference"),
+    panel_rule = c(
+      "exact open_core panel; eligible for open-default evidence",
+      "exact feature_rich panel; optional local squad aggregates only",
+      "manual snapshot fixture scope; reference output only"
+    ),
+    vintage_id = c(
+      "phase09_open_core_v1",
+      "transfermarkt_local_derived_2026-06-09_v1",
+      "phase11_manual_market_snapshot_v1"
+    ),
+    source_id = c(
+      "phase09_open_benchmark_panel",
+      "transfermarkt_squad_snapshot_local",
+      "manual_bookmaker_snapshot_local"
+    ),
+    source_artifact_path = c(open_source, transfermarkt$source_artifact_path, external$source_artifact_path),
+    source_artifact_sha256 = c(
+      .phase11_mode_digest(open_source, "phase09_open_panel_absent"),
+      transfermarkt$source_artifact_sha256,
+      external$source_artifact_sha256
+    ),
+    source_metadata_path = c(open_metadata, transfermarkt$source_metadata_path, external$source_metadata_path),
+    source_metadata_sha256 = c(
+      .phase11_mode_digest(open_metadata, "phase09_open_feature_contract_absent"),
+      transfermarkt$source_metadata_sha256,
+      external$source_metadata_sha256
+    ),
+    feature_set_id = c(
+      "phase09_open_default",
+      "phase11_transfermarkt_squad_derived",
+      "phase11_manual_market_1x2_reference"
+    ),
+    adapter_id = c(
+      "phase11_hybrid_rf",
+      "phase11_enriched_squad_metadata",
+      "phase11_external_market_reference"
+    ),
+    adapter_version = rep("phase11-v1", 3L),
+    derived_only_publication = rep(TRUE, 3L),
+    raw_source_publication_allowed = rep(FALSE, 3L),
+    license_class = c(
+      "open-or-derived-open",
+      "restricted-local-aggregate-only",
+      "restricted-manual-derived-probabilities"
+    ),
+    active_status = c("active", transfermarkt$active_status, external$active_status),
+    inactive_reason = c("", transfermarkt$inactive_reason, external$inactive_reason),
+    open_mode_compatible = c(TRUE, FALSE, FALSE),
+    promotion_boundary = c(
+      "open_default",
+      "feature_rich_reference_only",
+      "external_reference_only"
+    ),
+    research_only = rep(TRUE, 3L),
+    wc2026_sealed = rep(TRUE, 3L),
+    open_fixture_count = c(630L, 0L, 0L),
+    rich_fixture_count = c(609L, 609L, 0L),
+    score_support_g = c(40L, 40L, 0L),
+    row_sha256 = rep("", 3L),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  rows$row_sha256 <- .phase11_row_sha256(rows, "row_sha256")
+  rows
+}
+
+#' Validate Phase 11 mode separation, provenance, licensing, and boundaries.
+#' @export
+validate_hybrid_mode_registry <- function(data) {
+  .phase11_require_contracts()
+  required <- .phase11_mode_registry_columns()
+  benchmark_contract_require_columns(data, required, "Phase 11 mode registry")
+  benchmark_contract_require_unique(data, c("mode_id", "panel_id"), "Phase 11 mode registry")
+  expected_modes <- c("open_default", "enriched_squad", "external_market")
+  actual_modes <- as.character(data$mode_id)
+  if (!setequal(actual_modes, expected_modes) || nrow(data) != length(expected_modes)) {
+    stop("Phase 11 mode registry must contain exactly open_default, enriched_squad, and external_market", call. = FALSE)
+  }
+  bools <- list(
+    derived_only_publication = .phase11_mode_bool_vector(data$derived_only_publication, "derived_only_publication"),
+    raw_source_publication_allowed = .phase11_mode_bool_vector(data$raw_source_publication_allowed, "raw_source_publication_allowed"),
+    open_mode_compatible = .phase11_mode_bool_vector(data$open_mode_compatible, "open_mode_compatible"),
+    research_only = .phase11_mode_bool_vector(data$research_only, "research_only"),
+    wc2026_sealed = .phase11_mode_bool_vector(data$wc2026_sealed, "wc2026_sealed")
+  )
+  if (any(!bools$derived_only_publication) || any(bools$raw_source_publication_allowed) ||
+      any(!bools$research_only) || any(!bools$wc2026_sealed)) {
+    stop("Phase 11 modes must publish derived/permitted values only and remain research-only with WC2026 sealed", call. = FALSE)
+  }
+  if (any(!grepl("^[0-9a-f]{64}$", tolower(as.character(data$source_artifact_sha256)))) ||
+      any(!grepl("^[0-9a-f]{64}$", tolower(as.character(data$source_metadata_sha256))))) {
+    stop("Phase 11 mode registry source provenance must contain canonical SHA-256 values", call. = FALSE)
+  }
+  if (any(!tolower(as.character(data$active_status)) %in% c("active", "inactive"))) {
+    stop("Phase 11 mode active_status must be active or inactive", call. = FALSE)
+  }
+  inactive <- tolower(as.character(data$active_status)) == "inactive"
+  if (any(!inactive & nzchar(trimws(as.character(data$inactive_reason))))) {
+    stop("Active Phase 11 modes must not carry an inactive reason", call. = FALSE)
+  }
+  if (any(inactive & !nzchar(trimws(as.character(data$inactive_reason))))) {
+    stop("Inactive Phase 11 modes require an explicit unavailable reason", call. = FALSE)
+  }
+  open <- data[actual_modes == "open_default", , drop = FALSE]
+  enriched <- data[actual_modes == "enriched_squad", , drop = FALSE]
+  external <- data[actual_modes == "external_market", , drop = FALSE]
+  if (open$panel_id != "open_core" || !bools$open_mode_compatible[actual_modes == "open_default"] ||
+      open$promotion_boundary != "open_default" || open$open_fixture_count != 630L ||
+      open$rich_fixture_count != 609L || open$score_support_g != 40L) {
+    stop("Open default mode must remain the active open_core 630/609/G=40 boundary", call. = FALSE)
+  }
+  if (enriched$panel_id != "feature_rich" || bools$open_mode_compatible[actual_modes == "enriched_squad"] ||
+      enriched$promotion_boundary != "feature_rich_reference_only" ||
+      enriched$rich_fixture_count != 609L || enriched$license_class != "restricted-local-aggregate-only" ||
+      grepl("open_default|promotion", enriched$promotion_boundary, ignore.case = TRUE)) {
+    stop("Enriched squad mode must remain feature_rich, derived-only, and non-promotional", call. = FALSE)
+  }
+  if (external$panel_id != "external_reference" || bools$open_mode_compatible[actual_modes == "external_market"] ||
+      external$promotion_boundary != "external_reference_only" ||
+      external$license_class != "restricted-manual-derived-probabilities" ||
+      grepl("open_default|promotion", external$promotion_boundary, ignore.case = TRUE)) {
+    stop("External market mode must remain a separately labelled reference boundary", call. = FALSE)
+  }
+  if (!all(grepl("^data/", as.character(data$source_artifact_path))) ||
+      any(grepl("duckdb|player|raw", as.character(data$source_artifact_path), ignore.case = TRUE))) {
+    stop("Phase 11 mode registry must reference local derived artifacts, not raw restricted rows", call. = FALSE)
+  }
+  .phase11_assert_hash(data, "row_sha256", "Phase 11 mode registry")
+  invisible(data)
+}
+
+#' Return the manifest schema for the optional manual market snapshot.
+#' @export
+phase11_manual_market_manifest_columns <- function() .phase11_manual_market_manifest_columns()
+
+#' Build the optional manual market manifest without collecting external data.
+#' @export
+canonical_phase11_manual_market_manifest <- function(
+    snapshot_path = "data/manual/bookmaker/phase11_manual_market_snapshot.csv"
+) {
+  if (!exists("read_manual_market_snapshot", mode = "function")) {
+    external_path <- .phase11_protocol_path("R/forecast/external_market.R")
+    if (!file.exists(external_path)) stop("Phase 11 external-market validator is missing", call. = FALSE)
+    source(external_path, local = .GlobalEnv)
+  }
+  path <- if (grepl("^(/|[A-Za-z]:[/\\\\])", snapshot_path)) {
+    normalizePath(snapshot_path, mustWork = FALSE)
+  } else {
+    .phase11_protocol_path(snapshot_path)
+  }
+  if (!file.exists(path)) return(.phase11_empty_character_frame(.phase11_manual_market_manifest_columns()))
+  read_manual_market_snapshot(path, allow_missing = FALSE)
+}
+
 #' Build the canonical open RF model-registration row.
 #'
 #' @export
@@ -1365,6 +1657,19 @@ load_and_validate_hybrid_protocol <- function(
       path, stringsAsFactors = FALSE, check.names = FALSE, colClasses = "character"
     )
   }
+  if ("mode_registry" %in% names(result)) {
+    validate_hybrid_mode_registry(result$mode_registry)
+  }
+  if ("manual_market_manifest" %in% names(result)) {
+    external_path <- .phase11_protocol_path("R/forecast/external_market.R")
+    if (!exists("validate_manual_market_manifest", mode = "function") && file.exists(external_path)) {
+      source(external_path, local = .GlobalEnv)
+    }
+    if (!exists("validate_manual_market_manifest", mode = "function")) {
+      stop("Phase 11 manual market manifest validator is missing", call. = FALSE)
+    }
+    validate_manual_market_manifest(result$manual_market_manifest)
+  }
   if ("xg_gate_manifest" %in% names(result)) {
     validate_phase11_xg_gate_manifest(result$xg_gate_manifest)
     xg_rows <- model_registry[as.character(model_registry$candidate_id) == "phase11_rf_dynamic_elo_context_xg_gated_open", , drop = FALSE]
@@ -1472,6 +1777,14 @@ write_phase11_hybrid_protocol <- function(protocol_dir = "data/benchmark/phase11
   )
   utils::write.csv(
     canonical_phase11_model_registry_rows(), file.path(directory, "model_registry.csv"),
+    row.names = FALSE, na = "", quote = TRUE
+  )
+  utils::write.csv(
+    canonical_phase11_manual_market_manifest(), file.path(directory, "manual_market_manifest.csv"),
+    row.names = FALSE, na = "", quote = TRUE
+  )
+  utils::write.csv(
+    canonical_phase11_mode_registry(), file.path(directory, "mode_registry.csv"),
     row.names = FALSE, na = "", quote = TRUE
   )
   load_and_validate_hybrid_protocol(protocol_dir)

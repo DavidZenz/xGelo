@@ -29,7 +29,7 @@ test_that("HYBRID-05 / D-13 through D-16 keep open, enriched, and external modes
     registry$panel_id[match("enriched_squad", registry$mode_id)],
     "feature_rich"
   )
-  expect_false(anyDuplicated(paste(registry$mode_id, registry$panel_id)))
+  expect_equal(anyDuplicated(paste(registry$mode_id, registry$panel_id)), 0L)
   expect_true(all(grepl("^[0-9a-f]{64}$", registry$source_artifact_sha256)))
   expect_true(all(nzchar(registry$vintage_id)))
   expect_true(all(nzchar(registry$license_class)))

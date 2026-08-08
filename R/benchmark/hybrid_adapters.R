@@ -16,6 +16,202 @@
   invisible(TRUE)
 }
 
+.hybrid_enriched_squad_required_columns <- function() {
+  c("team", "as_of_date", "feature_source_date", "log_squad_value")
+}
+
+#' Read only the local derived Transfermarkt squad aggregate artifact.
+#'
+#' Raw player rows and current profile fields are deliberately rejected.  The
+#' benchmark adapter never opens the ignored Transfermarkt DuckDB snapshot.
+#' @export
+read_hybrid_enriched_squad_aggregates <- function(
+    squad_strength_path = "data/processed/transfermarkt_squad_strength.csv",
+    allow_missing = TRUE
+) {
+  root <- if (exists(".phase11_protocol_root", mode = "function")) {
+    .phase11_protocol_root(".")
+  } else {
+    normalizePath(".", mustWork = TRUE)
+  }
+  path <- if (grepl("^(/|[A-Za-z]:[/\\\\])", squad_strength_path)) {
+    normalizePath(squad_strength_path, mustWork = FALSE)
+  } else {
+    file.path(root, squad_strength_path)
+  }
+  if (!file.exists(path)) {
+    if (!isTRUE(allow_missing)) stop("Derived squad aggregate file is missing: ", path, call. = FALSE)
+    result <- as.data.frame(
+      setNames(lapply(.hybrid_enriched_squad_required_columns(), function(...) character()), .hybrid_enriched_squad_required_columns()),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+    attr(result, "active_status") <- "inactive"
+    attr(result, "inactive_reason") <- "derived Transfermarkt squad aggregate is unavailable"
+    return(result)
+  }
+  data <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  forbidden <- grepl(
+    "player_id|market_value|current_club|current_national_team|raw_player|raw_bookmaker",
+    names(data),
+    ignore.case = TRUE
+  )
+  if (any(forbidden)) {
+    stop("Enriched squad adapter refuses raw restricted fields: ", paste(names(data)[forbidden], collapse = ", "), call. = FALSE)
+  }
+  missing <- setdiff(.hybrid_enriched_squad_required_columns(), names(data))
+  if (length(missing)) stop("Derived squad aggregate is missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  data$team <- trimws(as.character(data$team))
+  data$as_of_date <- as.Date(data$as_of_date)
+  data$feature_source_date <- as.Date(data$feature_source_date)
+  if (any(!nzchar(data$team)) || any(is.na(data$as_of_date)) || any(is.na(data$feature_source_date))) {
+    stop("Derived squad aggregates require team and point-in-time dates", call. = FALSE)
+  }
+  if (any(data$feature_source_date >= data$as_of_date)) {
+    stop("Derived squad aggregate source dates must precede as_of_date", call. = FALSE)
+  }
+  if (anyDuplicated(data[c("team", "as_of_date")])) {
+    stop("Derived squad aggregates contain duplicate team/as_of_date rows", call. = FALSE)
+  }
+  attr(data, "active_status") <- "active"
+  attr(data, "inactive_reason") <- ""
+  data
+}
+
+#' Return enriched-squad adapter metadata without exposing raw source rows.
+#' @export
+hybrid_enriched_squad_adapter_metadata <- function(
+    squad_strength_path = "data/processed/transfermarkt_squad_strength.csv"
+) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c("canonical_phase11_mode_registry")
+  )
+  metadata <- canonical_phase11_mode_registry()
+  metadata <- metadata[metadata$mode_id == "enriched_squad", , drop = FALSE]
+  if (nrow(metadata) != 1L) stop("Phase 11 enriched squad mode is not uniquely registered", call. = FALSE)
+  aggregates <- tryCatch(
+    read_hybrid_enriched_squad_aggregates(squad_strength_path, allow_missing = TRUE),
+    error = function(error) error
+  )
+  if (inherits(aggregates, "error")) {
+    metadata$active_status <- "inactive"
+    metadata$inactive_reason <- conditionMessage(aggregates)
+  } else if (identical(attr(aggregates, "active_status"), "inactive")) {
+    metadata$active_status <- "inactive"
+    metadata$inactive_reason <- attr(aggregates, "inactive_reason")
+  } else {
+    metadata$active_status <- "active"
+    metadata$inactive_reason <- ""
+  }
+  metadata$source_artifact_path <- squad_strength_path
+  metadata$aggregate_only <- TRUE
+  metadata$derived_feature_columns <- paste(
+    setdiff(names(aggregates), c("team", "as_of_date", "feature_source_date")),
+    collapse = "|"
+  )
+  metadata$restricted_raw_fields_excluded <- "player_id|market_value_in_eur|current_club_name|current_national_team_id"
+  metadata
+}
+
+#' Return external-market adapter metadata and its optional local status.
+#' @export
+hybrid_external_market_adapter_metadata <- function(
+    snapshot_path = "data/manual/bookmaker/phase11_manual_market_snapshot.csv"
+) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c("canonical_phase11_mode_registry")
+  )
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/external_market.R",
+    c("read_manual_market_snapshot")
+  )
+  metadata <- canonical_phase11_mode_registry()
+  metadata <- metadata[metadata$mode_id == "external_market", , drop = FALSE]
+  if (nrow(metadata) != 1L) stop("Phase 11 external market mode is not uniquely registered", call. = FALSE)
+  snapshot <- tryCatch(
+    read_manual_market_snapshot(snapshot_path, allow_missing = TRUE),
+    error = function(error) error
+  )
+  if (inherits(snapshot, "error")) {
+    metadata$active_status <- "inactive"
+    metadata$inactive_reason <- conditionMessage(snapshot)
+  } else if (!nrow(snapshot)) {
+    metadata$active_status <- "inactive"
+    metadata$inactive_reason <- attr(snapshot, "inactive_reason")
+  } else {
+    metadata$active_status <- "active"
+    metadata$inactive_reason <- ""
+  }
+  metadata$source_artifact_path <- snapshot_path
+  metadata$probabilities_only <- TRUE
+  metadata$implied_ability_reconstruction <- FALSE
+  metadata
+}
+
+#' Return one mode's adapter metadata without entering the open candidate pool.
+#' @export
+hybrid_mode_adapter_metadata <- function(mode_id, ...) {
+  mode_id <- as.character(mode_id)
+  if (length(mode_id) != 1L || is.na(mode_id)) stop("mode_id must be one registered Phase 11 mode", call. = FALSE)
+  if (identical(mode_id, "enriched_squad")) return(hybrid_enriched_squad_adapter_metadata(...))
+  if (identical(mode_id, "external_market")) return(hybrid_external_market_adapter_metadata(...))
+  if (identical(mode_id, "open_default")) {
+    .hybrid_adapter_source_if_missing("R/benchmark/hybrid_protocol.R", c("canonical_phase11_mode_registry"))
+    registry <- canonical_phase11_mode_registry()
+    return(registry[registry$mode_id == mode_id, , drop = FALSE])
+  }
+  stop("unknown Phase 11 mode_id", call. = FALSE)
+}
+
+#' Dispatch a labelled optional mode without permitting promotion mixing.
+#' @export
+run_registered_hybrid_mode_adapter <- function(
+    mode_id,
+    fixture_cutoffs = NULL,
+    squad_strength_path = "data/processed/transfermarkt_squad_strength.csv",
+    snapshot_path = "data/manual/bookmaker/phase11_manual_market_snapshot.csv"
+) {
+  mode_id <- as.character(mode_id)
+  if (length(mode_id) != 1L || is.na(mode_id)) stop("mode_id must be one registered Phase 11 mode", call. = FALSE)
+  if (identical(mode_id, "enriched_squad")) {
+    metadata <- hybrid_enriched_squad_adapter_metadata(squad_strength_path)
+    aggregates <- read_hybrid_enriched_squad_aggregates(squad_strength_path, allow_missing = TRUE)
+    return(list(
+      mode_id = mode_id,
+      panel_id = "feature_rich",
+      active_status = metadata$active_status,
+      inactive_reason = metadata$inactive_reason,
+      metadata = metadata,
+      derived_squad_aggregates = aggregates,
+      predictions = data.frame(stringsAsFactors = FALSE)
+    ))
+  }
+  if (identical(mode_id, "external_market")) {
+    .hybrid_adapter_source_if_missing("R/forecast/external_market.R", c(
+      "read_manual_market_snapshot", "market_probabilities_to_benchmark_predictions"
+    ))
+    metadata <- hybrid_external_market_adapter_metadata(snapshot_path)
+    snapshot <- read_manual_market_snapshot(snapshot_path, fixture_cutoffs = fixture_cutoffs, allow_missing = TRUE)
+    predictions <- market_probabilities_to_benchmark_predictions(snapshot, fixture_cutoffs = fixture_cutoffs)
+    return(list(
+      mode_id = mode_id,
+      panel_id = "external_reference",
+      active_status = metadata$active_status,
+      inactive_reason = metadata$inactive_reason,
+      metadata = metadata,
+      predictions = predictions
+    ))
+  }
+  if (identical(mode_id, "open_default")) {
+    stop("Open default mode must use the registered common benchmark adapter, not the optional-mode dispatcher", call. = FALSE)
+  }
+  stop("unknown Phase 11 mode_id", call. = FALSE)
+}
+
+hybrid_mode_is_open_candidate <- function(mode_id) identical(as.character(mode_id), "open_default")
+
 hybrid_phase11_candidate_ids <- function(protocol = NULL) {
   if (is.null(protocol)) {
     .hybrid_adapter_source_if_missing("R/benchmark/hybrid_protocol.R", c("load_and_validate_hybrid_protocol"))
