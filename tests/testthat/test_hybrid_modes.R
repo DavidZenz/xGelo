@@ -4,6 +4,7 @@ source(file.path(
   normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else ".")),
   "tests/testthat/helper_hybrid_phase11.R"
 ))
+hybrid_source_if_present("R/benchmark/hybrid_adapters.R")
 hybrid_require_modes_api()
 
 test_that("HYBRID-05 / D-13 through D-16 keep open, enriched, and external modes separate", {
