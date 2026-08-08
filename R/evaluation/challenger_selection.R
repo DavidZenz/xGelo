@@ -66,6 +66,15 @@ challenger_selection_active_features <- function(candidate_id) {
     poisson_team_ridge_elo_dc = "team_attack|team_defence|venue|elo_diff|dixon_coles",
     poisson_team_ridge_elo_bivpois = "team_attack|team_defence|venue|elo_diff|bivariate_poisson",
     open_nb_elo_only_ablation = "elo_diff",
+    phase11_rf_dynamic_elo_open = "dynamic_attack|dynamic_defence|venue|elo_diff",
+    phase11_rf_dynamic_elo_context_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context",
+    phase11_rf_dynamic_elo_context_drop_host_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context_without_host",
+    phase11_rf_dynamic_elo_context_drop_neutral_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context_without_neutral",
+    phase11_rf_dynamic_elo_context_drop_rest_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context_without_rest",
+    phase11_rf_dynamic_elo_context_drop_travel_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context_without_travel",
+    phase11_rf_dynamic_elo_context_drop_stage_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context_without_stage",
+    phase11_rf_dynamic_elo_context_xg_gated_open = "dynamic_attack|dynamic_defence|venue|elo_diff|context|xg_gate",
+    phase11_structural_sparse_prior_open = "dynamic_attack|dynamic_defence|venue|elo_diff|structural_prior",
     stop("candidate_id has no registered active feature set", call. = FALSE)
   )
 }
@@ -205,6 +214,225 @@ challenger_all_baseline_comparisons <- function(
   result <- do.call(rbind, output)
   rownames(result) <- NULL
   result
+}
+
+#' Compare active Phase 11 open candidates with inherited baselines.
+#'
+#' This wrapper keeps the existing paired-fold implementation as the single
+#' comparison engine while adding explicit mode and research-boundary labels.
+#' Enriched and external evidence is written by the Phase 11 runner as a
+#' separate companion table and is never passed through this open leaderboard.
+#' @export
+hybrid_all_baseline_comparisons <- function(
+    scores, tournaments, panel_fixtures, candidate_ids, baseline_ids,
+    parent_hashes, seed = 920001L, score_file_sha256 = NULL
+) {
+  result <- challenger_all_baseline_comparisons(
+    scores = scores,
+    tournaments = tournaments,
+    panel_fixtures = panel_fixtures,
+    candidate_ids = candidate_ids,
+    baseline_ids = baseline_ids,
+    parent_hashes = parent_hashes,
+    seed = seed,
+    score_file_sha256 = score_file_sha256
+  )
+  result$mode_id <- "open_default"
+  result$mode_pool <- "open_only"
+  result$research_only <- TRUE
+  result$wc2026_sealed <- TRUE
+  result$phase12_decision_authority <- FALSE
+  result
+}
+
+#' Build the non-authoritative Phase 11 research shortlist.
+#'
+#' The shortlist is deliberately slot-based and non-exclusive.  It records
+#' evidence identities and paired diagnostics for a later phase to inspect; it
+#' does not name a winner or alter any production artifact.
+#' @export
+build_hybrid_research_shortlist <- function(
+    comparisons, candidate_evidence = NULL, protocol = NULL,
+    parent_hashes = NULL, threshold = 0.001
+) {
+  if (!is.data.frame(comparisons)) {
+    stop("comparisons must be a data frame", call. = FALSE)
+  }
+  if (length(threshold) != 1L || !is.finite(threshold) || threshold < 0) {
+    stop("threshold must be one non-negative finite scalar", call. = FALSE)
+  }
+  evidence <- if (nrow(comparisons)) {
+    comparisons[
+      as.character(comparisons$diagnostic) == "equal_tournament_headline" &
+        as.character(comparisons$track_id) == "updating" &
+        as.character(comparisons$comparison_panel_id) == "open_core",
+      , drop = FALSE
+    ]
+  } else {
+    comparisons
+  }
+  if (!nrow(evidence) && all(c("candidate_id", "candidate_estimate") %in% names(comparisons))) {
+    evidence <- comparisons
+  }
+  if (!nrow(evidence)) {
+    return(data.frame(
+      slot = character(), candidate_id = character(), mode_id = character(),
+      panel_id = character(), candidate_estimate = numeric(), baseline_id = character(),
+      baseline_estimate = numeric(), delta = numeric(), paired_fixture_count = integer(),
+      evidence_sha256 = character(), selection_basis = character(),
+      non_exclusive = logical(), research_only = logical(), wc2026_sealed = logical(),
+      phase12_decision_authority = logical(), parent_graph_sha256 = character(),
+      selection_protocol_sha256 = character(), stringsAsFactors = FALSE
+    ))
+  }
+  challenger_selection_require_columns(
+    evidence,
+    c("candidate_id", "candidate_estimate", "baseline_id", "baseline_estimate", "delta"),
+    "hybrid shortlist comparisons"
+  )
+  evidence$candidate_id <- as.character(evidence$candidate_id)
+  evidence$baseline_id <- as.character(evidence$baseline_id)
+  evidence$candidate_estimate <- suppressWarnings(as.numeric(evidence$candidate_estimate))
+  evidence$baseline_estimate <- suppressWarnings(as.numeric(evidence$baseline_estimate))
+  evidence$delta <- suppressWarnings(as.numeric(evidence$delta))
+  if (any(!nzchar(evidence$candidate_id)) || any(!is.finite(evidence$candidate_estimate)) ||
+      any(!is.finite(evidence$baseline_estimate)) || any(!is.finite(evidence$delta))) {
+    stop("hybrid shortlist comparisons contain incomplete proper-score evidence", call. = FALSE)
+  }
+
+  lookup_evidence <- function(candidate_id) {
+    rows <- evidence[evidence$candidate_id == candidate_id, , drop = FALSE]
+    if (!nrow(rows)) stop("hybrid shortlist candidate has no paired evidence: ", candidate_id, call. = FALSE)
+    rows <- rows[order(rows$candidate_estimate, rows$baseline_id, method = "radix"), , drop = FALSE]
+    rows[1L, , drop = FALSE]
+  }
+  candidates <- sort(unique(evidence$candidate_id), method = "radix")
+  aggregate <- do.call(rbind, lapply(candidates, lookup_evidence))
+  rownames(aggregate) <- NULL
+  aggregate$complexity_rank <- 9999
+  aggregate$mode_id <- "open_default"
+  aggregate$panel_id <- "open_core"
+  if (!is.null(candidate_evidence) && is.data.frame(candidate_evidence) && nrow(candidate_evidence)) {
+    challenger_selection_require_columns(candidate_evidence, c("candidate_id"), "candidate evidence")
+    candidate_evidence$candidate_id <- as.character(candidate_evidence$candidate_id)
+    match_index <- match(aggregate$candidate_id, candidate_evidence$candidate_id)
+    if ("mode_id" %in% names(candidate_evidence)) {
+      aggregate$mode_id <- ifelse(
+        is.na(match_index), aggregate$mode_id,
+        as.character(candidate_evidence$mode_id[match_index])
+      )
+    }
+    if ("panel_id" %in% names(candidate_evidence)) {
+      aggregate$panel_id <- ifelse(
+        is.na(match_index), aggregate$panel_id,
+        as.character(candidate_evidence$panel_id[match_index])
+      )
+    }
+    if ("complexity_rank" %in% names(candidate_evidence)) {
+      ranks <- suppressWarnings(as.numeric(candidate_evidence$complexity_rank[match_index]))
+      aggregate$complexity_rank <- ifelse(is.finite(ranks), ranks, aggregate$complexity_rank)
+    }
+    if ("active_status" %in% names(candidate_evidence)) {
+      active <- tolower(as.character(candidate_evidence$active_status[match_index]))
+      aggregate <- aggregate[is.na(active) | active %in% c("active", "scored"), , drop = FALSE]
+    }
+  }
+  if (!nrow(aggregate)) stop("hybrid shortlist has no active open candidate evidence", call. = FALSE)
+  aggregate <- aggregate[aggregate$mode_id == "open_default" & aggregate$panel_id == "open_core", , drop = FALSE]
+  if (!nrow(aggregate)) stop("hybrid shortlist cannot pool non-open modes", call. = FALSE)
+  aggregate$practically_non_inferior <- aggregate$candidate_estimate <= (
+    min(aggregate$candidate_estimate) + as.numeric(threshold)
+  )
+  best <- aggregate[order(
+    aggregate$candidate_estimate, aggregate$candidate_id, method = "radix"
+  )[1L], , drop = FALSE]
+  simple <- aggregate[aggregate$practically_non_inferior, , drop = FALSE]
+  simple <- simple[order(simple$complexity_rank, simple$candidate_estimate, simple$candidate_id, method = "radix"), , drop = FALSE][1L, , drop = FALSE]
+  context_ids <- grep("context_open$", aggregate$candidate_id, value = TRUE)
+  context <- if (length(context_ids)) {
+    context_rows <- aggregate[aggregate$candidate_id %in% context_ids, , drop = FALSE]
+    context_rows[order(context_rows$candidate_estimate, context_rows$candidate_id, method = "radix")[1L], , drop = FALSE]
+  } else best
+  selected <- rbind(best, simple, context)
+  slots <- c("best_proper_score", "simplest_non_inferior", "context_representative")
+  if (is.null(parent_hashes)) {
+    parent_hashes <- setNames(strrep("0", 64), "phase11_parent")
+  }
+  parent_graph <- challenger_selection_parent_graph_sha256(parent_hashes)
+  selection_protocol <- digest::digest(
+    paste("phase11_hybrid_research_shortlist_v1", threshold, parent_graph, sep = "|"),
+    algo = "sha256", serialize = FALSE
+  )
+  evidence_hash <- function(row) {
+    values <- row[intersect(
+      c("candidate_id", "baseline_id", "candidate_estimate", "baseline_estimate", "delta",
+        "paired_fixture_count", "mode_id", "panel_id"), names(row)
+    )]
+    digest::digest(paste(names(values), as.character(values), sep = "=", collapse = "|"),
+      algo = "sha256", serialize = FALSE
+    )
+  }
+  output <- data.frame(
+    slot = slots,
+    candidate_id = as.character(selected$candidate_id),
+    mode_id = as.character(selected$mode_id),
+    panel_id = as.character(selected$panel_id),
+    candidate_estimate = as.numeric(selected$candidate_estimate),
+    baseline_id = as.character(selected$baseline_id),
+    baseline_estimate = as.numeric(selected$baseline_estimate),
+    delta = as.numeric(selected$delta),
+    paired_fixture_count = if ("paired_fixture_count" %in% names(selected)) as.integer(selected$paired_fixture_count) else NA_integer_,
+    evidence_sha256 = vapply(seq_len(nrow(selected)), function(i) evidence_hash(selected[i, , drop = FALSE]), character(1)),
+    selection_basis = c(
+      "lowest_open_updating_headline_proper_score",
+      "lowest_complexity_within_registered_practical_tie",
+      "registered_context_family_representative"
+    ),
+    non_exclusive = TRUE,
+    research_only = TRUE,
+    wc2026_sealed = TRUE,
+    phase12_decision_authority = FALSE,
+    parent_graph_sha256 = parent_graph,
+    selection_protocol_sha256 = selection_protocol,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  validate_hybrid_research_shortlist(output)
+  output
+}
+
+#' Validate the durable, research-only Phase 11 shortlist.
+#' @export
+validate_hybrid_research_shortlist <- function(shortlist) {
+  required <- c(
+    "slot", "candidate_id", "mode_id", "panel_id", "candidate_estimate",
+    "baseline_id", "baseline_estimate", "delta", "paired_fixture_count",
+    "evidence_sha256", "selection_basis", "non_exclusive", "research_only",
+    "wc2026_sealed", "phase12_decision_authority", "parent_graph_sha256",
+    "selection_protocol_sha256"
+  )
+  challenger_selection_require_columns(shortlist, required, "hybrid research shortlist")
+  if (!identical(names(shortlist), required) || nrow(shortlist) != 3L ||
+      !identical(as.character(shortlist$slot), c(
+        "best_proper_score", "simplest_non_inferior", "context_representative"
+      ))) {
+    stop("hybrid shortlist schema or slot order drifted", call. = FALSE)
+  }
+  if (any(is.na(shortlist$candidate_id) | !nzchar(as.character(shortlist$candidate_id))) ||
+      any(as.character(shortlist$mode_id) != "open_default") ||
+      any(as.character(shortlist$panel_id) != "open_core") ||
+      any(!grepl("^[0-9a-f]{64}$", as.character(shortlist$evidence_sha256))) ||
+      any(!grepl("^[0-9a-f]{64}$", as.character(shortlist$parent_graph_sha256))) ||
+      any(!grepl("^[0-9a-f]{64}$", as.character(shortlist$selection_protocol_sha256))) ||
+      any(!as.logical(shortlist$non_exclusive)) || any(!as.logical(shortlist$research_only)) ||
+      any(!as.logical(shortlist$wc2026_sealed)) || any(as.logical(shortlist$phase12_decision_authority))) {
+    stop("hybrid shortlist contains invalid flags, labels, or evidence hashes", call. = FALSE)
+  }
+  forbidden <- "promot|release|winner|final_holdout|final_selection|decision_authority.*true"
+  if (any(grepl(forbidden, unlist(shortlist, use.names = FALSE), ignore.case = TRUE))) {
+    stop("hybrid shortlist crossed its research-only boundary", call. = FALSE)
+  }
+  TRUE
 }
 
 #' Select the research representative among shared-mean dependence variants
