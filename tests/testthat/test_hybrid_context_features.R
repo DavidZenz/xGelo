@@ -58,3 +58,57 @@ test_that("HYBRID-02 / D-07 rejects missing common-panel context instead of impu
     ignore.case = TRUE
   )
 })
+
+test_that("HYBRID-02 / D-05 registers the full context bundle and every drop-one ablation", {
+  protocol <- load_and_validate_hybrid_protocol()
+  expected_ids <- c(
+    "phase11_rf_dynamic_elo_open",
+    "phase11_rf_dynamic_elo_context_open",
+    "phase11_rf_dynamic_elo_context_drop_host_open",
+    "phase11_rf_dynamic_elo_context_drop_neutral_open",
+    "phase11_rf_dynamic_elo_context_drop_rest_open",
+    "phase11_rf_dynamic_elo_context_drop_travel_open",
+    "phase11_rf_dynamic_elo_context_drop_stage_open"
+  )
+  expect_setequal(as.character(protocol$model_registry$candidate_id), expected_ids)
+  expect_setequal(hybrid_phase11_candidate_ids(protocol), expected_ids)
+
+  ablations <- canonical_phase11_context_ablation_registry()
+  expect_silent(validate_phase11_context_ablation_registry(ablations))
+  expect_setequal(
+    as.character(ablations$candidate_id),
+    expected_ids[-1L]
+  )
+  expect_identical(
+    as.character(ablations$removed_feature_id),
+    c("", "host", "neutral", "rest_days", "travel_km", "stage_id")
+  )
+  expect_true(all(as.integer(ablations$open_fixture_count) == 630L))
+  expect_true(all(as.integer(ablations$rich_fixture_count) == 609L))
+  expect_true(all(as.integer(ablations$score_support_g) == 40L))
+  expect_true(all(as.logical(ablations$research_only)))
+  expect_true(all(as.logical(ablations$wc2026_sealed)))
+})
+
+test_that("HYBRID-02 / D-06 and D-07 keep context provenance and the open denominator explicit", {
+  protocol <- load_and_validate_hybrid_protocol()
+  context_features <- protocol$feature_contract[
+    protocol$feature_contract$feature_id %in% hybrid_context_feature_names(),
+    , drop = FALSE
+  ]
+  expect_setequal(as.character(context_features$feature_id), hybrid_context_feature_names())
+  expect_true(all(context_features$license_class == "open-or-derived-open"))
+  expect_true(all(grepl("^[0-9a-f]{64}$", context_features$row_sha256)))
+  travel <- context_features[context_features$feature_id == "travel_km", , drop = FALSE]
+  expect_equal(nrow(travel), 1L)
+  expect_true(grepl("centroid|metadata", travel$availability_rule, ignore.case = TRUE))
+  expect_true(grepl("[0-9a-f]{64}.*[0-9a-f]{64}", travel$parent_artifact_sha256))
+
+  context_rows <- protocol$model_registry[
+    grepl("context", protocol$model_registry$candidate_id),
+    , drop = FALSE
+  ]
+  expect_true(all(as.character(context_rows$panel_id) == "open_core"))
+  expect_true(all(as.integer(context_rows$open_fixture_count) == 630L))
+  expect_true(all(as.character(context_rows$mode_id) == "open_default"))
+})
