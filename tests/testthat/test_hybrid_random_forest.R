@@ -157,3 +157,40 @@ test_that("HYBRID-01 / D-04 runs the RF through the common score service", {
   expect_true(isTRUE(result$run_manifest$network_free[[1L]]))
   expect_equal(as.integer(result$run_manifest$selected_g[[1L]]), 40L)
 })
+
+test_that("HYBRID-01 / D-04 freezes the registered RF tuning grid and provenance", {
+  protocol <- load_and_validate_hybrid_protocol()
+  registration <- protocol$model_registry[
+    protocol$model_registry$candidate_id == "phase11_rf_dynamic_elo_open",
+    , drop = FALSE
+  ]
+
+  grid <- canonical_phase11_rf_tuning_grid()
+  expect_equal(nrow(grid), 1L)
+  expect_equal(as.character(grid$candidate_id), "phase11_rf_dynamic_elo_open")
+  expect_equal(as.integer(grid$num.trees), 64L)
+  expect_equal(as.integer(grid$mtry), 3L)
+  expect_equal(as.integer(grid$min.node.size), 1L)
+  expect_equal(as.character(grid$seed_policy), "registered_seed")
+  expect_equal(as.character(grid$settings_sha256), as.character(registration$settings_sha256))
+
+  expect_error(
+    hybrid_rf_registered_settings(
+      list(num.trees = 65L), registration = registration
+    ),
+    "not registered"
+  )
+
+  fit <- fit_hybrid_two_goal_rf(
+    history = hybrid_rf_history(),
+    cutoff = as.Date("2010-06-11"),
+    settings = hybrid_rf_settings(),
+    registration = registration
+  )
+  expect_equal(fit$environment$package_version, "0.18.0")
+  expect_equal(fit$ranger_provenance_id, registration$ranger_provenance_id)
+  expect_equal(fit$settings_sha256, registration$settings_sha256)
+  expect_equal(fit$runtime_settings$`num.trees`, 64L)
+  expect_equal(fit$runtime_settings$mtry, 3L)
+  expect_equal(fit$runtime_settings$`min.node.size`, 1L)
+})
