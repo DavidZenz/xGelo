@@ -187,13 +187,26 @@ information add stable value beyond the strongest statistical benchmark.
 **Plans:** 7 plans
 
 Plans:
+**Wave 1**
 
 - [ ] 11-01-PLAN.md — Create Phase 11 Wave 0 RF, context, xG, structural, mode, and targets contracts
 - [ ] 11-07-PLAN.md — Provision verified project-local ranger dependency for RF execution
 - [ ] 11-02-PLAN.md — Prove the open RF challenger tracer through the common benchmark contract
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 11-03-PLAN.md — Register open-context features and individual ablations
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 11-04-PLAN.md — Implement fail-closed xG gating and structural sparse-team priors
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 11-05-PLAN.md — Separate enriched squad and manual external market modes
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 11-06-PLAN.md — Integrate Phase 11 targets and publish the research-only bundle
 
 **Execution waves:** Wave 0: 11-01 and 11-07; Wave 1: 11-02 after 11-01/11-07; Wave 2: 11-03 after 11-02; Wave 3: 11-04 after 11-02/11-03; Wave 4: 11-05 after 11-03/11-04; Wave 5: 11-06 after 11-05.
