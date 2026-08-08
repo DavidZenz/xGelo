@@ -66,7 +66,7 @@ hybrid_rf_registered_setting_identity <- function(registration = NULL) {
   } else {
     c(
       "candidate_id", "adapter_id", "adapter_version", "mean_model_id", "dependence_id",
-      "tuning_protocol_id", "feature_set_id", "rf_feature_set_id", "score_support_max",
+      "tuning_protocol_id", "tuning_grid_id", "feature_set_id", "rf_feature_set_id", "score_support_max",
       "settings", "num.trees", "mtry", "min.node.size", "seed_policy", "seed_id",
       "home_away_tuning_relationship", "nb_dispersion_source", "home_theta", "away_theta",
       "ranger_package", "ranger_version", "ranger_provenance_id"
@@ -101,6 +101,8 @@ hybrid_rf_registered_setting_identity <- function(registration = NULL) {
     seed_id = as.character(registration$seed_id[[1L]]),
     feature_set_id = as.character(registration$feature_set_id[[1L]]),
     rf_feature_set_id = as.character(registration$rf_feature_set_id[[1L]]),
+    tuning_grid_id = as.character(registration$tuning_grid_id[[1L]]),
+    tuning_grid_sha256 = as.character(registration$tuning_grid_sha256[[1L]]),
     score_support_max = as.integer(registration$score_support_max[[1L]]),
     home_theta = as.numeric(registration$home_theta[[1L]]),
     away_theta = as.numeric(registration$away_theta[[1L]]),
@@ -193,6 +195,8 @@ hybrid_rf_registered_settings <- function(settings = list(), registration = NULL
     seed_policy = identity$seed_policy,
     feature_set_id = identity$feature_set_id,
     rf_feature_set_id = identity$rf_feature_set_id,
+    tuning_grid_id = identity$tuning_grid_id,
+    tuning_grid_sha256 = identity$tuning_grid_sha256,
     home_theta = identity$home_theta,
     away_theta = identity$away_theta,
     home_away_tuning_relationship = identity$home_away_tuning_relationship,

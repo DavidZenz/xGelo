@@ -94,11 +94,30 @@
 .phase11_model_settings_fields <- function() {
   c(
     "candidate_id", "adapter_id", "adapter_version", "mean_model_id", "dependence_id",
-    "tuning_protocol_id", "feature_set_id", "rf_feature_set_id", "score_support_max",
+    "tuning_protocol_id", "tuning_grid_id", "feature_set_id", "rf_feature_set_id", "score_support_max",
     "settings", "num.trees", "mtry", "min.node.size", "seed_policy", "seed_id",
     "home_away_tuning_relationship", "nb_dispersion_source", "home_theta", "away_theta",
     "ranger_package", "ranger_version", "ranger_provenance_id"
   )
+}
+
+.phase11_rf_tuning_grid_fields <- function() {
+  c(
+    "candidate_id", "num.trees", "mtry", "min.node.size", "seed_policy",
+    "feature_set_id", "home_away_tuning_relationship", "nb_dispersion_source",
+    "home_theta", "away_theta", "ranger_package", "ranger_version",
+    "ranger_provenance_id"
+  )
+}
+
+.phase11_rf_tuning_grid_sha256 <- function(data) {
+  fields <- .phase11_rf_tuning_grid_fields()
+  missing <- setdiff(fields, names(data))
+  if (length(missing)) stop("Phase 11 RF tuning grid is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  .phase11_sha256(paste(
+    vapply(data[1L, fields, drop = FALSE], .phase11_scalar, character(1)),
+    collapse = "|"
+  ))
 }
 
 .phase11_model_settings_sha256 <- function(data) {
@@ -158,6 +177,7 @@ canonical_phase11_model_registry <- function() {
     mean_parent_candidate_id = "",
     nested_parent_candidate_id = "",
     tuning_protocol_id = "phase11_rf_registered_v1",
+    tuning_grid_id = "phase11_rf_grid_v1",
     feature_set_id = "phase11_rf_dynamic_elo_open",
     rf_feature_set_id = "phase11_rf_dynamic_elo_open",
     score_support_max = as.character(constants$score_support_max),
@@ -194,8 +214,77 @@ canonical_phase11_model_registry <- function() {
     check.names = FALSE
   )
   registration$settings_sha256 <- .phase11_model_settings_sha256(registration)
+  registration$tuning_grid_sha256 <- .phase11_rf_tuning_grid_sha256(registration)
   registration$registration_sha256 <- .phase11_row_sha256(registration, "registration_sha256")
   registration
+}
+
+#' Return the one-row deterministic RF tuning grid registered for Phase 11.
+#'
+#' The grid is intentionally small and immutable for this research-only
+#' challenger.  Home and away forests share the same tuning identity.
+#' @export
+canonical_phase11_rf_tuning_grid <- function() {
+  registration <- canonical_phase11_model_registry()
+  data.frame(
+    schema_version = "1.0",
+    tuning_grid_id = registration$tuning_grid_id,
+    tuning_grid_sha256 = registration$tuning_grid_sha256,
+    candidate_id = registration$candidate_id,
+    num.trees = as.integer(registration$`num.trees`),
+    mtry = as.integer(registration$mtry),
+    min.node.size = as.integer(registration$`min.node.size`),
+    seed_policy = registration$seed_policy,
+    seed_id = registration$seed_id,
+    feature_set_id = registration$feature_set_id,
+    rf_feature_set_id = registration$rf_feature_set_id,
+    home_away_tuning_relationship = registration$home_away_tuning_relationship,
+    nb_dispersion_source = registration$nb_dispersion_source,
+    home_theta = as.numeric(registration$home_theta),
+    away_theta = as.numeric(registration$away_theta),
+    ranger_package = registration$ranger_package,
+    ranger_version = registration$ranger_version,
+    ranger_provenance_id = registration$ranger_provenance_id,
+    settings_sha256 = registration$settings_sha256,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+#' Validate the frozen one-row RF tuning grid against its registration.
+#' @export
+validate_phase11_rf_tuning_grid <- function(grid, registration = NULL) {
+  required <- c(
+    "tuning_grid_id", "tuning_grid_sha256", "candidate_id", "num.trees", "mtry",
+    "min.node.size", "seed_policy", "feature_set_id", "home_away_tuning_relationship",
+    "nb_dispersion_source", "home_theta", "away_theta", "ranger_package",
+    "ranger_version", "ranger_provenance_id", "settings_sha256"
+  )
+  missing <- setdiff(required, names(grid))
+  if (length(missing)) stop("Phase 11 RF tuning grid is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (!is.data.frame(grid) || nrow(grid) != 1L) stop("Phase 11 RF tuning grid must contain exactly one frozen row", call. = FALSE)
+  registration <- if (is.null(registration)) canonical_phase11_model_registry() else registration
+  if (!is.data.frame(registration) || nrow(registration) != 1L) stop("RF tuning-grid registration must contain one row", call. = FALSE)
+  if (!identical(as.character(grid$candidate_id), as.character(registration$candidate_id)) ||
+      !identical(as.character(grid$tuning_grid_id), as.character(registration$tuning_grid_id)) ||
+      !identical(as.character(grid$settings_sha256), as.character(registration$settings_sha256))) {
+    stop("Phase 11 RF tuning grid does not match its model registration", call. = FALSE)
+  }
+  expected_grid_hash <- .phase11_rf_tuning_grid_sha256(registration)
+  if (!identical(as.character(grid$tuning_grid_sha256), expected_grid_hash) ||
+      !identical(as.character(registration$tuning_grid_sha256), expected_grid_hash)) {
+    stop("Phase 11 RF tuning grid hash mismatch", call. = FALSE)
+  }
+  if (any(as.integer(grid$num.trees) != 64L) || any(as.integer(grid$mtry) != 3L) ||
+      any(as.integer(grid$min.node.size) != 1L) ||
+      any(as.character(grid$seed_policy) != "registered_seed") ||
+      any(as.character(grid$home_away_tuning_relationship) != "shared_registered_settings") ||
+      any(as.character(grid$nb_dispersion_source) != "registered_nb_theta") ||
+      any(as.character(grid$ranger_package) != "ranger") ||
+      any(as.character(grid$ranger_version) != "0.18.0")) {
+    stop("Phase 11 RF tuning grid contains an unregistered setting", call. = FALSE)
+  }
+  invisible(grid)
 }
 
 #' Build the canonical open RF feature contract.
@@ -247,7 +336,7 @@ validate_hybrid_model_registry <- function(data) {
   required <- c(
     "schema_version", "candidate_id", "model_family", "adapter_id", "adapter_version",
     "native_panel_id", "panel_id", "mode_id", "mean_model_id", "dependence_id",
-    "tuning_protocol_id", "feature_set_id", "score_support_max", "open_fixture_count",
+    "tuning_protocol_id", "tuning_grid_id", "tuning_grid_sha256", "feature_set_id", "score_support_max", "open_fixture_count",
     "rich_fixture_count", "score_support_g", "open_mode_compatible", "research_only",
     "wc2026_sealed", "settings", "num.trees", "mtry", "min.node.size", "seed_policy",
     "seed_id", "home_away_tuning_relationship", "nb_dispersion_source", "home_theta",
@@ -277,6 +366,12 @@ validate_hybrid_model_registry <- function(data) {
       any(as.character(data$ranger_package) != "ranger") ||
       any(as.character(data$ranger_version) != "0.18.0")) {
     stop("Phase 11 RF registry contains an unapproved adapter or runtime", call. = FALSE)
+  }
+  if (any(as.character(data$tuning_grid_id) != "phase11_rf_grid_v1") ||
+      any(as.character(data$tuning_grid_sha256) != vapply(seq_len(nrow(data)), function(index) {
+        .phase11_rf_tuning_grid_sha256(data[index, , drop = FALSE])
+      }, character(1)))) {
+    stop("Phase 11 RF registry tuning grid identity drifted", call. = FALSE)
   }
   .phase11_assert_hash(data, "settings_sha256", "Phase 11 model registry settings")
   .phase11_assert_hash(data, "registration_sha256", "Phase 11 model registry registration")
