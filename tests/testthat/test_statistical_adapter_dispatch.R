@@ -80,3 +80,57 @@ test_that("dependence siblings attest one augmented penalized mean", {
   expect_identical(unique(result$mean_parent_id), "poisson_team_ridge_elo")
   expect_length(unique(result$mean_prediction_hash), 1L)
 })
+
+test_that("sibling fit cache keys share only identical mean components", {
+  require_challenger_adapter_api()
+  settings <- list(team_ridge_lambda = 1, elo_lasso_lambda = 0.1)
+  keys <- vapply(
+    c(
+      "poisson_team_ridge_elo", "poisson_team_ridge_elo_dc",
+      "poisson_team_ridge_elo_bivpois"
+    ),
+    function(candidate_id) {
+      challenger_penalized_fit_cache_key(
+        candidate_id, as.Date("2022-11-20"), settings
+      )
+    },
+    character(1)
+  )
+  expect_length(unique(keys), 1L)
+  expect_false(identical(
+    challenger_penalized_fit_cache_key(
+      "poisson_team_ridge", as.Date("2022-11-20"), settings
+    ),
+    keys[[1L]]
+  ))
+  expect_null(challenger_penalized_fit_cache_key(
+    "dynamic_goal_ability", as.Date("2022-11-20"), settings
+  ))
+})
+
+test_that("dynamic siblings reuse the boundary replay but retain Elo-specific means", {
+  require_challenger_adapter_api()
+  if (!exists("baseline_goal_predictors", mode = "function")) {
+    source(file.path(project_root, "R/forecast/poisson.R"))
+  }
+  history <- synthetic_statistical_history(include_outer = TRUE)
+  fixture <- history[history$edition_id == "wc2010", , drop = FALSE][1L, , drop = FALSE]
+  fixture$track_id <- "updating"
+  fixture$boundary_id <- "wc2010__dynamic_cache"
+  fixture$forecast_sequence <- 1L
+  fixture$evidence_cutoff_exclusive <- as.Date(fixture$actual_completion_date)
+  base_settings <- list(pseudo_exposure = 8, half_life_days = 730, elo_coefficient = 0)
+  elo_settings <- c(base_settings, elo_coefficient = 0.25)
+  cache <- new.env(parent = emptyenv())
+  plain <- challenger_dynamic_means(
+    challenger_dynamic_fit(history, fixture$evidence_cutoff_exclusive, base_settings, FALSE),
+    fixture, mean_cache = cache
+  )
+  elo <- challenger_dynamic_means(
+    challenger_dynamic_fit(history, fixture$evidence_cutoff_exclusive, elo_settings, TRUE),
+    fixture, mean_cache = cache
+  )
+  expect_length(ls(cache), 1L)
+  expect_equal(plain$dynamic_log_mu_home, elo$dynamic_log_mu_home)
+  expect_equal(plain$dynamic_log_mu_away, elo$dynamic_log_mu_away)
+})

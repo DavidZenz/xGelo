@@ -103,7 +103,7 @@ where correlated or inactive predictors do not add out-of-sample value.
 
 **Depends on:** Phase 9
 
-**Plans:** 7/11 plans executed
+**Plans:** 11/11 plans executed
 
 Plans:
 **Wave 1**
@@ -121,19 +121,19 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 10-05-PLAN.md — Implement shared-mean score-dependence variants
+- [x] 10-05-PLAN.md — Implement shared-mean score-dependence variants
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 10-06-PLAN.md — Integrate common adapters and incumbent ablations
+- [x] 10-06-PLAN.md — Integrate common adapters and incumbent ablations
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 10-07-PLAN.md — Build all-baseline evidence, shortlist, runner, and targets
+- [x] 10-07-PLAN.md — Build all-baseline evidence, shortlist, runner, and targets
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 10-08-PLAN.md — Execute, publish, and independently accept the canonical bundle
+- [x] 10-08-PLAN.md — Execute, publish, and independently accept the canonical bundle
 
 **Execution waves:** Wave 0: 10-01, 10-02, 10-10, 10-11; Wave 1: 10-09
 after 10-02; Wave 2: 10-03 after 10-01/10-09 and 10-04 after

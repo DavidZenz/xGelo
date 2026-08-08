@@ -265,17 +265,25 @@ build_statistical_shortlist <- function(evidence, dependence_representative) {
     "complexity_rank", "evidence_sha256"
   )
   challenger_selection_require_columns(evidence, required, "shortlist evidence")
-  if (anyDuplicated(evidence$candidate_id) || !nrow(evidence) ||
-      any(!is.finite(evidence$updating_equal_tournament_rps)) ||
-      any(!is.finite(evidence$complexity_rank)) ||
-      any(!grepl("^[0-9a-f]{64}$", evidence$evidence_sha256))) {
+  challenger_selection_require_ids(evidence$candidate_id, "shortlist evidence candidate_id")
+  updating_rps <- suppressWarnings(as.numeric(as.character(evidence$updating_equal_tournament_rps)))
+  complexity_rank <- suppressWarnings(as.numeric(as.character(evidence$complexity_rank)))
+  practically_non_inferior <- as.logical(evidence$practically_non_inferior)
+  evidence_sha256 <- as.character(evidence$evidence_sha256)
+  if (!nrow(evidence) || any(!is.finite(updating_rps)) ||
+      any(!is.finite(complexity_rank)) || anyNA(practically_non_inferior) ||
+      any(is.na(evidence_sha256) | !grepl("^[0-9a-f]{64}$", evidence_sha256))) {
     stop("shortlist evidence contains invalid identities, metrics, ranks, or hashes", call. = FALSE)
   }
+  evidence$updating_equal_tournament_rps <- updating_rps
+  evidence$complexity_rank <- complexity_rank
+  evidence$practically_non_inferior <- practically_non_inferior
+  evidence$evidence_sha256 <- evidence_sha256
   best <- evidence[order(
     evidence$updating_equal_tournament_rps, evidence$complexity_rank,
     evidence$candidate_id, method = "radix"
   )[1L], , drop = FALSE]
-  simpler <- evidence[as.logical(evidence$practically_non_inferior), , drop = FALSE]
+  simpler <- evidence[evidence$practically_non_inferior, , drop = FALSE]
   if (!nrow(simpler)) stop("shortlist evidence has no practically non-inferior candidate", call. = FALSE)
   simpler <- simpler[order(
     simpler$complexity_rank, simpler$updating_equal_tournament_rps,

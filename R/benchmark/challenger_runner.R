@@ -101,6 +101,21 @@
   if (!all(expected_editions %in% unique(history$edition_id))) {
     stop("Phase 10 history does not cover every registered tuning edition", call. = FALSE)
   }
+  .phase10_runner_source("baseline_goal_predictors", "R/forecast/poisson.R")
+  .phase10_runner_source("elo_only_goal_predictors", "R/forecast/poisson.R")
+  inactive_ablation_predictors <- setdiff(
+    baseline_goal_predictors(),
+    elo_only_goal_predictors()
+  )
+  for (feature_id in inactive_ablation_predictors) {
+    history[[feature_id]] <- 0
+    history[[paste0(feature_id, "__value_present")]] <- FALSE
+    history[[paste0(feature_id, "__source_present")]] <- FALSE
+    history[[paste0(feature_id, "__source_date")]] <- as.Date(NA)
+    history[[paste0(feature_id, "__imputed")]] <- TRUE
+    history[[paste0(feature_id, "__imputation_reason")]] <-
+      "point_in_time_source_coverage_zero"
+  }
   history
 }
 
@@ -560,6 +575,18 @@ tune_statistical_dynamic_family <- function(
   .phase10_runner_source("aggregate_benchmark_scores", "R/evaluation/benchmark_scores.R")
   .phase10_runner_source("benchmark_panel_fixture_ids", "R/benchmark/contracts.R")
   .phase10_runner_source("challenger_all_baseline_comparisons", "R/evaluation/challenger_selection.R")
+  if (!is.data.frame(protocol$panel_fixtures)) {
+    protocol$panel_fixtures <- utils::read.csv(
+      file.path(.phase10_runner_root(), "data", "benchmark", "phase09", "panel_fixtures.csv"),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  }
+  if (!is.data.frame(protocol$tournaments)) {
+    protocol$tournaments <- utils::read.csv(
+      file.path(.phase10_runner_root(), "data", "benchmark", "phase09", "tournaments.csv"),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  }
   worker_count <- as.integer(worker_count)
   if (length(worker_count) != 1L || is.na(worker_count) || worker_count < 1L || worker_count > 2L) {
     stop("Phase 10 permits one or two independent model-track workers", call. = FALSE)
@@ -574,31 +601,57 @@ tune_statistical_dynamic_family <- function(
     candidate_id = candidate_order, track_id = tracks, edition_id = editions,
     stringsAsFactors = FALSE, KEEP.OUT.ATTRS = FALSE
   )
-  run_job <- function(index) {
-    candidate_id <- as.character(jobs$candidate_id[index])
-    track_id <- as.character(jobs$track_id[index])
-    edition_id <- as.character(jobs$edition_id[index])
-    settings <- settings_by_candidate[[candidate_id]]
-    if (is.list(settings) && !is.null(names(settings)) && edition_id %in% names(settings)) {
-      settings <- settings[[edition_id]]
+  groups <- unique(jobs[c("track_id", "edition_id")])
+  run_group <- function(index) {
+    track_id <- as.character(groups$track_id[index])
+    edition_id <- as.character(groups$edition_id[index])
+    # Keep the cache bounded to one edition/track while sharing all sibling fits.
+    fit_cache <- new.env(parent = emptyenv())
+    mean_cache <- new.env(parent = emptyenv())
+    output <- setNames(vector("list", length(candidate_order)), candidate_order)
+    for (candidate_id in candidate_order) {
+      settings <- settings_by_candidate[[candidate_id]]
+      if (is.list(settings) && !is.null(names(settings)) && edition_id %in% names(settings)) {
+        settings <- settings[[edition_id]]
+      }
+      if (is.null(settings)) settings <- list()
+      output[[candidate_id]] <- run_registered_challenger_adapter(
+        candidate_id, history,
+        fixtures[
+          as.character(fixtures$track_id) == track_id &
+            as.character(fixtures$edition_id) == edition_id,
+          , drop = FALSE
+        ],
+        seed_registry, support_max = 40L,
+        settings = settings, protocol = protocol,
+        fit_cache = fit_cache, mean_cache = mean_cache
+      )
     }
-    if (is.null(settings)) settings <- list()
-    run_registered_challenger_adapter(
-      candidate_id, history,
-      fixtures[
-        as.character(fixtures$track_id) == track_id &
-          as.character(fixtures$edition_id) == edition_id,
-        , drop = FALSE
-      ],
-      seed_registry, support_max = 40L,
-      settings = settings, protocol = protocol
+    output
+  }
+  grouped_pieces <- if (worker_count == 2L && .Platform$OS.type != "windows") {
+    parallel::mclapply(seq_len(nrow(groups)), run_group, mc.cores = worker_count, mc.preschedule = FALSE)
+  } else {
+    lapply(seq_len(nrow(groups)), run_group)
+  }
+  failed_groups <- which(vapply(grouped_pieces, inherits, logical(1), what = "try-error"))
+  if (length(failed_groups)) {
+    labels <- paste(groups$track_id[failed_groups], groups$edition_id[failed_groups], sep = "/")
+    details <- unique(vapply(grouped_pieces[failed_groups], function(error) {
+      trimws(as.character(error)[[1L]])
+    }, character(1)))
+    stop(
+      "Phase 10 model-track groups failed: ", paste(labels, collapse = ", "),
+      "; errors: ", paste(details, collapse = " | "), call. = FALSE
     )
   }
-  pieces <- if (worker_count == 2L && .Platform$OS.type != "windows") {
-    parallel::mclapply(seq_len(nrow(jobs)), run_job, mc.cores = 2L, mc.preschedule = FALSE)
-  } else {
-    lapply(seq_len(nrow(jobs)), run_job)
-  }
+  group_keys <- paste(groups$track_id, groups$edition_id, sep = "::")
+  job_group <- match(
+    paste(jobs$track_id, jobs$edition_id, sep = "::"), group_keys
+  )
+  pieces <- lapply(seq_len(nrow(jobs)), function(index) {
+    grouped_pieces[[job_group[index]]][[as.character(jobs$candidate_id[index])]]
+  })
   failed <- which(vapply(pieces, inherits, logical(1), what = "try-error"))
   if (length(failed)) {
     labels <- paste(
@@ -1324,7 +1377,7 @@ write_statistical_challenger_bundle <- function(result, output_dir) {
       stop("Phase 10 deep score distribution identity drift", call. = FALSE)
     }
     expected_home <- rep.int(0:40, times = 41L)
-    expected_away <- rep.int(0:40, each = 41L)
+    expected_away <- rep(0:40, each = 41L)
     home_matrix <- matrix(as.integer(distributions$home_goals), nrow = 1681L)
     away_matrix <- matrix(as.integer(distributions$away_goals), nrow = 1681L)
     probability_matrix <- matrix(as.numeric(distributions$probability), nrow = 1681L)

@@ -155,3 +155,19 @@ test_that("shortlist is research-only, ordered, non-exclusive, and evidence-link
   source_text <- paste(readLines(selection_module, warn = FALSE), collapse = "\n")
   expect_false(grepl("evaluate_promotion\\s*\\(", source_text))
 })
+
+test_that("shortlist accepts canonical character-encoded numeric evidence", {
+  require_statistical_selection_api()
+  evidence <- data.frame(
+    candidate_id = selection_candidate_ids(),
+    updating_equal_tournament_rps = as.character(seq(0.18, 0.186, length.out = 7L)),
+    practically_non_inferior = c("false", "false", "false", "false", "false", "false", "true"),
+    complexity_rank = as.character(1:7),
+    evidence_sha256 = vapply(1:7, function(i) paste0(i, strrep("a", 63)), character(1)),
+    stringsAsFactors = FALSE
+  )
+  shortlist <- build_statistical_shortlist(
+    evidence, dependence_representative = "poisson_team_ridge_elo_dc"
+  )
+  expect_true(validate_statistical_shortlist(shortlist))
+})

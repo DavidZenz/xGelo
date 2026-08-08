@@ -51,7 +51,7 @@ from the committed history and cache. No behavior remains unverified.
 | Rejected-row reason assertions | PASS: 29,930 rejected rows all carry reasons and flags |
 | Advancement/stage row-count assertions | PASS: 122 advancement rows, 576 stage rows |
 | Report visual and embedded-figure inspection | PASS: five readable PNG figures with strict/exploratory labels and coverage annotations |
-| Cache-only retrospective rerun and manifest read-back | PASS: exit 0, source SHA `8841a812051b53b985afc23172c3ac4e20c57554`, checksum validation passed |
+| Cache-only retrospective rerun and manifest read-back | PASS: exit 0 under a current-`HEAD` validation probe; generated artifact checksums validated. |
 
 ## Requirements Coverage
 
@@ -65,3 +65,7 @@ from the committed history and cache. No behavior remains unverified.
 | EVAL-03 | SATISFIED | Calibration, uncertainty, strict coverage, exploratory coverage, and caveats are visible in the report and figures. |
 
 No human-only verification items remain. No gaps or overrides were recorded.
+
+The rerun was used as a validation probe only. The final sealed manifests retain
+their original source SHA `a4cf6b932b18659e9ca439693e7f1ddf092736e2`; no generated
+evaluation data was promoted from the probe.

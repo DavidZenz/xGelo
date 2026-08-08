@@ -215,6 +215,63 @@ challenger_training_history <- function(history, cutoff = NULL) {
   benchmark_baseline_training_rows(history, cutoff)
 }
 
+challenger_cache_get <- function(cache, key) {
+  if (is.null(cache) || is.null(key)) return(NULL)
+  if (!is.environment(cache)) stop("challenger cache must be an environment", call. = FALSE)
+  if (!exists(key, envir = cache, inherits = FALSE)) return(NULL)
+  get(key, envir = cache, inherits = FALSE)
+}
+
+challenger_cache_fit_projection <- function(fit) {
+  if (!inherits(fit, "penalized_poisson_team_fit")) return(fit)
+  bulky <- intersect(
+    c(
+      "glmnet_fit", "elo_glmnet_fit", "observation_weights",
+      "raw_linear_predictor", "centered_linear_predictor"
+    ),
+    names(fit)
+  )
+  fit[bulky] <- NULL
+  fit
+}
+
+challenger_penalized_fit_cache_key <- function(candidate_id, cutoff, settings) {
+  family <- switch(
+    as.character(candidate_id),
+    poisson_team_ridge = "minimal",
+    poisson_team_ridge_elo = "augmented",
+    poisson_team_ridge_elo_dc = "augmented",
+    poisson_team_ridge_elo_bivpois = "augmented",
+    NULL
+  )
+  if (is.null(family)) return(NULL)
+  cutoff_id <- if (is.null(cutoff)) "end" else format(as.Date(cutoff), "%Y-%m-%d")
+  team_ids <- settings$registered_team_ids
+  team_ids <- if (is.null(team_ids)) "" else paste(sort(as.character(team_ids)), collapse = ",")
+  values <- c(
+    family,
+    cutoff_id,
+    format(as.numeric(challenger_settings_scalar(settings, "team_ridge_lambda", 1)), digits = 17),
+    if (identical(family, "augmented")) {
+      format(as.numeric(challenger_settings_scalar(settings, "elo_lasso_lambda", 1)), digits = 17)
+    } else "",
+    team_ids
+  )
+  paste("penalized", paste(values, collapse = "::"), sep = "::")
+}
+
+challenger_dynamic_means_cache_key <- function(fit, fixtures) {
+  boundary_ids <- if ("boundary_id" %in% names(fixtures)) {
+    paste(sort(unique(as.character(fixtures$boundary_id))), collapse = ",")
+  } else ""
+  fixture_ids <- paste(sort(as.character(fixtures$fixture_id)), collapse = ",")
+  paste(
+    "dynamic", boundary_ids, fixture_ids,
+    format(as.numeric(fit$pseudo_exposure), digits = 17),
+    format(as.numeric(fit$half_life_days), digits = 17), sep = "::"
+  )
+}
+
 challenger_penalized_fit <- function(history, cutoff, settings, with_elo) {
   challenger_source_if_missing(
     "benchmark_observation_weights",
@@ -296,7 +353,8 @@ challenger_dynamic_fit <- function(history, cutoff, settings, with_elo) {
 fit_registered_challenger <- function(
     candidate_id, history, settings = list(), cutoff = NULL,
     registration = NULL, protocol = NULL,
-    protocol_dir = "data/benchmark/phase10", fit_callback = NULL
+    protocol_dir = "data/benchmark/phase10", fit_callback = NULL,
+    fit_cache = NULL
 ) {
   protocol <- challenger_load_validated_protocol(protocol, protocol_dir)
   registration <- challenger_registration(protocol, candidate_id, registration)
@@ -305,41 +363,61 @@ fit_registered_challenger <- function(
   if (!is.null(fit_callback)) {
     stop("fit_callback is forbidden by the challenger dispatch allowlist", call. = FALSE)
   }
-  fit <- switch(
-    candidate_id,
-    poisson_team_ridge = challenger_penalized_fit(history, cutoff, settings, FALSE),
-    poisson_team_ridge_elo = challenger_penalized_fit(history, cutoff, settings, TRUE),
-    dynamic_goal_ability = challenger_dynamic_fit(history, cutoff, settings, FALSE),
-    dynamic_goal_ability_elo = challenger_dynamic_fit(history, cutoff, settings, TRUE),
-    poisson_team_ridge_elo_dc = challenger_penalized_fit(history, cutoff, settings, TRUE),
-    poisson_team_ridge_elo_bivpois = challenger_penalized_fit(history, cutoff, settings, TRUE),
-    open_nb_elo_only_ablation = fit_open_nb_elo_only_ablation(history, cutoff),
-    stop("unknown challenger allowlist candidate_id", call. = FALSE)
-  )
+  if (!is.null(fit_cache) && !is.environment(fit_cache)) {
+    stop("challenger fit cache must be an environment", call. = FALSE)
+  }
+  cache_key <- challenger_penalized_fit_cache_key(candidate_id, cutoff, settings)
+  fit <- challenger_cache_get(fit_cache, cache_key)
+  if (is.null(fit)) {
+    fit <- switch(
+      candidate_id,
+      poisson_team_ridge = challenger_penalized_fit(history, cutoff, settings, FALSE),
+      poisson_team_ridge_elo = challenger_penalized_fit(history, cutoff, settings, TRUE),
+      dynamic_goal_ability = challenger_dynamic_fit(history, cutoff, settings, FALSE),
+      dynamic_goal_ability_elo = challenger_dynamic_fit(history, cutoff, settings, TRUE),
+      poisson_team_ridge_elo_dc = challenger_penalized_fit(history, cutoff, settings, TRUE),
+      poisson_team_ridge_elo_bivpois = challenger_penalized_fit(history, cutoff, settings, TRUE),
+      open_nb_elo_only_ablation = fit_open_nb_elo_only_ablation(history, cutoff),
+      stop("unknown challenger allowlist candidate_id", call. = FALSE)
+    )
+    if (!is.null(fit_cache) && !is.null(cache_key)) {
+      assign(cache_key, challenger_cache_fit_projection(fit), envir = fit_cache)
+    }
+  }
   fit$candidate_id <- candidate_id
   fit$registration <- registration
   fit$runtime_settings <- settings
   fit
 }
 
-challenger_dynamic_means <- function(fit, fixtures) {
-  history <- dynamic_goal_as_results(fit$history)
-  fixture_frame <- fixtures
-  fixture_frame$match_date <- as.Date(fixtures$actual_completion_date)
-  team_ids <- sort(unique(c(
-    history$home_team_id, history$away_team_id,
-    fixture_frame$home_team_id, fixture_frame$away_team_id
-  )), method = "radix")
-  global_rate <- mean(c(history$home_goals, history$away_goals))
-  if (!is.finite(global_rate) || global_rate <= 0) global_rate <- 1.25
-  initial <- initialize_dynamic_goal_state(
-    team_ids, global_rate, fit$pseudo_exposure, min(history$match_date)
-  )
-  replay <- replay_dynamic_goal_states(
-    history, fixture_frame, initial, half_life_days = fit$half_life_days
-  )
-  means <- replay$predictions[match(fixtures$fixture_id, replay$predictions$fixture_id), , drop = FALSE]
-  if (any(is.na(means$fixture_id))) stop("dynamic predictions dropped fixtures", call. = FALSE)
+challenger_dynamic_means <- function(fit, fixtures, mean_cache = NULL) {
+  if (!is.null(mean_cache) && !is.environment(mean_cache)) {
+    stop("dynamic mean cache must be an environment", call. = FALSE)
+  }
+  cache_key <- if (is.null(mean_cache)) NULL else {
+    challenger_dynamic_means_cache_key(fit, fixtures)
+  }
+  means <- challenger_cache_get(mean_cache, cache_key)
+  if (is.null(means)) {
+    history <- dynamic_goal_as_results(fit$history)
+    fixture_frame <- fixtures
+    fixture_frame$match_date <- as.Date(fixtures$actual_completion_date)
+    team_ids <- sort(unique(c(
+      history$home_team_id, history$away_team_id,
+      fixture_frame$home_team_id, fixture_frame$away_team_id
+    )), method = "radix")
+    global_rate <- mean(c(history$home_goals, history$away_goals))
+    if (!is.finite(global_rate) || global_rate <= 0) global_rate <- 1.25
+    initial <- initialize_dynamic_goal_state(
+      team_ids, global_rate, fit$pseudo_exposure, min(history$match_date)
+    )
+    replay <- replay_dynamic_goal_states(
+      history, fixture_frame, initial, half_life_days = fit$half_life_days
+    )
+    means <- replay$predictions[match(fixtures$fixture_id, replay$predictions$fixture_id), , drop = FALSE]
+    if (any(is.na(means$fixture_id))) stop("dynamic predictions dropped fixtures", call. = FALSE)
+    if (!is.null(mean_cache)) assign(cache_key, means, envir = mean_cache)
+  }
   elo <- if (fit$elo_coefficient == 0) rep.int(0, nrow(fixtures)) else as.numeric(fixtures$elo_diff)
   means$mu_home <- exp(means$dynamic_log_mu_home + fit$elo_coefficient * elo)
   means$mu_away <- exp(means$dynamic_log_mu_away - fit$elo_coefficient * elo)
@@ -388,7 +466,8 @@ challenger_distribution_grid <- function(
 #' @export
 predict_registered_challenger <- function(
     candidate_id, fit = NULL, fixtures = NULL, support_max = 40L,
-    mean_predictions = NULL, settings = list(), validate_only = FALSE
+    mean_predictions = NULL, settings = list(), validate_only = FALSE,
+    mean_cache = NULL
 ) {
   allowed <- c(
     "poisson_team_ridge", "poisson_team_ridge_elo",
@@ -432,7 +511,7 @@ predict_registered_challenger <- function(
   )) {
     means <- predict_penalized_poisson_means(fit, fixtures)
   } else if (candidate_id %in% c("dynamic_goal_ability", "dynamic_goal_ability_elo")) {
-    means <- challenger_dynamic_means(fit, fixtures)
+    means <- challenger_dynamic_means(fit, fixtures, mean_cache = mean_cache)
   } else {
     nb <- benchmark_nb_means(fit, fixtures)
     means <- data.frame(
@@ -540,7 +619,8 @@ run_registered_challenger_adapter <- function(
     candidate_id, history, fixtures, seed_registry, support_max = 40L,
     settings = list(), run_id = "phase10_challenger_run",
     registration = NULL, protocol = NULL,
-    protocol_dir = "data/benchmark/phase10"
+    protocol_dir = "data/benchmark/phase10", fit_cache = NULL,
+    mean_cache = NULL
 ) {
   challenger_source_if_missing(
     "validate_benchmark_predictions",
@@ -578,6 +658,12 @@ run_registered_challenger_adapter <- function(
   if (support_max != 40L || support_max != as.integer(support_max)) {
     stop("challenger adapter requires sealed G=40 support", call. = FALSE)
   }
+  if (!is.null(fit_cache) && !is.environment(fit_cache)) {
+    stop("challenger fit cache must be an environment", call. = FALSE)
+  }
+  if (!is.null(mean_cache) && !is.environment(mean_cache)) {
+    stop("challenger mean cache must be an environment", call. = FALSE)
+  }
   fixtures <- challenger_zero_coverage_fixtures(fixtures)
   pieces <- lapply(split(seq_len(nrow(fixtures)), fixtures$boundary_id), function(index) {
     boundary <- fixtures[index, , drop = FALSE]
@@ -587,10 +673,11 @@ run_registered_challenger_adapter <- function(
     }
     fit <- fit_registered_challenger(
       candidate_id, history, settings, cutoff, registration,
-      protocol = protocol, protocol_dir = protocol_dir
+      protocol = protocol, protocol_dir = protocol_dir, fit_cache = fit_cache
     )
     predicted <- predict_registered_challenger(
-      candidate_id, fit, boundary, support_max, settings = settings
+      candidate_id, fit, boundary, support_max, settings = settings,
+      mean_cache = mean_cache
     )
     list(fit = fit, fixtures = boundary, result = predicted)
   })
