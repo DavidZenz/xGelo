@@ -105,3 +105,56 @@ test_that("HYBRID-05 / D-14 validates manually frozen external probabilities onl
     ignore.case = TRUE
   )
 })
+
+test_that("HYBRID-05 / enriched adapter is derived-only and feature-rich", {
+  metadata <- hybrid_enriched_squad_adapter_metadata()
+
+  expect_true(is.data.frame(metadata))
+  expect_equal(metadata$mode_id, "enriched_squad")
+  expect_equal(metadata$panel_id, "feature_rich")
+  expect_equal(metadata$source_id, "transfermarkt_squad_snapshot_local")
+  expect_true(isTRUE(metadata$derived_only_publication))
+  expect_false(isTRUE(metadata$open_mode_compatible))
+  expect_true(grepl("transfermarkt_squad_strength", metadata$source_artifact_path, fixed = TRUE))
+  expect_true(nzchar(metadata$inactive_reason) || identical(metadata$active_status, "active"))
+  expect_false(any(c("player_id", "market_value_in_eur") %in% names(metadata)))
+
+  aggregates <- read_hybrid_enriched_squad_aggregates()
+  expect_true(is.data.frame(aggregates))
+  expect_true(all(c("team", "as_of_date", "feature_source_date", "log_squad_value") %in% names(aggregates)))
+  expect_false(any(grepl("player_id|market_value|current_club", names(aggregates), ignore.case = TRUE)))
+})
+
+test_that("HYBRID-05 / missing manual market input is explicit and non-blocking", {
+  absent_path <- tempfile("phase11-market-absent-", fileext = ".csv")
+  snapshot <- read_manual_market_snapshot(absent_path)
+
+  expect_true(is.data.frame(snapshot))
+  expect_equal(nrow(snapshot), 0L)
+  expect_equal(attr(snapshot, "active_status"), "inactive")
+  expect_match(attr(snapshot, "inactive_reason"), "absent|unavailable|missing", ignore.case = TRUE)
+  expect_silent(validate_manual_market_snapshot(snapshot))
+
+  manifest_path <- file.path(hybrid_project_root, "data/benchmark/phase11/manual_market_manifest.csv")
+  expect_true(file.exists(manifest_path))
+  manifest <- utils::read.csv(manifest_path, stringsAsFactors = FALSE, check.names = FALSE)
+  expect_true(all(c(
+    "snapshot_id", "fixture_id", "home_team_id", "away_team_id", "market_date",
+    "captured_at_utc", "source_name", "source_url_or_label", "license_class",
+    "redistribution_allowed", "manual_freeze_operator", "p_home", "p_draw", "p_away",
+    "source_sha256", "row_sha256", "active_status"
+  ) %in% names(manifest)))
+  expect_silent(validate_manual_market_manifest(manifest))
+})
+
+test_that("HYBRID-05 / external probabilities remain a reference panel", {
+  snapshot <- hybrid_manual_market_snapshot()
+  predictions <- market_probabilities_to_benchmark_predictions(snapshot)
+
+  expect_equal(predictions$panel_id, rep("external_reference", nrow(predictions)))
+  expect_false(any(predictions$open_mode_compatible))
+  expect_true(all(predictions$research_only))
+  expect_true(all(predictions$wc2026_sealed))
+  expect_true(all(predictions$promotion_boundary == "external_reference_only"))
+  expect_false(any(predictions$mode_id == "open_default"))
+})
