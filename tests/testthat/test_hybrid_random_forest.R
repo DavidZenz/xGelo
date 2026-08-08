@@ -111,3 +111,49 @@ test_that("HYBRID-01 / D-02 emits one reconciled NB score grid at sealed G=40", 
     expect_true(all(is.finite(unlist(market))))
   }
 })
+
+test_that("HYBRID-01 / D-04 exposes one sealed research-only RF registration", {
+  protocol <- load_and_validate_hybrid_protocol()
+  registration <- protocol$model_registry[
+    protocol$model_registry$candidate_id == "phase11_rf_dynamic_elo_open",
+    , drop = FALSE
+  ]
+
+  expect_equal(nrow(registration), 1L)
+  expect_equal(as.character(registration$native_panel_id), "open_core")
+  expect_equal(as.integer(registration$score_support_max), 40L)
+  expect_equal(as.integer(registration$open_fixture_count), 630L)
+  expect_equal(as.integer(registration$rich_fixture_count), 609L)
+  expect_true(isTRUE(as.logical(registration$research_only)))
+  expect_true(isTRUE(as.logical(registration$wc2026_sealed)))
+  expect_true(grepl("num.trees=", registration$settings, fixed = TRUE))
+  expect_true(grepl("nb_dispersion_source=", registration$settings, fixed = TRUE))
+})
+
+test_that("HYBRID-01 / D-04 runs the RF through the common score service", {
+  history <- hybrid_rf_history()
+  fixtures <- hybrid_rf_fixtures()
+  fixtures$track_id <- "frozen"
+  fixtures$forecast_sequence <- seq_len(nrow(fixtures))
+  fixtures$result_cutoff_exclusive <- fixtures$evidence_cutoff_exclusive
+  fixtures$regulation_home_goals <- c(1L, 0L)
+  fixtures$regulation_away_goals <- c(0L, 1L)
+  fixtures$score_eligible <- TRUE
+
+  result <- run_hybrid_challenger_benchmark(
+    history = history,
+    fixtures = fixtures,
+    run_id = "phase11_rf_tracer_test"
+  )
+
+  expect_true(is.data.frame(result$predictions))
+  expect_true(is.data.frame(result$distributions))
+  expect_true(is.data.frame(result$scores))
+  expect_equal(nrow(result$predictions), 2L)
+  expect_equal(nrow(result$distributions), 2L * 41L * 41L)
+  expect_true(nrow(result$scores) > 0L)
+  expect_true(isTRUE(result$run_manifest$research_only[[1L]]))
+  expect_true(isTRUE(result$run_manifest$wc2026_sealed[[1L]]))
+  expect_true(isTRUE(result$run_manifest$network_free[[1L]]))
+  expect_equal(as.integer(result$run_manifest$selected_g[[1L]]), 40L)
+})
