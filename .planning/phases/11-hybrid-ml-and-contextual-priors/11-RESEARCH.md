@@ -479,17 +479,17 @@ Source: [World Bank API basic call structures](https://datahelpdesk.worldbank.or
 - `xG-informed open candidate` under the current historical files: outdated for this repo state because historical xG/form coverage is still inactive. [VERIFIED: `data/processed/goal_training_features_hybrid.csv`; `data/processed/rolling_form.csv`]
 - `Single pooled leaderboard for open + enriched + external modes`: rejected by the phase contract. [VERIFIED: `11-CONTEXT.md`]
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Should Phase 11 commit structural source snapshots to git or generate them into ignored cache files?**
-   - What we know: No local structural dataset exists yet, and the phase requires vintage-aware structural priors. [VERIFIED: repository file scan 2026-08-08]
-   - What's unclear: The preferred persistence boundary for World Bank / CEPII source snapshots is not yet declared.
-   - Recommendation: Freeze a small committed CSV registry for the exact structural features used in benchmarking; avoid live API dependence inside benchmark execution. [CITED: https://datahelpdesk.worldbank.org/knowledgebase/articles/898581-api-basic-call-structures; https://www.cepii.fr/cepii/en/bdd_modele/bdd_modele_item.asp?id=6]
+1. **Structural source persistence is resolved as frozen, committed CSV inputs with metadata and checksums.**
+   - Decision: Phase 11 must create and commit `data/benchmark/phase11/structural_sources.csv`, `data/benchmark/phase11/structural_sources_metadata.csv`, and `data/benchmark/phase11/structural_sources_checksums.csv` before structural shrinkage can run. The snapshot contains only the exact structural indicators used in the benchmark, keyed by country ISO3, indicator ID, source year, snapshot vintage, source date, and license class. [VERIFIED: `11-CONTEXT.md`; repository file scan 2026-08-08]
+   - Source rule: Use official World Bank V2 indicator exports for annual country indicators and CEPII/Natural Earth-derived open geography only when needed for country identity support; live API calls are allowed only while freezing the committed snapshot, never during benchmark execution. [CITED: https://datahelpdesk.worldbank.org/knowledgebase/articles/898581-api-basic-call-structures; https://www.cepii.fr/cepii/en/bdd_modele/bdd_modele_item.asp?id=6]
+   - Execution rule: `load_structural_prior_snapshots()` must reject unregistered files, files without matching checksum rows, and current/latest snapshots whose `source_date` or `snapshot_year` is not strictly before the fold evidence cutoff. This resolves HYBRID-04 as an executable structural-prior requirement with concrete source artifacts.
 
-2. **Should external bookmaker mode use raw probabilities, implied team abilities, or both?**
-   - What we know: The mode must be manual, frozen, provenance-tracked, and not part of open promotion. [VERIFIED: `11-CONTEXT.md`]
-   - What's unclear: The exact row schema for the external snapshot is not locked.
-   - Recommendation: Start with manually frozen 1X2 probabilities plus timestamp/source/license metadata; ability reconstruction can be a second-step extension if Phase 11 time allows. [VERIFIED: `11-CONTEXT.md`; `.planning/phases/999.1-socio-economic-structural-benchmark/RESEARCH.md`]
+2. **External bookmaker snapshot schema is resolved as a separately labelled optional manual file.**
+   - Decision: The manual market snapshot, when legally provided, lives outside open mode as `data/manual/bookmaker/phase11_manual_market_snapshot.csv` plus a checksum-backed manifest row in `data/benchmark/phase11/manual_market_manifest.csv`. Its absence keeps `external_market` registered inactive without blocking open-mode RF, context, xG-gate, or structural-prior execution. [VERIFIED: `11-CONTEXT.md`]
+   - Schema rule: Required fields are `snapshot_id`, `fixture_id`, `home_team_id`, `away_team_id`, `market_date`, `captured_at_utc`, `source_name`, `source_url_or_label`, `license_class`, `redistribution_allowed`, `manual_freeze_operator`, `p_home`, `p_draw`, `p_away`, `source_sha256`, and `row_sha256`. Probabilities must be normalized, source timestamps must be pre-cutoff for the fixture, and restricted raw rows must not be copied into published benchmark outputs.
+   - Execution rule: External mode can evaluate manually frozen 1X2 probabilities as a reference benchmark only; implied ability reconstruction is not part of the Phase 11 executable schema and must not be required for HYBRID-05.
 
 ## Environment Availability
 
@@ -498,17 +498,17 @@ Source: [World Bank API basic call structures](https://datahelpdesk.worldbank.or
 | R | All Phase 11 code | yes | `4.6.1` | none [VERIFIED: local runtime] |
 | `targets` | Phase 11 DAG integration | yes | `1.12.0` | none [VERIFIED: local runtime] |
 | `glmnet` | Phase 10 parent replay / some existing imports | yes, project-local only | `5.0` | keep existing `data/cache/phase10-library` pattern [VERIFIED: local runtime; `data/cache/phase10-library`] |
-| `ranger` | RF challenger | no | - | install before implementation [VERIFIED: local runtime] |
+| `ranger` | RF challenger | no | - | Wave 0 Plan 11-07 installs or vendors official CRAN `ranger` 0.18.0 into `data/cache/phase11-library` from a checksum-verified retained archive before 11-02 RF implementation [VERIFIED: local runtime; `11-07-PLAN.md`] |
 | `geosphere` | Travel proxy | yes | `1.6.8` | none recommended [VERIFIED: local runtime] |
 | `countrycode` | Structural and venue country normalization | yes | `1.8.0` | existing canonical team-name helper for partial fallback [VERIFIED: local runtime; `R/forecast/features.R`] |
 | `DBI` + `duckdb` | Enriched squad mode | yes | `1.3.0` / `1.5.2` | none if using existing Transfermarkt snapshot [VERIFIED: local runtime] |
 | Transfermarkt DuckDB snapshot | Enriched squad mode | yes | snapshot modified `2026-06-09` | enriched mode can run [VERIFIED: `data/raw/transfermarkt/SNAPSHOT-METADATA.csv`] |
-| Structural source snapshot | Structural prior | no local snapshot | - | build committed CSV first [VERIFIED: repository file scan 2026-08-08] |
-| Manual bookmaker snapshot | External market mode | no local snapshot | - | manual freeze required before external mode benchmarking [VERIFIED: repository file scan 2026-08-08] |
+| Structural source snapshot | Structural prior | no local snapshot | - | Plan 11-04 creates committed `data/benchmark/phase11/structural_sources.csv`, metadata, and checksums before shrinkage runs [VERIFIED: repository file scan 2026-08-08; `11-04-PLAN.md`] |
+| Manual bookmaker snapshot | External market mode | no local snapshot | - | optional `data/manual/bookmaker/phase11_manual_market_snapshot.csv` keyed by fixture/team/date/probability/source/timestamp/license/checksum; absence keeps only external mode inactive [VERIFIED: repository file scan 2026-08-08; `11-05-PLAN.md`] |
 
 **Missing dependencies with no fallback:**
 
-- `ranger` for the primary RF implementation. [VERIFIED: local runtime]
+- None after Wave 0 Plan 11-07 completes. Before 11-07, `ranger` is absent locally and RF execution must remain blocked; after 11-07, the exact `ranger` 0.18.0 local-library provenance is the required runtime proof for HYBRID-01. [VERIFIED: local runtime; `11-07-PLAN.md`]
 
 **Missing dependencies with fallback:**
 
