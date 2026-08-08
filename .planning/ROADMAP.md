@@ -184,7 +184,7 @@ information add stable value beyond the strongest statistical benchmark.
 5. Squad information and bookmaker consensus, when available, remain separately
    labelled enriched or external modes with explicit licensing and provenance.
 
-**Plans:** 4/7 plans executed
+**Plans:** 5/7 plans executed
 
 Plans:
 **Wave 1**
@@ -199,7 +199,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 11-04-PLAN.md — Implement fail-closed xG gating and structural sparse-team priors
+- [x] 11-04-PLAN.md — Implement fail-closed xG gating and structural sparse-team priors
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
@@ -244,7 +244,7 @@ Plans:
 | 8. Forecast Ledger and WC 2026 Retrospective | 3/3 | Complete | 2026-07-20 |
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
-| 11. Hybrid ML and Contextual Priors | 4/7 | In Progress|  |
+| 11. Hybrid ML and Contextual Priors | 5/7 | In Progress|  |
 | 12. Calibration, Promotion, and Model Release | 0/TBD | Not started | - |
 
 ## Completed Milestones
