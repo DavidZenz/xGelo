@@ -521,3 +521,465 @@ require_challenger_environment <- function(
     offline_after_install = TRUE
   )
 }
+
+# -----------------------------------------------------------------------------
+# Phase 11 ranger runtime provenance
+# -----------------------------------------------------------------------------
+
+.hybrid_scalar <- function(value = NULL) {
+  if (is.null(value) || !length(value) || is.na(value[[1L]])) return("")
+  as.character(value[[1L]])
+}
+
+.hybrid_metadata_serialized <- function(metadata) {
+  fields <- sort(names(metadata), method = "radix")
+  paste(vapply(fields, function(field) {
+    paste0(field, "=", .hybrid_scalar(metadata[[field]]))
+  }, character(1)), collapse = "\x1f")
+}
+
+.hybrid_metadata_from_record <- function(record) {
+  serialized <- .hybrid_scalar(record$package_metadata)
+  if (!nzchar(serialized)) {
+    stop("ranger provenance is missing persisted CRAN package metadata", call. = FALSE)
+  }
+  entries <- strsplit(serialized, "\x1f", fixed = TRUE)[[1L]]
+  fields <- sub("=.*$", "", entries)
+  if (any(!nzchar(fields)) || anyDuplicated(fields)) {
+    stop("Persisted ranger CRAN package metadata is malformed", call. = FALSE)
+  }
+  values <- sub("^[^=]*=", "", entries)
+  stats::setNames(as.list(values), fields)
+}
+
+.hybrid_dependency_inventory <- function(metadata, index, lib.loc = .libPaths()) {
+  fields <- c("Depends", "Imports", "LinkingTo")
+  dependencies <- unique(unlist(lapply(fields, function(field) {
+    .challenger_dependency_names(metadata[[field]])
+  }), use.names = FALSE))
+  dependencies <- sort(dependencies, method = "radix")
+  inventory <- do.call(rbind, lapply(dependencies, function(package) {
+    installed <- suppressWarnings(tryCatch(
+      utils::packageDescription(package, lib.loc = lib.loc),
+      error = function(e) NULL
+    ))
+    index_row <- index[index$Package == package, , drop = FALSE]
+    priority <- if (is.null(installed$Priority)) "" else .hybrid_scalar(installed$Priority)
+    resolution <- if (priority %in% c("base", "recommended")) {
+      "base_or_recommended"
+    } else if (!is.null(installed)) {
+      "existing_library"
+    } else if (nrow(index_row) == 1L) {
+      "approved_repository"
+    } else {
+      "unresolved"
+    }
+    data.frame(
+      package = package,
+      fields = paste(fields[vapply(fields, function(field) {
+        package %in% .challenger_dependency_names(metadata[[field]])
+      }, logical(1))], collapse = "+"),
+      resolution = resolution,
+      installed_version = .hybrid_scalar(installed$Version),
+      repository_version = if (nrow(index_row) == 1L) {
+        .hybrid_scalar(index_row$Version)
+      } else {
+        ""
+      },
+      system_requirements = .hybrid_scalar(installed$SystemRequirements),
+      stringsAsFactors = FALSE
+    )
+  }))
+  if (is.null(inventory)) {
+    inventory <- data.frame(
+      package = character(), fields = character(), resolution = character(),
+      installed_version = character(), repository_version = character(),
+      system_requirements = character(), stringsAsFactors = FALSE
+    )
+  }
+  unexpected <- c(
+    paste0("dependency_unresolved:", inventory$package[inventory$resolution == "unresolved"]),
+    paste0("dependency_not_preinstalled:", inventory$package[inventory$resolution == "approved_repository"]),
+    paste0(
+      "dependency_system_requirement:",
+      inventory$package[nzchar(inventory$system_requirements)]
+    )
+  )
+  unexpected <- unexpected[nzchar(sub("^[^:]+:", "", unexpected))]
+  serialized <- if (nrow(inventory)) {
+    apply(inventory, 1L, function(row) paste(row, collapse = "|"))
+  } else {
+    character()
+  }
+  list(
+    inventory = inventory,
+    serialized = paste(serialized, collapse = "\n"),
+    sha256 = .challenger_sha256(paste(serialized, collapse = "\n")),
+    unexpected = unexpected
+  )
+}
+
+.hybrid_record <- function(provenance) {
+  if (is.character(provenance) && length(provenance) == 1L) {
+    provenance <- utils::read.csv(
+      provenance, stringsAsFactors = FALSE, check.names = FALSE,
+      colClasses = "character"
+    )
+  }
+  if (is.data.frame(provenance)) {
+    if (nrow(provenance) != 1L) {
+      stop("ranger provenance must contain exactly one row", call. = FALSE)
+    }
+    return(provenance[1L, , drop = FALSE])
+  }
+  if (is.list(provenance) && !is.null(provenance$record)) return(provenance$record)
+  if (is.list(provenance)) {
+    return(as.data.frame(provenance, stringsAsFactors = FALSE, check.names = FALSE))
+  }
+  stop("Unsupported ranger provenance object", call. = FALSE)
+}
+
+.hybrid_library_packages <- function(library_root) {
+  entries <- list.files(library_root, all.files = FALSE, no.. = TRUE)
+  entries[file.exists(file.path(library_root, entries, "DESCRIPTION"))]
+}
+
+.hybrid_installed_package_hashes <- function(library_root, packages) {
+  if (!length(packages)) return(character())
+  hashes <- vapply(packages, function(package) {
+    hash_installed_package_contents(package, lib.loc = library_root)
+  }, character(1))
+  stats::setNames(hashes, packages)
+}
+
+.hybrid_resolve_archive <- function(path, root, cache_root, must_work = FALSE) {
+  .challenger_resolve(path, root, cache_root, must_work = must_work)
+}
+
+.hybrid_resolve_library <- function(path, root, library_root, must_work = FALSE) {
+  .challenger_resolve(path, root, library_root, must_work = must_work)
+}
+
+#' Verify the locally cached ranger archive and captured CRAN metadata.
+#'
+#' This function is deliberately offline. `capture_ranger_package_provenance()`
+#' is the only Phase 11 function that contacts CRAN; replay uses the retained
+#' archive and the metadata/checksum evidence persisted in the provenance row.
+#'
+#' @param provenance A capture result, one-row provenance data frame, or CSV path.
+#' @return `TRUE`, invisibly, or an error on any drift.
+#' @export
+verify_ranger_package_archive <- function(provenance) {
+  record <- .hybrid_record(provenance)
+  root <- .challenger_project_root(".")
+  cache_root <- file.path(root, "data", "cache", "phase11-cran")
+  required <- c(
+    "package", "version", "repository_url", "index_url", "index_sha256",
+    "repository_index_identity", "package_metadata", "package_metadata_sha256",
+    "official_checksum_algorithm", "official_checksum", "archive_path",
+    "archive_sha256", "archive_bytes", "system_requirements"
+  )
+  missing <- setdiff(required, names(record))
+  if (length(missing)) {
+    stop("ranger provenance is missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  if (!identical(.hybrid_scalar(record$package), "ranger") ||
+      !identical(.hybrid_scalar(record$version), "0.18.0")) {
+    stop("ranger provenance is not the approved ranger 0.18.0 package", call. = FALSE)
+  }
+  repository <- sub("/+$", "", .hybrid_scalar(record$repository_url))
+  index_url <- paste0(repository, "/src/contrib/PACKAGES.gz")
+  if (!identical(repository, "https://cran.r-project.org") ||
+      !identical(.hybrid_scalar(record$index_url), index_url) ||
+      !grepl("^[0-9a-f]{64}$", tolower(.hybrid_scalar(record$index_sha256))) ||
+      !identical(
+        .hybrid_scalar(record$repository_index_identity),
+        paste0(index_url, "#sha256=", tolower(.hybrid_scalar(record$index_sha256)))
+      )) {
+    stop("ranger CRAN repository/index identity is malformed", call. = FALSE)
+  }
+  metadata <- .hybrid_metadata_from_record(record)
+  if (!identical(.challenger_metadata_sha256(metadata),
+                 tolower(.hybrid_scalar(record$package_metadata_sha256))) ||
+      !identical(.hybrid_scalar(metadata$Package), "ranger") ||
+      !identical(.hybrid_scalar(metadata$Version), "0.18.0") ||
+      !identical(
+        tolower(.hybrid_scalar(metadata$MD5sum)),
+        tolower(.hybrid_scalar(record$official_checksum))
+      )) {
+    stop("Persisted ranger CRAN package metadata drift", call. = FALSE)
+  }
+  archive <- .hybrid_resolve_archive(
+    .hybrid_scalar(record$archive_path), root, cache_root, must_work = TRUE
+  )
+  official_algorithm <- tolower(.hybrid_scalar(record$official_checksum_algorithm))
+  official_checksum <- tolower(.hybrid_scalar(record$official_checksum))
+  if (!identical(official_algorithm, "md5") ||
+      !grepl("^[0-9a-f]{32}$", official_checksum)) {
+    stop("ranger provenance lacks an official CRAN MD5 checksum", call. = FALSE)
+  }
+  actual_md5 <- tolower(unname(tools::md5sum(archive)))
+  if (!identical(actual_md5, official_checksum)) {
+    stop("ranger archive does not match the official CRAN checksum", call. = FALSE)
+  }
+  actual_sha256 <- .challenger_sha256(archive, file = TRUE)
+  if (!identical(actual_sha256, tolower(.hybrid_scalar(record$archive_sha256)))) {
+    stop("ranger archive SHA-256 mismatch", call. = FALSE)
+  }
+  if (as.numeric(file.info(archive)$size) != as.numeric(.hybrid_scalar(record$archive_bytes))) {
+    stop("ranger archive byte count mismatch", call. = FALSE)
+  }
+  description <- .challenger_archive_description(archive, "ranger")
+  description_system_requirements <- .hybrid_scalar(description$SystemRequirements)
+  if (!identical(.hybrid_scalar(description$Package), "ranger") ||
+      !identical(.hybrid_scalar(description$Version), "0.18.0") ||
+      !identical(description_system_requirements, .hybrid_scalar(record$system_requirements))) {
+    stop("Verified ranger DESCRIPTION metadata drift", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Capture and optionally install official CRAN ranger 0.18.0 provenance.
+#'
+#' CRAN metadata and the source archive are fetched only during capture. The
+#' archive is checksum-verified before installation, dependencies are never
+#' installed by this function, and the resulting library is constrained to the
+#' project-local Phase 11 path.
+#'
+#' @param package Must be `ranger`.
+#' @param version Must be `0.18.0`.
+#' @param install Install the verified local source archive when `TRUE`.
+#' @param output_path Durable one-row provenance CSV.
+#' @param archive_path Retained source archive path.
+#' @param library_path Project-local installation library.
+#' @param repository Approved canonical CRAN repository.
+#' @return A capture result with `valid = TRUE` after all checks pass.
+#' @export
+capture_ranger_package_provenance <- function(
+    package = "ranger", version = "0.18.0", install = FALSE,
+    output_path = "data/benchmark/phase11/ranger_provenance.csv",
+    archive_path = "data/cache/phase11-cran/ranger_0.18.0.tar.gz",
+    library_path = "data/cache/phase11-library",
+    repository = "https://cran.r-project.org"
+) {
+  if (!identical(package, "ranger") || !identical(version, "0.18.0")) {
+    stop("Phase 11 permits only the audited ranger 0.18.0 package", call. = FALSE)
+  }
+  repository <- sub("/+$", "", repository)
+  if (!identical(repository, "https://cran.r-project.org")) {
+    stop("Phase 11 permits only the canonical official CRAN repository", call. = FALSE)
+  }
+  root <- .challenger_project_root(".")
+  cache_root <- file.path(root, "data", "cache", "phase11-cran")
+  library_root <- file.path(root, "data", "cache", "phase11-library")
+  archive <- .hybrid_resolve_archive(archive_path, root, cache_root, must_work = FALSE)
+  library <- .hybrid_resolve_library(library_path, root, library_root, must_work = FALSE)
+  output <- .challenger_resolve(
+    output_path, root, file.path(root, "data", "benchmark", "phase11"), must_work = FALSE
+  )
+  dir.create(dirname(archive), recursive = TRUE, showWarnings = FALSE)
+  dir.create(library, recursive = TRUE, showWarnings = FALSE)
+  index_url <- paste0(repository, "/src/contrib/PACKAGES.gz")
+  index_path <- tempfile("ranger-cran-index-", fileext = ".gz")
+  on.exit(unlink(index_path, force = TRUE), add = TRUE)
+  utils::download.file(index_url, index_path, mode = "wb", quiet = TRUE)
+  index_sha256 <- .challenger_sha256(index_path, file = TRUE)
+  index <- .challenger_read_index(index_path)
+  selected <- index[index$Package == package & index$Version == version, , drop = FALSE]
+  if (nrow(selected) != 1L) {
+    stop("Official CRAN index does not contain exactly ranger 0.18.0", call. = FALSE)
+  }
+  metadata <- as.list(selected[1L, , drop = TRUE])
+  dependencies <- .hybrid_dependency_inventory(metadata, index)
+  if (length(dependencies$unexpected)) {
+    stop(
+      "Unexpected ranger dependency inventory: ",
+      paste(dependencies$unexpected, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  artifact_name <- paste0(package, "_", version, ".tar.gz")
+  artifact_url <- paste0(repository, "/src/contrib/", artifact_name)
+  official_checksum <- tolower(.hybrid_scalar(metadata$MD5sum))
+  if (!grepl("^[0-9a-f]{32}$", official_checksum)) {
+    stop("Official CRAN metadata lacks a canonical ranger MD5 checksum", call. = FALSE)
+  }
+  archive_temp <- tempfile("ranger-cran-archive-", tmpdir = dirname(archive))
+  on.exit(unlink(archive_temp, force = TRUE), add = TRUE)
+  utils::download.file(artifact_url, archive_temp, mode = "wb", quiet = TRUE)
+  if (!identical(tolower(unname(tools::md5sum(archive_temp))), official_checksum)) {
+    stop("ranger archive does not match the official CRAN checksum", call. = FALSE)
+  }
+  if (file.exists(archive) && !file.remove(archive)) {
+    stop("Could not replace the retained ranger archive", call. = FALSE)
+  }
+  if (!file.rename(archive_temp, archive)) {
+    stop("Could not retain the verified ranger archive", call. = FALSE)
+  }
+  description <- .challenger_archive_description(archive, package)
+  system_requirements <- .hybrid_scalar(description$SystemRequirements)
+  if (nzchar(system_requirements)) {
+    stop(
+      "Unexpected ranger system requirement in verified archive: ",
+      system_requirements,
+      call. = FALSE
+    )
+  }
+  record <- data.frame(
+    schema_version = "phase11-ranger-provenance-v1",
+    package = package,
+    version = version,
+    repository_url = repository,
+    index_url = index_url,
+    repository_index_identity = paste0(index_url, "#sha256=", index_sha256),
+    index_sha256 = index_sha256,
+    index_bytes = as.numeric(file.info(index_path)$size),
+    index_captured_at_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
+    package_metadata = .hybrid_metadata_serialized(metadata),
+    package_metadata_sha256 = .challenger_metadata_sha256(metadata),
+    published = .hybrid_scalar(metadata$Published),
+    license = .hybrid_scalar(metadata$License),
+    needs_compilation = .hybrid_scalar(metadata$NeedsCompilation),
+    artifact_name = artifact_name,
+    artifact_type = "source",
+    artifact_url = artifact_url,
+    official_checksum_algorithm = "md5",
+    official_checksum = official_checksum,
+    archive_path = file.path("data", "cache", "phase11-cran", artifact_name),
+    archive_sha256 = .challenger_sha256(archive, file = TRUE),
+    archive_bytes = as.numeric(file.info(archive)$size),
+    dependency_inventory = dependencies$serialized,
+    dependency_inventory_sha256 = dependencies$sha256,
+    dependency_count = nrow(dependencies$inventory),
+    system_requirements = system_requirements,
+    ranger_library_path = file.path("data", "cache", "phase11-library"),
+    installed_version = "",
+    installed_content_sha256 = "",
+    offline_after_install = TRUE,
+    captured_at_utc = format(Sys.time(), tz = "UTC", usetz = TRUE),
+    valid = FALSE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  verify_ranger_package_archive(record)
+  if (isTRUE(install)) {
+    before <- .hybrid_library_packages(library)
+    before_hashes <- .hybrid_installed_package_hashes(library, before)
+    utils::install.packages(
+      archive, repos = NULL, type = "source", lib = library,
+      dependencies = FALSE, INSTALL_opts = "--no-multiarch"
+    )
+    after <- .hybrid_library_packages(library)
+    added <- setdiff(after, before)
+    common <- intersect(before, after)
+    after_hashes <- .hybrid_installed_package_hashes(library, common)
+    changed <- common[before_hashes[common] != after_hashes[common]]
+    if (length(setdiff(c(added, changed), package))) {
+      stop("Local ranger installation changed packages other than ranger", call. = FALSE)
+    }
+  }
+  .libPaths(unique(c(normalizePath(library, mustWork = TRUE), .libPaths())))
+  installed <- find.package(package, lib.loc = library, quiet = TRUE)
+  if (!nzchar(installed) ||
+      !identical(as.character(utils::packageVersion(package, lib.loc = library)), version)) {
+    stop("Exact ranger 0.18.0 is not installed in the constrained Phase 11 library", call. = FALSE)
+  }
+  record$installed_version <- as.character(utils::packageVersion(package, lib.loc = library))
+  record$installed_content_sha256 <- hash_installed_package_contents(package, lib.loc = library)
+  record$valid <- TRUE
+  dir.create(dirname(output), recursive = TRUE, showWarnings = FALSE)
+  temporary <- tempfile("ranger-provenance-", tmpdir = dirname(output), fileext = ".csv")
+  utils::write.csv(record, temporary, row.names = FALSE, na = "", quote = TRUE)
+  if (!file.rename(temporary, output)) {
+    stop("Could not atomically publish ranger provenance", call. = FALSE)
+  }
+  validation <- require_hybrid_environment(output, offline = TRUE)
+  list(
+    valid = isTRUE(validation$valid),
+    record = record,
+    dependencies = dependencies,
+    environment = validation
+  )
+}
+
+#' Require the exact offline Phase 11 ranger runtime.
+#'
+#' @param provenance_path Durable provenance CSV created by the capture function.
+#' @param offline Retained for explicit replay calls; verification is always local.
+#' @return Validated environment facts and immutable hashes.
+#' @export
+require_hybrid_environment <- function(
+    provenance_path = "data/benchmark/phase11/ranger_provenance.csv",
+    offline = FALSE
+) {
+  if (!is.logical(offline) || length(offline) != 1L || is.na(offline)) {
+    stop("offline must be one logical value", call. = FALSE)
+  }
+  root <- .challenger_project_root(".")
+  provenance_path <- .challenger_resolve(
+    provenance_path, root, file.path(root, "data", "benchmark", "phase11"), must_work = TRUE
+  )
+  record <- .hybrid_record(provenance_path)
+  required <- c(
+    "package", "version", "repository_url", "index_sha256",
+    "repository_index_identity", "package_metadata_sha256", "official_checksum",
+    "archive_sha256", "dependency_inventory_sha256", "installed_version",
+    "installed_content_sha256", "ranger_library_path", "offline_after_install", "valid"
+  )
+  missing <- setdiff(required, names(record))
+  if (length(missing)) {
+    stop("ranger provenance is missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  if (!identical(.hybrid_scalar(record$package), "ranger") ||
+      !identical(.hybrid_scalar(record$version), "0.18.0") ||
+      !identical(.hybrid_scalar(record$repository_url), "https://cran.r-project.org") ||
+      !isTRUE(as.logical(record$offline_after_install)) ||
+      !isTRUE(as.logical(record$valid))) {
+    stop("ranger provenance is not the approved offline Phase 11 environment", call. = FALSE)
+  }
+  verify_ranger_package_archive(record)
+  inventory <- inventory_cran_dependencies(record)
+  if (length(inventory$unexpected)) {
+    stop("ranger dependency inventory is no longer valid", call. = FALSE)
+  }
+  library_root <- .hybrid_resolve_library(
+    .hybrid_scalar(record$ranger_library_path), root,
+    file.path(root, "data", "cache", "phase11-library"), must_work = TRUE
+  )
+  library_root <- normalizePath(library_root, mustWork = TRUE)
+  .libPaths(unique(c(library_root, .libPaths())))
+  wired_paths <- normalizePath(.libPaths(), mustWork = FALSE)
+  if (!length(wired_paths) || !identical(wired_paths[[1L]], library_root)) {
+    stop("Phase 11 library is not first on .libPaths()", call. = FALSE)
+  }
+  installed <- find.package("ranger", lib.loc = library_root, quiet = TRUE)
+  if (!nzchar(installed) ||
+      !identical(as.character(utils::packageVersion("ranger", lib.loc = library_root)), "0.18.0") ||
+      !identical(
+        as.character(utils::packageVersion("ranger", lib.loc = library_root)),
+        .hybrid_scalar(record$installed_version)
+      )) {
+    stop("Installed ranger version drift", call. = FALSE)
+  }
+  installed_content_sha256 <- hash_installed_package_contents(
+    "ranger", lib.loc = library_root
+  )
+  if (!identical(installed_content_sha256, tolower(.hybrid_scalar(record$installed_content_sha256)))) {
+    stop("Installed ranger content drift", call. = FALSE)
+  }
+  list(
+    valid = TRUE,
+    package = "ranger",
+    package_version = "0.18.0",
+    repository_url = .hybrid_scalar(record$repository_url),
+    index_sha256 = .hybrid_scalar(record$index_sha256),
+    metadata_sha256 = .hybrid_scalar(record$package_metadata_sha256),
+    dependency_inventory_sha256 = .hybrid_scalar(record$dependency_inventory_sha256),
+    archive_sha256 = .hybrid_scalar(record$archive_sha256),
+    installed_content_sha256 = installed_content_sha256,
+    library_path = library_root,
+    lib_paths = wired_paths,
+    offline_after_install = TRUE,
+    offline_replay = isTRUE(offline)
+  )
+}

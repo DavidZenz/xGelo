@@ -2,7 +2,12 @@
 # This file defines an executable targets pipeline for the xGelo forecasting system.
 
 phase10_library <- file.path("data", "cache", "phase10-library")
-if (dir.exists(phase10_library)) .libPaths(unique(c(normalizePath(phase10_library), .libPaths())))
+phase11_library <- file.path("data", "cache", "phase11-library")
+local_phase_libraries <- c(phase11_library, phase10_library)
+local_phase_libraries <- local_phase_libraries[dir.exists(local_phase_libraries)]
+if (length(local_phase_libraries)) {
+  .libPaths(unique(c(normalizePath(local_phase_libraries), .libPaths())))
+}
 
 library(targets)
 
@@ -14,6 +19,7 @@ tar_option_set(
     "MASS",
     "Matrix",
     "glmnet",
+    "ranger",
     "pROC",
     "tidymodels",
     "ggplot2",
