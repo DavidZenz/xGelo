@@ -1,7 +1,7 @@
 ---
 phase: 8
 slug: forecast-ledger-and-wc-2026-retrospective
-status: complete
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: 2026-07-20
@@ -62,4 +62,16 @@ its own fixtures before implementation behavior is considered complete.
 - [x] Full suite passes (753 checks).
 - [x] End-to-end ledger and report reproduce from the recorded source ref.
 
-**Approval:** Phase 8 validation complete on 2026-07-20.
+**Approval:** Phase 8 validation complete on 2026-07-20; Nyquist audit revalidated on 2026-08-08.
+
+## Validation Audit 2026-08-08
+
+| Metric | Count |
+|--------|-------|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |
+
+The existing validation map was rechecked against the three focused Phase 8 test
+files, direct ledger and manifest assertions, and the successful retrospective
+rerun. No additional validation tests were required.
