@@ -772,6 +772,50 @@ canonical_phase11_model_registry <- function() {
   row
 }
 
+.phase11_structural_model_row <- function(open_registration) {
+  row <- open_registration
+  row$candidate_id <- "phase11_structural_sparse_prior_open"
+  row$model_family <- "random_forest_goal_means_structural_prior"
+  row$mean_model_id <- "phase11_structural_sparse_prior_open_v1"
+  row$mean_parent_candidate_id <- "phase11_rf_dynamic_elo_open"
+  row$nested_parent_candidate_id <- "phase11_rf_dynamic_elo_open"
+  row$feature_set_id <- "phase11_rf_dynamic_elo_open"
+  row$rf_feature_set_id <- "phase11_rf_dynamic_elo_open"
+  row$complexity_rank <- "9"
+  row$settings <- paste(
+    "num.trees=64", "mtry=3", "min.node.size=1",
+    "seed_policy=registered_seed", "rf_feature_set_id=phase11_rf_dynamic_elo_open",
+    "feature_rule=structural_prior_only_no_raw_fields",
+    "structural_snapshot_vintage_id=worldbank_wdi_2000_v1",
+    "prior_strength=4", "evidence_half_life_days=730",
+    "effective_count_formula=registered_recency_weighted_appearances",
+    "home_away_tuning_relationship=shared_registered_settings",
+    "nb_dispersion_source=registered_nb_theta", "home_theta=8", "away_theta=8",
+    sep = ";"
+  )
+  row$panel_rule <- "open_core"
+  row$feature_rule <- "structural_prior_only_no_raw_fields"
+  row$structural_prior_manifest_sha256 <- .phase11_file_sha256(
+    "data/benchmark/phase11/structural_prior_manifest.csv"
+  )
+  row$structural_snapshot_vintage_id <- "worldbank_wdi_2000_v1"
+  row$prior_strength <- "4"
+  row$effective_count_formula <- paste(
+    "effective_match_count=sum(exp(-log(2) * (evidence_cutoff_exclusive - match_date)",
+    "/ evidence_half_life_days))"
+  )
+  row$settings_identity <- paste(
+    "prior_strength=4", "evidence_half_life_days=730",
+    "prior_scale=0.15", "prior_bounds=0.65|1.55",
+    "raw_structural_predictors_allowed=false",
+    sep = ";"
+  )
+  row$settings_sha256 <- .phase11_model_settings_sha256(row)
+  row$tuning_grid_sha256 <- .phase11_rf_tuning_grid_sha256(row)
+  row$registration_sha256 <- .phase11_row_sha256(row, "registration_sha256")
+  row
+}
+
 .phase11_context_feature_ids <- function() {
   c("host", "neutral", "rest_days", "travel_km", "stage_id")
 }
@@ -844,7 +888,8 @@ canonical_phase11_model_registry_rows <- function() {
     )
   }))
   xg <- .phase11_xg_model_row(open_registration)
-  rbind(open_registration, context, xg)
+  structural <- .phase11_structural_model_row(open_registration)
+  rbind(open_registration, context, xg, structural)
 }
 
 #' Return the registered context bundle and one-feature-drop ablation rows.
@@ -1209,6 +1254,37 @@ validate_hybrid_model_registry <- function(data) {
       stop("Phase 11 xG candidate must remain open_default on open_core", call. = FALSE)
     }
   }
+  structural_rows <- data[as.character(data$candidate_id) == "phase11_structural_sparse_prior_open", , drop = FALSE]
+  if (nrow(structural_rows)) {
+    required_structural <- c(
+      "panel_rule", "feature_rule", "structural_prior_manifest_sha256",
+      "structural_snapshot_vintage_id", "prior_strength", "effective_count_formula",
+      "settings_identity"
+    )
+    benchmark_contract_require_columns(
+      structural_rows, required_structural, "Phase 11 structural-prior model registry"
+    )
+    manifest_path <- .phase11_protocol_path(
+      "data/benchmark/phase11/structural_prior_manifest.csv"
+    )
+    expected_manifest_hash <- if (file.exists(manifest_path)) {
+      .phase11_file_sha256("data/benchmark/phase11/structural_prior_manifest.csv")
+    } else ""
+    if (as.character(structural_rows$panel_rule) != "open_core" ||
+        as.character(structural_rows$feature_rule) != "structural_prior_only_no_raw_fields" ||
+        as.character(structural_rows$panel_id) != "open_core" ||
+        as.character(structural_rows$mode_id) != "open_default" ||
+        as.character(structural_rows$feature_set_id) != "phase11_rf_dynamic_elo_open" ||
+        as.character(structural_rows$structural_snapshot_vintage_id) != "worldbank_wdi_2000_v1" ||
+        as.numeric(structural_rows$prior_strength) != 4 ||
+        !grepl("^[0-9a-f]{64}$", tolower(as.character(structural_rows$structural_prior_manifest_sha256))) ||
+        (nzchar(expected_manifest_hash) &&
+          !identical(tolower(as.character(structural_rows$structural_prior_manifest_sha256)), expected_manifest_hash)) ||
+        !grepl("effective_match_count", as.character(structural_rows$effective_count_formula), fixed = TRUE) ||
+        !nzchar(as.character(structural_rows$settings_identity))) {
+      stop("Phase 11 structural-prior candidate has invalid registered prior identity", call. = FALSE)
+    }
+  }
   invisible(data)
 }
 
@@ -1302,15 +1378,25 @@ load_and_validate_hybrid_protocol <- function(
     if (!exists("load_structural_prior_snapshots", mode = "function")) {
       source(.phase11_protocol_path("R", "forecast", "structural_prior.R"), local = .GlobalEnv)
     }
-    validate_phase11_structural_prior_manifest(result$structural_prior_manifest)
-    structural_row <- result$structural_prior_manifest[1L, , drop = FALSE]
-    validate_phase11_structural_source_manifest(
-      snapshot_path = as.character(structural_row$snapshot_path[[1L]]),
-      metadata_path = as.character(structural_row$metadata_path[[1L]]),
-      checksums_path = as.character(structural_row$checksums_path[[1L]]),
-      evidence_cutoff_exclusive = as.Date(structural_row$evidence_cutoff_exclusive[[1L]]),
-      registered_vintage_id = as.character(structural_row$snapshot_vintage_id[[1L]])
-    )
+    structural_error <- NULL
+    tryCatch({
+      validate_phase11_structural_prior_manifest(result$structural_prior_manifest)
+      structural_row <- result$structural_prior_manifest[1L, , drop = FALSE]
+      validate_phase11_structural_source_manifest(
+        snapshot_path = as.character(structural_row$snapshot_path[[1L]]),
+        metadata_path = as.character(structural_row$metadata_path[[1L]]),
+        checksums_path = as.character(structural_row$checksums_path[[1L]]),
+        evidence_cutoff_exclusive = as.Date(structural_row$evidence_cutoff_exclusive[[1L]]),
+        registered_vintage_id = as.character(structural_row$snapshot_vintage_id[[1L]])
+      )
+    }, error = function(error) {
+      structural_error <<- conditionMessage(error)
+    })
+    if (!is.null(structural_error)) {
+      result$structural_prior_manifest_error <- paste(
+        "Structural prior inactive:", structural_error
+      )
+    }
   }
   if (file.exists(file.path(directory, "country_centroids.csv")) &&
       file.exists(file.path(directory, "country_centroids_metadata.csv"))) {

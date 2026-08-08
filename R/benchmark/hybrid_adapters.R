@@ -51,6 +51,14 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
     grepl("xg_gated", as.character(registration$candidate_id[[1L]]), fixed = TRUE)
 }
 
+.hybrid_adapter_is_structural <- function(registration) {
+  is.data.frame(registration) && nrow(registration) == 1L &&
+    identical(
+      as.character(registration$candidate_id[[1L]]),
+      "phase11_structural_sparse_prior_open"
+    )
+}
+
 .hybrid_adapter_xg_gate <- function(protocol, registration) {
   .hybrid_adapter_source_if_missing(
     "R/benchmark/hybrid_protocol.R",
@@ -86,6 +94,252 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
   resolved$gate_id <- as.character(registration$gate_id[[1L]])
   resolved$gate_parent_sha256 <- as.character(registration$gate_parent_sha256[[1L]])
   resolved
+}
+
+.hybrid_adapter_structural_manifest <- function(protocol, registration) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c(
+      "validate_phase11_structural_prior_manifest",
+      "validate_phase11_structural_source_manifest",
+      ".phase11_file_sha256"
+    )
+  )
+  if (!"structural_prior_manifest" %in% names(protocol)) {
+    stop("Structural-prior candidate requires a registered structural prior manifest", call. = FALSE)
+  }
+  manifest <- validate_phase11_structural_prior_manifest(protocol$structural_prior_manifest)
+  if (as.character(registration$candidate_id[[1L]]) != as.character(manifest$candidate_id[[1L]]) ||
+      as.character(registration$structural_prior_manifest_sha256[[1L]]) !=
+        .phase11_file_sha256("data/benchmark/phase11/structural_prior_manifest.csv")) {
+    stop("Structural-prior registration does not parent the checked manifest", call. = FALSE)
+  }
+  loaded <- validate_phase11_structural_source_manifest(
+    snapshot_path = as.character(manifest$snapshot_path[[1L]]),
+    metadata_path = as.character(manifest$metadata_path[[1L]]),
+    checksums_path = as.character(manifest$checksums_path[[1L]]),
+    evidence_cutoff_exclusive = as.Date(manifest$evidence_cutoff_exclusive[[1L]]),
+    registered_vintage_id = as.character(manifest$snapshot_vintage_id[[1L]])
+  )
+  expected <- c(
+    source_snapshot_sha256 = attr(loaded, "structural_snapshot_sha256"),
+    source_metadata_sha256 = attr(loaded, "structural_metadata_sha256"),
+    source_rows_sha256 = attr(loaded, "structural_rows_sha256"),
+    checksum_registry_sha256 = .phase11_file_sha256(as.character(manifest$checksums_path[[1L]]))
+  )
+  actual <- vapply(
+    manifest[1L, names(expected), drop = FALSE], as.character, character(1)
+  )
+  if (any(tolower(actual) != tolower(expected))) {
+    stop("Structural-prior manifest does not match its checked source parents", call. = FALSE)
+  }
+  list(manifest = manifest[1L, , drop = FALSE], snapshots = loaded)
+}
+
+.hybrid_structural_registered_settings <- function(settings, registration, manifest) {
+  .hybrid_adapter_source_if_missing(
+    "R/benchmark/hybrid_protocol.R",
+    c("load_and_validate_hybrid_protocol", "hybrid_registration")
+  )
+  .hybrid_adapter_source_if_missing("R/forecast/hybrid_rf.R", c("hybrid_rf_registered_settings"))
+  base_protocol <- load_and_validate_hybrid_protocol()
+  base_registration <- hybrid_registration(base_protocol, "phase11_rf_dynamic_elo_open")
+  base_settings <- settings[setdiff(names(settings), c("feature_set_id", "rf_feature_set_id"))]
+  resolved <- hybrid_rf_registered_settings(
+    base_settings, base_registration, candidate_id = "phase11_rf_dynamic_elo_open"
+  )
+  resolved$candidate_id <- as.character(registration$candidate_id[[1L]])
+  resolved$feature_set_id <- as.character(base_registration$feature_set_id[[1L]])
+  resolved$rf_feature_set_id <- as.character(base_registration$rf_feature_set_id[[1L]])
+  resolved$registration_sha256 <- as.character(registration$registration_sha256[[1L]])
+  resolved$settings_sha256 <- as.character(registration$settings_sha256[[1L]])
+  resolved$distribution_id_prefix <- as.character(registration$candidate_id[[1L]])
+  resolved$structural_prior_manifest_sha256 <- as.character(
+    registration$structural_prior_manifest_sha256[[1L]]
+  )
+  resolved$structural_snapshot_vintage_id <- as.character(
+    manifest$snapshot_vintage_id[[1L]]
+  )
+  resolved$prior_strength <- as.numeric(manifest$prior_strength[[1L]])
+  resolved$prior_scale <- as.numeric(manifest$prior_scale[[1L]])
+  resolved$prior_bounds <- c(
+    as.numeric(manifest$prior_lower_bound[[1L]]),
+    as.numeric(manifest$prior_upper_bound[[1L]])
+  )
+  resolved$evidence_half_life_days <- as.numeric(manifest$evidence_half_life_days[[1L]])
+  resolved$effective_count_formula <- as.character(manifest$effective_count_formula[[1L]])
+  resolved$feature_rule <- as.character(registration$feature_rule[[1L]])
+  resolved$panel_rule <- as.character(registration$panel_rule[[1L]])
+  resolved
+}
+
+.hybrid_structural_fallback_settings <- function(settings, registration) {
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/hybrid_rf.R", c("hybrid_rf_registered_settings")
+  )
+  base_registration <- tryCatch({
+    .hybrid_adapter_source_if_missing(
+      "R/benchmark/hybrid_protocol.R", c("canonical_phase11_model_registry")
+    )
+    canonical_phase11_model_registry()
+  }, error = function(error) NULL)
+  resolved <- if (!is.null(base_registration)) {
+    tryCatch(
+      hybrid_rf_registered_settings(
+        settings[setdiff(names(settings), c("feature_set_id", "rf_feature_set_id"))],
+        base_registration,
+        candidate_id = "phase11_rf_dynamic_elo_open"
+      ),
+      error = function(error) NULL
+    )
+  } else NULL
+  if (is.null(resolved)) {
+    resolved <- list(
+      support_max = 40L,
+      ranger_package = as.character(registration$ranger_package[[1L]]),
+      ranger_version = as.character(registration$ranger_version[[1L]]),
+      ranger_provenance_id = as.character(registration$ranger_provenance_id[[1L]]),
+      provenance_path = "data/benchmark/phase11/ranger_provenance.csv"
+    )
+  }
+  resolved$candidate_id <- as.character(registration$candidate_id[[1L]])
+  resolved$feature_set_id <- as.character(registration$feature_set_id[[1L]])
+  resolved$rf_feature_set_id <- as.character(registration$rf_feature_set_id[[1L]])
+  resolved$registration_sha256 <- as.character(registration$registration_sha256[[1L]])
+  resolved$settings_sha256 <- as.character(registration$settings_sha256[[1L]])
+  resolved$distribution_id_prefix <- as.character(registration$candidate_id[[1L]])
+  resolved$structural_prior_manifest_sha256 <- as.character(
+    registration$structural_prior_manifest_sha256[[1L]]
+  )
+  resolved$structural_snapshot_vintage_id <- as.character(
+    registration$structural_snapshot_vintage_id[[1L]]
+  )
+  resolved$prior_strength <- suppressWarnings(as.numeric(registration$prior_strength[[1L]]))
+  resolved$evidence_half_life_days <- 730
+  resolved$prior_bounds <- c(0.65, 1.55)
+  resolved
+}
+
+.hybrid_structural_inactive_manifests <- function(
+    registration, fixtures, run_id, settings, reason, manifest = NULL
+) {
+  boundaries <- unique(fixtures[c("edition_id", "track_id", "boundary_id", "evidence_cutoff_exclusive")])
+  rows <- lapply(seq_len(nrow(boundaries)), function(index) {
+    boundary <- boundaries[index, , drop = FALSE]
+    cutoff <- as.Date(boundary$evidence_cutoff_exclusive[[1L]])
+    prior_date <- cutoff - 1
+    data.frame(
+      model_manifest_id = paste(run_id, registration$candidate_id[[1L]], boundary$boundary_id[[1L]], sep = "__"),
+      run_id = run_id,
+      model_id = registration$candidate_id[[1L]],
+      edition_id = boundary$edition_id[[1L]],
+      track_id = boundary$track_id[[1L]],
+      boundary_id = boundary$boundary_id[[1L]],
+      fit_status = "inactive",
+      fit_row_count = 0L,
+      fit_min_date = prior_date,
+      fit_max_date = prior_date,
+      max_result_date = prior_date,
+      max_feature_source_date = prior_date,
+      evidence_cutoff_exclusive = cutoff,
+      active_predictors = "",
+      dropped_predictors_with_reason = paste0("structural prior inactive: ", reason),
+      model_family = as.character(registration$model_family[[1L]]),
+      convergence_status = "not_run",
+      fallback_status = "inactive_structural_validation_failed",
+      adapter_version = as.character(registration$adapter_version[[1L]]),
+      code_version = "phase11-v1",
+      r_version = as.character(getRversion()),
+      package_versions = "",
+      registration_sha256 = settings$registration_sha256,
+      settings_sha256 = settings$settings_sha256,
+      parent_hashes = .phase11_sha256(paste(
+        settings$registration_sha256, settings$settings_sha256,
+        if (!is.null(manifest)) manifest$checksum_registry_sha256[[1L]] else "",
+        boundary$boundary_id[[1L]], sep = "|"
+      )),
+      mean_parent_candidate_id = as.character(registration$mean_parent_candidate_id[[1L]]),
+      mean_prediction_hash = .phase11_sha256(character()),
+      ranger_package = settings$ranger_package,
+      ranger_version = settings$ranger_version,
+      ranger_provenance_id = settings$ranger_provenance_id,
+      research_only = TRUE,
+      wc2026_sealed = TRUE,
+      mode_id = registration$mode_id[[1L]],
+      open_fixture_count = as.integer(registration$open_fixture_count[[1L]]),
+      rich_fixture_count = as.integer(registration$rich_fixture_count[[1L]]),
+      score_support_g = as.integer(registration$score_support_g[[1L]]),
+      context_feature_set_id = "",
+      removed_feature_id = "",
+      context_parent_hashes = "",
+      gate_id = "",
+      gate_parent_sha256 = "",
+      structural_prior_manifest_sha256 = as.character(registration$structural_prior_manifest_sha256[[1L]]),
+      structural_snapshot_vintage_id = as.character(registration$structural_snapshot_vintage_id[[1L]]),
+      structural_diagnostics = "",
+      active_status = "inactive",
+      score_status = "no_score_structural_validation_failed",
+      inactive_reason = reason,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+.hybrid_structural_inactive_result <- function(
+    registration, fixtures, seed_registry, run_id, protocol, settings, reason, manifest = NULL
+) {
+  manifests <- .hybrid_structural_inactive_manifests(
+    registration, fixtures, run_id, settings, reason, manifest
+  )
+  validate_model_manifests(manifests)
+  evidence <- data.frame(
+    candidate_id = as.character(registration$candidate_id[[1L]]),
+    feature_set_id = as.character(registration$feature_set_id[[1L]]),
+    removed_feature_id = "",
+    panel_id = as.character(registration$panel_id[[1L]]),
+    open_fixture_count = as.integer(registration$open_fixture_count[[1L]]),
+    rich_fixture_count = as.integer(registration$rich_fixture_count[[1L]]),
+    score_support_g = as.integer(registration$score_support_g[[1L]]),
+    context_parent_hashes = "",
+    gate_id = "",
+    gate_parent_sha256 = "",
+    structural_prior_manifest_sha256 = as.character(registration$structural_prior_manifest_sha256[[1L]]),
+    structural_snapshot_vintage_id = as.character(registration$structural_snapshot_vintage_id[[1L]]),
+    prior_strength = as.numeric(registration$prior_strength[[1L]]),
+    active_status = "inactive",
+    score_status = "no_score_structural_validation_failed",
+    coverage = NA_real_,
+    variance = NA_real_,
+    provenance = NA,
+    score_row_count = 0L,
+    inactive_reason = reason,
+    error_reason = reason,
+    research_only = TRUE,
+    wc2026_sealed = TRUE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(
+    candidate_id = as.character(registration$candidate_id[[1L]]),
+    registration = registration,
+    settings = settings,
+    protocol = protocol,
+    predictions = data.frame(stringsAsFactors = FALSE),
+    distributions = data.frame(stringsAsFactors = FALSE),
+    means = data.frame(stringsAsFactors = FALSE),
+    manifests = manifests,
+    feature_coverage = data.frame(stringsAsFactors = FALSE),
+    seed_registry = seed_registry,
+    environment = NULL,
+    inactive = TRUE,
+    inactive_evidence = evidence,
+    structural_prior_manifest = manifest,
+    structural_inactive_reason = reason,
+    research_only = TRUE,
+    wc2026_sealed = TRUE
+  )
 }
 
 .hybrid_xg_inactive_manifests <- function(registration, fixtures, run_id, gate, settings) {
@@ -135,11 +389,17 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
       open_fixture_count = as.integer(registration$open_fixture_count[[1L]]),
       rich_fixture_count = as.integer(registration$rich_fixture_count[[1L]]),
       score_support_g = as.integer(registration$score_support_g[[1L]]),
+      context_feature_set_id = "",
+      removed_feature_id = "",
+      context_parent_hashes = "",
+      gate_id = as.character(gate$gate_id[[1L]]),
+      gate_parent_sha256 = as.character(gate$gate_parent_sha256[[1L]]),
+      structural_prior_manifest_sha256 = "",
+      structural_snapshot_vintage_id = "",
+      structural_diagnostics = "",
       active_status = "inactive",
       score_status = "no_score_gate_failed",
       inactive_reason = as.character(gate$inactive_reason[[1L]]),
-      gate_id = as.character(gate$gate_id[[1L]]),
-      gate_parent_sha256 = as.character(gate$gate_parent_sha256[[1L]]),
       stringsAsFactors = FALSE,
       check.names = FALSE
     )
@@ -152,13 +412,25 @@ hybrid_phase11_candidate_ids <- function(protocol = NULL) {
   validate_model_manifests(manifests)
   evidence <- data.frame(
     candidate_id = as.character(registration$candidate_id[[1L]]),
+    feature_set_id = as.character(registration$feature_set_id[[1L]]),
+    removed_feature_id = "",
+    panel_id = as.character(registration$panel_id[[1L]]),
+    open_fixture_count = as.integer(registration$open_fixture_count[[1L]]),
+    rich_fixture_count = as.integer(registration$rich_fixture_count[[1L]]),
+    score_support_g = as.integer(registration$score_support_g[[1L]]),
+    context_parent_hashes = as.character(if ("context_parent_hashes" %in% names(registration)) registration$context_parent_hashes[[1L]] else ""),
     gate_id = as.character(gate$gate_id[[1L]]),
+    gate_parent_sha256 = as.character(gate$gate_parent_sha256[[1L]]),
+    structural_prior_manifest_sha256 = "",
+    structural_snapshot_vintage_id = "",
+    prior_strength = NA_real_,
     active_status = "inactive",
     score_status = "no_score_gate_failed",
     coverage = as.numeric(gate$coverage[[1L]]),
     variance = as.numeric(gate$variance[[1L]]),
     provenance = as.logical(gate$provenance[[1L]]),
     inactive_reason = as.character(gate$inactive_reason[[1L]]),
+    error_reason = "",
     score_row_count = 0L,
     research_only = TRUE,
     wc2026_sealed = TRUE,
@@ -359,6 +631,17 @@ hybrid_default_seed_registry <- function(fixtures, seed = 920001L) {
         as.character(registration$removed_feature_id[[1L]])
       } else "",
       context_parent_hashes = if (!is.null(fit$context_parent_hashes)) fit$context_parent_hashes else "",
+      gate_id = if (!is.null(fit$gate_id)) as.character(fit$gate_id) else "",
+      gate_parent_sha256 = if (!is.null(fit$gate_parent_sha256)) as.character(fit$gate_parent_sha256) else "",
+      structural_prior_manifest_sha256 = if (!is.null(fit$structural_prior_manifest_sha256)) {
+        as.character(fit$structural_prior_manifest_sha256)
+      } else "",
+      structural_snapshot_vintage_id = if (!is.null(fit$structural_snapshot_vintage_id)) {
+        as.character(fit$structural_snapshot_vintage_id)
+      } else "",
+      structural_diagnostics = if (!is.null(fit$structural_diagnostics)) {
+        as.character(fit$structural_diagnostics)
+      } else "",
       stringsAsFactors = FALSE,
       check.names = FALSE
     )
@@ -672,6 +955,110 @@ hybrid_default_seed_registry <- function(fixtures, seed = 920001L) {
   result
 }
 
+.hybrid_structural_apply_boundary <- function(
+    base_means, boundary_fixtures, history, cutoff, snapshots, settings
+) {
+  .hybrid_adapter_source_if_missing(
+    "R/forecast/structural_prior.R",
+    c(
+      "compute_structural_prior_signal", "effective_recent_match_count",
+      "apply_structural_sparse_shrinkage"
+    )
+  )
+  teams <- unique(c(
+    as.character(boundary_fixtures$home_team_id),
+    as.character(boundary_fixtures$away_team_id)
+  ))
+  signal <- compute_structural_prior_signal(
+    snapshots = snapshots,
+    team_ids = teams,
+    evidence_cutoff_exclusive = cutoff,
+    registered_vintage_id = settings$structural_snapshot_vintage_id,
+    prior_scale = settings$prior_scale,
+    prior_bounds = settings$prior_bounds
+  )
+  counts <- effective_recent_match_count(
+    history = history,
+    team_ids = teams,
+    evidence_cutoff_exclusive = cutoff,
+    evidence_half_life_days = settings$evidence_half_life_days
+  )
+  home_signal <- signal[match(as.character(boundary_fixtures$home_team_id), signal$team_id), , drop = FALSE]
+  away_signal <- signal[match(as.character(boundary_fixtures$away_team_id), signal$team_id), , drop = FALSE]
+  home_counts <- counts[match(as.character(boundary_fixtures$home_team_id), counts$team_id), , drop = FALSE]
+  away_counts <- counts[match(as.character(boundary_fixtures$away_team_id), counts$team_id), , drop = FALSE]
+  if (anyNA(home_signal$structural_prior) || anyNA(away_signal$structural_prior) ||
+      anyNA(home_counts$effective_match_count) || anyNA(away_counts$effective_match_count)) {
+    stop("Structural prior could not resolve point-in-time team evidence", call. = FALSE)
+  }
+  home_input <- data.frame(
+    team_id = as.character(boundary_fixtures$home_team_id),
+    baseline_mean = as.numeric(base_means$mu_home),
+    structural_prior = as.numeric(base_means$mu_home) * as.numeric(home_signal$structural_prior),
+    effective_match_count = as.numeric(home_counts$effective_match_count),
+    stringsAsFactors = FALSE
+  )
+  away_input <- data.frame(
+    team_id = as.character(boundary_fixtures$away_team_id),
+    baseline_mean = as.numeric(base_means$mu_away),
+    structural_prior = as.numeric(base_means$mu_away) * as.numeric(away_signal$structural_prior),
+    effective_match_count = as.numeric(away_counts$effective_match_count),
+    stringsAsFactors = FALSE
+  )
+  home_shrink <- apply_structural_sparse_shrinkage(
+    home_input,
+    prior_strength = settings$prior_strength,
+    evidence_half_life_days = settings$evidence_half_life_days,
+    registered_vintage_id = settings$structural_snapshot_vintage_id,
+    bounds = settings$prior_bounds
+  )
+  away_shrink <- apply_structural_sparse_shrinkage(
+    away_input,
+    prior_strength = settings$prior_strength,
+    evidence_half_life_days = settings$evidence_half_life_days,
+    registered_vintage_id = settings$structural_snapshot_vintage_id,
+    bounds = settings$prior_bounds
+  )
+  means <- base_means
+  means$home_pre_shrinkage_mean <- home_shrink$pre_shrinkage_mean
+  means$away_pre_shrinkage_mean <- away_shrink$pre_shrinkage_mean
+  means$home_structural_prior <- home_shrink$structural_prior
+  means$away_structural_prior <- away_shrink$structural_prior
+  means$home_structural_prior_multiplier <- as.numeric(home_signal$structural_prior)
+  means$away_structural_prior_multiplier <- as.numeric(away_signal$structural_prior)
+  means$home_structural_signal <- as.numeric(home_signal$structural_signal)
+  means$away_structural_signal <- as.numeric(away_signal$structural_signal)
+  means$home_effective_match_count <- home_shrink$effective_match_count
+  means$away_effective_match_count <- away_shrink$effective_match_count
+  means$home_prior_weight <- home_shrink$prior_weight
+  means$away_prior_weight <- away_shrink$prior_weight
+  means$mu_home <- home_shrink$post_shrinkage_mean
+  means$mu_away <- away_shrink$post_shrinkage_mean
+  means$structural_prior_manifest_sha256 <- settings$structural_prior_manifest_sha256
+  means$structural_snapshot_vintage_id <- settings$structural_snapshot_vintage_id
+  means$mean_prediction_hash <- vapply(seq_len(nrow(means)), function(index) {
+    digest::digest(
+      paste(
+        as.character(means$fixture_id[index]),
+        format(as.numeric(means$mu_home[index]), digits = 17),
+        format(as.numeric(means$mu_away[index]), digits = 17),
+        sep = "|"
+      ),
+      algo = "sha256", serialize = FALSE
+    )
+  }, character(1))
+  list(
+    means = means,
+    diagnostics = paste(
+      "prior_strength", settings$prior_strength,
+      "half_life_days", settings$evidence_half_life_days,
+      "vintage", settings$structural_snapshot_vintage_id,
+      "source_rows_sha256", attr(snapshots, "structural_rows_sha256"),
+      sep = "="
+    )
+  )
+}
+
 #' Run one registered Phase 11 RF candidate through fit, prediction, evidence,
 #' and common-contract validation.
 #' @export
@@ -700,15 +1087,34 @@ run_registered_hybrid_adapter <- function(
   fixtures <- hybrid_normalize_fixtures(fixtures)
   if (!is.data.frame(history) || !nrow(history)) stop("Hybrid adapter history must contain rows", call. = FALSE)
   seed_registry <- .hybrid_adapter_seed_registry(fixtures, seed_registry)
+  structural_manifest <- NULL
+  structural_snapshots <- NULL
   if (.hybrid_adapter_is_xg(registration)) {
     gate <- .hybrid_adapter_xg_gate(protocol, registration)
     settings <- .hybrid_xg_registered_settings(settings, registration)
     if (!.phase11_bool(gate$active[[1L]], "xG gate active")) {
       return(.hybrid_xg_inactive_result(registration, fixtures, seed_registry, run_id, protocol, settings, gate))
     }
+  } else if (.hybrid_adapter_is_structural(registration)) {
+    structural_info <- tryCatch(
+      .hybrid_adapter_structural_manifest(protocol, registration),
+      error = function(error) error
+    )
+    if (inherits(structural_info, "error")) {
+      inactive_settings <- .hybrid_structural_fallback_settings(settings, registration)
+      return(.hybrid_structural_inactive_result(
+        registration, fixtures, seed_registry, run_id, protocol, inactive_settings,
+        conditionMessage(structural_info)
+      ))
+    }
+    structural_manifest <- structural_info$manifest
+    structural_snapshots <- structural_info$snapshots
+    settings <- .hybrid_structural_registered_settings(settings, registration, structural_manifest)
   }
   settings <- if (.hybrid_adapter_is_xg(registration)) {
     .hybrid_xg_registered_settings(settings, registration)
+  } else if (.hybrid_adapter_is_structural(registration)) {
+    settings
   } else if (.hybrid_adapter_is_context(registration)) {
     .hybrid_context_registered_settings(settings, registration)
   } else {
@@ -732,6 +1138,73 @@ run_registered_hybrid_adapter <- function(
       distributions <- .hybrid_context_nb_score_distributions(means, settings$support_max, settings)
       piece_history <- prepared$history
       context_parent_hashes <- prepared$parent_hashes
+    } else if (.hybrid_adapter_is_structural(registration)) {
+      structural_team_check <- tryCatch({
+        compute_structural_prior_signal(
+          snapshots = structural_snapshots,
+          team_ids = unique(c(
+            as.character(boundary_fixtures$home_team_id),
+            as.character(boundary_fixtures$away_team_id)
+          )),
+          evidence_cutoff_exclusive = cutoffs[[1L]],
+          registered_vintage_id = settings$structural_snapshot_vintage_id,
+          prior_scale = settings$prior_scale,
+          prior_bounds = settings$prior_bounds
+        )
+        TRUE
+      }, error = function(error) error)
+      if (inherits(structural_team_check, "error")) {
+        return(.hybrid_structural_inactive_result(
+          registration, fixtures, seed_registry, run_id, protocol, settings,
+          conditionMessage(structural_team_check), structural_manifest
+        ))
+      }
+      fit <- fit_hybrid_two_goal_rf(
+        history, cutoffs[[1L]], settings, hybrid_registration(protocol, "phase11_rf_dynamic_elo_open")
+      )
+      means <- predict_hybrid_rf_means(
+        fit, boundary_fixtures, settings
+      )
+      structural_result <- tryCatch(
+        .hybrid_structural_apply_boundary(
+          base_means = means,
+          boundary_fixtures = boundary_fixtures,
+          history = history,
+          cutoff = cutoffs[[1L]],
+          snapshots = structural_snapshots,
+          settings = settings
+        ),
+        error = function(error) error
+      )
+      if (inherits(structural_result, "error")) {
+        return(.hybrid_structural_inactive_result(
+          registration, fixtures, seed_registry, run_id, protocol, settings,
+          conditionMessage(structural_result), structural_manifest
+        ))
+      }
+      means <- structural_result$means
+      means$model_id <- as.character(registration$mean_model_id[[1L]])
+      means$candidate_id <- as.character(registration$candidate_id[[1L]])
+      means$panel_id <- as.character(registration$panel_id[[1L]])
+      means$settings_sha256 <- settings$settings_sha256
+      means$registration_sha256 <- settings$registration_sha256
+      means$ranger_package <- settings$ranger_package
+      means$ranger_version <- settings$ranger_version
+      means$ranger_provenance_id <- settings$ranger_provenance_id
+      distributions <- hybrid_rf_nb_score_distributions(means, settings$support_max, settings)
+      fit$candidate_id <- as.character(registration$candidate_id[[1L]])
+      fit$model_id <- as.character(registration$mean_model_id[[1L]])
+      fit$model_family <- as.character(registration$model_family[[1L]])
+      fit$panel_id <- as.character(registration$panel_id[[1L]])
+      fit$registration <- registration
+      fit$runtime_settings <- settings
+      fit$registration_sha256 <- settings$registration_sha256
+      fit$settings_sha256 <- settings$settings_sha256
+      fit$structural_prior_manifest_sha256 <- settings$structural_prior_manifest_sha256
+      fit$structural_snapshot_vintage_id <- settings$structural_snapshot_vintage_id
+      fit$structural_diagnostics <- structural_result$diagnostics
+      piece_history <- history
+      context_parent_hashes <- NULL
     } else {
       fit <- fit_hybrid_two_goal_rf(history, cutoffs[[1L]], settings, registration)
       means <- predict_hybrid_rf_means(fit, boundary_fixtures, settings)
@@ -745,6 +1218,8 @@ run_registered_hybrid_adapter <- function(
       markets = markets, history = piece_history, context_parent_hashes = context_parent_hashes
     )
   })
+  inactive_pieces <- pieces[vapply(pieces, function(piece) isTRUE(piece$inactive), logical(1))]
+  if (length(inactive_pieces)) return(inactive_pieces[[1L]])
   distributions <- do.call(rbind, lapply(pieces, `[[`, "distributions"))
   means <- do.call(rbind, lapply(pieces, `[[`, "means"))
   markets <- do.call(rbind, lapply(pieces, `[[`, "markets"))

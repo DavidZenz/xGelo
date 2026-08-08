@@ -147,16 +147,28 @@ run_hybrid_challenger_benchmark <- function(
       expected_fixture_ids = as.character(fixtures$fixture_id)
     )
   })) else data.frame(stringsAsFactors = FALSE)
+  bind_frames <- function(pieces) {
+    pieces <- pieces[vapply(pieces, is.data.frame, logical(1)) & vapply(pieces, nrow, integer(1)) > 0L]
+    if (!length(pieces)) return(data.frame(stringsAsFactors = FALSE))
+    columns <- unique(unlist(lapply(pieces, names), use.names = FALSE))
+    pieces <- lapply(pieces, function(piece) {
+      missing <- setdiff(columns, names(piece))
+      for (column in missing) piece[[column]] <- NA
+      piece[, columns, drop = FALSE]
+    })
+    result <- do.call(rbind, pieces)
+    rownames(result) <- NULL
+    result
+  }
   bind_active <- function(field) {
     if (!length(active_adapters)) return(data.frame(stringsAsFactors = FALSE))
     pieces <- lapply(active_adapters, `[[`, field)
-    pieces <- pieces[vapply(pieces, is.data.frame, logical(1)) & vapply(pieces, nrow, integer(1)) > 0L]
-    if (!length(pieces)) data.frame(stringsAsFactors = FALSE) else do.call(rbind, pieces)
+    bind_frames(pieces)
   }
   predictions <- bind_active("predictions")
   distributions <- bind_active("distributions")
   means <- bind_active("means")
-  manifests <- do.call(rbind, lapply(adapters, `[[`, "manifests"))
+  manifests <- bind_frames(lapply(adapters, `[[`, "manifests"))
   feature_coverage <- bind_active("feature_coverage")
   registration <- do.call(rbind, lapply(adapters, `[[`, "registration"))
   candidate_evidence <- do.call(rbind, lapply(adapters, function(adapter) {
@@ -171,6 +183,17 @@ run_hybrid_challenger_benchmark <- function(
       rich_fixture_count = as.integer(row$rich_fixture_count[[1L]]),
       score_support_g = as.integer(row$score_support_g[[1L]]),
       context_parent_hashes = if ("context_parent_hashes" %in% names(row)) as.character(row$context_parent_hashes[[1L]]) else "",
+      gate_id = if ("gate_id" %in% names(row)) as.character(row$gate_id[[1L]]) else "",
+      gate_parent_sha256 = if ("gate_parent_sha256" %in% names(row)) as.character(row$gate_parent_sha256[[1L]]) else "",
+      structural_prior_manifest_sha256 = if ("structural_prior_manifest_sha256" %in% names(row)) {
+        as.character(row$structural_prior_manifest_sha256[[1L]])
+      } else "",
+      structural_snapshot_vintage_id = if ("structural_snapshot_vintage_id" %in% names(row)) {
+        as.character(row$structural_snapshot_vintage_id[[1L]])
+      } else "",
+      prior_strength = if ("prior_strength" %in% names(row) && nzchar(as.character(row$prior_strength[[1L]]))) {
+        as.numeric(row$prior_strength[[1L]])
+      } else NA_real_,
       active_status = "active",
       score_status = "scored",
       coverage = NA_real_,

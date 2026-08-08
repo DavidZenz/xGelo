@@ -158,3 +158,48 @@ test_that("HYBRID-04 / D-09 rejects post-cutoff, current, and ad hoc snapshots",
     ignore.case = TRUE
   )
 })
+
+test_that("HYBRID-04 dispatches the registered prior and fails closed when a team snapshot is unavailable", {
+  protocol <- load_and_validate_hybrid_protocol()
+  registration <- protocol$model_registry[
+    protocol$model_registry$candidate_id == "phase11_structural_sparse_prior_open",
+    , drop = FALSE
+  ]
+  expect_equal(nrow(registration), 1L)
+  expect_identical(as.character(registration$panel_rule), "open_core")
+  expect_identical(as.character(registration$feature_rule), "structural_prior_only_no_raw_fields")
+  expect_identical(as.character(registration$structural_snapshot_vintage_id), "worldbank_wdi_2000_v1")
+  expect_equal(as.numeric(registration$prior_strength), 4)
+  expect_true(grepl("effective_match_count", as.character(registration$effective_count_formula), fixed = TRUE))
+  expect_identical(
+    as.character(registration$structural_prior_manifest_sha256),
+    digest::digest(
+      file.path(hybrid_project_root, "data/benchmark/phase11/structural_prior_manifest.csv"),
+      algo = "sha256", file = TRUE
+    )
+  )
+
+  fixtures <- hybrid_rf_fixtures()
+  fixtures$track_id <- "frozen"
+  fixtures$forecast_sequence <- seq_len(nrow(fixtures))
+  fixtures$result_cutoff_exclusive <- fixtures$evidence_cutoff_exclusive
+  fixtures$regulation_home_goals <- c(1L, 0L)
+  fixtures$regulation_away_goals <- c(0L, 1L)
+  fixtures$score_eligible <- TRUE
+  result <- run_hybrid_challenger_benchmark(
+    history = hybrid_rf_history(),
+    fixtures = fixtures,
+    candidate_order = "phase11_structural_sparse_prior_open",
+    run_id = "phase11_structural_runner_test"
+  )
+  expect_equal(nrow(result$predictions), 0L)
+  expect_equal(nrow(result$distributions), 0L)
+  expect_equal(nrow(result$scores), 0L)
+  expect_identical(as.character(result$candidate_evidence$active_status), "inactive")
+  expect_identical(
+    as.character(result$candidate_evidence$score_status),
+    "no_score_structural_validation_failed"
+  )
+  expect_equal(as.integer(result$candidate_evidence$score_row_count), 0L)
+  expect_true(grepl("ISO3|snapshot|structural", result$candidate_evidence$inactive_reason, ignore.case = TRUE))
+})
