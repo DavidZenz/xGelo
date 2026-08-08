@@ -19,6 +19,8 @@ hybrid_source_if_present("R/forecast/xg_usage_audit.R")
 hybrid_source_if_present("R/forecast/goal_ability.R")
 hybrid_source_if_present("R/forecast/dynamic_goal_ability.R")
 hybrid_source_if_present("R/benchmark/hybrid_protocol.R")
+hybrid_source_if_present("R/benchmark/hybrid_runner.R")
+hybrid_source_if_present("R/forecast/external_market.R")
 hybrid_source_if_present("R/forecast/hybrid_rf.R")
 hybrid_source_if_present("R/forecast/context_features.R")
 hybrid_source_if_present("R/forecast/structural_prior.R")
@@ -62,6 +64,23 @@ hybrid_require_structural_api <- function() {
       "effective_recent_match_count", "apply_structural_sparse_shrinkage"
     ),
     "structural prior"
+  )
+}
+
+hybrid_require_modes_api <- function() {
+  hybrid_require_api(
+    c(
+      "canonical_phase11_mode_registry", "validate_hybrid_mode_registry",
+      "validate_manual_market_snapshot", "market_probabilities_to_benchmark_predictions"
+    ),
+    "mode"
+  )
+}
+
+hybrid_require_targets_api <- function() {
+  hybrid_require_api(
+    c("run_hybrid_challenger_benchmark", "validate_hybrid_challenger_bundle"),
+    "runner/bundle"
   )
 }
 
@@ -161,6 +180,78 @@ hybrid_structural_snapshot_fixture <- function() {
     metadata = metadata,
     checksums = checksums
   )
+}
+
+hybrid_manual_market_snapshot <- function() {
+  snapshot <- data.frame(
+    snapshot_id = c("manual_market_2010_01", "manual_market_2010_02"),
+    fixture_id = c("wc2010_001", "wc2010_002"),
+    home_team_id = c("team_alpha", "team_gamma"),
+    away_team_id = c("team_beta", "team_delta"),
+    market_date = as.Date(c("2010-06-09", "2010-06-09")),
+    captured_at_utc = c("2010-06-09T12:00:00Z", "2010-06-09T12:00:00Z"),
+    source_name = "manual-bookmaker-test",
+    source_url_or_label = "manual licensed snapshot label",
+    license_class = "restricted-manual-derived-probabilities",
+    redistribution_allowed = FALSE,
+    manual_freeze_operator = "test_operator",
+    p_home = c(0.48, 0.31),
+    p_draw = c(0.27, 0.29),
+    p_away = c(0.25, 0.40),
+    source_sha256 = strrep("c", 64),
+    row_sha256 = strrep("0", 64),
+    active_status = "active",
+    stringsAsFactors = FALSE
+  )
+  snapshot$row_sha256 <- benchmark_contract_row_hash(snapshot, "row_sha256")
+  snapshot
+}
+
+hybrid_manual_market_cutoffs <- function() {
+  data.frame(
+    fixture_id = c("wc2010_001", "wc2010_002"),
+    evidence_cutoff_exclusive = as.Date(c("2010-06-11", "2010-06-12")),
+    stringsAsFactors = FALSE
+  )
+}
+
+hybrid_phase11_target_names <- function() {
+  c(
+    "benchmark_phase11_registry_files", "benchmark_phase11_registries",
+    "benchmark_phase11_predictions", "benchmark_phase11_scores",
+    "benchmark_phase11_comparisons", "benchmark_phase11_bundle_files"
+  )
+}
+
+hybrid_phase11_target_ancestors <- function(manifest, target_name) {
+  commands <- stats::setNames(as.character(manifest$command), manifest$name)
+  visit <- function(name, seen = character()) {
+    if (name %in% seen || !name %in% names(commands)) return(seen)
+    dependencies <- names(commands)[vapply(
+      names(commands), function(candidate) {
+        grepl(
+          paste0("(^|[^A-Za-z0-9_.])", candidate, "([^A-Za-z0-9_.]|$)"),
+          commands[[name]]
+        )
+      },
+      logical(1)
+    )]
+    Reduce(function(acc, dependency) visit(dependency, acc), dependencies, init = c(seen, name))
+  }
+  setdiff(visit(target_name), target_name)
+}
+
+hybrid_require_phase11_target_nodes <- function() {
+  withr::local_dir(hybrid_project_root)
+  manifest <- targets::tar_manifest(fields = c("name", "command"))
+  missing <- setdiff(hybrid_phase11_target_names(), manifest$name)
+  if (length(missing)) {
+    stop(
+      paste("Wave 0 RED contract awaits Phase 11 targets:", paste(missing, collapse = ", ")),
+      call. = FALSE
+    )
+  }
+  manifest
 }
 
 hybrid_rf_settings <- function() {

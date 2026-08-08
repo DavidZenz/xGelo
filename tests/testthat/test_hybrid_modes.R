@@ -1,0 +1,107 @@
+library(testthat)
+
+source(file.path(
+  normalizePath(file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else ".")),
+  "tests/testthat/helper_hybrid_phase11.R"
+))
+hybrid_require_modes_api()
+
+test_that("HYBRID-05 / D-13 through D-16 keep open, enriched, and external modes separate", {
+  registry <- canonical_phase11_mode_registry()
+  expect_silent(validate_hybrid_mode_registry(registry))
+
+  expect_true(is.data.frame(registry))
+  expect_setequal(
+    as.character(registry$mode_id),
+    c("open_default", "enriched_squad", "external_market")
+  )
+  expect_true(all(c(
+    "mode_id", "panel_id", "vintage_id", "source_artifact_sha256",
+    "derived_only_publication", "license_class", "active_status",
+    "promotion_boundary", "research_only"
+  ) %in% names(registry)))
+  expect_identical(
+    registry$panel_id[match("open_default", registry$mode_id)],
+    "open_core"
+  )
+  expect_identical(
+    registry$panel_id[match("enriched_squad", registry$mode_id)],
+    "feature_rich"
+  )
+  expect_false(anyDuplicated(paste(registry$mode_id, registry$panel_id)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", registry$source_artifact_sha256)))
+  expect_true(all(nzchar(registry$vintage_id)))
+  expect_true(all(nzchar(registry$license_class)))
+  expect_true(all(registry$derived_only_publication))
+  expect_true(all(registry$research_only))
+
+  open <- registry[registry$mode_id == "open_default", , drop = FALSE]
+  optional <- registry[registry$mode_id != "open_default", , drop = FALSE]
+  expect_true(any(open$promotion_boundary %in% c("open_default", "open_default_candidate")))
+  expect_false(any(grepl("open_default|promotion", optional$promotion_boundary, ignore.case = TRUE)))
+  expect_true(all(optional$active_status %in% c("active", "inactive")))
+})
+
+test_that("HYBRID-05 / D-13 rejects pooled or raw restricted mode declarations", {
+  registry <- canonical_phase11_mode_registry()
+
+  pooled <- registry
+  pooled$panel_id[pooled$mode_id == "enriched_squad"] <- "open_core"
+  expect_error(validate_hybrid_mode_registry(pooled), "panel|separate|feature_rich")
+
+  raw <- registry
+  raw$derived_only_publication[raw$mode_id == "enriched_squad"] <- FALSE
+  expect_error(validate_hybrid_mode_registry(raw), "derived|raw|restricted")
+})
+
+test_that("HYBRID-05 / D-14 validates manually frozen external probabilities only", {
+  snapshot <- hybrid_manual_market_snapshot()
+  cutoffs <- hybrid_manual_market_cutoffs()
+
+  expect_silent(validate_manual_market_snapshot(
+    snapshot,
+    fixture_cutoffs = cutoffs
+  ))
+  converted <- market_probabilities_to_benchmark_predictions(
+    snapshot = snapshot,
+    fixture_cutoffs = cutoffs
+  )
+  expect_true(is.data.frame(converted))
+  expect_true(all(c(
+    "fixture_id", "p_home", "p_draw", "p_away", "mode_id", "active_status"
+  ) %in% names(converted)))
+  expect_true(all(converted$mode_id == "external_market"))
+  expect_true(all(converted$active_status == "active"))
+
+  bad_probability <- snapshot
+  bad_probability$p_home[1] <- 0.90
+  expect_error(
+    validate_manual_market_snapshot(bad_probability, fixture_cutoffs = cutoffs),
+    "probabil|sum|normal",
+    ignore.case = TRUE
+  )
+
+  bad_timestamp <- snapshot
+  bad_timestamp$captured_at_utc[1] <- NA_character_
+  expect_error(
+    validate_manual_market_snapshot(bad_timestamp, fixture_cutoffs = cutoffs),
+    "timestamp|captured|date",
+    ignore.case = TRUE
+  )
+
+  bad_live_path <- snapshot
+  bad_live_path$source_url_or_label[1] <- "curl bookmaker live scrape"
+  expect_error(
+    validate_manual_market_snapshot(bad_live_path, fixture_cutoffs = cutoffs),
+    "live|collect|scrap|network",
+    ignore.case = TRUE
+  )
+
+  bad_raw <- snapshot
+  bad_raw$raw_bookmaker_row <- "restricted raw source"
+  expect_error(
+    validate_manual_market_snapshot(bad_raw, fixture_cutoffs = cutoffs),
+    "raw|restricted|derived",
+    ignore.case = TRUE
+  )
+})
