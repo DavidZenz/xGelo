@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 11-hybrid-ml-and-contextual-priors
 source: [11-01-SUMMARY.md, 11-02-SUMMARY.md, 11-03-SUMMARY.md, 11-04-SUMMARY.md, 11-05-SUMMARY.md, 11-06-SUMMARY.md, 11-07-SUMMARY.md, 11-VERIFICATION.md]
 started: 2026-08-09T20:16:53Z
-updated: 2026-08-09T20:27:00Z
+updated: 2026-08-09T20:42:58Z
 ---
 
 ## Current Test
@@ -179,17 +179,38 @@ blocked: 0
   reason: "User requested direct verification; the current bundle says the structural snapshot is missing POR, while the committed OWID snapshot and direct structural signal both contain POR."
   severity: major
   test: 22
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "The structural snapshot publication/source date is 2024-07-15, after every historical Phase 11 fold cutoff. Strict temporal filtering correctly removes those rows, but compute_structural_prior_signal() then reports the empty filtered set as a missing team ISO3. The candidate is correctly fail-closed; the diagnostic classification is misleading and no historical structural value estimate is possible from this single vintage."
+  artifacts:
+    - path: "R/forecast/structural_prior.R:304"
+      issue: "Post-cutoff structural rows are filtered before team availability is classified."
+    - path: "R/forecast/structural_prior.R:308"
+      issue: "An empty post-cutoff subset is reported as missing team ISO3."
+    - path: "R/benchmark/hybrid_adapters.R:1337"
+      issue: "The low-level message is propagated into durable inactive/error evidence."
+    - path: "data/benchmark/phase11/structural_sources.csv:104"
+      issue: "The committed OWID snapshot does contain POR; the failure is temporal availability, not missing mapping."
+  missing:
+    - "Classify genuinely absent ISO3 separately from present-but-post-publication evidence."
+    - "Include source date and evidence cutoff in the inactive reason."
+    - "Provide historically admissible per-cutoff vintages or explicitly designate this snapshot as current-only before comparing structural value."
+  debug_session: ".planning/debug/g11-22-structural-iso3.md"
 - gap_id: G-11-25
   truth: "The Phase 11 regression suite has no stale candidate-registry assertions."
   status: failed
   reason: "User requested direct verification; two assertions at tests/testthat/test_hybrid_context_features.R:77-78 still expect seven candidates while the registry contains nine."
   severity: minor
   test: 25
-  root_cause: ""
-  artifacts: []
-  missing: []
-  debug_session: ""
+  root_cause: "The context feature test retains the pre-merge seven-candidate expected_ids vector, while the canonical registry and hybrid_phase11_candidate_ids() now correctly contain the two xG-gated and structural candidates as well."
+  artifacts:
+    - path: "tests/testthat/test_hybrid_context_features.R:68"
+      issue: "Expected candidate list stops at the seven context/base IDs."
+    - path: "tests/testthat/test_hybrid_context_features.R:77"
+      issue: "Registry equality assertion omits the two merged candidates."
+    - path: "tests/testthat/test_hybrid_context_features.R:78"
+      issue: "Adapter candidate-ID equality assertion omits the two merged candidates."
+    - path: "tests/testthat/test_hybrid_targets.R:84"
+      issue: "Target contract confirms the nine-candidate registry is otherwise consistent."
+  missing:
+    - "Update the expected registry sequence with phase11_rf_dynamic_elo_context_xg_gated_open and phase11_structural_sparse_prior_open."
+    - "Keep the six-feature context ablation assertion scoped to the context candidates rather than using the expanded registry tail."
+  debug_session: ".planning/debug/g-11-25-registry-candidate-mismatch.md"
