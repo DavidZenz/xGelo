@@ -5,13 +5,16 @@ phase10_library <- file.path("data", "cache", "phase10-library")
 phase11_library <- file.path("data", "cache", "phase11-library")
 local_phase_libraries <- c(phase11_library, phase10_library)
 local_phase_libraries <- local_phase_libraries[dir.exists(local_phase_libraries)]
-if (length(local_phase_libraries)) {
-  .libPaths(unique(c(normalizePath(local_phase_libraries), .libPaths())))
-}
+target_library_paths <- unique(c(
+  if (length(local_phase_libraries)) normalizePath(local_phase_libraries) else character(),
+  .libPaths()
+))
+.libPaths(target_library_paths)
 
 library(targets)
 
 tar_option_set(
+  library = target_library_paths,
   packages = c(
     "dplyr",
     "jsonlite",
@@ -74,6 +77,26 @@ source("R/forecast/score_dependence.R")
 source("R/benchmark/challengers.R")
 source("R/evaluation/challenger_selection.R")
 source("R/benchmark/challenger_runner.R")
+source("R/forecast/hybrid_rf.R")
+source("R/forecast/context_features.R")
+source("R/forecast/structural_prior.R")
+source("R/forecast/external_market.R")
+source("R/benchmark/hybrid_protocol.R")
+source("R/benchmark/hybrid_adapters.R")
+source("R/benchmark/hybrid_runner.R")
+
+# Keep the legacy validator's lazy dependency loader intact while avoiding a
+# targets import cycle between the loader and the validator it services.
+benchmark_runner_require_validation_dependencies <- function() {
+  runner_env <- environment(get("validate_rolling_benchmark_bundle", envir = .GlobalEnv))
+  if (!exists("benchmark_output_coverage", envir = runner_env, mode = "function", inherits = TRUE)) {
+    sys.source("R/benchmark/baselines.R", envir = runner_env)
+  }
+  if (!exists("benchmark_output_coverage", envir = runner_env, mode = "function", inherits = TRUE)) {
+    stop("benchmark_output_coverage is required for standalone bundle validation", call. = FALSE)
+  }
+  invisible(TRUE)
+}
 
 xgelo_feature_cutoff_date <- function(default = Sys.Date() - 1L) {
   value <- Sys.getenv("XGELO_FEATURE_CUTOFF_DATE", unset = "")
@@ -714,6 +737,210 @@ list(
       )
       unname(phase10_output_paths(
         "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers"
+      ))
+    },
+    format = "file"
+  ),
+  tar_target(
+    benchmark_phase11_registry_files,
+    {
+      phase11_dir <- "data/benchmark/phase11"
+      phase09_dir <- "data/benchmark/phase09"
+      phase10_dir <- "data/benchmark/phase10"
+      phase09_output <- "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen"
+      phase10_output <- "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers"
+      phase11_protocol_files <- file.path(phase11_dir, c(
+        "model_registry.csv", "feature_contract.csv", "context_ablation_registry.csv",
+        "ranger_provenance.csv", "country_centroids.csv", "country_centroids_metadata.csv",
+        "structural_sources.csv", "structural_sources_metadata.csv",
+        "structural_sources_checksums.csv", "xg_gate_manifest.csv",
+        "structural_prior_manifest.csv", "mode_registry.csv", "manual_market_manifest.csv"
+      ))
+      phase09_registry_files <- file.path(phase09_dir, c(
+        "tournaments.csv", "fixtures.csv", "teams.csv", "formats.csv",
+        "route_rules.csv", "corrections.csv", "boundaries.csv", "panels.csv",
+        "panel_fixtures.csv", "model_registry.csv", "score_support_audit.csv",
+        "feature_contract.csv", "seed_registry.csv"
+      ))
+      phase10_protocol_files <- file.path(phase10_dir, c(
+        "model_registry.csv", "feature_contract.csv", "tuning_editions.csv",
+        "tuning_grid.csv", "ablation_registry.csv", "selection_protocol.json",
+        "storage_preflight.csv", "glmnet_provenance.csv"
+      ))
+      phase09_bundle_files <- file.path(phase09_output, c(
+        "run_manifest.csv", "manifests/checksum_manifest.csv", "scores/fixture_scores.csv"
+      ))
+      phase10_bundle_files <- file.path(phase10_output, c(
+        "run_manifest.csv", "manifests/checksum_manifest.csv", "manifests/model_manifests.csv",
+        "manifests/feature_coverage.csv", "manifests/fold_tuning.csv",
+        "predictions/fixture_predictions.csv", "predictions/score_distributions.csv",
+        "scores/fixture_scores.csv", "scores/benchmark_summaries.csv",
+        "comparisons/all_baseline_paired_comparisons.csv", "selection/shortlist.csv",
+        "selection/statistical_challenger_report.md"
+      ))
+      optional_local <- c("data/processed/transfermarkt_squad_strength.csv")
+      c(
+        phase11_protocol_files, phase09_registry_files, phase10_protocol_files,
+        phase09_bundle_files, phase10_bundle_files,
+        "data/processed/elo_ratings.csv",
+        "data/processed/goal_training_features_hybrid.csv",
+        optional_local[file.exists(optional_local)]
+      )
+    },
+    format = "file"
+  ),
+  tar_target(
+    benchmark_phase11_registries,
+    {
+      phase11_library <- normalizePath("data/cache/phase11-library", mustWork = TRUE)
+      .libPaths(unique(c(phase11_library, .libPaths())))
+      benchmark_phase11_registry_files
+      phase09_dir <- "data/benchmark/phase09"
+      phase10_dir <- "data/benchmark/phase10"
+      phase11_dir <- "data/benchmark/phase11"
+      phase09_output <- "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen"
+      phase10_output <- "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers"
+      environment <- require_hybrid_environment(
+        file.path(phase11_dir, "ranger_provenance.csv"), offline = TRUE
+      )
+      protocol <- load_and_validate_hybrid_protocol(phase11_dir)
+      phase09_registries <- load_benchmark_registries(phase09_dir)
+      phase09_inputs <- benchmark_runner_load_inputs(phase09_dir)
+      phase09_parent <- load_phase09_parent_bundle(phase09_output)
+      phase10_protocol <- load_and_validate_challenger_protocol(phase10_dir)
+      phase10_validation <- validate_statistical_challenger_bundle(phase10_output)
+      phase10_fixture_scores <- read.csv(
+        file.path(phase10_output, "scores/fixture_scores.csv"),
+        stringsAsFactors = FALSE, check.names = FALSE
+      )
+      phase10_comparisons <- read.csv(
+        file.path(phase10_output, "comparisons/all_baseline_paired_comparisons.csv"),
+        stringsAsFactors = FALSE, check.names = FALSE
+      )
+      phase10_shortlist <- read.csv(
+        file.path(phase10_output, "selection/shortlist.csv"),
+        stringsAsFactors = FALSE, check.names = FALSE
+      )
+      phase09_fixture_scores <- challenger_selection_scores(
+        phase09_parent$fixture_scores_path,
+        phase09_parent$fixture_scores_sha256
+      )
+      parent_paths <- hybrid_phase11_parent_paths()
+      parent_hashes <- hybrid_phase11_parent_hashes(parent_paths)
+      feature_input <- "data/processed/goal_training_features_hybrid.csv"
+      list(
+        environment = environment,
+        protocol = protocol,
+        phase09_registries = phase09_registries,
+        phase09_inputs = phase09_inputs,
+        phase09_parent = phase09_parent,
+        phase09_fixture_scores = phase09_fixture_scores,
+        phase10_protocol = phase10_protocol,
+        phase10_validation = phase10_validation,
+        phase10_fixture_scores = phase10_fixture_scores,
+        phase10_comparisons = phase10_comparisons,
+        phase10_shortlist = phase10_shortlist,
+        feature_input = feature_input,
+        feature_input_sha256 = benchmark_runner_file_sha256(feature_input),
+        phase11_dir = phase11_dir,
+        mode_registry = protocol$mode_registry,
+        parent_paths = parent_paths,
+        parent_hashes = parent_hashes,
+        parent_graph_sha256 = challenger_selection_parent_graph_sha256(parent_hashes)
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase11_predictions,
+    {
+      context <- benchmark_phase11_registries
+      history <- read.csv(context$feature_input, stringsAsFactors = FALSE, check.names = FALSE)
+      validate_forecast_feature_evidence(
+        history, context$phase09_inputs$feature_contract,
+        derived_mappings = c(
+          elo_difference_for_team = "elo_diff",
+          venue_advantage_for_team = "elo_diff"
+        )
+      )
+      history <- .phase10_runner_prepare_history(history, context$phase10_protocol)
+      history <- history[
+        as.Date(history$date) <= max(as.Date(context$phase09_registries$fixtures$actual_completion_date)),
+        , drop = FALSE
+      ]
+      guard_benchmark_purpose(history, "candidate_selection")
+      tracks <- lapply(c("frozen", "updating"), function(track_id) {
+        benchmark_runner_track_fixtures(
+          context$phase09_registries$fixtures,
+          context$phase09_registries$tournaments,
+          context$phase09_registries$boundaries,
+          context$phase09_registries$teams,
+          history, track_id, context$phase09_inputs$feature_contract
+        )
+      })
+      fixtures <- do.call(rbind, tracks)
+      dynamic <- hybrid_prepare_dynamic_history_and_fixtures(history, fixtures)
+      history <- dynamic$history
+      dynamic_features <- setdiff(
+        names(dynamic$fixtures),
+        c("fixture_id", "actual_completion_date", "evidence_cutoff_exclusive", "home_team_id", "away_team_id")
+      )
+      for (column in dynamic_features) fixtures[[column]] <- dynamic$fixtures[[column]]
+      baseline_ids <- c(
+        context$phase09_parent$baseline_ids,
+        as.character(context$phase10_shortlist$challenger_id)
+      )
+      run_hybrid_challenger_benchmark(
+        history = history,
+        fixtures = fixtures,
+        seed_registry = context$phase09_inputs$seed_registry,
+        candidate_order = hybrid_phase11_candidate_ids(context$protocol),
+        run_id = "phase11-hybrid-challenger-benchmark",
+        publish = FALSE,
+        output_dir = "outputs/benchmarks/rolling_tournaments/phase11-hybrid-challengers",
+        protocol = context$protocol,
+        comparison_scores = rbind(context$phase09_fixture_scores, context$phase10_fixture_scores),
+        comparison_tournaments = context$phase09_registries$tournaments,
+        comparison_panel_fixtures = context$phase09_inputs$panel_fixtures,
+        comparison_baseline_ids = baseline_ids,
+        parent_hashes = context$parent_hashes,
+        mode_registry = context$mode_registry,
+        synthetic = FALSE
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase11_scores,
+    {
+      benchmark_phase11_predictions$predictions
+      benchmark_phase11_predictions$distributions
+      list(
+        fixture_scores = benchmark_phase11_predictions$scores,
+        benchmark_summaries = benchmark_phase11_predictions$benchmark_summaries
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase11_comparisons,
+    {
+      benchmark_phase11_scores
+      list(
+        all_baseline_paired_comparisons = benchmark_phase11_predictions$comparisons,
+        hybrid_shortlist = benchmark_phase11_predictions$shortlist,
+        candidate_evidence = benchmark_phase11_predictions$candidate_evidence,
+        mode_companion_evidence = benchmark_phase11_predictions$mode_companion_evidence
+      )
+    }
+  ),
+  tar_target(
+    benchmark_phase11_bundle_files,
+    {
+      benchmark_phase11_comparisons
+      write_hybrid_challenger_bundle(
+        benchmark_phase11_predictions,
+        "outputs/benchmarks/rolling_tournaments/phase11-hybrid-challengers"
+      )
+      unname(hybrid_output_paths(
+        "outputs/benchmarks/rolling_tournaments/phase11-hybrid-challengers"
       ))
     },
     format = "file"

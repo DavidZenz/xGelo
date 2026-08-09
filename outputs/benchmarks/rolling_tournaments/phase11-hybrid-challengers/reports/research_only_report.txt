@@ -1,0 +1,7 @@
+Phase 11 hybrid challenger evidence bundle
+research_only=TRUE
+wc2026_sealed=TRUE
+phase12_decision_authority=FALSE
+open_fixture_count=630
+rich_fixture_count=609
+selected_g=40

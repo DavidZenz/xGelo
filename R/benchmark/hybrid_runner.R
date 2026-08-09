@@ -16,6 +16,18 @@
   invisible(TRUE)
 }
 
+.hybrid_runner_utf8 <- function(value) {
+  enc2utf8(as.character(value))
+}
+
+.hybrid_runner_normalize_identifiers <- function(data, columns) {
+  if (!is.data.frame(data)) return(data)
+  for (column in intersect(columns, names(data))) {
+    data[[column]] <- .hybrid_runner_utf8(data[[column]])
+  }
+  data
+}
+
 .hybrid_runner_file_sha256 <- function(relative_path) {
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for the Phase 11 runner manifest", call. = FALSE)
   root <- if (exists(".phase11_protocol_root", mode = "function")) .phase11_protocol_root(".") else normalizePath(".", mustWork = TRUE)
@@ -68,6 +80,7 @@ hybrid_phase11_parent_paths <- function() {
     phase10_fixture_scores = "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers/scores/fixture_scores.csv",
     phase10_comparisons = "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers/comparisons/all_baseline_paired_comparisons.csv",
     phase10_shortlist = "outputs/benchmarks/rolling_tournaments/phase10-statistical-challengers/selection/shortlist.csv",
+    elo_ratings = "data/processed/elo_ratings.csv",
     goal_training_features_hybrid = "data/processed/goal_training_features_hybrid.csv"
   )
 }
@@ -174,6 +187,51 @@ hybrid_output_paths <- function(output_dir) {
   bundle$bundle_dir <- normalizePath(output_dir, mustWork = TRUE)
   bundle$durable <- TRUE
   bundle
+}
+
+.hybrid_runner_validate_comparison_denominators <- function(comparisons) {
+  required <- c(
+    "candidate_id", "baseline_id", "comparison_panel_id", "track_id",
+    "diagnostic", "paired_fixture_count"
+  )
+  missing <- setdiff(required, names(comparisons))
+  if (length(missing)) {
+    stop(
+      "Hybrid comparisons are missing denominator columns: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  comparisons$comparison_panel_id <- as.character(comparisons$comparison_panel_id)
+  comparisons$diagnostic <- as.character(comparisons$diagnostic)
+  expected_by_panel <- c(open_core = 630L, feature_rich = 609L)
+  unknown_panels <- setdiff(unique(comparisons$comparison_panel_id), names(expected_by_panel))
+  if (length(unknown_panels)) {
+    stop(
+      "Hybrid comparisons contain unknown comparison panels: ",
+      paste(unknown_panels, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  group_columns <- c("candidate_id", "baseline_id", "track_id", "comparison_panel_id")
+  group_key <- do.call(paste, c(comparisons[group_columns], sep = "\r"))
+  groups <- split(comparisons, group_key, drop = TRUE)
+  for (rows in groups) {
+    expected <- unname(expected_by_panel[[rows$comparison_panel_id[[1L]]]])
+    folds <- rows[rows$diagnostic == "fold", , drop = FALSE]
+    if (nrow(folds) != 12L || anyNA(as.integer(folds$paired_fixture_count)) ||
+        sum(as.integer(folds$paired_fixture_count)) != expected) {
+      stop("Hybrid comparison fold denominators drifted from exact open/rich panels", call. = FALSE)
+    }
+    headline <- rows[rows$diagnostic %in% c(
+      "equal_tournament_headline", "fixture_weighted_secondary"
+    ), , drop = FALSE]
+    if (nrow(headline) != 2L || anyNA(as.integer(headline$paired_fixture_count)) ||
+        any(as.integer(headline$paired_fixture_count) != expected)) {
+      stop("Hybrid comparison headline denominators drifted from exact open/rich panels", call. = FALSE)
+    }
+  }
+  invisible(comparisons)
 }
 
 .hybrid_runner_validate_checksum_manifest <- function(output_dir) {
@@ -298,11 +356,7 @@ validate_hybrid_challenger_bundle <- function(bundle) {
         any(!vapply(bundle$comparisons$wc2026_sealed, .hybrid_runner_as_flag, logical(1)))) {
       stop("Hybrid comparisons must remain open-mode research evidence", call. = FALSE)
     }
-    open_counts <- bundle$comparisons$comparison_panel_id == "open_core"
-    if (any(as.integer(bundle$comparisons$paired_fixture_count[open_counts]) != 630L) ||
-        any(as.integer(bundle$comparisons$paired_fixture_count[!open_counts]) != 609L)) {
-      stop("Hybrid comparisons drifted from exact open/rich denominators", call. = FALSE)
-    }
+    .hybrid_runner_validate_comparison_denominators(bundle$comparisons)
   }
   if (!is.data.frame(bundle$parent_inputs) || !nrow(bundle$parent_inputs)) {
     stop("Hybrid bundle must carry explicit parent inputs", call. = FALSE)
@@ -333,6 +387,322 @@ validate_hybrid_challenger_bundle <- function(bundle) {
   }
   if (any(!eligible)) stop("Hybrid research runner fails closed when any requested fixture is not score eligible", call. = FALSE)
   invisible(TRUE)
+}
+
+.hybrid_runner_namespace_track_distribution_ids <- function(adapter, track_id) {
+  if (isTRUE(adapter$inactive) || !is.data.frame(adapter$distributions) ||
+      !nrow(adapter$distributions)) return(adapter)
+  old_ids <- .hybrid_runner_utf8(adapter$distributions$score_distribution_id)
+  if (anyNA(old_ids) || any(!nzchar(old_ids))) {
+    stop("Hybrid adapter returned incomplete score distribution IDs within a track", call. = FALSE)
+  }
+  unique_old_ids <- unique(old_ids)
+  unique_new_ids <- paste("phase11", .hybrid_runner_utf8(track_id), unique_old_ids, sep = "__")
+  adapter$distributions$score_distribution_id <- unique_new_ids[match(old_ids, unique_old_ids)]
+  if (is.data.frame(adapter$predictions) && nrow(adapter$predictions)) {
+    prediction_ids <- .hybrid_runner_utf8(adapter$predictions$score_distribution_id)
+    prediction_index <- match(prediction_ids, unique_old_ids)
+    if (anyNA(prediction_index)) {
+      stop("Hybrid adapter predictions reference an unknown track distribution", call. = FALSE)
+    }
+    adapter$predictions$score_distribution_id <- unique_new_ids[prediction_index]
+  }
+  adapter
+}
+
+.hybrid_runner_context_inactive_result <- function(
+    registration, fixtures, seed_registry, run_id, protocol, settings, reason
+) {
+  .hybrid_runner_source_if_missing(
+    "R/benchmark/hybrid_adapters.R",
+    c(".hybrid_context_registered_settings", ".hybrid_xg_inactive_result")
+  )
+  resolved_settings <- tryCatch(
+    .hybrid_context_registered_settings(settings, registration),
+    error = function(error) {
+      list(
+        support_max = 40L,
+        ranger_package = as.character(registration$ranger_package[[1L]]),
+        ranger_version = as.character(registration$ranger_version[[1L]]),
+        ranger_provenance_id = as.character(registration$ranger_provenance_id[[1L]]),
+        provenance_path = "data/benchmark/phase11/ranger_provenance.csv",
+        registration_sha256 = as.character(registration$registration_sha256[[1L]]),
+        settings_sha256 = as.character(registration$settings_sha256[[1L]])
+      )
+    }
+  )
+  gate <- data.frame(
+    gate_id = "",
+    gate_parent_sha256 = "",
+    coverage = NA_real_,
+    variance = NA_real_,
+    provenance = FALSE,
+    inactive_reason = as.character(reason),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  result <- .hybrid_xg_inactive_result(
+    registration = registration,
+    fixtures = fixtures,
+    seed_registry = seed_registry,
+    run_id = run_id,
+    protocol = protocol,
+    settings = resolved_settings,
+    gate = gate
+  )
+  result$inactive_evidence$removed_feature_id <- if (
+    "removed_feature_id" %in% names(registration)
+  ) as.character(registration$removed_feature_id[[1L]]) else ""
+  result$inactive_evidence$context_parent_hashes <- if (
+    "context_parent_hashes" %in% names(registration)
+  ) as.character(registration$context_parent_hashes[[1L]]) else ""
+  result$inactive_evidence$score_status <- "no_score_context_panel_ineligible"
+  result$inactive_evidence$error_reason <- as.character(reason)
+  result$manifests$context_feature_set_id <- as.character(registration$context_feature_set_id[[1L]])
+  result$manifests$removed_feature_id <- if (
+    "removed_feature_id" %in% names(registration)
+  ) as.character(registration$removed_feature_id[[1L]]) else ""
+  result$manifests$context_parent_hashes <- if (
+    "context_parent_hashes" %in% names(registration)
+  ) as.character(registration$context_parent_hashes[[1L]]) else ""
+  result$manifests$score_status <- "no_score_context_panel_ineligible"
+  result$manifests$inactive_reason <- as.character(reason)
+  result$manifests$dropped_predictors_with_reason <- paste0(
+    "context common panel inactive: ", as.character(reason)
+  )
+  result$manifests$fallback_status <- "inactive_context_panel"
+  result$context_inactive_reason <- as.character(reason)
+  result
+}
+
+.hybrid_runner_point_in_time_elo <- function(fixtures, home_advantage = 60) {
+  .hybrid_runner_source_if_missing(
+    "R/forecast/features.R",
+    c("make_latest_team_evidence_lookup", "forecast_difference_evidence")
+  )
+  required <- c("evidence_cutoff_exclusive", "home_team_id", "away_team_id")
+  missing <- setdiff(required, names(fixtures))
+  if (length(missing)) stop("Point-in-time Elo fixtures are missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  cutoffs <- as.Date(fixtures$evidence_cutoff_exclusive)
+  if (anyNA(cutoffs)) stop("Point-in-time Elo requires complete evidence cutoffs", call. = FALSE)
+  root <- .hybrid_runner_root()
+  ratings_path <- file.path(root, "data/processed/elo_ratings.csv")
+  if (!file.exists(ratings_path)) stop("Point-in-time Elo source artifact is missing", call. = FALSE)
+  ratings <- utils::read.csv(ratings_path, stringsAsFactors = FALSE, check.names = FALSE)
+  ratings$date <- as.Date(ratings$date)
+  if (!all(c("team", "date", "rating") %in% names(ratings))) {
+    stop("Point-in-time Elo source artifact is missing team/date/rating columns", call. = FALSE)
+  }
+  ratings <- ratings[!is.na(ratings$date) & ratings$date < max(cutoffs), , drop = FALSE]
+  if (!nrow(ratings)) stop("Point-in-time Elo source has no rows before the evaluation panel", call. = FALSE)
+  get_rating <- make_latest_team_evidence_lookup(ratings, "rating", default = 1500)
+  team_registry <- NULL
+  resolve_team_names <- function(column, id_column) {
+    if (column %in% names(fixtures)) return(.hybrid_runner_utf8(fixtures[[column]]))
+    if (is.null(team_registry)) {
+      team_registry <<- utils::read.csv(
+        file.path(root, "data/benchmark/phase09/teams.csv"),
+        stringsAsFactors = FALSE, check.names = FALSE
+      )
+    }
+    resolved <- as.character(team_registry$canonical_name[match(as.character(fixtures[[id_column]]), team_registry$team_id)])
+    .hybrid_runner_utf8(resolved)
+  }
+  home_names <- resolve_team_names("home_team", "home_team_id")
+  away_names <- resolve_team_names("away_team", "away_team_id")
+  venue <- if ("venue_role" %in% names(fixtures)) {
+    .hybrid_runner_utf8(fixtures$venue_role)
+  } else {
+    rep("home", nrow(fixtures))
+  }
+  values <- source_dates <- rep(NA, nrow(fixtures))
+  source_present <- value_present <- rep(FALSE, nrow(fixtures))
+  imputed <- rep(TRUE, nrow(fixtures))
+  reasons <- rep("missing_source_row", nrow(fixtures))
+  for (index in seq_len(nrow(fixtures))) {
+    home <- get_rating(home_names[[index]], cutoffs[[index]])
+    away <- get_rating(away_names[[index]], cutoffs[[index]])
+    evidence <- forecast_difference_evidence(home, away)
+    if (!isTRUE(evidence$source_present) || !isTRUE(evidence$value_present)) {
+      stop(
+        "Point-in-time Elo is unavailable for fixture ", as.character(fixtures$fixture_id[[index]]),
+        " before ", as.character(cutoffs[[index]]), call. = FALSE
+      )
+    }
+    value <- as.numeric(evidence$value)
+    if (identical(venue[[index]], "home")) value <- value + home_advantage
+    if (identical(venue[[index]], "away")) value <- value - home_advantage
+    values[[index]] <- value
+    source_dates[[index]] <- as.Date(evidence$source_date)
+    source_present[[index]] <- TRUE
+    value_present[[index]] <- TRUE
+    imputed[[index]] <- FALSE
+    reasons[[index]] <- ""
+  }
+  list(
+    elo_diff = as.numeric(values),
+    source_date = as.Date(source_dates, origin = "1970-01-01"),
+    source_present = source_present,
+    value_present = value_present,
+    imputed = imputed,
+    imputation_reason = reasons
+  )
+}
+
+#' Add the registered point-in-time dynamic goal features to the Phase 11
+#' history and benchmark fixtures.
+#'
+#' The benchmark feature file contains the checked Elo and enriched columns,
+#' but dynamic attack/defence effects are intentionally replayed at execution
+#' time.  The replay predicts each date before updating that date's results and
+#' removes only cold-start training rows; it never fills missing evidence with
+#' a value that could be mistaken for an observed feature.
+#' @export
+hybrid_prepare_dynamic_history_and_fixtures <- function(
+    history, fixtures, pseudo_exposure = 8, half_life_days = 730
+) {
+  .hybrid_runner_source_if_missing(
+    "R/forecast/dynamic_goal_ability.R",
+    c(
+      "dynamic_goal_as_results", "initialize_dynamic_goal_state",
+      "replay_dynamic_goal_states"
+    )
+  )
+  if (!is.data.frame(history) || !nrow(history)) stop("Dynamic hybrid history must contain rows", call. = FALSE)
+  if (!is.data.frame(fixtures) || !nrow(fixtures)) stop("Dynamic hybrid fixtures must contain rows", call. = FALSE)
+  required_history <- c("match_id", "date", "home_team_id", "away_team_id", "home_goals", "away_goals")
+  missing_history <- setdiff(required_history, names(history))
+  if (length(missing_history)) stop("Dynamic hybrid history is missing: ", paste(missing_history, collapse = ", "), call. = FALSE)
+  required_fixtures <- c("fixture_id", "actual_completion_date", "home_team_id", "away_team_id")
+  missing_fixtures <- setdiff(required_fixtures, names(fixtures))
+  if (length(missing_fixtures)) stop("Dynamic hybrid fixtures are missing: ", paste(missing_fixtures, collapse = ", "), call. = FALSE)
+  history <- .hybrid_runner_normalize_identifiers(
+    history, c("match_id", "home_team_id", "away_team_id")
+  )
+  fixtures <- .hybrid_runner_normalize_identifiers(
+    fixtures, c("fixture_id", "edition_id", "boundary_id", "home_team_id", "away_team_id")
+  )
+  history_results <- dynamic_goal_as_results(history)
+  history_results$fixture_id <- .hybrid_runner_utf8(history_results$match_id)
+  history_results <- .hybrid_runner_normalize_identifiers(
+    history_results, c("fixture_id", "home_team_id", "away_team_id")
+  )
+  history_results$match_date <- as.Date(history_results$match_date)
+  history_results <- history_results[order(history_results$match_date, history_results$fixture_id, method = "radix"), , drop = FALSE]
+  if (anyNA(history_results$match_date) || anyDuplicated(history_results$fixture_id)) {
+    stop("Dynamic hybrid history identities and dates must be complete and unique", call. = FALSE)
+  }
+  prediction_dates <- if ("evidence_cutoff_exclusive" %in% names(fixtures)) {
+    as.Date(fixtures$evidence_cutoff_exclusive)
+  } else as.Date(fixtures$actual_completion_date)
+  target <- data.frame(
+    dynamic_fixture_id = paste0("phase11_dynamic_fixture__", seq_len(nrow(fixtures))),
+    fixture_id = .hybrid_runner_utf8(fixtures$fixture_id),
+    match_date = prediction_dates,
+    actual_completion_date = as.Date(fixtures$actual_completion_date),
+    evidence_cutoff_exclusive = prediction_dates,
+    home_team_id = .hybrid_runner_utf8(fixtures$home_team_id),
+    away_team_id = .hybrid_runner_utf8(fixtures$away_team_id),
+    stringsAsFactors = FALSE
+  )
+  if ("home_team" %in% names(fixtures)) target$home_team <- .hybrid_runner_utf8(fixtures$home_team)
+  if ("away_team" %in% names(fixtures)) target$away_team <- .hybrid_runner_utf8(fixtures$away_team)
+  if ("venue_role" %in% names(fixtures)) target$venue_role <- .hybrid_runner_utf8(fixtures$venue_role)
+  if ("elo_diff" %in% names(fixtures)) target$elo_diff <- as.numeric(fixtures$elo_diff)
+  elo_source <- .hybrid_runner_point_in_time_elo(target)
+  target$elo_diff <- elo_source$elo_diff
+  target$elo_diff__source_date <- elo_source$source_date
+  target$elo_diff__source_present <- elo_source$source_present
+  target$elo_diff__value_present <- elo_source$value_present
+  target$elo_diff__imputed <- elo_source$imputed
+  target$elo_diff__imputation_reason <- elo_source$imputation_reason
+  if (anyNA(target$match_date) || anyNA(target$home_team_id) || anyNA(target$away_team_id)) {
+    stop("Dynamic hybrid target fixture identity or dates are incomplete", call. = FALSE)
+  }
+  team_ids <- sort(unique(c(
+    as.character(history_results$home_team_id), as.character(history_results$away_team_id),
+    target$home_team_id, target$away_team_id
+  )), method = "radix")
+  observed_goals <- c(as.numeric(history_results$home_goals), as.numeric(history_results$away_goals))
+  global_rate <- mean(observed_goals[is.finite(observed_goals) & observed_goals >= 0])
+  if (!is.finite(global_rate) || global_rate <= 0) global_rate <- 1.25
+  initial_state <- initialize_dynamic_goal_state(
+    team_ids = team_ids, global_goal_rate = global_rate,
+    pseudo_exposure = pseudo_exposure, as_of_date = min(history_results$match_date)
+  )
+  history_replay_fixtures <- history_results[, c(
+    "fixture_id", "match_date", "home_team_id", "away_team_id"
+  ), drop = FALSE]
+  history_replay <- replay_dynamic_goal_states(
+    history = history_results,
+    fixtures = history_replay_fixtures,
+    initial_state = initial_state,
+    half_life_days = half_life_days
+  )$predictions
+  target_replay_columns <- intersect(
+    c("dynamic_fixture_id", "match_date", "home_team_id", "away_team_id", "elo_diff"),
+    names(target)
+  )
+  target_replay_input <- target[, target_replay_columns, drop = FALSE]
+  target_replay_input$fixture_id <- .hybrid_runner_utf8(target_replay_input$dynamic_fixture_id)
+  target_replay <- replay_dynamic_goal_states(
+    history = history_results,
+    fixtures = target_replay_input,
+    initial_state = initial_state,
+    half_life_days = half_life_days
+  )$predictions
+  names(target_replay)[names(target_replay) == "fixture_id"] <- "dynamic_fixture_id"
+
+  attach_features <- function(rows, predictions, key_column, cutoff_column) {
+    index <- match(as.character(rows[[key_column]]), as.character(predictions[[key_column]]))
+    if (anyNA(index)) stop("Dynamic replay omitted a requested fixture identity", call. = FALSE)
+    value_source <- list(
+      home_attack_effect = "home_state_source_date",
+      home_defence_effect = "home_state_source_date",
+      away_attack_effect = "away_state_source_date",
+      away_defence_effect = "away_state_source_date"
+    )
+    for (feature in names(value_source)) {
+      values <- suppressWarnings(as.numeric(predictions[[feature]][index]))
+      source_dates <- as.Date(predictions[[value_source[[feature]]]][index])
+      cutoff <- as.Date(rows[[cutoff_column]])
+      present <- is.finite(values) & !is.na(source_dates) & source_dates < cutoff
+      rows[[feature]] <- values
+      rows[[paste0(feature, "__source_date")]] <- source_dates
+      rows[[paste0(feature, "__source_present")]] <- present
+      rows[[paste0(feature, "__value_present")]] <- present
+      rows[[paste0(feature, "__imputed")]] <- !present
+      rows[[paste0(feature, "__imputation_reason")]] <- ifelse(
+        present, "", "dynamic_cold_start_or_missing_prior_evidence"
+      )
+    }
+    rows
+  }
+  history_augmented <- attach_features(
+    history_results, history_replay, "fixture_id", "match_date"
+  )
+  history_augmented$date <- as.Date(history_augmented$match_date)
+  history_augmented$actual_completion_date <- as.Date(history_augmented$match_date)
+  history_augmented$match_id <- as.character(history_augmented$fixture_id)
+  history_augmented$home_goals <- as.numeric(history_augmented$home_goals)
+  history_augmented$away_goals <- as.numeric(history_augmented$away_goals)
+  keep <- rep(TRUE, nrow(history_augmented))
+  for (feature in c("home_attack_effect", "home_defence_effect", "away_attack_effect", "away_defence_effect")) {
+    keep <- keep & is.finite(as.numeric(history_augmented[[feature]])) &
+      as.logical(history_augmented[[paste0(feature, "__source_present")]]) &
+      !as.logical(history_augmented[[paste0(feature, "__imputed")]])
+  }
+  history_augmented <- history_augmented[keep, , drop = FALSE]
+  if (!nrow(history_augmented)) stop("Dynamic replay left no complete training rows", call. = FALSE)
+  target_augmented <- attach_features(
+    target, target_replay, "dynamic_fixture_id", "match_date"
+  )
+  target_augmented$fixture_id <- as.character(target_augmented$fixture_id)
+  target_augmented$evidence_cutoff_exclusive <- as.Date(target_augmented$match_date)
+  target_augmented$dynamic_fixture_id <- NULL
+  target_augmented$match_date <- NULL
+  if (!identical(nrow(target_augmented), nrow(fixtures))) stop("Dynamic target replay changed fixture cardinality", call. = FALSE)
+  list(history = history_augmented, fixtures = target_augmented)
 }
 
 #' Execute the RF challenger through registry, adapter, score service, and
@@ -370,6 +740,10 @@ run_hybrid_challenger_benchmark <- function(
     "R/evaluation/benchmark_scores.R",
     c("score_benchmark_fixtures")
   )
+  .hybrid_runner_source_if_missing(
+    "R/benchmark/contracts.R",
+    c("benchmark_seed_key_sha256", "validate_seed_registry")
+  )
   if (is.null(protocol)) protocol <- load_and_validate_hybrid_protocol()
   candidate_order <- as.character(candidate_order)
   registered <- hybrid_phase11_candidate_ids(protocol)
@@ -383,26 +757,27 @@ run_hybrid_challenger_benchmark <- function(
     .hybrid_runner_source_if_missing("R/benchmark/cutoffs.R", c("guard_benchmark_purpose"))
     history <- guard_benchmark_purpose(history, purpose = "candidate_selection")
   }
-  fixtures <- hybrid_normalize_fixtures(fixtures)
+  if (!"track_id" %in% names(fixtures)) {
+    stop("Hybrid runner fixtures require explicit track_id values", call. = FALSE)
+  }
+  track_ids <- sort(unique(as.character(fixtures$track_id)), method = "radix")
+  if (!length(track_ids) || anyNA(track_ids) || any(!nzchar(track_ids))) {
+    stop("Hybrid runner fixtures require non-empty track_id values", call. = FALSE)
+  }
+  fixtures <- do.call(rbind, lapply(track_ids, function(track_id) {
+    track_fixtures <- fixtures[as.character(fixtures$track_id) == track_id, , drop = FALSE]
+    track_fixtures$forecast_sequence_public <- track_fixtures$forecast_sequence
+    track_fixtures$forecast_sequence <- seq_len(nrow(track_fixtures))
+    hybrid_normalize_fixtures(track_fixtures)
+  }))
+  rownames(fixtures) <- NULL
+  fixtures <- .hybrid_runner_normalize_identifiers(
+    fixtures, c("fixture_id", "edition_id", "boundary_id", "home_team_id", "away_team_id", "venue_role")
+  )
+  history <- .hybrid_runner_normalize_identifiers(
+    history, c("match_id", "home_team_id", "away_team_id")
+  )
   .hybrid_runner_score_inputs(fixtures)
-  adapters <- lapply(candidate_order, function(candidate_id) {
-    candidate_settings <- .hybrid_runner_settings_for(settings_by_candidate, candidate_id)
-    run_registered_hybrid_adapter(
-      candidate_id = candidate_id, history = history, fixtures = fixtures,
-      seed_registry = seed_registry, support_max = 40L, run_id = run_id,
-      protocol = protocol, settings = candidate_settings
-    )
-  })
-  names(adapters) <- candidate_order
-  active_adapters <- adapters[!vapply(adapters, function(adapter) isTRUE(adapter$inactive), logical(1))]
-  scores <- if (length(active_adapters)) do.call(rbind, lapply(active_adapters, function(adapter) {
-    score_benchmark_fixtures(
-      predictions = adapter$predictions,
-      fixtures = fixtures,
-      distributions = adapter$distributions,
-      expected_fixture_ids = as.character(fixtures$fixture_id)
-    )
-  })) else data.frame(stringsAsFactors = FALSE)
   bind_frames <- function(pieces) {
     pieces <- pieces[vapply(pieces, is.data.frame, logical(1)) & vapply(pieces, nrow, integer(1)) > 0L]
     if (!length(pieces)) return(data.frame(stringsAsFactors = FALSE))
@@ -416,6 +791,98 @@ run_hybrid_challenger_benchmark <- function(
     rownames(result) <- NULL
     result
   }
+  combine_track_adapters <- function(pieces) {
+    inactive <- pieces[vapply(pieces, function(piece) isTRUE(piece$inactive), logical(1))]
+    if (length(inactive)) return(inactive[[1L]])
+    result <- pieces[[1L]]
+    for (field in c("predictions", "distributions", "means", "manifests", "feature_coverage")) {
+      result[[field]] <- bind_frames(lapply(pieces, `[[`, field))
+    }
+    result
+  }
+  track_seed_registries <- lapply(track_ids, function(track_id) {
+    if (is.null(seed_registry)) return(NULL)
+    track_fixtures <- fixtures[as.character(fixtures$track_id) == track_id, , drop = FALSE]
+    seed_index <- match(as.character(track_fixtures$fixture_id), as.character(seed_registry$fixture_id))
+    if (anyNA(seed_index)) stop("Hybrid seed registry is missing a requested track fixture", call. = FALSE)
+    track_seed_registry <- seed_registry[seed_index, , drop = FALSE]
+    track_seed_registry$boundary_id <- as.character(track_fixtures$boundary_id)
+    track_seed_registry$seed_key_sha256 <- benchmark_seed_key_sha256(track_seed_registry)
+    validate_seed_registry(track_seed_registry)
+    track_seed_registry
+  })
+  adapters <- lapply(candidate_order, function(candidate_id) {
+    candidate_settings <- .hybrid_runner_settings_for(settings_by_candidate, candidate_id)
+    registration <- hybrid_registration(protocol, candidate_id)
+    track_adapters <- lapply(seq_along(track_ids), function(index) {
+      track_id <- track_ids[[index]]
+      track_fixtures <- fixtures[as.character(fixtures$track_id) == track_id, , drop = FALSE]
+      if (.hybrid_adapter_is_context(registration)) {
+        context_result <- tryCatch(
+          run_registered_hybrid_adapter(
+            candidate_id = candidate_id, history = history,
+            fixtures = track_fixtures,
+            seed_registry = track_seed_registries[[index]], support_max = 40L, run_id = run_id,
+            protocol = protocol, settings = candidate_settings
+          ),
+          error = function(error) error
+        )
+        if (inherits(context_result, "error")) {
+          context_result <- .hybrid_runner_context_inactive_result(
+            registration = registration,
+            fixtures = track_fixtures,
+            seed_registry = track_seed_registries[[index]],
+            run_id = run_id,
+            protocol = protocol,
+            settings = candidate_settings,
+            reason = conditionMessage(context_result)
+          )
+        }
+        context_result
+      } else {
+        run_registered_hybrid_adapter(
+          candidate_id = candidate_id, history = history,
+          fixtures = track_fixtures,
+          seed_registry = track_seed_registries[[index]], support_max = 40L, run_id = run_id,
+          protocol = protocol, settings = candidate_settings
+        )
+      }
+    })
+    for (index in seq_along(track_adapters)) {
+      adapter <- track_adapters[[index]]
+      adapter <- .hybrid_runner_namespace_track_distribution_ids(adapter, track_ids[[index]])
+      if (!isTRUE(adapter$inactive) && is.data.frame(adapter$predictions) && nrow(adapter$predictions)) {
+        track_fixtures <- fixtures[as.character(fixtures$track_id) == track_ids[[index]], , drop = FALSE]
+        sequence_index <- match(
+          as.character(adapter$predictions$fixture_id), as.character(track_fixtures$fixture_id)
+        )
+        if (anyNA(sequence_index)) stop("Hybrid adapter predictions lost fixture sequence identity", call. = FALSE)
+        adapter$predictions$forecast_sequence <- as.integer(
+          track_fixtures$forecast_sequence_public[sequence_index]
+        )
+        track_adapters[[index]] <- adapter
+      }
+    }
+    combine_track_adapters(track_adapters)
+  })
+  names(adapters) <- candidate_order
+  active_adapters <- adapters[!vapply(adapters, function(adapter) isTRUE(adapter$inactive), logical(1))]
+  scores <- if (length(active_adapters)) do.call(rbind, lapply(active_adapters, function(adapter) {
+    do.call(rbind, lapply(track_ids, function(track_id) {
+      track_fixtures <- fixtures[as.character(fixtures$track_id) == track_id, , drop = FALSE]
+      track_predictions <- adapter$predictions[as.character(adapter$predictions$track_id) == track_id, , drop = FALSE]
+      track_distribution_ids <- unique(as.character(track_predictions$score_distribution_id))
+      score_benchmark_fixtures(
+        predictions = track_predictions,
+        fixtures = track_fixtures,
+        distributions = adapter$distributions[
+          as.character(adapter$distributions$score_distribution_id) %in% track_distribution_ids,
+          , drop = FALSE
+        ],
+        expected_fixture_ids = unique(as.character(track_fixtures$fixture_id))
+      )
+    }))
+  })) else data.frame(stringsAsFactors = FALSE)
   bind_active <- function(field) {
     if (!length(active_adapters)) return(data.frame(stringsAsFactors = FALSE))
     pieces <- lapply(active_adapters, `[[`, field)

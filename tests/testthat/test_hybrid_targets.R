@@ -33,7 +33,7 @@ test_that("Phase 11 target chain is downstream-only and keeps research boundarie
     c(
       "dashboard", "worldcup_retrospective", "worldcup_2026",
       "download.file", "httr::", "httr2::", "curl::", "scrap", "live_collect",
-      "evaluate_promotion(", "final_selection", "release_decision"
+      "evaluate_promotion\\s*\\(", "final_selection", "release_decision"
     ),
     collapse = "|"
   )
@@ -101,4 +101,52 @@ test_that("Phase 11 durable path names preserve exact panel and support contract
   expect_equal(as.integer(630L), 630L)
   expect_equal(as.integer(609L), 609L)
   expect_equal(as.integer(40L), 40L)
+})
+
+test_that("Phase 11 namespaces score distributions across forecast tracks", {
+  adapter <- list(
+    inactive = FALSE,
+    distributions = data.frame(
+      score_distribution_id = c("fixture_1", "fixture_1", "fixture_2"),
+      stringsAsFactors = FALSE
+    ),
+    predictions = data.frame(
+      score_distribution_id = c("fixture_1", "fixture_2"),
+      stringsAsFactors = FALSE
+    )
+  )
+  namespaced <- .hybrid_runner_namespace_track_distribution_ids(adapter, "updating")
+  expect_equal(
+    namespaced$distributions$score_distribution_id,
+    c("phase11__updating__fixture_1", "phase11__updating__fixture_1", "phase11__updating__fixture_2")
+  )
+  expect_equal(
+    namespaced$predictions$score_distribution_id,
+    c("phase11__updating__fixture_1", "phase11__updating__fixture_2")
+  )
+})
+
+test_that("Phase 11 comparison validation treats fold rows as an exact-panel sum", {
+  rows <- do.call(rbind, lapply(c("open_core", "feature_rich"), function(panel_id) {
+    expected <- if (identical(panel_id, "open_core")) 630L else 609L
+    data.frame(
+      candidate_id = "candidate", baseline_id = "baseline", track_id = "frozen",
+      comparison_panel_id = panel_id,
+      diagnostic = c(
+        rep("fold", 12L), "equal_tournament_headline", "fixture_weighted_secondary",
+        "tournament_bootstrap", "fold_breadth", rep("leave_one_tournament_out", 12L)
+      ),
+      paired_fixture_count = c(
+        rep(expected %/% 12L, 11L), expected - 11L * (expected %/% 12L),
+        expected, expected, NA_integer_, NA_integer_, rep(NA_integer_, 12L)
+      ),
+      stringsAsFactors = FALSE
+    )
+  }))
+  expect_invisible(.hybrid_runner_validate_comparison_denominators(rows))
+  rows$paired_fixture_count[rows$diagnostic == "equal_tournament_headline"][[1L]] <- 629L
+  expect_error(
+    .hybrid_runner_validate_comparison_denominators(rows),
+    "headline denominators"
+  )
 })
