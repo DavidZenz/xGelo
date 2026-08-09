@@ -168,7 +168,7 @@ test_that("HYBRID-04 dispatches the registered prior and fails closed when a tea
   expect_equal(nrow(registration), 1L)
   expect_identical(as.character(registration$panel_rule), "open_core")
   expect_identical(as.character(registration$feature_rule), "structural_prior_only_no_raw_fields")
-  expect_identical(as.character(registration$structural_snapshot_vintage_id), "worldbank_wdi_2000_v1")
+  expect_identical(as.character(registration$structural_snapshot_vintage_id), "owid_maddison2023_wpp2024_2000_v1")
   expect_equal(as.numeric(registration$prior_strength), 4)
   expect_true(grepl("effective_match_count", as.character(registration$effective_count_formula), fixed = TRUE))
   expect_identical(

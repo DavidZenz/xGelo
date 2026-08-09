@@ -1078,7 +1078,7 @@ canonical_phase11_model_registry <- function() {
     "num.trees=64", "mtry=3", "min.node.size=1",
     "seed_policy=registered_seed", "rf_feature_set_id=phase11_rf_dynamic_elo_open",
     "feature_rule=structural_prior_only_no_raw_fields",
-    "structural_snapshot_vintage_id=worldbank_wdi_2000_v1",
+    "structural_snapshot_vintage_id=owid_maddison2023_wpp2024_2000_v1",
     "prior_strength=4", "evidence_half_life_days=730",
     "effective_count_formula=registered_recency_weighted_appearances",
     "home_away_tuning_relationship=shared_registered_settings",
@@ -1090,7 +1090,7 @@ canonical_phase11_model_registry <- function() {
   row$structural_prior_manifest_sha256 <- .phase11_file_sha256(
     "data/benchmark/phase11/structural_prior_manifest.csv"
   )
-  row$structural_snapshot_vintage_id <- "worldbank_wdi_2000_v1"
+  row$structural_snapshot_vintage_id <- "owid_maddison2023_wpp2024_2000_v1"
   row$prior_strength <- "4"
   row$effective_count_formula <- paste(
     "effective_match_count=sum(exp(-log(2) * (evidence_cutoff_exclusive - match_date)",
@@ -1567,7 +1567,7 @@ validate_hybrid_model_registry <- function(data) {
         as.character(structural_rows$panel_id) != "open_core" ||
         as.character(structural_rows$mode_id) != "open_default" ||
         as.character(structural_rows$feature_set_id) != "phase11_rf_dynamic_elo_open" ||
-        as.character(structural_rows$structural_snapshot_vintage_id) != "worldbank_wdi_2000_v1" ||
+        as.character(structural_rows$structural_snapshot_vintage_id) != "owid_maddison2023_wpp2024_2000_v1" ||
         as.numeric(structural_rows$prior_strength) != 4 ||
         !grepl("^[0-9a-f]{64}$", tolower(as.character(structural_rows$structural_prior_manifest_sha256))) ||
         (nzchar(expected_manifest_hash) &&
