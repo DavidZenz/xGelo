@@ -1,14 +1,14 @@
 ---
-status: human_needed
+status: passed
 phase: 11-hybrid-ml-and-contextual-priors
 source: [11-01-SUMMARY.md, 11-02-SUMMARY.md, 11-03-SUMMARY.md, 11-04-SUMMARY.md, 11-05-SUMMARY.md, 11-06-SUMMARY.md, 11-07-SUMMARY.md, 11-VERIFICATION.md]
 started: 2026-08-09T20:16:53Z
-updated: 2026-08-10T07:35:57Z
+updated: 2026-08-10T07:42:00Z
 ---
 
 ## Current Test
 
-[automated testing complete; substantive structural-prior review pending]
+[testing complete; structural-prior mapping accepted for research use]
 
 ## Tests
 
@@ -150,8 +150,9 @@ source: self-verified
 
 ### 24. Review the OWID/Maddison structural mapping
 expected: The committed 2000 OWID Maddison GDP-per-capita and OWID UN WPP population snapshots, explicit FIFA-code mapping, transformations, and continuous sparse-team shrinkage are substantively appropriate for the intended structural-prior rationale; all required panel teams have usable source rows or a clearly documented exclusion.
-result: pending
-source: human-needed
+result: pass
+source: explicit-developer-approval
+reported: "Developer approved the 2000 OWID Maddison GDP-per-capita and OWID UN WPP population mapping, explicit FIFA-code mapping, log/z transformations, and continuous sparse-team shrinkage for research use. Activation remains fail-closed until admissible historical pre-cutoff vintages exist."
 
 ### 25. Review the Phase 11 regression state
 expected: The focused Phase 11 suites pass, and the complete test suite has no unaccounted failures or stale candidate-registry expectations after the merged nine-candidate registry.
@@ -161,9 +162,9 @@ source: automated
 ## Summary
 
 total: 25
-passed: 24
+passed: 25
 issues: 0
-pending: 1
+pending: 0
 skipped: 0
 blocked: 0
 
@@ -172,9 +173,9 @@ blocked: 0
 <!-- YAML format for plan-phase --gaps consumption -->
 - gap_id: G-11-24
   truth: "The selected structural prior mapping is substantively appropriate for the intended HGR-inspired research rationale."
-  status: human_needed
-  reason: "Automated checks establish source identity, chronology, FIFA-code coverage, transformations, and shrinkage behavior, but cannot approve the literature/domain interpretation."
-  severity: human
+  status: resolved
+  reason: "Developer approved the research-only structural-prior mapping after reviewing the source identities, chronology, explicit FIFA-code mapping, transformations, and shrinkage boundary."
+  severity: resolved
   test: 24
   missing:
     - "Developer review of the two selected 2000 indicators, explicit FIFA-code mapping, log/z transformation, and continuous sparse-team shrinkage rationale."

@@ -1,24 +1,21 @@
 ---
 phase: 11-hybrid-ml-and-contextual-priors
-verified: 2026-08-10T07:35:57Z
-status: human_needed
+verified: 2026-08-10T07:42:00Z
+status: passed
 score: 16/16 must-haves verified under the accepted eligibility-outcome contract
 behavior_unverified: 0
 overrides_applied: 0
 gaps: []
 deferred: []
-human_verification:
-  - test: "Review the committed World Bank WDI indicator mapping and transformation notes against the selected HGR-inspired structural-prior rationale."
-    expected: "The two indicators, 2000 vintage, log/z transformation, and sparse-team shrinkage use are substantively faithful to the intended structural-prior design."
-    why_human: "Schema, hashes, vintages, and automated shrinkage tests cannot establish the literature/domain interpretation."
+human_verification: []
 ---
 
 # Phase 11: Hybrid ML and Contextual Priors Verification Report
 
 **Phase Goal:** Determine whether nonlinear, tournament-context, xG, and structural information add stable value beyond the strongest statistical benchmark.
 
-**Verified:** 2026-08-10T07:35:57Z  
-**Status:** human_needed  
+**Verified:** 2026-08-10T07:42:00Z  
+**Status:** passed  
 **Re-verification:** Yes — after plans 11-08 and 11-09, explicit developer approval, and the corrected immutable audit amendment
 
 ## Goal Achievement
@@ -52,7 +49,7 @@ the historical performance bundle as the only performance record.
 | 15 | Phase 11's durable evidence determines stable value for every information family named in the goal. | ✓ VERIFIED (bounded outcome) | The accepted amendment explicitly records that only the base RF has canonical score rows and that inactive optional families are not performance evidence. The bundle therefore makes no unsupported stable-value claim; any future value estimate requires a new admissible-input rerun under a separate plan. |
 | 16 | Phase 11 remains sealed, network-free, research-only, and does not grant Phase 12 authority. | ✓ VERIFIED | Fresh bundle and target checks report `wc2026_sealed=TRUE`, `network_free=TRUE`, `research_only=TRUE`, `protected_paths_clean=TRUE`, and `phase12_decision_authority=FALSE`. |
 
-**Score:** 16/16 must-haves verified under the accepted eligibility-outcome contract. One substantive WDI/Maddison interpretation review remains human-owned.
+**Score:** 16/16 must-haves verified under the accepted eligibility-outcome contract. The substantive WDI/Maddison interpretation review is complete by explicit developer approval.
 
 ## Required Artifacts
 
@@ -136,13 +133,10 @@ No Phase 11 probe path was declared in the plans/summaries or present under `scr
 
 ## Human Verification Required
 
-1. **Structural-prior substantive mapping**
-
-   **Test:** Review the WDI 2000 source registry, indicator definitions, transformations, and the HGR-inspired rationale.
-
-   **Expected:** The selected indicators and continuous sparse-team shrinkage are substantively justified for the intended domain use.
-
-   **Why human:** Automated checks prove chronology, hashes, schema, and numerical weighting, not literature/domain faithfulness.
+The structural-prior substantive mapping was reviewed and accepted for
+research use. Automated checks still enforce chronology, hashes, schema, and
+numerical weighting; activation remains fail-closed until historical
+pre-cutoff vintages are available.
 
 The external-market legal review is not applicable to this checkout because the optional manual snapshot is absent; the mode remains inactive.
 
@@ -168,5 +162,5 @@ or open the WC2026 holdout automatically.
 
 ---
 
-_Verified: 2026-08-10T07:35:57Z_  
+_Verified: 2026-08-10T07:42:00Z_  
 _Verifier: Codex goal-backward re-verification after explicit developer approval_

@@ -31,11 +31,11 @@
 
 ### Hybrid Models and Features
 
-- [ ] **HYBRID-01**: The analyst can benchmark a Groll-style random forest that includes independently estimated team-ability parameters.
-- [ ] **HYBRID-02**: The analyst can evaluate host, neutral venue, rest, travel, and tournament-context features as a named open-data feature set.
-- [ ] **HYBRID-03**: The benchmark reports xG coverage and activates an xG-informed candidate only when its point-in-time signal passes a declared coverage gate.
-- [ ] **HYBRID-04**: The analyst can evaluate socio-economic variables as a structural prior for teams with sparse recent match evidence.
-- [ ] **HYBRID-05**: Squad information and bookmaker consensus are evaluated only in explicitly labelled enriched or external benchmark modes.
+- [x] **HYBRID-01**: The analyst can benchmark a Groll-style random forest that includes independently estimated team-ability parameters.
+- [x] **HYBRID-02**: The analyst can evaluate host, neutral venue, rest, travel, and tournament-context features as a named open-data feature set.
+- [x] **HYBRID-03**: The benchmark reports xG coverage and activates an xG-informed candidate only when its point-in-time signal passes a declared coverage gate.
+- [x] **HYBRID-04**: The analyst can evaluate socio-economic variables as a structural prior for teams with sparse recent match evidence.
+- [x] **HYBRID-05**: Squad information and bookmaker consensus are evaluated only in explicitly labelled enriched or external benchmark modes.
 
 ### Calibration and Release
 
@@ -85,11 +85,11 @@ Each active v2.0 requirement maps to exactly one roadmap phase.
 | STAT-02 | 10 | Complete |
 | STAT-03 | 10 | Complete |
 | STAT-04 | 10 | Complete |
-| HYBRID-01 | 11 | Pending |
-| HYBRID-02 | 11 | Pending |
-| HYBRID-03 | 11 | Pending |
-| HYBRID-04 | 11 | Pending |
-| HYBRID-05 | 11 | Pending |
+| HYBRID-01 | 11 | Complete |
+| HYBRID-02 | 11 | Complete |
+| HYBRID-03 | 11 | Complete |
+| HYBRID-04 | 11 | Complete |
+| HYBRID-05 | 11 | Complete |
 | CAL-01 | 12 | Pending |
 | CAL-02 | 12 | Pending |
 | PROMO-01 | 12 | Pending |
