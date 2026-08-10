@@ -5,8 +5,8 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: Calibration, Promotion, and Model Release
 status: planning
-stopped_at: Phase 11 complete; transitioned to Phase 12
-last_updated: "2026-08-10T07:54:04.716Z"
+stopped_at: Phase 12 UI-SPEC approved
+last_updated: "2026-08-10T18:30:59.008Z"
 last_activity: 2026-08-10
 last_activity_desc: Phase 11 complete, transitioned to Phase 12
 progress:
@@ -119,9 +119,9 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 
 ## Session
 
-**Last session:** 2026-08-10T06:52:57.821Z
-**Stopped at:** Completed 11-09-PLAN.md
-**Resume file:** None
+**Last session:** 2026-08-10T18:30:58.991Z
+**Stopped at:** Phase 12 UI-SPEC approved
+**Resume file:** .planning/phases/12-calibration-promotion-and-model-release/12-UI-SPEC.md
 
 ## Performance Metrics
 
