@@ -224,7 +224,7 @@ Plans:
 
 **Depends on:** Phase 11
 
-**Plans:** 8 plans
+**Plans:** 9 plans
 
 Plans:
 - [ ] 12-00-PLAN.md — Create contract-only Phase 12 validation scaffolds
@@ -233,8 +233,11 @@ Plans:
 - [ ] 12-03-PLAN.md — Compare raw and calibrated development probabilities
 - [ ] 12-04-PLAN.md — Build label-free final fit and preflight boundary
 - [ ] 12-05-PLAN.md — Run one-shot final evaluation and promotion decision
-- [ ] 12-06-PLAN.md — Stage and atomically publish the complete release bundle
+- [ ] 12-06-PLAN.md — Stage and validate the core versioned release bundle
+- [ ] 12-08-PLAN.md — Complete metadata and atomically install the release bundle
 - [ ] 12-07-PLAN.md — Wire approved consumers, targets, dashboard, and UI regressions
+
+**Execution waves:** Wave 0: 12-00; Wave 1: 12-01; Wave 2: 12-02; Wave 3: 12-03; Wave 4: 12-04; Wave 5: 12-05; Wave 6: 12-06; Wave 7: 12-08; Wave 8: 12-07.
 
 **Success Criteria:**
 

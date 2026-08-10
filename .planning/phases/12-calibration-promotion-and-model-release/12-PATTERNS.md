@@ -1,8 +1,8 @@
 # Phase 12: Calibration, Promotion, and Model Release - Pattern Map
 
 **Mapped:** 2026-08-10
-**Files analyzed:** 17 likely new/modified files
-**Analogs found:** 17 / 17 (exact or partial; no exact analog for the new calibration and release-authority seams)
+**Files analyzed:** 21 likely new/modified files
+**Analogs found:** 21 / 21 (exact or partial; explicit mappings resolve the new final-fit, promotion-report, and release-install seams)
 
 ## File Classification
 
@@ -13,18 +13,28 @@
 | `R/calibration/calibration_selection.R` | evaluation service | CRUD/aggregation, request-response | `R/evaluation/benchmark_scores.R` + `R/evaluation/promotion.R` | role/data-flow strong |
 | `R/evaluation/benchmark_scores.R` | evaluation service | request-response, aggregation | existing file | exact |
 | `R/release/freeze_manifest.R` | manifest/config service | batch, file I/O | `R/benchmark/runner.R` + `R/benchmark/hybrid_runner.R` | role/data-flow strong |
+| `R/release/final_fit.R` | release model-fit service | batch, model I/O | `R/benchmark/hybrid_runner.R` + `R/benchmark/runner.R` | resolved seam; provenance/hash partial |
 | `R/release/final_evaluation.R` | service / controller | request-response, file I/O | `R/benchmark/cutoffs.R` + `R/benchmark/runner.R` | role-match; one-shot opener is new |
+| `R/release/promotion_report.R` | promotion/reporting service | aggregation, file I/O | `R/evaluation/promotion.R` + `R/evaluation/challenger_selection.R` + `R/visualization/worldcup_retrospective.R` | resolved seam; evaluator/report composition |
 | `R/release/release_contract.R` | config / provider | request-response, file I/O | `R/benchmark/runner.R` checksum validation + dashboard loading | partial; no approved resolver exists |
 | `R/release/release_bundle.R` | service / publisher | file I/O, batch | `R/benchmark/runner.R` staged install | exact publication pattern |
+| `R/release/release_install.R` | service / publisher | file I/O, rollback | `R/benchmark/runner.R` + `R/benchmark/hybrid_runner.R` | resolved split completion seam |
 | `_targets.R` | config / orchestration | request-response dependency graph, file I/O | existing Phase 9/11 target chains | exact |
 | `R/visualization/worldcup_dashboard.R` | consumer / export | request-response, file I/O | existing dashboard model loading | role/data-flow exact, authority gap |
 | `tests/testthat/test_phase12_calibration.R` | test | transform/evaluation regression | `tests/testthat/test_benchmark_scoring.R` + `test_benchmark_seal.R` | strong |
 | `tests/testthat/test_phase12_freeze.R` | test | batch/manifest contract | `tests/testthat/test_benchmark_pipeline.R` + `test_hybrid_targets.R` | strong |
 | `tests/testthat/test_phase12_final_evaluation.R` | test | request-response/file I/O negative path | `tests/testthat/test_benchmark_seal.R` + staged-install test in `test_benchmark_pipeline.R` | strong |
+| `tests/testthat/test_phase12_promotion.R` | test | request-response/aggregation | `tests/testthat/test_benchmark_promotion.R` + `test_benchmark_seal.R` | resolved evaluator/seal contract |
 | `tests/testthat/test_phase12_release.R` | test | request-response/file I/O | `tests/testthat/test_worldcup_dashboard.R` + `test_benchmark_pipeline.R` | strong |
 | `tests/testthat/test_worldcup_dashboard.R` | test (extended) | presentation/export regression | existing file | exact consumer regression harness |
 
-The research names four new calibration/release directories and four focused Phase 12 test files. It also requires extending the shared scorer, targets boundary, dashboard/export loading, and inherited regression coverage. Keep the exact nine Phase 11 candidate rows, including inactive/no-score rows, in every Phase 12 registry/report.
+The research names the resolved calibration/release directories and exactly five focused Phase 12 test files. It also requires extending the shared scorer, targets boundary, dashboard/export loading, and inherited regression coverage. Keep the exact nine Phase 11 candidate rows, including inactive/no-score rows, in every Phase 12 registry/report.
+
+### Resolved seam mappings
+
+- `R/release/final_fit.R` maps to `R/benchmark/hybrid_runner.R` for candidate/admissibility/provenance routing and to `R/benchmark/runner.R` for durable model/manifest hashes and stable serialization.
+- `R/release/promotion_report.R` maps to `R/evaluation/promotion.R` for sole evaluator authority, `R/evaluation/challenger_selection.R` for selection shape, and `R/visualization/worldcup_retrospective.R` for report assembly and retrospective evidence.
+- `tests/testthat/test_phase12_promotion.R` maps to `tests/testthat/test_benchmark_promotion.R` for evaluator delegation and to `tests/testthat/test_benchmark_seal.R` for pre-callback/holdout-boundary assertions.
 
 ## Pattern Assignments
 
@@ -427,7 +437,7 @@ One resolver must serve dashboard and export consumers. No latest-file, file-exi
 | `R/calibration/inner_oof.R` | No nested inner-OOF assembly service exists. | Compose cutoff/boundary guards; persist outer/inner edition and source cutoff identities explicitly. |
 | `R/release/final_evaluation.R` | No application-level exactly-once WC2026 label opener exists. | Separate label-free preflight from the sole label-bearing opener and enforce append-only consumed-label state. |
 | `R/release/release_contract.R` | No approved manifest/model-contract resolver exists. | Create one shared fail-closed resolver for dashboard and exports; do not reuse raw model-path arguments as authority. |
-| Final-fit adapter/model object per Phase 11 candidate | Phase 11 publishes research predictions and explicitly has `phase12_decision_authority = FALSE`; no `fit_final_release_model()` was found. | Planner must define an allowlisted pre-2026 final-fit/replay seam and hash the resulting model object in the release contract. |
+| Final-fit adapter/model object per Phase 11 candidate | Phase 11 publishes research predictions and explicitly has `phase12_decision_authority = FALSE`; no direct release-fit helper exists. | Use the resolved `R/release/final_fit.R` seam with `R/benchmark/hybrid_runner.R` candidate/provenance routing and `R/benchmark/runner.R` hash/manifest serialization; retain the allowlisted pre-2026 final-fit contract. |
 
 ## Metadata
 

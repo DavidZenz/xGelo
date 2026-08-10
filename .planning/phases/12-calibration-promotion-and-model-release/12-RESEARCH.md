@@ -82,6 +82,28 @@ The missing work is substantial but bounded: an inner-OOF calibration artifact a
 
 **Primary recommendation:** Preserve the existing score/distribution/promotion contracts, add a Phase 12 file-oriented chain with explicit `preflight -> freeze -> inner-OOF calibration -> development raw/calibrated gate -> final label opening -> final evaluation -> promotion -> release`, and make every consumer resolve and hash-validate the resulting release contract.
 
+## Final Artifact and Focused-Test Inventory (RESOLVED)
+
+This is the final planning inventory for Phase 12. It explicitly names every focused test and the resolved production seams so implementation plans cannot omit promotion, final-fit, release-install, or release-consumer coverage.
+
+### Resolved production seams
+
+| Seam | Responsibility | Analog mapping |
+|---|---|---|
+| `R/release/final_fit.R` | Label-free final candidate fit/rehydration, allowlist, provenance, and final-fit manifest | `R/benchmark/hybrid_runner.R` and `R/benchmark/runner.R` |
+| `R/release/promotion_report.R` | Evaluator-backed final promotion evidence, incumbent-retained fallback, and report serialization | `R/evaluation/promotion.R`, `R/evaluation/challenger_selection.R`, and `R/visualization/worldcup_retrospective.R` |
+| `R/release/release_install.R` | Remaining release metadata, atomic install, rollback, and fresh-process publication validation | `R/benchmark/runner.R` and `R/benchmark/hybrid_runner.R` |
+
+### Exact focused tests
+
+| Test file | Contract covered |
+|---|---|
+| `tests/testthat/test_phase12_calibration.R` | Chronology-safe inner-OOF calibration, raw/calibrated scoring, simplex, and veto fallback |
+| `tests/testthat/test_phase12_freeze.R` | Nine-candidate freeze, parent graph, hashes, inactive/no-score rows, and drift rejection |
+| `tests/testthat/test_phase12_final_evaluation.R` | Label-free preflight, exact opener seam, one-shot copied labels, append-only evidence, and final-fit identity |
+| `tests/testthat/test_phase12_promotion.R` | One evaluator call per candidate, inherited policy delegation, incumbent-retained selection, and ordered reasons |
+| `tests/testthat/test_phase12_release.R` | Complete staged release, contract/hash validation, atomic install, rollback, fresh-process reads, and consumer boundary |
+
 ## Architectural Responsibility Map
 
 | Capability | Primary Tier | Secondary Tier | Rationale |
@@ -186,9 +208,12 @@ R/
 │   └── calibration_selection.R     # raw-vs-calibrated development gate
 ├── release/
 │   ├── freeze_manifest.R            # pre-label freeze and parent graph
+│   ├── final_fit.R                  # allowlisted label-free final fit and provenance
 │   ├── final_evaluation.R           # one-shot label gate and immutable copy
+│   ├── promotion_report.R           # evaluator-backed decision/report assembly
 │   ├── release_contract.R           # resolve/validate approved model contract
-│   └── release_bundle.R             # stage, validate, atomically publish
+│   ├── release_bundle.R              # stage and validate core release files
+│   └── release_install.R             # complete metadata, atomic install, and rollback
 └── evaluation/
     └── benchmark_scores.R           # existing shared scorer; extend, do not fork
 
@@ -210,9 +235,14 @@ outputs/releases/<release_id>/
 ├── release_manifest.csv
 ├── model_contract.json
 ├── model/approved_model.rds
+├── model/calibrator.rds
+├── manifests/freeze_manifest.csv
+├── manifests/final_evaluation_manifest.csv
+├── manifests/provenance.json
 ├── reports/benchmark_report.md
 ├── reports/model_card.md
-└── manifests/provenance.json
+├── limitations.md
+└── reproducibility.json
 ```
 
 The exact paths are now the Phase 12 planning contract and are bound in the freeze manifest before implementation. [RESOLVED]
@@ -485,6 +515,7 @@ Existing inherited tests passed during research: Phase 9 promotion 169 assertion
 - [ ] `tests/testthat/test_phase12_calibration.R` — calibrator fit/apply, simplex, raw-vs-calibrated scoring, and chronology invariants. [RECOMMENDED]
 - [ ] `tests/testthat/test_phase12_freeze.R` — nine-row freeze, hashes, inactive/no-score preservation, and drift rejection. [RECOMMENDED]
 - [ ] `tests/testthat/test_phase12_final_evaluation.R` — preflight abort, one-shot opener, immutable label copy, append-only manifest, and incumbent-retained path. [RECOMMENDED]
+- [ ] `tests/testthat/test_phase12_promotion.R` — inherited evaluator delegation, one call per registered candidate, ordered gate evidence, and incumbent-retained selection. [RECOMMENDED]
 - [ ] `tests/testthat/test_phase12_release.R` — release resolver, model-contract hash checks, and fail-closed release regressions. [RECOMMENDED]
 - [ ] A synthetic label-free/final-evaluation fixture set that cannot read the real WC2026 outcome source during ordinary tests. [RECOMMENDED]
 
