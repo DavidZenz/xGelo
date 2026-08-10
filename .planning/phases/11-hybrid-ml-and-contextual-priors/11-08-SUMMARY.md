@@ -24,7 +24,7 @@ key-files:
   modified: []
 
 key-decisions:
-  - "Accept the fail-closed optional-family eligibility finding with substantive WDI/HGR review still human-owned"
+  - "Accept the fail-closed optional-family eligibility finding with explicit developer approval and substantive WDI/HGR review still human-owned"
   - "Use the current 72-code OWID/Maddison snapshot and its 2024-07-15 publication date as the structural evidence record; do not retain the stale missing-PRK description"
   - "Keep Phase 12 as the sole authority for candidate freeze, WC2026 holdout opening, and promotion evaluation"
 
@@ -86,7 +86,7 @@ status: complete
 ## Task Commits
 
 1. **Task 1: Reconcile optional-family eligibility against local 630/609 evidence** - `e2f941f` (docs)
-2. **Task 2: Confirm the Phase 11 optional-data outcome** - auto-selected the plan's recommended `accept-inactivity-with-review-pending` decision; no file change
+2. **Task 2: Confirm the Phase 11 optional-data outcome** - explicit developer approval recorded for `accept-inactivity-with-review-pending`; no file change
 3. **Task 3: Finalize the accepted eligibility outcome and Phase 12 handoff** - `e2f941f` (docs; finalized in the same atomic amendment commit)
 
 ## Files Created/Modified
@@ -126,7 +126,7 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-Phase 11 now has a durable accepted outcome for the diagnosed optional-family eligibility gap. The structural WDI/HGR substantive review remains pending, and any future activation requires new admissible point-in-time inputs plus a separately planned rerun. Phase 12 remains the only place where a candidate may be frozen, the sealed 2026 holdout opened, or promotion evaluated.
+Phase 11 now has a durable, explicitly approved eligibility-audit artifact for the diagnosed optional-family gap. It is bound to exact local input hashes and kept separate from the historical performance bundle; the structural WDI/HGR substantive review remains pending, and any future activation requires new admissible point-in-time inputs plus a separately planned rerun. Phase 12 remains the only place where a candidate may be frozen, the sealed 2026 holdout opened, or promotion evaluated.
 
 ---
 *Phase: 11-hybrid-ml-and-contextual-priors*
