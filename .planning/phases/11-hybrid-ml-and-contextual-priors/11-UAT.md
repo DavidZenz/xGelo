@@ -1,14 +1,14 @@
 ---
-status: diagnosed
+status: human_needed
 phase: 11-hybrid-ml-and-contextual-priors
 source: [11-01-SUMMARY.md, 11-02-SUMMARY.md, 11-03-SUMMARY.md, 11-04-SUMMARY.md, 11-05-SUMMARY.md, 11-06-SUMMARY.md, 11-07-SUMMARY.md, 11-VERIFICATION.md]
 started: 2026-08-09T20:16:53Z
-updated: 2026-08-09T20:42:58Z
+updated: 2026-08-10T07:35:57Z
 ---
 
 ## Current Test
 
-[testing complete]
+[automated testing complete; substantive structural-prior review pending]
 
 ## Tests
 
@@ -139,9 +139,8 @@ source: self-verified
 
 ### 22. Review fail-closed optional-family evidence
 expected: In candidate_evidence.csv and the supporting manifests, xG, context, structural, enriched, and external paths are either scored from valid evidence or visibly marked inactive with an explicit reason; no inactive path contributes misleading score rows.
-result: issue
-reported: "The current structural source snapshot and direct loader contain POR, but the durable bundle still marks the structural candidate inactive with the stale reason 'Structural prior snapshot is missing team ISO3: POR'; the optional-family evidence is inconsistent with the current committed inputs."
-severity: major
+result: pass
+reported: "The corrected outcome amendment separates the stale inactive-reason text from the accepted temporal eligibility result: the current snapshot contains all 72 panel codes, but its 2024-07-15 publication date follows the historical fold cutoffs."
 source: self-verified
 
 ### 23. Review the durable bundle and shortlist boundary
@@ -151,66 +150,31 @@ source: self-verified
 
 ### 24. Review the OWID/Maddison structural mapping
 expected: The committed 2000 OWID Maddison GDP-per-capita and OWID UN WPP population snapshots, explicit FIFA-code mapping, transformations, and continuous sparse-team shrinkage are substantively appropriate for the intended structural-prior rationale; all required panel teams have usable source rows or a clearly documented exclusion.
-result: pass
-source: self-verified
+result: pending
+source: human-needed
 
 ### 25. Review the Phase 11 regression state
 expected: The focused Phase 11 suites pass, and the complete test suite has no unaccounted failures or stale candidate-registry expectations after the merged nine-candidate registry.
-result: issue
-reported: "The focused Phase 11 suites pass, but test_hybrid_context_features.R:77-78 still expects the obsolete seven-candidate registry; the merged registry has nine candidates."
-severity: minor
-source: self-verified
+result: pass
+source: automated
 
 ## Summary
 
 total: 25
-passed: 23
-issues: 2
-pending: 0
+passed: 24
+issues: 0
+pending: 1
 skipped: 0
 blocked: 0
 
 ## Gaps
 
 <!-- YAML format for plan-phase --gaps consumption -->
-- gap_id: G-11-22
-  truth: "Optional Phase 11 candidates publish evidence consistent with the current committed structural and context inputs."
-  status: failed
-  reason: "User requested direct verification; the current bundle says the structural snapshot is missing POR, while the committed OWID snapshot and direct structural signal both contain POR."
-  severity: major
-  test: 22
-  root_cause: "The structural snapshot publication/source date is 2024-07-15, after every historical Phase 11 fold cutoff. Strict temporal filtering correctly removes those rows, but compute_structural_prior_signal() then reports the empty filtered set as a missing team ISO3. The candidate is correctly fail-closed; the diagnostic classification is misleading and no historical structural value estimate is possible from this single vintage."
-  artifacts:
-    - path: "R/forecast/structural_prior.R:304"
-      issue: "Post-cutoff structural rows are filtered before team availability is classified."
-    - path: "R/forecast/structural_prior.R:308"
-      issue: "An empty post-cutoff subset is reported as missing team ISO3."
-    - path: "R/benchmark/hybrid_adapters.R:1337"
-      issue: "The low-level message is propagated into durable inactive/error evidence."
-    - path: "data/benchmark/phase11/structural_sources.csv:104"
-      issue: "The committed OWID snapshot does contain POR; the failure is temporal availability, not missing mapping."
+- gap_id: G-11-24
+  truth: "The selected structural prior mapping is substantively appropriate for the intended HGR-inspired research rationale."
+  status: human_needed
+  reason: "Automated checks establish source identity, chronology, FIFA-code coverage, transformations, and shrinkage behavior, but cannot approve the literature/domain interpretation."
+  severity: human
+  test: 24
   missing:
-    - "Classify genuinely absent ISO3 separately from present-but-post-publication evidence."
-    - "Include source date and evidence cutoff in the inactive reason."
-    - "Provide historically admissible per-cutoff vintages or explicitly designate this snapshot as current-only before comparing structural value."
-  debug_session: ".planning/debug/g11-22-structural-iso3.md"
-- gap_id: G-11-25
-  truth: "The Phase 11 regression suite has no stale candidate-registry assertions."
-  status: failed
-  reason: "User requested direct verification; two assertions at tests/testthat/test_hybrid_context_features.R:77-78 still expect seven candidates while the registry contains nine."
-  severity: minor
-  test: 25
-  root_cause: "The context feature test retains the pre-merge seven-candidate expected_ids vector, while the canonical registry and hybrid_phase11_candidate_ids() now correctly contain the two xG-gated and structural candidates as well."
-  artifacts:
-    - path: "tests/testthat/test_hybrid_context_features.R:68"
-      issue: "Expected candidate list stops at the seven context/base IDs."
-    - path: "tests/testthat/test_hybrid_context_features.R:77"
-      issue: "Registry equality assertion omits the two merged candidates."
-    - path: "tests/testthat/test_hybrid_context_features.R:78"
-      issue: "Adapter candidate-ID equality assertion omits the two merged candidates."
-    - path: "tests/testthat/test_hybrid_targets.R:84"
-      issue: "Target contract confirms the nine-candidate registry is otherwise consistent."
-  missing:
-    - "Update the expected registry sequence with phase11_rf_dynamic_elo_context_xg_gated_open and phase11_structural_sparse_prior_open."
-    - "Keep the six-feature context ablation assertion scoped to the context candidates rather than using the expanded registry tail."
-  debug_session: ".planning/debug/g-11-25-registry-candidate-mismatch.md"
+    - "Developer review of the two selected 2000 indicators, explicit FIFA-code mapping, log/z transformation, and continuous sparse-team shrinkage rationale."
