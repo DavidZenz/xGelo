@@ -72,7 +72,9 @@ test_that("HYBRID-02 / D-05 registers the full context bundle and every drop-one
     "phase11_rf_dynamic_elo_context_drop_neutral_open",
     "phase11_rf_dynamic_elo_context_drop_rest_open",
     "phase11_rf_dynamic_elo_context_drop_travel_open",
-    "phase11_rf_dynamic_elo_context_drop_stage_open"
+    "phase11_rf_dynamic_elo_context_drop_stage_open",
+    "phase11_rf_dynamic_elo_context_xg_gated_open",
+    "phase11_structural_sparse_prior_open"
   )
   expect_setequal(as.character(protocol$model_registry$candidate_id), expected_ids)
   expect_setequal(hybrid_phase11_candidate_ids(protocol), expected_ids)
@@ -81,7 +83,14 @@ test_that("HYBRID-02 / D-05 registers the full context bundle and every drop-one
   expect_silent(validate_phase11_context_ablation_registry(ablations))
   expect_setequal(
     as.character(ablations$candidate_id),
-    expected_ids[-1L]
+    c(
+      "phase11_rf_dynamic_elo_context_open",
+      "phase11_rf_dynamic_elo_context_drop_host_open",
+      "phase11_rf_dynamic_elo_context_drop_neutral_open",
+      "phase11_rf_dynamic_elo_context_drop_rest_open",
+      "phase11_rf_dynamic_elo_context_drop_travel_open",
+      "phase11_rf_dynamic_elo_context_drop_stage_open"
+    )
   )
   expect_identical(
     as.character(ablations$removed_feature_id),
