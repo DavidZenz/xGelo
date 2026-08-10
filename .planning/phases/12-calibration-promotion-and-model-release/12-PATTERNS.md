@@ -18,10 +18,10 @@
 | `R/release/release_bundle.R` | service / publisher | file I/O, batch | `R/benchmark/runner.R` staged install | exact publication pattern |
 | `_targets.R` | config / orchestration | request-response dependency graph, file I/O | existing Phase 9/11 target chains | exact |
 | `R/visualization/worldcup_dashboard.R` | consumer / export | request-response, file I/O | existing dashboard model loading | role/data-flow exact, authority gap |
-| `tests/testthat/test_phase12_calibration_release.R` | test | transform/evaluation regression | `tests/testthat/test_benchmark_scoring.R` + `test_benchmark_seal.R` | strong |
+| `tests/testthat/test_phase12_calibration.R` | test | transform/evaluation regression | `tests/testthat/test_benchmark_scoring.R` + `test_benchmark_seal.R` | strong |
 | `tests/testthat/test_phase12_freeze.R` | test | batch/manifest contract | `tests/testthat/test_benchmark_pipeline.R` + `test_hybrid_targets.R` | strong |
 | `tests/testthat/test_phase12_final_evaluation.R` | test | request-response/file I/O negative path | `tests/testthat/test_benchmark_seal.R` + staged-install test in `test_benchmark_pipeline.R` | strong |
-| `tests/testthat/test_phase12_release_consumers.R` | test | request-response/file I/O | `tests/testthat/test_worldcup_dashboard.R` + `test_benchmark_pipeline.R` | strong |
+| `tests/testthat/test_phase12_release.R` | test | request-response/file I/O | `tests/testthat/test_worldcup_dashboard.R` + `test_benchmark_pipeline.R` | strong |
 | `tests/testthat/test_worldcup_dashboard.R` | test (extended) | presentation/export regression | existing file | exact consumer regression harness |
 
 The research names four new calibration/release directories and four focused Phase 12 test files. It also requires extending the shared scorer, targets boundary, dashboard/export loading, and inherited regression coverage. Keep the exact nine Phase 11 candidate rows, including inactive/no-score rows, in every Phase 12 registry/report.
@@ -323,7 +323,7 @@ Change the consumer boundary, not the simulation/data shape. Resolve an approved
 
 ---
 
-### `tests/testthat/test_phase12_calibration_release.R` (test, transform/evaluation)
+### `tests/testthat/test_phase12_calibration.R` (test, transform/evaluation)
 
 **Analog:** `tests/testthat/test_benchmark_scoring.R:33-104, 127-224` and `tests/testthat/test_benchmark_seal.R:7-50`.
 
@@ -353,7 +353,7 @@ Cover preflight failure before label access, exactly one label opening, immutabl
 
 ---
 
-### `tests/testthat/test_phase12_release_consumers.R` (test, request-response/file I/O)
+### `tests/testthat/test_phase12_release.R` (test, request-response/file I/O)
 
 **Analog:** `tests/testthat/test_worldcup_dashboard.R:564-718` and the checksum/tamper tests in `tests/testthat/test_benchmark_pipeline.R:639-696`.
 

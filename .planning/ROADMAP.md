@@ -224,11 +224,12 @@ Plans:
 
 **Depends on:** Phase 11
 
-**Plans:** 5 plans
+**Plans:** 6 plans
 
 Plans:
-- [ ] 12-01-PLAN.md — Build chronology-safe candidate/track 1X2 calibration
-- [ ] 12-02-PLAN.md — Freeze all nine candidates and parent identities
+- [ ] 12-00-PLAN.md — Create contract-only Phase 12 validation scaffolds
+- [ ] 12-01-PLAN.md — Freeze all nine candidates and parent identities before fitting
+- [ ] 12-02-PLAN.md — Build chronology-safe candidate/track 1X2 calibration after freeze
 - [ ] 12-03-PLAN.md — Compare raw and calibrated development probabilities
 - [ ] 12-04-PLAN.md — Run one-shot final evaluation and promotion decision
 - [ ] 12-05-PLAN.md — Publish release bundle and approved-release consumers
@@ -258,7 +259,7 @@ Plans:
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
 | 11. Hybrid ML and Contextual Priors | 9/9 | Complete    | 2026-08-10 |
-| 12. Calibration, Promotion, and Model Release | 0/5 | Not started | - |
+| 12. Calibration, Promotion, and Model Release | 0/6 | Not started | - |
 
 ## Completed Milestones
 

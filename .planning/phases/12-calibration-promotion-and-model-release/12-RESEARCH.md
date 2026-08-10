@@ -113,13 +113,13 @@ Phase 12 does not need a new package. Use the project’s existing R runtime and
 |---------|---------|---------|-------------|
 | `testthat` | 3.3.2 | Unit, contract, and integration regression tests | Use for every new Phase 12 service and consumer boundary. [VERIFIED: installed R environment] |
 | `ranger` | 0.18.0 | Rehydrate/final-fit the active Phase 11 RF candidate when it is the approved model | Use only through the already verified project-local Phase 11 library and registry provenance; do not install a new RF package. [VERIFIED: installed project-local Phase 11 library; Phase 11 manifest] |
-| Base R `stats::optim` and `saveRDS` | R 4.6.1 | Recommended low-parameter calibrator fitting and durable calibrator serialization | Avoids introducing a new calibration dependency; exact recipe must be frozen before calibration starts. [ASSUMED] |
+| Base R `stats::optim` and `saveRDS` | R 4.6.1 | Frozen one-parameter temperature fitting and durable calibrator serialization | Implements the resolved recipe without a new package; start, bounds, support rule, seed, and epsilon are bound in the freeze. [RESOLVED] |
 
 ### Alternatives Considered
 
 | Instead of | Could Use | Tradeoff |
 |------------|-----------|----------|
-| A new calibration package | Base R low-parameter multiclass logit/temperature calibrator | Keeps the release environment unchanged, but the exact parameterization and minimum-history rule must be locked and tested before freeze. [ASSUMED] |
+| A new calibration package | Base R one-parameter temperature calibrator | Keeps the release environment unchanged; the exact resolved parameterization and support rule are frozen and tested before fit. [RESOLVED] |
 | A separate score/calibration contract | `benchmark_score_*`, `fixed_benchmark_calibration()`, and `aggregate_benchmark_scores()` | Reuse preserves the Phase 9 denominators and veto semantics; duplicating them risks metric drift. [VERIFIED: codebase grep] |
 | Latest model path or file mtime | Approved release manifest plus model contract | Manifest resolution is auditable and fail-closed; path discovery is explicitly forbidden by D-15. [VERIFIED: locked context; current `_targets.R`] |
 
@@ -195,24 +195,27 @@ R/
 data/benchmark/phase12/
 ├── calibration_recipe.json
 ├── freeze_manifest.csv
-├── final_evaluation_manifest.csv
-└── model_contract_schema.json
+└── wc2026_labels.csv             # operator-supplied at execution time only
 
 outputs/benchmarks/rolling_tournaments/phase12-calibration-release/
-├── calibration/
-├── final_evaluation/
-├── reports/
-└── manifests/
+├── calibration/inner_oof_predictions.csv
+├── calibration/calibrators.rds
+├── calibration/calibration_gate.csv
+├── final_evaluation/labels.csv
+├── final_evaluation/predictions.csv
+├── final_evaluation/scores.csv
+└── manifests/final_evaluation_manifest.csv
 
 outputs/releases/<release_id>/
 ├── release_manifest.csv
 ├── model_contract.json
-├── model/
-├── reports/
-└── manifests/
+├── model/approved_model.rds
+├── reports/benchmark_report.md
+├── reports/model_card.md
+└── manifests/provenance.json
 ```
 
-The exact paths are a recommended layout, not an existing contract; lock them in the freeze manifest before implementation. [ASSUMED]
+The exact paths are now the Phase 12 planning contract and are bound in the freeze manifest before implementation. [RESOLVED]
 
 ### Pattern 1: Candidate/Track Chronology-Safe Calibration
 
@@ -234,7 +237,7 @@ inner_oof <- data.frame(
 # Then validate every source cutoff and call guard_benchmark_purpose(..., "calibration").
 ```
 
-The exact calibrator recipe is not locked in CONTEXT.md. The recommended default is a low-parameter multiclass logit calibrator implemented with base R: class intercepts plus one temperature/sharpness parameter, fit by deterministic log loss on the inner OOF rows, with stable log-probability handling and simplex validation. Use raw output when the registered minimum-history/class-support rule is not met. [ASSUMED]
+The resolved recipe is base-R one-parameter temperature scaling over log-derived 1X2 probabilities, fit with `stats::optim` using fixed starting values/bounds and the frozen seed; stable log-probability handling and simplex validation apply. Use raw output when the frozen 60-row/10-per-class minimum-support rule is not met. [RESOLVED]
 
 Persist both the calibrator object and a CSV manifest containing `candidate_id`, `track_id`, `outer_edition_id`, `inner_edition_ids`, row count, class counts, recipe hash, seed, fit status, source prediction hash, and maximum inner evidence date. [VERIFIED: Phase 9/11 manifest conventions; recommended contract]
 
@@ -242,7 +245,7 @@ Persist both the calibrator object and a CSV manifest containing `candidate_id`,
 
 The fitted G=40 joint score distribution remains unchanged. Preserve `p_home_raw`, `p_draw_raw`, and `p_away_raw`; add calibrated 1X2 fields and an explicit `primary_probability_view`. Score raw and calibrated vectors against the same fixture IDs and actual outcomes through the shared proper-score functions. Do not overwrite raw probabilities or silently regenerate the scoreline grid. [VERIFIED: locked D-01/D-04; `R/evaluation/proper_scores.R`; `R/evaluation/benchmark_scores.R`]
 
-This creates a deliberate view distinction: the approved contract must state whether presentation-level 1X2 probabilities use the selected calibrated vector while scoreline/tournament simulation continues to use the unchanged joint distribution. That separation follows D-01 but the consumer behavior itself must be frozen and tested. [ASSUMED]
+This creates a deliberate view distinction: the approved contract exposes raw and calibrated 1X2, makes calibrated primary only under D-04, records raw fallback explicitly, and keeps scoreline/tournament simulation on the unchanged joint distribution. [RESOLVED]
 
 ### Pattern 3: Single Aggregate Freeze Manifest
 
@@ -382,16 +385,16 @@ tar_target(
 )
 ```
 
-### Proposed calibration boundary
+### Resolved calibration boundary
 
 ```r
-# Proposed Phase 12 API; exact recipe/minimum-history rule is not yet verified.
-fit <- fit_phase12_calibrator(
+# The resolved Phase 12 API is frozen before any fit.
+fit <- fit_phase12_1x2_calibrator(
   candidate_id = candidate_id,
   track_id = track_id,
   outer_edition_id = outer_edition_id,
   inner_oof = inner_oof[inner_oof$inner_edition_id < outer_edition_id, , drop = FALSE],
-  recipe = frozen_calibration_recipe
+  recipe = frozen_calibration_recipe # stats::optim, fixed seed/bounds/start
 )
 calibrated <- apply_phase12_calibrator(fit, raw_probability_view)
 validate_probability_vector(calibrated, name = "calibrated_1x2")
@@ -415,33 +418,22 @@ validate_probability_vector(calibrated, name = "calibrated_1x2")
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | A low-parameter base-R vector-scaling/temperature calibrator is the preferred recipe. | Standard Stack; Architecture Pattern 1 | The exact calibration object/API changes, or a reviewed existing recipe is required before freeze. |
-| A2 | A minimum prior-tournament/class-support rule should disable calibration and retain raw output when history is insufficient. | Architecture Pattern 1 | Early folds could be overfit or an alternate fallback policy could be required. |
+| A1 | A deterministic base-R one-parameter temperature calibrator over derived 1X2 log probabilities is the frozen recipe. | Planning Resolutions; Architecture Pattern 1 | None after the resolution; recipe bytes and hash are frozen before fitting. |
+| A2 | A minimum history/class-support rule disables calibration and retains raw output when support is insufficient. | Planning Resolutions; Architecture Pattern 1 | None after the resolution; the rule is stored in the freeze manifest. |
 | A3 | The suggested Phase 12 source/output directory names are acceptable. | Recommended Project Structure | Plan file paths and target contracts would need adjustment. |
 | A4 | Presentation can expose calibrated 1X2 while retaining the raw joint distribution for scoreline/tournament simulation, provided the contract labels both views. | Architecture Pattern 2 | Dashboard/API semantics could be inconsistent unless the consumer policy is explicitly changed. |
-| A5 | A final approved Phase 11 RF or incumbent model object must be fit/serialized separately from Phase 11’s research predictions. | Summary; Architecture Pattern 5 | The release may instead consume an existing incumbent object or a different final-fit adapter. |
+| A5 | Final fitting uses the registered active Phase 11 candidate and its existing ranger adapter/provenance contract; inactive candidates remain no-score rows. | Planning Resolutions; Architecture Pattern 5 | None after the resolution; only the frozen registry identity may produce the approved object. |
 
-## Open Questions
+## Planning Resolutions (RESOLVED)
 
-1. **Which exact calibration recipe and minimum history rule should be frozen?**
-   - What we know: D-02/D-03 require candidate/track-specific expanding prior-tournament inner OOF; D-04 requires calibration, RPS, Brier, log-loss, stability, and coverage gates. [VERIFIED: locked context]
-   - What's unclear: CONTEXT.md does not lock the parametric form, regularization, minimum prior tournaments, class-support floor, or first-fold behavior. [VERIFIED: CONTEXT.md inspection]
-   - Recommendation: Lock one deterministic low-parameter recipe, support fallback-to-raw, and hash the recipe before fitting any calibrator. [ASSUMED]
+All four research questions are resolved before execution:
 
-2. **What is the final-fit adapter for each admissible candidate, especially the active Phase 11 RF?**
-   - What we know: Phase 11 adapters fit fold-local research models and publish predictions/manifests; the Phase 11 runner deliberately rejects promotion/release behavior. [VERIFIED: `R/benchmark/hybrid_runner.R`; Phase 11 target tests]
-   - What's unclear: No existing `fit_final_release_model()` or release model contract was found; current dashboard model objects are legacy baseline/hybrid `.rds` files. [VERIFIED: codebase grep]
-   - Recommendation: Add an allowlisted final-fit service that consumes frozen registry/settings and pre-2026 data only, then records model-object hashes in the release contract. [VERIFIED: existing allowlist patterns; recommendation]
+1. **Calibrator and support rule:** Use deterministic base-R one-parameter temperature scaling over log-derived 1X2 probabilities, fit with `stats::optim` using fixed starting values and bounds. Freeze the recipe and minimum-history/class-support rule in the manifest before fitting. Use explicit raw fallback when support is insufficient; add no package.
+2. **Final-fit adapter:** Use the registered active Phase 11 candidate `phase11_rf_dynamic_elo_open` and its existing `ranger` provenance/adapter contracts. Inactive candidates remain no-score rows. The approved model object may be produced only through this frozen registry identity.
+3. **Consumer semantics:** Expose raw and calibrated 1X2 views. Calibrated is primary only under D-04; retain the fitted `G = 40` score distribution unchanged. Make raw fallback explicit in release, dashboard, and export metadata.
+4. **Label provider:** Allowlist exactly `data/benchmark/phase12/wc2026_labels.csv` as an operator-supplied execution-time artifact. Define `phase12_open_final_labels()` and the `targets` file target `phase12_final_labels` as the only opening seam. Validate WC2026 identity and source hash, run only after freeze/development gates and the blocking approval checkpoint, and reject a second open or any pre-checkpoint read. Planning and development do not access or create labels.
 
-3. **How should calibrated 1X2 probabilities be exposed to dashboard/export consumers?**
-   - What we know: D-01 preserves the joint score distribution while calibrating derived 1X2; current dashboard derives forecasts from model simulations and raw model paths. [VERIFIED: locked context; dashboard code]
-   - What's unclear: Whether dashboard match cards, CSV exports, and tournament simulation should use calibrated 1X2, raw distribution-derived 1X2, or both. [VERIFIED: codebase/context inspection]
-   - Recommendation: Make `primary_probability_view` explicit in the contract and test the chosen behavior in both dashboard and export regression suites; never silently mix views. [ASSUMED]
-
-4. **What file is the authoritative WC2026 label source at execution time?**
-   - What we know: The guard and benchmark registries identify WC2026 as a sealed holdout, and current development targets are required to keep labels inaccessible. [VERIFIED: `R/benchmark/cutoffs.R`; `test_benchmark_seal.R`]
-   - What's unclear: Phase 12 must not discover or read the label-bearing source during research; the plan needs a reviewed opener that names the source only inside the final-evaluation boundary. [VERIFIED: scope and lock inspection]
-   - Recommendation: Keep label source resolution behind the one-shot opener and add a human-reviewed checkpoint immediately before opening. [VERIFIED: locked D-09; recommendation]
+**Resolution status:** RESOLVED. The plans below carry these decisions into the freeze, fit, consumer, target, and checkpoint contracts.
 
 ## Environment Availability
 
@@ -467,18 +459,18 @@ validate_probability_vector(calibrated, name = "calibrated_1x2")
 |----------|-------|
 | Framework | `testthat` 3.3.2 [VERIFIED: installed environment] |
 | Config file | None detected; tests source project modules directly. [VERIFIED: file inventory] |
-| Quick run command | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase12_calibration_release.R", stop_on_failure=TRUE)'` [RECOMMENDED] |
+| Quick run command | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase12_calibration.R", stop_on_failure=TRUE)'` [RECOMMENDED] |
 | Full suite command | `Rscript --vanilla -e 'testthat::test_dir("tests/testthat", stop_on_failure=TRUE, stop_on_warning=TRUE)'` [VERIFIED: AGENTS.md project instruction] |
 
 ### Phase Requirements → Test Map
 
 | Req ID | Behavior | Test Type | Automated Command | File Exists? |
 |--------|----------|-----------|-------------------|-------------|
-| CAL-01 | Inner OOF rows are prior-tournament-only, cutoff-safe, candidate/track-specific, and never include WC2026 labels. | unit + integration | `testthat::test_file("tests/testthat/test_phase12_calibration_release.R")` | ❌ Wave 0 |
-| CAL-02 | Raw and calibrated 1X2 vectors use identical fixture IDs and score through RPS/Brier/log loss plus calibration diagnostics; regression/veto evidence is persisted. | unit + integration | same focused Phase 12 test file | ❌ Wave 0 |
-| PROMO-01 | Freeze manifest includes all nine candidates, inactive rows, code/settings/features/panels/seeds/recipe/threshold hashes, and rejects post-freeze drift. | contract | `testthat::test_file("tests/testthat/test_phase12_freeze.R")` | ❌ Wave 0 |
-| PROMO-02 | Preflight aborts before labels, final evaluation opens once, final manifest is append-only, and incumbent fallback is explicit. | integration + negative-path | `testthat::test_file("tests/testthat/test_phase12_final_evaluation.R")` | ❌ Wave 0 |
-| PROMO-03 | Release bundle validates from a fresh R process; dashboard/export reject missing/mismatched contracts and load only the approved model. | integration + presentation regression | `testthat::test_file("tests/testthat/test_phase12_release_consumers.R")` | ❌ Wave 0 |
+| CAL-01 | Inner OOF rows are prior-tournament-only, cutoff-safe, candidate/track-specific, and never include WC2026 labels. | unit + integration | `testthat::test_file("tests/testthat/test_phase12_calibration.R")` | ✓ Wave 0 |
+| CAL-02 | Raw and calibrated 1X2 vectors use identical fixture IDs and score through RPS/Brier/log loss plus calibration diagnostics; regression/veto evidence is persisted. | unit + integration | same focused Phase 12 test file | ✓ Wave 0 |
+| PROMO-01 | Freeze manifest includes all nine candidates, inactive rows, code/settings/features/panels/seeds/recipe/threshold hashes, and rejects post-freeze drift. | contract | `testthat::test_file("tests/testthat/test_phase12_freeze.R")` | ✓ Wave 0 |
+| PROMO-02 | Preflight aborts before labels, final evaluation opens once, final manifest is append-only, and incumbent fallback is explicit. | integration + negative-path | `testthat::test_file("tests/testthat/test_phase12_final_evaluation.R")` | ✓ Wave 0 |
+| PROMO-03 | Release bundle validates from a fresh R process; dashboard/export reject missing/mismatched contracts and load only the approved model. | integration + presentation regression | `testthat::test_file("tests/testthat/test_phase12_release.R")` plus `test_worldcup_dashboard.R` | ✓ Wave 0 |
 
 Existing inherited tests passed during research: Phase 9 promotion 169 assertions, shared scoring 47 assertions, WC2026 seal 18 assertions, Phase 11 target contracts 35 assertions, and dashboard regression 451 assertions. [VERIFIED: test execution in this session]
 
@@ -490,10 +482,10 @@ Existing inherited tests passed during research: Phase 9 promotion 169 assertion
 
 ### Wave 0 Gaps
 
-- [ ] `tests/testthat/test_phase12_calibration_release.R` — calibrator fit/apply, simplex, raw-vs-calibrated scoring, and chronology invariants. [RECOMMENDED]
+- [ ] `tests/testthat/test_phase12_calibration.R` — calibrator fit/apply, simplex, raw-vs-calibrated scoring, and chronology invariants. [RECOMMENDED]
 - [ ] `tests/testthat/test_phase12_freeze.R` — nine-row freeze, hashes, inactive/no-score preservation, and drift rejection. [RECOMMENDED]
 - [ ] `tests/testthat/test_phase12_final_evaluation.R` — preflight abort, one-shot opener, immutable label copy, append-only manifest, and incumbent-retained path. [RECOMMENDED]
-- [ ] `tests/testthat/test_phase12_release_consumers.R` — release resolver, model-contract hash checks, dashboard/export routing, and fail-closed regressions. [RECOMMENDED]
+- [ ] `tests/testthat/test_phase12_release.R` — release resolver, model-contract hash checks, and fail-closed release regressions. [RECOMMENDED]
 - [ ] A synthetic label-free/final-evaluation fixture set that cannot read the real WC2026 outcome source during ordinary tests. [RECOMMENDED]
 
 ## Security Domain
@@ -541,7 +533,7 @@ Security enforcement is enabled because `.planning/config.json` does not set `se
 
 ### Tertiary (LOW confidence)
 
-- None used for locked decisions. The exact Phase 12 calibrator parameterization, minimum-history rule, and consumer-view policy remain assumptions requiring a pre-freeze decision. [ASSUMED]
+- None used for locked decisions. The four Phase 12 planning questions are resolved above and are represented as frozen implementation contracts. [RESOLVED]
 
 ## Metadata
 
