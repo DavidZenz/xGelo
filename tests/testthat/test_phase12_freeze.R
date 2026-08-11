@@ -120,6 +120,8 @@ test_that("12-01-01 builds and independently validates a synthetic nine-row free
   expect_equal(sum(manifest$score_status == "scored"), 1L)
   expect_equal(sum(manifest$score_status == "no_score"), 8L)
   expect_true(all(manifest$sealed_before_final_labels))
+  expect_true(all(c("candidate_registry_sha256", "features_sha256", "settings_sha256", "panels_sha256", "seeds_sha256", "validation_reason_order") %in% names(manifest)))
+  expect_identical(manifest$validation_reason_order[[1L]], paste(phase12_freeze_reason_codes(), collapse = "|"))
   expect_true(file.exists(recipe))
   expect_true(file.exists(output))
   expect_invisible(validate_phase12_freeze_manifest(
@@ -157,11 +159,14 @@ test_that("12-01-02 freeze rejects empty, partial, single, and drifted registrie
     output, registry = inputs$registry_path, protocol = inputs$protocol_path,
     recipe_path = recipe, project_root = inputs$root, parent_paths = inputs$parent_paths
   ), "parent|checksum|run manifest")
+  expect_error(phase12_freeze_parent_graph(c(bad = "/tmp/phase12-parent.csv"), inputs$root), "parent_path_drift|relative")
+  expect_error(phase12_freeze_parent_graph(c(bad = "../phase12-parent.csv"), inputs$root), "parent_path_drift|escape")
 })
 
 test_that("12-01-02 unopened holdout guard rejects consumed markers and labels", {
   expect_invisible(phase12_assert_unopened_holdout(state = list(labels_opened = FALSE)))
   expect_error(phase12_assert_unopened_holdout(state = list(labels_opened = TRUE)), "consumed|opened")
+  expect_error(phase12_assert_unopened_holdout(state = list(consumed_label_hash = strrep("a", 64))), "consumed|marker")
   expect_error(phase12_assert_unopened_holdout(
     data.frame(edition_id = "wc2026", actual_home_goals = 1L, stringsAsFactors = FALSE)
   ), "holdout|outcomes")

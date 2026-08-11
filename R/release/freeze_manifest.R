@@ -111,18 +111,32 @@ phase12_parent_paths <- function() {
   )
 }
 
+phase12_freeze_reason_codes <- function() {
+  c(
+    "holdout_consumed", "candidate_membership_drift", "candidate_order_drift",
+    "activation_drift", "candidate_hash_drift", "recipe_drift",
+    "support_drift", "threshold_drift", "parent_path_drift",
+    "parent_checksum_drift", "code_dirty", "flag_drift"
+  )
+}
+
+phase12_freeze_fail <- function(code, message) {
+  if (!code %in% phase12_freeze_reason_codes()) stop("Unknown Phase 12 freeze reason code", call. = FALSE)
+  stop(paste0("phase12_", code, ": ", message), call. = FALSE)
+}
+
 phase12_resolve_relative_parent <- function(path, root) {
   path <- as.character(path)
   if (length(path) != 1L || is.na(path) || !nzchar(path)) {
-    stop("Phase 12 parent paths must be non-empty relative paths", call. = FALSE)
+    phase12_freeze_fail("parent_path_drift", "parent paths must be non-empty relative paths")
   }
   if (grepl("^(/|[A-Za-z]:[/\\\\])", path) || grepl("(^|[/\\\\])\\.\\.([/\\\\]|$)", path)) {
-    stop("Phase 12 parent paths must be relative and cannot escape the project root", call. = FALSE)
+    phase12_freeze_fail("parent_path_drift", "parent paths must be relative and cannot escape the project root")
   }
   resolved <- normalizePath(file.path(root, path), winslash = "/", mustWork = FALSE)
   prefix <- paste0(root, "/")
   if (!startsWith(paste0(resolved, "/"), prefix)) {
-    stop("Phase 12 parent path escapes the project root", call. = FALSE)
+    phase12_freeze_fail("parent_path_drift", "parent path escapes the project root")
   }
   gsub("\\\\", "/", path)
 }
@@ -133,7 +147,7 @@ phase12_freeze_parent_graph <- function(
   phase12_require_freeze_dependencies()
   root <- phase12_project_root(project_root)
   if (is.null(names(parent_paths)) || any(!nzchar(names(parent_paths))) || anyDuplicated(names(parent_paths))) {
-    stop("Phase 12 parent paths must have unique stable identities", call. = FALSE)
+    phase12_freeze_fail("parent_path_drift", "parent paths must have unique stable identities")
   }
   paths <- vapply(parent_paths, phase12_resolve_relative_parent, character(1), root = root)
   ids <- names(paths)
@@ -182,15 +196,15 @@ phase12_read_table <- function(value, name) {
 
 phase12_freeze_candidate_rows <- function(registry) {
   registry <- phase12_read_table(registry, "Phase 11 model registry")
-  if (!nrow(registry)) stop("Phase 12 freeze registry cannot be empty", call. = FALSE)
-  if (nrow(registry) != 9L) stop("Phase 12 freeze requires exactly nine candidates", call. = FALSE)
-  if (!"candidate_id" %in% names(registry)) stop("Phase 11 registry requires candidate_id", call. = FALSE)
+  if (!nrow(registry)) phase12_freeze_fail("candidate_membership_drift", "freeze registry cannot be empty")
+  if (nrow(registry) != 9L) phase12_freeze_fail("candidate_membership_drift", "freeze requires exactly nine candidates")
+  if (!"candidate_id" %in% names(registry)) phase12_freeze_fail("candidate_membership_drift", "registry requires candidate_id")
   registry[] <- lapply(registry, function(value) {
     if (is.factor(value)) as.character(value) else value
   })
   registry$candidate_id <- enc2utf8(as.character(registry$candidate_id))
   if (any(!nzchar(registry$candidate_id)) || anyDuplicated(registry$candidate_id)) {
-    stop("Phase 12 freeze candidate identities must be non-empty and unique", call. = FALSE)
+    phase12_freeze_fail("candidate_membership_drift", "candidate identities must be non-empty and unique")
   }
   registry <- registry[order(registry$candidate_id, method = "radix"), , drop = FALSE]
   rownames(registry) <- NULL
@@ -245,16 +259,16 @@ phase12_assert_unopened_holdout <- function(data = NULL, state = NULL, label_pat
     stop("Phase 12 freeze cannot receive the sealed holdout label source", call. = FALSE)
   }
   if (!is.null(state)) {
-    fields <- c("labels_opened", "holdout_consumed", "final_labels_opened", "label_consumed", "labels_consumed")
+    fields <- c("labels_opened", "label_opened", "holdout_opened", "holdout_consumed", "final_labels_opened", "label_consumed", "labels_consumed", "consumed")
     for (field in intersect(fields, names(state))) {
       value <- state[[field]]
       if (length(value) && !is.na(value[[1L]]) && phase12_as_flag(value, field)) {
-        stop("Phase 12 holdout is already consumed: ", field, call. = FALSE)
+        phase12_freeze_fail("holdout_consumed", paste("holdout is already consumed:", field))
       }
     }
-    hash_fields <- intersect(c("label_sha256", "consumed_label_sha256", "final_label_sha256"), names(state))
+    hash_fields <- intersect(c("label_sha256", "consumed_label_sha256", "final_label_sha256", "label_source_sha256", "consumed_label_hash"), names(state))
     if (length(hash_fields) && any(nzchar(vapply(state[hash_fields], phase12_scalar, character(1))))) {
-      stop("Phase 12 holdout consumption marker is present", call. = FALSE)
+      phase12_freeze_fail("holdout_consumed", "holdout consumption marker is present")
     }
   }
   if (is.null(data)) return(invisible(TRUE))
@@ -265,7 +279,7 @@ phase12_assert_unopened_holdout <- function(data = NULL, state = NULL, label_pat
   label_columns <- intersect(c("actual_home_goals", "actual_away_goals", "home_score", "away_score", "result", "outcome", "observed_outcome"), names(data))
   if (any(holdout) && length(label_columns)) {
     present <- vapply(label_columns, function(column) any(!is.na(data[[column]][holdout]) & nzchar(as.character(data[[column]][holdout]))), logical(1))
-    if (any(present)) stop("Sealed holdout outcomes are present before Phase 12 freeze", call. = FALSE)
+    if (any(present)) phase12_freeze_fail("holdout_consumed", "sealed holdout outcomes are present before freeze")
   }
   invisible(TRUE)
 }
@@ -287,18 +301,18 @@ phase12_protocol_threshold_hash <- function(protocol) {
 }
 
 phase12_run_manifest_checks <- function(run, candidate_ids) {
-  if (nrow(run) != 1L) stop("Phase 11 run manifest must contain exactly one row", call. = FALSE)
+  if (nrow(run) != 1L) phase12_freeze_fail("parent_checksum_drift", "Phase 11 run manifest must contain exactly one row")
   if ("candidate_count" %in% names(run) && as.integer(run$candidate_count[[1L]]) != 9L) stop("Phase 11 candidate count drifted", call. = FALSE)
   if ("selected_g" %in% names(run) && as.integer(run$selected_g[[1L]]) != 40L) stop("Phase 11 score support drifted", call. = FALSE)
   for (field in c("wc2026_sealed", "network_free", "research_only", "protected_paths_clean")) {
-    if (field %in% names(run) && !phase12_as_flag(run[[field]], field)) stop("Phase 11 run manifest flag failed: ", field, call. = FALSE)
+    if (field %in% names(run) && !phase12_as_flag(run[[field]], field)) phase12_freeze_fail("flag_drift", paste("Phase 11 run manifest flag failed:", field))
   }
   if ("phase12_decision_authority" %in% names(run) && phase12_as_flag(run$phase12_decision_authority, "phase12_decision_authority")) {
-    stop("Phase 11 run manifest is already a Phase 12 decision authority", call. = FALSE)
+    phase12_freeze_fail("activation_drift", "Phase 11 run manifest is already a Phase 12 decision authority")
   }
   if ("candidate_ids" %in% names(run)) {
     registered <- strsplit(as.character(run$candidate_ids[[1L]]), "\\|", fixed = FALSE)[[1L]]
-    if (!setequal(registered[nzchar(registered)], candidate_ids)) stop("Phase 11 candidate identities drifted", call. = FALSE)
+    if (!setequal(registered[nzchar(registered)], candidate_ids)) phase12_freeze_fail("candidate_membership_drift", "Phase 11 candidate identities drifted")
   }
   invisible(TRUE)
 }
@@ -372,8 +386,18 @@ build_phase12_freeze_manifest <- function(
     parent_paths = paste(paste(graph$parents$parent_id, graph$parents$relative_path, sep = "="), collapse = "|"),
     parent_hashes = paste(paste(graph$parents$parent_id, graph$parents$sha256, sep = "="), collapse = "|"),
     phase11_run_manifest_sha256 = graph$parents$sha256[match("phase11_run_manifest", graph$parents$parent_id)],
+    validation_reason_order = paste(phase12_freeze_reason_codes(), collapse = "|"),
     stringsAsFactors = FALSE
   )
+  aggregate_hash <- function(columns) phase12_table_sha256(rows[, intersect(columns, names(rows)), drop = FALSE])
+  shared$candidate_registry_sha256 <- phase12_table_sha256(rows[, intersect(c("candidate_id", "active_status", "score_status", "research_only", "wc2026_sealed", "candidate_registration_sha256", "candidate_row_sha256"), names(rows)), drop = FALSE])
+  shared$features_sha256 <- aggregate_hash(c("candidate_id", "features_sha256"))
+  shared$settings_sha256 <- aggregate_hash(c("candidate_id", "settings_identity_sha256"))
+  shared$panels_sha256 <- aggregate_hash(c("candidate_id", "panels_sha256"))
+  shared$seeds_sha256 <- aggregate_hash(c("candidate_id", "seeds_sha256"))
+  shared$calibration_recipe_sha256 <- recipe$sha256
+  shared$threshold_sha256 <- threshold_hash
+  shared$parent_graph_hash <- graph$parent_graph_sha256
   manifest <- cbind(shared[rep(1L, nrow(rows)), , drop = FALSE], rows)
   self_hash <- phase12_freeze_self_hash(manifest)
   manifest$freeze_self_sha256 <- self_hash
@@ -400,46 +424,61 @@ validate_phase12_freeze_manifest <- function(
   resolve <- function(path) if (is.character(path) && length(path) == 1L && !grepl("^/", path)) file.path(root, path) else path
   manifest_path <- if (is.character(manifest) && length(manifest) == 1L) resolve(manifest) else NULL
   manifest_value <- if (!is.null(manifest_path)) phase12_read_table(manifest_path, "Phase 12 freeze manifest") else manifest
-  required <- c("freeze_id", "candidate_id", "candidate_count", "selected_g", "recipe_sha256", "parent_graph_sha256", "freeze_self_sha256", "thresholds_frozen", "sealed_before_final_labels", "clean_worktree", "network_free", "wc2026_sealed")
+  required <- c("freeze_id", "candidate_id", "candidate_count", "selected_g", "recipe_sha256", "parent_graph_sha256", "freeze_self_sha256", "thresholds_frozen", "sealed_before_final_labels", "clean_worktree", "network_free", "wc2026_sealed", "validation_reason_order", "candidate_registry_sha256", "features_sha256", "settings_sha256", "panels_sha256", "seeds_sha256")
   missing <- setdiff(required, names(manifest_value))
   if (length(missing)) stop("Phase 12 freeze manifest missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
-  if (nrow(manifest_value) != 9L || anyDuplicated(manifest_value$candidate_id)) stop("Phase 12 freeze must contain exactly nine unique candidates", call. = FALSE)
-  if (!identical(as.character(manifest_value$candidate_id), sort(as.character(manifest_value$candidate_id), method = "radix"))) stop("Phase 12 candidate order drifted", call. = FALSE)
-  if (any(as.integer(manifest_value$candidate_count) != 9L) || any(as.integer(manifest_value$selected_g) != 40L)) stop("Phase 12 freeze support or candidate count drifted", call. = FALSE)
+  if (nrow(manifest_value) != 9L || anyDuplicated(manifest_value$candidate_id)) phase12_freeze_fail("candidate_membership_drift", "freeze must contain exactly nine unique candidates")
+  if (!identical(as.character(manifest_value$candidate_id), sort(as.character(manifest_value$candidate_id), method = "radix"))) phase12_freeze_fail("candidate_order_drift", "candidate order drifted")
+  if (any(as.integer(manifest_value$candidate_count) != 9L) || any(as.integer(manifest_value$selected_g) != 40L)) phase12_freeze_fail("support_drift", "score support or candidate count drifted")
+  if (any(as.character(manifest_value$validation_reason_order) != paste(phase12_freeze_reason_codes(), collapse = "|"))) phase12_freeze_fail("threshold_drift", "freeze reason-code order drifted")
   for (field in c("thresholds_frozen", "sealed_before_final_labels", "clean_worktree", "network_free", "wc2026_sealed")) {
-    if (any(!vapply(manifest_value[[field]], phase12_as_flag, logical(1), name = field))) stop("Phase 12 freeze flag failed: ", field, call. = FALSE)
+    if (any(!vapply(manifest_value[[field]], phase12_as_flag, logical(1), name = field))) phase12_freeze_fail("flag_drift", paste("freeze flag failed:", field))
   }
   phase12_assert_unopened_holdout(state = manifest_value[1L, , drop = FALSE])
   self_values <- unique(as.character(manifest_value$freeze_self_sha256))
-  if (length(self_values) != 1L || !identical(tolower(self_values), tolower(phase12_freeze_self_hash(manifest_value)))) stop("Phase 12 freeze self-hash mismatch", call. = FALSE)
+  if (length(self_values) != 1L || !identical(tolower(self_values), tolower(phase12_freeze_self_hash(manifest_value)))) phase12_freeze_fail("candidate_hash_drift", "freeze self-hash mismatch")
   registry_path <- if (is.character(registry) && length(registry) == 1L) resolve(registry) else NULL
   protocol_path <- if (is.character(protocol) && length(protocol) == 1L) resolve(protocol) else NULL
   registry_value <- if (!is.null(registry_path)) registry_path else registry
   protocol_value <- if (!is.null(protocol_path)) protocol_path else protocol
   expected_rows <- phase12_freeze_candidate_rows(registry_value)
-  if (!identical(as.character(manifest_value$candidate_id), as.character(expected_rows$candidate_id))) stop("Phase 12 candidate membership or order drifted", call. = FALSE)
+  if (!identical(as.character(manifest_value$candidate_id), as.character(expected_rows$candidate_id))) phase12_freeze_fail("candidate_membership_drift", "candidate membership or order drifted")
   for (field in c("active_status", "score_status", "research_only", "wc2026_sealed", "candidate_registration_sha256", "candidate_row_sha256")) {
-    if (field %in% names(expected_rows) && field %in% names(manifest_value) && any(as.character(manifest_value[[field]]) != as.character(expected_rows[[field]]))) stop("Phase 12 candidate ", field, " drifted", call. = FALSE)
+    if (field %in% names(expected_rows) && field %in% names(manifest_value) && any(as.character(manifest_value[[field]]) != as.character(expected_rows[[field]]))) phase12_freeze_fail(if (field %in% c("active_status", "score_status")) "activation_drift" else "candidate_hash_drift", paste("candidate", field, "drifted"))
+  }
+  expected_component_hash <- function(columns) phase12_table_sha256(expected_rows[, intersect(columns, names(expected_rows)), drop = FALSE])
+  expected_registry_hash <- phase12_table_sha256(expected_rows[, intersect(c("candidate_id", "active_status", "score_status", "research_only", "wc2026_sealed", "candidate_registration_sha256", "candidate_row_sha256"), names(expected_rows)), drop = FALSE])
+  if (!identical(as.character(manifest_value$candidate_registry_sha256[[1L]]), expected_registry_hash)) phase12_freeze_fail("candidate_hash_drift", "candidate registry hash drifted")
+  component_specs <- list(features_sha256 = c("candidate_id", "features_sha256"), settings_sha256 = c("candidate_id", "settings_identity_sha256"), panels_sha256 = c("candidate_id", "panels_sha256"), seeds_sha256 = c("candidate_id", "seeds_sha256"))
+  for (name in names(component_specs)) {
+    if (!identical(as.character(manifest_value[[name]][[1L]]), expected_component_hash(component_specs[[name]]))) phase12_freeze_fail("candidate_hash_drift", paste(name, "drifted"))
   }
   protocol_object <- phase12_read_json(protocol_value, "Promotion protocol")
-  if (!identical(as.character(manifest_value$thresholds_sha256[[1L]]), phase12_protocol_threshold_hash(protocol_object))) stop("Phase 12 threshold identity drifted", call. = FALSE)
+  if (!identical(as.character(manifest_value$thresholds_sha256[[1L]]), phase12_protocol_threshold_hash(protocol_object))) phase12_freeze_fail("threshold_drift", "threshold identity drifted")
+  expected_common_vetoes <- paste(as.character(unlist(protocol_object$common_vetoes %||% character())), collapse = "|")
+  if (!identical(as.character(manifest_value$common_vetoes[[1L]]), expected_common_vetoes)) phase12_freeze_fail("threshold_drift", "inherited common veto identities drifted")
+  if ("score_support" %in% names(protocol_object) && as.integer(protocol_object$score_support$selected_g) != 40L) phase12_freeze_fail("support_drift", "promotion protocol G drifted")
+  if ("freeze" %in% names(protocol_object)) {
+    if (!is.null(protocol_object$freeze$thresholds_frozen) && !phase12_as_flag(protocol_object$freeze$thresholds_frozen, "thresholds_frozen")) phase12_freeze_fail("threshold_drift", "promotion protocol thresholds are not frozen")
+    if (!is.null(protocol_object$freeze$sealed_before_final_labels) && !phase12_as_flag(protocol_object$freeze$sealed_before_final_labels, "sealed_before_final_labels")) phase12_freeze_fail("holdout_consumed", "promotion protocol is not sealed before final labels")
+  }
   recipe_path <- resolve(recipe_path)
-  if (!file.exists(recipe_path)) stop("Phase 12 calibration recipe is missing", call. = FALSE)
+  if (!file.exists(recipe_path)) phase12_freeze_fail("recipe_drift", "calibration recipe is missing")
   recipe <- phase12_read_json(recipe_path, "Calibration recipe")
   expected_recipe <- phase12_recipe_spec()
-  if (!identical(phase12_json_bytes(recipe), phase12_json_bytes(expected_recipe))) stop("Phase 12 calibration recipe drifted", call. = FALSE)
-  if (!identical(tolower(as.character(manifest_value$recipe_sha256[[1L]])), tolower(phase12_file_sha256(recipe_path)))) stop("Phase 12 recipe checksum drifted", call. = FALSE)
+  if (!identical(phase12_json_bytes(recipe), phase12_json_bytes(expected_recipe))) phase12_freeze_fail("recipe_drift", "calibration recipe drifted")
+  if (!identical(tolower(as.character(manifest_value$recipe_sha256[[1L]])), tolower(phase12_file_sha256(recipe_path)))) phase12_freeze_fail("recipe_drift", "recipe checksum drifted")
   if (is.null(parent_paths)) parent_paths <- phase12_parent_paths()
   graph <- phase12_freeze_parent_graph(parent_paths, root)
-  if (!identical(tolower(as.character(manifest_value$parent_graph_sha256[[1L]])), tolower(graph$parent_graph_sha256))) stop("Phase 12 parent graph checksum drifted", call. = FALSE)
+  if (!identical(tolower(as.character(manifest_value$parent_graph_sha256[[1L]])), tolower(graph$parent_graph_sha256))) phase12_freeze_fail("parent_checksum_drift", "parent graph checksum drifted")
   phase11 <- graph$parents[graph$parents$parent_id == "phase11_run_manifest", , drop = FALSE]
   if (nrow(phase11) != 1L || !identical(phase11$relative_path[[1L]], phase12_parent_paths()[["phase11_run_manifest"]])) {
-    if (identical(parent_paths, phase12_parent_paths())) stop("Phase 11 parent path drifted", call. = FALSE)
+    if (identical(parent_paths, phase12_parent_paths())) phase12_freeze_fail("parent_path_drift", "Phase 11 parent path drifted")
   }
-  if (!identical(as.character(manifest_value$phase11_run_manifest_sha256[[1L]]), as.character(phase11$sha256[[1L]]))) stop("Phase 11 parent checksum drifted", call. = FALSE)
+  if (!identical(as.character(manifest_value$phase11_run_manifest_sha256[[1L]]), as.character(phase11$sha256[[1L]]))) phase12_freeze_fail("parent_checksum_drift", "Phase 11 parent checksum drifted")
   run <- phase12_read_table(file.path(root, phase11$relative_path[[1L]]), "Phase 11 run manifest")
   phase12_run_manifest_checks(run, expected_rows$candidate_id)
   current_git <- phase12_git_identity(root)
-  if (!current_git$clean_worktree) stop("Phase 12 code is dirty", call. = FALSE)
+  if (!current_git$clean_worktree) phase12_freeze_fail("code_dirty", "Phase 12 code is dirty")
   invisible(TRUE)
 }
