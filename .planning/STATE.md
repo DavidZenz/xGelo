@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
 status: executing
-stopped_at: Completed 12-03-PLAN.md
-last_updated: "2026-08-11T09:44:07.088Z"
+stopped_at: Completed 12-04-PLAN.md
+last_updated: "2026-08-11T10:05:04.044Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 40
-  completed_plans: 35
+  completed_plans: 36
 ---
 
 # xGelo Project State
@@ -21,11 +21,11 @@ progress:
 ## Current Position
 
 Phase: 12 (calibration-promotion-and-model-release) — EXECUTING
-Plan: 5 of 9
+Plan: 6 of 9
 Status: Ready to execute
 Last activity: 2026-08-11 — Phase 12 execution started
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 90%
 
 ## Progress
 
@@ -111,6 +111,9 @@ dependence on paid data feeds.
 - [Phase ?]: Keep Plan 12-02 durable evidence synthetic and label-free; final evaluation and promotion remain downstream.
 - [Phase ?]: Raw versus calibrated derived-1X2 development gate requires strict calibration improvement, non-regressing RPS, inherited score/stability/coverage vetoes, and explicit raw fallback.
 - [Phase ?]: Persist all nine candidate/track identities with G=40 support, retaining unavailable states as explicit no-score rows.
+- [Phase ?]: Phase 12 Plan 04 admits only phase11_rf_dynamic_elo_open and preserves eight inactive candidates as explicit no-score rows.
+- [Phase ?]: Final evaluation preflight is label-free, and the exact opener requires approved state plus a passed unopened preflight.
+- [Phase ?]: Final-fit validation reconciles every persisted contract field against freshly derived frozen inputs.
 
 ## Blockers
 
@@ -129,8 +132,8 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 
 ## Session
 
-**Last session:** 2026-08-11T09:44:07.076Z
-**Stopped at:** Completed 12-03-PLAN.md
+**Last session:** 2026-08-11T10:05:04.032Z
+**Stopped at:** Completed 12-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -165,3 +168,4 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 | Phase 12 P01 | 19 min | 2 tasks | 4 files |
 | Phase 12 P02 | 26 min | 2 tasks | 6 files |
 | Phase 12 P03 | 32 min | 2 tasks | 3 files |
+| Phase 12 P04 | 13m46s | 2 tasks | 4 files |
