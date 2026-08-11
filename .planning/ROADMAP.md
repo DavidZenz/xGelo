@@ -264,7 +264,7 @@ Plans:
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
 | 11. Hybrid ML and Contextual Priors | 9/9 | Complete    | 2026-08-10 |
-| 12. Calibration, Promotion, and Model Release | 0/8 | Not started | - |
+| 12. Calibration, Promotion, and Model Release | 0/9 | Not started | - |
 
 ## Completed Milestones
 

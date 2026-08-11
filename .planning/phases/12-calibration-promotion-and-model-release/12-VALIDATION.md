@@ -17,7 +17,7 @@ created: 2026-08-10
 |----------|-------|
 | **Framework** | testthat 3.x |
 | **Config file** | `tests/testthat/` with project-local helpers |
-| **Quick run command** | `Rscript --vanilla -e 'files <- list.files("tests/testthat", pattern = "phase12", full.names = TRUE); if (length(files)) testthat::test_files(files, reporter = "summary")'` |
+| **Quick run command** | `Rscript --vanilla -e 'files <- list.files("tests/testthat", pattern = "phase12", full.names = TRUE); if (length(files)) for (path in files) testthat::test_file(path, reporter = "summary")'` |
 | **Full suite command** | `Rscript --vanilla -e 'testthat::test_dir("tests/testthat", reporter = "summary")'` |
 | **Estimated runtime** | Quick: under 90 seconds; full: under 5 minutes |
 
@@ -41,11 +41,11 @@ created: 2026-08-10
 | 12-03-01 | 03 | 3 | CAL-02 | N/A | Raw and calibrated 1X2 vectors are scored on identical fixtures with identical proper-score functions | integration | Phase 12 quick command; `test_phase12_calibration.R` | Yes - W0 | pending |
 | 12-03-02 | 03 | 3 | CAL-02 | N/A | Raw fallback is selected when calibration improvement or any frozen score/stability/coverage veto fails | unit/contract | Phase 12 quick command; `test_phase12_calibration.R` | Yes - W0 | pending |
 | 12-04-01 | 04 | 4 | PROMO-02 | N/A | Label-free final-fit/preflight failure prevents provider invocation and preserves the exact unopened allowlisted seam | integration | Phase 12 quick command; `test_phase12_final_evaluation.R` | Yes - W0 | pending |
-| 12-04-02 | 05 | 5 | PROMO-02 | N/A | Immutable final-evaluation artifact and append-only manifest link freeze, label, prediction, score, coverage, and promotion hashes | contract | Phase 12 quick command; `test_phase12_final_evaluation.R` | Yes - W0 | pending |
-| 12-04-03 | 05 | 5 | PROMO-02 | N/A | Promotion decision calls the locked Phase 9 evaluator and retains incumbent unless every gate passes | integration | Phase 12 quick command; `test_phase12_promotion.R` | Yes - W0 | pending |
-| 12-05-01 | 06 | 6 | PROMO-03 | N/A | Core staged release contains model object, model contract, freeze/final manifests, report, model card, provenance, and core hashes | contract | Phase 12 quick command; core release smoke plus `test_phase12_release.R` | Yes - W0 | pending |
-| 12-06-01 | 08 | 7 | PROMO-03 | N/A | Complete release installation validates metadata, hashes, paths, and fresh-process integrity before and after atomic replacement | regression | Phase 12 quick command; `test_phase12_release.R` and `test_benchmark_pipeline.R` | Yes - W0 | pending |
-| 12-06-02 | 08 | 7 | PROMO-03 | N/A | Approved and exact no-promotion `incumbent retained` releases remain complete, rollback-safe, and consumer-ready | contract | Phase 12 quick command; `test_phase12_release.R` | Yes - W0 | pending |
+| 12-05-01 | 05 | 5 | PROMO-02 | N/A | Immutable final-evaluation artifact and append-only manifest link freeze, label, prediction, score, coverage, and promotion hashes | contract | Phase 12 quick command; `test_phase12_final_evaluation.R` | Yes - W0 | pending |
+| 12-05-02 | 05 | 5 | PROMO-02 | N/A | Promotion decision calls the locked Phase 9 evaluator and retains incumbent unless every gate passes | integration | Phase 12 quick command; `test_phase12_promotion.R` | Yes - W0 | pending |
+| 12-06-01 | 06 | 6 | PROMO-03 | N/A | Core staged release contains model object, model contract, freeze/final manifests, report, model card, provenance, and core hashes | contract | Phase 12 quick command; core release smoke plus `test_phase12_release.R` | Yes - W0 | pending |
+| 12-08-01 | 08 | 7 | PROMO-03 | N/A | Complete release installation validates metadata, hashes, paths, and fresh-process integrity before and after atomic replacement | regression | Phase 12 quick command; `test_phase12_release.R` and `test_benchmark_pipeline.R` | Yes - W0 | pending |
+| 12-08-02 | 08 | 7 | PROMO-03 | N/A | Approved and exact no-promotion `incumbent retained` releases remain complete, rollback-safe, and consumer-ready | contract | Phase 12 quick command; `test_phase12_release.R` | Yes - W0 | pending |
 | 12-07-01 | 07 | 8 | PROMO-03 | N/A | Dashboard/export resolution fails closed on absent, unapproved, or hash-mismatched release artifacts | regression | Phase 12 quick command; `test_phase12_release.R` and `test_worldcup_dashboard.R` | Yes - W0 | pending |
 | 12-07-02 | 07 | 8 | PROMO-03 | N/A | Target ancestry remains label-safe and the approved/retained release metadata is preserved across dashboard/export consumers | integration | Phase 12 quick command; `test_phase12_promotion.R`, `test_phase12_release.R`, and `test_worldcup_dashboard.R` | Yes - W0 | pending |
 
