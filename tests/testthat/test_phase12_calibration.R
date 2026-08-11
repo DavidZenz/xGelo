@@ -4,6 +4,7 @@ project_root <- normalizePath(file.path(getwd(), if (basename(getwd()) == "testt
 source(file.path(project_root, "R/release/freeze_manifest.R"))
 source(file.path(project_root, "R/calibration/inner_oof.R"))
 source(file.path(project_root, "R/calibration/probability_calibration.R"))
+source(file.path(project_root, "R/calibration/calibration_selection.R"))
 
 # Validation 12-00-01: calibration contracts are synthetic and chronology-aware.
 # Validation 12-00-02: no holdout artifact is opened by the Wave 0 scaffold.
@@ -204,4 +205,121 @@ test_that("12-02-02 durable CSV/RDS artifacts reconcile in a fresh read-back", {
   payload <- readRDS(paths[[2L]])
   expect_identical(payload$manifest$recipe_sha256[[1L]], calibrator$recipe_sha256)
   expect_identical(payload$inner_oof_row_count, 60L)
+})
+
+phase12_calibration_gate_test_case <- function(calibrated = TRUE) {
+  editions <- c(
+    "wc2002", "wc2006", "wc2010", "wc2014", "wc2018", "wc2022",
+    "euro2004", "euro2008", "euro2012", "euro2016", "euro2020", "euro2024"
+  )
+  fixture_id <- paste0("phase12_gate_fixture_", seq_along(editions))
+  observed <- rep(c("home", "draw", "away"), length.out = length(editions))
+  fixtures <- data.frame(
+    edition_id = editions, fixture_id = fixture_id,
+    regulation_home_goals = ifelse(observed == "home", 1L, 0L),
+    regulation_away_goals = ifelse(observed == "away", 1L, 0L),
+    score_eligible = TRUE, stringsAsFactors = FALSE
+  )
+  distributions <- expand.grid(home_goals = 0:40, away_goals = 0:40)
+  distributions$score_distribution_id <- "phase12_g40"
+  distributions$probability <- dpois(distributions$home_goals, 2) * dpois(distributions$away_goals, 1)
+  distributions$probability <- distributions$probability / sum(distributions$probability)
+  raw <- data.frame(
+    run_id = "phase12_synthetic_gate", model_id = "phase11_rf_dynamic_elo_open", panel_id = "open_core",
+    edition_id = editions, track_id = "updating", fixture_id = fixture_id,
+    score_distribution_id = "phase12_g40", p_home = .3, p_draw = .3, p_away = .4,
+    p_over_2_5 = .4, p_under_2_5 = .6, p_btts = .3, prediction_status = "ok",
+    stringsAsFactors = FALSE
+  )
+  raw$p_home <- ifelse(observed == "home", .4, .3)
+  raw$p_draw <- ifelse(observed == "draw", .4, .3)
+  raw$p_away <- ifelse(observed == "away", .4, .3)
+  calibrated_view <- raw
+  if (isTRUE(calibrated)) {
+    calibrated_view$p_home <- ifelse(observed == "home", .7, .15)
+    calibrated_view$p_draw <- ifelse(observed == "draw", .7, .15)
+    calibrated_view$p_away <- ifelse(observed == "away", .7, .15)
+  }
+  list(raw = raw, calibrated = calibrated_view, fixtures = fixtures, distributions = distributions, ids = fixture_id, editions = editions)
+}
+
+test_that("12-03-01 raw and calibrated views use identical fixtures and shared scores", {
+  x <- phase12_calibration_gate_test_case()
+  comparison <- compare_phase12_raw_calibrated(
+    x$raw, x$calibrated, x$fixtures, x$distributions, x$ids, x$editions
+  )
+  expect_equal(comparison$coverage_numerator, 12L)
+  expect_equal(comparison$coverage_denominator, 12L)
+  expect_true(comparison$coverage_valid)
+  expect_true(comparison$distribution_unchanged)
+  expect_true(comparison$identity$fixture_identity_match)
+  expect_equal(nrow(comparison$raw_summaries[comparison$raw_summaries$grain == "tournament", ]), 12L * 14L)
+  expect_equal(nrow(comparison$calibrated_summaries[comparison$calibrated_summaries$grain == "tournament", ]), 12L * 14L)
+  expect_lt(comparison$calibrated_calibration_values$calibration_error, comparison$raw_calibration_values$calibration_error)
+  expect_true(all(comparison$raw_scores$metric[comparison$raw_scores$target == "regulation_scoreline"] == comparison$calibrated_scores$metric[comparison$calibrated_scores$target == "regulation_scoreline"]))
+})
+
+test_that("12-03-01 rejects identity drift outside derived 1X2", {
+  x <- phase12_calibration_gate_test_case()
+  drifted <- x$calibrated
+  drifted$score_distribution_id[[1L]] <- "other_distribution"
+  expect_error(
+    compare_phase12_raw_calibrated(x$raw, drifted, x$fixtures, x$distributions, x$ids, x$editions),
+    "outside derived 1X2|score_distribution"
+  )
+  expect_identical(select_phase12_primary_probability_view(TRUE, character()), "calibrated_1x2")
+  expect_identical(select_phase12_primary_probability_view(FALSE, character()), "raw_1x2")
+})
+
+test_that("12-03-02 calibration selection is strict and vetoes supporting regressions", {
+  x <- phase12_calibration_gate_test_case()
+  comparison <- compare_phase12_raw_calibrated(x$raw, x$calibrated, x$fixtures, x$distributions, x$ids, x$editions)
+  decision <- phase12_selection_decision(comparison)
+  expect_true(decision$calibration_promoted)
+  expect_identical(decision$primary_probability_view, "calibrated_1x2")
+  expect_length(decision$reason_codes, 0L)
+
+  tied <- compare_phase12_raw_calibrated(x$raw, x$raw, x$fixtures, x$distributions, x$ids, x$editions)
+  tied_decision <- phase12_selection_decision(tied)
+  expect_false(tied_decision$calibration_promoted)
+  expect_true("calibration_not_improved" %in% tied_decision$reason_codes)
+
+  sparse <- comparison
+  sparse$calibration_support_valid <- FALSE
+  sparse_decision <- phase12_selection_decision(sparse)
+  expect_identical(sparse_decision$primary_probability_view, "raw_1x2")
+  expect_true("calibration_support_insufficient" %in% sparse_decision$reason_codes)
+
+  unstable <- comparison
+  unstable$paired_rps$breadth$maximum_fold_regression <- .015 + 1e-12
+  unstable_decision <- phase12_selection_decision(unstable)
+  expect_true("fold_stability_veto" %in% unstable_decision$reason_codes)
+
+  incomplete <- comparison
+  incomplete$coverage_valid <- FALSE
+  incomplete$coverage_numerator <- 11L
+  incomplete_decision <- phase12_selection_decision(incomplete)
+  expect_true("fixture_coverage_veto" %in% incomplete_decision$reason_codes)
+  expect_identical(
+    incomplete_decision$reason_codes,
+    phase12_selection_reason_order()[phase12_selection_reason_order() %in% incomplete_decision$reason_codes]
+  )
+})
+
+test_that("12-03-02 durable gate retains all candidate/track states and reads back", {
+  x <- phase12_calibration_gate_test_case()
+  comparison <- compare_phase12_raw_calibrated(x$raw, x$calibrated, x$fixtures, x$distributions, x$ids, x$editions)
+  rows <- phase12_calibration_gate_rows(comparison)
+  expect_equal(nrow(rows), 9L)
+  expect_equal(length(unique(rows$candidate_id)), 9L)
+  expect_equal(sum(rows$score_status == "scored"), 1L)
+  expect_equal(sum(rows$score_status == "no_score"), 8L)
+  expect_true(all(rows$primary_probability_view %in% c("calibrated_1x2", "raw_1x2")))
+  expect_identical(rows$primary_probability_view[rows$score_status == "scored"], "calibrated_1x2")
+  expect_true(all(nzchar(rows$reason_codes[rows$score_status == "no_score"])))
+  output_path <- file.path(tempdir(), "phase12-calibration-gate.csv")
+  expect_invisible(write_phase12_calibration_gate(rows, output_path))
+  persisted <- read.csv(output_path, stringsAsFactors = FALSE, check.names = FALSE)
+  expect_identical(as.character(persisted$candidate_id), as.character(rows$candidate_id))
+  expect_identical(as.character(persisted$track_id), as.character(rows$track_id))
 })
