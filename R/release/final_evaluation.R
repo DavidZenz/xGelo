@@ -71,6 +71,16 @@ phase12_final_evaluation_source_if_missing(
   c("benchmark_holdout_rows", "benchmark_outcome_columns", "guard_benchmark_purpose"),
   "."
 )
+phase12_final_evaluation_source_if_missing(
+  "R/evaluation/proper_scores.R",
+  c("validate_scoreline_distribution"),
+  "."
+)
+phase12_final_evaluation_source_if_missing(
+  "R/evaluation/benchmark_scores.R",
+  c("score_benchmark_fixtures"),
+  "."
+)
 
 phase12_final_evaluation_sha256 <- function(value, file = FALSE) {
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Phase 12 final-evaluation hashes", call. = FALSE)
@@ -230,4 +240,246 @@ phase12_open_final_labels <- function(label_path, expected_source_sha256, approv
 
 phase12_final_evaluation_provider_calls <- function() {
   phase12_final_evaluation_state$provider_calls
+}
+
+phase12_final_evaluation_artifact_paths <- function(
+    output_dir = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release"
+) {
+  output_dir <- phase12_final_evaluation_resolve_path(output_dir)
+  c(
+    labels = file.path(output_dir, "final_evaluation/labels.csv"),
+    predictions = file.path(output_dir, "final_evaluation/predictions.csv"),
+    scores = file.path(output_dir, "final_evaluation/scores.csv"),
+    manifest = file.path(output_dir, "manifests/final_evaluation_manifest.csv")
+  )
+}
+
+phase12_final_evaluation_write_once <- function(data, path, name) {
+  if (file.exists(path)) stop(name, " is already published and immutable", call. = FALSE)
+  if (!is.data.frame(data) || !nrow(data)) stop(name, " must contain rows", call. = FALSE)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  staged <- tempfile(paste0(".", basename(path), "-"), tmpdir = dirname(path))
+  on.exit(if (file.exists(staged)) unlink(staged), add = TRUE)
+  utils::write.csv(data, staged, row.names = FALSE, na = "", quote = TRUE)
+  if (!file.rename(staged, path)) stop("Could not publish immutable ", name, call. = FALSE)
+  invisible(path)
+}
+
+phase12_final_evaluation_assert_label_free <- function(data, name) {
+  if (!is.data.frame(data)) stop(name, " must be a data frame", call. = FALSE)
+  outcome_columns <- benchmark_outcome_columns(data)
+  if (length(outcome_columns)) {
+    present <- vapply(outcome_columns, function(column) {
+      values <- data[[column]]
+      any(!is.na(values) & nzchar(as.character(values)))
+    }, logical(1))
+    if (any(present)) stop(name, " contains label-bearing outcome rows", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+phase12_final_evaluation_prediction_bundle <- function(value) {
+  if (!is.list(value) || is.data.frame(value)) {
+    stop("Phase 12 prediction provider must return a list", call. = FALSE)
+  }
+  required <- c("predictions", "fixtures", "distributions")
+  missing <- setdiff(required, names(value))
+  if (length(missing)) stop("Phase 12 prediction provider is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  phase12_final_evaluation_assert_label_free(value$predictions, "Phase 12 predictions")
+  phase12_final_evaluation_assert_label_free(value$fixtures, "Phase 12 fixture identities")
+  phase12_final_evaluation_assert_label_free(value$distributions, "Phase 12 distributions")
+  prediction_required <- c(
+    "run_id", "model_id", "panel_id", "edition_id", "track_id", "fixture_id",
+    "score_distribution_id", "p_home", "p_draw", "p_away", "p_over_2_5",
+    "p_under_2_5", "p_btts", "prediction_status"
+  )
+  missing <- setdiff(prediction_required, names(value$predictions))
+  if (length(missing)) stop("Phase 12 predictions are missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  fixture_required <- c("edition_id", "fixture_id", "score_eligible")
+  missing <- setdiff(fixture_required, names(value$fixtures))
+  if (length(missing)) stop("Phase 12 fixture identities are missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (anyDuplicated(value$fixtures$fixture_id) || anyDuplicated(value$predictions$fixture_id)) {
+    stop("Phase 12 synthetic scoring inputs contain duplicate fixture IDs", call. = FALSE)
+  }
+  if (any(tolower(as.character(value$fixtures$edition_id)) != "wc2026")) {
+    stop("Phase 12 final scoring fixtures must be wc2026 identities", call. = FALSE)
+  }
+  value
+}
+
+phase12_final_evaluation_merge_labels_for_scoring <- function(fixtures, labels) {
+  required <- c("fixture_id", "edition_id", "regulation_home_goals", "regulation_away_goals")
+  missing <- setdiff(required, names(labels))
+  if (length(missing)) stop("Phase 12 final labels are missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (anyDuplicated(labels$fixture_id)) stop("Phase 12 final labels contain duplicate fixture IDs", call. = FALSE)
+  index <- match(as.character(fixtures$fixture_id), as.character(labels$fixture_id))
+  if (anyNA(index)) stop("Phase 12 final labels do not cover every declared fixture", call. = FALSE)
+  if (any(as.character(fixtures$edition_id) != as.character(labels$edition_id[index]))) {
+    stop("Phase 12 final label edition identity drifted", call. = FALSE)
+  }
+  result <- fixtures
+  result$regulation_home_goals <- as.integer(labels$regulation_home_goals[index])
+  result$regulation_away_goals <- as.integer(labels$regulation_away_goals[index])
+  result
+}
+
+phase12_final_evaluation_candidate_registry <- function(
+    final_fit_manifest = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/final_evaluation/final_fit/final_fit_manifest.csv"
+) {
+  rows <- phase12_final_evaluation_read_table(final_fit_manifest, "Phase 12 final-fit manifest")
+  required <- c("candidate_id", "track_id", "admissible", "score_status", "primary_probability_view", "no_score_reason")
+  missing <- setdiff(required, names(rows))
+  if (length(missing)) stop("Phase 12 final-fit manifest is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (nrow(rows) != 9L || anyDuplicated(paste(rows$candidate_id, rows$track_id, sep = "\r"))) {
+    stop("Phase 12 final-evaluation registry must contain nine unique candidate/track rows", call. = FALSE)
+  }
+  rows[order(as.character(rows$candidate_id), as.character(rows$track_id), method = "radix"), , drop = FALSE]
+}
+
+phase12_final_evaluation_registry_rows <- function(
+    registry, predictions, scores, paths, preflight, label_source_sha256,
+    label_sha256, promotion_decision_sha256 = "", run_timestamp
+) {
+  prediction_ids <- unique(as.character(predictions$model_id))
+  score_rows <- scores[scores$target == "regulation_1x2" & scores$metric == "rps", , drop = FALSE]
+  rows <- lapply(seq_len(nrow(registry)), function(index) {
+    candidate <- as.character(registry$candidate_id[[index]])
+    candidate_predictions <- predictions[as.character(predictions$model_id) == candidate, , drop = FALSE]
+    candidate_scores <- score_rows[as.character(score_rows$model_id) == candidate, , drop = FALSE]
+    active <- isTRUE(as.logical(registry$admissible[[index]]))
+    expected <- if (active) length(registry$fixture_ids[[index]]) else 0L
+    observed <- if (active) nrow(candidate_scores) else 0L
+    data.frame(
+      schema_version = "phase12-final-evaluation-manifest-v1",
+      candidate_id = candidate, track_id = as.character(registry$track_id[[index]]),
+      active_status = active, score_status = if (active) "scored" else "no_score",
+      no_score_reason = if (active) "" else as.character(registry$no_score_reason[[index]]),
+      primary_probability_view = as.character(registry$primary_probability_view[[index]]),
+      expected_fixture_count = expected, observed_fixture_count = observed,
+      coverage_numerator = observed, coverage_denominator = expected,
+      coverage_complete = active && observed == expected,
+      predictions_sha256 = if (active) phase12_final_evaluation_sha256(paths[["predictions"]], file = TRUE) else "",
+      scores_sha256 = if (active) phase12_final_evaluation_sha256(paths[["scores"]], file = TRUE) else "",
+      prediction_row_count = nrow(candidate_predictions), score_row_count = nrow(candidate_scores),
+      freeze_id = as.character(preflight$freeze_id),
+      freeze_self_sha256 = as.character(preflight$freeze_self_sha256),
+      calibration_gate_sha256 = as.character(preflight$calibration_gate_sha256),
+      final_fit_manifest_sha256 = as.character(preflight$final_fit_manifest_sha256),
+      protocol_sha256 = as.character(preflight$protocol_sha256),
+      label_source_sha256 = as.character(label_source_sha256), label_sha256 = as.character(label_sha256),
+      promotion_decision_sha256 = as.character(promotion_decision_sha256),
+      labels_consumed = TRUE, holdout_state = "consumed", run_timestamp = as.character(run_timestamp),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  })
+  do.call(rbind, rows)
+}
+
+run_phase12_final_evaluation_once <- function(
+    expected_source_sha256,
+    approval_state = "approved",
+    label_path = phase12_final_evaluation_allowlisted_label_path(),
+    label_provider = getOption("xgelo.phase12_final_label_provider", NULL),
+    prediction_provider,
+    output_dir = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release",
+    final_state = NULL,
+    freeze_manifest = "data/benchmark/phase12/freeze_manifest.csv",
+    calibration_gate = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/calibration/calibration_gate.csv",
+    protocol = "data/benchmark/phase09/promotion_protocol.json",
+    final_fit_manifest = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/final_evaluation/final_fit/final_fit_manifest.csv",
+    promotion_candidates = NULL,
+    promotion_report_path = NULL
+) {
+  if (!is.function(prediction_provider)) stop("Phase 12 final evaluation requires a label-free prediction provider", call. = FALSE)
+  if (length(expected_source_sha256) != 1L || !grepl("^[0-9a-fA-F]{64}$", expected_source_sha256)) {
+    stop("Phase 12 final evaluation expected source SHA-256 is invalid", call. = FALSE)
+  }
+  state <- final_state %||% list(approval_state = approval_state, holdout_state = "unopened")
+  state$approval_state <- approval_state
+  preflight <- phase12_preflight_final_evaluation(
+    freeze_manifest = freeze_manifest, calibration_gate = calibration_gate,
+    final_state = state, protocol = protocol
+  )
+  registry <- phase12_final_evaluation_candidate_registry(final_fit_manifest)
+  prediction_input <- prediction_provider(registry[, c("candidate_id", "track_id", "admissible", "primary_probability_view"), drop = FALSE], preflight)
+  bundle <- phase12_final_evaluation_prediction_bundle(prediction_input)
+  old_provider <- getOption("xgelo.phase12_final_label_provider", NULL)
+  options(xgelo.phase12_final_label_provider = label_provider)
+  on.exit(options(xgelo.phase12_final_label_provider = old_provider), add = TRUE)
+  opened <- phase12_open_final_labels(label_path, expected_source_sha256, approval_state)
+  label_path_out <- phase12_final_evaluation_artifact_paths(output_dir)[["labels"]]
+  phase12_final_evaluation_write_once(opened$data, label_path_out, "Phase 12 copied labels")
+  label_sha256 <- phase12_final_evaluation_sha256(label_path_out, file = TRUE)
+  scoring_fixtures <- phase12_final_evaluation_merge_labels_for_scoring(bundle$fixtures, opened$data)
+  scores <- score_benchmark_fixtures(
+    bundle$predictions, scoring_fixtures, bundle$distributions,
+    as.character(bundle$fixtures$fixture_id)
+  )
+  paths <- phase12_final_evaluation_artifact_paths(output_dir)
+  phase12_final_evaluation_write_once(bundle$predictions, paths[["predictions"]], "Phase 12 predictions")
+  phase12_final_evaluation_write_once(scores, paths[["scores"]], "Phase 12 scores")
+  promotion <- NULL
+  if (!is.null(promotion_candidates)) {
+    promotion_report_path <- promotion_report_path %||% file.path(dirname(paths[["manifest"]]), "promotion_report.csv")
+    if (!exists("evaluate_phase12_candidates", mode = "function")) {
+      source(phase12_final_evaluation_resolve_path("R/release/promotion_report.R"), local = .GlobalEnv)
+    }
+    promotion <- evaluate_phase12_candidates(promotion_candidates, protocol = protocol)
+    promotion$report_path <- write_phase12_promotion_report(promotion, promotion_report_path)
+  }
+  decision_hash <- if (is.null(promotion)) "" else phase12_final_evaluation_sha256(promotion$report_path, file = TRUE)
+  registry$fixture_ids <- rep(list(as.character(bundle$fixtures$fixture_id)), nrow(registry))
+  rows <- phase12_final_evaluation_registry_rows(
+    registry, bundle$predictions, scores, paths, preflight,
+    expected_source_sha256, label_sha256, decision_hash,
+    format(Sys.time(), tz = "UTC", usetz = TRUE)
+  )
+  manifest_path <- write_phase12_final_evaluation_manifest(rows, paths[["manifest"]])
+  list(
+    schema_version = "phase12-final-evaluation-v1", preflight = preflight,
+    label_state = list(opened_once = opened$opened_once, copied = TRUE, scoring_reporting_only = TRUE,
+                       source_sha256 = opened$source_sha256, label_sha256 = label_sha256),
+    paths = c(paths, promotion_report = if (is.null(promotion)) "" else promotion$report_path),
+    manifest_path = manifest_path, manifest_rows = rows, scores = scores,
+    promotion = promotion, provider_calls = phase12_final_evaluation_provider_calls()
+  )
+}
+
+write_phase12_final_evaluation_manifest <- function(rows, path = NULL) {
+  if (is.list(rows) && !is.data.frame(rows)) {
+    if (is.null(rows$manifest_rows)) stop("Phase 12 final-evaluation result has no manifest rows", call. = FALSE)
+    if (is.null(path)) path <- rows$paths[["manifest"]]
+    rows <- rows$manifest_rows
+  }
+  if (!is.data.frame(rows) || !nrow(rows)) stop("Phase 12 final-evaluation manifest rows must be non-empty", call. = FALSE)
+  required <- c("candidate_id", "track_id", "score_status", "coverage_numerator", "coverage_denominator",
+    "freeze_self_sha256", "calibration_gate_sha256", "final_fit_manifest_sha256", "protocol_sha256",
+    "label_source_sha256", "label_sha256", "promotion_decision_sha256", "labels_consumed", "holdout_state")
+  missing <- setdiff(required, names(rows))
+  if (length(missing)) stop("Phase 12 final-evaluation manifest is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (nrow(rows) != 9L || anyDuplicated(paste(rows$candidate_id, rows$track_id, sep = "\r"))) {
+    stop("Phase 12 final-evaluation manifest must retain nine unique candidate/track rows", call. = FALSE)
+  }
+  if (is.null(path) || !is.character(path) || length(path) != 1L || !nzchar(path)) stop("Phase 12 final-evaluation manifest path is required", call. = FALSE)
+  path <- phase12_final_evaluation_resolve_path(path)
+  phase12_final_evaluation_write_once(rows[order(rows$candidate_id, rows$track_id, method = "radix"), , drop = FALSE], path, "Phase 12 final-evaluation manifest")
+  invisible(path)
+}
+
+validate_phase12_final_evaluation_manifest <- function(
+    manifest = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/manifests/final_evaluation_manifest.csv"
+) {
+  path <- phase12_final_evaluation_resolve_path(manifest)
+  if (!file.exists(path)) stop("Phase 12 final-evaluation manifest is missing", call. = FALSE)
+  rows <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE)
+  required <- c("candidate_id", "track_id", "score_status", "coverage_numerator", "coverage_denominator",
+    "freeze_self_sha256", "calibration_gate_sha256", "final_fit_manifest_sha256", "protocol_sha256",
+    "label_source_sha256", "label_sha256", "promotion_decision_sha256", "labels_consumed", "holdout_state")
+  missing <- setdiff(required, names(rows))
+  if (length(missing)) stop("Phase 12 final-evaluation manifest is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (nrow(rows) != 9L || anyDuplicated(paste(rows$candidate_id, rows$track_id, sep = "\r"))) stop("Phase 12 final-evaluation manifest identity drifted", call. = FALSE)
+  if (any(as.character(rows$holdout_state) != "consumed") || any(!as.logical(rows$labels_consumed))) stop("Phase 12 final-evaluation manifest is not consumed exactly once", call. = FALSE)
+  if (any(!grepl("^[0-9a-fA-F]{64}$", rows$label_source_sha256)) || any(!grepl("^[0-9a-fA-F]{64}$", rows$label_sha256))) stop("Phase 12 final-evaluation label hashes are invalid", call. = FALSE)
+  if (any(as.integer(rows$coverage_numerator) > as.integer(rows$coverage_denominator))) stop("Phase 12 final-evaluation coverage drifted", call. = FALSE)
+  invisible(TRUE)
 }
