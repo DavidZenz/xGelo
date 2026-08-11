@@ -42,8 +42,8 @@
 - [x] **CAL-01**: The analyst can train probability calibration using inner out-of-fold predictions without using the outer assessment tournament.
 - [x] **CAL-02**: The benchmark compares raw and calibrated probabilities with the same proper scores and reports any discrimination or calibration regression.
 - [x] **PROMO-01**: Candidate models, settings, feature sets, and promotion thresholds are frozen before the final 2026 World Cup evaluation is opened.
-- [ ] **PROMO-02**: The analyst can execute the final 2026 comparison once and retain the incumbent unless a challenger satisfies the promotion rule.
-- [ ] **PROMO-03**: The approved model is published as a versioned artifact with a model card, benchmark report, and dashboard regression tests.
+- [x] **PROMO-02**: The analyst can execute the final 2026 comparison once and retain the incumbent unless a challenger satisfies the promotion rule.
+- [x] **PROMO-03**: The approved model is published as a versioned artifact with a model card, benchmark report, and dashboard regression tests.
 
 ## Future Requirements
 
@@ -93,8 +93,8 @@ Each active v2.0 requirement maps to exactly one roadmap phase.
 | CAL-01 | 12 | Complete |
 | CAL-02 | 12 | Complete |
 | PROMO-01 | 12 | Complete |
-| PROMO-02 | 12 | Pending |
-| PROMO-03 | 12 | Pending |
+| PROMO-02 | 12 | Complete |
+| PROMO-03 | 12 | Complete |
 
 **Coverage:**
 

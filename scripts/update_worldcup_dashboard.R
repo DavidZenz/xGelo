@@ -94,6 +94,7 @@ source_dashboard_code <- function() {
     "R/forecast/poisson.R",
     "R/forecast/monte_carlo.R",
     "R/forecast/tournament.R",
+    "R/release/release_contract.R",
     "R/visualization/worldcup_dashboard.R"
   )
   require_paths(sources, "dashboard source files")
@@ -248,8 +249,8 @@ report_transfermarkt_value_divergence <- function(
 
 report_xg_feature_usage <- function(
     feature_table_path,
-    home_model_path,
-    away_model_path,
+    home_model,
+    away_model,
     forecast_features_path,
     audit_output_path = "data/processed/xg_feature_usage_audit.csv"
 ) {
@@ -259,8 +260,8 @@ report_xg_feature_usage <- function(
   }
   audit <- audit_xg_feature_usage(
     feature_table = feature_table_path,
-    home_model = home_model_path,
-    away_model = away_model_path,
+    home_model = home_model,
+    away_model = away_model,
     rolling_form = "data/processed/rolling_form.csv",
     forecast_features = forecast_features_path,
     output_path = audit_output_path
@@ -326,6 +327,7 @@ main <- function() {
   pages_dir <- read_env_path("XGELO_PAGES_DIR", "docs/wc2026")
   publish_pages <- read_env_flag("XGELO_PUBLISH", TRUE)
   baseline_comparison <- read_env_flag("XGELO_BASELINE_COMPARISON", FALSE)
+  release_root <- read_env_path("XGELO_RELEASE_ROOT", "outputs/releases")
   route_method <- read_env_path("XGELO_ROUTE_METHOD", "analytic")
   feature_cutoff_date <- as.Date(read_env_path("XGELO_FEATURE_CUTOFF_DATE", as.character(Sys.Date() - 1L)))
   if (is.na(feature_cutoff_date)) {
@@ -339,8 +341,6 @@ main <- function() {
     stop("XGELO_ROUTE_METHOD must be either analytic or simulation", call. = FALSE)
   }
 
-  home_model_path <- read_env_path("XGELO_HOME_MODEL", "models/home_goal_model_hybrid.rds")
-  away_model_path <- read_env_path("XGELO_AWAY_MODEL", "models/away_goal_model_hybrid.rds")
   forecast_features_path <- read_env_path(
     "XGELO_FORECAST_FEATURES",
     "data/processed/worldcup_2026_forecast_features_hybrid.csv"
@@ -355,13 +355,11 @@ main <- function() {
     "data/raw/transfermarkt/transfermarkt-datasets.duckdb"
   )
 
-  require_paths(
-    c(home_model_path, away_model_path, forecast_features_path, matches_path),
-    "hybrid dashboard artifacts"
-  )
+  approved_release <- resolve_phase12_approved_release(release_root)
   if (baseline_comparison) {
-    require_paths(c("models/home_goal_model.rds", "models/away_goal_model.rds"), "baseline comparison artifacts")
+    stop("XGELO_BASELINE_COMPARISON is not available on the approved-release consumer path", call. = FALSE)
   }
+  require_paths(c(forecast_features_path, matches_path), "approved-release dashboard inputs")
 
   report_local_data_freshness(matches_path, transfermarkt_metadata_path)
   audit_dashboard_team_coverage(
@@ -376,13 +374,14 @@ main <- function() {
   )
   report_xg_feature_usage(
     feature_table_path = "data/processed/goal_training_features_hybrid.csv",
-    home_model_path = home_model_path,
-    away_model_path = away_model_path,
+    home_model = approved_release$model$home_model,
+    away_model = approved_release$model$away_model,
     forecast_features_path = forecast_features_path
   )
 
   message(sprintf(
-    "Building hybrid dashboard: match_sims=%s, tournaments=%s, workers=%s, feature_cutoff=%s, actual_results_cutoff=%s, route_method=%s",
+    "Building approved release dashboard (%s): match_sims=%s, tournaments=%s, workers=%s, feature_cutoff=%s, actual_results_cutoff=%s, route_method=%s",
+    approved_release$metadata$release_id,
     n_match_sim,
     n_tournaments,
     n_workers,
@@ -397,17 +396,12 @@ main <- function() {
     n_match_sim = n_match_sim,
     n_tournaments = n_tournaments,
     n_workers = n_workers,
-    model_version = "hybrid",
     feature_cutoff_date = feature_cutoff_date,
     actual_results_cutoff_date = actual_results_cutoff_date,
     actual_results_path = matches_path,
-    require_forecast_features = TRUE,
-    baseline_comparison = baseline_comparison,
-    home_model_path = home_model_path,
-    away_model_path = away_model_path,
+    release_root = release_root,
+    approved_release = approved_release,
     forecast_features_path = forecast_features_path,
-    baseline_home_model_path = "models/home_goal_model.rds",
-    baseline_away_model_path = "models/away_goal_model.rds",
     transfermarkt_metadata_path = transfermarkt_metadata_path,
     route_method = route_method
   )

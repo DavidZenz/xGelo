@@ -224,7 +224,7 @@ Plans:
 
 **Depends on:** Phase 11
 
-**Plans:** 5/9 plans executed
+**Plans:** 9/9 plans complete
 
 Plans:
 
@@ -233,10 +233,10 @@ Plans:
 - [x] 12-02-PLAN.md — Build chronology-safe candidate/track 1X2 calibration after freeze
 - [x] 12-03-PLAN.md — Compare raw and calibrated development probabilities
 - [x] 12-04-PLAN.md — Build label-free final fit and preflight boundary
-- [ ] 12-05-PLAN.md — Run one-shot final evaluation and promotion decision
-- [ ] 12-06-PLAN.md — Stage and validate the core versioned release bundle
-- [ ] 12-08-PLAN.md — Complete metadata and atomically install the release bundle
-- [ ] 12-07-PLAN.md — Wire approved consumers, targets, dashboard, and UI regressions
+- [x] 12-05-PLAN.md — Run one-shot final evaluation and promotion decision
+- [x] 12-06-PLAN.md — Stage and validate the core versioned release bundle
+- [x] 12-08-PLAN.md — Complete metadata and atomically install the release bundle
+- [x] 12-07-PLAN.md — Wire approved consumers, targets, dashboard, and UI regressions
 
 **Execution waves:** Wave 0: 12-00; Wave 1: 12-01; Wave 2: 12-02; Wave 3: 12-03; Wave 4: 12-04; Wave 5: 12-05; Wave 6: 12-06; Wave 7: 12-08; Wave 8: 12-07.
 
@@ -265,7 +265,7 @@ Plans:
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
 | 11. Hybrid ML and Contextual Priors | 9/9 | Complete    | 2026-08-10 |
-| 12. Calibration, Promotion, and Model Release | 5/9 | In Progress|  |
+| 12. Calibration, Promotion, and Model Release | 9/9 | Complete | 2026-08-11 |
 
 ## Completed Milestones
 
