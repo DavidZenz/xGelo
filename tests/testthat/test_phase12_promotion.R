@@ -43,7 +43,7 @@ test_that("12-00-01 promotion fixture retains exact incumbent fallback", {
 })
 
 test_that("12-00-01 promotion gate names evaluator and report seams", {
-  phase12_promotion_require_api(
+  expect_invisible(phase12_promotion_require_api(
     c(
       "evaluate_phase12_candidates",
       "write_phase12_promotion_report",
@@ -51,7 +51,7 @@ test_that("12-00-01 promotion gate names evaluator and report seams", {
       "select_promoted_candidate"
     ),
     "promotion"
-  )
+  ))
 })
 
 phase12_promotion_all_contracts <- function() {
