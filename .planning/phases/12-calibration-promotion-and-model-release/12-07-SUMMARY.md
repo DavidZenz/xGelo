@@ -42,7 +42,7 @@ model paths as consumer authority.
 - Target manifest contains all eight required Phase 12 target seams.
 - Release-backed dashboard smoke test passed with deterministic small simulations.
 - Dashboard suite: 451 passing assertions.
-- Full repository suite: 2,531 passing assertions, 0 failures, 0 warnings.
+- Full repository suite: 2,532 passing assertions, 0 failures, 0 warnings, 0 skips.
 - The final label source was not reopened during consumer verification.
 
 ## Commit
