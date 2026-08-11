@@ -1,0 +1,15 @@
+{
+  "epsilon": 1.0000000000000001e-15,
+  "initial_temperature": 1,
+  "method": "base-R one-parameter temperature scaling",
+  "minimum_class_count": 10,
+  "minimum_history_rows": 60,
+  "optimizer": "stats::optim-L-BFGS-B",
+  "probability_view": "log-derived 1X2 probabilities",
+  "recipe_id": "phase12_multiclass_temperature",
+  "schema_version": "1.0",
+  "score_support": 40,
+  "seed": 920012,
+  "temperature_bounds": [0.25, 4]
+}
+
