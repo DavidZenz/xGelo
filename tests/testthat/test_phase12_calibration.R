@@ -315,6 +315,7 @@ test_that("12-03-02 durable gate retains all candidate/track states and reads ba
   expect_equal(sum(rows$score_status == "scored"), 1L)
   expect_equal(sum(rows$score_status == "no_score"), 8L)
   expect_true(all(rows$primary_probability_view %in% c("calibrated_1x2", "raw_1x2")))
+  expect_true(all(rows$score_support_g == 40L))
   expect_identical(rows$primary_probability_view[rows$score_status == "scored"], "calibrated_1x2")
   expect_true(all(nzchar(rows$reason_codes[rows$score_status == "no_score"])))
   output_path <- file.path(tempdir(), "phase12-calibration-gate.csv")

@@ -345,7 +345,7 @@ phase12_selection_no_score_row <- function(candidate_id, track_id, reason = "cal
     primary_probability_view = "raw_1x2", calibration_promoted = FALSE, reason_codes = as.character(reason), reason_count = 1L,
     calibration_support_valid = FALSE, fixture_identity_match = FALSE, edition_identity_match = FALSE, track_identity_match = FALSE,
     score_distribution_identity_match = FALSE, auxiliary_market_identity_match = FALSE, prediction_status_identity_match = FALSE,
-    score_distribution_unchanged = FALSE, coverage_numerator = 0L, coverage_denominator = 0L, expected_fixture_count = 0L, observed_fixture_count = 0L,
+    score_distribution_unchanged = FALSE, coverage_numerator = 0L, coverage_denominator = 0L, expected_fixture_count = 0L, observed_fixture_count = 0L, score_support_g = 40L,
     stringsAsFactors = FALSE, check.names = FALSE
   )
 }
