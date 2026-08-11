@@ -115,9 +115,19 @@ phase12_selection_identity <- function(raw, calibrated, expected_fixture_ids) {
     stop("Phase 12 raw and calibrated views require the exact expected fixture IDs", call. = FALSE)
   }
   identity <- phase12_selection_expected_identity()
+  allowed <- c(identity, phase12_selection_probability_columns(), "p_home_calibrated", "p_draw_calibrated", "p_away_calibrated", "primary_probability_view")
+  if (!identical(sort(setdiff(names(raw), allowed), method = "radix"), sort(setdiff(names(calibrated), allowed), method = "radix"))) {
+    stop("Phase 12 raw and calibrated views differ outside derived 1X2 probabilities: column identity", call. = FALSE)
+  }
   raw_order <- order(raw$fixture_id, method = "radix")
   calibrated_order <- order(calibrated$fixture_id, method = "radix")
   for (column in identity) {
+    if (!identical(as.character(raw[[column]][raw_order]), as.character(calibrated[[column]][calibrated_order]))) {
+      stop("Phase 12 raw and calibrated views differ outside derived 1X2 probabilities: ", column, call. = FALSE)
+    }
+  }
+  shared_extra <- setdiff(intersect(names(raw), names(calibrated)), phase12_selection_probability_columns())
+  for (column in setdiff(shared_extra, c("p_home_calibrated", "p_draw_calibrated", "p_away_calibrated", "primary_probability_view"))) {
     if (!identical(as.character(raw[[column]][raw_order]), as.character(calibrated[[column]][calibrated_order]))) {
       stop("Phase 12 raw and calibrated views differ outside derived 1X2 probabilities: ", column, call. = FALSE)
     }
@@ -232,7 +242,7 @@ compare_phase12_raw_calibrated <- function(
     paired_rps = paired, expected_fixture_ids = identity$expected_fixture_ids,
     expected_editions = expected_editions, coverage_numerator = coverage_numerator,
     coverage_denominator = coverage_denominator, coverage_valid = coverage_numerator == coverage_denominator,
-    calibration_support_valid = isTRUE(calibration_support_valid), distribution_unchanged = distribution_unchanged,
+    calibration_support_valid = isTRUE(calibration_support_valid) && (is.null(calibrator) || !identical(as.character(calibrator$fit_status), "raw_fallback")), distribution_unchanged = distribution_unchanged,
     identity = identity
   )
 }
@@ -257,7 +267,7 @@ phase12_selection_decision <- function(comparison, protocol = NULL, calibration_
   if (!isTRUE(comparison$coverage_valid) || comparison$coverage_numerator != comparison$coverage_denominator) reasons <- c(reasons, "fixture_coverage_veto")
   if (!isTRUE(comparison$distribution_unchanged) || !isTRUE(comparison$identity$score_distribution_identity_match)) reasons <- c(reasons, "score_identity_veto")
   rps_relative <- phase12_selection_relative_change(comparison$raw_headline[["rps"]], comparison$calibrated_headline[["rps"]])
-  if (!is.finite(rps_relative) || !isTRUE(rps_relative <= as.numeric(phase12_selection_or_null(protocol$supporting_vetoes$rps_delta$value, 0.01)))) reasons <- c(reasons, "rps_veto")
+  if (!is.finite(rps_relative) || !isTRUE(rps_relative <= 0)) reasons <- c(reasons, "rps_veto")
   if (!is.finite(brier_relative) || !isTRUE(brier_relative <= as.numeric(protocol$supporting_vetoes$brier_relative_change$value))) reasons <- c(reasons, "brier_veto")
   if (!is.finite(log_loss_relative) || !isTRUE(log_loss_relative <= as.numeric(protocol$supporting_vetoes$log_loss_relative_change$value))) reasons <- c(reasons, "log_loss_veto")
   if (!is.finite(max_fold_regression) || !isTRUE(max_fold_regression <= as.numeric(protocol$core_gate$maximum_fold_regression$value))) reasons <- c(reasons, "fold_stability_veto")
