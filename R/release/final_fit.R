@@ -84,6 +84,15 @@ phase12_final_fit_present <- function(value) {
   !is.na(value) && nzchar(as.character(value))
 }
 
+phase12_final_fit_compare_values <- function(value) {
+  if (is.logical(value)) return(ifelse(is.na(value), "", ifelse(value, "TRUE", "FALSE")))
+  if (is.numeric(value)) return(ifelse(is.na(value), "", format(value, scientific = FALSE, trim = TRUE)))
+  if (is.factor(value)) value <- as.character(value)
+  value <- as.character(value)
+  value[is.na(value)] <- ""
+  value
+}
+
 phase12_final_fit_gate_rows <- function(
     calibration_gate = phase12_final_fit_default_paths()[["calibration_gate"]],
     project_root = "."
@@ -341,9 +350,16 @@ validate_phase12_final_fit_manifest <- function(
   if (is.character(freeze_manifest) && length(freeze_manifest) == 1L && is.character(calibration_gate) && length(calibration_gate) == 1L) {
     inputs <- phase12_final_fit_registry_inputs(NULL, project_root)
     inputs$calibration_gate <- calibration_gate
-    expected <- fit_phase12_release_candidate(phase12_final_fit_expected_active_id(), inputs, calibration_gate, freeze_manifest, "updating", project_root)$manifest_row
-    for (field in c("model_sha256", "model_manifest_sha256", "calibrator_sha256", "ranger_provenance_id", "settings_sha256", "features_sha256", "panels_sha256", "seeds_sha256")) {
-      if (!identical(as.character(rows[[field]][active]), as.character(expected[[field]]))) stop("phase12_final_fit_artifact_drift: ", field, " drifted", call. = FALSE)
+    expected_rows <- lapply(seq_len(nrow(allowlist)), function(i) {
+      candidate <- as.character(allowlist$candidate_id[[i]])
+      track <- as.character(allowlist$track_id[[i]])
+      fit_phase12_release_candidate(candidate, inputs, calibration_gate, freeze_manifest, track, project_root)$manifest_row
+    })
+    expected_rows <- do.call(rbind, expected_rows)
+    for (field in setdiff(names(expected_rows), "final_fit_self_sha256")) {
+      actual <- phase12_final_fit_compare_values(rows[[field]])
+      expected <- phase12_final_fit_compare_values(expected_rows[[field]])
+      if (!identical(actual, expected)) stop("phase12_final_fit_artifact_drift: ", field, " drifted", call. = FALSE)
     }
   }
   if (!identical(unique(as.character(rows$final_fit_self_sha256)), phase12_final_fit_row_hash(rows))) stop("phase12_final_fit_self_hash: final-fit self-hash mismatch", call. = FALSE)

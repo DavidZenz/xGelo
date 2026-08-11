@@ -156,6 +156,37 @@ test_that("12-04-02 final-fit and preflight drift contracts fail closed", {
   )
 })
 
+test_that("12-04-02 final-fit manifest rejects contract, protocol, code, label, candidate, and G drift", {
+  manifest <- utils::read.csv(
+    file.path(project_root, "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/final_evaluation/final_fit/final_fit_manifest.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+
+  tampered_contract <- manifest
+  tampered_contract$contract_flags[tampered_contract$admissible] <- "freeze_valid"
+  expect_error(validate_phase12_final_fit_manifest(tampered_contract), "contract_drift|artifact_drift")
+
+  tampered_protocol <- manifest
+  tampered_protocol$promotion_protocol_sha256[1L] <- strrep("c", 64)
+  expect_error(validate_phase12_final_fit_manifest(tampered_protocol), "artifact_drift|protocol|self_hash")
+
+  tampered_code <- manifest
+  tampered_code$dirty_code[1L] <- "dirty-working-tree"
+  expect_error(validate_phase12_final_fit_manifest(tampered_code), "code_drift|artifact_drift|self_hash")
+
+  tampered_label <- manifest
+  tampered_label$label_source_path[1L] <- "data/benchmark/phase12/other_labels.csv"
+  expect_error(validate_phase12_final_fit_manifest(tampered_label), "unopened_state|artifact_drift|self_hash")
+
+  tampered_candidate <- manifest
+  tampered_candidate$candidate_id[1L] <- "not_allowlisted"
+  expect_error(validate_phase12_final_fit_manifest(tampered_candidate), "candidate_drift|artifact_drift|self_hash")
+
+  tampered_g <- manifest
+  tampered_g$score_support_g[1L] <- 39L
+  expect_error(validate_phase12_final_fit_manifest(tampered_g), "support_drift|artifact_drift|self_hash")
+})
+
 test_that("12-04-02 opener contract remains exact and allowlisted", {
   expect_identical(
     phase12_final_evaluation_allowlisted_label_path(),
