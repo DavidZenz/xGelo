@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
 status: executing
-stopped_at: Completed 12-01-PLAN.md
-last_updated: "2026-08-11T08:42:42.826Z"
+stopped_at: Completed 12-02-PLAN.md
+last_updated: "2026-08-11T09:10:15.193Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 40
-  completed_plans: 33
+  completed_plans: 34
 ---
 
 # xGelo Project State
@@ -21,11 +21,11 @@ progress:
 ## Current Position
 
 Phase: 12 (calibration-promotion-and-model-release) — EXECUTING
-Plan: 3 of 9
+Plan: 4 of 9
 Status: Ready to execute
 Last activity: 2026-08-11 — Phase 12 execution started
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 85%
 
 ## Progress
 
@@ -106,6 +106,9 @@ dependence on paid data feeds.
 - [Phase 12]: Use assembled forbidden tokens so the static boundary scan remains contract-only.
 - [Phase 12]: Phase 12 Plan 01 uses the durable Phase 11 hybrid run manifest path as the sole Phase 11 parent identity.
 - [Phase 12]: Phase 12 Plan 01 binds a canonical base-R temperature recipe and SHA before any calibration fit.
+- [Phase ?]: Use the validated Phase 12 freeze and recipe checksum as a hard pre-fit gate for candidate/track calibration.
+- [Phase ?]: Fit deterministic derived-1X2 temperature calibrators only from strictly prior expanding inner-OOF rows, with explicit raw fallback below frozen support floors.
+- [Phase ?]: Keep Plan 12-02 durable evidence synthetic and label-free; final evaluation and promotion remain downstream.
 
 ## Blockers
 
@@ -124,8 +127,8 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 
 ## Session
 
-**Last session:** 2026-08-11T08:42:42.813Z
-**Stopped at:** Completed 12-01-PLAN.md
+**Last session:** 2026-08-11T09:10:15.182Z
+**Stopped at:** Completed 12-02-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -158,3 +161,4 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 | Phase 11 P09 | 5min | 2 tasks | 1 files |
 | Phase 12 P00 | 7 min | 2 tasks | 5 files |
 | Phase 12 P01 | 19 min | 2 tasks | 4 files |
+| Phase 12 P02 | 26 min | 2 tasks | 6 files |
