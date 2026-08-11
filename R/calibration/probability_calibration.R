@@ -1,5 +1,10 @@
 #' Phase 12 frozen one-parameter temperature calibration for derived 1X2.
 
+if (!exists("phase12_calibration_source_if_missing", mode = "function")) {
+  calibration_root <- if (file.exists("R/calibration/inner_oof.R")) "." else file.path("..", "..")
+  source(file.path(calibration_root, "R/calibration/inner_oof.R"), local = .GlobalEnv)
+}
+
 phase12_calibration_source_if_missing(
   "R/evaluation/proper_scores.R", c("validate_probability_vector")
 )
@@ -241,7 +246,11 @@ write_phase12_calibration_artifacts <- function(inner_oof, calibrators, output_d
   paths <- phase12_calibration_output_paths(output_dir)
   dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
   inner_oof <- inner_oof[order(inner_oof$candidate_id, inner_oof$track_id, inner_oof$outer_edition_id, inner_oof$inner_edition_id, inner_oof$fixture_id, method = "radix"), , drop = FALSE]
-  utils::write.csv(inner_oof, paths[["inner_oof_predictions"]], row.names = FALSE, na = "", quote = TRUE)
+  persisted_inner_oof <- inner_oof
+  for (column in intersect(c("evidence_cutoff_exclusive", "max_evidence_date"), names(persisted_inner_oof))) {
+    persisted_inner_oof[[column]] <- format(as.Date(persisted_inner_oof[[column]]), "%Y-%m-%d")
+  }
+  utils::write.csv(persisted_inner_oof, paths[["inner_oof_predictions"]], row.names = FALSE, na = "", quote = TRUE)
   if (!is.list(calibrators)) stop("Phase 12 calibrators must be a list", call. = FALSE)
   validated <- lapply(calibrators, function(calibrator) { validate_phase12_calibrator(calibrator, freeze_manifest = freeze_manifest); calibrator })
   manifest <- do.call(rbind, lapply(validated, phase12_calibration_manifest_row))

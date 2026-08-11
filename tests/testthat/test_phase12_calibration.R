@@ -49,7 +49,7 @@ test_that("12-00-01 calibration fixture preserves a strict prior-only contract",
 })
 
 test_that("12-00-01 calibration owner gate names only downstream APIs", {
-  phase12_calibration_require_api(
+  expect_invisible(phase12_calibration_require_api(
     c(
       "assemble_phase12_inner_oof",
       "phase12_calibration_recipe",
@@ -59,7 +59,7 @@ test_that("12-00-01 calibration owner gate names only downstream APIs", {
       "select_phase12_primary_probability_view"
     ),
     "calibration"
-  )
+  ))
 })
 
 phase12_calibration_synthetic_inputs <- function() {
@@ -141,6 +141,9 @@ test_that("12-02-02 sparse history returns an explicit raw fallback", {
   expect_identical(fallback$fit_status, "raw_fallback")
   expect_true(nzchar(fallback$fallback_reason))
   expect_identical(apply_phase12_1x2_calibrator(fallback, c(home = 0.5, draw = 0.3, away = 0.2)), c(home = 0.5, draw = 0.3, away = 0.2))
+  empty <- oof[FALSE, , drop = FALSE]
+  empty_fallback <- fit_phase12_1x2_calibrator(empty, "phase11_rf_dynamic_elo_open", "updating", "wc2010")
+  expect_identical(empty_fallback$fit_status, "raw_fallback")
 })
 
 test_that("12-02-02 chronology, identity, and holdout guards fail closed", {
@@ -152,10 +155,30 @@ test_that("12-02-02 chronology, identity, and holdout guards fail closed", {
   expect_error(validate_phase12_inner_oof_chronology(future, "phase11_rf_dynamic_elo_open", "updating", "wc2010", inputs$boundaries), "prior|chronology")
   same_cutoff <- oof; same_cutoff$max_evidence_date[[1L]] <- same_cutoff$evidence_cutoff_exclusive[[1L]]
   expect_error(validate_phase12_inner_oof_chronology(same_cutoff, "phase11_rf_dynamic_elo_open", "updating", "wc2010", inputs$boundaries), "precede|cutoff")
+  invalid_probability <- oof; invalid_probability$p_home_raw[[1L]] <- 0.9
+  expect_error(validate_phase12_inner_oof_chronology(invalid_probability, "phase11_rf_dynamic_elo_open", "updating", "wc2010", inputs$boundaries), "sum|probabil")
+  calibrator <- fit_phase12_1x2_calibrator(oof, "phase11_rf_dynamic_elo_open", "updating", "wc2010")
+  invalid_optimizer <- calibrator; invalid_optimizer$optimizer_convergence <- 1L
+  expect_error(validate_phase12_calibrator(invalid_optimizer), "optimizer")
   holdout_calls <- 0L
   holdout <- data.frame(edition_id = "wc2026", fixture_id = "wc2026_synthetic", actual_home_goals = 1L, stringsAsFactors = FALSE)
   expect_error(guard_benchmark_purpose(holdout, "calibration", adapter = function(x) { holdout_calls <<- holdout_calls + 1L; x }), "sealed|wc2026")
   expect_identical(holdout_calls, 0L)
+})
+
+test_that("12-02-02 provenance row retains frozen identity, support, and source hash", {
+  inputs <- phase12_calibration_synthetic_inputs()
+  oof <- assemble_phase12_inner_oof(inputs$predictions, inputs$fixtures, inputs$boundaries, "phase11_rf_dynamic_elo_open", "updating", "wc2010")
+  calibrator <- fit_phase12_1x2_calibrator(oof, "phase11_rf_dynamic_elo_open", "updating", "wc2010")
+  row <- phase12_calibration_manifest_row(calibrator)
+  expect_identical(row$candidate_id[[1L]], "phase11_rf_dynamic_elo_open")
+  expect_identical(row$track_id[[1L]], "updating")
+  expect_identical(row$outer_edition_id[[1L]], "wc2010")
+  expect_identical(row$row_count[[1L]], 60L)
+  expect_true(all(c(row$class_count_home[[1L]], row$class_count_draw[[1L]], row$class_count_away[[1L]]) == 20L))
+  expect_match(row$recipe_sha256[[1L]], "^[0-9a-f]{64}$")
+  expect_match(row$source_prediction_sha256[[1L]], "^[0-9a-f]{64}$")
+  expect_identical(row$inner_edition_ids[[1L]], "euro2004|euro2008|wc2002|wc2006")
 })
 
 test_that("12-02-02 calibration adds only a derived 1X2 view and preserves G=40 scorelines", {
