@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
 status: executing
-stopped_at: Completed 12-00-PLAN.md
-last_updated: "2026-08-11T08:22:34.368Z"
+stopped_at: Completed 12-01-PLAN.md
+last_updated: "2026-08-11T08:42:42.826Z"
 last_activity: 2026-08-11
 last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 40
-  completed_plans: 32
+  completed_plans: 33
 ---
 
 # xGelo Project State
@@ -21,11 +21,11 @@ progress:
 ## Current Position
 
 Phase: 12 (calibration-promotion-and-model-release) — EXECUTING
-Plan: 2 of 9
+Plan: 3 of 9
 Status: Ready to execute
 Last activity: 2026-08-11 — Phase 12 execution started
 
-Progress: [████████░░] 80%
+Progress: [████████░░] 83%
 
 ## Progress
 
@@ -104,6 +104,8 @@ dependence on paid data feeds.
 - [Phase 12]: Keep the five exact Phase 12 validation filenames as the stable downstream test surface.
 - [Phase 12]: Keep Wave 0 synthetic and defer production APIs behind explicit RED gates.
 - [Phase 12]: Use assembled forbidden tokens so the static boundary scan remains contract-only.
+- [Phase 12]: Phase 12 Plan 01 uses the durable Phase 11 hybrid run manifest path as the sole Phase 11 parent identity.
+- [Phase 12]: Phase 12 Plan 01 binds a canonical base-R temperature recipe and SHA before any calibration fit.
 
 ## Blockers
 
@@ -122,8 +124,8 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 
 ## Session
 
-**Last session:** 2026-08-11T08:22:12.023Z
-**Stopped at:** Completed 12-00-PLAN.md
+**Last session:** 2026-08-11T08:42:42.813Z
+**Stopped at:** Completed 12-01-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -155,3 +157,4 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 | Phase 11 P08 | 17min | 3 tasks | 1 files |
 | Phase 11 P09 | 5min | 2 tasks | 1 files |
 | Phase 12 P00 | 7 min | 2 tasks | 5 files |
+| Phase 12 P01 | 19 min | 2 tasks | 4 files |
