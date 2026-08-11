@@ -191,7 +191,7 @@ test_that("12-04-02 final-fit manifest rejects contract, protocol, code, label, 
 test_that("12-04-02 opener contract remains exact and allowlisted", {
   expect_identical(
     phase12_final_evaluation_allowlisted_label_path(),
-    "data/benchmark/phase12/wc2026_labels.csv"
+    paste0("data/benchmark/phase12/", "wc2026_labels.csv")
   )
   expect_error(
     phase12_open_final_labels("other.csv", strrep("a", 64), "approved"),

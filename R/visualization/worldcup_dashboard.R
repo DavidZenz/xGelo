@@ -1036,6 +1036,8 @@ make_knockout_route_estimator <- function(
     seed = NULL,
     home_model_path = "models/home_goal_model.rds",
     away_model_path = "models/away_goal_model.rds",
+    home_model = NULL,
+    away_model = NULL,
     elo_ratings_path = "data/processed/elo_ratings.csv",
     forecast_features = NULL,
     forecast_features_path = NULL,
@@ -1049,12 +1051,16 @@ make_knockout_route_estimator <- function(
     cache = new.env(parent = emptyenv())
 ) {
   route_method <- match.arg(route_method)
-  if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
-  if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
   if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
 
-  home_model <- readRDS(home_model_path)
-  away_model <- readRDS(away_model_path)
+  if (is.null(home_model)) {
+    if (!file.exists(home_model_path)) stop(paste("Home model not found:", home_model_path))
+    home_model <- readRDS(home_model_path)
+  }
+  if (is.null(away_model)) {
+    if (!file.exists(away_model_path)) stop(paste("Away model not found:", away_model_path))
+    away_model <- readRDS(away_model_path)
+  }
   elo_ratings <- read.csv(elo_ratings_path, stringsAsFactors = FALSE)
   elo_ratings$date <- as.Date(elo_ratings$date)
   match_date <- as.Date(date)
@@ -2971,6 +2977,28 @@ compute_worldcup_model_comparison <- function(primary_payload, baseline_payload)
   list(team_deltas = team_comparison, match_deltas = match_comparison)
 }
 
+#' Resolve the consumer-approved model contract for a dashboard build.
+dashboard_resolve_approved_release <- function(release_root = NULL, approved_release = NULL) {
+  if (!is.null(approved_release)) return(approved_release)
+  if (is.null(release_root)) return(NULL)
+  if (!exists("resolve_phase12_approved_release", mode = "function")) {
+    source("R/release/release_contract.R", local = .GlobalEnv)
+  }
+  resolve_phase12_approved_release(release_root)
+}
+
+dashboard_release_model_pair <- function(release) {
+  if (is.null(release) || is.null(release$model)) return(NULL)
+  model <- release$model
+  if (is.list(model) && !is.null(model$home_model) && !is.null(model$away_model)) {
+    return(list(home_model = model$home_model, away_model = model$away_model))
+  }
+  if (is.list(model) && !is.null(model$home) && !is.null(model$away)) {
+    return(list(home_model = model$home, away_model = model$away))
+  }
+  list(home_model = model, away_model = model)
+}
+
 #' Build dashboard-ready World Cup forecast data
 #'
 #' @export
@@ -3004,6 +3032,8 @@ build_worldcup_dashboard_data <- function(
     baseline_comparison = FALSE,
     baseline_home_model_path = "models/home_goal_model.rds",
     baseline_away_model_path = "models/away_goal_model.rds",
+    release_root = NULL,
+    approved_release = NULL,
     ...
 ) {
   suppressPackageStartupMessages({
@@ -3011,10 +3041,30 @@ build_worldcup_dashboard_data <- function(
   })
   extra_args <- list(...)
   route_method <- match.arg(route_method)
-  home_model_path <- if (!is.null(extra_args$home_model_path)) extra_args$home_model_path else "models/home_goal_model.rds"
-  away_model_path <- if (!is.null(extra_args$away_model_path)) extra_args$away_model_path else "models/away_goal_model.rds"
+  approved_release <- dashboard_resolve_approved_release(release_root, approved_release)
+  release_models <- dashboard_release_model_pair(approved_release)
+  if (!is.null(release_models)) {
+    extra_args$home_model <- release_models$home_model
+    extra_args$away_model <- release_models$away_model
+    if (!is.null(approved_release$metadata$release_id)) model_version <- paste0("release:", approved_release$metadata$release_id)
+  }
+  home_model_path <- if (!is.null(extra_args[["home_model_path"]])) extra_args[["home_model_path"]] else "models/home_goal_model.rds"
+  away_model_path <- if (!is.null(extra_args[["away_model_path"]])) extra_args[["away_model_path"]] else "models/away_goal_model.rds"
   dashboard_forecast_features <- forecast_features
   dashboard_forecast_features_path <- forecast_features_path
+  if (
+    !is.null(approved_release) &&
+      is.null(dashboard_forecast_features) &&
+      (is.null(dashboard_forecast_features_path) ||
+        !is.character(dashboard_forecast_features_path) ||
+        length(dashboard_forecast_features_path) != 1 ||
+        is.na(dashboard_forecast_features_path) ||
+        !nzchar(dashboard_forecast_features_path)) &&
+      file.exists("data/processed/goal_training_features_hybrid.csv")
+  ) {
+    dashboard_forecast_features_path <- "data/processed/goal_training_features_hybrid.csv"
+    dashboard_forecast_features <- read.csv(dashboard_forecast_features_path, stringsAsFactors = FALSE)
+  }
   if (
     is.null(dashboard_forecast_features) &&
       is.character(dashboard_forecast_features_path) &&
@@ -3079,6 +3129,8 @@ build_worldcup_dashboard_data <- function(
     seed = seed + 100000L,
     home_model_path = home_model_path,
     away_model_path = away_model_path,
+    home_model = extra_args[["home_model"]],
+    away_model = extra_args[["away_model"]],
     elo_ratings_path = elo_ratings_path,
     forecast_features = dashboard_forecast_features,
     forecast_features_path = dashboard_forecast_features_path,
@@ -3165,6 +3217,11 @@ build_worldcup_dashboard_data <- function(
   )
   benchmark_summary <- read_euro2024_benchmark_summary(euro2024_metrics_path)
   xg_usage_summary <- read_xg_feature_usage_summary(xg_feature_usage_audit_path)
+  release_metadata <- if (is.null(approved_release)) {
+    list(available = FALSE, status = "unresolved")
+  } else {
+    c(list(available = TRUE), approved_release$metadata)
+  }
   payload <- list(
     metadata = list(
       title = "xGelo 2026 World Cup Forecast",
@@ -3189,6 +3246,11 @@ build_worldcup_dashboard_data <- function(
       n_match_sim = n_match_sim,
       n_tournaments = n_tournaments,
       n_workers = normalise_dashboard_workers(n_workers, n_tournaments),
+      release_id = if (isTRUE(release_metadata$available)) release_metadata$release_id else "",
+      release_status = if (isTRUE(release_metadata$available)) release_metadata$status else "unresolved",
+      primary_probability_view = if (isTRUE(release_metadata$available)) release_metadata$primary_probability_view else "",
+      score_support_g = if (isTRUE(release_metadata$available)) release_metadata$score_support_g else NA_integer_,
+      release_metadata = release_metadata,
       format_note = "48 teams, 12 groups of four, top two plus eight best third-place teams reach the Round of 32.",
       fixture_source = "FIFA World Cup 2026 group-stage fixture schedule, cross-checked against FourFourTwo listing updated 2026-06-05.",
       caveat = if (completed_fixture_count > 0) {
@@ -3280,7 +3342,7 @@ dashboard_html_template <- function(json_text) {
 header{padding:22px 24px 14px;border-bottom:1px solid var(--line);background:#fff}
 h1{margin:0;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}
 .subhead{margin-top:8px;max-width:980px;color:#444}.subhead a{color:var(--blue);font-weight:700;text-decoration:none}.subhead a:hover{text-decoration:underline}.meta{margin-top:10px;color:var(--muted);font-size:12px}
-main{padding:18px 24px 32px}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
+main{padding:18px 24px 32px}.release-panel{margin:0 0 18px;padding:12px;border:1px solid var(--line);border-left:4px solid var(--blue);background:#fff;overflow-wrap:anywhere}.release-panel.alert{border-left-color:#a33b32}.release-panel-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.release-panel-title{font-weight:800}.release-panel-status{font-size:12px;color:var(--muted)}.release-panel a{color:var(--blue-dark);font-weight:700}.release-provenance{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}.release-provenance summary{cursor:pointer;font-weight:700}.release-provenance-grid{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 12px;margin-top:8px;font-size:12px}.release-provenance-grid code{overflow-wrap:anywhere;word-break:break-word}.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}.tab{border:1px solid var(--line);background:#fff;padding:8px 10px;cursor:pointer;font-weight:700}.tab.active{border-color:var(--ink);background:var(--ink);color:#fff}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 18px}.toolbar input,.toolbar select{border:1px solid var(--line);background:#fff;padding:8px;min-width:180px}
 .hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:18px}.metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric .value.title-chances-value,.metric .value.compact-metric-value{font-size:16px;line-height:1.25}.metric .note{font-size:12px;color:var(--muted)}.title-chances{display:grid;gap:2px;margin-top:3px}.title-chance-row{display:grid;grid-template-columns:5ch minmax(0,1fr);column-gap:10px;align-items:baseline}.title-chance-pct{text-align:right;font-variant-numeric:tabular-nums}.title-chance-team{font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .section{display:none}.section.active{display:block}.grid-groups{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box,.match-card,.team-card,.bracket-game{background:#fff;border:1px solid var(--line);padding:10px}.group-box{overflow-x:auto}.match-card.knockout{border-left:3px solid var(--blue)}
@@ -3307,6 +3369,7 @@ details{background:#fff;border:1px solid var(--line);padding:10px;margin-top:18p
 <header><h1>xGelo 2026 World Cup Forecast</h1><div class="subhead" id="subhead"></div><div class="meta" id="meta"></div></header>
 <main>
 <div class="hero" id="hero"></div>
+<div id="releasePanel" class="release-panel" role="status" aria-live="polite"></div>
 <div class="tabs"><button class="tab active" data-tab="groups">Groups</button><button class="tab" data-tab="matches">Matches</button><button class="tab" data-tab="bracket">Bracket</button><button class="tab" data-tab="teams">Teams</button><button class="tab" data-tab="elo">Elo Ratings</button></div>
 <section id="groups" class="section active"><div class="grid-groups" id="groupsGrid"></div></section>
 <section id="matches" class="section"><div class="toolbar"><input id="matchSearch" placeholder="Search team"><select id="groupFilter"><option value="">All matches</option></select></div><div class="match-grid" id="matchesGrid"></div></section>
@@ -3561,6 +3624,22 @@ const completedCount = Number(data.metadata.completed_group_matches || 0);
 const progressText = completedCount > 0 ? `${completedCount} completed group matches fixed at actual scores; ` : "";
 document.getElementById("subhead").innerHTML = `Built from ${intFmt(data.metadata.n_match_sim)} match simulations and ${intFmt(data.metadata.n_tournaments)} full tournament simulations ${modelDescription}. ${progressText}remaining probabilities are forecasts, while final scores are tournament state. Created by <a href="https://github.com/DavidZenz" target="_blank" rel="noopener">David Zenz</a>.`;
 document.getElementById("meta").textContent = `Generated ${data.metadata.generated_at} | Feature cutoff ${data.metadata.feature_cutoff_date || "n/a"} | Actual results through ${data.metadata.actual_results_cutoff_date || "n/a"} | ${intFmt(data.metadata.n_match_sim)} match sims | ${intFmt(data.metadata.n_tournaments)} full tournament sims | ${data.metadata.caveat}`;
+function renderReleasePanel(){
+  const panel = document.getElementById("releasePanel");
+  const release = data.metadata.release_metadata || {};
+  if (!release.available) {
+    panel.classList.add("alert");
+    panel.setAttribute("role", "alert");
+    panel.innerHTML = `<div class="release-panel-title">Approved release unavailable</div><div class="release-panel-status">Forecast consumers must resolve a validated release manifest before model loading.</div>`;
+    return;
+  }
+  panel.classList.remove("alert");
+  panel.setAttribute("role", "status");
+  const statusText = release.status === "approved" ? "Approved release" : "Incumbent retained";
+  const root = release.release_root || "";
+  panel.innerHTML = `<div class="release-panel-head"><div><div class="release-panel-title">${esc(statusText)}: ${esc(release.release_id)}</div><div class="release-panel-status">Model ${esc(release.selected_model_id)} | ${esc(release.track_id)} | G=${esc(release.score_support_g)} | Primary view ${esc(release.primary_probability_view)}</div></div><a href="#release-provenance" id="openRelease">Open approved release</a></div><details class="release-provenance" id="release-provenance"><summary>Release provenance</summary><div class="release-provenance-grid"><strong>Root</strong><code>${esc(root)}</code><strong>Decision SHA-256</strong><code>${esc(release.decision_sha256)}</code><strong>Manifest SHA-256</strong><code>${esc(release.manifest_self_sha256)}</code><strong>Raw fallback</strong><span>${esc(release.raw_fallback_status || "n/a")}</span></div></details>`;
+}
+renderReleasePanel();
 function renderHero(){
   const champs = data.champion_probabilities.filter(r => Number(r.champion_probability) > 0).slice(0,3).map(r => `<span class="title-chance-row"><span class="title-chance-pct">${pct(r.champion_probability)}</span><span class="title-chance-team">${esc(r.display_team)}</span></span>`).join("");
   const finalPath = data.bracket_paths.find(r => r.match_id === "M104");
@@ -4407,6 +4486,8 @@ build_worldcup_dashboard <- function(
     precompute_route_workers = n_workers,
     route_method = c("analytic", "simulation"),
     route_max_goals = 10,
+    release_root = NULL,
+    approved_release = NULL,
     ...
 ) {
   route_method <- match.arg(route_method)
@@ -4426,6 +4507,8 @@ build_worldcup_dashboard <- function(
     precompute_route_workers = precompute_route_workers,
     route_method = route_method,
     route_max_goals = route_max_goals,
+    release_root = release_root,
+    approved_release = approved_release,
     ...
   )
   output_path <- render_worldcup_dashboard(

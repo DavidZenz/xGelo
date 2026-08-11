@@ -287,10 +287,12 @@ phase12_assert_unopened_holdout <- function(data = NULL, state = NULL, label_pat
 phase12_git_identity <- function(project_root) {
   sha <- suppressWarnings(system2("git", c("-C", project_root, "rev-parse", "HEAD"), stdout = TRUE, stderr = FALSE))
   status <- suppressWarnings(system2("git", c("-C", project_root, "status", "--porcelain", "--untracked-files=no", "--", "R", "_targets.R"), stdout = TRUE, stderr = FALSE))
+  status <- status[!is.na(status)]
+  dirty <- length(status) > 0L && any(nzchar(trimws(status)))
   list(
     source_git_sha = if (length(sha) == 1L) trimws(sha) else "",
-    clean_worktree = !length(status) || !nzchar(trimws(status)),
-    dirty_code = if (length(status)) paste(status, collapse = "|") else ""
+    clean_worktree = !dirty,
+    dirty_code = if (dirty) paste(status[nzchar(trimws(status))], collapse = "|") else ""
   )
 }
 

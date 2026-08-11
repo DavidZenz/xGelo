@@ -84,6 +84,15 @@ source("R/forecast/external_market.R")
 source("R/benchmark/hybrid_protocol.R")
 source("R/benchmark/hybrid_adapters.R")
 source("R/benchmark/hybrid_runner.R")
+source("R/calibration/inner_oof.R")
+source("R/calibration/probability_calibration.R")
+source("R/release/freeze_manifest.R")
+source("R/release/final_fit.R")
+source("R/release/final_evaluation.R")
+source("R/release/promotion_report.R")
+source("R/release/release_bundle.R")
+source("R/release/release_install.R")
+source("R/release/release_contract.R")
 
 # Keep the legacy validator's lazy dependency loader intact while avoiding a
 # targets import cycle between the loader and the validator it services.
@@ -448,30 +457,14 @@ list(
   tar_target(
     worldcup_dashboard_file,
     {
-      home_goal_model
-      away_goal_model
-      home_goal_model_hybrid
-      away_goal_model_hybrid
-      transfermarkt_value_audit_file
-      xg_feature_usage_audit_file
+      phase12_approved_release
       elo_ratings_file
-      worldcup_forecast_features_file
-      hybrid_available <- !is.na(worldcup_forecast_features_file) &&
-        file.exists(worldcup_forecast_features_file) &&
-        file.exists("models/home_goal_model_hybrid.rds") &&
-        file.exists("models/away_goal_model_hybrid.rds")
       dashboard <- build_worldcup_dashboard(
         n_match_sim = 5000,
         n_tournaments = 5000,
-        model_version = if (hybrid_available) "hybrid" else "baseline",
         feature_cutoff_date = xgelo_feature_cutoff_date(),
-        require_forecast_features = hybrid_available,
-        baseline_comparison = hybrid_available,
-        home_model_path = if (hybrid_available) "models/home_goal_model_hybrid.rds" else "models/home_goal_model.rds",
-        away_model_path = if (hybrid_available) "models/away_goal_model_hybrid.rds" else "models/away_goal_model.rds",
-        forecast_features_path = if (hybrid_available) worldcup_forecast_features_file else NULL,
-        baseline_home_model_path = "models/home_goal_model.rds",
-        baseline_away_model_path = "models/away_goal_model.rds"
+        release_root = "outputs/releases",
+        approved_release = phase12_approved_release
       )
       dashboard$paths$html
     },
@@ -944,6 +937,133 @@ list(
       ))
     },
     format = "file"
+  ),
+  tar_target(
+    phase12_calibration_recipe_file,
+    "data/benchmark/phase12/calibration_recipe.json",
+    format = "file"
+  ),
+  tar_target(
+    phase12_freeze_manifest_file,
+    {
+      phase12_calibration_recipe_file
+      benchmark_phase11_bundle_files
+      path <- "data/benchmark/phase12/freeze_manifest.csv"
+      validate_phase12_freeze_manifest(path)
+      path
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_calibration_gate_files,
+    {
+      phase12_calibration_recipe_file
+      phase12_freeze_manifest_file
+      paths <- file.path(
+        "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/calibration",
+        c("calibration_gate.csv", "calibrators.rds", "inner_oof_predictions.csv")
+      )
+      if (any(!file.exists(paths))) stop("Phase 12 calibration gate artifacts are incomplete", call. = FALSE)
+      paths
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_final_fit_manifest_file,
+    {
+      phase12_calibration_gate_files
+      phase12_freeze_manifest_file
+      path <- "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/final_evaluation/final_fit/final_fit_manifest.csv"
+      if (!file.exists(path)) stop("Phase 12 final-fit manifest is missing", call. = FALSE)
+      validate_phase12_final_fit_manifest(path)
+      path
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_final_evaluation_approval,
+    {
+      phase12_final_fit_manifest_file
+      phase12_calibration_gate_files
+      phase12_freeze_manifest_file
+      approval_state <- Sys.getenv("XGELO_PHASE12_APPROVAL_STATE", unset = "pending")
+      preflight <- phase12_preflight_final_evaluation(
+        freeze_manifest = phase12_freeze_manifest_file,
+        calibration_gate = phase12_calibration_gate_files[[1L]],
+        final_state = list(
+          approval_state = approval_state,
+          holdout_state = "unopened",
+          label_path = phase12_final_evaluation_allowlisted_label_path()
+        ),
+        protocol = "data/benchmark/phase09/promotion_protocol.json"
+      )
+      if (!isTRUE(preflight$can_open)) stop("Phase 12 final-label approval is pending", call. = FALSE)
+      list(approval_state = approval_state, preflight = preflight)
+    }
+  ),
+  tar_target(
+    phase12_final_labels,
+    {
+      phase12_final_evaluation_approval
+      label_path <- phase12_final_evaluation_allowlisted_label_path()
+      output_path <- "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/final_evaluation/labels.csv"
+      if (!file.exists(output_path)) {
+        opened <- phase12_open_final_labels(
+          label_path = label_path,
+          expected_source_sha256 = "7dd366f457460c435ca3b8bdf9a456cc85903ee639d31f29bbd9c62ff604e1dc",
+          approval_state = "approved"
+        )
+        phase12_final_evaluation_write_once(opened$data, output_path, "Phase 12 copied labels")
+      }
+      output_path
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_final_evaluation_manifest_file,
+    {
+      phase12_final_labels
+      path <- "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/manifests/final_evaluation_manifest.csv"
+      validate_phase12_final_evaluation_manifest(path)
+      path
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_promotion_report_file,
+    {
+      phase12_final_evaluation_manifest_file
+      path <- "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/manifests/promotion_report.csv"
+      if (!file.exists(path)) stop("Phase 12 promotion report is missing", call. = FALSE)
+      path
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_release_bundle_files,
+    {
+      phase12_final_evaluation_manifest_file
+      phase12_promotion_report_file
+      phase12_freeze_manifest_file
+      phase12_calibration_gate_files
+      benchmark_phase11_bundle_files
+      root <- "outputs/releases"
+      files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE)
+      files <- files[!dir.exists(files)]
+      if (!length(files)) stop("Phase 12 approved release bundle is missing", call. = FALSE)
+      release_manifests <- files[basename(files) == "release_manifest.csv"]
+      if (length(release_manifests) != 1L) stop("Phase 12 release bundle resolution is ambiguous", call. = FALSE)
+      validate_phase12_complete_release_bundle(dirname(release_manifests[[1L]]))
+      files
+    },
+    format = "file"
+  ),
+  tar_target(
+    phase12_approved_release,
+    {
+      phase12_release_bundle_files
+      resolve_phase12_approved_release("outputs/releases")
+    }
   ),
   tar_target(
     worldcup_retrospective_ledger_bundle,
