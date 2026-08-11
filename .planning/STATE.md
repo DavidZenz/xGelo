@@ -3,29 +3,29 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
-current_phase_name: Calibration, Promotion, and Model Release
-status: planning
-stopped_at: Phase 12 UI-SPEC approved
-last_updated: "2026-08-10T18:30:59.008Z"
-last_activity: 2026-08-10
-last_activity_desc: Phase 11 complete, transitioned to Phase 12
+current_phase_name: calibration-promotion-and-model-release
+status: executing
+stopped_at: Completed 12-00-PLAN.md
+last_updated: "2026-08-11T08:22:34.368Z"
+last_activity: 2026-08-11
+last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
   completed_phases: 4
-  total_plans: 31
-  completed_plans: 31
+  total_plans: 40
+  completed_plans: 32
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 12 — Calibration, Promotion, and Model Release
-Plan: Not started
-Status: Ready to plan
-Last activity: 2026-08-10 — Phase 11 complete, transitioned to Phase 12
+Phase: 12 (calibration-promotion-and-model-release) — EXECUTING
+Plan: 2 of 9
+Status: Ready to execute
+Last activity: 2026-08-11 — Phase 12 execution started
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Progress
 
@@ -47,7 +47,7 @@ milestone scope.
 **Core value:** Accurate, calibrated international-football forecasting without
 dependence on paid data feeds.
 
-**Current focus:** Phase 12 — Calibration, Promotion, and Model Release
+**Current focus:** Phase 12 — calibration-promotion-and-model-release
 
 ## Decisions
 
@@ -101,6 +101,9 @@ dependence on paid data feeds.
 - [Phase 10]: Represent dynamic evidence as decayed GF, GA, and W sufficient statistics while keeping global pseudo-exposure fixed. — This makes inactivity continuously remove team effects without deleting historical match counts or resetting tournament cycles.
 - [Phase 10]: Select dynamic pseudo-exposure by equal-weight completed-prior-tournament updating RPS with the largest pseudo-exposure tie-break. — One deterministic setting identity is selected without assessed-tournament labels and reused across frozen and updating tracks.
 - [Phase 10]: Fit Elo only as one signed adapter-supplied point-in-time increment over immutable standalone dynamic log-means. — This preserves exact nesting and prohibits raw rating reads, reconstruction, and nearest-date model-layer lookups.
+- [Phase 12]: Keep the five exact Phase 12 validation filenames as the stable downstream test surface.
+- [Phase 12]: Keep Wave 0 synthetic and defer production APIs behind explicit RED gates.
+- [Phase 12]: Use assembled forbidden tokens so the static boundary scan remains contract-only.
 
 ## Blockers
 
@@ -119,9 +122,9 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 
 ## Session
 
-**Last session:** 2026-08-10T18:30:58.991Z
-**Stopped at:** Phase 12 UI-SPEC approved
-**Resume file:** .planning/phases/12-calibration-promotion-and-model-release/12-UI-SPEC.md
+**Last session:** 2026-08-11T08:22:12.023Z
+**Stopped at:** Completed 12-00-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -151,3 +154,4 @@ Plan Phase 12: Calibration, Promotion, and Model Release.
 |------|----------|-------|-------|
 | Phase 11 P08 | 17min | 3 tasks | 1 files |
 | Phase 11 P09 | 5min | 2 tasks | 1 files |
+| Phase 12 P00 | 7 min | 2 tasks | 5 files |
