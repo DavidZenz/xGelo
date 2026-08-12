@@ -224,7 +224,7 @@ Plans:
 
 **Depends on:** Phase 11
 
-**Plans:** 9/9 plans complete
+**Plans:** 9/10 plans complete
 
 Plans:
 **Wave 1**
@@ -260,7 +260,11 @@ Plans:
 
 - [x] 12-07-PLAN.md — Wire approved consumers, targets, dashboard, and UI regressions
 
-**Execution waves:** Wave 0: 12-00; Wave 1: 12-01; Wave 2: 12-02; Wave 3: 12-03; Wave 4: 12-04; Wave 5: 12-05; Wave 6: 12-06; Wave 7: 12-08; Wave 8: 12-07.
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [ ] 12-09-PLAN.md — Close PROMO-03 approved consumer boundary gap
+
+**Execution waves:** Wave 0: 12-00; Wave 1: 12-01; Wave 2: 12-02; Wave 3: 12-03; Wave 4: 12-04; Wave 5: 12-05; Wave 6: 12-06; Wave 7: 12-08; Wave 8: 12-07; Wave 9: 12-09 after 12-07/12-08.
 
 **Success Criteria:**
 
@@ -287,7 +291,7 @@ Plans:
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
 | 11. Hybrid ML and Contextual Priors | 9/9 | Complete    | 2026-08-10 |
-| 12. Calibration, Promotion, and Model Release | 9/9 | Complete | 2026-08-11 |
+| 12. Calibration, Promotion, and Model Release | 9/10 | In Progress | — |
 
 ## Completed Milestones
 

@@ -5,13 +5,13 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
 status: executing
-stopped_at: Completed 12-07-PLAN.md
-last_updated: "2026-08-12T14:52:56.059Z"
-last_activity: 2026-08-11
-last_activity_desc: Completed release installation, resolver wiring, and full verification
+stopped_at: Planned Phase 12 gap closure (12-09-PLAN.md)
+last_updated: "2026-08-12T14:57:16.000Z"
+last_activity: 2026-08-12
+last_activity_desc: Revised and verified the Phase 12 PROMO-03 gap-closure plan
 progress:
   total_phases: 5
-  completed_phases: 5
+  completed_phases: 4
   total_plans: 41
   completed_plans: 40
 ---
@@ -20,12 +20,12 @@ progress:
 
 ## Current Position
 
-Phase: 12 (calibration-promotion-and-model-release) — COMPLETE
-Plan: 9 of 9
+Phase: 12 (calibration-promotion-and-model-release) — GAP CLOSURE PLANNED
+Plan: 12-09-PLAN.md (10th of 10)
 Status: Ready to execute
-Last activity: 2026-08-11 — Completed release installation, resolver wiring, and full verification
+Last activity: 2026-08-12 — Revised and verified the Phase 12 PROMO-03 gap-closure plan
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Progress
 
@@ -35,9 +35,9 @@ Progress: [██████████] 100%
 | 9 | Rolling Tournament Benchmark Harness | Complete | 5/5 |
 | 10 | Statistical Goal-Model Challengers | Complete | 4/4 |
 | 11 | Hybrid ML and Contextual Priors | Complete | 5/5 |
-| 12 | Calibration, Promotion, and Model Release | Complete | 9/9 |
+| 12 | Calibration, Promotion, and Model Release | In Progress | 9/10 |
 
-**Overall:** 5 of 5 phases complete (100%)
+**Overall:** 4 of 5 phases complete (80%); Phase 12 has one verified gap-closure plan pending
 
 ## Project Reference
 
@@ -121,21 +121,22 @@ dependence on paid data feeds.
 
 ## Pending Todos
 
-Phase 12 release and consumer boundary are complete. The accepted local release is
-outputs/releases/phase12-wc2026-incumbent-retained-v1.
+The accepted local release is outputs/releases/phase12-wc2026-incumbent-retained-v1.
+The exported dashboard consumer boundary has one verified PROMO-03 gap-closure plan
+pending in 12-09-PLAN.md.
 
 ## Next Action
 
-Begin the next milestone or perform a later model-release audit; no Phase 12
-execution work remains.
+Execute Phase 12 gap-closure plan 12-09, then rerun final verification before
+starting the next milestone.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-08-11T10:05:04.032Z
-**Stopped at:** Completed 12-05-PLAN.md
+**Last session:** 2026-08-12T14:57:16.000Z
+**Stopped at:** Planned Phase 12 gap closure (12-09-PLAN.md)
 **Resume file:** None
 
 ## Performance Metrics
