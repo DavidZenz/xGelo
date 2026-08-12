@@ -4,28 +4,28 @@ milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
-status: executing
-stopped_at: Planned Phase 12 gap closure (12-09-PLAN.md)
-last_updated: "2026-08-12T14:57:16.000Z"
+status: complete
+stopped_at: Completed 12-09-PLAN.md
+last_updated: "2026-08-12T19:41:00.616Z"
 last_activity: 2026-08-12
-last_activity_desc: Revised and verified the Phase 12 PROMO-03 gap-closure plan
+last_activity_desc: Phase 12 execution started
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 41
-  completed_plans: 40
+  completed_plans: 41
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 12 (calibration-promotion-and-model-release) — GAP CLOSURE PLANNED
-Plan: 12-09-PLAN.md (10th of 10)
-Status: Ready to execute
-Last activity: 2026-08-12 — Revised and verified the Phase 12 PROMO-03 gap-closure plan
+Phase: 12 (calibration-promotion-and-model-release) — COMPLETE
+Plan: 10 of 10
+Status: Phase 12 complete
+Last activity: 2026-08-12 — Completed 12-09 plan
 
-Progress: [████████░░] 80%
+Progress: [██████████] 100%
 
 ## Progress
 
@@ -35,9 +35,9 @@ Progress: [████████░░] 80%
 | 9 | Rolling Tournament Benchmark Harness | Complete | 5/5 |
 | 10 | Statistical Goal-Model Challengers | Complete | 4/4 |
 | 11 | Hybrid ML and Contextual Priors | Complete | 5/5 |
-| 12 | Calibration, Promotion, and Model Release | In Progress | 9/10 |
+| 12 | Calibration, Promotion, and Model Release | Complete | 10/10 |
 
-**Overall:** 4 of 5 phases complete (80%); Phase 12 has one verified gap-closure plan pending
+**Overall:** 5 of 5 phases complete (100%); Phase 12 gap closure is complete
 
 ## Project Reference
 
@@ -114,6 +114,8 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 12 Plan 04 admits only phase11_rf_dynamic_elo_open and preserves eight inactive candidates as explicit no-score rows.
 - [Phase ?]: Final evaluation preflight is label-free, and the exact opener requires approved state plus a passed unopened preflight.
 - [Phase ?]: Final-fit validation reconciles every persisted contract field against freshly derived frozen inputs.
+- [Phase ?]: Phase 12 Plan 09: Metadata-only release preflight must validate trusted topology, bundled candidate authority, contract-declared artifact paths, and hashes before any RDS load.
+- [Phase ?]: Phase 12 Plan 09: Exported dashboard builders accept only resolver-returned models and reject caller-supplied raw model or baseline arguments.
 
 ## Blockers
 
@@ -122,21 +124,19 @@ dependence on paid data feeds.
 ## Pending Todos
 
 The accepted local release is outputs/releases/phase12-wc2026-incumbent-retained-v1.
-The exported dashboard consumer boundary has one verified PROMO-03 gap-closure plan
-pending in 12-09-PLAN.md.
+The exported dashboard consumer boundary gap closure in 12-09-PLAN.md is complete.
 
 ## Next Action
 
-Execute Phase 12 gap-closure plan 12-09, then rerun final verification before
-starting the next milestone.
+Rerun final verification before starting the next milestone.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-08-12T14:57:16.000Z
-**Stopped at:** Planned Phase 12 gap closure (12-09-PLAN.md)
+**Last session:** 2026-08-12T19:41:00.604Z
+**Stopped at:** Completed 12-09-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -172,3 +172,4 @@ starting the next milestone.
 | Phase 12 P02 | 26 min | 2 tasks | 6 files |
 | Phase 12 P03 | 32 min | 2 tasks | 3 files |
 | Phase 12 P04 | 13m46s | 2 tasks | 4 files |
+| Phase 12 P09 | 2h 16m | 2 tasks | 6 files |
