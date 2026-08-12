@@ -112,9 +112,11 @@ retained` in the visible release summary and export metadata.
 
 ### Visible release summary
 
-Place a compact release-status panel directly below the existing dashboard metadata and
-above the hero metrics. It uses a white surface, 3px left border, 16px internal spacing,
-and the existing blue/neutral visual language.
+Place a compact, collapsed `Release details` disclosure at the bottom of the dashboard,
+alongside the existing `Methodology` and `Data Credits` disclosures. The collapsed
+summary keeps the exact release status and release ID discoverable without competing
+with the forecast hero. When opened, it uses a white surface, 3px left border, 16px
+internal spacing, and the existing blue/neutral visual language.
 
 The populated panel must show, as text (not only in a tooltip):
 
