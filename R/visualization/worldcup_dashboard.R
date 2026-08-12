@@ -1050,13 +1050,6 @@ make_knockout_route_estimator <- function(
     route_max_goals = 10,
     cache = new.env(parent = emptyenv())
 ) {
-  build_variadic_args <- list(...)
-  dashboard_reject_raw_model_paths(
-    variadic_args = build_variadic_args,
-    baseline_comparison_supplied = "baseline_comparison" %in% names(build_variadic_args),
-    baseline_home_model_path_supplied = "baseline_home_model_path" %in% names(build_variadic_args),
-    baseline_away_model_path_supplied = "baseline_away_model_path" %in% names(build_variadic_args)
-  )
   route_method <- match.arg(route_method)
   if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
 
