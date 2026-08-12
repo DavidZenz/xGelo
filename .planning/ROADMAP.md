@@ -227,15 +227,37 @@ Plans:
 **Plans:** 9/9 plans complete
 
 Plans:
+**Wave 1**
 
 - [x] 12-00-PLAN.md — Create contract-only Phase 12 validation scaffolds
 - [x] 12-01-PLAN.md — Freeze all nine candidates and parent identities before fitting
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] 12-02-PLAN.md — Build chronology-safe candidate/track 1X2 calibration after freeze
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [x] 12-03-PLAN.md — Compare raw and calibrated development probabilities
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [x] 12-04-PLAN.md — Build label-free final fit and preflight boundary
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [x] 12-05-PLAN.md — Run one-shot final evaluation and promotion decision
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [x] 12-06-PLAN.md — Stage and validate the core versioned release bundle
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
 - [x] 12-08-PLAN.md — Complete metadata and atomically install the release bundle
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
 - [x] 12-07-PLAN.md — Wire approved consumers, targets, dashboard, and UI regressions
 
 **Execution waves:** Wave 0: 12-00; Wave 1: 12-01; Wave 2: 12-02; Wave 3: 12-03; Wave 4: 12-04; Wave 5: 12-05; Wave 6: 12-06; Wave 7: 12-08; Wave 8: 12-07.

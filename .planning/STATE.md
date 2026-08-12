@@ -4,15 +4,15 @@ milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
-status: complete
+status: executing
 stopped_at: Completed 12-07-PLAN.md
-last_updated: "2026-08-11T15:08:00Z"
+last_updated: "2026-08-12T14:52:56.059Z"
 last_activity: 2026-08-11
-last_activity_desc: Phase 12 release, consumer wiring, and full-suite verification completed
+last_activity_desc: Completed release installation, resolver wiring, and full verification
 progress:
   total_phases: 5
   completed_phases: 5
-  total_plans: 40
+  total_plans: 41
   completed_plans: 40
 ---
 
@@ -22,7 +22,7 @@ progress:
 
 Phase: 12 (calibration-promotion-and-model-release) — COMPLETE
 Plan: 9 of 9
-Status: Complete
+Status: Ready to execute
 Last activity: 2026-08-11 — Completed release installation, resolver wiring, and full verification
 
 Progress: [██████████] 100%
