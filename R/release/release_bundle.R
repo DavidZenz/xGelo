@@ -299,7 +299,10 @@ phase12_release_require_single <- function(value, name) {
 
 #' Validate the core staged release before completion or installation.
 #' @export
-validate_phase12_release_bundle <- function(staged_root) {
+validate_phase12_release_bundle <- function(staged_root, load_models = TRUE) {
+  if (length(load_models) != 1L || is.na(load_models) || !is.logical(load_models)) {
+    stop("Phase 12 release load_models must be one logical value", call. = FALSE)
+  }
   staged_root <- normalizePath(staged_root, winslash = "/", mustWork = TRUE)
   manifest_path <- phase12_release_path_under_root(staged_root, "release_manifest.csv", must_work = TRUE)
   contract_path <- phase12_release_path_under_root(staged_root, "model_contract.json", must_work = TRUE)
@@ -328,10 +331,22 @@ validate_phase12_release_bundle <- function(staged_root) {
   if (!identical(as.character(manifest$labels_embedded), rep("FALSE", nrow(manifest)))) stop("Phase 12 release label-content flag drifted", call. = FALSE)
 
   contract <- phase12_release_read_contract(contract_path)
-  for (field in c("schema_version", "release_id", "status", "selected_model_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256")) {
+  for (field in c("schema_version", "release_id", "status", "selected_model_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "model_artifact", "calibrator_artifact", "labels_embedded")) {
     if (is.null(contract[[field]])) stop("Phase 12 model contract is missing ", field, call. = FALSE)
   }
-  if (!identical(as.character(contract$release_id), metadata$release_id) || !identical(as.character(contract$status), status) || !identical(as.character(contract$selected_model_id), metadata$selected_model_id) || !identical(as.character(contract$track_id), metadata$track_id) || !identical(as.character(contract$panel_id), metadata$panel_id) || as.integer(contract$score_support_g) != 40L || !identical(as.character(contract$primary_probability_view), metadata$primary_probability_view) || !identical(as.character(contract$decision_sha256), metadata$decision_sha256)) stop("Phase 12 model contract identity drifted", call. = FALSE)
+  if (!is.logical(contract$labels_embedded) || length(contract$labels_embedded) != 1L || is.na(contract$labels_embedded) || !identical(contract$labels_embedded, FALSE)) stop("Phase 12 model contract labels_embedded must be scalar FALSE", call. = FALSE)
+  if (!identical(as.character(contract$release_id), metadata$release_id) || !identical(as.character(contract$status), status) || !identical(as.character(contract$selected_model_id), metadata$selected_model_id) || !identical(as.character(contract$incumbent_id), as.character(manifest$incumbent_id[[1L]])) || !identical(as.character(contract$track_id), metadata$track_id) || !identical(as.character(contract$panel_id), metadata$panel_id) || as.integer(contract$score_support_g) != 40L || !identical(as.character(contract$primary_probability_view), metadata$primary_probability_view) || !identical(as.character(contract$decision_sha256), metadata$decision_sha256)) stop("Phase 12 model contract identity drifted", call. = FALSE)
+  model_relative_path <- phase12_release_safe_relative_path(contract$model_artifact)
+  calibrator_relative_path <- phase12_release_safe_relative_path(contract$calibrator_artifact)
+  if (identical(model_relative_path, calibrator_relative_path)) stop("Phase 12 model contract artifact paths must be distinct", call. = FALSE)
+  model_path <- phase12_release_path_under_root(staged_root, model_relative_path, must_work = TRUE)
+  calibrator_path <- phase12_release_path_under_root(staged_root, calibrator_relative_path, must_work = TRUE)
+  model_rows <- manifest[as.character(manifest$relative_path) == model_relative_path, , drop = FALSE]
+  calibrator_rows <- manifest[as.character(manifest$relative_path) == calibrator_relative_path, , drop = FALSE]
+  if (nrow(model_rows) != 1L || !identical(as.character(model_rows$artifact_role[[1L]]), "model")) stop("Phase 12 model contract model_artifact does not map to one model manifest row", call. = FALSE)
+  if (nrow(calibrator_rows) != 1L || !identical(as.character(calibrator_rows$artifact_role[[1L]]), "model")) stop("Phase 12 model contract calibrator_artifact does not map to one model manifest row", call. = FALSE)
+  if (!identical(tolower(as.character(model_rows$sha256[[1L]])), phase12_release_file_sha256(model_path)) || !identical(tolower(as.character(model_rows$canonical_content_sha256[[1L]])), phase12_release_file_sha256(model_path))) stop("Phase 12 model artifact hash metadata mismatch", call. = FALSE)
+  if (!identical(tolower(as.character(calibrator_rows$sha256[[1L]])), phase12_release_file_sha256(calibrator_path)) || !identical(tolower(as.character(calibrator_rows$canonical_content_sha256[[1L]])), phase12_release_file_sha256(calibrator_path))) stop("Phase 12 calibrator artifact hash metadata mismatch", call. = FALSE)
 
   for (index in seq_len(nrow(manifest))) {
     row <- manifest[index, , drop = FALSE]
@@ -353,23 +368,24 @@ validate_phase12_release_bundle <- function(staged_root) {
   if ("score_support_g" %in% names(freeze) && any(as.integer(freeze$score_support_g) != 40L)) stop("Phase 12 release freeze G drifted", call. = FALSE)
   if ("score_support_g" %in% names(final_evaluation) && any(as.integer(final_evaluation$score_support_g) != 40L)) stop("Phase 12 release final-evaluation G drifted", call. = FALSE)
   if ("track_id" %in% names(final_evaluation) && any(as.character(final_evaluation$track_id) != "updating")) stop("Phase 12 release final-evaluation track drifted", call. = FALSE)
-  if ("promotion_decision_sha256" %in% names(final_evaluation)) {
-    supplied <- unique(as.character(final_evaluation$promotion_decision_sha256))
-    supplied <- supplied[!is.na(supplied) & nzchar(supplied)]
-    if (length(supplied) && (length(supplied) != 1L || !grepl("^[0-9a-fA-F]{64}$", supplied))) stop("Phase 12 release promotion report identity is invalid", call. = FALSE)
-  }
-  model_path <- phase12_release_path_under_root(staged_root, "model/approved_model.rds", must_work = TRUE)
-  calibrator_path <- phase12_release_path_under_root(staged_root, "model/calibrator.rds", must_work = TRUE)
-  model_object <- readRDS(model_path)
-  calibrator <- readRDS(calibrator_path)
-  if (!is.null(model_object$model_id) && !identical(as.character(model_object$model_id), metadata$selected_model_id)) stop("Phase 12 approved model identity drifted", call. = FALSE)
-  if (!is.null(calibrator$candidate_id) && !identical(as.character(calibrator$candidate_id), metadata$selected_model_id)) stop("Phase 12 calibrator identity drifted", call. = FALSE)
-  invisible(list(
+  if (!"promotion_decision_sha256" %in% names(final_evaluation) || nrow(final_evaluation) != 9L) stop("Phase 12 release promotion report identity is incomplete", call. = FALSE)
+  supplied <- as.character(final_evaluation$promotion_decision_sha256)
+  if (any(is.na(supplied) | !grepl("^[0-9a-fA-F]{64}$", supplied)) || length(unique(tolower(supplied))) != 1L) stop("Phase 12 release promotion report identity is invalid", call. = FALSE)
+  result <- list(
     release_root = staged_root, release_manifest = manifest, model_contract = contract,
     freeze_manifest = freeze, final_evaluation_manifest = final_evaluation,
-    model_object = model_object, calibrator = calibrator, status = status,
+    status = status,
     selected_model_id = metadata$selected_model_id, primary_probability_view = metadata$primary_probability_view
-  ))
+  )
+  if (isTRUE(load_models)) {
+    model_object <- readRDS(model_path)
+    calibrator <- readRDS(calibrator_path)
+    if (!is.null(model_object$model_id) && !identical(as.character(model_object$model_id), metadata$selected_model_id)) stop("Phase 12 approved model identity drifted", call. = FALSE)
+    if (!is.null(calibrator$candidate_id) && !identical(as.character(calibrator$candidate_id), metadata$selected_model_id)) stop("Phase 12 calibrator identity drifted", call. = FALSE)
+    result$model_object <- model_object
+    result$calibrator <- calibrator
+  }
+  invisible(result)
 }
 
 #' Stage and validate the core Phase 12 release bundle.

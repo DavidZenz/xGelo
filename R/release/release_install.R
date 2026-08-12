@@ -102,8 +102,8 @@ complete_phase12_release_bundle <- function(staged_root, final_decision = NULL, 
 
 #' Validate a completed core release including Plan 08 metadata.
 #' @export
-validate_phase12_complete_release_bundle <- function(staged_root) {
-  result <- validate_phase12_release_bundle(staged_root)
+validate_phase12_complete_release_bundle <- function(staged_root, load_models = TRUE) {
+  result <- validate_phase12_release_bundle(staged_root, load_models = load_models)
   manifest <- result$release_manifest
   if (!setequal(as.character(manifest$artifact), phase12_release_complete_artifacts()) || nrow(manifest) != length(phase12_release_complete_artifacts())) stop("Phase 12 release completion artifact set is incomplete", call. = FALSE)
   for (relative_path in c("limitations.md", "reproducibility.json")) {

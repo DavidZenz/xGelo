@@ -1050,6 +1050,13 @@ make_knockout_route_estimator <- function(
     route_max_goals = 10,
     cache = new.env(parent = emptyenv())
 ) {
+  build_variadic_args <- list(...)
+  dashboard_reject_raw_model_paths(
+    variadic_args = build_variadic_args,
+    baseline_comparison_supplied = "baseline_comparison" %in% names(build_variadic_args),
+    baseline_home_model_path_supplied = "baseline_home_model_path" %in% names(build_variadic_args),
+    baseline_away_model_path_supplied = "baseline_away_model_path" %in% names(build_variadic_args)
+  )
   route_method <- match.arg(route_method)
   if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
 
@@ -2979,12 +2986,50 @@ compute_worldcup_model_comparison <- function(primary_payload, baseline_payload)
 
 #' Resolve the consumer-approved model contract for a dashboard build.
 dashboard_resolve_approved_release <- function(release_root = NULL, approved_release = NULL) {
-  if (!is.null(approved_release)) return(approved_release)
-  if (is.null(release_root)) return(NULL)
+  if (is.null(release_root)) stop("World Cup dashboard requires a trusted Phase 12 release root", call. = FALSE)
   if (!exists("resolve_phase12_approved_release", mode = "function")) {
     source("R/release/release_contract.R", local = .GlobalEnv)
   }
-  resolve_phase12_approved_release(release_root)
+  if (!exists("preflight_phase12_approved_release", mode = "function")) {
+    stop("Phase 12 release metadata preflight is unavailable", call. = FALSE)
+  }
+  preflight <- preflight_phase12_approved_release(release_root)
+  if (!is.null(approved_release)) {
+    supplied_metadata <- approved_release$metadata
+    expected_metadata <- preflight$metadata
+    required <- c("release_id", "status", "selected_model_id", "candidate_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "freeze_id")
+    if (!is.list(supplied_metadata) || any(!required %in% names(supplied_metadata)) || any(!vapply(required, function(name) identical(as.character(supplied_metadata[[name]]), as.character(expected_metadata[[name]])), logical(1)))) {
+      stop("Supplied Phase 12 approved release identity does not match the authoritative metadata preflight", call. = FALSE)
+    }
+  }
+  resolve_phase12_approved_release(
+    trusted_root = release_root,
+    release_manifest_path = preflight$release_manifest_path,
+    validated_preflight = preflight
+  )
+}
+
+dashboard_reject_raw_model_paths <- function(
+    variadic_args = list(),
+    baseline_comparison = FALSE,
+    baseline_home_model_path = "models/home_goal_model.rds",
+    baseline_away_model_path = "models/away_goal_model.rds",
+    baseline_comparison_supplied = FALSE,
+    baseline_home_model_path_supplied = FALSE,
+    baseline_away_model_path_supplied = FALSE
+) {
+  if (!is.list(variadic_args)) stop("Dashboard variadic arguments must be a list", call. = FALSE)
+  forbidden <- c("baseline_comparison", "baseline_home_model_path", "baseline_away_model_path", "home_model_path", "away_model_path")
+  supplied <- intersect(names(variadic_args), forbidden)
+  supplied <- supplied[nzchar(supplied)]
+  supplied_flags <- c(
+    baseline_comparison = isTRUE(baseline_comparison_supplied),
+    baseline_home_model_path = isTRUE(baseline_home_model_path_supplied),
+    baseline_away_model_path = isTRUE(baseline_away_model_path_supplied)
+  )
+  supplied <- unique(c(supplied, names(supplied_flags)[supplied_flags]))
+  if (length(supplied)) stop("Dashboard release consumers reject caller-supplied raw model or baseline arguments: ", paste(supplied, collapse = ", "), call. = FALSE)
+  invisible(TRUE)
 }
 
 dashboard_release_model_pair <- function(release) {
@@ -3036,10 +3081,22 @@ build_worldcup_dashboard_data <- function(
     approved_release = NULL,
     ...
 ) {
+  baseline_comparison_supplied <- !missing(baseline_comparison)
+  baseline_home_model_path_supplied <- !missing(baseline_home_model_path)
+  baseline_away_model_path_supplied <- !missing(baseline_away_model_path)
+  extra_args <- list(...)
+  dashboard_reject_raw_model_paths(
+    variadic_args = extra_args,
+    baseline_comparison = baseline_comparison,
+    baseline_home_model_path = baseline_home_model_path,
+    baseline_away_model_path = baseline_away_model_path,
+    baseline_comparison_supplied = baseline_comparison_supplied,
+    baseline_home_model_path_supplied = baseline_home_model_path_supplied,
+    baseline_away_model_path_supplied = baseline_away_model_path_supplied
+  )
   suppressPackageStartupMessages({
     library(jsonlite)
   })
-  extra_args <- list(...)
   route_method <- match.arg(route_method)
   approved_release <- dashboard_resolve_approved_release(release_root, approved_release)
   release_models <- dashboard_release_model_pair(approved_release)
@@ -3048,8 +3105,6 @@ build_worldcup_dashboard_data <- function(
     extra_args$away_model <- release_models$away_model
     if (!is.null(approved_release$metadata$release_id)) model_version <- paste0("release:", approved_release$metadata$release_id)
   }
-  home_model_path <- if (!is.null(extra_args[["home_model_path"]])) extra_args[["home_model_path"]] else "models/home_goal_model.rds"
-  away_model_path <- if (!is.null(extra_args[["away_model_path"]])) extra_args[["away_model_path"]] else "models/away_goal_model.rds"
   dashboard_forecast_features <- forecast_features
   dashboard_forecast_features_path <- forecast_features_path
   if (
@@ -3127,8 +3182,8 @@ build_worldcup_dashboard_data <- function(
     date = tournament_knockout_date,
     n_sim = n_match_sim,
     seed = seed + 100000L,
-    home_model_path = home_model_path,
-    away_model_path = away_model_path,
+    home_model_path = NULL,
+    away_model_path = NULL,
     home_model = extra_args[["home_model"]],
     away_model = extra_args[["away_model"]],
     elo_ratings_path = elo_ratings_path,
@@ -3275,39 +3330,6 @@ build_worldcup_dashboard_data <- function(
     champion_probabilities = champion_probabilities,
     bracket_paths = bracket_paths
   )
-
-  if (isTRUE(baseline_comparison) && identical(model_version, "hybrid")) {
-    baseline_payload <- build_worldcup_dashboard_data(
-      groups_path = groups_path,
-      schedule_path = schedule_path,
-      output_dir = file.path(output_dir, "baseline"),
-      n_match_sim = n_match_sim,
-      n_tournaments = n_tournaments,
-      seed = seed,
-      n_workers = n_workers,
-      elo_ratings_path = elo_ratings_path,
-      elo_current_path = elo_current_path,
-      model_version = "baseline",
-      feature_cutoff_date = feature_cutoff_date,
-      require_forecast_features = FALSE,
-      forecast_features = NULL,
-      forecast_features_path = NULL,
-      precompute_knockout_routes = precompute_knockout_routes,
-      precompute_route_workers = precompute_route_workers,
-      route_method = route_method,
-      route_max_goals = route_max_goals,
-      transfermarkt_metadata_path = transfermarkt_metadata_path,
-      transfermarkt_snapshot_path = transfermarkt_snapshot_path,
-      euro2024_metrics_path = euro2024_metrics_path,
-      actual_results_path = actual_results_path,
-      actual_results_cutoff_date = actual_results_cutoff_date,
-      prematch_forecasts_path = prematch_forecasts_path,
-      baseline_comparison = FALSE,
-      home_model_path = baseline_home_model_path,
-      away_model_path = baseline_away_model_path
-    )
-    payload$model_comparison <- compute_worldcup_model_comparison(payload, baseline_payload)
-  }
 
   if (!dir.exists(output_dir)) dir.create(output_dir, recursive = TRUE)
   json_path <- file.path(output_dir, "worldcup_dashboard_data.json")
@@ -4495,6 +4517,14 @@ build_worldcup_dashboard <- function(
     approved_release = NULL,
     ...
 ) {
+  build_variadic_args <- list(...)
+  dashboard_reject_raw_model_paths(
+    variadic_args = build_variadic_args,
+    baseline_comparison_supplied = "baseline_comparison" %in% names(build_variadic_args),
+    baseline_home_model_path_supplied = "baseline_home_model_path" %in% names(build_variadic_args),
+    baseline_away_model_path_supplied = "baseline_away_model_path" %in% names(build_variadic_args)
+  )
+  if (is.null(release_root)) stop("World Cup dashboard requires a trusted Phase 12 release root", call. = FALSE)
   route_method <- match.arg(route_method)
   payload <- build_worldcup_dashboard_data(
     groups_path = groups_path,
