@@ -103,3 +103,89 @@ test_that("12-00-01 release gate names bundle, install, and resolver seams", {
     "release"
   ))
 })
+
+phase12_test_release_root <- function() {
+  file.path(phase12_test_project_root, "outputs/releases")
+}
+
+phase12_test_copy_release <- function() {
+  source(file.path(phase12_test_project_root, "R/release/release_bundle.R"), local = .GlobalEnv)
+  source(file.path(phase12_test_project_root, "R/release/release_install.R"), local = .GlobalEnv)
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  source(file.path(phase12_test_project_root, "R/release/promotion_report.R"), local = .GlobalEnv)
+  source_root <- file.path(phase12_test_project_root, "outputs/releases/phase12-wc2026-incumbent-retained-v1")
+  trusted_root <- tempfile("phase12-release-root-")
+  dir.create(trusted_root, recursive = TRUE)
+  file.copy(source_root, trusted_root, recursive = TRUE)
+  release_root <- file.path(trusted_root, basename(source_root))
+  list(trusted_root = trusted_root, release_root = release_root)
+}
+
+phase12_test_refresh_manifest_self_hash <- function(release_root) {
+  manifest_path <- file.path(release_root, "release_manifest.csv")
+  manifest <- utils::read.csv(manifest_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  self <- manifest$artifact == "release_manifest.csv"
+  manifest$manifest_self_sha256[self] <- phase12_release_manifest_body_hash(manifest)
+  manifest$sha256[self] <- manifest$manifest_self_sha256[self]
+  manifest$canonical_content_sha256[self] <- manifest$manifest_self_sha256[self]
+  utils::write.csv(manifest, manifest_path, row.names = FALSE, na = "", quote = TRUE)
+  invisible(manifest)
+}
+
+test_that("12-09 metadata preflight is label-free and authoritative", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  preflight <- preflight_phase12_approved_release(phase12_test_release_root())
+  expect_identical(preflight$metadata$status, "incumbent retained")
+  expect_identical(preflight$metadata$selected_model_id, "open_nb_incumbent")
+  expect_false("model" %in% names(preflight))
+  expect_false("calibrator" %in% names(preflight))
+  expect_identical(preflight$model_contract$model_artifact, "model/approved_model.rds")
+  expect_identical(preflight$model_contract$calibrator_artifact, "model/calibrator.rds")
+})
+
+test_that("12-09 preflight rejects missing and ambiguous trusted-root topology", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  expect_error(preflight_phase12_approved_release(NULL), "release root is required")
+  expect_error(preflight_phase12_approved_release(file.path(tempdir(), "phase12-missing-root")), "cannot open|does not exist|No such file")
+
+  fixture <- phase12_test_copy_release()
+  child <- file.path(fixture$trusted_root, "second-release")
+  dir.create(child)
+  file.copy(file.path(fixture$release_root, "release_manifest.csv"), file.path(child, "release_manifest.csv"))
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "ambiguous or missing")
+
+  root_manifest <- file.path(fixture$trusted_root, "release_manifest.csv")
+  file.copy(file.path(fixture$release_root, "release_manifest.csv"), root_manifest)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "ambiguous or missing")
+})
+
+test_that("12-09 hash and contract metadata failures occur before RDS loading", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  fixture <- phase12_test_copy_release()
+  model_path <- file.path(fixture$release_root, "model/approved_model.rds")
+  writeBin(charToRaw("deliberately unreadable model bytes"), model_path)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "hash|metadata")
+
+  fixture <- phase12_test_copy_release()
+  contract_path <- file.path(fixture$release_root, "model_contract.json")
+  contract <- jsonlite::fromJSON(contract_path, simplifyVector = FALSE)
+  contract$labels_embedded <- TRUE
+  jsonlite::write_json(contract, contract_path, auto_unbox = TRUE, pretty = TRUE)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "hash|labels_embedded")
+
+  fixture <- phase12_test_copy_release()
+  manifest <- utils::read.csv(file.path(fixture$release_root, "release_manifest.csv"), stringsAsFactors = FALSE, check.names = FALSE)
+  manifest$artifact_role[manifest$artifact == "model/calibrator.rds"] <- "calibrator"
+  utils::write.csv(manifest, file.path(fixture$release_root, "release_manifest.csv"), row.names = FALSE, na = "", quote = TRUE)
+  phase12_test_refresh_manifest_self_hash(fixture$release_root)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "artifact_role|model manifest")
+})
+
+test_that("12-09 direct resolver preflights before reading invalid model bytes", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  fixture <- phase12_test_copy_release()
+  writeBin(charToRaw("not an RDS"), file.path(fixture$release_root, "model/approved_model.rds"))
+  expect_error(resolve_phase12_approved_release(fixture$trusted_root), "hash|metadata")
+  resolved <- resolve_phase12_approved_release(phase12_test_release_root())
+  expect_identical(resolved$metadata$status, "incumbent retained")
+})

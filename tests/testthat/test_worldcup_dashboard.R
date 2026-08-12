@@ -49,6 +49,18 @@ test_that("World Cup group seed and official fixtures cover the 2026 format", {
   expect_equal(england_opener$host_city, "Arlington")
 })
 
+test_that("dashboard builders reject NULL roots and caller-supplied model authority", {
+  source(file.path(project_root, "R/release/release_bundle.R"))
+  source(file.path(project_root, "R/release/release_install.R"))
+  source(file.path(project_root, "R/release/release_contract.R"))
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+  expect_error(build_worldcup_dashboard_data(release_root = NULL), "trusted Phase 12 release root")
+  expect_error(build_worldcup_dashboard(release_root = NULL), "trusted Phase 12 release root")
+  expect_error(dashboard_reject_raw_model_paths(list(home_model_path = "model.rds")), "home_model_path")
+  expect_error(dashboard_reject_raw_model_paths(list(baseline_comparison = FALSE)), "baseline_comparison")
+  expect_error(dashboard_reject_raw_model_paths(baseline_comparison_supplied = TRUE), "baseline_comparison")
+})
+
 test_that("World Cup knockout template follows official FIFA match tree", {
   source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
 
@@ -564,16 +576,15 @@ test_that("knockout bracket rows attach actual decided results", {
 test_that("dashboard data export includes probabilities, scorelines, and bracket paths", {
   source(file.path(project_root, "R/forecast/monte_carlo.R"))
   source(file.path(project_root, "R/forecast/tournament.R"))
+  source(file.path(project_root, "R/release/release_bundle.R"))
+  source(file.path(project_root, "R/release/release_install.R"))
+  source(file.path(project_root, "R/release/release_contract.R"))
   source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
 
   groups <- load_worldcup_2026_groups(file.path(project_root, "data/raw/worldcup_2026_groups.csv"))
-  home_model_path <- tempfile(fileext = ".rds")
-  away_model_path <- tempfile(fileext = ".rds")
   elo_ratings_path <- tempfile(fileext = ".csv")
   output_dir <- tempfile("worldcup-dashboard-")
 
-  saveRDS(structure(list(lambda = 0.6), class = "constant_goal_model"), home_model_path)
-  saveRDS(structure(list(lambda = 0.4), class = "constant_goal_model"), away_model_path)
   write.csv(
     rbind(
       data.frame(
@@ -606,9 +617,8 @@ test_that("dashboard data export includes probabilities, scorelines, and bracket
     seed = 7,
     n_workers = 2,
     elo_current_path = elo_ratings_path,
-    home_model_path = home_model_path,
-    away_model_path = away_model_path,
-    elo_ratings_path = elo_ratings_path
+    elo_ratings_path = elo_ratings_path,
+    release_root = file.path(project_root, "outputs/releases")
   )
 
   expect_true(file.exists(payload$paths$data_json))
