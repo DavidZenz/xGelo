@@ -383,3 +383,32 @@ test_that("edition validation preflights the approved release and handles serial
     "operator action|validation"
   )
 })
+
+test_that("edition validation rejects forged release pins and null release slots", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "load_competition_edition_registries",
+    "validate_competition_edition_registries",
+    "phase13_registry_row_hash"
+  ))
+  registries <- load_competition_edition_registries(
+    file.path(phase13_registry_test_project_root, "data/competition/registries")
+  )
+  source_bundles <- attr(registries, "source_bundles")
+
+  forged <- registries
+  forged$model_release_id[[1L]] <- "forged-release"
+  forged$row_sha256 <- phase13_registry_row_hash(forged)
+  expect_error(
+    validate_competition_edition_registries(forged, source_bundles = source_bundles),
+    "model release|approved|Phase 12"
+  )
+
+  missing_output <- registries
+  missing_output$output_bundle_target[[1L]] <- ""
+  missing_output$row_sha256 <- phase13_registry_row_hash(missing_output)
+  expect_error(
+    validate_competition_edition_registries(missing_output, source_bundles = source_bundles),
+    "empty required field|output"
+  )
+})
