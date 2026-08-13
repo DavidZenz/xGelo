@@ -224,7 +224,7 @@ Plans:
 
 **Depends on:** Phase 11
 
-**Plans:** 11/11 plans executed
+**Plans:** 11/11 plans complete
 
 Plans:
 **Wave 1**
@@ -295,7 +295,7 @@ Plans:
 | 9. Rolling Tournament Benchmark Harness | 8/8 | Complete    | 2026-07-21 |
 | 10. Statistical Goal-Model Challengers | 11/11 | Complete    | 2026-08-08 |
 | 11. Hybrid ML and Contextual Priors | 9/9 | Complete    | 2026-08-10 |
-| 12. Calibration, Promotion, and Model Release | 11/11 | In Progress|  |
+| 12. Calibration, Promotion, and Model Release | 11/11 | Complete | 2026-08-13 |
 
 ## Completed Milestones
 

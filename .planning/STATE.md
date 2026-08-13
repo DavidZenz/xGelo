@@ -4,11 +4,11 @@ milestone: v2.0
 milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
-status: executing
-stopped_at: Completed 12-10-PLAN.md
-last_updated: "2026-08-13T08:13:23.342Z"
+status: complete
+stopped_at: Completed 12-10-PLAN.md and fresh Phase 12 verification
+last_updated: "2026-08-13T08:30:44Z"
 last_activity: 2026-08-13
-last_activity_desc: 12-10 plan passed independent verification
+last_activity_desc: Phase 12 re-verification passed all 5 success criteria with no gaps
 progress:
   total_phases: 5
   completed_phases: 5
@@ -20,10 +20,10 @@ progress:
 
 ## Current Position
 
-Phase: 12 (calibration-promotion-and-model-release) — IN PROGRESS
+Phase: 12 (calibration-promotion-and-model-release) — COMPLETE
 Plan: 11 of 11
-Status: 12-10 gap closure planned and ready to execute
-Last activity: 2026-08-13 — 12-10 plan passed independent verification
+Status: Phase 12 complete; fresh verification passed 5/5
+Last activity: 2026-08-13 — Completed 12-10 and re-verified Phase 12
 
 Progress: [██████████] 100%
 
@@ -35,9 +35,9 @@ Progress: [██████████] 100%
 | 9 | Rolling Tournament Benchmark Harness | Complete | 5/5 |
 | 10 | Statistical Goal-Model Challengers | Complete | 4/4 |
 | 11 | Hybrid ML and Contextual Priors | Complete | 5/5 |
-| 12 | Calibration, Promotion, and Model Release | In Progress | 10/11 |
+| 12 | Calibration, Promotion, and Model Release | Complete | 11/11 |
 
-**Overall:** 4 of 5 phases complete (98%); Phase 12 gap closure 12-10 is pending
+**Overall:** 5 of 5 phases complete (100%); Phase 12 gap closure is verified
 
 ## Project Reference
 
@@ -128,19 +128,19 @@ dependence on paid data feeds.
 ## Pending Todos
 
 The accepted local release is outputs/releases/phase12-wc2026-incumbent-retained-v1.
-The exported dashboard consumer boundary gap closure in 12-09-PLAN.md is complete. Plan 12-10 is the next approved gap-closure plan.
+The exported dashboard consumer boundary gap closure in 12-09-PLAN.md and the final release-integrity/calibrated-consumer gap closure in 12-10-PLAN.md are complete and verified.
 
 ## Next Action
 
-Execute 12-10, rerun final verification, and only then close Phase 12 or start the next milestone.
+Run the next-milestone workflow when ready; Phase 12 is complete and no verification gaps remain.
 
 ---
 *State reset for milestone v2.0 on 2026-07-20*
 
 ## Session
 
-**Last session:** 2026-08-13T08:13:23.330Z
-**Stopped at:** Completed 12-10-PLAN.md
+**Last session:** 2026-08-13T08:30:44Z
+**Stopped at:** Completed 12-10-PLAN.md and fresh Phase 12 verification
 **Resume file:** None
 
 ## Performance Metrics

@@ -1,30 +1,27 @@
 ---
 phase: 12-calibration-promotion-and-model-release
-verified: 2026-08-12T07:57:05Z
-status: gaps_found
-score: "4/5 roadmap success criteria verified"
+verified: 2026-08-13T08:30:44Z
+status: passed
+score: "5/5 must-haves verified"
 behavior_unverified: 0
 overrides_applied: 0
-gaps:
-  - truth: "Dashboard and export code consume only the approved model contract, and model, pipeline, and presentation regression tests pass."
-    status: partial
-    reason: "Official targets and scripts are release-gated, but the exported dashboard build path can still run with release_root = NULL and raw home_model_path/away_model_path, so approved-release resolution is not the only dashboard/export authority."
-    artifacts:
-      - path: "R/visualization/worldcup_dashboard.R"
-        issue: "dashboard_resolve_approved_release() returns NULL when release_root is NULL; build_worldcup_dashboard_data() then continues and passes raw model paths into forecast generation."
-      - path: "tests/testthat/test_worldcup_dashboard.R"
-        issue: "The dashboard export regression builds with temporary raw model RDS paths and no release_root/approved_release, proving the bypass remains accepted."
-    missing:
-      - "Require build_worldcup_dashboard_data()/build_worldcup_dashboard() production entry points to resolve a Phase 12 approved or incumbent-retained release before model loading, or split the legacy raw-model path into an explicitly non-production helper."
-      - "Add a regression that missing, ambiguous, or unapproved release state fails before model loading or forecast generation."
+re_verification:
+  previous_status: gaps_found
+  previous_score: "4/5 roadmap success criteria verified"
+  gaps_closed:
+    - "Trusted release topology, canonical artifact identities, and refreshed-hash path-swap rejection"
+    - "Exact embedded promotion decision-token/evidence/selected-ID hashing"
+    - "Freeze/final-evaluation cross-links, loaded identities, and calibrated dashboard consumer propagation"
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 12: Calibration, Promotion, and Model Release Verification Report
 
 **Phase Goal:** Freeze the candidate set, calibrate without outer-fold leakage, open the 2026 holdout once, and release only a challenger that clears the promotion rule.
-**Verified:** 2026-08-12T07:57:05Z
-**Status:** gaps_found
-**Re-verification:** No - initial verification
+**Verified:** 2026-08-13T08:30:44Z
+**Status:** passed
+**Re-verification:** Yes — fresh independent verification after plan 12-10
 
 ## Goal Achievement
 
@@ -32,91 +29,102 @@ gaps:
 
 | # | Truth | Status | Evidence |
 |---|---|---|---|
-| 1 | Calibration is learned from inner out-of-fold predictions only, and raw versus calibrated probabilities are compared with identical proper scores. | VERIFIED | `R/calibration/inner_oof.R` rejects WC2026, future, mixed-identity, duplicate, and non-strict evidence rows. `R/calibration/probability_calibration.R` validates the freeze and recipe before `stats::optim`. `R/calibration/calibration_selection.R` scores raw/calibrated views on identical fixture/distribution identity. Focused Phase 12 tests passed. |
-| 2 | Candidate implementations, settings, feature sets, calibration recipes, and promotion thresholds are frozen and checksummed before 2026 results are opened. | VERIFIED | `data/benchmark/phase12/freeze_manifest.csv` has 9 candidate rows, `G=40`, `sealed_before_final_labels`, and self/parent/threshold/recipe hashes. `calibration_recipe.json` locks `phase12_multiclass_temperature`, `stats::optim-L-BFGS-B`, support floors 60/10, seed 920012, and `G=40`. Fresh validation passed. |
-| 3 | The final 2026 comparison is executed once; the incumbent remains production default unless a challenger satisfies every predeclared promotion condition. | VERIFIED | `R/release/final_evaluation.R` enforces a passed unopened preflight, exact label path/hash, `approved` state, immutable writes, and one opener state. Durable artifacts contain 104 copied labels, 104 predictions, 104/104 active coverage, 9 final manifest rows, and `labels_consumed = TRUE`. `promotion_report.csv` has 9 `evaluate_promotion` rows and selects `open_nb_incumbent` with `incumbent retained`. |
-| 4 | The selected model is published as a versioned artifact with model card, benchmark report, data provenance, limitations, and reproducibility metadata. | VERIFIED | `outputs/releases/phase12-wc2026-incumbent-retained-v1` contains `model_contract.json`, model/calibrator RDS, freeze/final manifests, provenance, benchmark report, model card, `limitations.md`, `reproducibility.json`, and a hash-bearing 11-row release manifest. Fresh resolver returned `incumbent retained`, `open_nb_incumbent`, `raw_1x2`, `G=40`. Tempdir spot-check rejected a tampered contract and restored the accepted release after forced post-install validation failure. |
-| 5 | Dashboard and export code consume only the approved model contract, and model, pipeline, and presentation regression tests pass. | FAILED | Official `_targets.R` and `scripts/update_worldcup_dashboard.R` are release-gated, and focused dashboard tests passed. However `build_worldcup_dashboard_data()` still defaults `release_root = NULL`, allows raw `home_model_path`/`away_model_path`, and the dashboard regression at `tests/testthat/test_worldcup_dashboard.R` builds with raw temporary RDS models and no approved release. The "only approved model contract" claim is therefore false for the exported dashboard/export API. |
+| 1 | Calibration is learned from inner out-of-fold predictions only, and raw versus calibrated probabilities are compared with identical proper scores. | ✓ VERIFIED | `R/calibration/inner_oof.R`, `R/calibration/probability_calibration.R`, and `R/calibration/calibration_selection.R` enforce freeze-gated prior-only calibration, explicit raw fallback, unchanged scoreline distributions, and shared scoring. The full suite passed `phase12_calibration` with 76 assertions and zero failures/warnings. |
+| 2 | Candidate implementations, settings, feature sets, calibration recipes, and promotion thresholds are frozen and checksummed before 2026 results are opened. | ✓ VERIFIED | The durable freeze has 9 candidates, `selected_g=40`, `sealed_before_final_labels=TRUE`, recipe/protocol/parent/code/component hashes, and a freeze self-hash. `phase12_freeze` passed 29 assertions with zero failures/warnings. |
+| 3 | The final 2026 comparison is executed once; the incumbent remains production default unless a challenger satisfies every predeclared promotion condition. | ✓ VERIFIED | The durable final manifest has 9 rows, one active scored candidate with 104 observed fixtures, all rows `labels_consumed=TRUE` and `holdout_state=consumed`, and the release decision is exactly `incumbent retained` with selected identity `open_nb_incumbent`. Final-evaluation and promotion suites passed 58 and 16 assertions. |
+| 4 | The selected model is published as a versioned artifact with its model card, benchmark report, data provenance, limitations, and reproducibility metadata. | ✓ VERIFIED | `outputs/releases/phase12-wc2026-incumbent-retained-v1` contains the two model artifacts, contract, release/freeze/final manifests, provenance, benchmark report, model card, limitations, and reproducibility metadata. Fresh metadata-only and full validation passed; the loaded model/calibrator identities are both `open_nb_incumbent`. |
+| 5 | Dashboard and export code consume only the approved model contract, and model, pipeline, and presentation regression tests pass. | ✓ VERIFIED | Release preflight/resolver and exported dashboard guards are wired in `R/release/release_contract.R` and `R/visualization/worldcup_dashboard.R`; `_targets.R:1065` and `scripts/update_worldcup_dashboard.R:358` retain direct resolver calls. Release and dashboard focused suites passed 44 and 473 assertions; the full suite passed 2,592 assertions, 0 failures, 0 warnings. |
 
-**Score:** 4/5 roadmap success criteria verified.
+**Score:** 5/5 truths verified (0 present-but-behavior-unverified)
 
-### Required Artifacts
+## PROMO-03 Boundary Verification
+
+| Required boundary | Status | Evidence |
+|---|---|---|
+| Trusted-root topology and fresh metadata-only preflight | ✓ VERIFIED | `phase12_release_contract_manifest_candidates()` rejects symlink roots, root manifests, immediate-child release directories, and child manifests; candidate paths are normalized and contained before `validate_phase12_complete_release_bundle(..., load_models = FALSE)`. Fresh preflight returned no `model` or `calibrator` members. Independent temporary-fixture probes rejected a symlink root and symlink child. |
+| Fresh resolver ordering and forged-handoff rejection | ✓ VERIFIED | `resolve_phase12_approved_release()` calls `preflight_phase12_approved_release()` on every invocation, compares trusted root/release root/pinned manifest and identity fields, then invokes full validation. An independent alternate-root handoff probe failed before loading; the focused release suite also passed the ordering regression. |
+| Exact embedded decision hash semantics | ✓ VERIFIED | `phase12_release_contract_recompute_decision_sha256()` serializes candidate evidence with `utils::write.csv(..., row.names=FALSE, na="", quote=TRUE)` and hashes the exact raw decision token plus selected ID. A fresh process produced four distinct hashes for evidence, token, and selected-ID changes; invalid normalized token `approved` was rejected. The external final-evaluation `promotion_decision_sha256` remains separately validated as a uniform 64-hex provenance field. |
+| Contract artifact identities and refreshed-hash path-swap rejection | ✓ VERIFIED | `R/release/release_bundle.R` requires canonical `model/approved_model.rds` and `model/calibrator.rds` identities, distinct one-to-one manifest rows, byte hashes, and `artifact_role = model` before any RDS load. The focused refreshed-hash swap regression passed. |
+| Freeze/final-evaluation evidence links | ✓ VERIFIED | Complete-bundle validation requires `freeze_id`, freeze self-hash, G=40, final-evaluation `freeze_id`/freeze self-hash/track links, and uniform external promotion provenance. The retained fixture’s absent contract freeze self-hash is accepted only through its explicit raw-only compatibility branch; drift mutations fail in the focused release suite. |
+| Loaded model/calibrator identities | ✓ VERIFIED | `phase12_release_validate_loaded_identity()` requires model identity and calibrator candidate/track/schema/status/distribution fields; the resolver repeats model/calibrator identity checks after loading. Fresh resolution loaded `model_id=open_nb_incumbent` and `candidate_id=open_nb_incumbent`; wrong identities fail in focused tests. |
+| Calibrated match-to-group/stage/knockout flow with unchanged scorelines | ✓ VERIFIED | `forecast_dashboard_matches()` emits the calibrated per-match outcome view; `simulate_group_stage_dashboard()` uses it for calibrated points/ranking while retaining raw scoreline rows for goals; knockout routing applies calibrated regulation/tiebreak probabilities while retaining scoreline summaries; `build_worldcup_dashboard_data()` passes the view/calibrator through all consumers. The dashboard suite’s calibrated fixtures passed 473 assertions and explicitly checked changed 1X2/advancement values with unchanged scoreline/auxiliary fields. |
+| Direct caller preservation and raw-authority rejection | ✓ VERIFIED | `_targets.R` and `scripts/update_worldcup_dashboard.R` still call `resolve_phase12_approved_release()` and contain no direct raw model-path assignment. Exported builders reject NULL release roots and caller-supplied raw/baseline authority before setup. |
+| Durable output immutability | ✓ VERIFIED | Independent before/after SHA-256 inventories were identical: 289 `outputs/` files and 211 `data/` files, with `cmp` exit code 0 for both. Temporary adversarial fixtures were outside the accepted release root. |
+
+## Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `tests/testthat/test_phase12_*.R` | Five Phase 12 validation files | VERIFIED | All five exist and parsed; focused run completed with no failures. |
-| `data/benchmark/phase12/freeze_manifest.csv` and `calibration_recipe.json` | Pre-fit freeze and recipe | VERIFIED | 9 candidates, `G=40`, sealed state, recipe hash, threshold hash, parent hashes. |
-| `R/calibration/inner_oof.R`, `probability_calibration.R`, `calibration_selection.R` | Leakage-safe calibration and raw/calibrated gate | VERIFIED | Source and tests validate strict prior OOF, deterministic temperature scaling, raw fallback, unchanged scorelines, and shared scoring. |
-| `R/release/final_fit.R`, `final_evaluation.R`, `promotion_report.R` | Final preflight, one-shot evaluation, promotion report | VERIFIED | Durable final-fit and final-evaluation manifests validate; 104/104 active fixtures scored; inherited evaluator used. |
-| `outputs/releases/phase12-wc2026-incumbent-retained-v1` | Complete versioned release root | VERIFIED | Actual concrete release root resolves template `<release_id>` paths from the plans; bundle validates fresh. |
-| `R/release/release_contract.R`, `R/visualization/worldcup_dashboard.R`, `_targets.R` | Approved consumer boundary | PARTIAL | Target/script path is wired to `resolve_phase12_approved_release()`, but exported dashboard build functions still allow raw model-path operation. |
+| `R/release/release_contract.R` | Trusted topology, fresh preflight, exact decision identity, evidence authority, resolver identity checks | ✓ VERIFIED | Substantive implementation; fresh preflight and resolver probes passed. |
+| `R/release/release_bundle.R` | Canonical contract paths, freeze/evaluation links, and loaded identity validation | ✓ VERIFIED | Metadata-only path is fail-closed; RDS reads occur only after metadata/hash checks. |
+| `R/visualization/worldcup_dashboard.R` | Release-calibrator wiring across match/group/stage/knockout outputs | ✓ VERIFIED | Calibrated fixture changed derived outcome surfaces while preserving scoreline evidence. |
+| `tests/testthat/test_phase12_release.R` | Temporary topology, handoff, hash, path, link, identity, and ordering regressions | ✓ VERIFIED | 44 focused assertions passed with warnings treated as failures. |
+| `tests/testthat/test_worldcup_dashboard.R` | Calibrated consumer and retained-release/UI regressions | ✓ VERIFIED | 473 focused assertions passed with warnings treated as failures. |
+| `outputs/releases/phase12-wc2026-incumbent-retained-v1` | Complete versioned release bundle | ✓ VERIFIED | 11-row release manifest and all required model, contract, evidence, report, provenance, limitations, and reproducibility files present and fresh-validated. |
 
-### Key Link Verification
+## Key Link Verification
 
 | From | To | Via | Status | Details |
 |---|---|---|---|---|
-| `freeze_manifest.csv` | Calibration fit/apply services | Freeze and recipe validation before optimizer | VERIFIED | `fit_phase12_1x2_calibrator()` validates freeze and recipe before `stats::optim`; CAL-01 tests passed. |
-| Raw/calibrated predictions | Shared proper scoring | `compare_phase12_raw_calibrated()` | VERIFIED | Tests assert identical fixture coverage, unchanged distribution identity, and shared RPS/Brier/log-loss/calibration services. |
-| Final preflight | Label opener | `phase12_open_final_labels()` | VERIFIED | Preflight failure keeps provider calls at 0; one-shot synthetic and durable final artifacts validate. |
-| Promotion report | Phase 9 evaluator | `evaluate_promotion()` then `select_promoted_candidate()` | VERIFIED | 9 registered candidates evaluated; active challenger vetoed; incumbent retained. |
-| Release root | Dashboard/export | `resolve_phase12_approved_release()` into `_targets.R` and update script | PARTIAL | Official target/script consumers are wired, but `build_worldcup_dashboard_data()` still permits raw model paths with no release. |
+| Trusted root/candidate paths | `preflight_phase12_approved_release()` | Symlink rejection plus normalized containment before metadata-only bundle validation | ✓ WIRED | `release_contract.R` topology functions and independent symlink probes. |
+| `resolve_phase12_approved_release()` | `preflight_phase12_approved_release()` | Fresh preflight on each resolver call plus supplied-handoff comparison | ✓ WIRED | Source order and forged-handoff probe verified. |
+| `model_contract.json` | Release manifest and `readRDS()` | Canonical paths, one-to-one rows, byte hashes, then loaded identity checks | ✓ WIRED | `release_bundle.R` validates metadata first and reads RDS only at lines 425–426. |
+| Benchmark candidate evidence | Embedded decision identity | Canonical CSV bytes + exact raw decision token + selected ID | ✓ WIRED | Fresh hash sensitivity probe produced four distinct SHA-256 values. |
+| Contract freeze identity | Freeze/final-evaluation manifests | `freeze_id`, `freeze_self_sha256`, track, and G=40 cross-links | ✓ WIRED | Valid retained fixture and drift regressions passed. |
+| Resolver calibrator/primary view | Match/group/stage/knockout consumers | Explicit calibrated outcome view; raw scoreline distribution retained | ✓ WIRED | Dashboard source trace and calibrated match/group/knockout regressions passed. |
 
-### Data-Flow Trace
+## Data-Flow Trace (Level 4)
 
-| Artifact | Data Variable | Source | Produces Real Data | Status |
+| Artifact | Data variable | Source | Produces real data | Status |
 |---|---|---|---|---|
-| `calibration_gate.csv` | `primary_probability_view` | Inner OOF/calibrator artifacts and shared scoring | Yes | 9 rows, one scored `calibrated_1x2`, eight explicit `raw_1x2` no-score rows, all `G=40`. |
-| `final_evaluation_manifest.csv` | Final labels/predictions/scores hashes and coverage | One-shot copied labels plus prediction/scoring artifacts | Yes | 9 rows; active `phase11_rf_dynamic_elo_open` has 104/104 coverage and consumed labels. |
-| `promotion_report.csv` | `release_decision`, `selected_id`, gate values | Inherited promotion evaluator | Yes | 9 evaluator rows; release decision `incumbent retained`; selected `open_nb_incumbent`. |
-| `release_manifest.csv` | Release identity and artifact hashes | Completed release bundle | Yes | 11 artifact rows; `labels_embedded = FALSE`; status `incumbent retained`; `raw_1x2`; `G=40`. |
-| Dashboard payload | Release metadata and model pair | Approved resolver or raw model path fallback | Partial | Official production path uses resolver; exported builder can still bypass it. |
+| Calibration gate | Raw/calibrated candidate-track metrics and primary view | Inner-OOF calibrator plus shared proper-score services | Yes; durable 9-row gate | ✓ FLOWING |
+| Final-evaluation manifest | Labels, predictions, scores, coverage, promotion provenance | One-shot copied-label scorer and promotion evaluator | Yes; 9 rows, 104/104 active coverage | ✓ FLOWING |
+| Release bundle | Model/calibrator, contract, evidence, reports, provenance | Versioned release publisher/installer | Yes; 11 manifest rows | ✓ FLOWING |
+| Dashboard match payload | Per-match 1X2, outcome view, scoreline distributions | Resolver-returned models/calibrator and `forecast_dashboard_matches()` | Yes; 72 fixtures in valid dashboard payload tests | ✓ FLOWING |
+| Group/stage/knockout payload | Points/ranking, advancement, bracket routes | Explicit outcome view plus unchanged raw scoreline evidence | Yes; 48 group rows and bracket regressions pass | ✓ FLOWING |
 
-### Behavioral Spot-Checks
+## Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| Durable Phase 12 validators and resolver | `Rscript --vanilla -e 'source(...); validate_phase12_*(); resolve_phase12_approved_release("outputs/releases")'` | `VALIDATION_OK phase12-wc2026-incumbent-retained-v1 incumbent retained open_nb_incumbent raw_1x2 40` | PASS |
-| Focused Phase 12 and dashboard tests | `Rscript --vanilla -e 'for (path in phase12 files plus test_worldcup_dashboard.R) testthat::test_file(path, stop_on_failure=TRUE, stop_on_warning=TRUE)'` | Completed all files with no failures or warnings | PASS |
-| Release tamper and rollback behavior | Tempdir copy of release root; tamper contract; force post-install validator failure | `RELEASE_SPOTCHECK_OK`; tamper rejected, rollback restored accepted release | PASS |
-| Dashboard approved-contract-only boundary | Source/test inspection and existing dashboard test | Raw model-path dashboard build still passes without release resolver | FAIL |
+| Release focused regressions | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase12_release.R", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | 44 pass, 0 fail, 0 warn | ✓ PASS |
+| Dashboard focused regressions | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_worldcup_dashboard.R", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | 473 pass, 0 fail, 0 warn | ✓ PASS |
+| Full repository suite | `Rscript --vanilla -e 'testthat::test_dir("tests/testthat", stop_on_failure=TRUE, stop_on_warning=TRUE)'` | 2,592 pass, 0 fail, 0 warn | ✓ PASS |
+| Fresh metadata-only/full release validation | Fresh R process calling preflight, `validate_phase12_complete_release_bundle(..., load_models=FALSE/TRUE)`, and resolver | No model members in metadata preflight; retained release resolved; loaded identities match | ✓ PASS |
+| Decision identity sensitivity | Fresh R process with evidence, raw decision token, and selected-ID mutations | Four distinct valid 64-hex hashes; invalid token rejected | ✓ PASS |
+| Symlink topology and forged handoff | Fresh temporary release roots with symlink root/child and alternate preflight handoff | All rejected before resolver model loading | ✓ PASS |
+| Durable immutability | SHA-256 inventory of `outputs/` and `data/` before/after verification | 289/289 and 211/211 entries byte-identical | ✓ PASS |
 
-### Probe Execution
+## Probe Execution
 
-| Probe | Command | Result | Status |
-|---|---|---|---|
-| Phase probes | `find scripts -path '*/tests/probe-*.sh' -type f` and phase PLAN/SUMMARY probe grep | No Phase 12 probe scripts declared | SKIP |
+No conventional `scripts/*/tests/probe-*.sh` probe was declared or found for Phase 12. The fresh-process probes above were run directly, including topology, handoff, hash, metadata-only, full-resolution, and immutability checks.
 
-### Requirements Coverage
+## Requirements Coverage
 
-| Requirement | Source Plan | Description | Status | Evidence |
+| Requirement | Source plans | Description | Status | Evidence |
 |---|---|---|---|---|
-| CAL-01 | 12-02 | Train probability calibration using inner OOF predictions without outer assessment tournament | SATISFIED | Strict chronology guards, freeze-gated fit, raw fallback, durable OOF/calibrator validation, focused tests. |
-| CAL-02 | 12-03 | Compare raw and calibrated probabilities with same proper scores and report regressions | SATISFIED | Shared scoring/gate code, 9-row calibration gate, strict selection/veto tests. |
-| PROMO-01 | 12-01 | Freeze candidates/settings/features/thresholds before final 2026 evaluation | SATISFIED | 9-row self-hashed freeze, recipe JSON, parent/protocol hashes, unopened guard. |
-| PROMO-02 | 12-04, 12-05 | Execute final 2026 comparison once and retain incumbent unless challenger clears rule | SATISFIED | One-shot label copy, immutable manifests, 104/104 scoring, 9 evaluator rows, incumbent retained. |
-| PROMO-03 | 12-06, 12-08, 12-07 | Publish approved model with reports and dashboard regressions | PARTIAL | Release bundle and official target/script wiring pass, but exported dashboard/export builder still allows raw model-path operation without approved release. |
+| CAL-01 | 12-02 | Train probability calibration from inner OOF without outer assessment leakage | ✓ SATISFIED | Freeze-gated chronology/holdout tests and 76 passing calibration assertions. |
+| CAL-02 | 12-03 | Compare raw/calibrated probabilities with identical proper scores and report regressions | ✓ SATISFIED | Shared scoring and durable calibration gate; included in the passing full suite. |
+| PROMO-01 | 12-01 | Freeze candidates/settings/features/thresholds before final evaluation | ✓ SATISFIED | 9-row self-hashed freeze, recipe/protocol/parent identities, and 29 passing freeze assertions. |
+| PROMO-02 | 12-04, 12-05 | Execute final comparison once and retain incumbent unless challenger clears the rule | ✓ SATISFIED | One-shot preflight/opener contracts, consumed 9-row final manifest, 104/104 active coverage, incumbent-retained promotion, and 58+16 passing assertions. |
+| PROMO-03 | 12-06, 12-07, 12-08, 12-09, 12-10 | Publish versioned approved/retained artifact with reports, provenance, limitations, reproducibility, and dashboard regressions | ✓ SATISFIED | Complete release bundle, fail-closed metadata/resolver boundary, exact decision/freeze identities, calibrated consumer flow, direct caller preservation, focused tests, full suite, and immutable-output check. |
 
-### Anti-Patterns Found
+## Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |---|---:|---|---|---|
-| `R/visualization/worldcup_dashboard.R` | 2981-3052, 3130-3131 | Raw model-path fallback when no release is resolved | BLOCKER | Violates the approved-contract-only consumer criterion. |
-| Phase 12 files | n/a | Debt markers | None | No unreferenced `TBD`, `FIXME`, or `XXX` markers found in modified Phase 12 source/test files. |
-| `R/visualization/worldcup_dashboard.R` | multiple | `return(NULL)` / empty data-frame paths | Info | These are existing optional/empty-state branches, not stubs. |
+| `R/visualization/worldcup_dashboard.R` | 3640, 3672, 3675, 3832, 4199 | `return null`/empty-array branches in embedded dashboard JavaScript | Info | Normal UI lookup/rendering fallbacks; not a product stub and tests exercise the UI surface. |
+| Phase 12-10 source/test files | n/a | Unreferenced `TBD`, `FIXME`, or `XXX` markers | None found | No debt-marker blocker. |
 
-### UAT Coverage
+## Human Verification Required
 
-`12-UAT.md` is complete with 15/15 passed and no gaps. It covered dashboard UI, validation files, sealed-boundary scan, calibration gate, final preflight, one-shot evaluation/promotion, release bundle, approved consumer boundary, release installation/rollback, and freeze identity. The UAT supports visual and operator-facing confidence, but it does not override the code-level dashboard/export bypass found above.
+None. Visual and UI regression behavior is covered by the existing automated presentation suite; the release-integrity and calibrated data-flow claims were directly exercised with temporary fixtures and fresh-process checks. No uncertain truth remains.
 
-### Human Verification Required
+## Gaps Summary
 
-None currently. The completed UAT covers the human-facing checks, and the remaining issue is a code-level gap.
-
-### Gaps Summary
-
-Phase 12 achieved the calibration, freeze, one-shot final evaluation, incumbent-retained promotion decision, and complete versioned release bundle. The blocking gap is in the final consumer boundary: official targets and scripts resolve the accepted release, but the exported dashboard/export API still accepts raw model paths with no approved release. That means the roadmap's approved-contract-only consumer success criterion is not fully achieved.
+No gaps remain. The two stale pre-12-10 blockers are closed in the live code: refreshed metadata cannot swap the canonical model/calibrator identities, and the embedded decision identity binds canonical evidence, the exact raw release-decision token, and selected model ID. The accepted incumbent-retained release remains usable, calibrated consumer wiring is explicit and scoreline-preserving, direct resolver callers remain release-first, all focused/full tests pass with warnings treated as failures, and durable `outputs/`/`data/` inventories are unchanged.
 
 ---
 
-_Verified: 2026-08-12T07:57:05Z_
+_Verified: 2026-08-13T08:30:44Z_
 _Verifier: the agent (gsd-verifier)_
