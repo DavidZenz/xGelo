@@ -9,6 +9,20 @@ phase13_source_required_resource_types <- function() {
   c("fixtures", "groups", "standings", "results", "status")
 }
 
+phase13_validate_structured_resource_names <- function(resource_types) {
+  if (is.null(resource_types) || !length(resource_types)) {
+    stop("Phase 13 structured resource set must not be empty", call. = FALSE)
+  }
+  resource_types <- as.character(resource_types)
+  required <- phase13_source_required_resource_types()
+  missing <- setdiff(required, resource_types)
+  unknown <- setdiff(resource_types, required)
+  if (length(missing)) stop("Phase 13 structured bundle is missing required resource classes: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (length(unknown)) stop("Phase 13 structured bundle contains unknown resource classes: ", paste(unknown, collapse = ", "), call. = FALSE)
+  if (anyDuplicated(resource_types)) stop("Phase 13 structured bundle contains duplicate resource classes", call. = FALSE)
+  invisible(resource_types)
+}
+
 phase13_source_find_project_root <- function(path = ".") {
   candidate <- normalizePath(path, winslash = "/", mustWork = FALSE)
   if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
@@ -374,6 +388,42 @@ phase13_validate_source_artifacts <- function(artifacts, raw_bytes_by_artifact =
   invisible(artifacts)
 }
 
+phase13_validate_fallback_review_metadata <- function(bundle, artifacts) {
+  phase13_source_require_columns(
+    bundle,
+    c(
+      "fallback_status", "acceptance_state", "fallback_source", "fallback_retrieval_date",
+      "fallback_reason", "operator_note", "fallback_checksum"
+    ),
+    "Phase 13 source bundle"
+  )
+  phase13_source_require_columns(artifacts, c("fallback_status", "review_state"), "Phase 13 source artifacts")
+  fallback_status <- as.character(bundle$fallback_status[[1L]])
+  if (!fallback_status %in% c("official", "reviewed_fallback")) {
+    stop("Phase 13 fallback review metadata has unsupported status", call. = FALSE)
+  }
+  if (length(unique(as.character(artifacts$fallback_status))) != 1L ||
+      !identical(as.character(artifacts$fallback_status[[1L]]), fallback_status)) {
+    stop("Phase 13 fallback review metadata is not edition-wide", call. = FALSE)
+  }
+  if (identical(fallback_status, "official")) {
+    if (!identical(as.character(bundle$acceptance_state[[1L]]), "accepted")) {
+      stop("Phase 13 official source bundle must have accepted state", call. = FALSE)
+    }
+    return(invisible(TRUE))
+  }
+  fields <- c("fallback_source", "fallback_retrieval_date", "fallback_reason", "operator_note", "fallback_checksum")
+  if (any(is.na(bundle[fields][1L, ]) | !nzchar(as.character(bundle[fields][1L, ])))) {
+    stop("Phase 13 reviewed fallback bundle has incomplete review metadata", call. = FALSE)
+  }
+  if (!grepl("^[0-9a-fA-F]{64}$", as.character(bundle$fallback_checksum[[1L]])) ||
+      !identical(as.character(bundle$acceptance_state[[1L]]), "reviewed") ||
+      any(as.character(artifacts$review_state) != "approved")) {
+    stop("Phase 13 reviewed fallback bundle requires approved review metadata", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 phase13_validate_source_bundle <- function(bundle, artifacts) {
   required <- c(
     "schema_version", "bundle_id", "edition_id", "bundle_status", "acceptance_state",
@@ -417,19 +467,7 @@ phase13_validate_source_bundle <- function(bundle, artifacts) {
   if (!nzchar(as.character(bundle$last_accepted_bundle_id))) {
     stop("Phase 13 accepted source bundle must retain a last accepted bundle ID", call. = FALSE)
   }
-  if (identical(as.character(bundle$fallback_status), "reviewed_fallback")) {
-    review_fields <- c("fallback_source", "fallback_retrieval_date", "fallback_reason", "operator_note", "fallback_checksum")
-    if (any(!nzchar(as.character(bundle[review_fields])))) {
-      stop("Phase 13 reviewed fallback bundle has incomplete review metadata", call. = FALSE)
-    }
-    if (!grepl("^[0-9a-fA-F]{64}$", as.character(bundle$fallback_checksum)) ||
-        !identical(as.character(bundle$acceptance_state), "reviewed") ||
-        any(as.character(artifacts$review_state) != "approved")) {
-      stop("Phase 13 reviewed fallback bundle requires approved review metadata", call. = FALSE)
-    }
-  } else if (!identical(as.character(bundle$acceptance_state), "accepted")) {
-    stop("Phase 13 official source bundle must have accepted state", call. = FALSE)
-  }
+  phase13_validate_fallback_review_metadata(bundle, artifacts)
   phase13_source_validate_hash_column(bundle, "row_sha256", "Phase 13 source bundle")
   invisible(bundle)
 }
@@ -462,8 +500,7 @@ phase13_capture_structured_bundle <- function(
     stop("Phase 13 structured resource payloads must be a named list", call. = FALSE)
   }
   required <- phase13_source_required_resource_types()
-  missing <- setdiff(required, names(resource_payloads))
-  if (length(missing)) stop("Phase 13 structured bundle is missing required resource classes: ", paste(missing, collapse = ", "), call. = FALSE)
+  phase13_validate_structured_resource_names(names(resource_payloads))
   if (is.null(names(source_urls))) source_urls <- setNames(rep(source_urls, length(required)), required)
   parser_commit_sha <- if (is.null(parser_commit_sha)) phase13_parser_commit_sha(project_root) else parser_commit_sha
   artifact_rows <- lapply(required, function(artifact_type) {
