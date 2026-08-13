@@ -410,3 +410,116 @@ test_that("explicit empty compact tables retain schema while null schemas fail",
     "schema|columns|empty"
   )
 })
+
+phase13_source_test_run_acquire <- function(args) {
+  script <- file.path(phase13_source_test_project_root, "scripts/acquire_uefa_snapshot.R")
+  output <- system2(
+    "Rscript",
+    c("--vanilla", script, args),
+    stdout = TRUE,
+    stderr = TRUE
+  )
+  list(
+    output = output,
+    status = if (is.null(attr(output, "status"))) 0L else as.integer(attr(output, "status"))
+  )
+}
+
+test_that("bounded acquisition replays compact structured fixtures into an accepted edition", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  output_root <- tempfile("phase13-accepted-")
+  registry_root <- tempfile("phase13-registries-")
+  raw_root <- tempfile("phase13-raw-")
+  result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root
+  ))
+  expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+  accepted_root <- file.path(output_root, "uefa_nations_league_2026_27")
+  expect_true(file.exists(file.path(accepted_root, "source_bundle_manifest.csv")))
+  expect_true(all(file.exists(file.path(accepted_root, paste0(c("fixtures", "groups", "standings", "results", "status"), ".csv")))))
+  expect_true(file.exists(file.path(registry_root, "source_bundles.csv")))
+  expect_true(file.exists(file.path(registry_root, "source_artifacts.csv")))
+  expect_true(file.exists(file.path(raw_root, "uefa_nations_league_2026_27")))
+})
+
+test_that("official capture rejects rendered HTML and PDF resource bodies", {
+  phase13_source_test_load_apis()
+  phase13_source_test_require_api(c("phase13_source_validate_structured_bytes"))
+  expect_error(phase13_source_validate_structured_bytes("<!doctype html><html></html>", "fixtures"), "HTML|structured")
+  expect_error(phase13_source_validate_structured_bytes("%PDF-1.7", "standings"), "PDF|structured")
+})
+
+test_that("reviewed fallback acceptance is complete and never mixes provenance", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  output_root <- tempfile("phase13-fallback-accepted-")
+  registry_root <- tempfile("phase13-fallback-registries-")
+  raw_root <- tempfile("phase13-fallback-raw-")
+  result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--fallback-file", file.path(fixture_dir, "reviewed_fallback_bundle.json"),
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root
+  ))
+  expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+  bundle <- read.csv(file.path(registry_root, "source_bundles.csv"), stringsAsFactors = FALSE, check.names = FALSE)
+  artifacts <- read.csv(file.path(registry_root, "source_artifacts.csv"), stringsAsFactors = FALSE, check.names = FALSE)
+  expect_identical(bundle$fallback_status, "reviewed_fallback")
+  expect_identical(bundle$acceptance_state, "reviewed")
+  expect_true(all(artifacts$fallback_status == "reviewed_fallback"))
+  expect_true(all(artifacts$review_state == "approved"))
+  expect_true(nzchar(bundle$fallback_source))
+  expect_match(bundle$fallback_checksum, "^[0-9a-f]{64}$")
+})
+
+test_that("blocked candidate writes failure metadata and retains the prior accepted bundle", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  output_root <- tempfile("phase13-blocked-accepted-")
+  registry_root <- tempfile("phase13-blocked-registries-")
+  raw_root <- tempfile("phase13-blocked-raw-")
+  accepted <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root
+  ))
+  expect_equal(accepted$status, 0L, info = paste(accepted$output, collapse = "\n"))
+  accepted_manifest <- file.path(output_root, "uefa_nations_league_2026_27", "source_bundle_manifest.csv")
+  before <- readLines(accepted_manifest, warn = FALSE)
+
+  invalid_fixture_dir <- tempfile("phase13-invalid-fixture-")
+  dir.create(invalid_fixture_dir, recursive = TRUE)
+  invalid_fixture <- jsonlite::fromJSON(
+    file.path(fixture_dir, "uefa_nations_league_sample.json"),
+    simplifyVector = FALSE
+  )
+  invalid_fixture$resources$standings[[1L]]$points <- NULL
+  jsonlite::write_json(
+    invalid_fixture,
+    file.path(invalid_fixture_dir, "uefa_nations_league_sample.json"),
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+  blocked <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", invalid_fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--bundle-id", "nl-2026-27-invalid-refresh-v1"
+  ))
+  expect_false(identical(blocked$status, 0L))
+  expect_identical(readLines(accepted_manifest, warn = FALSE), before)
+  blocked_path <- file.path(output_root, "uefa_nations_league_2026_27", "blocked_refresh.json")
+  expect_true(file.exists(blocked_path))
+  blocked_metadata <- jsonlite::fromJSON(blocked_path)
+  expect_identical(blocked_metadata$last_accepted_bundle_id, "nl-2026-27-official-sample-v1")
+  expect_identical(blocked_metadata$output_bundle_target, "uefa_nations_league_2026_27")
+  expect_identical(blocked_metadata$status, "blocked")
+})
