@@ -9,6 +9,30 @@ phase13_source_required_resource_types <- function() {
   c("fixtures", "groups", "standings", "results", "status")
 }
 
+phase13_source_resource_schema <- function() {
+  list(
+    fixtures = c("source_fixture_id", "scheduled_at_utc", "status", "home", "away"),
+    groups = c("source_group_id", "league", "display_name"),
+    standings = c("source_team_id", "source_group_id", "position", "points"),
+    results = c("source_fixture_id", "status", "home_goals", "away_goals"),
+    status = c("source_edition_id", "competition_status")
+  )
+}
+
+phase13_source_compact_resource_schema <- function() {
+  list(
+    fixtures = c(
+      "source_fixture_id", "scheduled_at_utc", "status",
+      "home_uefa_source_team_id", "away_uefa_source_team_id",
+      "home_display_name", "away_display_name"
+    ),
+    groups = c("source_group_id", "league", "display_name"),
+    standings = c("source_team_id", "source_group_id", "position", "points"),
+    results = c("source_fixture_id", "status", "home_goals", "away_goals"),
+    status = c("source_edition_id", "competition_status")
+  )
+}
+
 phase13_validate_structured_resource_names <- function(resource_types) {
   if (is.null(resource_types) || !length(resource_types)) {
     stop("Phase 13 structured resource set must not be empty", call. = FALSE)
@@ -120,6 +144,23 @@ phase13_source_sha256 <- function(value) {
   digest::digest(phase13_source_raw_bytes(value), algo = "sha256", serialize = FALSE)
 }
 
+phase13_source_validate_structured_bytes <- function(value, artifact_type = "resource") {
+  raw_bytes <- phase13_source_raw_bytes(value)
+  if (!length(raw_bytes)) stop("Phase 13 structured resource bytes must not be empty", call. = FALSE)
+  text <- tryCatch(rawToChar(raw_bytes), error = function(error) "")
+  probe <- tolower(trimws(text))
+  if (grepl("^%pdf", probe) || grepl("^<!doctype\\s+html", probe) || grepl("^<html(?:[ >]|$)", probe)) {
+    stop("Phase 13 official resource must be structured JSON, not rendered HTML or PDF: ", artifact_type, call. = FALSE)
+  }
+  if (requireNamespace("jsonlite", quietly = TRUE)) {
+    tryCatch(
+      jsonlite::validate(text),
+      error = function(error) stop("Phase 13 structured resource is not valid JSON: ", artifact_type, call. = FALSE)
+    )
+  }
+  invisible(raw_bytes)
+}
+
 phase13_canonical_sha256 <- function(data, key = NULL) {
   if (!is.data.frame(data)) stop("Phase 13 canonical hashing requires a data frame", call. = FALSE)
   if (!requireNamespace("digest", quietly = TRUE)) {
@@ -165,6 +206,106 @@ phase13_source_require_unique <- function(data, key, name) {
   invisible(TRUE)
 }
 
+phase13_source_validate_resource_payload <- function(payload, artifact_type) {
+  allowed <- phase13_source_required_resource_types()
+  artifact_type <- phase13_source_scalar(artifact_type, "artifact_type")
+  if (!artifact_type %in% allowed) {
+    stop("Phase 13 structured resource class is unsupported: ", artifact_type, call. = FALSE)
+  }
+  nested_required <- phase13_source_resource_schema()[[artifact_type]]
+  compact_required <- phase13_source_compact_resource_schema()[[artifact_type]]
+  if (is.data.frame(payload)) {
+    missing <- setdiff(compact_required, names(payload))
+    if (length(missing)) {
+      stop(
+        "Phase 13 ", artifact_type, " resource schema is missing columns: ",
+        paste(missing, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    return(invisible(payload))
+  }
+  if (!is.list(payload) || !length(payload)) {
+    stop("Phase 13 ", artifact_type, " resource schema is empty or null", call. = FALSE)
+  }
+  for (index in seq_along(payload)) {
+    row <- payload[[index]]
+    if (!is.list(row)) stop("Phase 13 ", artifact_type, " resource row must be structured", call. = FALSE)
+    missing <- setdiff(nested_required, names(row))
+    if (length(missing)) {
+      stop(
+        "Phase 13 ", artifact_type, " resource schema is missing fields: ",
+        paste(missing, collapse = ", "),
+        call. = FALSE
+      )
+    }
+    if (identical(artifact_type, "fixtures")) {
+      for (side in c("home", "away")) {
+        team <- row[[side]]
+        if (!is.list(team) || !all(c("uefa_source_team_id", "display_name") %in% names(team))) {
+          stop("Phase 13 fixtures resource schema has incomplete ", side, " team fields", call. = FALSE)
+        }
+      }
+    }
+  }
+  invisible(payload)
+}
+
+phase13_validate_structured_resource_payloads <- function(resource_payloads, edition_id = NULL) {
+  if (!is.list(resource_payloads) || is.null(names(resource_payloads))) {
+    stop("Phase 13 structured resource payloads must be a named list", call. = FALSE)
+  }
+  phase13_validate_structured_resource_names(names(resource_payloads))
+  if (!is.null(edition_id)) phase13_source_scalar(edition_id, "edition_id")
+  invisible(lapply(names(resource_payloads), function(artifact_type) {
+    phase13_source_validate_resource_payload(resource_payloads[[artifact_type]], artifact_type)
+  }))
+}
+
+phase13_source_scalar_or_na <- function(row, field) {
+  value <- row[[field]]
+  if (is.null(value) || !length(value) || is.na(value[[1L]])) return(NA_character_)
+  as.character(value[[1L]])
+}
+
+phase13_source_flatten_resource_row <- function(row, artifact_type) {
+  if (identical(artifact_type, "fixtures")) {
+    return(data.frame(
+      source_fixture_id = phase13_source_scalar_or_na(row, "source_fixture_id"),
+      scheduled_at_utc = phase13_source_scalar_or_na(row, "scheduled_at_utc"),
+      status = phase13_source_scalar_or_na(row, "status"),
+      home_uefa_source_team_id = phase13_source_scalar_or_na(row$home, "uefa_source_team_id"),
+      away_uefa_source_team_id = phase13_source_scalar_or_na(row$away, "uefa_source_team_id"),
+      home_display_name = phase13_source_scalar_or_na(row$home, "display_name"),
+      away_display_name = phase13_source_scalar_or_na(row$away, "display_name"),
+      stringsAsFactors = FALSE
+    ))
+  }
+  fields <- phase13_source_compact_resource_schema()[[artifact_type]]
+  values <- lapply(fields, function(field) phase13_source_scalar_or_na(row, field))
+  names(values) <- fields
+  as.data.frame(values, stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+phase13_source_resource_table <- function(payload, artifact_type, edition_id = NULL, source_artifact_id = NULL) {
+  phase13_source_validate_resource_payload(payload, artifact_type)
+  if (is.data.frame(payload)) {
+    output <- payload
+  } else {
+    rows <- lapply(payload, phase13_source_flatten_resource_row, artifact_type = artifact_type)
+    output <- do.call(rbind, rows)
+  }
+  if (!is.null(edition_id)) {
+    edition_id <- phase13_source_scalar(edition_id, "edition_id")
+    output$edition_id <- if (nrow(output)) edition_id else character(0)
+  }
+  if (!is.null(source_artifact_id)) {
+    source_artifact_id <- phase13_source_scalar(source_artifact_id, "source_artifact_id")
+    output$source_artifact_id <- if (nrow(output)) source_artifact_id else character(0)
+  }
+  output
+}
+
 phase13_source_validate_hash_column <- function(data, hash_col, name) {
   phase13_source_require_columns(data, hash_col, name)
   actual <- tolower(as.character(data[[hash_col]]))
@@ -198,6 +339,15 @@ phase13_source_default_raw_path <- function(edition_id, bundle_id, artifact_type
   )
 }
 
+phase13_source_validate_local_raw_path <- function(path) {
+  path <- phase13_source_safe_relative_path(path)
+  prefix <- "data/competition/local_raw/"
+  if (!startsWith(path, prefix) || identical(path, prefix)) {
+    stop("Phase 13 raw artifact path must remain inside data/competition/local_raw", call. = FALSE)
+  }
+  path
+}
+
 #' Build one compact artifact provenance row from exact response bytes.
 phase13_build_source_artifact <- function(
     raw_bytes,
@@ -218,9 +368,13 @@ phase13_build_source_artifact <- function(
   bundle_id <- phase13_source_scalar(bundle_id, "bundle_id")
   edition_id <- phase13_source_scalar(edition_id, "edition_id")
   artifact_type <- phase13_source_scalar(artifact_type, "artifact_type")
+  if (!artifact_type %in% phase13_source_required_resource_types()) {
+    stop("Phase 13 source artifact type is unsupported: ", artifact_type, call. = FALSE)
+  }
   source_url <- phase13_source_scalar(source_url, "source_url")
   retrieved_at_utc <- phase13_source_scalar(retrieved_at_utc, "retrieved_at_utc")
   fallback_status <- phase13_source_normalize_fallback_status(fallback_status)
+  phase13_source_validate_structured_bytes(raw_bytes, artifact_type)
   parser_commit_sha <- if (is.null(parser_commit_sha)) phase13_parser_commit_sha(project_root) else phase13_source_scalar(parser_commit_sha, "parser_commit_sha")
   if (!grepl("^[0-9a-fA-F]{7,64}$", parser_commit_sha)) stop("Phase 13 parser_commit_sha must be a Git SHA", call. = FALSE)
   review_state <- if (is.null(review_state)) {
@@ -228,7 +382,7 @@ phase13_build_source_artifact <- function(
   } else phase13_source_scalar(review_state, "review_state")
   relative_local_raw_path <- if (is.null(relative_local_raw_path)) {
     phase13_source_default_raw_path(edition_id, bundle_id, artifact_type)
-  } else phase13_source_safe_relative_path(relative_local_raw_path)
+  } else phase13_source_validate_local_raw_path(relative_local_raw_path)
 
   row <- data.frame(
     schema_version = "phase13-source-artifact-v1",
@@ -266,6 +420,24 @@ phase13_source_fallback_metadata <- function(
     operator_note = phase13_source_scalar(operator_note, "operator_note", allow_empty = TRUE),
     fallback_checksum = phase13_source_scalar(fallback_checksum, "fallback_checksum", allow_empty = TRUE),
     stringsAsFactors = FALSE
+  )
+}
+
+phase13_source_manifest_self_sha256 <- function(bundle, artifacts) {
+  if (!is.data.frame(bundle) || nrow(bundle) != 1L) {
+    stop("Phase 13 source manifest self-hash requires one bundle row", call. = FALSE)
+  }
+  phase13_validate_source_artifacts(artifacts)
+  bundle_body <- bundle[, setdiff(names(bundle), c("row_sha256", "manifest_self_sha256")), drop = FALSE]
+  artifact_body <- artifacts[, setdiff(names(artifacts), c("row_sha256")), drop = FALSE]
+  digest::digest(
+    paste(
+      phase13_canonical_sha256(bundle_body, key = "bundle_id"),
+      phase13_canonical_sha256(artifact_body, key = "artifact_id"),
+      sep = "\x1e"
+    ),
+    algo = "sha256",
+    serialize = FALSE
   )
 }
 
@@ -334,9 +506,11 @@ phase13_build_source_bundle <- function(
     fallback_reason = fallback$fallback_reason,
     operator_note = fallback$operator_note,
     fallback_checksum = fallback$fallback_checksum,
+    manifest_self_sha256 = "",
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
+  row$manifest_self_sha256 <- phase13_source_manifest_self_sha256(row, artifacts)
   row$row_sha256 <- phase13_row_sha256(row)
   row
 }
@@ -358,6 +532,9 @@ phase13_validate_source_artifacts <- function(artifacts, raw_bytes_by_artifact =
   if (any(is.na(artifacts$bytes) | !is.finite(as.numeric(artifacts$bytes)) | as.numeric(artifacts$bytes) <= 0)) {
     stop("Phase 13 source artifacts require positive raw byte counts", call. = FALSE)
   }
+  if (any(is.na(artifacts$raw_sha256) | !grepl("^[0-9a-fA-F]{64}$", as.character(artifacts$raw_sha256)))) {
+    stop("Phase 13 source artifacts contain invalid raw SHA-256 values", call. = FALSE)
+  }
   if (any(is.na(artifacts$artifact_type) | !as.character(artifacts$artifact_type) %in% phase13_source_required_resource_types())) {
     stop("Phase 13 source artifacts contain an unknown or missing required resource type", call. = FALSE)
   }
@@ -367,7 +544,7 @@ phase13_validate_source_artifacts <- function(artifacts, raw_bytes_by_artifact =
   if (any(is.na(artifacts$review_state) | !nzchar(as.character(artifacts$review_state)))) {
     stop("Phase 13 source artifacts require review state metadata", call. = FALSE)
   }
-  invisible(lapply(as.character(artifacts$relative_local_raw_path), phase13_source_safe_relative_path))
+  invisible(lapply(as.character(artifacts$relative_local_raw_path), phase13_source_validate_local_raw_path))
   if (length(unique(as.character(artifacts$fallback_status))) != 1L) {
     stop("Phase 13 source artifacts cannot mix official and fallback statuses", call. = FALSE)
   }
@@ -376,9 +553,13 @@ phase13_validate_source_artifacts <- function(artifacts, raw_bytes_by_artifact =
     if (!is.list(raw_bytes_by_artifact) || is.null(names(raw_bytes_by_artifact))) {
       stop("Phase 13 raw byte verification requires a named list", call. = FALSE)
     }
+    if (!setequal(names(raw_bytes_by_artifact), as.character(artifacts$artifact_id))) {
+      stop("Phase 13 raw byte verification must cover every source artifact", call. = FALSE)
+    }
     for (artifact_id in names(raw_bytes_by_artifact)) {
       if (!artifact_id %in% artifacts$artifact_id) stop("Phase 13 raw byte verification references an unknown artifact", call. = FALSE)
       bytes <- phase13_source_raw_bytes(raw_bytes_by_artifact[[artifact_id]])
+      phase13_source_validate_structured_bytes(bytes, artifacts$artifact_type[artifacts$artifact_id == artifact_id][[1L]])
       row <- artifacts[artifacts$artifact_id == artifact_id, , drop = FALSE]
       if (nrow(row) != 1L || as.integer(row$bytes) != length(bytes) || !identical(tolower(row$raw_sha256), phase13_source_sha256(bytes))) {
         stop("Phase 13 source artifact raw byte hash mismatch: ", artifact_id, call. = FALSE)
@@ -430,7 +611,7 @@ phase13_validate_source_bundle <- function(bundle, artifacts) {
     "fallback_status", "parser_commit_sha", "artifact_count", "required_resource_count",
     "source_bundle_sha256", "artifact_manifest_sha256", "accepted_at_utc",
     "last_accepted_bundle_id", "fallback_source", "fallback_retrieval_date",
-    "fallback_reason", "operator_note", "fallback_checksum", "row_sha256"
+    "fallback_reason", "operator_note", "fallback_checksum", "manifest_self_sha256", "row_sha256"
   )
   phase13_source_require_columns(bundle, required, "Phase 13 source bundle")
   if (nrow(bundle) != 1L) stop("Phase 13 source bundle must contain exactly one row", call. = FALSE)
@@ -460,6 +641,10 @@ phase13_validate_source_bundle <- function(bundle, artifacts) {
   if (!identical(tolower(as.character(bundle$source_bundle_sha256)), artifact_hash) ||
       !identical(tolower(as.character(bundle$artifact_manifest_sha256)), artifact_hash)) {
     stop("Phase 13 source bundle artifact manifest hash mismatch", call. = FALSE)
+  }
+  if (is.na(bundle$manifest_self_sha256[[1L]]) || !grepl("^[0-9a-fA-F]{64}$", as.character(bundle$manifest_self_sha256[[1L]])) ||
+      !identical(tolower(as.character(bundle$manifest_self_sha256[[1L]])), tolower(phase13_source_manifest_self_sha256(bundle, artifacts)))) {
+    stop("Phase 13 source bundle manifest self-hash mismatch", call. = FALSE)
   }
   if (!identical(as.character(bundle$bundle_status), "accepted")) {
     stop("Phase 13 source bundle is not accepted", call. = FALSE)
@@ -495,17 +680,28 @@ phase13_capture_structured_bundle <- function(
     fallback_status = "official",
     parser_commit_sha = NULL,
     project_root = ".",
+    raw_bytes_by_resource = NULL,
     ...) {
   if (!is.list(resource_payloads) || is.null(names(resource_payloads))) {
     stop("Phase 13 structured resource payloads must be a named list", call. = FALSE)
   }
   required <- phase13_source_required_resource_types()
-  phase13_validate_structured_resource_names(names(resource_payloads))
+  phase13_validate_structured_resource_payloads(resource_payloads, edition_id = edition_id)
   if (is.null(names(source_urls))) source_urls <- setNames(rep(source_urls, length(required)), required)
+  source_url_values <- as.character(source_urls[required])
+  if (!setequal(names(source_urls), required) || any(is.na(source_url_values) | !nzchar(source_url_values))) {
+    stop("Phase 13 structured resources require one source URL per resource class", call. = FALSE)
+  }
+  if (!is.null(raw_bytes_by_resource) && (!is.list(raw_bytes_by_resource) || is.null(names(raw_bytes_by_resource)) ||
+      !setequal(names(raw_bytes_by_resource), required))) {
+    stop("Phase 13 raw bytes must be supplied for every named resource class", call. = FALSE)
+  }
   parser_commit_sha <- if (is.null(parser_commit_sha)) phase13_parser_commit_sha(project_root) else parser_commit_sha
   artifact_rows <- lapply(required, function(artifact_type) {
     payload <- resource_payloads[[artifact_type]]
-    raw_text <- if (requireNamespace("jsonlite", quietly = TRUE)) {
+    raw_text <- if (!is.null(raw_bytes_by_resource)) {
+      raw_bytes_by_resource[[artifact_type]]
+    } else if (requireNamespace("jsonlite", quietly = TRUE)) {
       jsonlite::toJSON(payload, auto_unbox = TRUE, pretty = FALSE, null = "null", digits = 17)
     } else {
       stop("jsonlite is required to serialize Phase 13 structured resources", call. = FALSE)
@@ -535,10 +731,79 @@ phase13_capture_structured_bundle <- function(
     accepted_at_utc = retrieved_at_utc,
     ...
   )
+  if (!is.null(raw_bytes_by_resource)) {
+    raw_bytes_by_artifact <- raw_bytes_by_resource
+    names(raw_bytes_by_artifact) <- paste(bundle_id, names(raw_bytes_by_artifact), sep = "-")
+    phase13_validate_source_artifacts(artifacts, raw_bytes_by_artifact)
+  }
   accepted$resources <- resource_payloads
+  accepted$raw_bytes_by_resource <- raw_bytes_by_resource
   accepted
 }
 
 # Short aliases used by later Phase 13 capture code and tests.
 validate_phase13_source_bundle <- phase13_validate_source_bundle
 validate_phase13_source_artifacts <- phase13_validate_source_artifacts
+
+phase13_source_registry_tables <- function(bundle, artifacts) {
+  phase13_validate_source_bundle(bundle, artifacts)
+  list(
+    source_bundles = bundle,
+    source_artifacts = artifacts
+  )
+}
+
+phase13_source_write_csv <- function(data, path) {
+  if (!is.data.frame(data)) stop("Phase 13 CSV writer requires a data frame", call. = FALSE)
+  if (!is.character(path) || length(path) != 1L || is.na(path) || !nzchar(path)) {
+    stop("Phase 13 CSV writer requires one non-empty path", call. = FALSE)
+  }
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  staged <- tempfile(paste0(".", basename(path), "-"), tmpdir = dirname(path))
+  on.exit(if (file.exists(staged)) unlink(staged), add = TRUE)
+  utils::write.csv(data, staged, row.names = FALSE, na = "", quote = TRUE)
+  if (!file.rename(staged, path)) stop("Could not publish Phase 13 CSV: ", path, call. = FALSE)
+  invisible(path)
+}
+
+phase13_source_write_text <- function(text, path) {
+  if (!is.character(text) || length(text) != 1L || is.na(text)) {
+    stop("Phase 13 text writer requires one non-missing string", call. = FALSE)
+  }
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  staged <- tempfile(paste0(".", basename(path), "-"), tmpdir = dirname(path))
+  on.exit(if (file.exists(staged)) unlink(staged), add = TRUE)
+  writeLines(enc2utf8(text), staged, useBytes = TRUE)
+  if (!file.rename(staged, path)) stop("Could not publish Phase 13 text: ", path, call. = FALSE)
+  invisible(path)
+}
+
+phase13_source_write_json <- function(value, path) {
+  if (!requireNamespace("jsonlite", quietly = TRUE)) {
+    stop("jsonlite is required for Phase 13 JSON writes", call. = FALSE)
+  }
+  phase13_source_write_text(
+    jsonlite::toJSON(value, auto_unbox = TRUE, pretty = TRUE, null = "null", na = "string", digits = 17),
+    path
+  )
+}
+
+phase13_source_manifest_table <- function(bundle, artifacts) {
+  phase13_validate_source_bundle(bundle, artifacts)
+  bundle_fields <- c(
+    "schema_version", "bundle_id", "edition_id", "bundle_status", "acceptance_state",
+    "fallback_status", "parser_commit_sha", "artifact_count", "required_resource_count",
+    "source_bundle_sha256", "artifact_manifest_sha256", "manifest_self_sha256",
+    "accepted_at_utc", "last_accepted_bundle_id", "fallback_source", "fallback_retrieval_date",
+    "fallback_reason", "operator_note", "fallback_checksum"
+  )
+  artifact_fields <- c(
+    "artifact_id", "artifact_type", "source_url", "retrieved_at_utc", "bytes", "raw_sha256",
+    "parser_commit_sha", "fallback_status", "review_state", "relative_local_raw_path", "row_sha256"
+  )
+  output <- cbind(
+    bundle[rep(1L, nrow(artifacts)), bundle_fields, drop = FALSE],
+    artifacts[, artifact_fields, drop = FALSE]
+  )
+  output
+}
