@@ -1,107 +1,119 @@
-# Requirements: xGelo v2.0
+# Requirements: xGelo v3.0
 
-**Defined:** 2026-07-20
+**Defined:** 2026-08-13
 **Core Value:** Accurate, calibrated international-football forecasting without dependence on paid data feeds.
 
-## v2.0 Requirements
+## v3.0 Requirements
 
-### Forecast Integrity
+### Competition Data
 
-- [x] **LEDGER-01**: The analyst can reconstruct the latest committed forecast that existed before each 2026 World Cup kickoff.
-- [x] **LEDGER-02**: Every reconstructed forecast records kickoff time, generation time, feature and result cutoffs, source commit, model version, and provenance.
-- [x] **LEDGER-03**: Forecasts that violate timing or provenance rules are rejected with a machine-readable reason.
-- [x] **EVAL-01**: The analyst can score 1X2 probabilities, goal distributions, totals, both-teams-to-score, and exact-score forecasts with documented metrics.
-- [x] **EVAL-02**: The analyst can score knockout advancement and tournament-stage reach probabilities against actual outcomes.
-- [x] **EVAL-03**: The retrospective reports calibration and uncertainty by stage, outcome class, and confidence, with strict and exploratory samples clearly separated.
+- [ ] **DATA-01**: The analyst can capture official UEFA snapshots for competition fixtures, groups, standings, results, and status.
+- [ ] **DATA-02**: Every captured snapshot records its source URL, retrieval time, raw-byte hash, parser version, and fallback status.
+- [ ] **DATA-03**: UEFA and open historical results are normalized to stable team IDs and competition-edition IDs while preserving source display names.
+- [ ] **DATA-04**: The pipeline supports audited manual fallback snapshots with source, retrieval date, reason, operator note, and checksum visible in the published metadata.
 
-### Benchmarking
+### Competition Registry and Rules
 
-- [x] **BENCH-01**: The analyst can run deterministic tournament-blocked World Cup and Euro evaluation folds using only information available before each assessed match.
-- [x] **BENCH-02**: The benchmark prevents 2026 World Cup outcomes from entering model fitting, feature selection, tuning, or calibration before the final sealed evaluation.
-- [x] **BENCH-03**: Every candidate uses a common prediction schema, point-in-time feature contract, model manifest, and feature-coverage audit.
-- [x] **BENCH-04**: The benchmark includes naive, Elo-only, and incumbent negative-binomial baselines on identical fixtures and folds.
-- [x] **BENCH-05**: Candidates are compared with shared seeds, paired tournament-fold deltas, uncertainty estimates, and a predeclared promotion rule.
+- [ ] **COMP-01**: Each competition edition is registered with lifecycle state, ruleset version, source bundle, model release, and output bundle.
+- [ ] **COMP-02**: The 2026/27 Nations League registry represents Leagues A-D, published groups, league-phase fixtures, and downstream knockout or play-off stages.
+- [ ] **COMP-03**: The EURO 2028 qualifying registry represents the pre-draw state and activates groups, fixtures, and simulations only after an official draw snapshot exists.
+- [ ] **COMP-04**: Competition state applies the official tie-breakers, cross-group rankings, host-place rules, play-off topology, and regulation-version checks for the selected edition.
 
-### Statistical Challengers
+### Competition State and Form
 
-- [x] **STAT-01**: The analyst can benchmark a team-specific penalized Poisson model against the registered baselines.
-- [x] **STAT-02**: The analyst can benchmark dynamic attack and defence ratings whose updates use only prior matches.
-- [x] **STAT-03**: The analyst can compare Dixon-Coles and bivariate-Poisson score-dependence corrections under the common benchmark contract.
-- [x] **STAT-04**: The analyst can run controlled ablations of the incumbent model's correlated predictors and identify each retained feature set.
+- [ ] **STATE-01**: The analyst can compute competition-specific standings from completed results with played, wins, draws, losses, goals, goal difference, points, and official rank.
+- [ ] **STATE-02**: The data model keeps scheduled, completed, postponed, abandoned, extra-time, and penalty-shootout states distinct, including regulation and final scores where applicable.
+- [ ] **STATE-03**: The dashboard reports competition-specific recent form and a separate all-international form view with explicit windows and point-in-time cutoffs.
+- [ ] **STATE-04**: Nations League and EURO state remain independent while sharing canonical team identity, Elo/xG strength, and international match history.
 
-### Hybrid Models and Features
+### Match Forecasts
 
-- [x] **HYBRID-01**: The analyst can benchmark a Groll-style random forest that includes independently estimated team-ability parameters.
-- [x] **HYBRID-02**: The analyst can evaluate host, neutral venue, rest, travel, and tournament-context features as a named open-data feature set.
-- [x] **HYBRID-03**: The benchmark reports xG coverage and activates an xG-informed candidate only when its point-in-time signal passes a declared coverage gate.
-- [x] **HYBRID-04**: The analyst can evaluate socio-economic variables as a structural prior for teams with sparse recent match evidence.
-- [x] **HYBRID-05**: Squad information and bookmaker consensus are evaluated only in explicitly labelled enriched or external benchmark modes.
+- [ ] **FORECAST-01**: Both dashboards use the approved calibrated model release and expose its model identity, data cutoff, and feature cutoff.
+- [ ] **FORECAST-02**: Each open fixture has calibrated home/draw/away probabilities, expected goals, a most likely score, a bounded scoreline distribution, and uncertainty metadata.
+- [ ] **FORECAST-03**: Forecast generation proves point-in-time feature safety and never uses future competition standings or outcomes as pre-match model inputs.
 
-### Calibration and Release
+### Competition Simulation
 
-- [x] **CAL-01**: The analyst can train probability calibration using inner out-of-fold predictions without using the outer assessment tournament.
-- [x] **CAL-02**: The benchmark compares raw and calibrated probabilities with the same proper scores and reports any discrimination or calibration regression.
-- [x] **PROMO-01**: Candidate models, settings, feature sets, and promotion thresholds are frozen before the final 2026 World Cup evaluation is opened.
-- [x] **PROMO-02**: The analyst can execute the final 2026 comparison once and retain the incumbent unless a challenger satisfies the promotion rule.
-- [x] **PROMO-03**: The approved model is published as a versioned artifact with a model card, benchmark report, and dashboard regression tests.
+- [ ] **SIM-01**: The Nations League simulator reports projected standings, League A quarter-final and title paths, direct promotion/relegation, and applicable promotion/relegation play-offs.
+- [ ] **SIM-02**: The EURO simulator reports direct qualification, host-reserved places, Nations League-linked play-off eligibility, and every valid play-off topology.
+- [ ] **SIM-03**: Every simulation records deterministic seeds, ruleset hashes, source bundle identity, model release identity, and replayable run metadata.
+- [ ] **SIM-04**: Pre-draw, unresolved, and insufficient-source states are shown explicitly without fabricated groups, fixtures, standings, or probabilities.
+
+### Dashboard Experience
+
+- [ ] **DASH-01**: The project publishes dedicated Nations League and EURO qualifying dashboard entry points powered by one shared rendering and payload engine.
+- [ ] **DASH-02**: Each dashboard provides competition structure, groups or leagues, standings, fixtures, results, match forecasts, form, and projected outcomes.
+- [ ] **DASH-03**: Users can filter by competition section, league/group, team, matchday, and fixture status in responsive desktop and mobile views.
+- [ ] **DASH-04**: Each dashboard shows refresh status, source confidence, model release, warnings, and collapsed data credits without presenting operational detail as the primary content.
+
+### Automated Operations
+
+- [ ] **OPS-01**: A macOS launchd job refreshes both competition bundles hourly using the existing reproducible update pattern.
+- [ ] **OPS-02**: Candidate source snapshots and derived outputs are staged and validated before both dashboards are atomically published as one coherent refresh batch.
+- [ ] **OPS-03**: The refresh runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression tests before publication.
+- [ ] **OPS-04**: Changed compact code, manifests, and dashboard outputs are committed and pushed only when the worktree is clean and the branch is upstream-aligned.
+- [ ] **OPS-05**: The refresh fails closed on incomplete sources, dirty or diverged repositories, failed tests, invalid hashes, partial bundles, or oversized generated artifacts.
 
 ## Future Requirements
 
-### Additional Challengers
+### Additional Editions and Data
 
-- **FUTURE-01**: Benchmark XGBoost after the random-forest challenger demonstrates stable nonlinear value.
-- **FUTURE-02**: Add sequence-aware or neural event models when point-in-time international event coverage supports them.
-- **FUTURE-03**: Add richer player-availability signals when a legal, reproducible historical source exists.
-- **FUTURE-04**: Provide continuous live forecast evaluation after immutable batch evaluation is proven.
+- **FUTURE-01**: Add a historical 2026 FIFA World Cup European qualifiers edition to the shared competition selector.
+- **FUTURE-02**: Activate full EURO 2028 qualifying groups and simulations after the official 6 December 2026 draw and schedule publication.
+- **FUTURE-03**: Add richer lineup, injury, or squad-availability signals when a legal, reproducible historical source exists.
+- **FUTURE-04**: Add continuous live-event or post-match evaluation after the batch refresh and immutable snapshot contracts are proven.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Tuning against WC 2026 outcomes | The completed tournament is the final holdout, not development data |
-| Automated bookmaker, FotMob, or Transfermarkt scraping | Conflicts with licensing, terms, or the open-data-first operating mode |
-| Paid data as a default model dependency | Violates the project's core value |
-| Deep model zoo | Representative model families provide more decision value than exhaustive implementation |
-| Betting recommendations or staking | xGelo evaluates forecasts; it is not a commercial betting product |
+| Automatic bookmaker, FotMob, or Transfermarkt scraping | Conflicts with licensing, terms, or the open-data-first operating mode |
+| Paid data as a required dependency | Violates the project's core value |
+| Live event tracker or betting recommendations | These dashboards are scheduled analytical forecasts, not a live-score or betting product |
+| Mobile app or server-backed public API | The milestone uses the existing static dashboard and launchd publication surface |
+| Invented EURO qualifying groups before the official draw | Unknown competition state must remain explicitly pre-draw |
+| Large raw response bodies or score-distribution artifacts in Git | Avoids repository bloat and preserves the code/manifests-only publication boundary |
 
 ## Traceability
 
-Each active v2.0 requirement maps to exactly one roadmap phase.
+Each active v3.0 requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| LEDGER-01 | 8 | Complete |
-| LEDGER-02 | 8 | Complete |
-| LEDGER-03 | 8 | Complete |
-| EVAL-01 | 8 | Complete |
-| EVAL-02 | 8 | Complete |
-| EVAL-03 | 8 | Complete |
-| BENCH-01 | 9 | Complete |
-| BENCH-02 | 9 | Complete |
-| BENCH-03 | 9 | Complete |
-| BENCH-04 | 9 | Complete |
-| BENCH-05 | 9 | Complete |
-| STAT-01 | 10 | Complete |
-| STAT-02 | 10 | Complete |
-| STAT-03 | 10 | Complete |
-| STAT-04 | 10 | Complete |
-| HYBRID-01 | 11 | Complete |
-| HYBRID-02 | 11 | Complete |
-| HYBRID-03 | 11 | Complete |
-| HYBRID-04 | 11 | Complete |
-| HYBRID-05 | 11 | Complete |
-| CAL-01 | 12 | Complete |
-| CAL-02 | 12 | Complete |
-| PROMO-01 | 12 | Complete |
-| PROMO-02 | 12 | Complete |
-| PROMO-03 | 12 | Complete |
+| DATA-01 | TBD | Pending roadmap |
+| DATA-02 | TBD | Pending roadmap |
+| DATA-03 | TBD | Pending roadmap |
+| DATA-04 | TBD | Pending roadmap |
+| COMP-01 | TBD | Pending roadmap |
+| COMP-02 | TBD | Pending roadmap |
+| COMP-03 | TBD | Pending roadmap |
+| COMP-04 | TBD | Pending roadmap |
+| STATE-01 | TBD | Pending roadmap |
+| STATE-02 | TBD | Pending roadmap |
+| STATE-03 | TBD | Pending roadmap |
+| STATE-04 | TBD | Pending roadmap |
+| FORECAST-01 | TBD | Pending roadmap |
+| FORECAST-02 | TBD | Pending roadmap |
+| FORECAST-03 | TBD | Pending roadmap |
+| SIM-01 | TBD | Pending roadmap |
+| SIM-02 | TBD | Pending roadmap |
+| SIM-03 | TBD | Pending roadmap |
+| SIM-04 | TBD | Pending roadmap |
+| DASH-01 | TBD | Pending roadmap |
+| DASH-02 | TBD | Pending roadmap |
+| DASH-03 | TBD | Pending roadmap |
+| DASH-04 | TBD | Pending roadmap |
+| OPS-01 | TBD | Pending roadmap |
+| OPS-02 | TBD | Pending roadmap |
+| OPS-03 | TBD | Pending roadmap |
+| OPS-04 | TBD | Pending roadmap |
+| OPS-05 | TBD | Pending roadmap |
 
 **Coverage:**
 
-- v2.0 requirements: 25 total
-- Mapped to phases: 25
-- Unmapped: 0
+- v3.0 requirements: 28 total
+- Mapped to phases: 0
+- Unmapped: 28
 
 ---
-*Requirements defined: 2026-07-20*
-*Last updated: 2026-07-20 after roadmap mapping*
+*Requirements defined: 2026-08-13*

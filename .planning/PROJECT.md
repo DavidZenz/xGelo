@@ -11,16 +11,15 @@ A **free, open-data-first** forecasting system for men's international football 
 
 **Accurate, calibrated international-football forecasting without dependence on paid data feeds.**
 
-## Current Milestone: v2.0 Model Retrospective and Forecast Evolution
+## Current Milestone: v3.0 UEFA Competition Forecast Dashboards
 
-**Goal:** Establish a trustworthy post-tournament evaluation system, then improve xGelo only through challengers that generalize across historical tournaments.
+**Goal:** Build two public, automatically refreshed dashboards for the 2026/27 UEFA Nations League and UEFA EURO 2028 qualifying cycle.
 
 **Target features:**
-- Reconstruct the final forecast snapshot before every 2026 World Cup kickoff and publish a reproducible scorecard.
-- Build rolling World Cup and Euro backtests with proper scoring, calibration diagnostics, and explicit model-promotion gates.
-- Benchmark Elo-only, current negative-binomial, regularized Poisson, dependent-score, hybrid tree, structural-prior, and external bookmaker-consensus approaches.
-- Test dynamic attack/defence ratings, venue and travel context, active xG signals, squad information, and post-model calibration.
-- Preserve the open-data-first design and prevent the 2026 World Cup from becoming tuning data.
+- Publish dedicated Nations League and EURO qualifying entry points through one shared dashboard engine.
+- Show competition-specific groups, standings, fixtures, results, form, calibrated match forecasts, and simulated outcomes.
+- Use official UEFA competition data with auditable fallbacks and preserve the shared open-data model and release contracts.
+- Refresh both dashboards hourly through the existing fail-closed launchd workflow.
 
 ## Context
 
@@ -119,7 +118,7 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 - **Tracking data (360)** — Not available in free datasets for WCQ
 - **Injury/suspension modelling** — No clean free data source for national teams
 - **Live betting integration** — Not a commercial product
-- **Mobile app or web dashboard** — Focus on model and pipeline, not UI
+- **Mobile app or general-purpose web application** — This milestone includes static public dashboards, not a separate mobile app or server-backed product.
 - **Women's football** — Scope limited to men's WCQ-UEFA (can extend later)
 - **Youth tournaments** — Focus on senior national teams only
 
@@ -249,4 +248,4 @@ frozen contract.
 - Dashboard behavior remains stable while model evaluation and replacement happen behind explicit versioned contracts.
 
 ---
-*Last updated: 2026-07-21 after Phase 9 completion*
+*Last updated: 2026-08-13 after v3.0 milestone definition*
