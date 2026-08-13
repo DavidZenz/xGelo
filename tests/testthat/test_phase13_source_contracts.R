@@ -506,14 +506,14 @@ test_that("blocked candidate writes failure metadata and retains the prior accep
     auto_unbox = TRUE,
     pretty = TRUE
   )
-  blocked <- phase13_source_test_run_acquire(c(
+  blocked <- suppressWarnings(phase13_source_test_run_acquire(c(
     "--fixture-dir", invalid_fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
     "--output-root", output_root,
     "--registry-root", registry_root,
     "--raw-root", raw_root,
     "--bundle-id", "nl-2026-27-invalid-refresh-v1"
-  ))
+  )))
   expect_false(identical(blocked$status, 0L))
   expect_identical(readLines(accepted_manifest, warn = FALSE), before)
   blocked_path <- file.path(output_root, "uefa_nations_league_2026_27", "blocked_refresh.json")
