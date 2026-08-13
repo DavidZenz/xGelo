@@ -272,3 +272,141 @@ test_that("empty artifact input and the local raw-store publication boundary are
   tracked <- system("git ls-files data/competition/local_raw", intern = TRUE)
   expect_length(tracked, 0L)
 })
+
+test_that("all five structured resource classes have explicit source-shaped schemas", {
+  phase13_source_test_load_apis()
+  phase13_source_test_require_api(c(
+    "phase13_validate_structured_resource_payloads",
+    "phase13_source_resource_schema"
+  ))
+  fixture <- phase13_source_test_fixture()
+
+  expect_silent(
+    phase13_validate_structured_resource_payloads(
+      fixture$resources,
+      edition_id = fixture$edition_id
+    )
+  )
+  expect_setequal(
+    names(phase13_source_resource_schema()),
+    c("fixtures", "groups", "standings", "results", "status")
+  )
+
+  drifted <- fixture$resources
+  drifted$groups[[1L]]$display_name <- NULL
+  expect_error(
+    phase13_validate_structured_resource_payloads(
+      drifted,
+      edition_id = fixture$edition_id
+    ),
+    "schema|columns|groups"
+  )
+})
+
+test_that("artifact validation rejects malformed provenance and unsafe raw metadata", {
+  phase13_source_test_load_apis()
+  phase13_source_test_require_api(c("phase13_capture_structured_bundle", "phase13_validate_source_artifacts"))
+  fixture <- phase13_source_test_fixture()
+  captured <- phase13_capture_structured_bundle(
+    resource_payloads = fixture$resources,
+    edition_id = fixture$edition_id,
+    bundle_id = "nl-2026-27-provenance-v2",
+    source_urls = unlist(fixture$source_urls, use.names = TRUE),
+    retrieved_at_utc = fixture$retrieved_at_utc,
+    project_root = phase13_source_test_project_root
+  )
+
+  malformed_hash <- captured$artifacts
+  malformed_hash$raw_sha256[[1L]] <- "not-a-sha256"
+  malformed_hash$row_sha256 <- phase13_row_sha256(malformed_hash)
+  expect_error(phase13_validate_source_artifacts(malformed_hash), "SHA|hash")
+
+  zero_bytes <- captured$artifacts
+  zero_bytes$bytes[[1L]] <- 0L
+  zero_bytes$row_sha256 <- phase13_row_sha256(zero_bytes)
+  expect_error(phase13_validate_source_artifacts(zero_bytes), "byte|positive")
+
+  unsafe_path <- captured$artifacts
+  unsafe_path$relative_local_raw_path[[1L]] <- "../outside.json"
+  unsafe_path$row_sha256 <- phase13_row_sha256(unsafe_path)
+  expect_error(phase13_validate_source_artifacts(unsafe_path), "unsafe|root|raw")
+
+  unsupported_status <- captured$artifacts
+  unsupported_status$fallback_status[[1L]] <- "unreviewed"
+  unsupported_status$row_sha256 <- phase13_row_sha256(unsupported_status)
+  expect_error(phase13_validate_source_artifacts(unsupported_status), "fallback|status")
+})
+
+test_that("source manifests and registry rows use canonical order-stable hashes", {
+  phase13_source_test_load_apis()
+  phase13_source_test_require_api(c(
+    "phase13_capture_structured_bundle",
+    "phase13_source_manifest_self_sha256",
+    "phase13_source_registry_tables",
+    "phase13_source_write_csv"
+  ))
+  fixture <- phase13_source_test_fixture()
+  captured <- phase13_capture_structured_bundle(
+    resource_payloads = fixture$resources,
+    edition_id = fixture$edition_id,
+    bundle_id = "nl-2026-27-manifest-v2",
+    source_urls = unlist(fixture$source_urls, use.names = TRUE),
+    retrieved_at_utc = fixture$retrieved_at_utc,
+    project_root = phase13_source_test_project_root
+  )
+
+  self_hash <- phase13_source_manifest_self_sha256(captured$bundle, captured$artifacts)
+  reordered <- captured$artifacts[rev(seq_len(nrow(captured$artifacts))), , drop = FALSE]
+  expect_identical(self_hash, phase13_source_manifest_self_sha256(captured$bundle, reordered))
+  expect_match(self_hash, "^[0-9a-f]{64}$")
+
+  registries <- phase13_source_registry_tables(captured$bundle, captured$artifacts)
+  expect_setequal(names(registries), c("source_bundles", "source_artifacts"))
+  expect_silent(phase13_validate_source_bundle(registries$source_bundles, registries$source_artifacts))
+
+  output_root <- tempfile("phase13-registry-")
+  expect_silent(phase13_source_write_csv(registries$source_bundles, file.path(output_root, "source_bundles.csv")))
+  expect_true(file.exists(file.path(output_root, "source_bundles.csv")))
+})
+
+test_that("explicit empty compact tables retain schema while null schemas fail", {
+  phase13_source_test_load_apis()
+  phase13_source_test_require_api(c("phase13_validate_structured_resource_payloads"))
+  empty_resources <- list(
+    fixtures = data.frame(
+      source_fixture_id = character(), scheduled_at_utc = character(), status = character(),
+      home_uefa_source_team_id = character(), away_uefa_source_team_id = character(),
+      home_display_name = character(), away_display_name = character(),
+      stringsAsFactors = FALSE
+    ),
+    groups = data.frame(
+      source_group_id = character(), league = character(), display_name = character(),
+      stringsAsFactors = FALSE
+    ),
+    standings = data.frame(
+      source_team_id = character(), source_group_id = character(), position = integer(), points = integer(),
+      stringsAsFactors = FALSE
+    ),
+    results = data.frame(
+      source_fixture_id = character(), status = character(), home_goals = integer(), away_goals = integer(),
+      stringsAsFactors = FALSE
+    ),
+    status = data.frame(
+      source_edition_id = character(), competition_status = character(),
+      stringsAsFactors = FALSE
+    )
+  )
+  expect_silent(
+    phase13_validate_structured_resource_payloads(
+      empty_resources,
+      edition_id = "uefa_euro_2028_qualifying"
+    )
+  )
+  expect_error(
+    phase13_validate_structured_resource_payloads(
+      lapply(empty_resources, function(value) list()),
+      edition_id = "uefa_euro_2028_qualifying"
+    ),
+    "schema|columns|empty"
+  )
+})
