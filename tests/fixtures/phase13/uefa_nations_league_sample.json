@@ -1,0 +1,77 @@
+{
+  "schema_version": "phase13-compact-structured-fixture-v1",
+  "edition_id": "uefa_nations_league_2026_27",
+  "source_edition_id": "uefa-nations-league-2026-27",
+  "retrieved_at_utc": "2026-08-13T17:00:00Z",
+  "source_urls": {
+    "fixtures": "https://www.uefa.com/uefanationsleague/fixtures-results/",
+    "groups": "https://www.uefa.com/uefanationsleague/standings/",
+    "standings": "https://www.uefa.com/uefanationsleague/standings/",
+    "results": "https://www.uefa.com/uefanationsleague/fixtures-results/",
+    "status": "https://www.uefa.com/uefanationsleague/about/"
+  },
+  "resources": {
+    "fixtures": [
+      {
+        "source_fixture_id": "nl-2026-0001",
+        "scheduled_at_utc": "2026-09-05T18:45:00Z",
+        "status": "scheduled",
+        "home": {
+          "uefa_source_team_id": "100",
+          "display_name": "Austria"
+        },
+        "away": {
+          "uefa_source_team_id": "101",
+          "display_name": "Germany"
+        }
+      }
+    ],
+    "groups": [
+      {
+        "source_group_id": "league-a-group-1",
+        "league": "A",
+        "display_name": "League A Group 1"
+      }
+    ],
+    "standings": [
+      {
+        "source_team_id": "100",
+        "source_group_id": "league-a-group-1",
+        "position": 1,
+        "points": 0
+      }
+    ],
+    "results": [
+      {
+        "source_fixture_id": "nl-2026-0001",
+        "status": "scheduled",
+        "home_goals": null,
+        "away_goals": null
+      }
+    ],
+    "status": [
+      {
+        "source_edition_id": "uefa-nations-league-2026-27",
+        "competition_status": "scheduled"
+      }
+    ]
+  },
+  "teams": [
+    {
+      "team_id": "team_aut",
+      "fifa_code": "AUT",
+      "canonical_name": "Austria",
+      "aliases": "Austria|Österreich",
+      "uefa_source_team_id": "100",
+      "uefa_display_name_current": "Austria"
+    },
+    {
+      "team_id": "team_deu",
+      "fifa_code": "GER",
+      "canonical_name": "Germany",
+      "aliases": "Germany|Deutschland",
+      "uefa_source_team_id": "101",
+      "uefa_display_name_current": "Germany"
+    }
+  ]
+}
