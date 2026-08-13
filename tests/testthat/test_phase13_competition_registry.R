@@ -57,6 +57,16 @@ phase13_registry_test_identity_map <- function(fixture) {
   do.call(rbind, rows)
 }
 
+phase13_registry_test_predraw_fixture <- function() {
+  jsonlite::fromJSON(
+    file.path(
+      phase13_registry_test_project_root,
+      "tests/fixtures/phase13/euro2028_predraw_sample.json"
+    ),
+    simplifyVector = TRUE
+  )
+}
+
 test_that("direct UEFA source IDs resolve stable xGelo team IDs while preserving display names", {
   phase13_registry_test_load_apis()
   phase13_registry_test_require_api(c(
@@ -124,4 +134,131 @@ test_that("accepted source bundle links to the approved Phase 12 model release i
   ))
   expect_identical(registry$source_bundle_id, source_bundle$bundle_id)
   expect_identical(registry$model_release_id, "phase12-wc2026-incumbent-retained-v1")
+})
+
+test_that("normalized display-name fallback is visible and ambiguity fails closed", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("phase13_prepare_team_identity_map", "phase13_resolve_team_identity"))
+  identity_map <- data.frame(
+    team_id = c("team_civ", "team_dup_a", "team_dup_b"),
+    fifa_code = c("CIV", "DPA", "DPB"),
+    canonical_name = c("Cote d'Ivoire", "Duplicate A", "Duplicate B"),
+    aliases = c("Côte d'Ivoire", "Same Alias", "Same Alias"),
+    uefa_source_team_id = c("200", "201", "202"),
+    uefa_display_name_current = c("Côte d'Ivoire", "Duplicate A", "Duplicate B"),
+    stringsAsFactors = FALSE
+  )
+  prepared <- phase13_prepare_team_identity_map(identity_map)
+  expect_warning(
+    fallback <- phase13_resolve_team_identity(prepared, source_team_id = "missing", display_name = "Cote d'Ivoire"),
+    "normalized display-name fallback"
+  )
+  expect_identical(fallback$team_id, "team_civ")
+  expect_identical(fallback$mapping_warning, "normalized_display_name_requires_review")
+  expect_error(
+    phase13_resolve_team_identity(prepared, source_team_id = "missing", display_name = "Same Alias"),
+    "ambiguous"
+  )
+})
+
+test_that("empty normalized tables retain a complete schema and reject null input", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("phase13_empty_normalized_fixture_rows", "phase13_normalize_fixture_rows"))
+  fixture <- phase13_registry_test_fixture()
+  identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
+  empty_source <- data.frame(
+    source_fixture_id = character(0),
+    home_uefa_source_team_id = character(0),
+    away_uefa_source_team_id = character(0),
+    home_display_name = character(0),
+    away_display_name = character(0),
+    scheduled_at_utc = character(0),
+    status = character(0),
+    stringsAsFactors = FALSE
+  )
+  normalized <- phase13_normalize_fixture_rows(empty_source, identity_map, fixture$edition_id)
+  expect_named(normalized, phase13_normalized_fixture_schema())
+  expect_equal(nrow(normalized), 0L)
+  expect_error(
+    phase13_normalize_fixture_rows(data.frame(), identity_map, fixture$edition_id),
+    "missing columns"
+  )
+})
+
+test_that("EURO qualifying remains an explicit pre-draw row without fabricated structures", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_build_competition_edition_row",
+    "validate_phase13_competition_edition_registries"
+  ))
+  fixture <- phase13_registry_test_predraw_fixture()
+  source_bundle <- data.frame(
+    bundle_id = "euro-2028-pre-draw-v1",
+    edition_id = fixture$edition_id,
+    bundle_status = "accepted",
+    stringsAsFactors = FALSE
+  )
+  registry <- phase13_build_competition_edition_row(
+    edition_id = fixture$edition_id,
+    competition_id = "uefa_euro_2028_qualifying",
+    display_name = "UEFA EURO 2028 qualifying",
+    lifecycle_state = fixture$lifecycle_state,
+    ruleset_version = "uefa-euro-2028-qualifying-v1",
+    source_bundle_id = source_bundle$bundle_id,
+    model_release_id = "phase12-wc2026-incumbent-retained-v1",
+    output_bundle_target = fixture$output_bundle_target,
+    active_output_bundle_id = "euro-2028-pre-draw-v1"
+  )
+  expect_silent(validate_phase13_competition_edition_registries(registry, source_bundle))
+  expect_identical(registry$lifecycle_state, "pre_draw")
+  expect_false(any(c("group_count", "fixture_count", "standings_hash") %in% names(registry)))
+  fabricated <- registry
+  fabricated$fixture_count <- 1L
+  expect_error(validate_phase13_competition_edition_registries(fabricated, source_bundle), "fabricate|pre-draw")
+  expect_identical(fixture$published_resource_classes, list())
+})
+
+test_that("lifecycle transitions are adjacent and blocked rows retain the last accepted output", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_validate_lifecycle_transition",
+    "phase13_block_competition_edition",
+    "phase13_transition_competition_edition",
+    "phase13_competition_registry_hash"
+  ))
+  row <- phase13_build_competition_edition_row(
+    edition_id = "uefa_nations_league_2026_27",
+    competition_id = "uefa_nations_league",
+    display_name = "UEFA Nations League 2026/27",
+    lifecycle_state = "pre_draw",
+    ruleset_version = "uefa-nations-league-2026-27-v1",
+    source_bundle_id = "nl-2026-27-official-sample-v1",
+    model_release_id = "phase12-wc2026-incumbent-retained-v1",
+    output_bundle_target = "outputs/competition/uefa_nations_league_2026_27",
+    active_output_bundle_id = "nl-output-v1"
+  )
+  expect_silent(phase13_validate_lifecycle_transition("pre_draw", "scheduled"))
+  expect_error(phase13_validate_lifecycle_transition("pre_draw", "in_progress"), "forward|one state")
+  blocked <- phase13_block_competition_edition(row, "missing standings resource", "2026-08-13T18:00:00Z", "operator")
+  expect_true(blocked$blocked)
+  expect_identical(blocked$active_output_bundle_id, "nl-output-v1")
+  expect_identical(blocked$last_accepted_output_bundle_id, "nl-output-v1")
+  expect_error(
+    phase13_transition_competition_edition(blocked, "scheduled"),
+    "operator action|validation"
+  )
+  recovered <- phase13_transition_competition_edition(
+    blocked, "scheduled", operator_action = "verified replacement bundle", validation_passed = TRUE
+  )
+  expect_false(recovered$blocked)
+  expect_identical(recovered$active_output_bundle_id, "nl-output-v1")
+  other <- row
+  other$edition_id <- "uefa_euro_2028_qualifying"
+  other$competition_id <- "uefa_euro_2028_qualifying"
+  other$display_name <- "UEFA EURO 2028 qualifying"
+  other$row_sha256 <- phase13_registry_row_hash(other)
+  expect_identical(
+    phase13_competition_registry_hash(rbind(row, other)),
+    phase13_competition_registry_hash(rbind(other, row))
+  )
 })

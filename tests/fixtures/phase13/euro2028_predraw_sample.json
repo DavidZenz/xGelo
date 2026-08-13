@@ -1,0 +1,11 @@
+{
+  "schema_version": "phase13-pre-draw-metadata-v1",
+  "edition_id": "uefa_euro_2028_qualifying",
+  "lifecycle_state": "pre_draw",
+  "source_reference": "https://www.uefa.com/euro2028/about/",
+  "draw_date": "2026-12-06",
+  "source_snapshot_state": "awaiting_official_draw",
+  "published_resource_classes": [],
+  "output_bundle_target": "outputs/competition/uefa_euro_2028_qualifying",
+  "note": "No groups, fixtures, standings, results, or probabilities are fabricated before the official draw snapshot."
+}

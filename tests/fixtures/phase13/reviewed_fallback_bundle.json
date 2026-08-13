@@ -1,0 +1,10 @@
+{
+  "schema_version": "phase13-reviewed-fallback-metadata-v1",
+  "edition_id": "uefa_nations_league_2026_27",
+  "fallback_status": "reviewed_fallback",
+  "fallback_source": "operator-provided UEFA export",
+  "fallback_retrieval_date": "2026-08-13",
+  "fallback_reason": "Official structured service temporarily unavailable",
+  "operator_note": "Reviewed against the official competition page before acceptance.",
+  "review_state": "approved"
+}
