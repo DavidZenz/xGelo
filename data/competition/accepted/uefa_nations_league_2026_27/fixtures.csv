@@ -1,0 +1,2 @@
+"schema_version","source_fixture_id","scheduled_at_utc","status","home_uefa_source_team_id","away_uefa_source_team_id","home_display_name","away_display_name","edition_id","source_artifact_id","row_sha256"
+"phase13-fixtures-v1","nl-2026-0001","2026-09-05T18:45:00Z","scheduled","100","101","Austria","Germany","uefa_nations_league_2026_27","nl-2026-27-official-sample-v1-fixtures","35f6e98eb413b178e8bcb5d92f6e15a03b869bf157d42df9593d4f80dc220187"
