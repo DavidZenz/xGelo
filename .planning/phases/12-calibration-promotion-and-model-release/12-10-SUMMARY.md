@@ -18,7 +18,7 @@ tech-stack:
   patterns: [metadata-only preflight before RDS loading, explicit calibrated outcome view, temporary checksum mutation fixtures]
 
 key-files:
-  created: [tests/testthat/test_phase12_release.R additions, tests/testthat/test_worldcup_dashboard.R additions]
+  created: []
   modified:
     - R/release/release_contract.R
     - R/release/release_bundle.R
