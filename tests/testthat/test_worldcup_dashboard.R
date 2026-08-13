@@ -49,6 +49,99 @@ test_that("World Cup group seed and official fixtures cover the 2026 format", {
   expect_equal(england_opener$host_city, "Arlington")
 })
 
+test_that("12-10 calibrated outcome view changes 1X2 fields but preserves scorelines", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+  old_simulate <- if (exists("simulate_fixture", envir = .GlobalEnv, inherits = FALSE)) get("simulate_fixture", envir = .GlobalEnv) else NULL
+  old_apply <- if (exists("apply_phase12_1x2_calibrator", envir = .GlobalEnv, inherits = FALSE)) get("apply_phase12_1x2_calibrator", envir = .GlobalEnv) else NULL
+  on.exit({
+    if (is.null(old_simulate)) rm("simulate_fixture", envir = .GlobalEnv) else assign("simulate_fixture", old_simulate, envir = .GlobalEnv)
+    if (is.null(old_apply)) rm("apply_phase12_1x2_calibrator", envir = .GlobalEnv) else assign("apply_phase12_1x2_calibrator", old_apply, envir = .GlobalEnv)
+  }, add = TRUE)
+  assign("simulate_fixture", function(...) {
+    list(
+      win_prob = 0.6, draw_prob = 0.2, loss_prob = 0.2,
+      expected_home = 1.4, expected_away = 0.7,
+      predicted_outcome = "home_win", most_likely_score = "1-0",
+      most_likely_score_probability = 0.35, rounded_expected_score = "1-1",
+      over_2_5_probability = 0.3, under_2_5_probability = 0.7,
+      both_teams_to_score_probability = 0.25,
+      scoreline_distribution = data.frame(
+        home_goals = c(0L, 1L), away_goals = c(0L, 0L),
+        scoreline = c("0-0", "1-0"), outcome = c("draw", "home_win"),
+        count = c(4L, 6L), probability = c(0.4, 0.6), stringsAsFactors = FALSE
+      )
+    )
+  }, envir = .GlobalEnv)
+  assign("apply_phase12_1x2_calibrator", function(calibrator, probabilities) setNames(c(0.1, 0.2, 0.7), c("home", "draw", "away")), envir = .GlobalEnv)
+  calibrator <- list(schema_version = "phase12-calibrator-v1", candidate_id = "synthetic", track_id = "updating", fit_status = "fitted", primary_probability_view = "calibrated_1x2", distribution_unchanged = TRUE, temperature = 1.2)
+  fixture <- data.frame(
+    match_id = "SYN01", stage = "Group stage", group = "A", matchday = 1L, date = as.Date("2026-06-11"),
+    home_team = "A1", away_team = "A2", home_display = "A1", away_display = "A2", kickoff_local = "13:00",
+    venue = "Synthetic", venue_name = "Synthetic", host_city = "Synthetic", host_country = "Mexico",
+    is_completed = FALSE, match_status = "scheduled", actual_home_goals = NA_integer_, actual_away_goals = NA_integer_, actual_score = NA_character_, stringsAsFactors = FALSE
+  )
+  raw <- forecast_dashboard_matches(fixture, n_match_sim = 10, seed = 1)
+  calibrated <- forecast_dashboard_matches(fixture, n_match_sim = 10, seed = 1, calibrator = calibrator, primary_probability_view = "calibrated_1x2")
+  expect_equal(raw$scoreline_distributions[, c("home_goals", "away_goals", "probability")], calibrated$scoreline_distributions[, c("home_goals", "away_goals", "probability")])
+  expect_equal(raw$match_forecasts[, c("home_goals_expected", "away_goals_expected", "most_likely_score", "over_2_5_probability", "both_teams_to_score_probability")], calibrated$match_forecasts[, c("home_goals_expected", "away_goals_expected", "most_likely_score", "over_2_5_probability", "both_teams_to_score_probability")])
+  expect_equal(calibrated$outcome_view[, c("p_home", "p_draw", "p_away")], data.frame(p_home = 0.1, p_draw = 0.2, p_away = 0.7))
+  expect_equal(calibrated$match_forecasts[, c("win_probability", "draw_probability", "loss_probability")], data.frame(win_probability = 0.1, draw_probability = 0.2, loss_probability = 0.7))
+  expect_identical(calibrated$match_forecasts$predicted_outcome, "away_win")
+})
+
+test_that("12-10 calibrated group outcomes drive points while raw scores drive goals", {
+  source(file.path(project_root, "R/forecast/tournament.R"))
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+  groups <- load_worldcup_2026_groups(file.path(project_root, "data/raw/worldcup_2026_groups.csv"))
+  fixtures <- make_worldcup_group_fixtures(groups, file.path(project_root, "data/raw/worldcup_2026_group_fixtures.csv"))
+  scorelines <- do.call(rbind, lapply(fixtures$match_id, function(id) data.frame(match_id = id, home_goals = 0L, away_goals = 0L, probability = 1, rank = 1L, stringsAsFactors = FALSE)))
+  outcome_view <- data.frame(match_id = fixtures$match_id, p_home = 1, p_draw = 0, p_away = 0, stringsAsFactors = FALSE)
+  always_slot1_route <- function(team1, team2) list(slot1_regulation_win_probability = 1, slot2_regulation_win_probability = 0, slot1_advancement_probability = 1, slot2_advancement_probability = 0, draw_after_regulation_probability = 0, tiebreak_probability = 0.5)
+  raw <- simulate_group_stage_dashboard(groups, fixtures, scorelines, n_tournaments = 4, seed = 5, knockout_route_estimator = always_slot1_route, n_workers = 1)
+  calibrated <- simulate_group_stage_dashboard(groups, fixtures, scorelines, n_tournaments = 4, seed = 5, knockout_route_estimator = always_slot1_route, n_workers = 1, outcome_view = outcome_view, primary_probability_view = "calibrated_1x2")
+  expect_false(identical(raw$expected_group_tables, calibrated$expected_group_tables))
+  expect_false(identical(raw$group_probabilities$group_win_probability, calibrated$group_probabilities$group_win_probability))
+  expect_true(all(calibrated$expected_group_tables$expected_goals_for == 0))
+  expect_true(all(calibrated$expected_group_tables$expected_goals_against == 0))
+})
+
+test_that("12-10 calibrated knockout route changes advancement components only", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+  old_apply <- if (exists("apply_phase12_1x2_calibrator", envir = .GlobalEnv, inherits = FALSE)) get("apply_phase12_1x2_calibrator", envir = .GlobalEnv) else NULL
+  on.exit(if (is.null(old_apply)) rm("apply_phase12_1x2_calibrator", envir = .GlobalEnv) else assign("apply_phase12_1x2_calibrator", old_apply, envir = .GlobalEnv), add = TRUE)
+  assign("apply_phase12_1x2_calibrator", function(calibrator, probabilities) setNames(c(0.1, 0.2, 0.7), c("home", "draw", "away")), envir = .GlobalEnv)
+  ratings_path <- tempfile(fileext = ".csv")
+  utils::write.csv(data.frame(team = c("A", "B"), date = as.Date("2026-01-01"), rating = c(1500, 1500)), ratings_path, row.names = FALSE)
+  model <- structure(list(lambda = 2), class = "constant_goal_model")
+  calibrator <- list(schema_version = "phase12-calibrator-v1", candidate_id = "synthetic", track_id = "updating", fit_status = "fitted", primary_probability_view = "calibrated_1x2", distribution_unchanged = TRUE, temperature = 1.2)
+  raw <- make_knockout_route_estimator(c(A = 1500, B = 1500), "2026-06-28", home_model = model, away_model = model, elo_ratings_path = ratings_path, route_method = "analytic")
+  calibrated <- make_knockout_route_estimator(c(A = 1500, B = 1500), "2026-06-28", home_model = model, away_model = model, elo_ratings_path = ratings_path, route_method = "analytic", calibrator = calibrator, primary_probability_view = "calibrated_1x2")
+  raw_route <- raw("A", "B")
+  calibrated_route <- calibrated("A", "B")
+  expect_false(isTRUE(all.equal(raw_route[c("slot1_regulation_win_probability", "draw_after_regulation_probability", "slot2_regulation_win_probability")], calibrated_route[c("slot1_regulation_win_probability", "draw_after_regulation_probability", "slot2_regulation_win_probability")])) )
+  expect_equal(raw_route[c("most_likely_score", "over_2_5_probability", "both_teams_to_score_probability")], calibrated_route[c("most_likely_score", "over_2_5_probability", "both_teams_to_score_probability")])
+})
+
+test_that("12-10 invalid calibrated releases fail before forecast work", {
+  source(file.path(project_root, "R/visualization/worldcup_dashboard.R"))
+  old_simulate <- if (exists("simulate_fixture", envir = .GlobalEnv, inherits = FALSE)) get("simulate_fixture", envir = .GlobalEnv) else NULL
+  on.exit(if (is.null(old_simulate)) rm("simulate_fixture", envir = .GlobalEnv) else assign("simulate_fixture", old_simulate, envir = .GlobalEnv), add = TRUE)
+  calls <- 0L
+  assign("simulate_fixture", function(...) { calls <<- calls + 1L; stop("forecast should not run") }, envir = .GlobalEnv)
+  fixture <- data.frame(match_id = "SYN02", stage = "Group stage", group = "A", matchday = 1L, date = as.Date("2026-06-11"), home_team = "A1", away_team = "A2", home_display = "A1", away_display = "A2", kickoff_local = "13:00", venue = "Synthetic", venue_name = "Synthetic", host_city = "Synthetic", host_country = "Mexico", is_completed = FALSE, match_status = "scheduled", stringsAsFactors = FALSE)
+  expect_error(forecast_dashboard_matches(fixture, primary_probability_view = "calibrated_1x2"), "structurally valid calibrator")
+  expect_identical(calls, 0L)
+})
+
+test_that("12-10 direct dashboard callers retain resolver-first release authority", {
+  targets <- paste(readLines(file.path(project_root, "_targets.R"), warn = FALSE), collapse = "\n")
+  updater <- paste(readLines(file.path(project_root, "scripts/update_worldcup_dashboard.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl("resolve_phase12_approved_release", targets, fixed = TRUE))
+  expect_true(grepl("resolve_phase12_approved_release", updater, fixed = TRUE))
+  expect_false(grepl("home_model_path =", targets, fixed = TRUE))
+  expect_false(grepl("home_model_path =", updater, fixed = TRUE))
+})
+
 test_that("dashboard builders reject NULL roots and caller-supplied model authority", {
   source(file.path(project_root, "R/release/release_bundle.R"))
   source(file.path(project_root, "R/release/release_install.R"))

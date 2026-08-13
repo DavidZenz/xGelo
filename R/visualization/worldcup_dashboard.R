@@ -353,9 +353,16 @@ dashboard_prepare_probability_view <- function(calibrator = NULL, primary_probab
     stop("Dashboard release probability view is unsupported", call. = FALSE)
   }
   if (identical(primary_probability_view, "raw_1x2")) return(primary_probability_view)
-  required <- c("schema_version", "candidate_id", "track_id", "fit_status", "primary_probability_view", "distribution_unchanged", "temperature")
+  required <- c("schema_version", "candidate_id", "track_id", "fit_status", "distribution_unchanged", "temperature")
+  calibrator_view <- if (is.list(calibrator) && "primary_probability_view" %in% names(calibrator)) {
+    as.character(calibrator$primary_probability_view)
+  } else if (is.list(calibrator) && identical(as.character(calibrator$probability_view), "derived_1x2")) {
+    "calibrated_1x2"
+  } else {
+    ""
+  }
   if (!is.list(calibrator) || length(setdiff(required, names(calibrator))) ||
-      !identical(as.character(calibrator$primary_probability_view), "calibrated_1x2") ||
+      !identical(calibrator_view, "calibrated_1x2") ||
       !as.character(calibrator$fit_status) %in% c("fitted", "raw_fallback") ||
       !isTRUE(calibrator$distribution_unchanged) || !is.finite(as.numeric(calibrator$temperature))) {
     stop("Dashboard calibrated release requires a structurally valid calibrator", call. = FALSE)

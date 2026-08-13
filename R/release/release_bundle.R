@@ -301,20 +301,27 @@ phase12_release_validate_loaded_identity <- function(model_object, calibrator, m
   if (is.null(model_object$model_id) || !identical(as.character(model_object$model_id), metadata$selected_model_id)) {
     stop("Phase 12 approved model identity drifted", call. = FALSE)
   }
-  required_calibrator <- c("schema_version", "candidate_id", "track_id", "fit_status", "primary_probability_view", "distribution_unchanged")
+  required_calibrator <- c("schema_version", "candidate_id", "track_id", "fit_status", "distribution_unchanged")
   if (!is.list(calibrator) || length(setdiff(required_calibrator, names(calibrator))) ||
       !identical(as.character(calibrator$candidate_id), metadata$selected_model_id) ||
       !identical(as.character(calibrator$track_id), metadata$track_id) ||
       !isTRUE(calibrator$distribution_unchanged)) {
     stop("Phase 12 calibrator identity or shape drifted", call. = FALSE)
   }
+  calibrator_view <- if ("primary_probability_view" %in% names(calibrator)) {
+    as.character(calibrator$primary_probability_view)
+  } else if (identical(as.character(calibrator$probability_view), "derived_1x2")) {
+    "calibrated_1x2"
+  } else {
+    ""
+  }
   if (identical(metadata$primary_probability_view, "raw_1x2")) {
     if (!identical(metadata$status, "incumbent retained") || !identical(as.character(calibrator$fit_status), "raw_fallback") ||
-        !identical(as.character(calibrator$primary_probability_view), "raw_1x2")) {
+        !identical(calibrator_view, "raw_1x2")) {
       stop("Phase 12 raw release calibrator compatibility shape is invalid", call. = FALSE)
     }
   } else {
-    if (!identical(as.character(calibrator$primary_probability_view), "calibrated_1x2") ||
+    if (!identical(calibrator_view, "calibrated_1x2") ||
         !as.character(calibrator$fit_status) %in% c("fitted", "raw_fallback") ||
         is.null(calibrator$temperature) || !is.finite(as.numeric(calibrator$temperature))) {
       stop("Phase 12 calibrated release calibrator is incomplete", call. = FALSE)

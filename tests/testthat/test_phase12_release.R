@@ -132,6 +132,30 @@ phase12_test_refresh_manifest_self_hash <- function(release_root) {
   invisible(manifest)
 }
 
+phase12_test_refresh_release_hashes <- function(release_root) {
+  manifest_path <- file.path(release_root, "release_manifest.csv")
+  manifest <- utils::read.csv(manifest_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  for (index in which(manifest$artifact != "release_manifest.csv")) {
+    path <- file.path(release_root, manifest$relative_path[[index]])
+    hash <- phase12_release_file_sha256(path)
+    manifest$sha256[[index]] <- hash
+    manifest$canonical_content_sha256[[index]] <- hash
+  }
+  utils::write.csv(manifest, manifest_path, row.names = FALSE, na = "", quote = TRUE)
+  phase12_test_refresh_manifest_self_hash(release_root)
+}
+
+phase12_test_refresh_contract_manifest_row <- function(release_root) {
+  manifest_path <- file.path(release_root, "release_manifest.csv")
+  manifest <- utils::read.csv(manifest_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  index <- which(manifest$relative_path == "model_contract.json")
+  hash <- phase12_release_file_sha256(file.path(release_root, "model_contract.json"))
+  manifest$sha256[index] <- hash
+  manifest$canonical_content_sha256[index] <- hash
+  utils::write.csv(manifest, manifest_path, row.names = FALSE, na = "", quote = TRUE)
+  phase12_test_refresh_manifest_self_hash(release_root)
+}
+
 test_that("12-09 metadata preflight is label-free and authoritative", {
   source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
   preflight <- preflight_phase12_approved_release(phase12_test_release_root())
@@ -188,4 +212,115 @@ test_that("12-09 direct resolver preflights before reading invalid model bytes",
   expect_error(resolve_phase12_approved_release(fixture$trusted_root), "hash|metadata")
   resolved <- resolve_phase12_approved_release(phase12_test_release_root())
   expect_identical(resolved$metadata$status, "incumbent retained")
+})
+
+test_that("12-10 trusted release topology rejects symlink roots and candidates", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  fixture <- phase12_test_copy_release()
+  linked_root <- tempfile("phase12-linked-root-")
+  expect_true(file.symlink(fixture$trusted_root, linked_root))
+  expect_error(preflight_phase12_approved_release(linked_root), "real directory")
+
+  fixture <- phase12_test_copy_release()
+  root_manifest <- file.path(fixture$trusted_root, "release_manifest.csv")
+  expect_true(file.symlink(file.path(fixture$release_root, "release_manifest.csv"), root_manifest))
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "root release manifest")
+
+  linked_parent <- tempfile("phase12-linked-child-")
+  dir.create(linked_parent)
+  expect_true(file.symlink(fixture$release_root, file.path(linked_parent, basename(fixture$release_root))))
+  expect_error(preflight_phase12_approved_release(linked_parent), "immediate-child release directory")
+
+  fixture <- phase12_test_copy_release()
+  manifest_path <- file.path(fixture$release_root, "release_manifest.csv")
+  unlink(manifest_path)
+  expect_true(file.symlink(file.path(phase12_test_release_root(), "phase12-wc2026-incumbent-retained-v1/release_manifest.csv"), manifest_path))
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "child release manifest")
+})
+
+test_that("12-10 resolver rejects forged handoffs after a fresh preflight", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  first <- phase12_test_copy_release()
+  second <- phase12_test_copy_release()
+  alternate <- preflight_phase12_approved_release(second$trusted_root)
+  expect_error(
+    resolve_phase12_approved_release(first$trusted_root, validated_preflight = alternate),
+    "stale or forged"
+  )
+})
+
+test_that("12-10 decision identity binds exact tokens, evidence, and selected IDs", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  evidence <- data.frame(
+    candidate_id = c("challenger_a", "incumbent"),
+    release_decision = c("challenger approved", "incumbent retained"),
+    score = c(0.1, 0.2),
+    stringsAsFactors = FALSE
+  )
+  approved <- phase12_release_contract_recompute_decision_sha256(evidence, "challenger approved", "challenger_a")
+  retained <- phase12_release_contract_recompute_decision_sha256(evidence, "incumbent retained", "incumbent")
+  expect_match(approved, "^[0-9a-f]{64}$")
+  expect_match(retained, "^[0-9a-f]{64}$")
+  expect_false(identical(approved, retained))
+  expect_false(identical(approved, phase12_release_contract_recompute_decision_sha256(evidence, "challenger approved", "incumbent")))
+  expect_false(identical(approved, phase12_release_contract_recompute_decision_sha256(transform(evidence, score = c(0.3, 0.2)), "challenger approved", "challenger_a")))
+  expect_error(phase12_release_contract_recompute_decision_sha256(evidence, "approved", "challenger_a"), "token is invalid")
+})
+
+test_that("12-10 refreshed hashes cannot authorize a model/calibrator path swap", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  fixture <- phase12_test_copy_release()
+  contract_path <- file.path(fixture$release_root, "model_contract.json")
+  contract <- jsonlite::fromJSON(contract_path, simplifyVector = FALSE)
+  contract$model_artifact <- "model/calibrator.rds"
+  contract$calibrator_artifact <- "model/approved_model.rds"
+  jsonlite::write_json(contract, contract_path, auto_unbox = TRUE, pretty = TRUE)
+  phase12_test_refresh_contract_manifest_row(fixture$release_root)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "canonical")
+})
+
+test_that("12-10 freeze, evaluation, provenance, and compatibility links fail closed", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  fixture <- phase12_test_copy_release()
+  contract_path <- file.path(fixture$release_root, "model_contract.json")
+  contract <- jsonlite::fromJSON(contract_path, simplifyVector = FALSE)
+  contract$freeze_self_sha256 <- paste(rep("a", 64), collapse = "")
+  jsonlite::write_json(contract, contract_path, auto_unbox = TRUE, pretty = TRUE)
+  phase12_test_refresh_contract_manifest_row(fixture$release_root)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "freeze self")
+
+  fixture <- phase12_test_copy_release()
+  final_path <- file.path(fixture$release_root, "manifests/final_evaluation_manifest.csv")
+  final <- utils::read.csv(final_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  final$freeze_id[[1L]] <- "different_freeze"
+  utils::write.csv(final, final_path, row.names = FALSE, na = "", quote = TRUE)
+  phase12_test_refresh_release_hashes(fixture$release_root)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "freeze or track link")
+
+  fixture <- phase12_test_copy_release()
+  final_path <- file.path(fixture$release_root, "manifests/final_evaluation_manifest.csv")
+  final <- utils::read.csv(final_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  final$promotion_decision_sha256[[1L]] <- "not-a-hash"
+  utils::write.csv(final, final_path, row.names = FALSE, na = "", quote = TRUE)
+  phase12_test_refresh_release_hashes(fixture$release_root)
+  expect_error(preflight_phase12_approved_release(fixture$trusted_root), "promotion report identity")
+
+  valid <- preflight_phase12_approved_release(phase12_test_release_root())
+  expect_null(valid$model_contract$freeze_self_sha256)
+  expect_identical(valid$metadata$primary_probability_view, "raw_1x2")
+})
+
+test_that("12-10 loaded model and calibrator identities are checked after metadata preflight", {
+  source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
+  fixture <- phase12_test_copy_release()
+  saveRDS(list(not_model_id = "wrong"), file.path(fixture$release_root, "model/approved_model.rds"))
+  phase12_test_refresh_release_hashes(fixture$release_root)
+  expect_error(resolve_phase12_approved_release(fixture$trusted_root), "model identity")
+
+  fixture <- phase12_test_copy_release()
+  calibrator <- readRDS(file.path(fixture$release_root, "model/calibrator.rds"))
+  calibrator$candidate_id <- "wrong_candidate"
+  saveRDS(calibrator, file.path(fixture$release_root, "model/calibrator.rds"))
+  phase12_test_refresh_release_hashes(fixture$release_root)
+  expect_error(resolve_phase12_approved_release(fixture$trusted_root), "calibrator identity")
 })
