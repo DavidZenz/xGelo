@@ -273,6 +273,25 @@ test_that("empty artifact input and the local raw-store publication boundary are
   expect_length(tracked, 0L)
 })
 
+test_that("committed source registries validate after the ignored raw store exists", {
+  phase13_source_test_load_apis()
+  phase13_source_test_require_api(c("phase13_validate_source_bundle"))
+  bundle_path <- file.path(phase13_source_test_project_root, "data/competition/registries/source_bundles.csv")
+  artifact_path <- file.path(phase13_source_test_project_root, "data/competition/registries/source_artifacts.csv")
+  if (file.exists(bundle_path) && file.exists(artifact_path)) {
+    bundles <- read.csv(bundle_path, stringsAsFactors = FALSE, check.names = FALSE)
+    artifacts <- read.csv(artifact_path, stringsAsFactors = FALSE, check.names = FALSE)
+    for (bundle_id in unique(bundles$bundle_id)) {
+      expect_silent(
+        phase13_validate_source_bundle(
+          bundles[bundles$bundle_id == bundle_id, , drop = FALSE],
+          artifacts[artifacts$bundle_id == bundle_id, , drop = FALSE]
+        )
+      )
+    }
+  }
+})
+
 test_that("all five structured resource classes have explicit source-shaped schemas", {
   phase13_source_test_load_apis()
   phase13_source_test_require_api(c(

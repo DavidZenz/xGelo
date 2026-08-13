@@ -83,12 +83,9 @@ phase13_source_canonical_scalar <- function(value) {
 phase13_source_safe_relative_path <- function(path) {
   path <- gsub("\\\\", "/", as.character(path))
   if (length(path) != 1L || is.na(path) || !nzchar(path) || grepl("^/", path) ||
-      grepl("(^|/)\\.\\.?(/|$)", path)) {
+      grepl("^[A-Za-z]:", path) || grepl("(^|/)\\.\\.?(/|$)", path) ||
+      grepl("//", path)) {
     stop("Phase 13 source path is unsafe: ", path, call. = FALSE)
-  }
-  normalized <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  if (identical(normalized, ".") || grepl("^/", normalized) || !identical(normalized, path)) {
-    stop("Phase 13 source path is not a trusted relative path: ", path, call. = FALSE)
   }
   path
 }
