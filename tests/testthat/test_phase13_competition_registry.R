@@ -262,3 +262,70 @@ test_that("lifecycle transitions are adjacent and blocked rows retain the last a
     phase13_competition_registry_hash(rbind(other, row))
   )
 })
+
+test_that("team identity registry carries provenance and order-stable row hashes", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_team_identity_registry_required_columns",
+    "load_phase13_team_identity_registry",
+    "validate_phase13_team_identity_registry",
+    "phase13_team_identity_registry_hash"
+  ))
+
+  registry <- load_phase13_team_identity_registry(
+    file.path(phase13_registry_test_project_root, "data/competition/registries/team_identity.csv")
+  )
+  expect_true(all(phase13_team_identity_registry_required_columns() %in% names(registry)))
+  expect_silent(validate_phase13_team_identity_registry(registry))
+  expect_identical(
+    phase13_team_identity_registry_hash(registry),
+    phase13_team_identity_registry_hash(registry[rev(seq_len(nrow(registry))), , drop = FALSE])
+  )
+
+  fixture <- phase13_registry_test_fixture()
+  identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
+  resolved <- phase13_resolve_team_identity(identity_map, "101", "Germany")
+  expect_true(all(c("aliases", "source_bundle_id", "row_sha256") %in% names(resolved)))
+  expect_identical(resolved$mapping_method, "source_id")
+  expect_true(grepl("^[0-9a-f]{64}$", resolved$row_sha256))
+})
+
+test_that("identity validation rejects duplicate FIFA codes and strict non-pre-draw empties", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_prepare_team_identity_map",
+    "phase13_normalize_fixture_rows",
+    "validate_phase13_team_identity_registry"
+  ))
+  fixture <- phase13_registry_test_fixture()
+  identity_map <- phase13_registry_test_identity_map(fixture)
+  duplicate_fifa <- identity_map
+  duplicate_fifa$fifa_code[[2L]] <- duplicate_fifa$fifa_code[[1L]]
+  expect_error(phase13_prepare_team_identity_map(duplicate_fifa), "FIFA")
+
+  empty_identity_map <- identity_map[0, , drop = FALSE]
+  source_fixture <- fixture$resources$fixtures[[1L]]
+  source_rows <- data.frame(
+    source_fixture_id = source_fixture$source_fixture_id,
+    home_uefa_source_team_id = source_fixture$home$uefa_source_team_id,
+    away_uefa_source_team_id = source_fixture$away$uefa_source_team_id,
+    home_display_name = source_fixture$home$display_name,
+    away_display_name = source_fixture$away$display_name,
+    scheduled_at_utc = source_fixture$scheduled_at_utc,
+    status = source_fixture$status,
+    stringsAsFactors = FALSE
+  )
+  expect_error(
+    phase13_normalize_fixture_rows(
+      data.frame(source_rows[0, , drop = FALSE]), empty_identity_map,
+      fixture$edition_id, lifecycle_state = "scheduled"
+    ),
+    "pre_draw|empty|identity"
+  )
+  expect_silent(
+    phase13_normalize_fixture_rows(
+      source_rows[0, , drop = FALSE], empty_identity_map,
+      "uefa_euro_2028_qualifying", lifecycle_state = "pre_draw"
+    )
+  )
+})
