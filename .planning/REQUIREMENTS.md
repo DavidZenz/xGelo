@@ -80,40 +80,40 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | TBD | Pending roadmap |
-| DATA-02 | TBD | Pending roadmap |
-| DATA-03 | TBD | Pending roadmap |
-| DATA-04 | TBD | Pending roadmap |
-| COMP-01 | TBD | Pending roadmap |
-| COMP-02 | TBD | Pending roadmap |
-| COMP-03 | TBD | Pending roadmap |
-| COMP-04 | TBD | Pending roadmap |
-| STATE-01 | TBD | Pending roadmap |
-| STATE-02 | TBD | Pending roadmap |
-| STATE-03 | TBD | Pending roadmap |
-| STATE-04 | TBD | Pending roadmap |
-| FORECAST-01 | TBD | Pending roadmap |
-| FORECAST-02 | TBD | Pending roadmap |
-| FORECAST-03 | TBD | Pending roadmap |
-| SIM-01 | TBD | Pending roadmap |
-| SIM-02 | TBD | Pending roadmap |
-| SIM-03 | TBD | Pending roadmap |
-| SIM-04 | TBD | Pending roadmap |
-| DASH-01 | TBD | Pending roadmap |
-| DASH-02 | TBD | Pending roadmap |
-| DASH-03 | TBD | Pending roadmap |
-| DASH-04 | TBD | Pending roadmap |
-| OPS-01 | TBD | Pending roadmap |
-| OPS-02 | TBD | Pending roadmap |
-| OPS-03 | TBD | Pending roadmap |
-| OPS-04 | TBD | Pending roadmap |
-| OPS-05 | TBD | Pending roadmap |
+| DATA-01 | Phase 13 | Pending |
+| DATA-02 | Phase 13 | Pending |
+| DATA-03 | Phase 13 | Pending |
+| DATA-04 | Phase 13 | Pending |
+| COMP-01 | Phase 13 | Pending |
+| COMP-02 | Phase 15 | Pending |
+| COMP-03 | Phase 16 | Pending |
+| COMP-04 | Phase 16 | Pending |
+| STATE-01 | Phase 14 | Pending |
+| STATE-02 | Phase 14 | Pending |
+| STATE-03 | Phase 14 | Pending |
+| STATE-04 | Phase 14 | Pending |
+| FORECAST-01 | Phase 14 | Pending |
+| FORECAST-02 | Phase 14 | Pending |
+| FORECAST-03 | Phase 14 | Pending |
+| SIM-01 | Phase 15 | Pending |
+| SIM-02 | Phase 16 | Pending |
+| SIM-03 | Phase 17 | Pending |
+| SIM-04 | Phase 16 | Pending |
+| DASH-01 | Phase 17 | Pending |
+| DASH-02 | Phase 17 | Pending |
+| DASH-03 | Phase 17 | Pending |
+| DASH-04 | Phase 17 | Pending |
+| OPS-01 | Phase 17 | Pending |
+| OPS-02 | Phase 17 | Pending |
+| OPS-03 | Phase 17 | Pending |
+| OPS-04 | Phase 17 | Pending |
+| OPS-05 | Phase 17 | Pending |
 
 **Coverage:**
 
 - v3.0 requirements: 28 total
-- Mapped to phases: 0
-- Unmapped: 28
+- Mapped to phases: 28
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-08-13*
