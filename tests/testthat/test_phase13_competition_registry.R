@@ -329,3 +329,57 @@ test_that("identity validation rejects duplicate FIFA codes and strict non-pre-d
     )
   )
 })
+
+test_that("competition edition CSV is a checked two-edition release registry", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "load_competition_edition_registries",
+    "validate_competition_edition_registries",
+    "phase13_competition_edition_required_columns"
+  ))
+  registries <- load_competition_edition_registries(
+    file.path(phase13_registry_test_project_root, "data/competition/registries")
+  )
+  expect_identical(
+    sort(as.character(registries$edition_id)),
+    sort(c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying"))
+  )
+  expect_true(all(c("audit_at_utc", "source_edition_id", "official_draw_date") %in% names(registries)))
+  expect_silent(validate_competition_edition_registries(registries))
+  euro <- registries[registries$edition_id == "uefa_euro_2028_qualifying", , drop = FALSE]
+  expect_identical(euro$lifecycle_state, "pre_draw")
+  expect_identical(euro$official_draw_date, "2026-12-06")
+  expect_identical(euro$active_output_bundle_id, "uefa_euro_2028_qualifying-official-v1")
+  expect_true(!any(c("group_count", "fixture_count", "standings_hash", "probability_hash") %in% names(euro)))
+})
+
+test_that("edition validation preflights the approved release and handles serialized blocked overlays", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_preflight_approved_model_release",
+    "phase13_build_competition_edition_row",
+    "phase13_transition_competition_edition"
+  ))
+  preflight <- phase13_preflight_approved_model_release(
+    file.path(phase13_registry_test_project_root, "outputs/releases")
+  )
+  expect_identical(preflight$metadata$release_id, "phase12-wc2026-incumbent-retained-v1")
+
+  row <- phase13_build_competition_edition_row(
+    edition_id = "uefa_nations_league_2026_27",
+    competition_id = "uefa_nations_league",
+    display_name = "UEFA Nations League 2026/27",
+    lifecycle_state = "pre_draw",
+    ruleset_version = "uefa-nations-league-2026-27-v1",
+    source_bundle_id = "nl-2026-27-official-sample-v1",
+    model_release_id = "phase12-wc2026-incumbent-retained-v1",
+    output_bundle_target = "outputs/competition/uefa_nations_league_2026_27"
+  )
+  blocked <- phase13_block_competition_edition(row, "refresh failed", "2026-08-13T18:00:00Z", "operator")
+  serialized <- blocked
+  serialized$blocked <- "TRUE"
+  expect_error(
+    phase13_transition_competition_edition(serialized, "scheduled"),
+    "operator action|validation"
+  )
+})
