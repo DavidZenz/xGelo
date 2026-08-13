@@ -31,7 +31,16 @@ simulations, and fail-closed hourly publication.
 3. Manual fallback snapshots can be loaded with visible source, retrieval date, reason, operator note, and checksum instead of silently replacing official data.
 4. Normalized records retain UEFA display names while resolving to stable team IDs and competition-edition IDs for both competition editions.
 5. Registry entries exist for the 2026/27 Nations League and EURO 2028 qualifying editions with lifecycle state, source bundle, model release slot, and output bundle target.
-**Plans**: TBD
+
+**Plans**: 0/3 plans executed
+**Wave 1**
+
+- [ ] 13-01-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-02-PLAN.md
+- [ ] 13-03-PLAN.md
 
 ### Phase 14: Shared Competition State and Forecast Layer
 **Goal**: Both competitions can reuse one edition-aware state, form, and pre-match forecast engine without leaking future information.
@@ -43,6 +52,7 @@ simulations, and fail-closed hourly publication.
 3. Both competitions expose separate competition-specific form and all-international form views with explicit windows and point-in-time cutoffs.
 4. Open fixtures show calibrated home, draw, and away probabilities, expected goals, a most likely score, a bounded score distribution, and uncertainty metadata from the approved release.
 5. Forecast audits prove point-in-time feature safety, and Nations League and EURO competition states remain independent while sharing canonical team identity and strength inputs.
+
 **Plans**: TBD
 
 ### Phase 15: Nations League Rules and Outcomes
@@ -54,6 +64,7 @@ simulations, and fail-closed hourly publication.
 2. Nations League tables and overall rankings follow the official edition rules, including cross-group comparisons and League D group-size handling where required.
 3. Open Nations League fixtures show calibrated forecasts together with competition-specific form and all-international form from the shared engine.
 4. Projected outcomes report League A quarter-final and title paths, direct promotion and relegation, and applicable promotion or relegation play-off probabilities for every team.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -66,6 +77,7 @@ simulations, and fail-closed hourly publication.
 2. Once an official draw snapshot exists, the competition activates real groups, fixtures, standings, and simulations from the registered UEFA source bundle rather than guessed structures.
 3. Qualification outputs apply the official edition rules for direct qualification, host-reserved places, best runners-up, Nations League-linked play-off eligibility, and every valid play-off topology.
 4. Unresolved, blocked, or insufficient-source states stay explicit and suppress fabricated groups, fixtures, standings, and probabilities.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -79,6 +91,7 @@ simulations, and fail-closed hourly publication.
 3. Every published dashboard shows refresh status, source confidence, model release, warnings, collapsed data credits, and replayable simulation metadata.
 4. An hourly macOS `launchd` refresh stages both competitions together, runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression checks, and atomically promotes only a fully valid batch.
 5. Auto-commit and push happen only from a clean, upstream-aligned repository and include only compact code, manifests, and dashboard outputs; dirty, diverged, partial, oversized, or failed batches stay unpublished.
+
 **Plans**: TBD
 **UI hint**: yes
 
@@ -86,7 +99,7 @@ simulations, and fail-closed hourly publication.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 13. Source Contracts and Competition Registry | 0/TBD | Not started | - |
+| 13. Source Contracts and Competition Registry | 0/3 | Planned    |  |
 | 14. Shared Competition State and Forecast Layer | 0/TBD | Not started | - |
 | 15. Nations League Rules and Outcomes | 0/TBD | Not started | - |
 | 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |
