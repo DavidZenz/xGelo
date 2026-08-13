@@ -1,167 +1,115 @@
-# Architecture Research
+# Project Research: Shared UEFA Competition Dashboard Architecture
 
-**Domain:** Leakage-safe probabilistic sports-model benchmarking
-**Researched:** 2026-07-20
-**Confidence:** HIGH
-
-## System Overview
+## Proposed data flow
 
 ```text
-Historical git snapshots + canonical results
+Official UEFA pages / exports
+        + open international results
+        + audited manual snapshots
                     |
                     v
-        Forecast Ledger Builder
-        - cutoff and kickoff proof
-        - provenance manifest
+        source adapters + snapshot manifests
                     |
                     v
-        Evaluation Contract
-        - common prediction schema
-        - proper scoring rules
-        - calibration/stage metrics
+        canonical competition registry
+        teams / groups / fixtures / statuses
+                    |
+          +---------+---------+
+          |                   |
+          v                   v
+   competition state      model feature view
+   standings + rules      Elo/xG/form/context
+          |                   |
+          +---------+---------+
+                    v
+           match forecast layer
+           calibrated 1X2 + goals
                     |
                     v
-        Rolling Tournament Harness
-        - immutable folds
-        - shared seeds and fixtures
-                    |
-        +-----------+-----------+
-        |           |           |
-        v           v           v
-     Baselines   Statistical   ML/context
-                 challengers   challengers
-        +-----------+-----------+
+           competition simulators
+           standings + paths + odds
                     |
                     v
-          Calibration + Promotion
+        compact JSON payload + CSV audit files
                     |
                     v
-         Versioned model and report
+       two dedicated static dashboards
 ```
 
-## Component Responsibilities
+## New boundaries
 
-| Component | Responsibility | Implementation |
-|-----------|----------------|----------------|
-| Ledger builder | Recover last forecast before kickoff and attach actuals | Git plumbing plus R schema validation |
-| Benchmark schema | Normalize predictions from every model | Data frame contract with model/fold/cutoff/provenance |
-| Fold registry | Define train, calibration, and assessment periods | Tournament-blocked `rsample` or explicit split table |
-| Model adapter | Fit/predict through one interface | Named R functions returning score distributions |
-| Metric engine | Proper scores and uncertainty | yardstick/scoringRules plus bootstrap by tournament |
-| Promotion engine | Apply predeclared model gate | Paired fold comparison with hard leakage checks |
-| Report publisher | Explain performance and chosen model | Quarto/R Markdown artifact from benchmark tables |
+### Source adapters
 
-## Recommended Structure
+`uefa_competition_source.R` should normalize official pages or exports into a stable internal schema. It should not calculate standings or probabilities. The adapter must record source URL, retrieval time, raw hash, parser version, and fallback status.
 
-```text
-R/
-├── evaluation/
-│   ├── ledger.R
-│   ├── schema.R
-│   ├── metrics.R
-│   ├── calibration.R
-│   └── promotion.R
-├── benchmark/
-│   ├── folds.R
-│   ├── registry.R
-│   ├── baselines.R
-│   └── tournament_scoring.R
-├── forecast/
-│   ├── poisson.R
-│   ├── dependent_scores.R
-│   ├── dynamic_ability.R
-│   └── ml_challengers.R
-data/processed/
-├── forecast_ledger/
-└── benchmark_folds/
-outputs/model_evaluation/
-├── metrics/
-├── calibration/
-└── report/
-```
+`open_results_source.R` should reuse the existing international-results ingestion for historical form and model inputs. Competition labels must be normalized to stable IDs such as `uefa_nations_league` and `uefa_euro_qualification`.
 
-Keep challenger code under the forecast boundary; keep all selection logic under evaluation/benchmark. The dashboard consumes only an approved versioned prediction contract.
+### Competition registry
 
-## Architectural Patterns
+Use one registry with one row per competition edition and explicit lifecycle state:
 
-### Immutable Evaluation Ledger
+- `pre_draw`
+- `scheduled`
+- `in_progress`
+- `complete`
+- `blocked`
 
-Each row identifies fixture, kickoff UTC, forecast generation UTC, feature/result cutoff, source commit, model version, seed, and probabilities. A ledger row is valid only when every feature source predates kickoff and the forecast existed before kickoff.
+Each registry entry points to its groups, fixtures, regulations, source snapshot, ruleset, model release, and dashboard output directory.
 
-### Common Challenger Adapter
+### Rules engine
 
-Every model exposes:
+Use a ruleset interface rather than branching inside the UI:
 
-```r
-fit_model(training_data, config)
-predict_score_distribution(model, fixtures, max_goals)
-model_manifest(model, config)
-```
+- `validate_competition_structure()`
+- `compute_standings()`
+- `rank_tied_teams()`
+- `enumerate_remaining_paths()`
+- `simulate_competition_outcomes()`
+- `format_outcome_labels()`
 
-The harness derives 1X2 and tournament simulations from the score distribution. Models that predict 1X2 directly must be marked as outcome-only and cannot be compared on goal-distribution metrics.
+The Nations League ruleset must support league A-D, different group sizes, overall rankings, two-legged play-offs, League A quarter-finals, and the conditional C/D play-off. The EURO ruleset must support groups of four/five, best-runner-up ranking, hosts, and the three possible play-off topologies.
 
-### Nested Temporal Selection
+### Model boundary
 
-Outer folds assess complete tournaments. Inner time-blocked folds select hyperparameters and calibration. The final WC 2026 fold is evaluated once after the challenger set and promotion rule are frozen.
+The existing released model consumes a point-in-time match feature frame. The competition layer supplies only match context and the correct date/venue/team identity. Competition state affects simulation and outcome labels; it must not overwrite the historical model training contract or leak future standings into pre-match features.
 
-### Capability-Based Feature Sets
+### Dashboard payload
 
-Feature sets are named and nested:
+Keep the existing split between R-generated compact JSON/CSV payloads and static HTML/JavaScript. A payload should include:
 
-1. `elo_only`
-2. `ability` (Elo plus dynamic attack/defence)
-3. `open_context` (venue, host, rest, travel, tournament)
-4. `structural_prior`
-5. `enriched_squad`
-6. `market_benchmark`
+- metadata and release identity;
+- source and ruleset hashes;
+- competition state;
+- teams, groups, fixtures, standings, and form;
+- match forecast rows and scoreline rows;
+- projected outcome probabilities;
+- warnings, fallback status, and data credits.
 
-No model silently replaces missing features with zeros without reporting coverage.
+The renderer should be competition-agnostic. It receives a payload and a small competition display configuration; it must not reimplement rules or infer standings.
 
-## Data Flows
+## Refresh transaction
 
-### WC 2026 Retrospective
+1. Acquire candidate official snapshots into a unique staging directory.
+2. Validate source schema, hashes, date ranges, team identity, and competition structure.
+3. Build model features and forecasts from the latest accepted release.
+4. Run deterministic simulations with a recorded seed and bounded support.
+5. Validate all dashboard payloads, freshness, output coverage, and release links.
+6. Atomically promote each successful competition bundle while retaining the prior bundle.
+7. Commit and push changed code/manifests/compact outputs only when the repository is clean and upstream-aligned.
 
-```text
-Fixture kickoff -> find latest prior git commit -> read forecast artifact
--> validate cutoffs/provenance -> attach canonical final result
--> score -> publish immutable ledger and caveat report
-```
+If one competition fails validation, do not publish a partial mixed timestamp. Keep the previous successful bundle for the failed competition and mark the batch as failed in the log.
 
-### Rolling Benchmark
+## Build order
 
-```text
-Fold definition -> build point-in-time features -> fit challenger
--> optional inner calibration -> predict complete tournament
--> simulate tournament -> score match and stage events
--> aggregate paired deltas and uncertainty
-```
-
-## Integration Boundaries
-
-| Boundary | Contract |
-|----------|----------|
-| Data to features | Every value carries a source date or frozen snapshot |
-| Features to model | Named feature-set manifest and missingness audit |
-| Model to simulator | Normalized finite score-probability matrix summing to one |
-| Simulator to evaluator | Fixture and stage event probabilities with stable IDs |
-| Evaluator to dashboard | Approved model version only; no evaluation-time branching |
-
-## Build Order
-
-1. Ledger and metric contracts.
-2. Rolling folds and baseline reproduction.
-3. Regularized and dependent-score challengers.
-4. Dynamic ability, RF, and contextual/structural challengers.
-5. Calibration, promotion decision, and approved-model integration.
+1. Canonical schemas, source snapshot contract, and competition registry.
+2. Shared standings/form/fixture layer and source adapters.
+3. Nations League rules and dashboard because its 2026/27 groups and fixtures are already published.
+4. EURO qualifying rules and pre-draw dashboard state.
+5. Post-draw EURO adapter, group activation, and full qualification simulation.
+6. Shared dashboard polish, hourly launchd orchestration, integration tests, and release acceptance.
 
 ## Sources
 
-- https://rsample.tidymodels.org/articles/Common_Patterns.html
-- https://CRAN.R-project.org/package=scoringRules
-- https://arxiv.org/abs/1806.03208
-- https://arxiv.org/abs/2410.09068
-- https://www.zeileis.org/news/fifa2018eval/
-
----
-*Architecture research for: xGelo v2.0*
-*Researched: 2026-07-20*
+- [UEFA Nations League regulations, Articles 13-19](https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27-Online)
+- [UEFA EURO regulations, Articles 13-23](https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-14-Match-system-qualifying-group-stage-Online)
+- Existing implementation: `R/visualization/worldcup_dashboard.R`, `scripts/update_worldcup_dashboard.R`, and `scripts/auto_update_worldcup_dashboard.sh`

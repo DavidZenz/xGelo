@@ -1,127 +1,59 @@
 # Project Research Summary
 
-**Project:** xGelo
-**Domain:** International-football probabilistic forecasting
-**Researched:** 2026-07-20
-**Confidence:** HIGH
-
-## Executive Summary
-
-xGelo v2.0 should be an evaluation-led model evolution milestone. The first deliverable is not a new algorithm: it is a provably pre-kickoff WC 2026 ledger and a shared probabilistic scoring contract. Existing hourly git snapshots make an honest reconstruction possible despite the current dashboard archive containing rows first written after kickoff.
-
-After that foundation, the project should compare representative model families on complete rolling tournament folds. The strongest literature pattern is to combine an independently estimated ability signal with regularized count models or tree learners, then simulate the tournament. The current negative-binomial model remains the incumbent, but its 26 correlated, unpenalized predictors and inactive xG/form inputs justify explicit simpler and better-regularized challengers.
-
-The final WC 2026 results must remain untouched during feature selection, tuning, and calibration. Model promotion should require lower proper scores across several prior tournament folds, acceptable calibration, stable leave-one-tournament-out behavior, and no licensing regression in the default open mode.
-
 ## Key Findings
 
-### Recommended Stack
+### Competition rules are the main new complexity
 
-- Keep R, targets, yardstick, MASS, and testthat as the stable core.
-- Add scoringRules for proper distribution scoring and rsample's sliding methods for temporal folds.
-- Add glmnet for the first regularized Poisson challenger.
-- Add bivpois for an explicit score-dependence challenger.
-- Add ranger for the Groll-style RF plus ability model; defer XGBoost until RF establishes nonlinear value.
-- Add probably only when out-of-fold calibration is ready.
+The 2026/27 Nations League is not a single group tournament. It has Leagues A-D, group-size differences, overall ranking rules, promotion/relegation, two-legged League A/B and B/C play-offs, conditional League C/D play-offs, League A quarter-finals, and a single-leg finals tournament. The rules need a dedicated stateful simulator.
 
-### Must-Have Features
+EURO 2028 qualifying has 12 groups of four or five teams. The 12 group winners and eight best runners-up qualify directly. Two host places are reserved, and the remaining places are determined through a variable play-off structure that also draws from the 2026/27 Nations League ranking. This creates a cross-competition dependency.
 
-- Git-derived pre-kickoff forecast ledger with provenance and rejection reasons.
-- Match and tournament-event proper scores, calibration, and uncertainty.
-- Shared rolling tournament folds and a common model adapter.
-- Elo-only and incumbent NB baselines.
-- Regularized Poisson, dependent-score, and RF-plus-ability challengers.
-- Frozen promotion rule and one-time final WC 2026 evaluation.
+### EURO has a known pre-draw period
 
-### Architecture
+UEFA has announced that the EURO 2028 qualifying draw will take place on 6 December 2026. The dashboard should launch before the draw in a truthful `pre_draw` state, then activate group fixtures and qualification simulation once the official draw/schedule snapshot is available.
 
-The new evaluation layer sits between point-in-time feature construction and dashboard publication. Models emit a normalized score-distribution contract; the same code derives 1X2 probabilities, tournament simulations, and metrics. The dashboard reads only the explicitly promoted model version, so challenger work cannot silently change published behavior.
+### Official UEFA data is authoritative but operationally volatile
 
-### Critical Pitfalls
+UEFA provides official fixtures/results, standings, groups, and regulations pages. The public pages inspected do not promise a stable developer API. The safest design is an adapter with raw snapshot retention, schema/hash validation, low request volume, and audited manual fallbacks.
 
-1. Post-kickoff snapshots mislabeled as prematch.
-2. Tuning or calibrating on WC 2026.
-3. Match-level random cross-validation.
-4. Model comparisons with different cutoffs or fixtures.
-5. Correlated squad features without shrinkage.
-6. Claiming xG influence when xG predictors are inactive.
-7. Selecting a winner from one noisy tournament.
+### The WC26 dashboard is a strong reusable base
+
+The current R/static HTML dashboard already supports model release metadata, calibrated probabilities, score distributions, forecast features, simulation, static publication, tests, and hourly `launchd` automation. The new milestone should generalize those pieces rather than create a second frontend stack.
 
 ## Implications for Roadmap
 
-### Phase 8: Forecast Ledger and WC 2026 Retrospective
-**Delivers:** Reconstructed pre-kickoff ledger, provenance manifest, exploratory and strict scorecards.
-**Rationale:** Every later decision depends on trustworthy evaluation data.
+1. Freeze shared source, team identity, competition registry, and payload schemas first.
+2. Implement generic standings, form, forecast, and simulation interfaces before competition-specific rules.
+3. Build the Nations League path first because its groups and league-phase fixtures are already published.
+4. Build the EURO rules and pre-draw shell next, with explicit activation after the December draw.
+5. Add cross-competition Nations League-to-EURO play-off eligibility only after both rulesets have independent tests.
+6. Finish with shared dashboard rendering, hourly atomic refresh, browser smoke tests, and release acceptance.
 
-### Phase 9: Rolling Tournament Benchmark Harness
-**Delivers:** Fold registry, model/prediction schema, proper metrics, baseline reproduction, and frozen promotion protocol.
-**Rationale:** Prevents WC 2026 tuning and makes challengers comparable.
+## Recommended MVP Boundary
 
-### Phase 10: Statistical Goal-Model Challengers
-**Delivers:** Regularized Poisson, dynamic attack/defence ability, and Dixon-Coles/bivariate-Poisson comparisons.
-**Rationale:** Tests the best-supported interpretable improvements before black-box models.
+The first usable release should include:
 
-### Phase 11: Hybrid ML and Contextual Priors
-**Delivers:** RF-plus-ability model, controlled open context, structural sparse-team prior, and optional enriched squad/market benchmarks.
-**Rationale:** Adds nonlinear and external information only after stable statistical baselines exist.
+- a live Nations League dashboard with groups, standings, form, fixtures, forecasts, and projected promotion/relegation/knockout outcomes;
+- a EURO 2028 qualifying dashboard in `pre_draw` mode with official dates, rules, participating host context, shared team/model profiles, and a clear activation status;
+- a refresh command and launchd job that can publish both bundles without partial updates;
+- compact, auditable output manifests and visible collapsed data credits.
 
-### Phase 12: Calibration, Promotion, and Model Release
-**Delivers:** Out-of-fold calibration, paired fold comparison, one-time 2026 final evaluation, approved model artifact, model card, and dashboard integration.
-**Rationale:** Separates model invention from the release decision.
+Full EURO group standings, fixture forecasts, and qualification simulations become active as soon as the official draw and fixture snapshot exists.
 
-### Ordering Rationale
+## Watch Outs
 
-- Ledger precedes scoring; scoring precedes challengers; challengers precede calibration and promotion.
-- Statistical challengers come before ML to establish whether complexity is necessary.
-- Structural and market signals are isolated so the open-data model remains identifiable.
-- WC 2026 remains sealed until all candidates and gates are fixed.
-
-### Research Flags
-
-- **Phase 8:** Verify timezone and git-commit selection semantics carefully.
-- **Phase 10:** Decide whether Dixon-Coles or bivariate Poisson is the primary dependence implementation after a small empirical spike.
-- **Phase 11:** Reproduce the Groll response/ability construction faithfully before adding XGBoost.
-- **Phase 12:** Predeclare practical improvement thresholds and uncertainty method.
-
-## Confidence Assessment
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | HIGH | Existing R ecosystem plus official package documentation |
-| Features | HIGH | Directly tied to observed archive/model gaps and established forecast practice |
-| Architecture | HIGH | Matches current targets separation and literature workflow |
-| Pitfalls | HIGH | Most are already observable in current artifacts |
-
-**Overall confidence:** HIGH
-
-### Gaps
-
-- Exact historical tournament coverage and point-in-time squad availability require an inventory in Phase 9.
-- The best dependence correction is empirical; both Dixon-Coles and bivariate Poisson should share one short spike.
-- Bookmaker and structural benchmarks require vintage-data provenance to be considered fully comparable.
+- Never infer standings from a generic points sort when UEFA tie-breaks or cross-group rankings apply.
+- Never show fabricated EURO groups before the draw.
+- Never merge the two competitions' state, even when model inputs are shared.
+- Never publish a new bundle if only one competition passed validation.
+- Never commit large score-distribution CSVs to Git history.
 
 ## Sources
 
-### Primary
-
-- https://arxiv.org/abs/1806.03208
-- https://epub.ub.uni-muenchen.de/31579/1/Groll_Prediction.pdf
-- https://portal.fis.tum.de/de/publications/on-the-dependency-of-soccer-scores-a-sparse-bivariate-poisson-mod/
-- https://arxiv.org/abs/2410.09068
-- https://www2.uibk.ac.at/downloads/c4041030/wpaper/2016-15.pdf
-- https://rsample.tidymodels.org/articles/Common_Patterns.html
-- https://CRAN.R-project.org/package=scoringRules
-- https://CRAN.R-project.org/package=glmnet
-- https://CRAN.R-project.org/package=bivpois
-
-### Project Evidence
-
-- `outputs/dashboard/worldcup_prematch_forecasts.csv`
-- `outputs/dashboard/worldcup_bracket_prematch_forecasts.csv`
-- `data/processed/xg_feature_usage_audit.csv`
-- `R/forecast/poisson.R`
-- `.planning/phases/999.1-socio-economic-structural-benchmark/RESEARCH.md`
-
----
-*Research completed: 2026-07-20*
-*Ready for roadmap: yes*
+- [2026/27 UEFA Nations League overview](https://www.uefa.com/uefanationsleague/news/0298-1d6ef1acfaef-b54fcf1da859-1000--2026-27-uefa-nations-league-all-you-need-to-know/)
+- [2026/27 UEFA Nations League fixtures](https://www.uefa.com/uefanationsleague/news/02a2-1fea18abbcbc-456e846509e7-1000--2026-27-uefa-nations-league-all-the-league-phase-fixtures/)
+- [Nations League regulations](https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27-Online)
+- [EURO 2028 qualification system](https://www.uefa.com/euro2028/news/0299-1dcf3fef69a9-41405d004b47-1000--qualification-system-for-uefa-euro-2028-approved/)
+- [EURO 2028 regulations](https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-14-Match-system-qualifying-group-stage-Online)
+- [EURO 2028 qualifying draw date](https://www.uefa.com/euro2028/news/029f-1f2ff991e87b-345fffcd69c3-1000--uefa-euro-2028-qualifying-draw-to-take-place-in-belfast/)
+- [Open international results mirror](https://github.com/openfootball/internationals)

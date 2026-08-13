@@ -1,147 +1,100 @@
-# Pitfalls Research
+# Project Research: Risks for UEFA Competition Dashboards
 
-**Domain:** International-football forecast retrospective and model selection
-**Researched:** 2026-07-20
-**Confidence:** HIGH
+## Competition and rules risks
 
-## Critical Pitfalls
+### Treating the two competitions as one table
 
-### 1. Calling a Post-Kickoff Snapshot Prematch
+The same teams play in both competitions, but competition form, standings, qualification pressure, and progression rules are different. Keep competition ID on every fixture, result, form row, forecast, and simulation state.
 
-**What goes wrong:** Forecast metrics look valid although the artifact did not exist before kickoff.
+### Fabricating EURO groups before the draw
 
-**Avoidance:** Reconstruct from git commit time, convert local kickoff to UTC, require `generated_at < kickoff`, and retain rejected rows with reasons.
+UEFA has scheduled the EURO 2028 qualifying draw for 6 December 2026. Before then, the dashboard may show readiness, rules, calendar, and model context, but it must not display invented groups, fixtures, or qualification probabilities conditional on unknown groups.
 
-**Warning signs:** Forecast timestamps after kickoff, same-day result cutoffs, or no commit provenance.
+### Incorrect Nations League ranking across group sizes
 
-**Phase:** Forecast ledger and 2026 retrospective.
+League D has groups of three while Leagues A-C have groups of four. UEFA excludes results against fourth-placed teams when comparing first, second, and third-placed teams across groups, but keeps all results for fourth-placed comparisons. A generic points sort is wrong.
 
-### 2. Tuning on the 2026 Holdout
+### Incorrect play-off topology
 
-**What goes wrong:** Model changes are selected because they explain the tournament just observed.
+Nations League play-offs are generally two-legged, League A quarter-finals are two-legged, and the semi-finals/final are single-leg. EURO 2028 play-offs can have two, three, or four paths/ties depending on host places. The simulator needs explicit topology objects rather than a generic knockout shortcut.
 
-**Avoidance:** Freeze 2026 results outside all fitting, feature selection, hyperparameter, and calibration decisions until the challenger protocol is locked.
+### Ignoring competition dependency
 
-**Warning signs:** A feature is justified only by its WC 2026 delta or repeated peeking changes the candidate list.
+EURO play-off eligibility uses the 2026/27 Nations League rankings after removing teams already qualified or in the EURO play-offs. The EURO simulator therefore needs a Nations League state dependency and cannot run from the EURO table alone.
 
-**Phase:** Benchmark contract and promotion gate.
+### Tie-break drift
 
-### 3. Match-Level Random Cross-Validation
+UEFA tie-break rules include head-to-head points/goals, overall goal difference/goals, away goals, wins, away wins, disciplinary points, and access-list or Nations League ranking fallbacks. Store the applied criterion and an explanation for every non-obvious rank.
 
-**What goes wrong:** Later team strength, squad context, and tournament form leak into earlier assessments.
+## Data and source risks
 
-**Avoidance:** Use date- and tournament-blocked outer folds with point-in-time feature construction.
+### Volatile official web pages
 
-**Warning signs:** The same tournament appears in train and test or feature dates are not checked.
+UEFA pages are authoritative but may change layout, identifiers, or embedded payload shape. Keep all parsing in an adapter, preserve raw snapshots, and fail closed when a required field disappears.
 
-**Phase:** Rolling tournament harness.
+### No stable documented API guarantee
 
-### 4. Comparing Models on Different Inputs
+The public pages inspected for this research do not document a stable developer API. Do not hard-code undocumented calls throughout the project. Use bounded requests, a versioned adapter, manual fallback snapshots, and parser contract tests.
 
-**What goes wrong:** A challenger wins because it saw newer ratings, different fixtures, or extra result information.
+### Conflicting result states
 
-**Avoidance:** Share fold IDs, fixture rows, source snapshots, seeds, and metric code. Store a manifest for every run.
+A fixture can be scheduled, postponed, abandoned, completed after extra time, or decided on penalties. Preserve regulation goals, final goals, shootout status, and competition outcome separately. Do not treat a shootout winner as a regulation win in model evaluation.
 
-**Warning signs:** Row counts differ, model-specific preprocessing changes actuals, or result cutoffs are absent.
+### Team identity drift
 
-**Phase:** Model registry and benchmark harness.
+UEFA display names, martj42 names, EloRatings names, and local names differ. Use stable canonical IDs and retain source display names. New teams, renamed associations, and special cases such as Türkiye/Turkey and Republic of Ireland/Ireland require explicit mapping tests.
 
-### 5. Overfitting Correlated Squad Features
+### Venue and kickoff ambiguity
 
-**What goes wrong:** Coefficients become unstable and apparent gains fail on the next tournament.
+Store UTC timestamp, source-local timestamp, timezone, venue, and home/away designation. Neutral or relocated matches must not silently receive ordinary home advantage.
 
-**Avoidance:** Penalize, group, or ablate related variables; compare against Elo/ability baselines on paired folds.
+## Model and simulation risks
 
-**Warning signs:** Large coefficient sign changes, singular fits, or gains concentrated in one tournament.
+### Leakage from current standings
 
-**Phase:** Statistical and ML challengers.
+Standings and competition pressure are valid for simulation display, but future simulated results must not enter the pre-match model features for the same fixture in a way that uses information unavailable at that point. Use a separate simulated state from the model feature cutoff.
 
-### 6. Treating Inactive xG as Real Signal
+### Stale model release
 
-**What goes wrong:** The model is described as xG-informed while forecast-time xG features are zeros.
+The dashboard must show the release identity and model/data cutoff. A refresh can update fixtures without silently fitting a new model from future competition outcomes.
 
-**Avoidance:** Make feature activation and coverage hard gates. Label model variants by actual retained predictors.
+### Simulation instability
 
-**Warning signs:** Zero variance, zero team coverage, or missing values silently replaced with neutral zero.
+Large score-distribution outputs can exceed Git hosting limits, as happened in the prior milestone. Publish compact summaries, use bounded goal support, record seeds, and keep large intermediates out of Git history.
 
-**Phase:** Feature audit and challenger registry.
+### Partial batch publication
 
-### 7. Overfitting Calibration
+If Nations League succeeds and EURO fails, publishing only one new timestamp creates an incoherent public release. Stage both bundles, retain previous successful outputs, and publish a batch manifest describing each state.
 
-**What goes wrong:** A flexible calibrator improves the same data used to fit it and worsens future probabilities.
+## Operational and legal risks
 
-**Avoidance:** Fit calibration only on inner out-of-fold predictions, compare uncalibrated/calibrated variants, and retain a no-calibration option.
+### Dirty-worktree collision
 
-**Warning signs:** Large 2026-only improvement, probabilities collapse to few values, or ranking changes unexpectedly.
+The existing auto-updater intentionally stops when tracked changes exist. Preserve that behavior and make the logs explain the exact blocker rather than overwriting local research artifacts.
 
-**Phase:** Calibration and promotion.
+### Launchd environment mismatch
 
-### 8. One Tournament as the Decision Unit
+`launchd` has a smaller environment than an interactive shell. Use absolute paths or a controlled shell wrapper, write stdout/stderr logs, and expose a manual one-shot command for diagnosis.
 
-**What goes wrong:** A handful of upsets determine the model choice.
+### UEFA brand and content rights
 
-**Avoidance:** Report paired tournament-fold deltas, dispersion, and bootstrap intervals; require directionally consistent evidence.
+Use official data for factual competition state, provide visible data credits, and do not redistribute protected logos, images, or large raw response bodies unnecessarily. Keep the dashboard analytical and non-commercial in presentation.
 
-**Warning signs:** Aggregate improvement disappears when one tournament is removed.
+### Manual fallback becoming authoritative by accident
 
-**Phase:** Evaluation report and promotion.
+Every fallback row needs source, retrieval date, reason, operator note, and checksum. Fallback must be visible in metadata and never silently overwrite a newer validated official snapshot.
 
-## Technical Debt Patterns
+## Prevention gates
 
-| Shortcut | Immediate Benefit | Long-term Cost | Acceptable |
-|----------|-------------------|----------------|------------|
-| Reuse dashboard CSV as benchmark truth | Fast scorecard | Archive semantics are operational, not evaluative | Only for clearly labeled exploratory metrics |
-| Add all challengers to one script | Quick prototype | Unreproducible branching and inconsistent schemas | Never beyond a spike |
-| Hard-code tournament rules in metrics | Easy WC 2026 report | Cannot roll across formats | Only behind versioned format adapters |
-| Default missing features to zero | Models keep running | Silent model identity change | Only with explicit neutral semantics and audit |
-
-## Licensing and Provenance Gotchas
-
-| Source | Mistake | Correct Approach |
-|--------|---------|------------------|
-| Transfermarkt | Treat values as open redistributable data | Optional local enriched mode; publish derived metadata only |
-| Bookmakers | Scrape/retrain without provenance | Frozen external benchmark with source/date documentation |
-| FotMob | Automate collection | Manual cache only under existing project policy |
-| Socio-economic data | Use current revised values for old folds | Vintage or pre-tournament snapshot per fold |
-
-## Performance Traps
-
-| Trap | Symptoms | Prevention |
-|------|----------|------------|
-| Refit every model for every fixture | Very long benchmark | Fit once per fold; vectorize predictions |
-| Simulate before match metrics pass | Slow debugging | Validate analytic score matrices first |
-| Million-run simulations for every candidate | Cost dominates model fitting | Use deterministic analytic metrics and common random numbers; increase sims for finalists |
-
-## Looks Done But Is Not
-
-- [ ] Every ledger row proves forecast time precedes kickoff.
-- [ ] Every feature source date precedes the fixture.
-- [ ] Every model predicts the identical fold fixtures.
-- [ ] Probability vectors are finite, nonnegative, and sum to one.
-- [ ] Calibration is trained out of fold.
-- [ ] Metrics include uncertainty and per-tournament deltas.
-- [ ] The final WC 2026 evaluation is executed only after the gate is frozen.
-- [ ] The promoted model reports active predictors and data-license mode.
-
-## Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| Snapshot timing | Ledger phase | UTC cutoff tests and rejected-row audit |
-| Holdout reuse | Benchmark contract | Test that 2026 cannot enter fitting splits |
-| Temporal leakage | Fold phase | Source-date assertions on every assessment row |
-| Model input mismatch | Registry phase | Shared fixture checksum and manifest |
-| Feature overfit | Challenger phases | Penalization/ablation and leave-one-tournament-out deltas |
-| Calibration overfit | Promotion phase | Inner out-of-fold calibration tests |
+- Source schema and raw-byte hash gate before parsing.
+- Competition structure and regulation-version gate before simulation.
+- Point-in-time feature and model-release gate before forecast generation.
+- Freshness, output coverage, probability-sum, and deterministic replay checks before publication.
+- Independent dashboard smoke test for both entry points.
+- Atomic promotion and Git status/upstream checks before auto-commit/push.
 
 ## Sources
 
-- https://rsample.tidymodels.org/articles/Common_Patterns.html
-- https://www.tidymodels.org/learn/models/calibration/
-- https://www.zeileis.org/news/fifa2018eval/
-- https://epub.ub.uni-muenchen.de/31579/1/Groll_Prediction.pdf
-- https://arxiv.org/abs/1806.03208
-
----
-*Pitfalls research for: xGelo v2.0*
-*Researched: 2026-07-20*
+- [UEFA Nations League 2026/27 regulations](https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27-Online)
+- [UEFA EURO 2026-28 regulations](https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-14-Match-system-qualifying-group-stage-Online)
+- [EURO 2028 qualifying draw announcement](https://www.uefa.com/euro2028/news/029f-1f2ff991e87b-345fffcd69c3-1000--uefa-euro-2028-qualifying-draw-to-take-place-in-belfast/)

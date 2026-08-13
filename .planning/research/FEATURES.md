@@ -1,104 +1,82 @@
-# Feature Research
+# Project Research: UEFA Dashboard Features
 
-**Domain:** Post-tournament football forecast evaluation and model evolution
-**Researched:** 2026-07-20
-**Confidence:** HIGH
+## Table stakes
 
-## Feature Landscape
+### Competition overview
 
-### Table Stakes
+- Dedicated Nations League and EURO 2028 qualifying entry points.
+- Clear edition, refresh timestamp, source status, and competition-state banner.
+- A truthful pre-draw or incomplete-data state instead of invented groups or fixtures.
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| Pre-kickoff forecast ledger | A retrospective is invalid without proof of information timing | HIGH | Select the latest committed snapshot before each kickoff |
-| Proper match-level scores | Accuracy alone rewards bad probabilities | MEDIUM | Brier, log loss, RPS, goal CRPS/log score, calibration |
-| Tournament-stage scores | Tournament models predict paths as well as matches | MEDIUM | Score advancement and stage reach as probabilistic events |
-| Rolling tournament folds | One tournament is too noisy for model selection | HIGH | Train on past data, assess on a later complete tournament |
-| Named model/feature registry | Comparisons must be reproducible and auditable | MEDIUM | Same fixtures, folds, seeds, and metric definitions |
-| Promotion gate | Complexity needs a predeclared acceptance rule | MEDIUM | Paired fold deltas and no material calibration regression |
+### Groups and standings
 
-### Differentiators
+- Competition-specific league/group navigation.
+- Current standings with played, wins, draws, losses, goals, goal difference, points, and official rank.
+- Completed, scheduled, postponed, and unresolved match states.
+- Official tie-break ordering and an explanation when a tie-break affects rank.
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Git-derived 2026 reconstruction | Recovers an operationally honest tournament record | HIGH | Existing hourly commits make this unusually feasible |
-| Dynamic attack/defence ability | Separates scoring and prevention from one-dimensional Elo | HIGH | Update strictly after each match |
-| Hybrid RF plus ability parameters | Direct benchmark to Groll et al. 2018 | HIGH | Ability is an input, not replaced by covariates |
-| Structural sparse-team prior | Stabilizes countries with little recent match evidence | MEDIUM | Hoffmann/Klement variables act as shrinkage only |
-| Open vs enriched operating modes | Preserves the core promise while testing squad/market value | MEDIUM | Report feature provenance and licensing per model |
-| Calibration layer | Improves probabilities without changing rankings | MEDIUM | Fit within rolling training folds, never on 2026 |
+### Fixtures and results
 
-### Anti-Features
+- Chronological fixture list with local kickoff time, venue, home/away status, source status, and matchday.
+- Result display for completed matches and forecast display for open matches.
+- Filters for group/league, team, matchday, and status.
 
-| Feature | Why Requested | Why Problematic | Alternative |
-|---------|---------------|-----------------|-------------|
-| Tune until WC 2026 improves | Produces a satisfying postmortem | Destroys the only final holdout | Freeze 2026 and improve earlier-fold aggregate results |
-| Include every literature model | Feels comprehensive | Creates a model zoo without decision value | Representative challengers by model family |
-| Optimize exact-score hit rate | Easy to explain | Modal score accuracy is not a proper probabilistic objective | Score the full score distribution |
-| Promote on average accuracy | Familiar headline | Ignores confidence and class imbalance | Proper scores plus calibration |
-| Automatic bookmaker ingestion | Strong external signal | Licensing, reproducibility, and product-identity problems | Manually frozen external benchmark |
+### Form
 
-## Dependencies
+- Competition-specific recent form.
+- Separate all-international form using the shared match history.
+- Explicit window, cutoff date, and match inclusion rules.
+- No leakage from matches after the forecast timestamp.
 
-```text
-Pre-kickoff ledger
-    -> 2026 retrospective
-    -> immutable benchmark contract
-        -> rolling tournament folds
-            -> statistical challengers
-            -> machine-learning challengers
-            -> calibration
-                -> promotion decision
+### Match forecasts
 
-Structural prior -> challenger feature sets
-Bookmaker consensus -> external benchmark only
-```
+- Calibrated home/draw/away probabilities.
+- Expected goals, most likely score, scoreline distribution, and uncertainty metadata.
+- Model version, feature cutoff, and release identity visible in the data credits or match detail.
 
-## Milestone Scope
+### Projected outcomes
 
-### Must Have
+- Simulated remaining fixtures using the frozen release and competition rules.
+- Projected standings and per-team probabilities for the relevant competition outcomes.
+- Scenario summaries that explain what changes a team's qualification, promotion, relegation, or play-off status.
 
-- [ ] Reconstruct and validate all available WC 2026 prematch forecasts.
-- [ ] Score 1X2, goals, totals, both-teams-to-score, knockout advancement, and stage reach.
-- [ ] Build multi-tournament rolling folds and simple Elo/current-model baselines.
-- [ ] Implement regularized Poisson and score-dependence challengers.
-- [ ] Implement the RF-plus-ability challenger and a controlled context/structural feature set.
-- [ ] Calibrate, compare, and publish a model promotion decision.
+## Competition-specific behavior
 
-### Add Only After Core Validation
+### 2026/27 Nations League
 
-- [ ] XGBoost goal challenger - only if RF shows stable nonlinear gains.
-- [ ] Dynamic xG attack/defence updates - only after international xG coverage is nonzero and audited.
-- [ ] Rich player availability - only with a legal, point-in-time source.
+- Four leagues: A, B, C, and D.
+- League-phase group tables and matchdays.
+- League A quarter-final and finals-path probabilities.
+- Direct promotion/relegation probabilities.
+- A/B and B/C two-legged play-off probabilities, plus conditional C/D handling.
+- Overall ranking output that accounts for different group sizes and UEFA's exclusion of fourth-placed results when comparing top-three teams.
 
-### Future
+### UEFA EURO 2028 qualifying
 
-- [ ] Live forecast evaluation service.
-- [ ] Automated bookmaker collection.
-- [ ] Deep sequence or neural models.
+- Twelve qualifying groups of four or five teams after the official draw.
+- Direct qualification probability for group winners and the eight best runners-up.
+- Host-reserved-place state for England, Republic of Ireland, Scotland, and Wales.
+- Nations League-linked play-off eligibility and path probabilities.
+- Variable play-off topology: two, three, or four final-tournament places depending on host places used.
+- Pre-draw mode that shows the competition, rules, dates, and model readiness without presenting nonexistent groups.
 
-## Prioritization
+## Differentiators
 
-| Feature | User Value | Cost | Priority |
-|---------|------------|------|----------|
-| Forecast ledger | HIGH | HIGH | P1 |
-| Proper scoring report | HIGH | MEDIUM | P1 |
-| Rolling folds | HIGH | HIGH | P1 |
-| Regularized/dependent count models | HIGH | MEDIUM | P1 |
-| RF plus ability | HIGH | HIGH | P1 |
-| Structural prior | MEDIUM | MEDIUM | P2 |
-| Post-hoc calibration | HIGH | MEDIUM | P2 |
-| XGBoost | MEDIUM | HIGH | P3 |
+- One shared team profile that lets users compare a team's competition form with all-international form without merging the two competition standings.
+- Competition pressure labels derived from the current state, such as direct qualification, play-off bubble, promotion race, or relegation danger.
+- Reproducible simulation seed and compact run manifest behind every published projection.
+- Source confidence and fallback badges so users can distinguish official snapshot data from audited manual fallback data.
+- Data credits collapsed at the bottom of the dashboard, consistent with the existing WC26 design direction.
+
+## Explicit non-features
+
+- No live event tracker, lineup/injury feed, or betting product.
+- No automatic use of restricted shot providers as a required dashboard source.
+- No display of EURO qualifying groups before UEFA publishes the draw.
 
 ## Sources
 
-- https://arxiv.org/abs/1806.03208
-- https://epub.ub.uni-muenchen.de/31579/1/Groll_Prediction.pdf
-- https://portal.fis.tum.de/de/publications/on-the-dependency-of-soccer-scores-a-sparse-bivariate-poisson-mod/
-- https://arxiv.org/abs/2410.09068
-- https://www.zeileis.org/news/fifa2018eval/
-- https://CRAN.R-project.org/package=scoringRules
-
----
-*Feature research for: xGelo v2.0*
-*Researched: 2026-07-20*
+- [2026/27 Nations League overview, groups, and dates](https://www.uefa.com/uefanationsleague/news/0298-1d6ef1acfaef-b54fcf1da859-1000--2026-27-uefa-nations-league-all-you-need-to-know/)
+- [2026/27 Nations League fixtures](https://www.uefa.com/uefanationsleague/news/02a2-1fea18abbcbc-456e846509e7-1000--2026-27-uefa-nations-league-all-the-league-phase-fixtures/)
+- [EURO 2028 qualification system](https://www.uefa.com/euro2028/news/0299-1dcf3fef69a9-41405d004b47-1000--qualification-system-for-uefa-euro-2028-approved/)
+- [EURO 2028 qualifying draw date](https://www.uefa.com/euro2028/news/029f-1f2ff991e87b-345fffcd69c3-1000--uefa-euro-2028-qualifying-draw-to-take-place-in-belfast/)
