@@ -5,15 +5,15 @@ milestone_name: Model Retrospective and Forecast Evolution
 current_phase: 12
 current_phase_name: calibration-promotion-and-model-release
 status: executing
-stopped_at: Planned Phase 12 gap closure 12-10
-last_updated: "2026-08-13T09:00:00.000Z"
+stopped_at: Completed 12-10-PLAN.md
+last_updated: "2026-08-13T08:13:23.342Z"
 last_activity: 2026-08-13
-last_activity_desc: Phase 12 gap-closure plan 12-10 passed independent plan verification
+last_activity_desc: 12-10 plan passed independent verification
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 42
-  completed_plans: 41
+  completed_plans: 42
 ---
 
 # xGelo Project State
@@ -21,11 +21,11 @@ progress:
 ## Current Position
 
 Phase: 12 (calibration-promotion-and-model-release) — IN PROGRESS
-Plan: 10 of 11
+Plan: 11 of 11
 Status: 12-10 gap closure planned and ready to execute
 Last activity: 2026-08-13 — 12-10 plan passed independent verification
 
-Progress: [█████████░] 98%
+Progress: [██████████] 100%
 
 ## Progress
 
@@ -117,6 +117,9 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 12 Plan 09: Metadata-only release preflight must validate trusted topology, bundled candidate authority, contract-declared artifact paths, and hashes before any RDS load.
 - [Phase ?]: Phase 12 Plan 09: Exported dashboard builders accept only resolver-returned models and reject caller-supplied raw model or baseline arguments.
 - [Phase 12]: Plan 12-10 requires exact raw promotion decision-token hashing, unconditional freeze/final-evaluation cross-links, explicit retained-release compatibility, calibrated outcome propagation, and dirty-worktree-safe delta verification.
+- [Phase ?]: Bind release authority to canonical paths and byte hashes only after trusted-root topology and evidence links pass.
+- [Phase ?]: Keep the immutable retained fixture behind an explicit raw-only missing-freeze-self compatibility branch; new contracts require freeze_self_sha256.
+- [Phase ?]: Map the established probability_view=derived_1x2 Phase 12 calibrator identity to the calibrated_1x2 dashboard consumer view.
 
 ## Blockers
 
@@ -136,8 +139,8 @@ Execute 12-10, rerun final verification, and only then close Phase 12 or start t
 
 ## Session
 
-**Last session:** 2026-08-13T09:00:00.000Z
-**Stopped at:** Planned 12-10-PLAN.md after independent checker pass
+**Last session:** 2026-08-13T08:13:23.330Z
+**Stopped at:** Completed 12-10-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -174,3 +177,4 @@ Execute 12-10, rerun final verification, and only then close Phase 12 or start t
 | Phase 12 P03 | 32 min | 2 tasks | 3 files |
 | Phase 12 P04 | 13m46s | 2 tasks | 4 files |
 | Phase 12 P09 | 2h 16m | 2 tasks | 6 files |
+| Phase 12 P10 | 37min | 3 tasks | 5 files |
