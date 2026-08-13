@@ -163,6 +163,7 @@ Each task followed RED/GREEN TDD commits:
 ## Issues Encountered
 
 - Git index writes in the shared checkout initially required repository write approval from the sandbox; approval was granted and all atomic commits completed.
+- The GSD `state.update-progress` handler reported no-op because this legacy `STATE.md` has no progress-bar field; the frontmatter counters and roadmap plan count were updated, and the human-readable state table was synchronized manually.
 - No authentication gates or external service setup were required.
 
 ## TDD Gate Compliance

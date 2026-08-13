@@ -3,38 +3,39 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
+current_phase_name: Source Contracts and Competition Registry
 status: executing
-stopped_at: Phase 13 context gathered
-last_updated: "2026-08-13T19:26:19.618Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-01-PLAN.md
+last_updated: "2026-08-13T20:04:37.419Z"
 last_activity: 2026-08-13
-last_activity_desc: Phase 13 planning complete
+last_activity_desc: Plan 13-01 completed; ready for Plan 13-02
 progress:
   total_phases: 1
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 3
+  completed_plans: 1
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: Phase 13 - Source Contracts and Competition Registry
-Plan: 1-3
+Phase: 13 (Source Contracts and Competition Registry) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-08-13 — Phase 13 planning complete
+Last activity: 2026-08-13 — Phase 13 execution started
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
-| 13 | Source Contracts and Competition Registry | Not started | 5/5 |
+| 13 | Source Contracts and Competition Registry | In progress | 5/5 |
 | 14 | Shared Competition State and Forecast Layer | Not started | 7/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 0 of 5 phases complete (0%); the v3.0 roadmap is defined and ready for `/gsd-discuss-phase 13`
+**Overall:** 0 of 5 phases complete (0%); Phase 13 has 1 of 3 plans complete.
 
 ## Project Reference
 
@@ -44,7 +45,7 @@ milestone scope.
 **Core value:** Accurate, calibrated international-football forecasting without
 dependence on paid data feeds.
 
-**Current focus:** Phase 13 — source snapshots, audited fallbacks, canonical IDs,
+**Current focus:** Phase 13 — Source Contracts and Competition Registry
 and the shared competition registry for Nations League and EURO qualifying.
 
 ## Decisions
@@ -54,6 +55,10 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Milestone v3.0]: Keep EURO 2028 qualifying in an explicit `pre_draw` state until an official UEFA draw snapshot exists after the 6 December 2026 draw.
 - [Milestone v3.0]: Publish both competition bundles atomically as one hourly batch or not at all.
 - [Milestone v3.0]: Keep Git publication compact by limiting committed outputs to code, manifests, and dashboard-ready payloads.
+- [Phase 13]: Use one edition-scoped source-bundle abstraction for official and reviewed fallback variants; reject mixed provenance.
+- [Phase 13]: Persist the Git commit SHA as parser identity and retain only compact hashes and metadata in committed artifacts.
+- [Phase 13]: Keep normalized display-name fallback visible and fail closed on unresolved or ambiguous team identity.
+- [Phase 13]: Register EURO qualifying as explicit pre_draw metadata with non-null source/output slots and no fabricated structures.
 
 ## Accumulated Context
 
@@ -63,24 +68,28 @@ and the shared competition registry for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Discuss Phase 13 scope and acceptance details.
-- Freeze the snapshot manifest, parser-version, and fallback metadata contract.
-- Confirm competition-edition IDs, lifecycle states, and output bundle naming.
+- Execute Plan 13-02 for bounded structured capture and local raw-byte retention.
+- Execute Plan 13-03 to expand identity and edition registry breadth for both competitions.
 - Prepare Phase 14 planning around shared standings, form, and point-in-time forecast safety.
 
 ## Next Action
 
-Run `/gsd-discuss-phase 13`.
+Run `/gsd-execute-phase 13` for Plan 13-02.
 
 ## Session Continuity
 
-**Last session:** 2026-08-13T18:37:18.160Z
-**Stopped at:** Phase 13 context gathered
-**Resume file:** .planning/phases/13-source-contracts-and-competition-registry/13-CONTEXT.md
+**Last session:** 2026-08-13T20:04:37.412Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-01-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
-No v3.0 execution metrics yet; phases have not started.
+Plan 13-01 execution metrics are recorded below.
 
 ---
 *State reset for milestone v3.0 on 2026-08-13*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 13-source-contracts-and-competition-registry P01 | 25 min | 2 tasks | 8 files |
