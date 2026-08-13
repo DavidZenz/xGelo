@@ -297,6 +297,32 @@ phase12_release_require_single <- function(value, name) {
   as.character(value)
 }
 
+phase12_release_validate_loaded_identity <- function(model_object, calibrator, metadata, contract) {
+  if (is.null(model_object$model_id) || !identical(as.character(model_object$model_id), metadata$selected_model_id)) {
+    stop("Phase 12 approved model identity drifted", call. = FALSE)
+  }
+  required_calibrator <- c("schema_version", "candidate_id", "track_id", "fit_status", "primary_probability_view", "distribution_unchanged")
+  if (!is.list(calibrator) || length(setdiff(required_calibrator, names(calibrator))) ||
+      !identical(as.character(calibrator$candidate_id), metadata$selected_model_id) ||
+      !identical(as.character(calibrator$track_id), metadata$track_id) ||
+      !isTRUE(calibrator$distribution_unchanged)) {
+    stop("Phase 12 calibrator identity or shape drifted", call. = FALSE)
+  }
+  if (identical(metadata$primary_probability_view, "raw_1x2")) {
+    if (!identical(metadata$status, "incumbent retained") || !identical(as.character(calibrator$fit_status), "raw_fallback") ||
+        !identical(as.character(calibrator$primary_probability_view), "raw_1x2")) {
+      stop("Phase 12 raw release calibrator compatibility shape is invalid", call. = FALSE)
+    }
+  } else {
+    if (!identical(as.character(calibrator$primary_probability_view), "calibrated_1x2") ||
+        !as.character(calibrator$fit_status) %in% c("fitted", "raw_fallback") ||
+        is.null(calibrator$temperature) || !is.finite(as.numeric(calibrator$temperature))) {
+      stop("Phase 12 calibrated release calibrator is incomplete", call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
 #' Validate the core staged release before completion or installation.
 #' @export
 validate_phase12_release_bundle <- function(staged_root, load_models = TRUE) {
@@ -331,20 +357,20 @@ validate_phase12_release_bundle <- function(staged_root, load_models = TRUE) {
   if (!identical(as.character(manifest$labels_embedded), rep("FALSE", nrow(manifest)))) stop("Phase 12 release label-content flag drifted", call. = FALSE)
 
   contract <- phase12_release_read_contract(contract_path)
-  for (field in c("schema_version", "release_id", "status", "selected_model_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "model_artifact", "calibrator_artifact", "labels_embedded")) {
+  for (field in c("schema_version", "release_id", "status", "selected_model_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "model_artifact", "calibrator_artifact", "labels_embedded", "freeze_id")) {
     if (is.null(contract[[field]])) stop("Phase 12 model contract is missing ", field, call. = FALSE)
   }
   if (!is.logical(contract$labels_embedded) || length(contract$labels_embedded) != 1L || is.na(contract$labels_embedded) || !identical(contract$labels_embedded, FALSE)) stop("Phase 12 model contract labels_embedded must be scalar FALSE", call. = FALSE)
-  if (!identical(as.character(contract$release_id), metadata$release_id) || !identical(as.character(contract$status), status) || !identical(as.character(contract$selected_model_id), metadata$selected_model_id) || !identical(as.character(contract$incumbent_id), as.character(manifest$incumbent_id[[1L]])) || !identical(as.character(contract$track_id), metadata$track_id) || !identical(as.character(contract$panel_id), metadata$panel_id) || as.integer(contract$score_support_g) != 40L || !identical(as.character(contract$primary_probability_view), metadata$primary_probability_view) || !identical(as.character(contract$decision_sha256), metadata$decision_sha256)) stop("Phase 12 model contract identity drifted", call. = FALSE)
+  if (!identical(as.character(contract$release_id), metadata$release_id) || !identical(as.character(contract$status), status) || !identical(as.character(contract$selected_model_id), metadata$selected_model_id) || !identical(as.character(contract$incumbent_id), as.character(manifest$incumbent_id[[1L]])) || !identical(as.character(contract$track_id), metadata$track_id) || !identical(as.character(contract$panel_id), metadata$panel_id) || as.integer(contract$score_support_g) != 40L || !identical(as.character(contract$primary_probability_view), metadata$primary_probability_view) || !identical(as.character(contract$decision_sha256), metadata$decision_sha256) || !identical(as.character(contract$freeze_id), metadata$freeze_id)) stop("Phase 12 model contract identity drifted", call. = FALSE)
   model_relative_path <- phase12_release_safe_relative_path(contract$model_artifact)
   calibrator_relative_path <- phase12_release_safe_relative_path(contract$calibrator_artifact)
-  if (identical(model_relative_path, calibrator_relative_path)) stop("Phase 12 model contract artifact paths must be distinct", call. = FALSE)
+  if (!identical(model_relative_path, "model/approved_model.rds") || !identical(calibrator_relative_path, "model/calibrator.rds") || identical(model_relative_path, calibrator_relative_path)) stop("Phase 12 model contract artifact identities are not canonical", call. = FALSE)
   model_path <- phase12_release_path_under_root(staged_root, model_relative_path, must_work = TRUE)
   calibrator_path <- phase12_release_path_under_root(staged_root, calibrator_relative_path, must_work = TRUE)
   model_rows <- manifest[as.character(manifest$relative_path) == model_relative_path, , drop = FALSE]
   calibrator_rows <- manifest[as.character(manifest$relative_path) == calibrator_relative_path, , drop = FALSE]
-  if (nrow(model_rows) != 1L || !identical(as.character(model_rows$artifact_role[[1L]]), "model")) stop("Phase 12 model contract model_artifact does not map to one model manifest row", call. = FALSE)
-  if (nrow(calibrator_rows) != 1L || !identical(as.character(calibrator_rows$artifact_role[[1L]]), "model")) stop("Phase 12 model contract calibrator_artifact does not map to one model manifest row", call. = FALSE)
+  if (nrow(model_rows) != 1L || !identical(as.character(model_rows$artifact[[1L]]), model_relative_path) || !identical(as.character(model_rows$artifact_role[[1L]]), "model")) stop("Phase 12 model contract model_artifact does not map to one canonical model manifest row or artifact_role", call. = FALSE)
+  if (nrow(calibrator_rows) != 1L || !identical(as.character(calibrator_rows$artifact[[1L]]), calibrator_relative_path) || !identical(as.character(calibrator_rows$artifact_role[[1L]]), "model")) stop("Phase 12 model contract calibrator_artifact does not map to one model manifest row or artifact_role", call. = FALSE)
   if (!identical(tolower(as.character(model_rows$sha256[[1L]])), phase12_release_file_sha256(model_path)) || !identical(tolower(as.character(model_rows$canonical_content_sha256[[1L]])), phase12_release_file_sha256(model_path))) stop("Phase 12 model artifact hash metadata mismatch", call. = FALSE)
   if (!identical(tolower(as.character(calibrator_rows$sha256[[1L]])), phase12_release_file_sha256(calibrator_path)) || !identical(tolower(as.character(calibrator_rows$canonical_content_sha256[[1L]])), phase12_release_file_sha256(calibrator_path))) stop("Phase 12 calibrator artifact hash metadata mismatch", call. = FALSE)
 
@@ -365,9 +391,20 @@ validate_phase12_release_bundle <- function(staged_root, load_models = TRUE) {
   freeze <- utils::read.csv(freeze_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   final_evaluation <- utils::read.csv(final_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   if (!nrow(freeze) || !nrow(final_evaluation)) stop("Phase 12 release copied manifests must be non-empty", call. = FALSE)
-  if ("score_support_g" %in% names(freeze) && any(as.integer(freeze$score_support_g) != 40L)) stop("Phase 12 release freeze G drifted", call. = FALSE)
+  if (!all(c("freeze_id", "freeze_self_sha256", "candidate_id") %in% names(freeze))) stop("Phase 12 release freeze evidence identity is incomplete", call. = FALSE)
+  freeze_ids <- unique(as.character(freeze$freeze_id))
+  freeze_self <- unique(as.character(freeze$freeze_self_sha256))
+  if (length(freeze_ids) != 1L || !identical(freeze_ids[[1L]], metadata$freeze_id) || length(freeze_self) != 1L || !grepl("^[0-9a-fA-F]{64}$", freeze_self[[1L]])) stop("Phase 12 release freeze identity is invalid", call. = FALSE)
+  freeze_g <- if ("score_support_g" %in% names(freeze)) freeze$score_support_g else if ("selected_g" %in% names(freeze)) freeze$selected_g else if ("score_support" %in% names(freeze)) freeze$score_support else NA
+  if (any(is.na(suppressWarnings(as.integer(freeze_g))) | suppressWarnings(as.integer(freeze_g)) != 40L)) stop("Phase 12 release freeze G drifted", call. = FALSE)
+  if (!is.null(contract$freeze_self_sha256)) {
+    if (!identical(as.character(contract$freeze_self_sha256), freeze_self[[1L]])) stop("Phase 12 model contract freeze self identity drifted", call. = FALSE)
+  } else if (!(identical(status, "incumbent retained") && identical(metadata$primary_probability_view, "raw_1x2"))) {
+    stop("Phase 12 model contract freeze_self_sha256 is required", call. = FALSE)
+  }
+  if (!all(c("freeze_id", "freeze_self_sha256", "track_id") %in% names(final_evaluation))) stop("Phase 12 final-evaluation freeze identity is incomplete", call. = FALSE)
+  if (any(as.character(final_evaluation$freeze_id) != metadata$freeze_id) || any(as.character(final_evaluation$freeze_self_sha256) != freeze_self[[1L]]) || any(as.character(final_evaluation$track_id) != metadata$track_id)) stop("Phase 12 final-evaluation freeze or track link drifted", call. = FALSE)
   if ("score_support_g" %in% names(final_evaluation) && any(as.integer(final_evaluation$score_support_g) != 40L)) stop("Phase 12 release final-evaluation G drifted", call. = FALSE)
-  if ("track_id" %in% names(final_evaluation) && any(as.character(final_evaluation$track_id) != "updating")) stop("Phase 12 release final-evaluation track drifted", call. = FALSE)
   if (!"promotion_decision_sha256" %in% names(final_evaluation) || nrow(final_evaluation) != 9L) stop("Phase 12 release promotion report identity is incomplete", call. = FALSE)
   supplied <- as.character(final_evaluation$promotion_decision_sha256)
   if (any(is.na(supplied) | !grepl("^[0-9a-fA-F]{64}$", supplied)) || length(unique(tolower(supplied))) != 1L) stop("Phase 12 release promotion report identity is invalid", call. = FALSE)
@@ -380,8 +417,7 @@ validate_phase12_release_bundle <- function(staged_root, load_models = TRUE) {
   if (isTRUE(load_models)) {
     model_object <- readRDS(model_path)
     calibrator <- readRDS(calibrator_path)
-    if (!is.null(model_object$model_id) && !identical(as.character(model_object$model_id), metadata$selected_model_id)) stop("Phase 12 approved model identity drifted", call. = FALSE)
-    if (!is.null(calibrator$candidate_id) && !identical(as.character(calibrator$candidate_id), metadata$selected_model_id)) stop("Phase 12 calibrator identity drifted", call. = FALSE)
+    phase12_release_validate_loaded_identity(model_object, calibrator, metadata, contract)
     result$model_object <- model_object
     result$calibrator <- calibrator
   }
@@ -436,7 +472,7 @@ stage_phase12_release_bundle <- function(
     score_distribution_contract = "fitted G=40 score distribution unchanged",
     decision_sha256 = decision$decision_sha256, freeze_id = identity$freeze_id,
     model_artifact = "model/approved_model.rds", calibrator_artifact = "model/calibrator.rds",
-    labels_embedded = FALSE
+    freeze_self_sha256 = phase12_release_first_value(freeze, c("freeze_self_sha256")), labels_embedded = FALSE
   )
   phase12_release_write_json(contract, file.path(staged_root, "model_contract.json"))
   provenance <- list(

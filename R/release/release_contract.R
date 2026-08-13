@@ -15,15 +15,60 @@ phase12_release_contract_source_if_missing <- function() {
 phase12_release_contract_source_if_missing()
 
 phase12_release_trusted_root <- function(trusted_root = "outputs/releases") {
-  normalizePath(trusted_root, winslash = "/", mustWork = TRUE)
+  if (length(trusted_root) != 1L || is.na(trusted_root) || !nzchar(as.character(trusted_root))) {
+    stop("Phase 12 trusted release root is invalid", call. = FALSE)
+  }
+  if (!dir.exists(trusted_root) || nzchar(Sys.readlink(trusted_root))) {
+    stop("Phase 12 trusted release root does not exist or is not a real directory", call. = FALSE)
+  }
+  root <- normalizePath(trusted_root, winslash = "/", mustWork = TRUE)
+  if (!isTRUE(file.info(root)$isdir) || nzchar(Sys.readlink(root))) {
+    stop("Phase 12 trusted release root does not exist or is not a real directory", call. = FALSE)
+  }
+  root
+}
+
+phase12_release_contract_is_symlink <- function(path) {
+  link <- Sys.readlink(path)
+  length(link) == 1L && !is.na(link) && nzchar(link)
+}
+
+phase12_release_contract_assert_under_root <- function(path, root, label) {
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  normalized <- normalizePath(path, winslash = "/", mustWork = TRUE)
+  if (!identical(normalized, root) && !startsWith(normalized, paste0(root, "/"))) {
+    stop("Phase 12 ", label, " escapes the trusted root", call. = FALSE)
+  }
+  normalized
 }
 
 phase12_release_contract_manifest_candidates <- function(trusted_root) {
   root <- phase12_release_trusted_root(trusted_root)
   root_manifest <- file.path(root, "release_manifest.csv")
-  dirs <- list.dirs(root, recursive = FALSE, full.names = TRUE)
+  if (file.exists(root_manifest) && phase12_release_contract_is_symlink(root_manifest)) {
+    stop("Phase 12 root release manifest must not be a symlink", call. = FALSE)
+  }
+  dirs <- list.files(root, full.names = TRUE, all.files = FALSE, no.. = TRUE)
+  dirs <- dirs[vapply(dirs, dir.exists, logical(1))]
+  if (any(vapply(dirs, phase12_release_contract_is_symlink, logical(1)))) {
+    stop("Phase 12 immediate-child release directory must not be a symlink", call. = FALSE)
+  }
   manifests <- file.path(dirs, "release_manifest.csv")
-  sort(c(root_manifest[file.exists(root_manifest)], manifests[file.exists(manifests)]))
+  if (any(vapply(manifests[file.exists(manifests)], phase12_release_contract_is_symlink, logical(1)))) {
+    stop("Phase 12 child release manifest must not be a symlink", call. = FALSE)
+  }
+  candidates <- c(root_manifest[file.exists(root_manifest)], manifests[file.exists(manifests)])
+  if (!length(candidates)) return(character())
+  normalized <- vapply(candidates, function(path) {
+    manifest <- phase12_release_contract_assert_under_root(path, root, "release manifest")
+    release_dir <- dirname(manifest)
+    if (!isTRUE(file.info(release_dir)$isdir) || phase12_release_contract_is_symlink(release_dir)) {
+      stop("Phase 12 release directory is not a trusted real directory", call. = FALSE)
+    }
+    phase12_release_contract_assert_under_root(release_dir, root, "release directory")
+    manifest
+  }, character(1))
+  sort(normalized)
 }
 
 phase12_release_contract_path <- function(root, path) {
@@ -93,10 +138,15 @@ phase12_release_contract_read_benchmark_evidence <- function(release_root) {
 
 phase12_release_contract_recompute_decision_sha256 <- function(evidence, status, selected_id) {
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Phase 12 release decision validation", call. = FALSE)
-  path <- tempfile("phase12-benchmark-evidence-", fileext = ".csv")
-  on.exit(unlink(path), add = TRUE)
-  utils::write.csv(evidence, path, row.names = FALSE, na = "", quote = TRUE)
-  digest::digest(path, algo = "sha256", file = TRUE)
+  if (!is.data.frame(evidence) || !nrow(evidence)) stop("Phase 12 decision evidence is empty", call. = FALSE)
+  if (length(status) != 1L || !status %in% c("challenger approved", "incumbent retained")) {
+    stop("Phase 12 release decision token is invalid", call. = FALSE)
+  }
+  if (length(selected_id) != 1L || is.na(selected_id) || !nzchar(as.character(selected_id))) {
+    stop("Phase 12 selected model identity is invalid", call. = FALSE)
+  }
+  evidence_csv <- paste(capture.output(utils::write.csv(evidence, stdout(), row.names = FALSE, na = "", quote = TRUE)), collapse = "\n")
+  digest::digest(paste(evidence_csv, status, as.character(selected_id), sep = "\n"), algo = "sha256", serialize = FALSE)
 }
 
 phase12_release_contract_normalise_report_status <- function(status) {
@@ -114,10 +164,14 @@ phase12_release_contract_validate_candidate_authority <- function(
   contract_selected <- as.character(contract$selected_model_id)
   contract_incumbent <- as.character(contract$incumbent_id)
   if (!identical(as.character(contract$status), status) || !identical(contract_selected, selected_id) || !identical(contract_incumbent, incumbent_id)) stop("Phase 12 release candidate identity disagrees with the model contract", call. = FALSE)
+  raw_decision <- phase12_release_first_value(report$evidence, c("release_decision"), report$status)
+  if (!identical(raw_decision, if (identical(status, "approved")) "challenger approved" else "incumbent retained")) stop("Phase 12 raw release decision token is invalid", call. = FALSE)
   if (!identical(phase12_release_contract_normalise_report_status(report$status), status) || !identical(report$selected_id, selected_id)) stop("Phase 12 bundled benchmark decision identity disagrees with the release", call. = FALSE)
   if (is.null(provenance$decision_evidence_sha256) || !grepl("^[0-9a-fA-F]{64}$", as.character(provenance$decision_evidence_sha256))) stop("Phase 12 release provenance candidate evidence identity is invalid", call. = FALSE)
-  recomputed <- phase12_release_contract_recompute_decision_sha256(report$evidence, report$status, report$selected_id)
-  if (!identical(tolower(recomputed), tolower(as.character(provenance$decision_evidence_sha256))) || !identical(tolower(report$decision_sha256), tolower(metadata$decision_sha256))) stop("Phase 12 embedded promotion decision identity mismatch", call. = FALSE)
+  recomputed <- phase12_release_contract_recompute_decision_sha256(report$evidence, raw_decision, report$selected_id)
+  exact_hash <- identical(tolower(recomputed), tolower(as.character(metadata$decision_sha256))) && identical(tolower(report$decision_sha256), tolower(metadata$decision_sha256)) && identical(tolower(as.character(provenance$decision_sha256)), tolower(as.character(metadata$decision_sha256)))
+  legacy_retained <- identical(status, "incumbent retained") && identical(as.character(contract$primary_probability_view), "raw_1x2") && is.null(contract$freeze_self_sha256) && identical(as.character(contract$release_id), "phase12-wc2026-incumbent-retained-v1") && identical(tolower(as.character(provenance$decision_evidence_sha256)), tolower(phase12_release_table_hash(report$evidence)))
+  if (!exact_hash && !legacy_retained) stop("Phase 12 embedded promotion decision identity mismatch", call. = FALSE)
   if (!identical(as.character(provenance$decision_sha256), metadata$decision_sha256)) stop("Phase 12 release provenance decision identity mismatch", call. = FALSE)
   if (identical(status, "incumbent retained")) {
     if (!identical(candidate_id, selected_id) || !identical(selected_id, incumbent_id) || !identical(incumbent_id, "open_nb_incumbent")) stop("Phase 12 incumbent-retained candidate identity is invalid", call. = FALSE)
@@ -141,7 +195,7 @@ preflight_phase12_approved_release <- function(trusted_root = NULL, release_mani
   trusted_root <- phase12_release_trusted_root(trusted_root)
   candidates <- phase12_release_contract_manifest_candidates(trusted_root)
   if (length(candidates) != 1L) stop("Phase 12 release resolution is ambiguous or missing", call. = FALSE)
-  pinned <- normalizePath(candidates[[1L]], winslash = "/", mustWork = TRUE)
+  pinned <- phase12_release_contract_assert_under_root(candidates[[1L]], trusted_root, "release manifest")
   if (!is.null(release_manifest_path) && !identical(phase12_release_contract_manifest_path(trusted_root, release_manifest_path), pinned)) stop("Phase 12 supplied release manifest is not the sole trusted candidate", call. = FALSE)
   release_root <- dirname(pinned)
   validated <- validate_phase12_complete_release_bundle(release_root, load_models = FALSE)
@@ -181,17 +235,36 @@ validate_phase12_release_contract <- function(release_root, release_manifest = N
 #' @export
 resolve_phase12_approved_release <- function(trusted_root = "outputs/releases", release_manifest_path = NULL, validated_preflight = NULL) {
   phase12_release_contract_source_if_missing()
-  if (is.null(validated_preflight)) validated_preflight <- preflight_phase12_approved_release(trusted_root, release_manifest_path)
-  if (!is.list(validated_preflight) || is.null(validated_preflight$release_root) || is.null(validated_preflight$release_manifest_path)) stop("Phase 12 validated preflight is invalid", call. = FALSE)
-  release_root <- normalizePath(validated_preflight$release_root, winslash = "/", mustWork = TRUE)
-  manifest_path <- normalizePath(validated_preflight$release_manifest_path, winslash = "/", mustWork = TRUE)
+  fresh_preflight <- preflight_phase12_approved_release(trusted_root, release_manifest_path)
+  if (!is.null(validated_preflight)) {
+    if (!is.list(validated_preflight) || is.null(validated_preflight$trusted_root) || is.null(validated_preflight$release_root) || is.null(validated_preflight$release_manifest_path) || is.null(validated_preflight$metadata)) {
+      stop("Phase 12 validated preflight is invalid", call. = FALSE)
+    }
+    supplied_paths <- c(
+      trusted_root = normalizePath(validated_preflight$trusted_root, winslash = "/", mustWork = TRUE),
+      release_root = normalizePath(validated_preflight$release_root, winslash = "/", mustWork = TRUE),
+      release_manifest_path = normalizePath(validated_preflight$release_manifest_path, winslash = "/", mustWork = TRUE)
+    )
+    fresh_paths <- c(
+      trusted_root = fresh_preflight$trusted_root,
+      release_root = fresh_preflight$release_root,
+      release_manifest_path = fresh_preflight$release_manifest_path
+    )
+    if (!identical(supplied_paths, fresh_paths)) stop("Phase 12 validated preflight handoff is stale or forged", call. = FALSE)
+    identity_fields <- c("release_id", "status", "selected_model_id", "candidate_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "freeze_id")
+    if (!is.list(validated_preflight$metadata) || any(!vapply(identity_fields, function(field) identical(as.character(validated_preflight$metadata[[field]]), as.character(fresh_preflight$metadata[[field]])), logical(1)))) {
+      stop("Phase 12 validated preflight authority identity drifted", call. = FALSE)
+    }
+  }
+  release_root <- fresh_preflight$release_root
+  manifest_path <- fresh_preflight$release_manifest_path
   full <- validate_phase12_complete_release_bundle(release_root, load_models = TRUE)
   manifest <- full$release_manifest
   contract <- full$model_contract
   model_object <- full$model_object
   calibrator <- full$calibrator
-  if (!is.null(model_object$model_id) && !identical(as.character(model_object$model_id), as.character(contract$selected_model_id))) stop("Phase 12 resolved model identity drifted", call. = FALSE)
-  if (!is.null(calibrator$candidate_id) && !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id))) stop("Phase 12 resolved calibrator identity drifted", call. = FALSE)
+  if (is.null(model_object$model_id) || !identical(as.character(model_object$model_id), as.character(contract$selected_model_id))) stop("Phase 12 resolved model identity drifted", call. = FALSE)
+  if (is.null(calibrator$candidate_id) || !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id))) stop("Phase 12 resolved calibrator identity drifted", call. = FALSE)
   list(
     release_root = release_root, release_manifest_path = manifest_path,
     release_manifest = manifest, model_contract = contract,
