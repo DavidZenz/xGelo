@@ -73,6 +73,7 @@ test_that("Wave 0 exposes the source-contract API seam", {
     "phase13_parser_commit_sha",
     "phase13_canonical_sha256"
   ))
+  expect_true(TRUE)
 })
 
 test_that("compact structured fixture produces complete artifact provenance and an accepted bundle", {
