@@ -347,6 +347,43 @@ attach_worldcup_actual_results <- function(
   fixtures
 }
 
+dashboard_prepare_probability_view <- function(calibrator = NULL, primary_probability_view = "raw_1x2") {
+  primary_probability_view <- as.character(primary_probability_view[[1L]])
+  if (!primary_probability_view %in% c("raw_1x2", "calibrated_1x2")) {
+    stop("Dashboard release probability view is unsupported", call. = FALSE)
+  }
+  if (identical(primary_probability_view, "raw_1x2")) return(primary_probability_view)
+  required <- c("schema_version", "candidate_id", "track_id", "fit_status", "primary_probability_view", "distribution_unchanged", "temperature")
+  if (!is.list(calibrator) || length(setdiff(required, names(calibrator))) ||
+      !identical(as.character(calibrator$primary_probability_view), "calibrated_1x2") ||
+      !as.character(calibrator$fit_status) %in% c("fitted", "raw_fallback") ||
+      !isTRUE(calibrator$distribution_unchanged) || !is.finite(as.numeric(calibrator$temperature))) {
+    stop("Dashboard calibrated release requires a structurally valid calibrator", call. = FALSE)
+  }
+  if (!exists("apply_phase12_1x2_calibrator", mode = "function")) {
+    candidates <- c(getwd(), file.path(getwd(), "../.."), file.path(getwd(), "../../.."))
+    root <- candidates[vapply(candidates, function(path) file.exists(file.path(path, "R/calibration/probability_calibration.R")), logical(1))][1L]
+    if (is.na(root) || !nzchar(root)) stop("Phase 12 calibrated probability API is unavailable", call. = FALSE)
+    source(file.path(root, "R/calibration/probability_calibration.R"), local = .GlobalEnv)
+  }
+  probe <- tryCatch(
+    apply_phase12_1x2_calibrator(calibrator, c(home = 0.45, draw = 0.25, away = 0.30)),
+    error = function(error) stop("Dashboard calibrated release calibrator is invalid: ", conditionMessage(error), call. = FALSE)
+  )
+  if (!is.numeric(probe) || is.null(names(probe)) || !setequal(names(probe), c("home", "draw", "away"))) {
+    stop("Dashboard calibrated release calibrator returned an invalid probability view", call. = FALSE)
+  }
+  primary_probability_view
+}
+
+dashboard_apply_probability_view <- function(raw_probabilities, calibrator, primary_probability_view) {
+  raw_probabilities <- setNames(as.numeric(raw_probabilities[c("home", "draw", "away")]), c("home", "draw", "away"))
+  if (identical(primary_probability_view, "calibrated_1x2")) {
+    return(setNames(as.numeric(apply_phase12_1x2_calibrator(calibrator, raw_probabilities)[c("home", "draw", "away")]), c("home", "draw", "away")))
+  }
+  raw_probabilities
+}
+
 forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 20260611, ...) {
   if (!exists("simulate_fixture")) {
     source("R/forecast/monte_carlo.R")
@@ -354,6 +391,9 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
   if (!is.null(seed)) set.seed(seed)
   extra_args <- list(...)
   get_extra_arg <- function(name) extra_args[[name, exact = TRUE]]
+  calibrator <- get_extra_arg("calibrator")
+  primary_probability_view <- dashboard_prepare_probability_view(get_extra_arg("calibrator"), if (is.null(get_extra_arg("primary_probability_view"))) "raw_1x2" else get_extra_arg("primary_probability_view"))
+  extra_args <- extra_args[setdiff(names(extra_args), c("calibrator", "primary_probability_view"))]
   if (is.null(get_extra_arg("home_model"))) {
     home_model_path <- if (!is.null(get_extra_arg("home_model_path"))) get_extra_arg("home_model_path") else "models/home_goal_model.rds"
     if (file.exists(home_model_path)) extra_args$home_model <- readRDS(home_model_path)
@@ -392,6 +432,7 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
   fixture_seeds <- sample.int(.Machine$integer.max, nrow(fixtures))
   match_rows <- list()
   scoreline_rows <- list()
+  outcome_view_rows <- list()
 
   for (i in seq_len(nrow(fixtures))) {
     fixture <- fixtures[i, ]
@@ -454,6 +495,12 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
         )
       )
     }
+    raw_outcome <- c(home = sim$win_prob, draw = sim$draw_prob, away = sim$loss_prob)
+    displayed_outcome <- if (fixture_completed) raw_outcome else dashboard_apply_probability_view(raw_outcome, calibrator, primary_probability_view)
+    sim$win_prob <- displayed_outcome[["home"]]
+    sim$draw_prob <- displayed_outcome[["draw"]]
+    sim$loss_prob <- displayed_outcome[["away"]]
+    sim$predicted_outcome <- if (which.max(displayed_outcome) == 1L) "home_win" else if (which.max(displayed_outcome) == 2L) "draw" else "away_win"
     match_rows[[i]] <- data.frame(
       match_id = fixture$match_id,
       stage = fixture$stage,
@@ -485,6 +532,14 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
       over_2_5_probability = sim$over_2_5_probability,
       under_2_5_probability = sim$under_2_5_probability,
       both_teams_to_score_probability = sim$both_teams_to_score_probability,
+      probability_view = primary_probability_view,
+      stringsAsFactors = FALSE
+    )
+    outcome_view_rows[[i]] <- data.frame(
+      match_id = fixture$match_id,
+      p_home_raw = unname(raw_outcome[["home"]]), p_draw_raw = unname(raw_outcome[["draw"]]), p_away_raw = unname(raw_outcome[["away"]]),
+      p_home = unname(displayed_outcome[["home"]]), p_draw = unname(displayed_outcome[["draw"]]), p_away = unname(displayed_outcome[["away"]]),
+      predicted_outcome = sim$predicted_outcome, probability_view = primary_probability_view,
       stringsAsFactors = FALSE
     )
     dist <- sim$scoreline_distribution
@@ -495,7 +550,8 @@ forecast_dashboard_matches <- function(fixtures, n_match_sim = 1000, seed = 2026
 
   list(
     match_forecasts = do.call(rbind, match_rows),
-    scoreline_distributions = do.call(rbind, scoreline_rows)
+    scoreline_distributions = do.call(rbind, scoreline_rows),
+    outcome_view = do.call(rbind, outcome_view_rows)
   )
 }
 
@@ -1043,6 +1099,8 @@ make_knockout_route_estimator <- function(
     forecast_features_path = NULL,
     require_forecast_features = FALSE,
     model_version = NULL,
+    calibrator = NULL,
+    primary_probability_view = "raw_1x2",
     top_n_scorelines = 5,
     precompute_teams = NULL,
     precompute_workers = 1,
@@ -1051,6 +1109,7 @@ make_knockout_route_estimator <- function(
     cache = new.env(parent = emptyenv())
 ) {
   route_method <- match.arg(route_method)
+  primary_probability_view <- dashboard_prepare_probability_view(calibrator, primary_probability_view)
   if (!file.exists(elo_ratings_path)) stop(paste("Elo ratings not found:", elo_ratings_path))
 
   if (is.null(home_model)) {
@@ -1300,9 +1359,15 @@ make_knockout_route_estimator <- function(
       slot2_probs <- stats::dnbinom(goals, size = away_theta, mu = slot2_lambda)
       score_grid <- outer(slot1_probs, slot2_probs)
       score_grid <- score_grid / sum(score_grid)
-      slot1_regulation <- sum(score_grid[row(score_grid) > col(score_grid)])
-      draw_after_regulation <- sum(diag(score_grid))
-      slot2_regulation <- sum(score_grid[row(score_grid) < col(score_grid)])
+      raw_outcome <- c(
+        home = sum(score_grid[row(score_grid) > col(score_grid)]),
+        draw = sum(diag(score_grid)),
+        away = sum(score_grid[row(score_grid) < col(score_grid)])
+      )
+      outcome <- dashboard_apply_probability_view(raw_outcome, calibrator, primary_probability_view)
+      slot1_regulation <- outcome[["home"]]
+      draw_after_regulation <- outcome[["draw"]]
+      slot2_regulation <- outcome[["away"]]
       slot1_extra <- draw_after_regulation * tiebreak_probability
       slot2_extra <- draw_after_regulation * (1 - tiebreak_probability)
       scoreline_summary <- summarise_knockout_scoreline_grid(
@@ -1332,9 +1397,11 @@ make_knockout_route_estimator <- function(
     if (!is.null(route_seed)) set.seed(route_seed)
     slot1_goals <- rnbinom(n_sim, size = get_negative_binomial_theta(home_model), prob = get_negative_binomial_theta(home_model) / (get_negative_binomial_theta(home_model) + slot1_lambda))
     slot2_goals <- rnbinom(n_sim, size = get_negative_binomial_theta(away_model), prob = get_negative_binomial_theta(away_model) / (get_negative_binomial_theta(away_model) + slot2_lambda))
-    slot1_regulation <- mean(slot1_goals > slot2_goals)
-    draw_after_regulation <- mean(slot1_goals == slot2_goals)
-    slot2_regulation <- mean(slot2_goals > slot1_goals)
+    raw_outcome <- c(home = mean(slot1_goals > slot2_goals), draw = mean(slot1_goals == slot2_goals), away = mean(slot2_goals > slot1_goals))
+    outcome <- dashboard_apply_probability_view(raw_outcome, calibrator, primary_probability_view)
+    slot1_regulation <- outcome[["home"]]
+    draw_after_regulation <- outcome[["draw"]]
+    slot2_regulation <- outcome[["away"]]
     slot1_extra <- draw_after_regulation * tiebreak_probability
     slot2_extra <- draw_after_regulation * (1 - tiebreak_probability)
     scoreline_summary <- summarise_knockout_scorelines(
@@ -1544,12 +1611,20 @@ simulate_group_stage_dashboard <- function(
     knockout_route_estimator = NULL,
     actual_knockout_results = NULL,
     n_workers = default_dashboard_workers(),
+    outcome_view = NULL,
+    calibrator = NULL,
+    primary_probability_view = "raw_1x2",
     ...
 ) {
   if (!exists("rank_group_table")) {
     source("R/forecast/tournament.R")
   }
   if (!is.null(seed)) set.seed(seed)
+  primary_probability_view <- as.character(primary_probability_view[[1L]])
+  if (!primary_probability_view %in% c("raw_1x2", "calibrated_1x2")) stop("Dashboard group probability view is unsupported", call. = FALSE)
+  if (identical(primary_probability_view, "calibrated_1x2") && (!is.data.frame(outcome_view) || !all(c("match_id", "p_home", "p_draw", "p_away") %in% names(outcome_view)))) {
+    stop("Dashboard calibrated group simulation requires an explicit per-match outcome view", call. = FALSE)
+  }
   teams <- groups[, c("group", "position", "team", "display_team", "fifa_code")]
   team_names <- teams$team
   team_index <- match(team_names, team_names)
@@ -1604,6 +1679,16 @@ simulate_group_stage_dashboard <- function(
     dist_away_goals[[i]] <- as.integer(dist$away_goals)
     dist_cumprob[[i]] <- cumsum(dist$probability / sum(dist$probability))
   }
+  outcome_cumprob <- vector("list", fixture_count)
+  if (identical(primary_probability_view, "calibrated_1x2")) {
+    outcome_index <- match(fixtures$match_id, as.character(outcome_view$match_id))
+    if (anyNA(outcome_index)) stop("Dashboard calibrated outcome view is incomplete", call. = FALSE)
+    for (i in seq_len(fixture_count)) {
+      probabilities <- as.numeric(outcome_view[outcome_index[i], c("p_home", "p_draw", "p_away")])
+      if (any(!is.finite(probabilities)) || any(probabilities < 0) || abs(sum(probabilities) - 1) > 1e-6) stop("Dashboard calibrated outcome view is not a probability simplex", call. = FALSE)
+      outcome_cumprob[[i]] <- cumsum(probabilities)
+    }
+  }
   if (is.null(knockout_ratings)) {
     knockout_ratings <- data.frame(team = team_names, rating = 1500, stringsAsFactors = FALSE)
   }
@@ -1611,12 +1696,14 @@ simulate_group_stage_dashboard <- function(
   rating_by_team <- stats::setNames(knockout_ratings$rating, knockout_ratings$team)
   if (is.null(knockout_date)) knockout_date <- max(fixtures$date, na.rm = TRUE) + 1
   if (is.null(knockout_route_estimator)) {
-    knockout_route_estimator <- make_knockout_route_estimator(
+      knockout_route_estimator <- make_knockout_route_estimator(
       rating_by_team = rating_by_team,
       date = knockout_date,
       n_sim = n_knockout_sim,
-      seed = if (!is.null(seed)) seed + 100000L else NULL,
-      ...
+        seed = if (!is.null(seed)) seed + 100000L else NULL,
+        calibrator = calibrator,
+        primary_probability_view = primary_probability_view,
+        ...
     )
   }
   route_advancement <- matrix(NA_real_, nrow = team_count, ncol = team_count)
@@ -1765,8 +1852,14 @@ simulate_group_stage_dashboard <- function(
         sampled_idx <- which(runif(1) <= dist_cumprob[[i]])[1]
         home_goals <- dist_home_goals[[i]][sampled_idx]
         away_goals <- dist_away_goals[[i]][sampled_idx]
-        home_points <- if (home_goals > away_goals) 3 else if (home_goals == away_goals) 1 else 0
-        away_points <- if (away_goals > home_goals) 3 else if (home_goals == away_goals) 1 else 0
+        if (identical(primary_probability_view, "calibrated_1x2")) {
+          outcome_idx <- which(runif(1) <= outcome_cumprob[[i]])[1]
+          home_points <- if (outcome_idx == 1L) 3 else if (outcome_idx == 2L) 1 else 0
+          away_points <- if (outcome_idx == 3L) 3 else if (outcome_idx == 2L) 1 else 0
+        } else {
+          home_points <- if (home_goals > away_goals) 3 else if (home_goals == away_goals) 1 else 0
+          away_points <- if (away_goals > home_goals) 3 else if (home_goals == away_goals) 1 else 0
+        }
         home_idx <- home_team_idx[i]
         away_idx <- away_team_idx[i]
         points[home_idx] <- points[home_idx] + home_points
@@ -2366,6 +2459,9 @@ build_bracket_paths <- function(
     seed = 20260628,
     knockout_route_estimator = NULL,
     actual_knockout_results = NULL,
+    outcome_view = NULL,
+    calibrator = NULL,
+    primary_probability_view = "raw_1x2",
     ...
 ) {
   paths <- worldcup_bracket_template(include_champion = TRUE)
@@ -2510,6 +2606,8 @@ build_bracket_paths <- function(
           date = knockout_date,
           n_sim = n_knockout_sim,
           seed = seed + i,
+          calibrator = calibrator,
+          primary_probability_view = primary_probability_view,
           ...
         )
       }
@@ -3093,9 +3191,14 @@ build_worldcup_dashboard_data <- function(
   route_method <- match.arg(route_method)
   approved_release <- dashboard_resolve_approved_release(release_root, approved_release)
   release_models <- dashboard_release_model_pair(approved_release)
+  release_calibrator <- approved_release$calibrator
+  release_probability_view <- as.character(approved_release$metadata$primary_probability_view)
+  dashboard_prepare_probability_view(release_calibrator, release_probability_view)
   if (!is.null(release_models)) {
     extra_args$home_model <- release_models$home_model
     extra_args$away_model <- release_models$away_model
+    extra_args$calibrator <- release_calibrator
+    extra_args$primary_probability_view <- release_probability_view
     if (!is.null(approved_release$metadata$release_id)) model_version <- paste0("release:", approved_release$metadata$release_id)
   }
   dashboard_forecast_features <- forecast_features
@@ -3179,6 +3282,8 @@ build_worldcup_dashboard_data <- function(
     away_model_path = NULL,
     home_model = extra_args[["home_model"]],
     away_model = extra_args[["away_model"]],
+    calibrator = release_calibrator,
+    primary_probability_view = release_probability_view,
     elo_ratings_path = elo_ratings_path,
     forecast_features = dashboard_forecast_features,
     forecast_features_path = dashboard_forecast_features_path,
@@ -3217,7 +3322,10 @@ build_worldcup_dashboard_data <- function(
     n_knockout_sim = n_match_sim,
     knockout_route_estimator = knockout_route_estimator,
     actual_knockout_results = actual_knockout_results,
-    n_workers = n_workers
+    n_workers = n_workers,
+    outcome_view = if (identical(release_probability_view, "calibrated_1x2")) match_data$outcome_view else NULL,
+    calibrator = release_calibrator,
+    primary_probability_view = release_probability_view
   )
   current_group_tables <- build_current_group_tables(groups, fixtures)
   elo_evolution <- build_elo_evolution(
@@ -3238,6 +3346,9 @@ build_worldcup_dashboard_data <- function(
     seed = seed + 2,
     knockout_route_estimator = knockout_route_estimator,
     actual_knockout_results = actual_knockout_results,
+    outcome_view = if (identical(release_probability_view, "calibrated_1x2")) match_data$outcome_view else NULL,
+    calibrator = release_calibrator,
+    primary_probability_view = release_probability_view,
     elo_ratings_path = elo_ratings_path,
     ...
   )
