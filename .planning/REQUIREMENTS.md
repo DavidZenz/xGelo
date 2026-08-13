@@ -9,12 +9,12 @@
 
 - [x] **DATA-01**: The analyst can capture official UEFA snapshots for competition fixtures, groups, standings, results, and status.
 - [x] **DATA-02**: Every captured snapshot records its source URL, retrieval time, raw-byte hash, parser version, and fallback status.
-- [ ] **DATA-03**: UEFA and open historical results are normalized to stable team IDs and competition-edition IDs while preserving source display names.
+- [x] **DATA-03**: UEFA and open historical results are normalized to stable team IDs and competition-edition IDs while preserving source display names.
 - [x] **DATA-04**: The pipeline supports audited manual fallback snapshots with source, retrieval date, reason, operator note, and checksum visible in the published metadata.
 
 ### Competition Registry and Rules
 
-- [ ] **COMP-01**: Each competition edition is registered with lifecycle state, ruleset version, source bundle, model release, and output bundle.
+- [x] **COMP-01**: Each competition edition is registered with lifecycle state, ruleset version, source bundle, model release, and output bundle.
 - [ ] **COMP-02**: The 2026/27 Nations League registry represents Leagues A-D, published groups, league-phase fixtures, and downstream knockout or play-off stages.
 - [ ] **COMP-03**: The EURO 2028 qualifying registry represents the pre-draw state and activates groups, fixtures, and simulations only after an official draw snapshot exists.
 - [ ] **COMP-04**: Competition state applies the official tie-breakers, cross-group rankings, host-place rules, play-off topology, and regulation-version checks for the selected edition.
@@ -82,9 +82,9 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 |-------------|-------|--------|
 | DATA-01 | Phase 13 | Complete |
 | DATA-02 | Phase 13 | Complete |
-| DATA-03 | Phase 13 | Pending |
+| DATA-03 | Phase 13 | Complete |
 | DATA-04 | Phase 13 | Complete |
-| COMP-01 | Phase 13 | Pending |
+| COMP-01 | Phase 13 | Complete |
 | COMP-02 | Phase 15 | Pending |
 | COMP-03 | Phase 16 | Pending |
 | COMP-04 | Phase 16 | Pending |

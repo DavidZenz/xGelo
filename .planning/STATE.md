@@ -4,38 +4,38 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
-status: executing
-stopped_at: Completed 13-source-contracts-and-competition-registry-02-PLAN.md
-last_updated: "2026-08-13T20:44:53.561Z"
+status: verifying
+stopped_at: Completed 13-source-contracts-and-competition-registry-03-PLAN.md
+last_updated: "2026-08-13T21:14:22.664Z"
 last_activity: 2026-08-13
-last_activity_desc: Plan 13-02 completed; ready for Plan 13-03
+last_activity_desc: Plan 13-03 completed; ready for Phase 13 verification
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 13 (Source Contracts and Competition Registry) — EXECUTING
+Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
 Plan: 3 of 3
-Status: Ready to execute
-Last activity: 2026-08-13 — Plan 13-02 completed; ready for Plan 13-03
+Status: Phase complete — ready for verification
+Last activity: 2026-08-13 — Plan 13-03 completed; ready for Phase 13 verification
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
-| 13 | Source Contracts and Competition Registry | In progress | 5/5 |
+| 13 | Source Contracts and Competition Registry | Ready for verification | 5/5 |
 | 14 | Shared Competition State and Forecast Layer | Not started | 7/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 0 of 5 phases complete (0%); Phase 13 has 1 of 3 plans complete.
+**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 3 of 3 plans complete.
 
 ## Project Reference
 
@@ -62,6 +62,10 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase 13]: Require all five structured resource classes and provenance fields before acceptance, with explicit source-shaped schemas.
 - [Phase 13]: Use bounded explicit HTTPS capture and deterministic fixture replay with exact raw bytes in an ignored local store and compact accepted CSVs.
 - [Phase 13]: Treat reviewed fallback as a complete edition-wide bundle and write blocked refresh metadata while retaining the last accepted output.
+- [Phase 13]: Keep xGelo team_id canonical and stable while preserving FIFA code, UEFA source ID, current display name, and reviewed aliases.
+- [Phase 13]: Allow only deterministic exact normalized-name fallback, and require visible warning/audit metadata for it.
+- [Phase 13]: Preflight the sole approved Phase 12 release manifest before accepting competition-edition model pins.
+- [Phase 13]: Represent EURO qualifying as explicit pre_draw metadata with real source/output slots and no fabricated structures.
 
 ## Accumulated Context
 
@@ -71,17 +75,16 @@ and the shared competition registry for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Execute Plan 13-03 to expand identity and edition registry breadth for both competitions.
 - Prepare Phase 14 planning around shared standings, form, and point-in-time forecast safety.
 
 ## Next Action
 
-Run `/gsd-execute-phase 13` for Plan 13-03.
+Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-13T20:44:53.554Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-02-PLAN.md
+**Last session:** 2026-08-13T21:14:22.657Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-03-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -96,3 +99,4 @@ Plan 13-01 execution metrics are recorded below.
 |------|----------|-------|-------|
 | Phase 13-source-contracts-and-competition-registry P01 | 25 min | 2 tasks | 8 files |
 | Phase 13-source-contracts-and-competition-registry P02 | 26 min | 2 tasks | 18 files |
+| Phase 13 P03 | 27 min | 2 tasks | 5 files |
