@@ -121,7 +121,7 @@ dependence on paid data feeds.
 - [Phase ?]: Keep the immutable retained fixture behind an explicit raw-only missing-freeze-self compatibility branch; new contracts require freeze_self_sha256.
 - [Phase ?]: Map the established probability_view=derived_1x2 Phase 12 calibrator identity to the calibrated_1x2 dashboard consumer view.
 
-## Blockers
+## Verification Notes
 
 - Phase 12 completed the approved one-shot WC2026 evaluation: source SHA-256 7dd366f457460c435ca3b8bdf9a456cc85903ee639d31f29bbd9c62ff604e1dc, one opener call, 104/104 active fixtures scored, and exact incumbent-retained promotion.
 
