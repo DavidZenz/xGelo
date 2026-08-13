@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: executing
-stopped_at: Completed 13-source-contracts-and-competition-registry-01-PLAN.md
-last_updated: "2026-08-13T20:04:37.419Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-02-PLAN.md
+last_updated: "2026-08-13T20:44:53.561Z"
 last_activity: 2026-08-13
-last_activity_desc: Plan 13-01 completed; ready for Plan 13-02
+last_activity_desc: Plan 13-02 completed; ready for Plan 13-03
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
-Last activity: 2026-08-13 — Plan 13-01 completed; ready for Plan 13-02
+Last activity: 2026-08-13 — Plan 13-02 completed; ready for Plan 13-03
 
 ## Progress
 
@@ -59,6 +59,9 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase 13]: Persist the Git commit SHA as parser identity and retain only compact hashes and metadata in committed artifacts.
 - [Phase 13]: Keep normalized display-name fallback visible and fail closed on unresolved or ambiguous team identity.
 - [Phase 13]: Register EURO qualifying as explicit pre_draw metadata with non-null source/output slots and no fabricated structures.
+- [Phase 13]: Require all five structured resource classes and provenance fields before acceptance, with explicit source-shaped schemas.
+- [Phase 13]: Use bounded explicit HTTPS capture and deterministic fixture replay with exact raw bytes in an ignored local store and compact accepted CSVs.
+- [Phase 13]: Treat reviewed fallback as a complete edition-wide bundle and write blocked refresh metadata while retaining the last accepted output.
 
 ## Accumulated Context
 
@@ -68,18 +71,17 @@ and the shared competition registry for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Execute Plan 13-02 for bounded structured capture and local raw-byte retention.
 - Execute Plan 13-03 to expand identity and edition registry breadth for both competitions.
 - Prepare Phase 14 planning around shared standings, form, and point-in-time forecast safety.
 
 ## Next Action
 
-Run `/gsd-execute-phase 13` for Plan 13-02.
+Run `/gsd-execute-phase 13` for Plan 13-03.
 
 ## Session Continuity
 
-**Last session:** 2026-08-13T20:04:37.412Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-01-PLAN.md
+**Last session:** 2026-08-13T20:44:53.554Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-02-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -93,3 +95,4 @@ Plan 13-01 execution metrics are recorded below.
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 13-source-contracts-and-competition-registry P01 | 25 min | 2 tasks | 8 files |
+| Phase 13-source-contracts-and-competition-registry P02 | 26 min | 2 tasks | 18 files |

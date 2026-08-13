@@ -7,10 +7,10 @@
 
 ### Competition Data
 
-- [ ] **DATA-01**: The analyst can capture official UEFA snapshots for competition fixtures, groups, standings, results, and status.
-- [ ] **DATA-02**: Every captured snapshot records its source URL, retrieval time, raw-byte hash, parser version, and fallback status.
+- [x] **DATA-01**: The analyst can capture official UEFA snapshots for competition fixtures, groups, standings, results, and status.
+- [x] **DATA-02**: Every captured snapshot records its source URL, retrieval time, raw-byte hash, parser version, and fallback status.
 - [ ] **DATA-03**: UEFA and open historical results are normalized to stable team IDs and competition-edition IDs while preserving source display names.
-- [ ] **DATA-04**: The pipeline supports audited manual fallback snapshots with source, retrieval date, reason, operator note, and checksum visible in the published metadata.
+- [x] **DATA-04**: The pipeline supports audited manual fallback snapshots with source, retrieval date, reason, operator note, and checksum visible in the published metadata.
 
 ### Competition Registry and Rules
 
@@ -80,10 +80,10 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 13 | Pending |
-| DATA-02 | Phase 13 | Pending |
+| DATA-01 | Phase 13 | Complete |
+| DATA-02 | Phase 13 | Complete |
 | DATA-03 | Phase 13 | Pending |
-| DATA-04 | Phase 13 | Pending |
+| DATA-04 | Phase 13 | Complete |
 | COMP-01 | Phase 13 | Pending |
 | COMP-02 | Phase 15 | Pending |
 | COMP-03 | Phase 16 | Pending |
