@@ -1,0 +1,3 @@
+"schema_version","team_id","fifa_code","canonical_name","aliases","normalized_alias","uefa_source_team_id","uefa_display_name_current","mapping_method","mapping_warning","alias_review_state","source_bundle_id","row_sha256"
+"phase13-team-identity-v1","team_aut","AUT","Austria","Austria|Österreich","austria|osterreich","100","Austria","source_id","none","not_required","nl-2026-27-official-sample-v1","92e00f15bf4eff4458e0b22f20392ce999b8c91b5301a7b97193ed43fe397321"
+"phase13-team-identity-v1","team_deu","GER","Germany","Germany|Deutschland","germany|deutschland","101","Germany","source_id","none","not_required","nl-2026-27-official-sample-v1","0d9e3ee9b163a572e0a6b4b1d9f58581a7692390098b170d029385e767b215f2"
