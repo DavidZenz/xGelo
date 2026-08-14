@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-11-PLAN.md
-last_updated: "2026-08-14T13:39:35.535Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-12-PLAN.md
+last_updated: "2026-08-14T14:14:18.956Z"
 last_activity: 2026-08-14
-last_activity_desc: Plan 13-11 completed; deterministic canonical and accepted-manifest hash graph ready for Plan 13-12
+last_activity_desc: Plan 13-12 completed; locked normalized fourteen-target publication graph ready for verification
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 12
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
-Plan: 5 of 12 (next chronological incomplete plan)
-Status: Plan 13-11 complete; remaining Phase 13 plans are pending
-Last activity: 2026-08-14 — Plan 13-11 completed; deterministic canonical and accepted-manifest hash graph ready for Plan 13-12
+Plan: 6 of 12 (next chronological incomplete plan)
+Status: Plan 13-12 complete; remaining Phase 13 plans are pending
+Last activity: 2026-08-14 — Plan 13-12 completed; locked normalized fourteen-target publication graph ready for verification
 
 ## Progress
 
@@ -35,7 +35,7 @@ Last activity: 2026-08-14 — Plan 13-11 completed; deterministic canonical and 
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 8 of 12 plans complete.
+**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 9 of 12 plans complete.
 
 ## Project Reference
 
@@ -82,6 +82,9 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase 13]: Canonical and derived hash helpers write only to a supplied staging root; locks, snapshots, promotion, and rollback remain Plan 13-12 responsibilities.
 - [Phase 13]: Raw SHA-256 and source/provenance fields remain unchanged while row, canonical-content, derived bundle, artifact-manifest, and self-hashes are regenerated.
 - [Phase 13]: Bundle canonical_content_sha256 follows the established complete non-circular bundle-content CSV projection, while manifest self-hashes use the existing source-contract self-hash convention.
+- [Phase ?]: The durable publication envelope owns exactly fourteen files; refresh_batches remains outside the target and cleanup scope.
+- [Phase ?]: Canonical and manifest hash calculation remains delegated to Plan 13-11 helpers inside the transaction staging root.
+- [Phase ?]: Production acquisition routes complete two-edition roots through normalized publication while isolated one-edition fixture replay remains supported.
 
 ## Accumulated Context
 
@@ -99,8 +102,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T13:39:35.527Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-11-PLAN.md
+**Last session:** 2026-08-14T14:14:18.948Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-12-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -121,3 +124,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13 P10 | 22min | 2 tasks | 4 files |
 | Phase 13 P04 | 27min | 2 tasks | 4 files |
 | Phase 13 P11 | 26m | 2 tasks | 4 files |
+| Phase 13 P12 | 29min | 2 tasks | 4 files |
