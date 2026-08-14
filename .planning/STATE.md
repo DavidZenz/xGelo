@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-10-PLAN.md
-last_updated: "2026-08-14T12:33:28.782Z"
-last_activity: 2026-08-13
-last_activity_desc: Plan 13-03 completed; ready for Phase 13 verification
+stopped_at: Completed 13-source-contracts-and-competition-registry-04-PLAN.md
+last_updated: "2026-08-14T13:04:57.152Z"
+last_activity: 2026-08-14
+last_activity_desc: Plan 13-04 completed; normalized accepted fixture/result handoffs
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 12
-  completed_plans: 6
+  completed_plans: 7
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
-Plan: 3 of 3
-Status: Phase complete — ready for verification
-Last activity: 2026-08-13 — Plan 13-03 completed; ready for Phase 13 verification
+Plan: 4 of 12
+Status: Verifying Plan 13-04; remaining Phase 13 plans are pending
+Last activity: 2026-08-14 — Plan 13-04 completed; normalized accepted fixture/result handoffs
 
 ## Progress
 
@@ -35,7 +35,7 @@ Last activity: 2026-08-13 — Plan 13-03 completed; ready for Phase 13 verificat
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 3 of 3 plans complete.
+**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 7 of 12 plans complete.
 
 ## Project Reference
 
@@ -75,6 +75,10 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase 13]: The committed Nations League output remains a source-shaped seed; identity normalization and final canonical/hash-graph promotion stay with Plans 13-04, 13-11, and 13-12.
 - [Phase ?]: EURO pre_draw status publishes canonical lifecycle_state and keeps source-shaped structure tables empty until official structures exist.
 - [Phase ?]: Shared source registries and final normalized/hash transaction remain owned by Plans 13-11 and 13-12.
+- [Phase ?]: Accepted results inherit identity, display, edition, schedule, mapping, and fixture-artifact fields from the exact normalized fixture match; source status and valid scores remain result-owned.
+- [Phase ?]: Score-only changes are permitted and change the result row hash, while optional source identity or edition fields must match the normalized fixture contract.
+- [Phase ?]: EURO pre_draw results use the explicit registry edition when the normalized fixture table is empty, preserving an exact zero-row schema without fabricated records.
+- [Phase ?]: Canonical/hash helper extraction and all-target atomic rollback remain owned by Plans 13-11 and 13-12.
 
 ## Accumulated Context
 
@@ -92,8 +96,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T12:33:28.774Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-10-PLAN.md
+**Last session:** 2026-08-14T13:03:01.786Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -112,3 +116,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13 P07 | 20min | 2 tasks | 4 files |
 | Phase 13 P09 | 26min | 2 tasks | 3 files |
 | Phase 13 P10 | 22min | 2 tasks | 4 files |
+| Phase 13 P04 | 27min | 2 tasks | 4 files |
