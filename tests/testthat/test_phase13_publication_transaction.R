@@ -68,7 +68,10 @@ test_that("normalized publication targets are exactly bounded and exclude refres
   )
 
   expect_length(targets, 14L)
-  expect_identical(unname(targets), file.path(root, expected_relative))
+  expect_identical(
+    unname(targets),
+    file.path(normalizePath(root, winslash = "/", mustWork = TRUE), expected_relative)
+  )
   expect_false(any(grepl("refresh_batches", targets, fixed = TRUE)))
   expect_length(unique(targets), 14L)
 })
