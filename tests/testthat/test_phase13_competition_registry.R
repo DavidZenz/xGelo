@@ -887,10 +887,21 @@ test_that("martj42 history identity and edition contracts survive append, reorde
   phase13_registry_test_load_apis()
   phase13_registry_test_require_api(c(
     "phase13_generate_martj42_identity_map",
+    "phase13_martj42_source_identity_key",
     "phase13_normalize_historical_result_rows",
     "phase13_martj42_edition_lookup_hash",
     "phase13_identity_row_hash"
   ))
+  scalar_key <- phase13_martj42_source_identity_key(
+    NA_character_,
+    "São Tomé and Príncipe"
+  )
+  vector_key <- phase13_martj42_source_identity_key(
+    c(NA_character_, NA_character_),
+    c("Gabon", "São Tomé and Príncipe")
+  )[[2L]]
+  expect_identical(vector_key, scalar_key)
+
   history <- utils::read.csv(
     file.path(phase13_registry_test_project_root, "tests/fixtures/phase13/martj42_history_sample.csv"),
     stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""

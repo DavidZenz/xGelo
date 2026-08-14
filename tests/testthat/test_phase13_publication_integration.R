@@ -31,7 +31,107 @@ phase13_integration_test_require_api <- function(environment, required) {
   invisible(TRUE)
 }
 
-phase13_integration_test_copy_sandbox <- function() {
+phase13_integration_test_source_handoff_table <- function(normalized, artifact_type, edition_id, source_artifact_id) {
+  normalized <- as.data.frame(normalized, stringsAsFactors = FALSE, check.names = FALSE)
+  if (identical(artifact_type, "fixtures")) {
+    compact <- data.frame(
+      source_fixture_id = as.character(normalized$uefa_source_fixture_id),
+      scheduled_at_utc = as.character(normalized$scheduled_at_utc),
+      status = as.character(normalized$status),
+      home_uefa_source_team_id = as.character(normalized$home_uefa_source_team_id),
+      away_uefa_source_team_id = as.character(normalized$away_uefa_source_team_id),
+      home_display_name = as.character(normalized$home_display_name),
+      away_display_name = as.character(normalized$away_display_name),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  } else if (identical(artifact_type, "results")) {
+    compact <- data.frame(
+      source_fixture_id = as.character(normalized$uefa_source_fixture_id),
+      status = as.character(normalized$status),
+      home_goals = normalized$home_goals,
+      away_goals = normalized$away_goals,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  } else {
+    compact_fields <- phase13_source_compact_resource_schema()[[artifact_type]]
+    compact <- normalized[, compact_fields, drop = FALSE]
+  }
+  output <- cbind(
+    schema_version = rep(paste0("phase13-", artifact_type, "-v1"), nrow(compact)),
+    compact,
+    edition_id = rep(edition_id, nrow(compact)),
+    source_artifact_id = rep(source_artifact_id, nrow(compact))
+  )
+  output$row_sha256 <- phase13_row_sha256(output)
+  output
+}
+
+phase13_integration_test_prepare_source_handoff <- function(sandbox, acquire, editions) {
+  artifacts_path <- file.path(sandbox$registry_root, "source_artifacts.csv")
+  bundles_path <- file.path(sandbox$registry_root, "source_bundles.csv")
+  artifacts <- phase13_integration_test_read_table(artifacts_path)
+  bundles <- phase13_integration_test_read_table(bundles_path)
+  write_csv <- get("phase13_publication_write_csv", envir = acquire, inherits = TRUE)
+  file_sha256 <- get("phase13_acquire_file_sha256", envir = acquire, inherits = TRUE)
+  row_sha256 <- get("phase13_row_sha256", envir = acquire, inherits = TRUE)
+  rebuild_bundle <- get("phase13_acquire_rebuild_bundle_row", envir = acquire, inherits = TRUE)
+  bundle_content_table <- get("phase13_acquire_bundle_content_table", envir = acquire, inherits = TRUE)
+  canonical_content_sha256 <- get("phase13_acquire_canonical_content_sha256", envir = acquire, inherits = TRUE)
+  validate_bundle <- get("phase13_validate_source_bundle", envir = acquire, inherits = TRUE)
+  source_manifest_table <- get("phase13_acquire_source_manifest_table", envir = acquire, inherits = TRUE)
+
+  for (edition_id in editions) {
+    for (artifact_type in phase13_source_required_resource_types()) {
+      artifact_index <- which(
+        as.character(artifacts$edition_id) == edition_id &
+          as.character(artifacts$artifact_type) == artifact_type
+      )
+      if (length(artifact_index) != 1L) {
+        stop("Phase 13 integration fixture source-artifact link is incomplete", call. = FALSE)
+      }
+      path <- file.path(sandbox$accepted_root, edition_id, paste0(artifact_type, ".csv"))
+      normalized <- phase13_integration_test_read_table(path)
+      source_table <- phase13_integration_test_source_handoff_table(
+        normalized,
+        artifact_type,
+        edition_id,
+        as.character(artifacts$source_artifact_id[[artifact_index]])
+      )
+      write_csv(source_table, path)
+      artifacts$canonical_content_sha256[[artifact_index]] <- file_sha256(path)
+    }
+  }
+  artifacts$row_sha256 <- row_sha256(artifacts)
+
+  rebuilt_bundles <- lapply(editions, function(edition_id) {
+    bundle_index <- which(as.character(bundles$edition_id) == edition_id)
+    edition_artifacts <- artifacts[as.character(artifacts$edition_id) == edition_id, , drop = FALSE]
+    if (length(bundle_index) != 1L || nrow(edition_artifacts) != 5L) {
+      stop("Phase 13 integration fixture source bundle link is incomplete", call. = FALSE)
+    }
+    bundle <- rebuild_bundle(bundles[bundle_index, , drop = FALSE], edition_artifacts)
+    bundle$canonical_content_sha256 <- canonical_content_sha256(
+      bundle_content_table(bundle, edition_artifacts)
+    )
+    bundle <- rebuild_bundle(bundle, edition_artifacts)
+    validate_bundle(bundle, edition_artifacts)
+    manifest <- source_manifest_table(bundle, edition_artifacts)
+    write_csv(
+      manifest,
+      file.path(sandbox$accepted_root, edition_id, "source_bundle_manifest.csv")
+    )
+    bundle
+  })
+  bundles <- do.call(rbind, rebuilt_bundles)
+  row.names(bundles) <- NULL
+  write_csv(artifacts, artifacts_path)
+  write_csv(bundles, bundles_path)
+  invisible(sandbox)
+}
+
+phase13_integration_test_copy_sandbox <- function(acquire) {
   root <- tempfile("phase13-publication-integration-")
   accepted_root <- file.path(root, "accepted")
   registry_root <- file.path(root, "registries")
@@ -53,6 +153,11 @@ phase13_integration_test_copy_sandbox <- function() {
     file.path(source_registry, c("source_artifacts.csv", "source_bundles.csv", "team_identity.csv", "competition_editions.csv")),
     registry_root,
     overwrite = TRUE
+  )
+  phase13_integration_test_prepare_source_handoff(
+    list(root = root, accepted_root = accepted_root, registry_root = registry_root),
+    acquire,
+    editions
   )
   refresh_marker <- file.path(
     registry_root, "refresh_batches", "uefa_nations_league_2026_27", "refresh-keep", "blocked_refresh.json"
@@ -84,7 +189,7 @@ test_that("normalized publication atomically promotes both editions and the comp
     "phase13_publish_normalized_editions",
     "phase13_normalized_publication_targets"
   ))
-  sandbox <- phase13_integration_test_copy_sandbox()
+  sandbox <- phase13_integration_test_copy_sandbox(acquire)
   targets <- acquire$phase13_normalized_publication_targets(sandbox$accepted_root, sandbox$registry_root)
   groups_before <- phase13_integration_test_read_table(file.path(
     sandbox$accepted_root, "uefa_nations_league_2026_27", "groups.csv"
@@ -141,7 +246,7 @@ test_that("every injected post-promotion failure restores all normalized publica
     "phase13_publish_normalized_editions",
     "phase13_normalized_publication_targets"
   ))
-  sandbox <- phase13_integration_test_copy_sandbox()
+  sandbox <- phase13_integration_test_copy_sandbox(acquire)
   targets <- acquire$phase13_normalized_publication_targets(sandbox$accepted_root, sandbox$registry_root)
   before <- phase13_integration_test_target_bytes(targets)
 
@@ -167,7 +272,7 @@ test_that("stale and forged source links fail before any normalized target is pr
     "phase13_publish_normalized_editions",
     "phase13_normalized_publication_targets"
   ))
-  sandbox <- phase13_integration_test_copy_sandbox()
+  sandbox <- phase13_integration_test_copy_sandbox(acquire)
   targets <- acquire$phase13_normalized_publication_targets(sandbox$accepted_root, sandbox$registry_root)
   before <- phase13_integration_test_target_bytes(targets)
   artifacts_path <- file.path(sandbox$registry_root, "source_artifacts.csv")

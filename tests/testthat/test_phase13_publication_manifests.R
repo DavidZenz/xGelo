@@ -43,6 +43,54 @@ phase13_manifest_test_bytes <- function(path) {
   readBin(path, what = "raw", n = file.info(path)$size)
 }
 
+phase13_manifest_test_source_fixture_rows <- function(normalized) {
+  normalized <- as.data.frame(normalized, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!nrow(normalized)) {
+    return(data.frame(
+      source_fixture_id = character(0),
+      home_uefa_source_team_id = character(0),
+      away_uefa_source_team_id = character(0),
+      home_display_name = character(0),
+      away_display_name = character(0),
+      scheduled_at_utc = character(0),
+      status = character(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+  data.frame(
+    source_fixture_id = as.character(normalized$uefa_source_fixture_id),
+    home_uefa_source_team_id = as.character(normalized$home_uefa_source_team_id),
+    away_uefa_source_team_id = as.character(normalized$away_uefa_source_team_id),
+    home_display_name = as.character(normalized$home_display_name),
+    away_display_name = as.character(normalized$away_display_name),
+    scheduled_at_utc = as.character(normalized$scheduled_at_utc),
+    status = as.character(normalized$status),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase13_manifest_test_source_result_rows <- function(normalized) {
+  normalized <- as.data.frame(normalized, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!nrow(normalized)) {
+    return(data.frame(
+      source_fixture_id = character(0),
+      status = character(0),
+      home_goals = integer(0),
+      away_goals = integer(0),
+      stringsAsFactors = FALSE
+    ))
+  }
+  data.frame(
+    source_fixture_id = as.character(normalized$uefa_source_fixture_id),
+    status = as.character(normalized$status),
+    home_goals = normalized$home_goals,
+    away_goals = normalized$away_goals,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
 phase13_manifest_test_seed <- function() {
   phase13_manifest_test_load_apis()
   phase13_manifest_test_require_api(c(
@@ -85,15 +133,17 @@ phase13_manifest_test_seed <- function() {
   nl_result_artifact <- artifacts$source_artifact_id[
     artifacts$edition_id == nl & artifacts$artifact_type == "results"
   ][[1L]]
+  normalized_fixture_seed <- phase13_manifest_test_read_csv(file.path(accepted_root, nl, "fixtures.csv"))
   normalized_fixtures <- phase13_normalize_fixture_rows(
-    phase13_manifest_test_read_csv(file.path(accepted_root, nl, "fixtures.csv")),
+    phase13_manifest_test_source_fixture_rows(normalized_fixture_seed),
     identity_map = identity_map,
     edition_id = nl,
     source_artifact_id = nl_fixture_artifact,
     lifecycle_state = "scheduled"
   )
+  normalized_result_seed <- phase13_manifest_test_read_csv(file.path(accepted_root, nl, "results.csv"))
   normalized_results <- phase13_normalize_accepted_result_rows(
-    phase13_manifest_test_read_csv(file.path(accepted_root, nl, "results.csv")),
+    phase13_manifest_test_source_result_rows(normalized_result_seed),
     normalized_fixtures = normalized_fixtures,
     edition_id = nl,
     source_artifact_id = nl_result_artifact,

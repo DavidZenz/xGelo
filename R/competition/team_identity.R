@@ -665,18 +665,44 @@ phase13_martj42_clean_optional_id <- function(value) {
   trimws(value)
 }
 
+phase13_martj42_normalize_source_name <- function(value) {
+  value <- as.character(value)
+  output <- rep(NA_character_, length(value))
+  present <- !is.na(value)
+  if (any(present)) {
+    transliterated <- vapply(enc2utf8(trimws(value[present])), function(one) {
+      characters <- strsplit(one, "", fixed = TRUE)[[1L]]
+      if (!length(characters)) return("")
+      paste0(vapply(characters, function(character) {
+        converted <- iconv(character, from = "UTF-8", to = "ASCII//TRANSLIT", sub = "")
+        if (is.na(converted)) "" else converted
+      }, character(1)), collapse = "")
+    }, character(1))
+    transliterated <- tolower(transliterated)
+    transliterated <- gsub("[^a-z0-9]+", " ", transliterated)
+    output[present] <- trimws(gsub("[[:space:]]+", " ", transliterated))
+  }
+  output
+}
+
 phase13_martj42_source_identity_key <- function(source_team_id, source_display_name) {
   source_team_id <- phase13_martj42_clean_optional_id(source_team_id)
-  normalized <- phase13_normalize_team_name(source_display_name)
-  ifelse(
-    is.na(normalized) | !nzchar(normalized),
-    NA_character_,
-    ifelse(
-      is.na(source_team_id),
-      paste0("name:", normalized),
-      paste0("id:", source_team_id, "|name:", normalized)
-    )
-  )
+  normalized <- phase13_martj42_normalize_source_name(source_display_name)
+  length_out <- max(length(normalized), length(source_team_id))
+  if (!length_out) return(character(0))
+  normalized <- rep(normalized, length.out = length_out)
+  source_team_id <- if (length(source_team_id)) {
+    rep(source_team_id, length.out = length_out)
+  } else {
+    rep(NA_character_, length_out)
+  }
+  output <- rep(NA_character_, length_out)
+  usable <- !is.na(normalized) & nzchar(normalized)
+  without_id <- usable & is.na(source_team_id)
+  with_id <- usable & !is.na(source_team_id)
+  output[without_id] <- paste0("name:", normalized[without_id])
+  output[with_id] <- paste0("id:", source_team_id[with_id], "|name:", normalized[with_id])
+  output
 }
 
 phase13_martj42_validate_history_shape <- function(history) {
@@ -780,7 +806,7 @@ phase13_martj42_registry_table <- function(identity_registry) {
       if (is.na(identity_registry$aliases[[index]])) character(0) else
         unlist(strsplit(identity_registry$aliases[[index]], "\\|", fixed = FALSE), use.names = FALSE)
     )
-    values <- unique(phase13_normalize_team_name(values))
+    values <- unique(phase13_martj42_normalize_source_name(values))
     values <- values[!is.na(values) & nzchar(values)]
     if (!length(values)) stop("Phase 13 martj42 identity registry contains an identity without aliases", call. = FALSE)
     paste(values, collapse = "|")
@@ -831,7 +857,7 @@ phase13_martj42_merge_identity_registries <- function(
       if (is.na(primary$aliases[[index]])) character(0) else
         unlist(strsplit(primary$aliases[[index]], "\\|", fixed = FALSE), use.names = FALSE)
     )
-    phase13_normalize_team_name(values)
+    phase13_martj42_normalize_source_name(values)
   }), use.names = FALSE))
   supplemental_aliases <- lapply(seq_len(nrow(supplemental)), function(index) {
     values <- c(
@@ -841,7 +867,7 @@ phase13_martj42_merge_identity_registries <- function(
       if (is.na(supplemental$aliases[[index]])) character(0) else
         unlist(strsplit(supplemental$aliases[[index]], "\\|", fixed = FALSE), use.names = FALSE)
     )
-    phase13_normalize_team_name(values)
+    phase13_martj42_normalize_source_name(values)
   })
   duplicate_primary <- vapply(seq_len(nrow(supplemental)), function(index) {
     same_team_id <- supplemental$team_id[[index]] %in% primary$team_id
@@ -858,7 +884,7 @@ phase13_martj42_merge_identity_registries <- function(
 phase13_martj42_resolve_registry_identity <- function(registry, source_team_id, source_display_name) {
   source_team_id <- phase13_martj42_clean_optional_id(source_team_id)[[1L]]
   source_display_name <- phase13_martj42_scalar(source_display_name, "source display name")
-  normalized <- phase13_normalize_team_name(source_display_name)[[1L]]
+  normalized <- phase13_martj42_normalize_source_name(source_display_name)[[1L]]
   if (is.na(normalized) || !nzchar(normalized)) {
     stop("Phase 13 martj42 source display name has no usable normalized value", call. = FALSE)
   }
@@ -899,7 +925,7 @@ phase13_martj42_history_identity_tokens <- function(history) {
     source_name <- as.character(history[[paste0(side, "_team")]])
     source_id_column <- phase13_martj42_source_team_id_column(history, side)
     source_id <- if (is.na(source_id_column)) rep(NA_character_, nrow(history)) else phase13_martj42_clean_optional_id(history[[source_id_column]])
-    normalized <- phase13_normalize_team_name(source_name)
+    normalized <- phase13_martj42_normalize_source_name(source_name)
     key <- phase13_martj42_source_identity_key(source_id, source_name)
     if (any(is.na(key) | !nzchar(key))) stop("Phase 13 martj42 historical input contains an unusable source identity", call. = FALSE)
     data.frame(

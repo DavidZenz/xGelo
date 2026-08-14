@@ -2744,6 +2744,13 @@ phase13_acquire_publish_refresh <- function(
     validation_passed = FALSE) {
   edition_id <- phase13_source_safe_relative_path(edition_id)
   refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id)
+  registry_context_root <- if (is.null(registry_context_root)) {
+    NULL
+  } else {
+    candidate_context_root <- phase13_acquire_resolve_path(registry_context_root, project_root)
+    context_files <- file.path(candidate_context_root, c("team_identity.csv", "competition_editions.csv"))
+    if (all(file.exists(context_files))) candidate_context_root else NULL
+  }
   recovery_context <- phase13_acquire_prepare_refresh_acceptance(
     edition_id = edition_id,
     output_root = output_root,
