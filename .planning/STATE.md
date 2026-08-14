@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-04-PLAN.md
-last_updated: "2026-08-14T13:04:57.152Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-11-PLAN.md
+last_updated: "2026-08-14T13:39:35.535Z"
 last_activity: 2026-08-14
-last_activity_desc: Plan 13-04 completed; normalized accepted fixture/result handoffs
+last_activity_desc: Plan 13-11 completed; deterministic canonical and accepted-manifest hash graph ready for Plan 13-12
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 12
-  completed_plans: 7
+  completed_plans: 8
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
-Plan: 4 of 12
-Status: Verifying Plan 13-04; remaining Phase 13 plans are pending
-Last activity: 2026-08-14 — Plan 13-04 completed; normalized accepted fixture/result handoffs
+Plan: 5 of 12 (next chronological incomplete plan)
+Status: Plan 13-11 complete; remaining Phase 13 plans are pending
+Last activity: 2026-08-14 — Plan 13-11 completed; deterministic canonical and accepted-manifest hash graph ready for Plan 13-12
 
 ## Progress
 
@@ -35,7 +35,7 @@ Last activity: 2026-08-14 — Plan 13-04 completed; normalized accepted fixture/
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 7 of 12 plans complete.
+**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 8 of 12 plans complete.
 
 ## Project Reference
 
@@ -79,6 +79,9 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase ?]: Score-only changes are permitted and change the result row hash, while optional source identity or edition fields must match the normalized fixture contract.
 - [Phase ?]: EURO pre_draw results use the explicit registry edition when the normalized fixture table is empty, preserving an exact zero-row schema without fabricated records.
 - [Phase ?]: Canonical/hash helper extraction and all-target atomic rollback remain owned by Plans 13-11 and 13-12.
+- [Phase 13]: Canonical and derived hash helpers write only to a supplied staging root; locks, snapshots, promotion, and rollback remain Plan 13-12 responsibilities.
+- [Phase 13]: Raw SHA-256 and source/provenance fields remain unchanged while row, canonical-content, derived bundle, artifact-manifest, and self-hashes are regenerated.
+- [Phase 13]: Bundle canonical_content_sha256 follows the established complete non-circular bundle-content CSV projection, while manifest self-hashes use the existing source-contract self-hash convention.
 
 ## Accumulated Context
 
@@ -96,8 +99,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T13:03:01.786Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-04-PLAN.md
+**Last session:** 2026-08-14T13:39:35.527Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-11-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -117,3 +120,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13 P09 | 26min | 2 tasks | 3 files |
 | Phase 13 P10 | 22min | 2 tasks | 4 files |
 | Phase 13 P04 | 27min | 2 tasks | 4 files |
+| Phase 13 P11 | 26m | 2 tasks | 4 files |
