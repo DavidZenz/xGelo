@@ -359,8 +359,8 @@ phase12_release_write_json <- function(value, path) {
 
 ### Sampling Rate
 - **Per task commit:** `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_source_contracts.R"); testthat::test_file("tests/testthat/test_phase13_competition_registry.R")'` `[ASSUMED]`
-- **Per wave merge:** `Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'` `[VERIFIED: AGENTS.md]`
-- **Phase gate:** Full suite green plus a deterministic fixture replay of one official candidate and one fallback candidate before `$gsd-verify-work`. `[VERIFIED: 13-CONTEXT.md][VERIFIED: codebase grep]`
+- **Per wave merge (superseded for this Phase 13 plan set):** Use the task-level focused commands; the prior repository-wide `testthat::test_dir("tests/testthat")` wording is retained as historical research context only and is not an intermediate wave gate. `[SUPERSEDED: 13-VALIDATION.md]`
+- **Authoritative Wave 10 phase gate:** Only after Plan 13-06 in Wave 10, run the full suite, deterministic replay of one official candidate and one reviewed fallback candidate, and the final human backstop before `$gsd-verify-work`. `[VERIFIED: 13-VALIDATION.md][VERIFIED: 13-CONTEXT.md][VERIFIED: codebase grep]`
 
 ### Wave 0 Gaps
 - [ ] `tests/testthat/test_phase13_source_contracts.R` — bundle/artifact schema, hash, required-resource, and mixed-fallback rejection checks. `[VERIFIED: codebase grep]`
