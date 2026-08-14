@@ -34,6 +34,7 @@ phase13_acquire_project_root <- normalizePath(
 )
 source(file.path(phase13_acquire_project_root, "R/competition/source_contracts.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/team_identity.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/edition_registry.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/publication_hashes.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/publication_manifests.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/publication_transaction.R"))
@@ -138,7 +139,8 @@ phase13_acquire_parse_args <- function(args) {
     "raw-root", "fallback-file", "bundle-id", "fixtures-url", "groups-url",
     "standings-url", "results-url", "status-url", "url-fixtures", "url-groups",
     "url-standings", "url-results", "url-status", "source-url-fixtures",
-    "source-url-groups", "source-url-standings", "source-url-results", "source-url-status"
+    "source-url-groups", "source-url-standings", "source-url-results", "source-url-status",
+    "refresh-batch-id", "operator", "operator-action", "validation-passed"
   )
   output <- list(dry_run = FALSE, help = FALSE, publish_accepted = FALSE)
   index <- 1L
@@ -170,6 +172,398 @@ phase13_acquire_parse_args <- function(args) {
   output
 }
 
+phase13_acquire_option_logical <- function(options, key, default = FALSE) {
+  value <- options[[key]]
+  if (is.null(value) || !length(value)) return(default)
+  token <- tolower(trimws(as.character(value[[1L]])))
+  if (token %in% c("true", "1", "yes")) return(TRUE)
+  if (token %in% c("false", "0", "no")) return(FALSE)
+  stop("Phase 13 option --", key, " must be true or false", call. = FALSE)
+}
+
+phase13_acquire_resolve_refresh_batch_id <- function(
+    value = NULL,
+    edition_id,
+    at_utc = phase13_acquire_now_utc()) {
+  if (!is.null(value) && length(value) && !is.na(value[[1L]]) && nzchar(as.character(value[[1L]]))) {
+    batch_id <- as.character(value[[1L]])
+  } else {
+    entropy <- substr(
+      phase13_source_sha256(paste(edition_id, at_utc, Sys.time(), Sys.getpid(), tempfile(), sep = "|")),
+      1L,
+      12L
+    )
+    batch_id <- paste0("refresh-", gsub("[^0-9]", "", at_utc), "-", entropy)
+  }
+  if (length(batch_id) != 1L || is.na(batch_id) ||
+      !grepl("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$", batch_id)) {
+    stop("Phase 13 refresh_batch_id must be one safe identifier", call. = FALSE)
+  }
+  batch_id
+}
+
+phase13_refresh_history_schema <- function() {
+  c(
+    "schema_version", "edition_id", "refresh_batch_id", "event_index", "status",
+    "event_at_utc", "candidate_bundle_id", "last_accepted_bundle_id",
+    "last_accepted_output_bundle_id", "registry_revision", "operator",
+    "operator_action", "validation_passed", "record_relative_path", "row_sha256"
+  )
+}
+
+phase13_refresh_history_empty <- function() {
+  data.frame(
+    schema_version = character(),
+    edition_id = character(),
+    refresh_batch_id = character(),
+    event_index = integer(),
+    status = character(),
+    event_at_utc = character(),
+    candidate_bundle_id = character(),
+    last_accepted_bundle_id = character(),
+    last_accepted_output_bundle_id = character(),
+    registry_revision = integer(),
+    operator = character(),
+    operator_action = character(),
+    validation_passed = logical(),
+    record_relative_path = character(),
+    row_sha256 = character(),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase13_acquire_refresh_history_paths <- function(
+    registry_root,
+    edition_id,
+    refresh_batch_id = NULL,
+    refresh_batch_root = file.path(registry_root, "refresh_batches")) {
+  registry_root <- phase13_acquire_resolve_path(registry_root)
+  refresh_batch_root <- phase13_acquire_resolve_path(refresh_batch_root)
+  edition_id <- phase13_source_safe_relative_path(edition_id)
+  edition_root <- file.path(refresh_batch_root, edition_id)
+  batch_root <- if (is.null(refresh_batch_id)) NULL else {
+    refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id)
+    file.path(edition_root, refresh_batch_id)
+  }
+  list(
+    registry_root = registry_root,
+    refresh_batch_root = refresh_batch_root,
+    edition_root = edition_root,
+    batch_root = batch_root,
+    history_path = file.path(edition_root, "status_history.csv"),
+    blocked_path = if (is.null(batch_root)) NULL else file.path(batch_root, "blocked_refresh.json")
+  )
+}
+
+phase13_acquire_read_refresh_history <- function(path) {
+  if (!file.exists(path)) return(phase13_refresh_history_empty())
+  history <- utils::read.csv(
+    path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  history
+}
+
+phase13_acquire_validate_refresh_history_table <- function(
+    history,
+    edition_id,
+    refresh_batch_root) {
+  phase13_source_require_columns(
+    history,
+    phase13_refresh_history_schema(),
+    "Phase 13 refresh status history"
+  )
+  if (!nrow(history)) return(invisible(history))
+  if (any(as.character(history$schema_version) != "phase13-refresh-status-history-v1")) {
+    stop("Phase 13 refresh status history has an unsupported schema version", call. = FALSE)
+  }
+  if (any(as.character(history$edition_id) != edition_id)) {
+    stop("Phase 13 refresh status history has a foreign edition ID", call. = FALSE)
+  }
+  batch_ids <- as.character(history$refresh_batch_id)
+  if (any(is.na(batch_ids) | !nzchar(batch_ids))) stop("Phase 13 refresh status history has an empty batch ID", call. = FALSE)
+  invisible(lapply(batch_ids, phase13_acquire_resolve_refresh_batch_id, edition_id = edition_id))
+  event_index <- suppressWarnings(as.integer(history$event_index))
+  if (any(is.na(event_index) | event_index < 1L) || !identical(event_index, seq_len(nrow(history)))) {
+    stop("Phase 13 refresh status history event_index must be contiguous and append-only", call. = FALSE)
+  }
+  statuses <- as.character(history$status)
+  if (any(!statuses %in% c("blocked", "recovery", "accepted"))) {
+    stop("Phase 13 refresh status history contains an unsupported status", call. = FALSE)
+  }
+  if (any(vapply(history$event_at_utc, phase13_registry_blank, logical(1))) ||
+      any(vapply(history$operator, phase13_registry_blank, logical(1))) ||
+      any(vapply(history$candidate_bundle_id, phase13_registry_blank, logical(1))) ||
+      any(vapply(history$last_accepted_bundle_id, phase13_registry_blank, logical(1))) ||
+      any(vapply(history$last_accepted_output_bundle_id, phase13_registry_blank, logical(1)))) {
+    stop("Phase 13 refresh status history is missing audit or accepted-lineage metadata", call. = FALSE)
+  }
+  revisions <- suppressWarnings(as.integer(history$registry_revision))
+  if (any(is.na(revisions) | revisions < 1L)) stop("Phase 13 refresh status history has invalid registry revisions", call. = FALSE)
+  validation <- vapply(history$validation_passed, phase13_registry_logical, logical(1), name = "validation_passed")
+  relative_paths <- as.character(history$record_relative_path)
+  for (index in seq_len(nrow(history))) {
+    record <- relative_paths[[index]]
+    if (is.na(record)) record <- ""
+    if (nzchar(record)) {
+      record <- phase13_source_safe_relative_path(record)
+      expected <- file.path(
+        "refresh_batches", edition_id, batch_ids[[index]], "blocked_refresh.json"
+      )
+      if (statuses[[index]] %in% c("blocked", "recovery") && !identical(record, expected)) {
+        stop("Phase 13 refresh status history record path is inconsistent with its batch", call. = FALSE)
+      }
+      if (!phase13_source_path_within(file.path(refresh_batch_root, record), refresh_batch_root)) {
+        stop("Phase 13 refresh status history record path escapes refresh_batches", call. = FALSE)
+      }
+    } else if (statuses[[index]] %in% c("blocked", "recovery")) {
+      stop("Phase 13 blocked or recovery history events require a record path", call. = FALSE)
+    }
+    if (identical(statuses[[index]], "recovery") &&
+        (!isTRUE(validation[[index]]) || phase13_registry_blank(history$operator_action[[index]]))) {
+      stop("Phase 13 recovery history events require explicit validation and operator action", call. = FALSE)
+    }
+  }
+  for (batch_id in unique(batch_ids)) {
+    rows <- history[batch_ids == batch_id, , drop = FALSE]
+    batch_statuses <- as.character(rows$status)
+    if (!batch_statuses[[1L]] %in% c("blocked", "accepted") || sum(batch_statuses == "blocked") > 1L ||
+        sum(batch_statuses == "recovery") > 1L || sum(batch_statuses == "accepted") > 1L) {
+      stop("Phase 13 refresh status history has an invalid batch lifecycle", call. = FALSE)
+    }
+    if (any(batch_statuses == "blocked") && which(batch_statuses == "blocked")[[1L]] != 1L) {
+      stop("Phase 13 blocked history event must be the first event for its batch", call. = FALSE)
+    }
+    if (any(batch_statuses == "recovery") && !any(batch_statuses == "blocked")) {
+      stop("Phase 13 recovery history event has no blocked predecessor", call. = FALSE)
+    }
+    if (any(batch_statuses == "accepted") && any(batch_statuses == "blocked") &&
+        !any(batch_statuses == "recovery")) {
+      stop("Phase 13 accepted recovery batch requires a recovery event", call. = FALSE)
+    }
+  }
+  phase13_source_validate_hash_column(history, "row_sha256", "Phase 13 refresh status history")
+  invisible(history)
+}
+
+phase13_acquire_build_refresh_history_row <- function(
+    edition_id,
+    refresh_batch_id,
+    event_index,
+    status,
+    event_at_utc,
+    candidate_bundle_id,
+    last_accepted_bundle_id,
+    last_accepted_output_bundle_id,
+    registry_revision,
+    operator,
+    operator_action = "",
+    validation_passed = FALSE,
+    record_relative_path = "") {
+  row <- data.frame(
+    schema_version = "phase13-refresh-status-history-v1",
+    edition_id = edition_id,
+    refresh_batch_id = refresh_batch_id,
+    event_index = as.integer(event_index),
+    status = status,
+    event_at_utc = event_at_utc,
+    candidate_bundle_id = candidate_bundle_id,
+    last_accepted_bundle_id = last_accepted_bundle_id,
+    last_accepted_output_bundle_id = last_accepted_output_bundle_id,
+    registry_revision = as.integer(registry_revision),
+    operator = operator,
+    operator_action = operator_action,
+    validation_passed = isTRUE(validation_passed),
+    record_relative_path = record_relative_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  row$row_sha256 <- phase13_row_sha256(row)
+  row
+}
+
+phase13_acquire_read_blocked_refresh <- function(path) {
+  if (!file.exists(path) || dir.exists(path)) stop("Phase 13 blocked refresh record is missing: ", path, call. = FALSE)
+  if (!requireNamespace("jsonlite", quietly = TRUE)) stop("jsonlite is required for Phase 13 refresh records", call. = FALSE)
+  jsonlite::fromJSON(path, simplifyVector = TRUE)
+}
+
+phase13_acquire_copy_registry_overlay <- function(registry_root, edition_path, overlay_root) {
+  dir.create(overlay_root, recursive = TRUE, showWarnings = FALSE)
+  required <- c("source_bundles.csv", "source_artifacts.csv", "team_identity.csv")
+  paths <- file.path(registry_root, required)
+  if (any(!file.exists(paths))) {
+    stop("Phase 13 refresh validation cannot build a registry overlay", call. = FALSE)
+  }
+  if (!all(file.copy(paths, overlay_root, overwrite = TRUE)) ||
+      !file.copy(edition_path, file.path(overlay_root, "competition_editions.csv"), overwrite = TRUE)) {
+    stop("Phase 13 refresh validation could not copy its registry overlay", call. = FALSE)
+  }
+  overlay_root
+}
+
+phase13_validate_refresh_history <- function(
+    edition_id,
+    registry_root = file.path(phase13_acquire_project_root, "data/competition/registries"),
+    accepted_root = file.path(phase13_acquire_project_root, "data/competition/accepted"),
+    refresh_batch_root,
+    refresh_batch_id = NULL,
+    project_root = phase13_acquire_project_root,
+    edition_path = NULL,
+    raw_root = NULL) {
+  edition_id <- phase13_source_safe_relative_path(edition_id)
+  registry_root <- phase13_acquire_resolve_path(registry_root, project_root)
+  accepted_root <- phase13_acquire_resolve_path(accepted_root, project_root)
+  refresh_batch_root <- phase13_acquire_resolve_path(refresh_batch_root, project_root)
+  if (!dir.exists(registry_root) || !dir.exists(accepted_root)) {
+    stop("Phase 13 refresh validation requires trusted registry and accepted roots", call. = FALSE)
+  }
+  if (!dir.exists(refresh_batch_root) && !is.null(refresh_batch_id)) {
+    stop("Phase 13 refresh validation requires a refresh-batch root for a requested batch", call. = FALSE)
+  }
+
+  overlay_root <- NULL
+  validation_registry_root <- registry_root
+  if (!is.null(edition_path)) {
+    edition_path <- phase13_acquire_resolve_path(edition_path, project_root)
+    overlay_root <- tempfile(".phase13-refresh-validation-", tmpdir = registry_root)
+    validation_registry_root <- phase13_acquire_copy_registry_overlay(
+      registry_root,
+      edition_path,
+      overlay_root
+    )
+    on.exit(if (!is.null(overlay_root) && dir.exists(overlay_root)) unlink(overlay_root, recursive = TRUE, force = TRUE), add = TRUE)
+  }
+
+  registries <- load_competition_edition_registries(
+    registry_dir = validation_registry_root,
+    project_root = project_root,
+    accepted_root = accepted_root,
+    raw_root = raw_root
+  )
+  edition_rows <- registries[as.character(registries$edition_id) == edition_id, , drop = FALSE]
+  if (nrow(edition_rows) != 1L) stop("Phase 13 refresh validation requires one edition row: ", edition_id, call. = FALSE)
+  history_paths <- phase13_acquire_refresh_history_paths(
+    registry_root,
+    edition_id,
+    refresh_batch_id = refresh_batch_id,
+    refresh_batch_root = refresh_batch_root
+  )
+  history <- if (dir.exists(refresh_batch_root)) {
+    phase13_acquire_read_refresh_history(file.path(refresh_batch_root, edition_id, "status_history.csv"))
+  } else {
+    phase13_refresh_history_empty()
+  }
+  phase13_acquire_validate_refresh_history_table(history, edition_id, refresh_batch_root)
+  result <- list(
+    registries = registries,
+    edition = edition_rows,
+    history = history,
+    history_path = file.path(refresh_batch_root, edition_id, "status_history.csv"),
+    refresh_batch_root = refresh_batch_root,
+    accepted_snapshot = registries$accepted_snapshots[[edition_id]]
+  )
+  if (is.null(refresh_batch_id)) return(result)
+
+  refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id)
+  blocked_path <- file.path(
+    refresh_batch_root,
+    edition_id,
+    refresh_batch_id,
+    "blocked_refresh.json"
+  )
+  metadata <- phase13_acquire_read_blocked_refresh(blocked_path)
+  required <- c(
+    "schema_version", "refresh_batch_id", "status", "edition_id", "candidate_bundle_id",
+    "last_accepted_bundle_id", "last_accepted_output_bundle_id", "blocked_at_utc",
+    "failure_reason", "registry_revision", "parser_commit_sha", "edition_blocked"
+  )
+  missing <- setdiff(required, names(metadata))
+  if (length(missing)) stop("Phase 13 blocked refresh record is missing fields: ", paste(missing, collapse = ", "), call. = FALSE)
+  if (!identical(as.character(metadata$schema_version), "phase13-refresh-batch-v1") ||
+      !identical(as.character(metadata$status), "blocked") ||
+      !identical(as.character(metadata$refresh_batch_id), refresh_batch_id) ||
+      !identical(as.character(metadata$edition_id), edition_id) ||
+      !isTRUE(metadata$edition_blocked)) {
+    stop("Phase 13 blocked refresh record identity or status does not match", call. = FALSE)
+  }
+  if (phase13_registry_blank(metadata$candidate_bundle_id) ||
+      phase13_registry_blank(metadata$last_accepted_bundle_id) ||
+      phase13_registry_blank(metadata$last_accepted_output_bundle_id) ||
+      phase13_registry_blank(metadata$blocked_at_utc) ||
+      phase13_registry_blank(metadata$failure_reason) ||
+      !grepl("^[0-9a-fA-F]{7,64}$", as.character(metadata$parser_commit_sha))) {
+    stop("Phase 13 blocked refresh record has incomplete audit metadata", call. = FALSE)
+  }
+  revision <- suppressWarnings(as.integer(metadata$registry_revision))
+  if (is.na(revision) || revision < 1L) stop("Phase 13 blocked refresh record has an invalid registry revision", call. = FALSE)
+  matching <- history[as.character(history$refresh_batch_id) == refresh_batch_id, , drop = FALSE]
+  blocked_events <- matching[as.character(matching$status) == "blocked", , drop = FALSE]
+  if (nrow(blocked_events) != 1L) stop("Phase 13 refresh history must contain one blocked event for the batch", call. = FALSE)
+  blocked_event <- blocked_events[1L, , drop = FALSE]
+  compare <- c(
+    refresh_batch_id = "refresh_batch_id",
+    edition_id = "edition_id",
+    candidate_bundle_id = "candidate_bundle_id",
+    last_accepted_bundle_id = "last_accepted_bundle_id",
+    last_accepted_output_bundle_id = "last_accepted_output_bundle_id",
+    blocked_at_utc = "event_at_utc",
+    registry_revision = "registry_revision"
+  )
+  for (field in names(compare)) {
+    expected <- phase13_source_canonical_scalar(metadata[[field]])
+    actual <- phase13_source_canonical_scalar(blocked_event[[compare[[field]]]][[1L]])
+    if (!identical(expected, actual)) {
+      stop("Phase 13 blocked refresh record disagrees with status history: ", field, call. = FALSE)
+    }
+  }
+  expected_record_path <- file.path(
+    "refresh_batches", edition_id, refresh_batch_id, "blocked_refresh.json"
+  )
+  if (!identical(as.character(blocked_event$record_relative_path[[1L]]), expected_record_path)) {
+    stop("Phase 13 blocked refresh record path is not linked from status history", call. = FALSE)
+  }
+
+  current <- edition_rows[1L, , drop = FALSE]
+  current_blocked <- phase13_registry_logical(current$blocked[[1L]], "blocked")
+  current_pointer <- if ("blocked_refresh_batch_id" %in% names(current)) {
+    as.character(current$blocked_refresh_batch_id[[1L]])
+  } else {
+    ""
+  }
+  if (current_blocked && !identical(current_pointer, refresh_batch_id)) {
+    stop("Phase 13 blocked edition does not point to its blocked refresh batch", call. = FALSE)
+  }
+  if (current_blocked &&
+      (!identical(as.character(current$active_output_bundle_id[[1L]]), as.character(metadata$last_accepted_output_bundle_id)) ||
+       !identical(as.character(current$last_accepted_output_bundle_id[[1L]]), as.character(metadata$last_accepted_output_bundle_id)))) {
+    stop("Phase 13 blocked edition does not retain the blocked batch's active output", call. = FALSE)
+  }
+  if (current_blocked && !identical(as.character(current$source_bundle_id[[1L]]), as.character(metadata$last_accepted_bundle_id))) {
+    stop("Phase 13 blocked edition does not retain the blocked batch's accepted bundle", call. = FALSE)
+  }
+  if (current_blocked && !identical(as.character(current$registry_revision[[1L]]), as.character(metadata$registry_revision))) {
+    stop("Phase 13 blocked edition registry revision does not match its refresh batch", call. = FALSE)
+  }
+
+  current_bundle <- attr(registries, "source_bundles")
+  current_bundle <- current_bundle[as.character(current_bundle$bundle_id) == as.character(metadata$last_accepted_bundle_id), , drop = FALSE]
+  if (current_blocked && nrow(current_bundle) != 1L) {
+    stop("Phase 13 blocked refresh record does not link to an accepted source bundle", call. = FALSE)
+  }
+  if (current_blocked &&
+      !identical(as.character(result$accepted_snapshot$bundle_id), as.character(metadata$last_accepted_bundle_id))) {
+    stop("Phase 13 blocked refresh record does not link to the active accepted snapshot", call. = FALSE)
+  }
+  result$refresh_batch_id <- refresh_batch_id
+  result$blocked_record <- metadata
+  result$blocked_event <- blocked_event
+  result
+}
+
 phase13_acquire_help <- function() {
   c(
     "Usage: Rscript --vanilla scripts/acquire_uefa_snapshot.R [options]",
@@ -181,6 +575,7 @@ phase13_acquire_help <- function() {
     "Bounded live capture:",
     "  --edition-id EDITION --fixtures-url URL --groups-url URL --standings-url URL",
     "  --results-url URL [--status-url URL] [--publish-accepted] [the same output options as above]",
+    "  [--refresh-batch-id ID] [--operator NAME] [--operator-action TEXT] [--validation-passed true|false]",
     "",
     "Only structured JSON resources are accepted.  Rendered HTML and PDF inputs are rejected."
   )
@@ -685,6 +1080,14 @@ phase13_acquire_canonical_content_sha256 <- function(data) {
   phase13_source_sha256(phase13_acquire_csv_bytes(data))
 }
 
+phase13_acquire_csv_roundtrip <- function(data) {
+  if (!is.data.frame(data)) stop("Phase 13 CSV round-trip requires a data frame", call. = FALSE)
+  path <- tempfile("phase13-csv-roundtrip-", fileext = ".csv")
+  on.exit(if (file.exists(path)) unlink(path), add = TRUE)
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+}
+
 phase13_acquire_file_sha256 <- function(path) {
   if (!file.exists(path)) return("")
   phase13_source_sha256(readBin(path, what = "raw", n = file.info(path)$size))
@@ -708,10 +1111,12 @@ phase13_acquire_source_manifest_table <- function(bundle, artifacts) {
   )
   phase13_source_require_columns(bundle, bundle_fields, "Phase 13 accepted source manifest bundle")
   phase13_source_require_columns(artifacts, artifact_fields, "Phase 13 accepted source manifest artifacts")
-  cbind(
+  manifest <- cbind(
     bundle[rep(1L, nrow(artifacts)), bundle_fields, drop = FALSE],
     artifacts[, artifact_fields, drop = FALSE]
   )
+  manifest$row_sha256 <- phase13_row_sha256(manifest)
+  manifest
 }
 
 phase13_acquire_validate_candidate_raw_bytes <- function(candidate) {
@@ -906,7 +1311,7 @@ phase13_acquire_rebuild_accepted_candidate <- function(candidate, accepted_table
 
   bundle <- phase13_acquire_rebuild_bundle_row(candidate$bundle, artifacts)
   bundle$canonical_content_sha256 <- phase13_acquire_canonical_content_sha256(
-    phase13_acquire_bundle_content_table(bundle, artifacts)
+    phase13_acquire_csv_roundtrip(phase13_acquire_bundle_content_table(bundle, artifacts))
   )
   bundle <- phase13_acquire_rebuild_bundle_row(bundle, artifacts)
   phase13_validate_source_bundle(bundle, artifacts)
@@ -1868,25 +2273,522 @@ phase13_acquire_last_accepted_bundle_id <- function(edition_id, registry_root, o
   ""
 }
 
-phase13_acquire_write_blocked_metadata <- function(
-    edition_id, bundle_id, output_root, registry_root, reason, project_root = phase13_acquire_project_root) {
-  target_dir <- file.path(output_root, edition_id)
-  dir.create(target_dir, recursive = TRUE, showWarnings = FALSE)
-  last_accepted <- phase13_acquire_last_accepted_bundle_id(edition_id, registry_root, output_root)
+phase13_acquire_publish_blocked_refresh <- function(
+    edition_id,
+    bundle_id,
+    output_root,
+    registry_root,
+    reason,
+    project_root = phase13_acquire_project_root,
+    refresh_batch_id = NULL,
+    operator = "system",
+    blocked_at_utc = phase13_acquire_now_utc(),
+    raw_root = NULL,
+    sidecar_writer = phase13_source_write_json) {
+  edition_id <- phase13_source_safe_relative_path(edition_id)
+  output_root <- phase13_acquire_resolve_path(output_root, project_root)
+  registry_root <- phase13_acquire_resolve_path(registry_root, project_root)
+  if (!dir.exists(output_root) || !dir.exists(registry_root)) {
+    stop("Phase 13 refresh-batch publication requires existing accepted and registry roots", call. = FALSE)
+  }
+  refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id, blocked_at_utc)
+  bundle_id <- phase13_source_scalar(bundle_id, "candidate_bundle_id")
+  reason <- phase13_source_scalar(reason, "failure_reason")
+  operator <- phase13_source_scalar(operator, "operator")
+  current <- load_competition_edition_registries(
+    registry_dir = registry_root,
+    project_root = project_root,
+    accepted_root = output_root,
+    raw_root = raw_root
+  )
+  edition_index <- match(edition_id, as.character(current$edition_id))
+  if (is.na(edition_index)) stop("Phase 13 refresh-batch publication edition is not registered: ", edition_id, call. = FALSE)
+  edition_row <- current[edition_index, , drop = FALSE]
+  paths <- phase13_acquire_refresh_history_paths(
+    registry_root,
+    edition_id,
+    refresh_batch_id = refresh_batch_id
+  )
+  existing_history <- phase13_acquire_read_refresh_history(
+    file.path(paths$refresh_batch_root, edition_id, "status_history.csv")
+  )
+  phase13_acquire_validate_refresh_history_table(
+    existing_history,
+    edition_id,
+    paths$refresh_batch_root
+  )
+  if (any(as.character(existing_history$refresh_batch_id) == refresh_batch_id) || file.exists(paths$blocked_path)) {
+    stop("Phase 13 refresh batch ID already exists: ", refresh_batch_id, call. = FALSE)
+  }
+  accepted_bundle_id <- as.character(edition_row$source_bundle_id[[1L]])
+  accepted_output_bundle_id <- as.character(edition_row$active_output_bundle_id[[1L]])
+  blocked_row <- phase13_block_competition_edition(
+    edition_row,
+    failure_reason = reason,
+    failure_at_utc = blocked_at_utc,
+    operator = operator,
+    refresh_batch_id = refresh_batch_id
+  )
+  editions <- current
+  editions[edition_index, names(blocked_row)] <- blocked_row
+  editions <- as.data.frame(editions, stringsAsFactors = FALSE, check.names = FALSE)
+  editions$row_sha256 <- phase13_row_sha256(editions)
+  event_index <- if (nrow(existing_history)) max(as.integer(existing_history$event_index)) + 1L else 1L
+  record_relative_path <- file.path(
+    "refresh_batches", edition_id, refresh_batch_id, "blocked_refresh.json"
+  )
+  event <- phase13_acquire_build_refresh_history_row(
+    edition_id = edition_id,
+    refresh_batch_id = refresh_batch_id,
+    event_index = event_index,
+    status = "blocked",
+    event_at_utc = blocked_at_utc,
+    candidate_bundle_id = bundle_id,
+    last_accepted_bundle_id = accepted_bundle_id,
+    last_accepted_output_bundle_id = accepted_output_bundle_id,
+    registry_revision = blocked_row$registry_revision[[1L]],
+    operator = operator,
+    validation_passed = FALSE,
+    record_relative_path = record_relative_path
+  )
+  history <- rbind(existing_history, event)
+  phase13_acquire_validate_refresh_history_table(history, edition_id, paths$refresh_batch_root)
   metadata <- list(
-    schema_version = "phase13-source-refresh-blocked-v1",
+    schema_version = "phase13-refresh-batch-v1",
+    refresh_batch_id = refresh_batch_id,
     status = "blocked",
     edition_id = edition_id,
     candidate_bundle_id = bundle_id,
-    output_bundle_target = edition_id,
-    last_accepted_bundle_id = last_accepted,
-    accepted_output_preserved = TRUE,
-    blocked_at_utc = phase13_acquire_now_utc(),
+    last_accepted_bundle_id = accepted_bundle_id,
+    last_accepted_output_bundle_id = accepted_output_bundle_id,
+    blocked_at_utc = blocked_at_utc,
     failure_reason = reason,
-    parser_commit_sha = tryCatch(phase13_parser_commit_sha(project_root), error = function(error) "")
+    registry_revision = as.integer(blocked_row$registry_revision[[1L]]),
+    parser_commit_sha = phase13_parser_commit_sha(project_root),
+    edition_blocked = TRUE
   )
-  phase13_source_write_json(metadata, file.path(target_dir, "blocked_refresh.json"))
-  metadata
+
+  stage_root <- tempfile(".phase13-refresh-stage-", tmpdir = registry_root)
+  backup_root <- tempfile(".phase13-refresh-backup-", tmpdir = registry_root)
+  dir.create(stage_root, recursive = TRUE, showWarnings = FALSE)
+  dir.create(backup_root, recursive = TRUE, showWarnings = FALSE)
+  staged_edition_path <- file.path(stage_root, "competition_editions.csv")
+  staged_history_path <- file.path(stage_root, "refresh_batches", edition_id, "status_history.csv")
+  staged_sidecar_path <- file.path(stage_root, record_relative_path)
+  phase13_source_write_csv(editions, staged_edition_path)
+  phase13_source_write_csv(history, staged_history_path)
+  tryCatch(
+    sidecar_writer(metadata, staged_sidecar_path),
+    error = function(error) stop("Phase 13 refresh-batch publication failed: blocked_refresh.json", call. = FALSE)
+  )
+  staged_sidecar <- phase13_acquire_read_blocked_refresh(staged_sidecar_path)
+  if (!identical(as.character(staged_sidecar$refresh_batch_id), refresh_batch_id)) {
+    stop("Phase 13 refresh-batch publication failed: blocked_refresh.json", call. = FALSE)
+  }
+  phase13_validate_refresh_history(
+    edition_id = edition_id,
+    registry_root = registry_root,
+    accepted_root = output_root,
+    refresh_batch_root = file.path(stage_root, "refresh_batches"),
+    refresh_batch_id = refresh_batch_id,
+    project_root = project_root,
+    edition_path = staged_edition_path,
+    raw_root = raw_root
+  )
+
+  target_paths <- c(
+    edition = file.path(registry_root, "competition_editions.csv"),
+    history = file.path(registry_root, "refresh_batches", edition_id, "status_history.csv"),
+    sidecar = file.path(registry_root, record_relative_path)
+  )
+  staged_paths <- c(
+    edition = staged_edition_path,
+    history = staged_history_path,
+    sidecar = staged_sidecar_path
+  )
+  backup_paths <- c(
+    edition = file.path(backup_root, "competition_editions.csv"),
+    history = file.path(backup_root, "status_history.csv"),
+    sidecar = ""
+  )
+  promoted <- setNames(logical(length(target_paths)), names(target_paths))
+  backed_up <- setNames(logical(length(target_paths)), names(target_paths))
+  success <- FALSE
+  rollback <- function() {
+    for (name in rev(names(target_paths))) {
+      target <- target_paths[[name]]
+      if (isTRUE(promoted[[name]]) && (file.exists(target) || dir.exists(target))) {
+        unlink(target, recursive = TRUE, force = TRUE)
+      }
+    }
+    for (name in names(target_paths)) {
+      if (isTRUE(backed_up[[name]]) && file.exists(backup_paths[[name]]) && !file.exists(target_paths[[name]])) {
+        file.rename(backup_paths[[name]], target_paths[[name]])
+      }
+    }
+    batch_dir <- dirname(target_paths[["sidecar"]])
+    if (!success && dir.exists(batch_dir) && !file.exists(target_paths[["sidecar"]])) {
+      unlink(batch_dir, recursive = TRUE, force = TRUE)
+    }
+  }
+  on.exit({
+    if (!success) rollback()
+    if (dir.exists(stage_root)) unlink(stage_root, recursive = TRUE, force = TRUE)
+    if (dir.exists(backup_root)) unlink(backup_root, recursive = TRUE, force = TRUE)
+  }, add = TRUE)
+  for (name in c("edition", "history")) {
+    target <- target_paths[[name]]
+    if (file.exists(target)) {
+      if (!file.rename(target, backup_paths[[name]])) {
+        stop("Phase 13 refresh-batch publication failed: ", name, call. = FALSE)
+      }
+      backed_up[[name]] <- TRUE
+    }
+  }
+  for (name in names(target_paths)) {
+    dir.create(dirname(target_paths[[name]]), recursive = TRUE, showWarnings = FALSE)
+    if (!file.rename(staged_paths[[name]], target_paths[[name]])) {
+      stop("Phase 13 refresh-batch publication failed: ", basename(target_paths[[name]]), call. = FALSE)
+    }
+    promoted[[name]] <- TRUE
+  }
+  phase13_validate_refresh_history(
+    edition_id = edition_id,
+    registry_root = registry_root,
+    accepted_root = output_root,
+    refresh_batch_root = file.path(registry_root, "refresh_batches"),
+    refresh_batch_id = refresh_batch_id,
+    project_root = project_root,
+    raw_root = raw_root
+  )
+  success <- TRUE
+  invisible(list(
+    metadata = metadata,
+    edition = blocked_row,
+    history = history,
+    paths = target_paths
+  ))
+}
+
+phase13_acquire_write_blocked_metadata <- function(
+    edition_id,
+    bundle_id,
+    output_root,
+    registry_root,
+    reason,
+    project_root = phase13_acquire_project_root,
+    refresh_batch_id = NULL,
+    operator = "system",
+    blocked_at_utc = phase13_acquire_now_utc(),
+    raw_root = NULL,
+    sidecar_writer = phase13_source_write_json) {
+  phase13_acquire_publish_blocked_refresh(
+    edition_id = edition_id,
+    bundle_id = bundle_id,
+    output_root = output_root,
+    registry_root = registry_root,
+    reason = reason,
+    project_root = project_root,
+    refresh_batch_id = refresh_batch_id,
+    operator = operator,
+    blocked_at_utc = blocked_at_utc,
+    raw_root = raw_root,
+    sidecar_writer = sidecar_writer
+  )$metadata
+}
+
+phase13_acquire_prepare_refresh_acceptance <- function(
+    edition_id,
+    output_root,
+    registry_root,
+    project_root = phase13_acquire_project_root,
+    operator = "system",
+    operator_action = "",
+    validation_passed = FALSE,
+    raw_root = NULL) {
+  edition_path <- file.path(registry_root, "competition_editions.csv")
+  if (!file.exists(edition_path)) return(NULL)
+  state <- phase13_validate_refresh_history(
+    edition_id = edition_id,
+    registry_root = registry_root,
+    accepted_root = output_root,
+    refresh_batch_root = file.path(registry_root, "refresh_batches"),
+    project_root = project_root,
+    raw_root = raw_root
+  )
+  row <- state$edition[1L, , drop = FALSE]
+  if (!phase13_registry_logical(row$blocked[[1L]], "blocked")) {
+    return(list(state = state, edition = row, was_blocked = FALSE, blocked_batch_id = ""))
+  }
+  blocked_batch_id <- as.character(row$blocked_refresh_batch_id[[1L]])
+  if (phase13_registry_blank(blocked_batch_id)) {
+    stop("Phase 13 blocked lifecycle recovery requires a linked refresh batch", call. = FALSE)
+  }
+  phase13_validate_refresh_history(
+    edition_id = edition_id,
+    registry_root = registry_root,
+    accepted_root = output_root,
+    refresh_batch_root = file.path(registry_root, "refresh_batches"),
+    refresh_batch_id = blocked_batch_id,
+    project_root = project_root,
+    raw_root = raw_root
+  )
+  transitioned <- phase13_transition_competition_edition(
+    row,
+    next_lifecycle_state = row$lifecycle_state[[1L]],
+    operator_action = operator_action,
+    validation_passed = validation_passed,
+    operator = operator,
+    audit_at_utc = phase13_acquire_now_utc()
+  )
+  list(
+    state = state,
+    edition = row,
+    transitioned = transitioned,
+    was_blocked = TRUE,
+    blocked_batch_id = blocked_batch_id,
+    operator_action = operator_action
+  )
+}
+
+phase13_acquire_update_edition_after_acceptance <- function(
+    candidate,
+    edition_id,
+    output_root,
+    registry_root,
+    refresh_batch_id,
+    project_root = phase13_acquire_project_root,
+    operator = "system",
+    operator_action = "",
+    validation_passed = FALSE,
+    recovery_context = NULL,
+    accepted_at_utc = phase13_acquire_now_utc(),
+    raw_root = NULL) {
+  edition_id <- phase13_source_safe_relative_path(edition_id)
+  candidate_bundle_id <- phase13_source_scalar(candidate$bundle$bundle_id[[1L]], "candidate bundle_id")
+  refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id)
+  registry_root <- phase13_acquire_resolve_path(registry_root, project_root)
+  output_root <- phase13_acquire_resolve_path(output_root, project_root)
+  edition_path <- file.path(registry_root, "competition_editions.csv")
+  if (!file.exists(edition_path)) stop("Phase 13 accepted refresh requires competition_editions.csv", call. = FALSE)
+  current_editions <- utils::read.csv(
+    edition_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  edition_index <- match(edition_id, as.character(current_editions$edition_id))
+  if (is.na(edition_index)) stop("Phase 13 accepted refresh edition is not registered: ", edition_id, call. = FALSE)
+  base_row <- if (!is.null(recovery_context)) recovery_context$edition else current_editions[edition_index, , drop = FALSE]
+  if (!"blocked_refresh_batch_id" %in% names(base_row)) base_row$blocked_refresh_batch_id <- ""
+  was_blocked <- !is.null(recovery_context) && isTRUE(recovery_context$was_blocked)
+  recovered_row <- if (was_blocked) recovery_context$transitioned else base_row
+  if (was_blocked && !isTRUE(validation_passed)) {
+    stop("Phase 13 blocked lifecycle recovery requires explicit operator action and validation", call. = FALSE)
+  }
+  if (was_blocked && phase13_registry_blank(operator_action)) {
+    stop("Phase 13 blocked lifecycle recovery requires explicit operator action and validation", call. = FALSE)
+  }
+  existing_history_path <- file.path(registry_root, "refresh_batches", edition_id, "status_history.csv")
+  existing_history <- phase13_acquire_read_refresh_history(existing_history_path)
+  phase13_acquire_validate_refresh_history_table(
+    existing_history,
+    edition_id,
+    file.path(registry_root, "refresh_batches")
+  )
+  if (any(as.character(existing_history$refresh_batch_id) == refresh_batch_id)) {
+    stop("Phase 13 refresh batch ID already exists: ", refresh_batch_id, call. = FALSE)
+  }
+  accepted_row <- recovered_row
+  accepted_row$source_bundle_id <- candidate_bundle_id
+  accepted_row$active_output_bundle_id <- candidate_bundle_id
+  accepted_row$last_accepted_output_bundle_id <- candidate_bundle_id
+  accepted_row$blocked <- FALSE
+  accepted_row$audit_event <- "refresh_accepted"
+  accepted_row$audit_at_utc <- accepted_at_utc
+  accepted_row$operator <- operator
+  accepted_row$registry_revision <- as.integer(accepted_row$registry_revision[[1L]]) + 1L
+  accepted_row$row_sha256 <- phase13_registry_row_hash(accepted_row)
+  current_editions[edition_index, names(accepted_row)] <- accepted_row
+  current_editions$row_sha256 <- phase13_row_sha256(current_editions)
+
+  next_event_index <- if (nrow(existing_history)) max(as.integer(existing_history$event_index)) + 1L else 1L
+  appended <- existing_history
+  if (was_blocked) {
+    recovery_event <- phase13_acquire_build_refresh_history_row(
+      edition_id = edition_id,
+      refresh_batch_id = recovery_context$blocked_batch_id,
+      event_index = next_event_index,
+      status = "recovery",
+      event_at_utc = accepted_at_utc,
+      candidate_bundle_id = candidate_bundle_id,
+      last_accepted_bundle_id = as.character(recovery_context$edition$source_bundle_id[[1L]]),
+      last_accepted_output_bundle_id = as.character(recovery_context$edition$active_output_bundle_id[[1L]]),
+      registry_revision = recovered_row$registry_revision[[1L]],
+      operator = operator,
+      operator_action = operator_action,
+      validation_passed = TRUE,
+      record_relative_path = file.path(
+        "refresh_batches", edition_id, recovery_context$blocked_batch_id, "blocked_refresh.json"
+      )
+    )
+    appended <- rbind(appended, recovery_event)
+    next_event_index <- next_event_index + 1L
+  }
+  accepted_event <- phase13_acquire_build_refresh_history_row(
+    edition_id = edition_id,
+    refresh_batch_id = refresh_batch_id,
+    event_index = next_event_index,
+    status = "accepted",
+    event_at_utc = accepted_at_utc,
+    candidate_bundle_id = candidate_bundle_id,
+    last_accepted_bundle_id = candidate_bundle_id,
+    last_accepted_output_bundle_id = candidate_bundle_id,
+    registry_revision = accepted_row$registry_revision[[1L]],
+    operator = operator,
+    operator_action = operator_action,
+    validation_passed = TRUE,
+    record_relative_path = ""
+  )
+  appended <- rbind(appended, accepted_event)
+  phase13_acquire_validate_refresh_history_table(
+    appended,
+    edition_id,
+    file.path(registry_root, "refresh_batches")
+  )
+
+  stage_root <- tempfile(".phase13-accepted-refresh-stage-", tmpdir = registry_root)
+  backup_root <- tempfile(".phase13-accepted-refresh-backup-", tmpdir = registry_root)
+  dir.create(stage_root, recursive = TRUE, showWarnings = FALSE)
+  dir.create(backup_root, recursive = TRUE, showWarnings = FALSE)
+  staged_edition_path <- file.path(stage_root, "competition_editions.csv")
+  staged_history_path <- file.path(stage_root, "refresh_batches", edition_id, "status_history.csv")
+  phase13_source_write_csv(current_editions, staged_edition_path)
+  phase13_source_write_csv(appended, staged_history_path)
+  phase13_validate_refresh_history(
+    edition_id = edition_id,
+    registry_root = registry_root,
+    accepted_root = output_root,
+    refresh_batch_root = file.path(stage_root, "refresh_batches"),
+    project_root = project_root,
+    edition_path = staged_edition_path,
+    raw_root = raw_root
+  )
+
+  target_paths <- c(
+    edition = edition_path,
+    history = existing_history_path
+  )
+  staged_paths <- c(
+    edition = staged_edition_path,
+    history = staged_history_path
+  )
+  backup_paths <- c(
+    edition = file.path(backup_root, "competition_editions.csv"),
+    history = file.path(backup_root, "status_history.csv")
+  )
+  promoted <- setNames(logical(length(target_paths)), names(target_paths))
+  backed_up <- setNames(logical(length(target_paths)), names(target_paths))
+  success <- FALSE
+  rollback <- function() {
+    for (name in rev(names(target_paths))) {
+      target <- target_paths[[name]]
+      if (isTRUE(promoted[[name]]) && (file.exists(target) || dir.exists(target))) unlink(target, recursive = TRUE, force = TRUE)
+    }
+    for (name in names(target_paths)) {
+      if (isTRUE(backed_up[[name]]) && file.exists(backup_paths[[name]]) && !file.exists(target_paths[[name]])) {
+        file.rename(backup_paths[[name]], target_paths[[name]])
+      }
+    }
+  }
+  on.exit({
+    if (!success) rollback()
+    if (dir.exists(stage_root)) unlink(stage_root, recursive = TRUE, force = TRUE)
+    if (dir.exists(backup_root)) unlink(backup_root, recursive = TRUE, force = TRUE)
+  }, add = TRUE)
+  for (name in names(target_paths)) {
+    target <- target_paths[[name]]
+    if (file.exists(target)) {
+      if (!file.rename(target, backup_paths[[name]])) stop("Phase 13 accepted refresh publication failed: ", name, call. = FALSE)
+      backed_up[[name]] <- TRUE
+    }
+  }
+  for (name in names(target_paths)) {
+    dir.create(dirname(target_paths[[name]]), recursive = TRUE, showWarnings = FALSE)
+    if (!file.rename(staged_paths[[name]], target_paths[[name]])) stop("Phase 13 accepted refresh publication failed: ", name, call. = FALSE)
+    promoted[[name]] <- TRUE
+  }
+  phase13_validate_refresh_history(
+    edition_id = edition_id,
+    registry_root = registry_root,
+    accepted_root = output_root,
+    refresh_batch_root = file.path(registry_root, "refresh_batches"),
+    project_root = project_root,
+    raw_root = raw_root
+  )
+  success <- TRUE
+  invisible(list(edition = accepted_row, history = appended, refresh_batch_id = refresh_batch_id))
+}
+
+phase13_acquire_publish_refresh <- function(
+    candidate,
+    output_root,
+    edition_id,
+    raw_root,
+    registry_root,
+    project_root = phase13_acquire_project_root,
+    registry_context_root = registry_root,
+    refresh_batch_id,
+    operator = "system",
+    operator_action = "",
+    validation_passed = FALSE) {
+  edition_id <- phase13_source_safe_relative_path(edition_id)
+  refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id)
+  recovery_context <- phase13_acquire_prepare_refresh_acceptance(
+    edition_id = edition_id,
+    output_root = output_root,
+    registry_root = registry_root,
+    project_root = project_root,
+    operator = operator,
+    operator_action = operator_action,
+    validation_passed = validation_passed,
+    raw_root = raw_root
+  )
+  phase13_acquire_write_raw_store(
+    candidate,
+    phase13_acquire_resolve_path(raw_root, project_root),
+    edition_id,
+    candidate$bundle$bundle_id[[1L]]
+  )
+  candidate <- phase13_acquire_publish_accepted(
+    candidate,
+    output_root = phase13_acquire_resolve_path(output_root, project_root),
+    edition_id = edition_id,
+    raw_root = phase13_acquire_resolve_path(raw_root, project_root),
+    registry_root = phase13_acquire_resolve_path(registry_root, project_root),
+    registry_context_root = registry_context_root
+  )
+  phase13_acquire_update_registries(
+    candidate,
+    phase13_acquire_resolve_path(registry_root, project_root),
+    project_root = project_root
+  )
+  if (!is.null(recovery_context)) {
+    candidate$edition_registry <- phase13_acquire_update_edition_after_acceptance(
+      candidate = candidate,
+      edition_id = edition_id,
+      output_root = output_root,
+      registry_root = registry_root,
+      refresh_batch_id = refresh_batch_id,
+      project_root = project_root,
+      operator = operator,
+      operator_action = operator_action,
+      validation_passed = validation_passed,
+      recovery_context = recovery_context,
+      raw_root = raw_root
+    )
+  }
+  candidate
 }
 
 phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
@@ -1901,6 +2803,10 @@ phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
   raw_root <- phase13_acquire_resolve_path(options[["raw-root"]] %||% "data/competition/local_raw")
   fallback <- !is.null(options[["fallback-file"]])
   bundle_id <- if (!is.null(options[["bundle-id"]])) options[["bundle-id"]] else phase13_acquire_default_bundle_id(edition_id, fallback)
+  refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(options[["refresh-batch-id"]], edition_id)
+  operator <- if (!is.null(options[["operator"]])) phase13_source_scalar(options[["operator"]], "operator") else "system"
+  operator_action <- if (!is.null(options[["operator-action"]])) as.character(options[["operator-action"]]) else ""
+  validation_passed <- phase13_acquire_option_logical(options, "validation-passed", default = FALSE)
   tryCatch({
     candidate <- phase13_acquire_candidate(options, edition_id)
     candidate$manifest <- phase13_acquire_source_manifest_table(candidate$bundle, candidate$artifacts)
@@ -1908,29 +2814,23 @@ phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
       message(sprintf("Phase 13 dry-run candidate valid: %s (%s)", candidate$bundle$bundle_id[[1L]], edition_id))
       return(invisible(candidate))
     }
-    phase13_acquire_write_raw_store(candidate, raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
     if (isTRUE(options$publish_accepted)) {
-      if (phase13_acquire_normalized_publication_ready(output_root, registry_root)) {
-        published <- phase13_publish_normalized_editions(
-          output_root = output_root,
-          registry_root = registry_root,
-          registry_context_root = registry_root,
-          candidate = candidate
-        )
-        candidate$normalized_publication <- published
-        message(sprintf(
-          "Phase 13 accepted normalized publication for %s source bundle: %s",
-          edition_id,
-          candidate$bundle$bundle_id[[1L]]
-        ))
-        return(invisible(candidate))
-      }
-      # A one-edition temporary capture root is still supported for bounded
-      # fixture replay. Production roots with both source handoffs always use
-      # the fourteen-target transaction above.
-      candidate <- phase13_acquire_publish_accepted(candidate, output_root, edition_id, raw_root, registry_root)
+      candidate <- phase13_acquire_publish_refresh(
+        candidate = candidate,
+        output_root = output_root,
+        edition_id = edition_id,
+        raw_root = raw_root,
+        registry_root = registry_root,
+        registry_context_root = registry_root,
+        refresh_batch_id = refresh_batch_id,
+        operator = operator,
+        operator_action = operator_action,
+        validation_passed = validation_passed
+      )
+    } else {
+      phase13_acquire_write_raw_store(candidate, raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
+      phase13_acquire_update_registries(candidate, registry_root)
     }
-    phase13_acquire_update_registries(candidate, registry_root)
     message(sprintf(
       "Phase 13 %s %s source bundle: %s",
       if (isTRUE(options$publish_accepted)) "accepted" else "captured",
@@ -1939,14 +2839,31 @@ phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
     ))
     invisible(candidate)
   }, error = function(error) {
-    if (!isTRUE(options$dry_run)) {
-      phase13_acquire_write_blocked_metadata(
-        edition_id = edition_id,
-        bundle_id = bundle_id,
-        output_root = output_root,
-        registry_root = registry_root,
-        reason = conditionMessage(error)
+    if (!isTRUE(options$dry_run) && file.exists(file.path(registry_root, "competition_editions.csv")) && dir.exists(output_root)) {
+      block_error <- tryCatch(
+        phase13_acquire_write_blocked_metadata(
+          edition_id = edition_id,
+          bundle_id = bundle_id,
+          output_root = output_root,
+          registry_root = registry_root,
+          reason = conditionMessage(error),
+          project_root = phase13_acquire_project_root,
+          refresh_batch_id = refresh_batch_id,
+          operator = operator,
+          raw_root = raw_root
+        ),
+        error = function(block_error) block_error
       )
+      if (inherits(block_error, "error")) {
+        stop(
+          sprintf(
+            "Phase 13 source capture blocked: %s; %s",
+            conditionMessage(error),
+            conditionMessage(block_error)
+          ),
+          call. = FALSE
+        )
+      }
     }
     stop(sprintf("Phase 13 source capture blocked: %s", conditionMessage(error)), call. = FALSE)
   })

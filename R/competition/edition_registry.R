@@ -10,7 +10,7 @@ phase13_competition_edition_required_columns <- function() {
     "schema_version", "edition_id", "source_edition_id", "competition_id", "display_name",
     "lifecycle_state", "official_draw_date", "source_reference", "ruleset_version",
     "source_bundle_id", "model_release_id", "output_bundle_target", "active_output_bundle_id",
-    "last_accepted_output_bundle_id", "blocked", "blocked_reason", "blocked_at_utc",
+    "last_accepted_output_bundle_id", "blocked", "blocked_refresh_batch_id", "blocked_reason", "blocked_at_utc",
     "last_refresh_failure", "last_refresh_failure_at_utc", "registry_revision", "audit_event",
     "audit_at_utc", "operator", "pre_draw_note", "row_sha256"
   )
@@ -184,6 +184,7 @@ phase13_build_competition_edition_row <- function(
     active_output_bundle_id = NULL,
     last_accepted_output_bundle_id = NULL,
     blocked = FALSE,
+    blocked_refresh_batch_id = "",
     blocked_reason = "",
     blocked_at_utc = "",
     last_refresh_failure = "",
@@ -242,6 +243,7 @@ phase13_build_competition_edition_row <- function(
     active_output_bundle_id = active_output_bundle_id,
     last_accepted_output_bundle_id = last_accepted_output_bundle_id,
     blocked = blocked,
+    blocked_refresh_batch_id = phase13_registry_scalar(blocked_refresh_batch_id, "blocked_refresh_batch_id", allow_empty = TRUE),
     blocked_reason = phase13_registry_scalar(blocked_reason, "blocked_reason", allow_empty = TRUE),
     blocked_at_utc = phase13_registry_scalar(blocked_at_utc, "blocked_at_utc", allow_empty = TRUE),
     last_refresh_failure = phase13_registry_scalar(last_refresh_failure, "last_refresh_failure", allow_empty = TRUE),
@@ -256,6 +258,9 @@ phase13_build_competition_edition_row <- function(
   )
   if (blocked && (phase13_registry_blank(row$blocked_reason) || phase13_registry_blank(row$blocked_at_utc))) {
     stop("Phase 13 blocked editions require failure reason and timestamp metadata", call. = FALSE)
+  }
+  if (blocked && phase13_registry_blank(row$blocked_refresh_batch_id)) {
+    stop("Phase 13 blocked editions require a refresh batch ID", call. = FALSE)
   }
   row$row_sha256 <- phase13_registry_row_hash(row)
   row
@@ -303,7 +308,8 @@ phase13_validate_competition_edition_registries <- function(
     vapply(registries$blocked_reason, phase13_registry_blank, logical(1)) |
     vapply(registries$blocked_at_utc, phase13_registry_blank, logical(1)) |
     vapply(registries$last_refresh_failure, phase13_registry_blank, logical(1)) |
-    vapply(registries$last_refresh_failure_at_utc, phase13_registry_blank, logical(1))
+    vapply(registries$last_refresh_failure_at_utc, phase13_registry_blank, logical(1)) |
+    vapply(registries$blocked_refresh_batch_id, phase13_registry_blank, logical(1))
   ))) {
     stop("Phase 13 blocked editions require failure reason and timestamp metadata", call. = FALSE)
   }
@@ -390,6 +396,7 @@ phase13_transition_competition_edition <- function(
   phase13_validate_lifecycle_transition(row$lifecycle_state[[1L]], next_lifecycle_state)
   row$lifecycle_state <- phase13_registry_scalar(next_lifecycle_state, "next lifecycle state")
   row$blocked <- FALSE
+  if (!"blocked_refresh_batch_id" %in% names(row)) row$blocked_refresh_batch_id <- ""
   row$blocked_reason <- ""
   row$blocked_at_utc <- ""
   row$audit_event <- paste0("lifecycle_", row$lifecycle_state[[1L]])
@@ -419,12 +426,17 @@ phase13_block_competition_edition <- function(
     failure_reason,
     failure_at_utc,
     operator = "system",
-    audit_at_utc = NULL) {
+    audit_at_utc = NULL,
+    refresh_batch_id = NULL) {
   if (!is.data.frame(row) || nrow(row) != 1L) stop("Phase 13 block operation requires one registry row", call. = FALSE)
+  if (!"blocked_refresh_batch_id" %in% names(row)) row$blocked_refresh_batch_id <- ""
   failure_reason <- phase13_registry_scalar(failure_reason, "failure_reason")
   failure_at_utc <- phase13_registry_scalar(failure_at_utc, "failure_at_utc")
   if (phase13_registry_blank(row$active_output_bundle_id[[1L]])) stop("Phase 13 blocked edition must retain an active output bundle", call. = FALSE)
   row$blocked <- TRUE
+  if (!is.null(refresh_batch_id)) {
+    row$blocked_refresh_batch_id <- phase13_registry_scalar(refresh_batch_id, "refresh_batch_id")
+  }
   row$blocked_reason <- failure_reason
   row$blocked_at_utc <- failure_at_utc
   row$last_refresh_failure <- failure_reason
@@ -519,6 +531,45 @@ phase13_accepted_snapshot_resolve_root <- function(project_root, accepted_root) 
   }
   if (phase13_accepted_snapshot_has_symlink(lexical, root)) {
     stop("Phase 13 accepted snapshot root contains a symlinked path component", call. = FALSE)
+  }
+  resolved
+}
+
+phase13_accepted_snapshot_resolve_raw_root <- function(project_root, raw_root = NULL) {
+  root <- phase13_edition_project_root(project_root)
+  if (is.null(raw_root)) return(root)
+  supplied <- phase13_registry_scalar(raw_root, "raw_root")
+  lexical <- if (grepl("^/", supplied)) supplied else file.path(root, supplied)
+  if (!dir.exists(lexical)) stop("Phase 13 raw-store root is missing: ", lexical, call. = FALSE)
+  if (phase13_accepted_snapshot_is_symlink(lexical)) {
+    stop("Phase 13 raw-store root must not be a symlink: ", lexical, call. = FALSE)
+  }
+  resolved <- normalizePath(lexical, winslash = "/", mustWork = TRUE)
+  if (phase13_source_path_within(resolved, root) && phase13_accepted_snapshot_has_symlink(lexical, root)) {
+    stop("Phase 13 raw-store root contains a symlinked path component", call. = FALSE)
+  }
+  resolved
+}
+
+phase13_accepted_snapshot_resolve_raw_path <- function(project_root, raw_root = NULL, relative_path) {
+  relative_path <- phase13_source_validate_local_raw_path(relative_path)
+  if (is.null(raw_root)) {
+    root <- phase13_edition_project_root(project_root)
+    lexical <- file.path(root, relative_path)
+    resolved <- phase13_source_path_under_root(root, relative_path, must_work = TRUE)
+    if (phase13_accepted_snapshot_has_symlink(lexical, root)) {
+      stop("Phase 13 source raw artifact path contains a symlink: ", relative_path, call. = FALSE)
+    }
+    return(resolved)
+  }
+  prefix <- "data/competition/local_raw/"
+  suffix <- substring(relative_path, nchar(prefix) + 1L)
+  suffix <- phase13_source_safe_relative_path(suffix)
+  trusted_root <- phase13_accepted_snapshot_resolve_raw_root(project_root, raw_root)
+  lexical <- file.path(trusted_root, suffix)
+  resolved <- phase13_source_path_under_root(trusted_root, suffix, must_work = TRUE)
+  if (phase13_accepted_snapshot_has_symlink(lexical, trusted_root)) {
+    stop("Phase 13 source raw artifact path contains a symlink: ", relative_path, call. = FALSE)
   }
   resolved
 }
@@ -741,15 +792,13 @@ phase13_accepted_snapshot_manifest_artifact_positions <- function() {
 phase13_accepted_snapshot_validate_raw_provenance <- function(
     project_root,
     artifacts,
-    manifest) {
+    manifest,
+    raw_root = NULL) {
   positions <- phase13_accepted_snapshot_manifest_artifact_positions()
   for (index in seq_len(nrow(artifacts))) {
     artifact <- artifacts[index, , drop = FALSE]
     relative_path <- phase13_source_validate_local_raw_path(as.character(artifact$relative_local_raw_path[[1L]]))
-    raw_path <- phase13_source_path_under_root(project_root, relative_path, must_work = TRUE)
-    if (phase13_accepted_snapshot_has_symlink(file.path(project_root, relative_path), project_root)) {
-      stop("Phase 13 source raw artifact path contains a symlink: ", relative_path, call. = FALSE)
-    }
+    raw_path <- phase13_accepted_snapshot_resolve_raw_path(project_root, raw_root, relative_path)
     raw_bytes <- readBin(raw_path, what = "raw", n = file.info(raw_path)$size)
     if (length(raw_bytes) != as.integer(artifact$bytes[[1L]]) ||
         !identical(tolower(phase13_source_sha256(raw_bytes)), tolower(as.character(artifact$raw_sha256[[1L]])))) {
@@ -786,7 +835,8 @@ phase13_validate_accepted_snapshot <- function(
     source_bundles,
     source_artifacts,
     project_root = ".",
-    identity_registry = NULL) {
+    identity_registry = NULL,
+    raw_root = NULL) {
   phase13_edition_source_contracts(project_root)
   if (!is.data.frame(edition_row) || nrow(edition_row) != 1L) {
     stop("Phase 13 accepted snapshot validation requires one edition registry row", call. = FALSE)
@@ -840,7 +890,7 @@ phase13_validate_accepted_snapshot <- function(
 
   manifest <- read_table("source_bundle_manifest.csv")
   phase13_accepted_snapshot_validate_manifest(manifest, bundle, artifacts)
-  phase13_accepted_snapshot_validate_raw_provenance(project_root, artifacts, manifest)
+  phase13_accepted_snapshot_validate_raw_provenance(project_root, artifacts, manifest, raw_root = raw_root)
 
   tables <- setNames(vector("list", length(required)), required)
   for (artifact_type in required) {
@@ -908,7 +958,8 @@ load_competition_edition_registries <- function(
     project_root = ".",
     validate = TRUE,
     trusted_release_root = NULL,
-    accepted_root = NULL) {
+    accepted_root = NULL,
+    raw_root = NULL) {
   root <- phase13_edition_project_root(project_root)
   phase13_edition_source_contracts(root)
   registry_dir <- as.character(registry_dir)
@@ -964,7 +1015,8 @@ load_competition_edition_registries <- function(
         source_bundles = source_bundles,
         source_artifacts = source_artifacts,
         project_root = root,
-        identity_registry = identity_registry
+        identity_registry = identity_registry,
+        raw_root = raw_root
       )
     })
     names(accepted_snapshots) <- as.character(registries$edition_id)

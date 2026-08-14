@@ -835,7 +835,7 @@ test_that("reviewed fallback acceptance is complete and never mixes provenance",
   expect_true(all(grepl("^[0-9a-f]{64}$", artifacts$canonical_content_sha256)))
 })
 
-test_that("blocked candidate writes failure metadata and retains the prior accepted bundle", {
+test_that("blocked candidate retains the prior accepted bundle when no edition registry exists", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
   output_root <- tempfile("phase13-blocked-accepted-")
   registry_root <- tempfile("phase13-blocked-registries-")
@@ -875,12 +875,11 @@ test_that("blocked candidate writes failure metadata and retains the prior accep
   )))
   expect_false(identical(blocked$status, 0L))
   expect_identical(readLines(accepted_manifest, warn = FALSE), before)
-  blocked_path <- file.path(output_root, "uefa_nations_league_2026_27", "blocked_refresh.json")
-  expect_true(file.exists(blocked_path))
-  blocked_metadata <- jsonlite::fromJSON(blocked_path)
-  expect_identical(blocked_metadata$last_accepted_bundle_id, "nl-2026-27-official-sample-v1")
-  expect_identical(blocked_metadata$output_bundle_target, "uefa_nations_league_2026_27")
-  expect_identical(blocked_metadata$status, "blocked")
+  expect_false(file.exists(file.path(
+    output_root,
+    "uefa_nations_league_2026_27",
+    "blocked_refresh.json"
+  )))
 })
 
 test_that("accepted publication validates the complete staged directory and protects registry-side refresh records", {
