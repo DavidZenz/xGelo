@@ -141,11 +141,16 @@ phase13_acquire_fixture_input <- function(fixture_dir, edition_id, fixture_file 
   path <- phase13_acquire_fixture_path(fixture_dir, edition_id, fixture_file)
   fixture <- jsonlite::fromJSON(path, simplifyVector = FALSE)
   if (identical(edition_id, "uefa_euro_2028_qualifying") && is.null(fixture$resources)) {
+    lifecycle_state <- phase13_acquire_value(
+      fixture$lifecycle_state,
+      "lifecycle_state",
+      phase13_acquire_value(fixture$source_snapshot_state, "source_snapshot_state")
+    )
     resource_types <- phase13_source_required_resource_types()
     resources <- setNames(lapply(resource_types, phase13_acquire_empty_resource), resource_types)
     resources$status <- list(list(
       source_edition_id = fixture$edition_id,
-      competition_status = fixture$source_snapshot_state
+      competition_status = lifecycle_state
     ))
     urls <- setNames(rep(fixture$source_reference, length(resource_types)), resource_types)
     return(list(

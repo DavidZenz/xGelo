@@ -466,6 +466,23 @@ phase13_source_test_load_acquire <- function() {
   environment
 }
 
+test_that("EURO pre_draw fixture publishes its canonical lifecycle status", {
+  acquire <- phase13_source_test_load_acquire()
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  candidate <- acquire$phase13_acquire_candidate(
+    list(
+      `fixture-dir` = fixture_dir,
+      `fixture-file` = NULL,
+      `fallback-file` = NULL,
+      `bundle-id` = "uefa-euro-2028-predraw-status-v1"
+    ),
+    "uefa_euro_2028_qualifying",
+    project_root = phase13_source_test_project_root
+  )
+
+  expect_identical(candidate$resources$status[[1L]]$competition_status, "pre_draw")
+})
+
 test_that("bounded live fetch retries transient responses through injectable httr2 callbacks", {
   acquire <- phase13_source_test_load_acquire()
   fixture <- phase13_source_test_fixture()
