@@ -881,3 +881,178 @@ test_that("edition validation rejects forged release pins and null release slots
     "empty required field|output"
   )
 })
+
+test_that("martj42 history identity and edition contracts survive append, reorder, and score-only changes", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_generate_martj42_identity_map",
+    "phase13_normalize_historical_result_rows",
+    "phase13_martj42_edition_lookup_hash",
+    "phase13_identity_row_hash"
+  ))
+  history <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "tests/fixtures/phase13/martj42_history_sample.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  registry <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "data/competition/registries/team_identity.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  edition_lookup <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "tests/fixtures/phase13/martj42_history_edition_map.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  identity_map <- phase13_generate_martj42_identity_map(
+    history, registry, "martj42", "martj42-fixture-v1", strrep("a", 64),
+    "martj42-results-fixture-v1"
+  )
+  baseline <- phase13_normalize_historical_result_rows(history, identity_map, edition_lookup)
+
+  rehash_lookup <- function(lookup) {
+    lookup$edition_lookup_sha256 <- ""
+    lookup$row_sha256 <- ""
+    lookup$edition_lookup_sha256 <- phase13_martj42_edition_lookup_hash(lookup)
+    lookup$row_sha256 <- phase13_identity_row_hash(lookup)
+    lookup
+  }
+  future_history <- history[3L, , drop = FALSE]
+  future_history$match_id <- "martj42-0004"
+  future_history$date <- "2027-05-10"
+  future_history$home_score <- 3
+  future_history$away_score <- 2
+  future_history$tournament <- "Friendly"
+  future_lookup <- edition_lookup[3L, , drop = FALSE]
+  future_lookup$match_id <- future_history$match_id
+  expanded_history <- rbind(history, future_history)
+  expanded_lookup <- rehash_lookup(rbind(edition_lookup, future_lookup))
+  expanded <- phase13_normalize_historical_result_rows(expanded_history, identity_map, expanded_lookup)
+  reordered <- phase13_normalize_historical_result_rows(
+    expanded_history[c(4L, 2L, 1L, 3L), , drop = FALSE],
+    identity_map,
+    expanded_lookup[c(4L, 2L, 1L, 3L), , drop = FALSE]
+  )
+  perturbed_history <- expanded_history
+  perturbed_history$home_score[4L] <- 7
+  perturbed_history$away_score[4L] <- 6
+  perturbed <- phase13_normalize_historical_result_rows(perturbed_history, identity_map, expanded_lookup)
+
+  stable_fields <- setdiff(
+    phase13_normalized_historical_result_schema(),
+    c("home_score", "away_score", "edition_lookup_sha256", "edition_lookup_row_sha256", "row_sha256")
+  )
+  baseline_stable <- baseline[order(baseline$source_result_id), stable_fields, drop = FALSE]
+  expanded_stable <- expanded[expanded$source_result_id %in% baseline$source_result_id, stable_fields, drop = FALSE]
+  reordered_stable <- reordered[reordered$source_result_id %in% baseline$source_result_id, stable_fields, drop = FALSE]
+  perturbed_stable <- perturbed[perturbed$source_result_id %in% baseline$source_result_id, stable_fields, drop = FALSE]
+  expanded_stable <- expanded_stable[order(expanded_stable$source_result_id), , drop = FALSE]
+  reordered_stable <- reordered_stable[order(reordered_stable$source_result_id), , drop = FALSE]
+  perturbed_stable <- perturbed_stable[order(perturbed_stable$source_result_id), , drop = FALSE]
+  rownames(baseline_stable) <- NULL
+  rownames(expanded_stable) <- NULL
+  rownames(reordered_stable) <- NULL
+  rownames(perturbed_stable) <- NULL
+  expect_identical(baseline_stable, expanded_stable)
+  expect_identical(baseline_stable, reordered_stable)
+  expect_identical(baseline_stable, perturbed_stable)
+  perturbed_future_scores <- perturbed[perturbed$source_result_id == "martj42-0004", c("home_score", "away_score"), drop = FALSE]
+  rownames(perturbed_future_scores) <- NULL
+  expect_identical(perturbed_future_scores, data.frame(home_score = 7, away_score = 6))
+
+  score_only_history <- history
+  score_only_history$home_score[1L] <- 4
+  score_only_history$away_score[1L] <- 3
+  score_only <- phase13_normalize_historical_result_rows(score_only_history, identity_map, edition_lookup)
+  score_fields <- setdiff(phase13_normalized_historical_result_schema(), c("home_score", "away_score", "row_sha256"))
+  score_identity <- score_only[1L, score_fields, drop = FALSE]
+  baseline_identity <- baseline[1L, score_fields, drop = FALSE]
+  rownames(score_identity) <- NULL
+  rownames(baseline_identity) <- NULL
+  expect_identical(score_identity, baseline_identity)
+  expect_identical(score_only[1L, c("home_score", "away_score")], data.frame(home_score = 4, away_score = 3))
+  expect_false(identical(score_only$row_sha256[[1L]], baseline$row_sha256[[1L]]))
+
+  identity_changed <- history
+  identity_changed$home_team[1L] <- "Germany"
+  expect_error(
+    phase13_normalize_historical_result_rows(identity_changed, identity_map, edition_lookup),
+    "identity map|unresolved|coverage"
+  )
+  edition_changed <- edition_lookup
+  edition_changed$edition_id[1L] <- "martj42_historical_v2"
+  expect_error(
+    phase13_normalize_historical_result_rows(history, identity_map, edition_changed),
+    "canonical hash mismatch|row SHA-256 mismatch"
+  )
+})
+
+test_that("martj42 identity-map malformed, unresolved, duplicate, conflicting, and ambiguous cases fail closed", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_generate_martj42_identity_map",
+    "phase13_validate_martj42_identity_map",
+    "phase13_validate_martj42_identity_coverage"
+  ))
+  history <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "tests/fixtures/phase13/martj42_history_sample.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  registry <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "data/competition/registries/team_identity.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  cases <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "tests/fixtures/phase13/martj42_identity_map_cases.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  identity_map <- phase13_generate_martj42_identity_map(
+    history, registry, "martj42", "martj42-fixture-v1", strrep("a", 64),
+    "martj42-results-fixture-v1"
+  )
+  expect_equal(
+    sort(unique(cases$case_type)),
+    sort(c("missing_provenance", "duplicate_source_identity", "conflicting_mapping", "unresolved_identity", "ambiguous_alias"))
+  )
+
+  provenance_cases <- cases[cases$case_type == "missing_provenance", , drop = FALSE]
+  for (index in seq_len(nrow(provenance_cases))) {
+    broken <- identity_map
+    field <- switch(
+      provenance_cases$case_id[[index]],
+      "missing-source-version" = "source_version",
+      "missing-source-input-hash" = "source_input_sha256",
+      "missing-source-artifact" = "source_artifact_id"
+    )
+    broken[[field]][1L] <- NA_character_
+    expect_error(phase13_validate_martj42_identity_map(broken), "metadata|provenance|SHA-256")
+  }
+
+  duplicate <- rbind(identity_map, identity_map[1L, , drop = FALSE])
+  expect_error(phase13_validate_martj42_identity_map(duplicate), "duplicate source identity")
+  conflicting <- identity_map
+  conflicting$team_id[1L] <- "team_forged"
+  conflicting <- rbind(identity_map, conflicting[1L, , drop = FALSE])
+  expect_error(phase13_validate_martj42_identity_map(conflicting), "conflicting mapping")
+
+  unresolved_history <- history
+  unresolved_history$home_team[1L] <- "Unknownland"
+  unresolved_history$home_source_team_id[1L] <- NA_character_
+  expect_error(
+    phase13_validate_martj42_identity_coverage(unresolved_history, identity_map),
+    "unresolved|unexpected source identities"
+  )
+
+  ambiguous_registry <- rbind(registry[1L, , drop = FALSE], registry[1L, , drop = FALSE])
+  ambiguous_registry$team_id <- c("team_civ_a", "team_civ_b")
+  ambiguous_registry$fifa_code <- c("CVA", "CVB")
+  ambiguous_registry$canonical_name <- c("Cote d Ivoire", "Cote d Ivoire")
+  ambiguous_registry$aliases <- c("Cote d Ivoire", "Cote d Ivoire")
+  ambiguous_registry$uefa_source_team_id <- c("102", "103")
+  ambiguous_registry$uefa_display_name_current <- c("Cote d Ivoire", "Cote d Ivoire")
+  expect_error(
+    phase13_generate_martj42_identity_map(
+      history, ambiguous_registry, "martj42", "martj42-fixture-v1", strrep("a", 64),
+      "martj42-results-fixture-v1"
+    ),
+    "ambiguous normalized aliases"
+  )
+})
