@@ -684,6 +684,79 @@ test_that("accepted fixture publication uses the durable identity registry and p
   expect_silent(phase13_source_validate_hash_column(fixtures, "row_sha256", "accepted normalized fixtures"))
 })
 
+test_that("accepted publication normalizes result identity and emits empty EURO result schema", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  output_root <- tempfile("phase13-normalized-result-output-")
+  registry_root <- tempfile("phase13-normalized-result-registries-")
+  raw_root <- tempfile("phase13-normalized-result-raw-")
+  result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--publish-accepted"
+  ))
+  expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+  phase13_source_test_load_apis()
+  accepted_root <- file.path(output_root, "uefa_nations_league_2026_27")
+  fixtures <- utils::read.csv(
+    file.path(accepted_root, "fixtures.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  results <- utils::read.csv(
+    file.path(accepted_root, "results.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  expect_identical(names(results), phase13_normalized_result_schema())
+  expect_identical(results$edition_id, "uefa_nations_league_2026_27")
+  expect_identical(results$fixture_id, fixtures$fixture_id)
+  expect_identical(results$uefa_source_fixture_id, fixtures$uefa_source_fixture_id)
+  expect_identical(results$home_team_id, fixtures$home_team_id)
+  expect_identical(results$away_team_id, fixtures$away_team_id)
+  expect_identical(results$home_display_name, "Austria")
+  expect_identical(results$away_display_name, "Germany")
+  expect_identical(results$status, "scheduled")
+  expect_true(is.na(results$home_goals[[1L]]) && is.na(results$away_goals[[1L]]))
+  expect_identical(results$source_artifact_id, "nl-2026-27-official-sample-v1-results")
+  expect_identical(results$fixture_source_artifact_id, "nl-2026-27-official-sample-v1-fixtures")
+  expect_silent(phase13_source_validate_hash_column(results, "row_sha256", "accepted normalized results"))
+
+  euro_output_root <- tempfile("phase13-normalized-euro-output-")
+  euro_registry_root <- tempfile("phase13-normalized-euro-registries-")
+  euro_raw_root <- tempfile("phase13-normalized-euro-raw-")
+  euro_result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_euro_2028_qualifying",
+    "--output-root", euro_output_root,
+    "--registry-root", euro_registry_root,
+    "--raw-root", euro_raw_root,
+    "--publish-accepted"
+  ))
+  expect_equal(euro_result$status, 0L, info = paste(euro_result$output, collapse = "\n"))
+  euro_root <- file.path(euro_output_root, "uefa_euro_2028_qualifying")
+  euro_fixtures <- utils::read.csv(
+    file.path(euro_root, "fixtures.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  euro_results <- utils::read.csv(
+    file.path(euro_root, "results.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  expect_identical(names(euro_fixtures), phase13_normalized_fixture_schema())
+  expect_identical(names(euro_results), phase13_normalized_result_schema())
+  expect_equal(nrow(euro_fixtures), 0L)
+  expect_equal(nrow(euro_results), 0L)
+})
+
 test_that("unresolved accepted fixture identity fails before replacing the accepted directory", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
   invalid_dir <- tempfile("phase13-unresolved-fixture-")

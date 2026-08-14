@@ -857,6 +857,19 @@ phase13_acquire_accepted_tables <- function(candidate, edition_context) {
     source_artifact_id = artifact_ids[["fixtures"]],
     lifecycle_state = edition_context$lifecycle_state
   )
+  source_result_table <- phase13_source_resource_table(
+    candidate$resources$results,
+    "results",
+    edition_context$edition_id,
+    artifact_ids[["results"]]
+  )
+  accepted$results <- phase13_normalize_accepted_result_rows(
+    source_result_table,
+    normalized_fixtures = accepted$fixtures,
+    edition_id = edition_context$edition_id,
+    source_artifact_id = artifact_ids[["results"]],
+    lifecycle_state = edition_context$lifecycle_state
+  )
   accepted
 }
 

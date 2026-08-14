@@ -163,7 +163,11 @@ test_that("normalized display-name fallback is visible and ambiguity fails close
 
 test_that("empty normalized tables retain a complete schema and reject null input", {
   phase13_registry_test_load_apis()
-  phase13_registry_test_require_api(c("phase13_empty_normalized_fixture_rows", "phase13_normalize_fixture_rows"))
+  phase13_registry_test_require_api(c(
+    "phase13_empty_normalized_fixture_rows", "phase13_normalized_result_schema",
+    "phase13_empty_normalized_result_rows", "phase13_normalize_fixture_rows",
+    "phase13_normalize_accepted_result_rows"
+  ))
   fixture <- phase13_registry_test_fixture()
   identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
   empty_source <- data.frame(
@@ -183,6 +187,255 @@ test_that("empty normalized tables retain a complete schema and reject null inpu
     phase13_normalize_fixture_rows(data.frame(), identity_map, fixture$edition_id),
     "missing columns"
   )
+})
+
+test_that("accepted results inherit exact fixture identity and preserve valid source scores", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_normalize_fixture_rows", "phase13_normalize_accepted_result_rows",
+    "phase13_normalized_result_schema"
+  ))
+  fixture <- phase13_registry_test_fixture()
+  identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
+  source_fixture <- fixture$resources$fixtures[[1L]]
+  normalized_fixture <- phase13_normalize_fixture_rows(
+    data.frame(
+      source_fixture_id = source_fixture$source_fixture_id,
+      home_uefa_source_team_id = source_fixture$home$uefa_source_team_id,
+      away_uefa_source_team_id = source_fixture$away$uefa_source_team_id,
+      home_display_name = source_fixture$home$display_name,
+      away_display_name = source_fixture$away$display_name,
+      scheduled_at_utc = source_fixture$scheduled_at_utc,
+      status = source_fixture$status,
+      stringsAsFactors = FALSE
+    ),
+    identity_map,
+    fixture$edition_id,
+    source_artifact_id = "nl-fixtures-v1"
+  )
+  source_result <- fixture$resources$results[[1L]]
+  results <- data.frame(
+    source_fixture_id = source_result$source_fixture_id,
+    status = "completed",
+    home_goals = 2L,
+    away_goals = 1L,
+    edition_id = fixture$edition_id,
+    source_artifact_id = "nl-results-v1",
+    stringsAsFactors = FALSE
+  )
+
+  normalized <- phase13_normalize_accepted_result_rows(
+    results,
+    normalized_fixture,
+    edition_id = fixture$edition_id,
+    source_artifact_id = "nl-results-v1",
+    lifecycle_state = "complete"
+  )
+  expect_named(normalized, phase13_normalized_result_schema())
+  expect_identical(normalized$fixture_id, "uefa_nations_league_2026_27-nl-2026-0001")
+  expect_identical(normalized$home_team_id, "team_aut")
+  expect_identical(normalized$away_team_id, "team_deu")
+  expect_identical(normalized$home_display_name, "Austria")
+  expect_identical(normalized$away_display_name, "Germany")
+  expect_identical(normalized$status, "completed")
+  expect_identical(normalized$home_goals, 2L)
+  expect_identical(normalized$away_goals, 1L)
+  expect_identical(normalized$source_artifact_id, "nl-results-v1")
+  expect_identical(normalized$fixture_source_artifact_id, "nl-fixtures-v1")
+  expect_true(grepl("^[0-9a-f]{64}$", normalized$row_sha256))
+
+  score_only <- results
+  score_only$home_goals <- 3L
+  score_only$away_goals <- 2L
+  score_normalized <- phase13_normalize_accepted_result_rows(
+    score_only,
+    normalized_fixture,
+    edition_id = fixture$edition_id,
+    source_artifact_id = "nl-results-v1",
+    lifecycle_state = "complete"
+  )
+  identity_fields <- setdiff(phase13_normalized_result_schema(), c("home_goals", "away_goals", "row_sha256"))
+  expect_identical(normalized[identity_fields], score_normalized[identity_fields])
+  expect_identical(score_normalized$home_goals, 3L)
+  expect_identical(score_normalized$away_goals, 2L)
+  expect_false(identical(normalized$row_sha256, score_normalized$row_sha256))
+})
+
+test_that("accepted result identity is stable under later-row append, reorder, and score changes", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("phase13_normalize_fixture_rows", "phase13_normalize_accepted_result_rows"))
+  fixture <- phase13_registry_test_fixture()
+  identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
+  source_fixture <- fixture$resources$fixtures[[1L]]
+  fixture_row <- data.frame(
+    source_fixture_id = source_fixture$source_fixture_id,
+    home_uefa_source_team_id = source_fixture$home$uefa_source_team_id,
+    away_uefa_source_team_id = source_fixture$away$uefa_source_team_id,
+    home_display_name = source_fixture$home$display_name,
+    away_display_name = source_fixture$away$display_name,
+    scheduled_at_utc = source_fixture$scheduled_at_utc,
+    status = source_fixture$status,
+    stringsAsFactors = FALSE
+  )
+  later_fixture <- fixture_row
+  later_fixture$source_fixture_id <- "nl-2026-0002"
+  later_fixture$scheduled_at_utc <- "2026-10-05T18:45:00Z"
+  normalized_fixtures <- phase13_normalize_fixture_rows(
+    rbind(fixture_row, later_fixture),
+    identity_map,
+    fixture$edition_id,
+    source_artifact_id = "nl-fixtures-v1"
+  )
+  results <- data.frame(
+    source_fixture_id = c("nl-2026-0001", "nl-2026-0002"),
+    status = c("completed", "completed"),
+    home_goals = c(1L, 2L),
+    away_goals = c(0L, 1L),
+    stringsAsFactors = FALSE
+  )
+  baseline <- phase13_normalize_accepted_result_rows(
+    results[1L, , drop = FALSE], normalized_fixtures,
+    edition_id = fixture$edition_id,
+    source_artifact_id = "nl-results-v1",
+    lifecycle_state = "complete"
+  )
+  appended <- phase13_normalize_accepted_result_rows(
+    results, normalized_fixtures,
+    edition_id = fixture$edition_id,
+    source_artifact_id = "nl-results-v1",
+    lifecycle_state = "complete"
+  )
+  stable_fields <- setdiff(phase13_normalized_result_schema(), c("home_goals", "away_goals", "row_sha256"))
+  expect_identical(
+    baseline[stable_fields],
+    appended[appended$uefa_source_fixture_id == "nl-2026-0001", stable_fields, drop = FALSE]
+  )
+
+  perturbed <- results
+  perturbed$home_goals[[2L]] <- 5L
+  perturbed$away_goals[[2L]] <- 4L
+  reordered <- perturbed[c(2L, 1L), , drop = FALSE]
+  reordered_normalized <- phase13_normalize_accepted_result_rows(
+    reordered, normalized_fixtures,
+    edition_id = fixture$edition_id,
+    source_artifact_id = "nl-results-v1",
+    lifecycle_state = "complete"
+  )
+  baseline_reordered <- reordered_normalized[reordered_normalized$uefa_source_fixture_id == "nl-2026-0001", , drop = FALSE]
+  baseline_identity <- baseline[stable_fields]
+  reordered_identity <- baseline_reordered[stable_fields]
+  row.names(baseline_identity) <- NULL
+  row.names(reordered_identity) <- NULL
+  expect_identical(baseline_identity, reordered_identity)
+  expect_identical(
+    reordered_normalized[reordered_normalized$uefa_source_fixture_id == "nl-2026-0002", c("home_goals", "away_goals")],
+    data.frame(home_goals = 5L, away_goals = 4L, stringsAsFactors = FALSE)
+  )
+})
+
+test_that("accepted result joins reject duplicate, unknown, invalid, and mismatched identity inputs", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("phase13_normalize_fixture_rows", "phase13_normalize_accepted_result_rows"))
+  fixture <- phase13_registry_test_fixture()
+  identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
+  source_fixture <- fixture$resources$fixtures[[1L]]
+  normalized_fixture <- phase13_normalize_fixture_rows(
+    data.frame(
+      source_fixture_id = source_fixture$source_fixture_id,
+      home_uefa_source_team_id = source_fixture$home$uefa_source_team_id,
+      away_uefa_source_team_id = source_fixture$away$uefa_source_team_id,
+      home_display_name = source_fixture$home$display_name,
+      away_display_name = source_fixture$away$display_name,
+      scheduled_at_utc = source_fixture$scheduled_at_utc,
+      status = source_fixture$status,
+      stringsAsFactors = FALSE
+    ),
+    identity_map,
+    fixture$edition_id,
+    source_artifact_id = "nl-fixtures-v1"
+  )
+  results <- data.frame(
+    source_fixture_id = source_fixture$source_fixture_id,
+    status = "completed",
+    home_goals = 1L,
+    away_goals = 0L,
+    stringsAsFactors = FALSE
+  )
+  expect_error(
+    phase13_normalize_accepted_result_rows(rbind(results, results), normalized_fixture),
+    "duplicate"
+  )
+  unknown <- results
+  unknown$source_fixture_id <- "missing-fixture"
+  expect_error(
+    phase13_normalize_accepted_result_rows(unknown, normalized_fixture),
+    "unknown"
+  )
+  invalid_score <- results
+  invalid_score$home_goals <- 1.5
+  expect_error(
+    phase13_normalize_accepted_result_rows(invalid_score, normalized_fixture),
+    "invalid.*home_goals"
+  )
+  incomplete_score <- results
+  incomplete_score$away_goals <- NA_integer_
+  expect_error(
+    phase13_normalize_accepted_result_rows(incomplete_score, normalized_fixture),
+    "both.*home_goals.*away_goals|both.*away_goals.*home_goals"
+  )
+  mismatched_identity <- results
+  mismatched_identity$home_team_id <- "team_forged"
+  expect_error(
+    phase13_normalize_accepted_result_rows(mismatched_identity, normalized_fixture),
+    "identity|edition"
+  )
+  mismatched_edition <- results
+  mismatched_edition$edition_id <- "uefa_euro_2028_qualifying"
+  expect_error(
+    phase13_normalize_accepted_result_rows(mismatched_edition, normalized_fixture),
+    "identity|edition"
+  )
+})
+
+test_that("empty EURO pre-draw results retain the exact normalized result schema", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_empty_normalized_result_rows", "phase13_normalized_result_schema",
+    "phase13_normalize_fixture_rows", "phase13_normalize_accepted_result_rows"
+  ))
+  empty_fixture <- data.frame(
+    source_fixture_id = character(0),
+    home_uefa_source_team_id = character(0),
+    away_uefa_source_team_id = character(0),
+    home_display_name = character(0),
+    away_display_name = character(0),
+    scheduled_at_utc = character(0),
+    status = character(0),
+    stringsAsFactors = FALSE
+  )
+  normalized_fixture <- phase13_normalize_fixture_rows(
+    empty_fixture,
+    data.frame(
+      team_id = character(0), fifa_code = character(0), canonical_name = character(0),
+      aliases = character(0), uefa_source_team_id = character(0),
+      uefa_display_name_current = character(0), stringsAsFactors = FALSE
+    ),
+    "uefa_euro_2028_qualifying",
+    lifecycle_state = "pre_draw"
+  )
+  empty_results <- data.frame(
+    source_fixture_id = character(0), status = character(0),
+    home_goals = integer(0), away_goals = integer(0),
+    stringsAsFactors = FALSE
+  )
+  normalized <- phase13_normalize_accepted_result_rows(
+    empty_results,
+    normalized_fixture,
+    edition_id = "uefa_euro_2028_qualifying",
+    lifecycle_state = "pre_draw"
+  )
+  expect_named(normalized, phase13_normalized_result_schema())
+  expect_equal(nrow(normalized), 0L)
 })
 
 test_that("EURO qualifying remains an explicit pre-draw row without fabricated structures", {
