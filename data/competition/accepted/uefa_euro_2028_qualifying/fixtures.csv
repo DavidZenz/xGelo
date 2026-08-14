@@ -1,1 +1,1 @@
-"schema_version","source_fixture_id","scheduled_at_utc","status","home_uefa_source_team_id","away_uefa_source_team_id","home_display_name","away_display_name","edition_id","source_artifact_id","row_sha256"
+"schema_version","edition_id","fixture_id","uefa_source_fixture_id","home_team_id","away_team_id","home_uefa_source_team_id","away_uefa_source_team_id","home_display_name","away_display_name","scheduled_at_utc","status","source_artifact_id","home_mapping_method","away_mapping_method","home_mapping_warning","away_mapping_warning","row_sha256"

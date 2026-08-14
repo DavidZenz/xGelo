@@ -67,6 +67,46 @@ phase13_registry_test_predraw_fixture <- function() {
   )
 }
 
+phase13_registry_test_copy_normalized_sandbox <- function() {
+  root <- tempfile("phase13-registry-copy-", tmpdir = phase13_registry_test_project_root)
+  accepted_root <- file.path(root, "accepted")
+  registry_root <- file.path(root, "registries")
+  source_accepted_root <- file.path(phase13_registry_test_project_root, "data/competition/accepted")
+  source_registry_root <- file.path(phase13_registry_test_project_root, "data/competition/registries")
+  editions <- c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying")
+  dir.create(accepted_root, recursive = TRUE, showWarnings = FALSE)
+  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
+  for (edition_id in editions) {
+    target <- file.path(accepted_root, edition_id)
+    dir.create(target, recursive = TRUE, showWarnings = FALSE)
+    source_files <- list.files(
+      file.path(source_accepted_root, edition_id),
+      full.names = TRUE,
+      all.files = FALSE
+    )
+    stopifnot(all(file.copy(source_files, target, overwrite = TRUE)))
+  }
+  registry_files <- file.path(
+    source_registry_root,
+    c("competition_editions.csv", "source_artifacts.csv", "source_bundles.csv", "team_identity.csv")
+  )
+  stopifnot(all(file.copy(registry_files, registry_root, overwrite = TRUE)))
+  list(root = root, accepted_root = accepted_root, registry_root = registry_root)
+}
+
+phase13_registry_test_load_sandbox <- function(sandbox) {
+  load_competition_edition_registries(
+    sandbox$registry_root,
+    project_root = phase13_registry_test_project_root,
+    accepted_root = sandbox$accepted_root
+  )
+}
+
+phase13_registry_test_write_csv <- function(data, path) {
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  invisible(path)
+}
+
 test_that("direct UEFA source IDs resolve stable xGelo team IDs while preserving display names", {
   phase13_registry_test_load_apis()
   phase13_registry_test_require_api(c(
@@ -543,6 +583,58 @@ test_that("team identity registry carries provenance and order-stable row hashes
   expect_true(grepl("^[0-9a-f]{64}$", resolved$row_sha256))
 })
 
+test_that("default identity loading requires adjacent accepted source-bundle provenance", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("load_phase13_team_identity_registry", "phase13_row_sha256"))
+  sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  identity_path <- file.path(sandbox$registry_root, "team_identity.csv")
+  expect_silent(load_phase13_team_identity_registry(identity_path))
+
+  identity <- utils::read.csv(identity_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  identity$source_bundle_id[[1L]] <- "forged-source-bundle"
+  identity$row_sha256 <- phase13_row_sha256(identity)
+  phase13_registry_test_write_csv(identity, identity_path)
+  expect_error(
+    load_phase13_team_identity_registry(identity_path),
+    "non-accepted source bundle"
+  )
+})
+
+test_that("default identity loading rejects missing or non-accepted adjacent source bundles", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("load_phase13_team_identity_registry", "phase13_row_sha256"))
+  missing_sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(missing_sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  identity_path <- file.path(missing_sandbox$registry_root, "team_identity.csv")
+  file.remove(file.path(missing_sandbox$registry_root, "source_bundles.csv"))
+  expect_error(
+    load_phase13_team_identity_registry(identity_path),
+    "adjacent source bundle registry file is missing"
+  )
+
+  rejected_sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(rejected_sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  rejected_path <- file.path(rejected_sandbox$registry_root, "source_bundles.csv")
+  bundles <- utils::read.csv(rejected_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  identity <- utils::read.csv(
+    file.path(rejected_sandbox$registry_root, "team_identity.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  bundle_id <- as.character(identity$source_bundle_id[[1L]])
+  bundles$bundle_status[as.character(bundles$bundle_id) == bundle_id] <- "candidate"
+  bundles$row_sha256 <- phase13_row_sha256(bundles)
+  phase13_registry_test_write_csv(bundles, rejected_path)
+  expect_error(
+    load_phase13_team_identity_registry(
+      file.path(rejected_sandbox$registry_root, "team_identity.csv")
+    ),
+    "non-accepted source bundle"
+  )
+})
+
 test_that("identity validation rejects duplicate FIFA codes and strict non-pre-draw empties", {
   phase13_registry_test_load_apis()
   phase13_registry_test_require_api(c(
@@ -604,6 +696,130 @@ test_that("competition edition CSV is a checked two-edition release registry", {
   expect_identical(euro$official_draw_date, "2026-12-06")
   expect_identical(euro$active_output_bundle_id, "uefa_euro_2028_qualifying-official-v1")
   expect_true(!any(c("group_count", "fixture_count", "standings_hash", "probability_hash") %in% names(euro)))
+})
+
+test_that("production loading returns normalized accepted snapshots and truthful EURO pre-draw state", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("load_competition_edition_registries", "phase13_normalized_fixture_schema", "phase13_normalized_result_schema"))
+  registries <- load_competition_edition_registries(
+    file.path(phase13_registry_test_project_root, "data/competition/registries")
+  )
+  snapshots <- registries$accepted_snapshots
+  expect_true(setequal(names(snapshots), c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying")))
+
+  nations <- snapshots[["uefa_nations_league_2026_27"]]
+  expect_named(nations$fixtures, phase13_normalized_fixture_schema())
+  expect_named(nations$results, phase13_normalized_result_schema())
+  expect_true(all(c("home_team_id", "away_team_id", "edition_id", "source_artifact_id") %in% names(nations$fixtures)))
+  expect_true(all(c("home_team_id", "away_team_id", "edition_id", "fixture_source_artifact_id") %in% names(nations$results)))
+  expect_true(all(nzchar(as.character(nations$fixtures$home_display_name))))
+  expect_true(all(nzchar(as.character(nations$fixtures$away_display_name))))
+  expect_identical(
+    as.character(nations$results$fixture_source_artifact_id),
+    as.character(nations$fixtures$source_artifact_id)
+  )
+  expect_identical(as.character(nations$status$competition_status), "scheduled")
+
+  euro <- snapshots[["uefa_euro_2028_qualifying"]]
+  expect_named(euro$fixtures, phase13_normalized_fixture_schema())
+  expect_named(euro$results, phase13_normalized_result_schema())
+  expect_equal(nrow(euro$fixtures), 0L)
+  expect_equal(nrow(euro$groups), 0L)
+  expect_equal(nrow(euro$standings), 0L)
+  expect_equal(nrow(euro$results), 0L)
+  expect_identical(as.character(euro$status$competition_status), "pre_draw")
+})
+
+test_that("bundle canonical content hashes include the derived artifact hash fields", {
+  phase13_registry_test_load_apis()
+  source(file.path(phase13_registry_test_project_root, "R/competition/publication_hashes.R"), local = .GlobalEnv)
+  source(file.path(phase13_registry_test_project_root, "R/competition/publication_manifests.R"), local = .GlobalEnv)
+  artifacts <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "data/competition/registries/source_artifacts.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  bundle <- utils::read.csv(
+    file.path(phase13_registry_test_project_root, "data/competition/registries/source_bundles.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  rebuilt <- phase13_publication_manifest_build_bundle(
+    bundle[bundle$edition_id == "uefa_nations_league_2026_27", , drop = FALSE],
+    artifacts[artifacts$edition_id == "uefa_nations_league_2026_27", , drop = FALSE]
+  )
+  expect_identical(
+    as.character(rebuilt$canonical_content_sha256[[1L]]),
+    as.character(phase13_publication_manifest_content_hash(
+      rebuilt,
+      artifacts[artifacts$edition_id == "uefa_nations_league_2026_27", , drop = FALSE]
+    ))
+  )
+})
+
+test_that("temporary accepted snapshot copies fail closed on a missing edition directory", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api("load_competition_edition_registries")
+  sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  unlink(file.path(sandbox$accepted_root, "uefa_euro_2028_qualifying"), recursive = TRUE, force = TRUE)
+  expect_error(
+    phase13_registry_test_load_sandbox(sandbox),
+    "accepted snapshot directory is missing"
+  )
+})
+
+test_that("temporary accepted table tampering fails before downstream loading", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("load_competition_edition_registries", "phase13_row_sha256"))
+  sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  fixture_path <- file.path(sandbox$accepted_root, "uefa_nations_league_2026_27", "fixtures.csv")
+  fixtures <- utils::read.csv(fixture_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  fixtures$scheduled_at_utc[[1L]] <- "2026-09-05T19:00:00Z"
+  phase13_registry_test_write_csv(fixtures, fixture_path)
+  expect_error(
+    phase13_registry_test_load_sandbox(sandbox),
+    "row SHA-256 mismatch"
+  )
+})
+
+test_that("recomputed row hashes cannot conceal stale accepted canonical content", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("load_competition_edition_registries", "phase13_row_sha256"))
+  sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  fixture_path <- file.path(sandbox$accepted_root, "uefa_nations_league_2026_27", "fixtures.csv")
+  fixtures <- utils::read.csv(fixture_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  fixtures$scheduled_at_utc[[1L]] <- "2026-09-05T19:00:00Z"
+  fixtures$row_sha256 <- phase13_row_sha256(fixtures)
+  phase13_registry_test_write_csv(fixtures, fixture_path)
+  expect_error(
+    phase13_registry_test_load_sandbox(sandbox),
+    "canonical content hash mismatch"
+  )
+})
+
+test_that("recomputed manifest row hashes cannot forge accepted artifact links", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("load_competition_edition_registries", "phase13_row_sha256"))
+  sandbox <- phase13_registry_test_copy_normalized_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  manifest_path <- file.path(
+    sandbox$accepted_root,
+    "uefa_nations_league_2026_27",
+    "source_bundle_manifest.csv"
+  )
+  manifest <- utils::read.csv(manifest_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  manifest$artifact_id[[1L]] <- "forged-artifact"
+  manifest$row_sha256 <- phase13_row_sha256(manifest)
+  phase13_registry_test_write_csv(manifest, manifest_path)
+  expect_error(
+    phase13_registry_test_load_sandbox(sandbox),
+    "unknown artifact|artifact link"
+  )
 })
 
 test_that("edition validation preflights the approved release and handles serialized blocked overlays", {

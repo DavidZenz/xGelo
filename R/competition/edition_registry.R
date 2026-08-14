@@ -102,11 +102,18 @@ phase13_competition_registry_hash <- function(registries) {
 }
 
 phase13_edition_project_root <- function(path = ".") {
+  candidate <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
+  # Temporary registry roots used by the fail-closed tests do not contain a
+  # Git checkout.  Keep an explicit absolute directory as the project root so
+  # its adjacent raw-byte store and accepted tree remain independently bound.
+  if (grepl("^/", as.character(path)) && dir.exists(candidate) &&
+      !dir.exists(file.path(candidate, ".git")) && !file.exists(file.path(candidate, ".git"))) {
+    return(candidate)
+  }
   if (exists("phase13_source_find_project_root", mode = "function")) {
     return(phase13_source_find_project_root(path))
   }
-  candidate <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
   repeat {
     if (dir.exists(file.path(candidate, ".git")) || file.exists(file.path(candidate, ".git"))) return(candidate)
     parent <- dirname(candidate)
@@ -120,6 +127,9 @@ phase13_edition_source_contracts <- function(project_root = ".") {
   root <- phase13_edition_project_root(project_root)
   if (!exists("phase13_source_validate_hash_column", mode = "function")) {
     source(file.path(root, "R/competition/source_contracts.R"), local = .GlobalEnv)
+  }
+  if (!exists("phase13_normalized_fixture_schema", mode = "function")) {
+    source(file.path(root, "R/competition/team_identity.R"), local = .GlobalEnv)
   }
   if (!exists("preflight_phase12_approved_release", mode = "function")) {
     source(file.path(root, "R/release/release_contract.R"), local = .GlobalEnv)
@@ -448,11 +458,457 @@ phase13_repin_competition_model_release <- function(
   row
 }
 
+phase13_accepted_snapshot_resource_types <- function() {
+  c("fixtures", "groups", "standings", "results", "status")
+}
+
+phase13_accepted_snapshot_manifest_schema <- function() {
+  c(
+    "schema_version", "bundle_id", "edition_id", "bundle_status", "acceptance_state",
+    "fallback_status", "parser_commit_sha", "artifact_count", "required_resource_count",
+    "source_bundle_sha256", "artifact_manifest_sha256", "canonical_content_sha256",
+    "manifest_self_sha256", "accepted_at_utc", "last_accepted_bundle_id",
+    "fallback_source", "fallback_retrieval_date", "fallback_reason", "operator_note",
+    "fallback_checksum", "artifact_id", "artifact_type", "source_artifact_id", "source_url",
+    "source_url_lineage", "retrieved_at_utc", "bytes", "raw_sha256", "canonical_content_sha256",
+    "parser_commit_sha", "fallback_status", "review_state", "relative_local_raw_path",
+    "status_provenance", "row_sha256"
+  )
+}
+
+phase13_accepted_snapshot_is_symlink <- function(path) {
+  value <- tryCatch(Sys.readlink(path), error = function(error) "")
+  length(value) == 1L && !is.na(value) && nzchar(value)
+}
+
+phase13_accepted_snapshot_has_symlink <- function(path, root) {
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  lexical <- gsub("\\\\", "/", as.character(path))
+  if (!grepl("^/", lexical)) lexical <- file.path(root, lexical)
+  resolved <- normalizePath(lexical, winslash = "/", mustWork = FALSE)
+  if (!phase13_source_path_within(resolved, root)) return(TRUE)
+  if (identical(lexical, root)) return(phase13_accepted_snapshot_is_symlink(root))
+  prefix <- paste0(root, "/")
+  # macOS temporary paths may be addressed through /var while normalizePath
+  # returns /private/var.  The resolved containment check above is the trust
+  # decision for that alias; component inspection applies when lexical roots
+  # share the same canonical prefix.
+  if (!startsWith(lexical, prefix)) return(FALSE)
+  relative <- substring(lexical, nchar(prefix) + 1L)
+  parts <- strsplit(relative, "/", fixed = TRUE)[[1L]]
+  current <- root
+  for (part in parts) {
+    current <- file.path(current, part)
+    if (phase13_accepted_snapshot_is_symlink(current)) return(TRUE)
+  }
+  FALSE
+}
+
+phase13_accepted_snapshot_resolve_root <- function(project_root, accepted_root) {
+  root <- phase13_edition_project_root(project_root)
+  if (!dir.exists(root)) stop("Phase 13 accepted snapshot project root is missing", call. = FALSE)
+  supplied <- phase13_registry_scalar(accepted_root, "accepted_root")
+  lexical <- if (grepl("^/", supplied)) supplied else file.path(root, supplied)
+  if (!dir.exists(lexical)) stop("Phase 13 accepted snapshot root is missing: ", lexical, call. = FALSE)
+  if (phase13_accepted_snapshot_is_symlink(lexical)) {
+    stop("Phase 13 accepted snapshot root must not be a symlink: ", lexical, call. = FALSE)
+  }
+  resolved <- normalizePath(lexical, winslash = "/", mustWork = TRUE)
+  if (!phase13_source_path_within(resolved, root)) {
+    stop("Phase 13 accepted snapshot root must remain under the project root", call. = FALSE)
+  }
+  if (phase13_accepted_snapshot_has_symlink(lexical, root)) {
+    stop("Phase 13 accepted snapshot root contains a symlinked path component", call. = FALSE)
+  }
+  resolved
+}
+
+phase13_accepted_snapshot_csv_hash <- function(path) {
+  if (!file.exists(path) || dir.exists(path)) stop("Phase 13 accepted snapshot file is missing: ", path, call. = FALSE)
+  bytes <- readBin(path, what = "raw", n = file.info(path)$size)
+  phase13_source_sha256(bytes)
+}
+
+phase13_accepted_snapshot_table_hash <- function(data) {
+  if (!is.data.frame(data)) stop("Phase 13 accepted snapshot table hash requires a data frame", call. = FALSE)
+  path <- tempfile("phase13-accepted-table-", fileext = ".csv")
+  on.exit(if (file.exists(path)) unlink(path), add = TRUE)
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  phase13_accepted_snapshot_csv_hash(path)
+}
+
+phase13_accepted_snapshot_bundle_content_table <- function(bundle, artifacts) {
+  resource_order <- phase13_source_required_resource_types()
+  artifact_order <- order(
+    match(as.character(artifacts$artifact_type), resource_order),
+    as.character(artifacts$artifact_id),
+    method = "radix"
+  )
+  artifacts <- artifacts[artifact_order, , drop = FALSE]
+  row.names(artifacts) <- NULL
+  bundle_fields <- setdiff(names(bundle), c("canonical_content_sha256", "manifest_self_sha256", "row_sha256"))
+  artifact_fields <- setdiff(names(artifacts), c("canonical_content_sha256", "row_sha256"))
+  cbind(
+    bundle[rep(1L, nrow(artifacts)), bundle_fields, drop = FALSE],
+    artifacts[, artifact_fields, drop = FALSE]
+  )
+}
+
+phase13_accepted_snapshot_require_nonempty <- function(data, columns, name) {
+  for (column in columns) {
+    values <- as.character(data[[column]])
+    if (any(is.na(values) | !nzchar(trimws(values)))) {
+      stop(name, " contains an empty required field: ", column, call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
+phase13_accepted_snapshot_validate_manifest <- function(manifest, bundle, artifacts) {
+  schema <- phase13_accepted_snapshot_manifest_schema()
+  if (!identical(names(manifest), schema) || nrow(manifest) != length(phase13_accepted_snapshot_resource_types())) {
+    stop("Phase 13 accepted snapshot manifest schema or resource count is invalid", call. = FALSE)
+  }
+  phase13_source_validate_hash_column(manifest, "row_sha256", "Phase 13 accepted snapshot manifest")
+  phase13_accepted_snapshot_require_nonempty(
+    manifest,
+    c("bundle_id", "edition_id", "artifact_id", "artifact_type", "source_artifact_id", "raw_sha256", "canonical_content_sha256"),
+    "Phase 13 accepted snapshot manifest"
+  )
+  if (anyDuplicated(as.character(manifest$artifact_id)) ||
+      !setequal(as.character(manifest$artifact_type), phase13_accepted_snapshot_resource_types()) ||
+      anyDuplicated(as.character(manifest$artifact_type))) {
+    stop("Phase 13 accepted snapshot manifest has an incomplete resource graph", call. = FALSE)
+  }
+
+  bundle_fields <- c(
+    "schema_version", "bundle_id", "edition_id", "bundle_status", "acceptance_state",
+    "fallback_status", "parser_commit_sha", "artifact_count", "required_resource_count",
+    "source_bundle_sha256", "artifact_manifest_sha256", "canonical_content_sha256",
+    "manifest_self_sha256", "accepted_at_utc", "last_accepted_bundle_id",
+    "fallback_source", "fallback_retrieval_date", "fallback_reason", "operator_note",
+    "fallback_checksum"
+  )
+  for (index in seq_along(bundle_fields)) {
+    actual <- vapply(manifest[[index]], phase13_source_canonical_scalar, character(1))
+    expected <- phase13_source_canonical_scalar(bundle[[bundle_fields[[index]]]][[1L]])
+    if (any(actual != expected)) {
+      stop("Phase 13 accepted snapshot manifest bundle provenance mismatch: ", bundle_fields[[index]], call. = FALSE)
+    }
+  }
+
+  artifact_fields <- c(
+    "artifact_id", "artifact_type", "source_artifact_id", "source_url", "source_url_lineage",
+    "retrieved_at_utc", "bytes", "raw_sha256", "canonical_content_sha256", "parser_commit_sha",
+    "fallback_status", "review_state", "relative_local_raw_path", "status_provenance"
+  )
+  artifact_positions <- length(bundle_fields) + seq_along(artifact_fields)
+  for (row_index in seq_len(nrow(manifest))) {
+    artifact_id <- as.character(manifest[[artifact_positions[[1L]]]][[row_index]])
+    artifact <- artifacts[as.character(artifacts$artifact_id) == artifact_id, , drop = FALSE]
+    if (nrow(artifact) != 1L) stop("Phase 13 accepted snapshot manifest links an unknown artifact: ", artifact_id, call. = FALSE)
+    for (field_index in seq_along(artifact_fields)) {
+      actual <- phase13_source_canonical_scalar(manifest[[artifact_positions[[field_index]]]][[row_index]])
+      expected <- phase13_source_canonical_scalar(artifact[[artifact_fields[[field_index]]]][[1L]])
+      if (!identical(actual, expected)) {
+        stop("Phase 13 accepted snapshot manifest artifact link mismatch: ", artifact_id, "/", artifact_fields[[field_index]], call. = FALSE)
+      }
+    }
+  }
+
+  expected_self <- phase13_source_manifest_self_sha256(bundle, artifacts)
+  if (any(tolower(as.character(manifest$manifest_self_sha256)) != tolower(expected_self))) {
+    stop("Phase 13 accepted snapshot manifest self-hash mismatch", call. = FALSE)
+  }
+  manifest_bundle_hashes_match <- all(
+    tolower(as.character(manifest$source_bundle_sha256)) == tolower(as.character(bundle$source_bundle_sha256[[1L]])),
+    tolower(as.character(manifest$artifact_manifest_sha256)) == tolower(as.character(bundle$artifact_manifest_sha256[[1L]])),
+    tolower(as.character(manifest[[12L]])) == tolower(as.character(bundle$canonical_content_sha256[[1L]]))
+  )
+  if (!manifest_bundle_hashes_match) {
+    stop("Phase 13 accepted snapshot manifest bundle hash links are stale or forged", call. = FALSE)
+  }
+  expected_bundle_content <- phase13_accepted_snapshot_table_hash(
+    phase13_accepted_snapshot_bundle_content_table(bundle, artifacts)
+  )
+  if (!identical(tolower(expected_bundle_content), tolower(as.character(bundle$canonical_content_sha256[[1L]])))) {
+    stop("Phase 13 source bundle canonical content hash is stale or forged", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+phase13_accepted_snapshot_table_schema <- function(artifact_type) {
+  if (identical(artifact_type, "fixtures")) return(phase13_normalized_fixture_schema())
+  if (identical(artifact_type, "results")) return(phase13_normalized_result_schema())
+  compact <- phase13_source_compact_resource_schema()[[artifact_type]]
+  c("schema_version", compact, "edition_id", "source_artifact_id", "row_sha256")
+}
+
+phase13_accepted_snapshot_validate_identity_links <- function(data, identity_registry, name) {
+  if (is.null(identity_registry) || !nrow(data)) return(invisible(TRUE))
+  required <- c("team_id", "uefa_source_team_id")
+  if (!all(required %in% names(identity_registry))) {
+    stop("Phase 13 accepted snapshot identity registry is incomplete", call. = FALSE)
+  }
+  for (index in seq_len(nrow(data))) {
+    for (side in c("home", "away")) {
+      team_id <- as.character(data[[paste0(side, "_team_id")]][[index]])
+      source_id <- as.character(data[[paste0(side, "_uefa_source_team_id")]][[index]])
+      match <- identity_registry[as.character(identity_registry$team_id) == team_id, , drop = FALSE]
+      if (nrow(match) != 1L || !identical(as.character(match$uefa_source_team_id[[1L]]), source_id)) {
+        stop(name, " contains a forged or unknown stable/source team identity", call. = FALSE)
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+phase13_accepted_snapshot_validate_fixture_rows <- function(fixtures, identity_registry) {
+  if (!nrow(fixtures)) return(invisible(TRUE))
+  phase13_accepted_snapshot_require_nonempty(
+    fixtures,
+    c(
+      "fixture_id", "uefa_source_fixture_id", "home_team_id", "away_team_id",
+      "home_uefa_source_team_id", "away_uefa_source_team_id", "home_display_name",
+      "away_display_name", "scheduled_at_utc", "status", "source_artifact_id"
+    ),
+    "Phase 13 normalized accepted fixtures"
+  )
+  if (anyDuplicated(as.character(fixtures$fixture_id)) || anyDuplicated(as.character(fixtures$uefa_source_fixture_id))) {
+    stop("Phase 13 normalized accepted fixtures contain duplicate stable fixture identities", call. = FALSE)
+  }
+  if (any(as.character(fixtures$home_team_id) == as.character(fixtures$away_team_id))) {
+    stop("Phase 13 normalized accepted fixtures contain identical home and away teams", call. = FALSE)
+  }
+  phase13_accepted_snapshot_validate_identity_links(fixtures, identity_registry, "Phase 13 normalized accepted fixtures")
+  invisible(TRUE)
+}
+
+phase13_accepted_snapshot_validate_result_rows <- function(results, fixtures, identity_registry) {
+  if (!nrow(results)) return(invisible(TRUE))
+  if (!nrow(fixtures)) stop("Phase 13 normalized accepted results require normalized fixtures", call. = FALSE)
+  phase13_accepted_snapshot_require_nonempty(
+    results,
+    c(
+      "fixture_id", "uefa_source_fixture_id", "home_team_id", "away_team_id",
+      "home_uefa_source_team_id", "away_uefa_source_team_id", "home_display_name",
+      "away_display_name", "scheduled_at_utc", "status", "source_artifact_id",
+      "fixture_source_artifact_id"
+    ),
+    "Phase 13 normalized accepted results"
+  )
+  if (anyDuplicated(as.character(results$fixture_id)) || anyDuplicated(as.character(results$uefa_source_fixture_id))) {
+    stop("Phase 13 normalized accepted results contain duplicate fixture identities", call. = FALSE)
+  }
+  fixture_index <- match(as.character(results$uefa_source_fixture_id), as.character(fixtures$uefa_source_fixture_id))
+  if (anyNA(fixture_index)) stop("Phase 13 normalized accepted results contain an unknown fixture join", call. = FALSE)
+  fixture_rows <- fixtures[fixture_index, , drop = FALSE]
+  identity_columns <- c(
+    "fixture_id", "home_team_id", "away_team_id", "home_uefa_source_team_id",
+    "away_uefa_source_team_id", "home_display_name", "away_display_name",
+    "scheduled_at_utc"
+  )
+  for (column in identity_columns) {
+    if (any(as.character(results[[column]]) != as.character(fixture_rows[[column]]))) {
+      stop("Phase 13 normalized accepted results do not inherit fixture identity: ", column, call. = FALSE)
+    }
+  }
+  if (any(as.character(results$fixture_source_artifact_id) != as.character(fixture_rows$source_artifact_id))) {
+    stop("Phase 13 normalized accepted results have forged fixture artifact lineage", call. = FALSE)
+  }
+  for (column in c("home_goals", "away_goals")) {
+    values <- suppressWarnings(as.numeric(as.character(results[[column]])))
+    if (any(!is.na(values) & (!is.finite(values) | values < 0 | values != floor(values)))) {
+      stop("Phase 13 normalized accepted results contain invalid goal values: ", column, call. = FALSE)
+    }
+  }
+  if (any(xor(is.na(results$home_goals), is.na(results$away_goals)))) {
+    stop("Phase 13 normalized accepted results must provide both goals or neither", call. = FALSE)
+  }
+  phase13_accepted_snapshot_validate_identity_links(results, identity_registry, "Phase 13 normalized accepted results")
+  invisible(TRUE)
+}
+
+phase13_accepted_snapshot_manifest_artifact_positions <- function() {
+  bundle_count <- 21L - 1L
+  bundle_count + seq_along(c(
+    "artifact_id", "artifact_type", "source_artifact_id", "source_url", "source_url_lineage",
+    "retrieved_at_utc", "bytes", "raw_sha256", "canonical_content_sha256", "parser_commit_sha",
+    "fallback_status", "review_state", "relative_local_raw_path", "status_provenance"
+  ))
+}
+
+phase13_accepted_snapshot_validate_raw_provenance <- function(
+    project_root,
+    artifacts,
+    manifest) {
+  positions <- phase13_accepted_snapshot_manifest_artifact_positions()
+  for (index in seq_len(nrow(artifacts))) {
+    artifact <- artifacts[index, , drop = FALSE]
+    relative_path <- phase13_source_validate_local_raw_path(as.character(artifact$relative_local_raw_path[[1L]]))
+    raw_path <- phase13_source_path_under_root(project_root, relative_path, must_work = TRUE)
+    if (phase13_accepted_snapshot_has_symlink(file.path(project_root, relative_path), project_root)) {
+      stop("Phase 13 source raw artifact path contains a symlink: ", relative_path, call. = FALSE)
+    }
+    raw_bytes <- readBin(raw_path, what = "raw", n = file.info(raw_path)$size)
+    if (length(raw_bytes) != as.integer(artifact$bytes[[1L]]) ||
+        !identical(tolower(phase13_source_sha256(raw_bytes)), tolower(as.character(artifact$raw_sha256[[1L]])))) {
+      stop("Phase 13 source raw artifact bytes or SHA-256 do not match: ", artifact$artifact_id[[1L]], call. = FALSE)
+    }
+    manifest_row <- manifest[as.character(manifest[[positions[[1L]]]]) == as.character(artifact$artifact_id[[1L]]), , drop = FALSE]
+    if (nrow(manifest_row) != 1L ||
+        !identical(tolower(as.character(manifest_row[[positions[[8L]]]][[1L]])), tolower(as.character(artifact$raw_sha256[[1L]])))) {
+      stop("Phase 13 accepted manifest raw SHA-256 link is stale or forged: ", artifact$artifact_id[[1L]], call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
+phase13_accepted_snapshot_validate_status_lineage <- function(status, status_artifact, artifacts, manifest) {
+  if (!identical(as.character(status_artifact$status_provenance[[1L]]), "derived")) return(invisible(TRUE))
+  values <- unique(unlist(strsplit(as.character(status$source_artifact_id), "\\|", fixed = FALSE), use.names = FALSE))
+  values <- values[!is.na(values) & nzchar(values)]
+  if (!length(values) || !identical(values, sort(values))) {
+    stop("Phase 13 derived status source_artifact_id lineage must be sorted and non-empty", call. = FALSE)
+  }
+  registry_contributors <- unique(c(as.character(artifacts$artifact_id), as.character(artifacts$source_artifact_id)))
+  positions <- phase13_accepted_snapshot_manifest_artifact_positions()
+  manifest_contributors <- unique(c(as.character(manifest[[positions[[1L]]]]), as.character(manifest[[positions[[3L]]]])))
+  if (any(!values %in% registry_contributors) || any(!values %in% manifest_contributors)) {
+    stop("Phase 13 derived status lineage references an unregistered contributor", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+phase13_validate_accepted_snapshot <- function(
+    accepted_dir,
+    edition_row,
+    source_bundles,
+    source_artifacts,
+    project_root = ".",
+    identity_registry = NULL) {
+  phase13_edition_source_contracts(project_root)
+  if (!is.data.frame(edition_row) || nrow(edition_row) != 1L) {
+    stop("Phase 13 accepted snapshot validation requires one edition registry row", call. = FALSE)
+  }
+  phase13_source_require_columns(
+    edition_row,
+    c("edition_id", "source_edition_id", "lifecycle_state", "source_bundle_id"),
+    "Phase 13 competition edition registry"
+  )
+  phase13_source_require_columns(source_bundles, c("bundle_id", "edition_id"), "Phase 13 source bundle registry")
+  phase13_source_require_columns(source_artifacts, c("artifact_id", "bundle_id", "edition_id", "artifact_type"), "Phase 13 source artifact registry")
+  edition_id <- phase13_registry_scalar(edition_row$edition_id, "edition_id")
+  lifecycle_state <- phase13_registry_scalar(edition_row$lifecycle_state, "lifecycle_state")
+  bundle_id <- phase13_registry_scalar(edition_row$source_bundle_id, "source_bundle_id")
+  if (!lifecycle_state %in% phase13_competition_lifecycle_states()) stop("Phase 13 accepted snapshot lifecycle state is unsupported", call. = FALSE)
+  if (phase13_accepted_snapshot_is_symlink(accepted_dir)) stop("Phase 13 accepted snapshot directory must not be a symlink", call. = FALSE)
+  if (!dir.exists(accepted_dir)) stop("Phase 13 accepted snapshot directory is missing: ", accepted_dir, call. = FALSE)
+  accepted_dir <- normalizePath(accepted_dir, winslash = "/", mustWork = TRUE)
+  if (phase13_accepted_snapshot_has_symlink(accepted_dir, project_root)) stop("Phase 13 accepted snapshot directory contains a symlink", call. = FALSE)
+  required <- phase13_accepted_snapshot_resource_types()
+  expected_files <- paste0(c("source_bundle_manifest", required), ".csv")
+  actual_files <- list.files(accepted_dir, all.files = FALSE, full.names = FALSE, no.. = TRUE)
+  if (!identical(sort(actual_files), sort(expected_files))) {
+    stop("Phase 13 accepted snapshot directory must contain exactly one manifest and five resource tables", call. = FALSE)
+  }
+  read_table <- function(name) {
+    path <- file.path(accepted_dir, name)
+    if (phase13_accepted_snapshot_is_symlink(path) || !file.exists(path) || dir.exists(path)) {
+      stop("Phase 13 accepted snapshot file is missing or symlinked: ", path, call. = FALSE)
+    }
+    utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  }
+
+  bundle <- source_bundles[as.character(source_bundles$bundle_id) == bundle_id, , drop = FALSE]
+  if (nrow(bundle) != 1L || !identical(as.character(bundle$edition_id[[1L]]), edition_id)) {
+    stop("Phase 13 accepted snapshot references a missing or foreign source bundle", call. = FALSE)
+  }
+  artifacts <- source_artifacts[
+    as.character(source_artifacts$bundle_id) == bundle_id &
+      as.character(source_artifacts$edition_id) == edition_id,
+    , drop = FALSE
+  ]
+  if (nrow(artifacts) != length(required) || !setequal(as.character(artifacts$artifact_type), required) ||
+      anyDuplicated(as.character(artifacts$artifact_type))) {
+    stop("Phase 13 accepted snapshot source artifact registry is incomplete", call. = FALSE)
+  }
+  if (!"canonical_content_sha256" %in% names(bundle) || !"canonical_content_sha256" %in% names(artifacts)) {
+    stop("Phase 13 accepted snapshot source registries require canonical content hashes", call. = FALSE)
+  }
+  phase13_validate_source_bundle(bundle, artifacts)
+
+  manifest <- read_table("source_bundle_manifest.csv")
+  phase13_accepted_snapshot_validate_manifest(manifest, bundle, artifacts)
+  phase13_accepted_snapshot_validate_raw_provenance(project_root, artifacts, manifest)
+
+  tables <- setNames(vector("list", length(required)), required)
+  for (artifact_type in required) {
+    table <- read_table(paste0(artifact_type, ".csv"))
+    expected_schema <- phase13_accepted_snapshot_table_schema(artifact_type)
+    if (!identical(names(table), expected_schema)) {
+      stop("Phase 13 accepted snapshot schema mismatch: ", artifact_type, call. = FALSE)
+    }
+    phase13_source_validate_hash_column(table, "row_sha256", paste("Phase 13 accepted", artifact_type))
+    if (nrow(table)) {
+      phase13_accepted_snapshot_require_nonempty(
+        table,
+        c("schema_version", "edition_id", "source_artifact_id"),
+        paste("Phase 13 accepted", artifact_type)
+      )
+      if (any(as.character(table$edition_id) != edition_id)) {
+        stop("Phase 13 accepted snapshot edition_id mismatch: ", artifact_type, call. = FALSE)
+      }
+    }
+    artifact <- artifacts[as.character(artifacts$artifact_type) == artifact_type, , drop = FALSE]
+    if (nrow(artifact) != 1L) stop("Phase 13 accepted snapshot artifact link is incomplete: ", artifact_type, call. = FALSE)
+    if (nrow(table) && any(as.character(table$source_artifact_id) != as.character(artifact$source_artifact_id[[1L]]))) {
+      stop("Phase 13 accepted snapshot source_artifact_id mismatch: ", artifact_type, call. = FALSE)
+    }
+    manifest_row <- manifest[as.character(manifest[[21L]]) == as.character(artifact$artifact_id[[1L]]), , drop = FALSE]
+    if (nrow(manifest_row) != 1L) stop("Phase 13 accepted snapshot manifest artifact link is incomplete: ", artifact_type, call. = FALSE)
+    actual_hash <- phase13_accepted_snapshot_csv_hash(file.path(accepted_dir, paste0(artifact_type, ".csv")))
+    if (!identical(tolower(actual_hash), tolower(as.character(artifact$canonical_content_sha256[[1L]]))) ||
+        !identical(tolower(actual_hash), tolower(as.character(manifest_row[[29L]][[1L]])))) {
+      stop("Phase 13 accepted snapshot canonical content hash mismatch: ", artifact_type, call. = FALSE)
+    }
+    tables[[artifact_type]] <- table
+  }
+
+  phase13_accepted_snapshot_validate_fixture_rows(tables$fixtures, identity_registry)
+  phase13_accepted_snapshot_validate_result_rows(tables$results, tables$fixtures, identity_registry)
+  if (nrow(tables$status) != 1L) stop("Phase 13 accepted snapshot requires exactly one status row", call. = FALSE)
+  phase13_accepted_snapshot_require_nonempty(tables$status, c("source_edition_id", "competition_status"), "Phase 13 accepted status")
+  status_artifact <- artifacts[as.character(artifacts$artifact_type) == "status", , drop = FALSE]
+  phase13_accepted_snapshot_validate_status_lineage(tables$status, status_artifact, artifacts, manifest)
+  if (!identical(as.character(tables$status$competition_status[[1L]]), lifecycle_state)) {
+    stop("Phase 13 accepted status does not match the edition lifecycle state", call. = FALSE)
+  }
+  if (identical(lifecycle_state, "pre_draw") && any(vapply(tables[setdiff(required, "status")], nrow, integer(1)) != 0L)) {
+    stop("Phase 13 EURO pre_draw accepted snapshot must keep all structures empty", call. = FALSE)
+  }
+
+  list(
+    edition_id = edition_id,
+    bundle_id = bundle_id,
+    source_bundle = bundle,
+    source_artifacts = artifacts,
+    source_bundle_manifest = manifest,
+    manifest = manifest,
+    fixtures = tables$fixtures,
+    groups = tables$groups,
+    standings = tables$standings,
+    results = tables$results,
+    status = tables$status
+  )
+}
+
 load_competition_edition_registries <- function(
     registry_dir = "data/competition/registries",
     project_root = ".",
     validate = TRUE,
-    trusted_release_root = NULL) {
+    trusted_release_root = NULL,
+    accepted_root = NULL) {
   root <- phase13_edition_project_root(project_root)
   phase13_edition_source_contracts(root)
   registry_dir <- as.character(registry_dir)
@@ -468,6 +924,15 @@ load_competition_edition_registries <- function(
   registries <- utils::read.csv(edition_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   source_bundles <- utils::read.csv(bundle_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   source_artifacts <- utils::read.csv(artifact_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  identity_path <- file.path(registry_dir, "team_identity.csv")
+  identity_registry <- NULL
+  if (file.exists(identity_path)) {
+    identity_registry <- load_phase13_team_identity_registry(
+      identity_path,
+      validate = isTRUE(validate),
+      source_bundles = source_bundles
+    )
+  }
   for (bundle_id in unique(as.character(source_bundles$bundle_id))) {
     bundle <- source_bundles[source_bundles$bundle_id == bundle_id, , drop = FALSE]
     artifacts <- source_artifacts[source_artifacts$bundle_id == bundle_id, , drop = FALSE]
@@ -475,6 +940,7 @@ load_competition_edition_registries <- function(
   }
   attr(registries, "source_bundles") <- source_bundles
   attr(registries, "source_artifacts") <- source_artifacts
+  if (!is.null(identity_registry)) attr(registries, "team_identity") <- identity_registry
   attr(registries, "path") <- edition_path
   attr(registries, "trusted_root") <- root
   if (is.null(trusted_release_root)) trusted_release_root <- file.path(root, "outputs/releases")
@@ -488,8 +954,30 @@ load_competition_edition_registries <- function(
       require_complete = TRUE,
       project_root = root
     )
+    if (is.null(accepted_root)) accepted_root <- file.path(root, "data/competition/accepted")
+    accepted_root <- phase13_accepted_snapshot_resolve_root(root, accepted_root)
+    accepted_snapshots <- lapply(seq_len(nrow(registries)), function(index) {
+      edition_row <- registries[index, , drop = FALSE]
+      phase13_validate_accepted_snapshot(
+        accepted_dir = file.path(accepted_root, as.character(edition_row$edition_id[[1L]])),
+        edition_row = edition_row,
+        source_bundles = source_bundles,
+        source_artifacts = source_artifacts,
+        project_root = root,
+        identity_registry = identity_registry
+      )
+    })
+    names(accepted_snapshots) <- as.character(registries$edition_id)
+    attr(registries, "accepted_snapshots") <- accepted_snapshots
+    attr(registries, "accepted_root") <- accepted_root
   }
+  class(registries) <- c("phase13_competition_registry", class(registries))
   registries
+}
+
+`$.phase13_competition_registry` <- function(x, name) {
+  if (identical(name, "accepted_snapshots")) return(attr(x, "accepted_snapshots"))
+  NextMethod("$")
 }
 
 load_phase13_competition_edition_registries <- load_competition_edition_registries

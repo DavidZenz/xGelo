@@ -234,9 +234,9 @@ phase13_publication_manifest_build_bundle <- function(bundle_input, artifacts) {
     bundle$canonical_content_sha256 <- ""
   }
   artifact_hash <- phase13_publication_manifest_artifact_hash(artifacts)
-  content_hash <- phase13_publication_manifest_content_hash(bundle, artifacts)
   bundle$source_bundle_sha256[[1L]] <- artifact_hash
   bundle$artifact_manifest_sha256[[1L]] <- artifact_hash
+  content_hash <- phase13_publication_manifest_content_hash(bundle, artifacts)
   bundle$canonical_content_sha256[[1L]] <- content_hash
   bundle$manifest_self_sha256[[1L]] <- ""
   bundle$manifest_self_sha256[[1L]] <- phase13_source_manifest_self_sha256(bundle, artifacts)
