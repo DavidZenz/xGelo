@@ -59,7 +59,7 @@ phase13_acquire_parse_args <- function(args) {
     "url-standings", "url-results", "url-status", "source-url-fixtures",
     "source-url-groups", "source-url-standings", "source-url-results", "source-url-status"
   )
-  output <- list(dry_run = FALSE, help = FALSE)
+  output <- list(dry_run = FALSE, help = FALSE, publish_accepted = FALSE)
   index <- 1L
   while (index <= length(args)) {
     token <- args[[index]]
@@ -73,6 +73,11 @@ phase13_acquire_parse_args <- function(args) {
     }
     if (identical(key, "help")) {
       output$help <- TRUE
+      index <- index + 1L
+      next
+    }
+    if (identical(key, "publish-accepted")) {
+      output$publish_accepted <- TRUE
       index <- index + 1L
       next
     }
@@ -90,11 +95,11 @@ phase13_acquire_help <- function() {
     "",
     "Fixture replay:",
     "  --fixture-dir DIR --edition-id EDITION [--output-root DIR] [--registry-root DIR]",
-    "  [--raw-root DIR] [--fallback-file FILE] [--bundle-id ID] [--dry-run]",
+    "  [--raw-root DIR] [--fallback-file FILE] [--bundle-id ID] [--publish-accepted] [--dry-run]",
     "",
     "Bounded live capture:",
     "  --edition-id EDITION --fixtures-url URL --groups-url URL --standings-url URL",
-    "  --results-url URL [--status-url URL] [the same output options as above]",
+    "  --results-url URL [--status-url URL] [--publish-accepted] [the same output options as above]",
     "",
     "Only structured JSON resources are accepted.  Rendered HTML and PDF inputs are rejected."
   )
@@ -573,34 +578,163 @@ phase13_acquire_candidate <- function(options, edition_id, project_root = phase1
       fallback_checksum = checksum
     ))
   }
-  do.call(phase13_capture_structured_bundle, capture_args)
+  candidate <- do.call(phase13_capture_structured_bundle, capture_args)
+  phase13_acquire_enrich_candidate(
+    candidate,
+    source_urls = input$source_urls,
+    status_provenance = input$status_provenance %||% "explicit",
+    status_contributors = input$status_contributors %||% "status"
+  )
+}
+
+phase13_acquire_csv_bytes <- function(data) {
+  if (!is.data.frame(data)) stop("Phase 13 canonical CSV hashing requires a data frame", call. = FALSE)
+  path <- tempfile("phase13-canonical-content-", fileext = ".csv")
+  on.exit(if (file.exists(path)) unlink(path), add = TRUE)
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  readBin(path, what = "raw", n = file.info(path)$size)
+}
+
+phase13_acquire_canonical_content_sha256 <- function(data) {
+  phase13_source_sha256(phase13_acquire_csv_bytes(data))
+}
+
+phase13_acquire_file_sha256 <- function(path) {
+  if (!file.exists(path)) return("")
+  phase13_source_sha256(readBin(path, what = "raw", n = file.info(path)$size))
+}
+
+phase13_acquire_resource_table <- function(payload, artifact_type, edition_id, artifact_id) {
+  table <- phase13_source_resource_table(payload, artifact_type, edition_id, artifact_id)
+  table <- cbind(
+    schema_version = rep(paste0("phase13-", artifact_type, "-v1"), nrow(table)),
+    table
+  )
+  table$row_sha256 <- phase13_row_sha256(table)
+  table
+}
+
+phase13_acquire_bundle_content_table <- function(bundle, artifacts) {
+  bundle_fields <- setdiff(names(bundle), c("canonical_content_sha256", "manifest_self_sha256", "row_sha256"))
+  artifact_fields <- setdiff(names(artifacts), c("canonical_content_sha256", "row_sha256"))
+  cbind(
+    bundle[rep(1L, nrow(artifacts)), bundle_fields, drop = FALSE],
+    artifacts[, artifact_fields, drop = FALSE]
+  )
+}
+
+phase13_acquire_rebuild_bundle_row <- function(bundle, artifacts) {
+  bundle <- bundle[1L, , drop = FALSE]
+  artifact_hash <- phase13_canonical_sha256(artifacts, key = "artifact_id")
+  bundle$source_bundle_sha256 <- artifact_hash
+  bundle$artifact_manifest_sha256 <- artifact_hash
+  bundle$artifact_count <- as.integer(nrow(artifacts))
+  bundle$required_resource_count <- as.integer(length(phase13_source_required_resource_types()))
+  if (!"canonical_content_sha256" %in% names(bundle)) bundle$canonical_content_sha256 <- ""
+  bundle$manifest_self_sha256 <- ""
+  bundle$manifest_self_sha256 <- phase13_source_manifest_self_sha256(bundle, artifacts)
+  bundle$row_sha256 <- phase13_row_sha256(bundle)
+  bundle
+}
+
+phase13_acquire_enrich_candidate <- function(
+    candidate,
+    source_urls,
+    status_provenance,
+    status_contributors) {
+  artifacts <- candidate$artifacts
+  source_artifact_links <- character(nrow(artifacts))
+  source_url_lineage <- character(nrow(artifacts))
+  artifact_status_provenance <- rep("not_applicable", nrow(artifacts))
+  canonical_hashes <- character(nrow(artifacts))
+  for (index in seq_len(nrow(artifacts))) {
+    artifact_type <- as.character(artifacts$artifact_type[[index]])
+    artifact_id <- as.character(artifacts$artifact_id[[index]])
+    source_artifact_links[[index]] <- artifact_id
+    source_url_lineage[[index]] <- as.character(source_urls[[artifact_type]])
+    if (identical(artifact_type, "status")) {
+      if (identical(status_provenance, "derived")) {
+        contributors <- sort(unique(as.character(status_contributors)))
+        source_artifact_links[[index]] <- paste(
+          sort(paste0(candidate$bundle$bundle_id[[1L]], "-", contributors)),
+          collapse = "|"
+        )
+        artifact_status_provenance[[index]] <- "derived"
+      } else {
+        artifact_status_provenance[[index]] <- "explicit"
+      }
+      source_url_lineage[[index]] <- as.character(source_urls[["status"]])
+    }
+    canonical_hashes[[index]] <- phase13_acquire_canonical_content_sha256(
+      phase13_acquire_resource_table(
+        candidate$resources[[artifact_type]],
+        artifact_type,
+        candidate$bundle$edition_id[[1L]],
+        artifact_id
+      )
+    )
+  }
+  artifacts$source_artifact_id <- source_artifact_links
+  artifacts$source_url_lineage <- source_url_lineage
+  artifacts$status_provenance <- artifact_status_provenance
+  artifacts$canonical_content_sha256 <- canonical_hashes
+  artifacts$row_sha256 <- phase13_row_sha256(artifacts)
+
+  bundle <- phase13_acquire_rebuild_bundle_row(candidate$bundle, artifacts)
+  bundle$canonical_content_sha256 <- phase13_acquire_canonical_content_sha256(
+    phase13_acquire_bundle_content_table(bundle, artifacts)
+  )
+  bundle <- phase13_acquire_rebuild_bundle_row(bundle, artifacts)
+  phase13_validate_source_bundle(bundle, artifacts)
+  candidate$bundle <- bundle
+  candidate$artifacts <- artifacts
+  candidate$manifest <- phase13_source_manifest_table(bundle, artifacts)
+  candidate
 }
 
 phase13_acquire_write_raw_store <- function(candidate, raw_root, edition_id, bundle_id) {
-  raw_dir <- file.path(raw_root, edition_id, bundle_id)
-  dir.create(raw_dir, recursive = TRUE, showWarnings = FALSE)
-  resource_types <- phase13_source_required_resource_types()
-  for (artifact_type in resource_types) {
+  edition_dir <- file.path(raw_root, edition_id)
+  dir.create(edition_dir, recursive = TRUE, showWarnings = FALSE)
+  staged_dir <- tempfile(paste0(".", bundle_id, "-raw-"), tmpdir = edition_dir)
+  dir.create(staged_dir, recursive = TRUE, showWarnings = FALSE)
+  target_dir <- file.path(edition_dir, bundle_id)
+  backup_dir <- NULL
+  promoted <- FALSE
+  rollback <- function() {
+    if (promoted && dir.exists(target_dir)) unlink(target_dir, recursive = TRUE)
+    if (!is.null(backup_dir) && dir.exists(backup_dir) && !dir.exists(target_dir)) {
+      file.rename(backup_dir, target_dir)
+    }
+  }
+  on.exit({
+    if (!promoted) rollback()
+    if (dir.exists(staged_dir)) unlink(staged_dir, recursive = TRUE)
+    if (!is.null(backup_dir) && dir.exists(backup_dir)) unlink(backup_dir, recursive = TRUE)
+  }, add = TRUE)
+
+  for (artifact_type in phase13_source_required_resource_types()) {
     raw_bytes <- candidate$raw_bytes_by_resource[[artifact_type]]
-    target <- file.path(raw_dir, paste0(artifact_type, ".json"))
-    staged <- tempfile(paste0(".", basename(target), "-"), tmpdir = raw_dir)
-    on.exit(if (file.exists(staged)) unlink(staged), add = TRUE)
-    writeBin(phase13_source_raw_bytes(raw_bytes), staged)
-    if (!file.rename(staged, target)) stop("Could not retain Phase 13 raw response: ", target, call. = FALSE)
+    target <- file.path(staged_dir, paste0(artifact_type, ".json"))
+    writeBin(phase13_source_raw_bytes(raw_bytes), target)
     artifact <- candidate$artifacts[candidate$artifacts$artifact_type == artifact_type, , drop = FALSE]
     actual_bytes <- readBin(target, what = "raw", n = file.info(target)$size)
     if (nrow(artifact) != 1L || file.info(target)$size != artifact$bytes[[1L]] || phase13_source_sha256(actual_bytes) != artifact$raw_sha256[[1L]]) {
       stop("Phase 13 retained raw response failed exact-byte verification: ", artifact_type, call. = FALSE)
     }
   }
-  normalizePath(raw_dir, winslash = "/", mustWork = TRUE)
+  if (dir.exists(target_dir)) {
+    backup_dir <- tempfile(paste0(".", bundle_id, "-previous-"), tmpdir = edition_dir)
+    if (!file.rename(target_dir, backup_dir)) stop("Could not stage the previous Phase 13 raw response", call. = FALSE)
+  }
+  if (!file.rename(staged_dir, target_dir)) stop("Could not retain Phase 13 raw response bundle", call. = FALSE)
+  promoted <- TRUE
+  if (!is.null(backup_dir) && dir.exists(backup_dir)) unlink(backup_dir, recursive = TRUE)
+  on.exit(NULL, add = TRUE)
+  normalizePath(target_dir, winslash = "/", mustWork = TRUE)
 }
 
 phase13_acquire_write_resource_table <- function(payload, artifact_type, edition_id, artifact_id, path) {
-  table <- phase13_source_resource_table(payload, artifact_type, edition_id, artifact_id)
-  schema_version <- paste0("phase13-", artifact_type, "-v1")
-  table <- cbind(schema_version = rep(schema_version, nrow(table)), table)
-  table$row_sha256 <- phase13_row_sha256(table)
+  table <- phase13_acquire_resource_table(payload, artifact_type, edition_id, artifact_id)
   phase13_source_write_csv(table, path)
   table
 }
@@ -640,16 +774,154 @@ phase13_acquire_read_registry <- function(path) {
   utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
 }
 
-phase13_acquire_update_registries <- function(candidate, registry_root) {
+phase13_acquire_align_registry_columns <- function(data, columns) {
+  missing <- setdiff(columns, names(data))
+  for (column in missing) data[[column]] <- ""
+  data[, columns, drop = FALSE]
+}
+
+phase13_acquire_normalize_registry_artifacts <- function(artifacts, project_root) {
+  artifacts <- as.data.frame(artifacts, stringsAsFactors = FALSE, check.names = FALSE)
+  artifacts$source_artifact_id <- if ("source_artifact_id" %in% names(artifacts)) {
+    as.character(artifacts$source_artifact_id)
+  } else {
+    as.character(artifacts$artifact_id)
+  }
+  artifacts$source_url_lineage <- if ("source_url_lineage" %in% names(artifacts)) {
+    as.character(artifacts$source_url_lineage)
+  } else {
+    as.character(artifacts$source_url)
+  }
+  artifacts$status_provenance <- if ("status_provenance" %in% names(artifacts)) {
+    as.character(artifacts$status_provenance)
+  } else {
+    ifelse(as.character(artifacts$artifact_type) == "status", "explicit", "not_applicable")
+  }
+  canonical <- character(nrow(artifacts))
+  for (index in seq_len(nrow(artifacts))) {
+    accepted_path <- file.path(
+      project_root,
+      "data/competition/accepted",
+      as.character(artifacts$edition_id[[index]]),
+      paste0(as.character(artifacts$artifact_type[[index]]), ".csv")
+    )
+    existing <- if ("canonical_content_sha256" %in% names(artifacts)) {
+      as.character(artifacts$canonical_content_sha256[[index]])
+    } else {
+      ""
+    }
+    canonical[[index]] <- if (file.exists(accepted_path)) {
+      phase13_acquire_file_sha256(accepted_path)
+    } else if (grepl("^[0-9a-f]{64}$", existing)) {
+      existing
+    } else {
+      stop(
+        "Phase 13 existing source artifact has no canonical content bytes: ",
+        as.character(artifacts$artifact_id[[index]]),
+        call. = FALSE
+      )
+    }
+  }
+  artifacts$canonical_content_sha256 <- canonical
+  artifacts$row_sha256 <- phase13_row_sha256(artifacts)
+  artifacts
+}
+
+phase13_acquire_normalize_registry_bundle <- function(bundle, artifacts) {
+  bundle <- as.data.frame(bundle, stringsAsFactors = FALSE, check.names = FALSE)[1L, , drop = FALSE]
+  bundle <- phase13_acquire_rebuild_bundle_row(bundle, artifacts)
+  bundle$canonical_content_sha256 <- phase13_acquire_canonical_content_sha256(
+    phase13_acquire_bundle_content_table(bundle, artifacts)
+  )
+  phase13_acquire_rebuild_bundle_row(bundle, artifacts)
+}
+
+phase13_acquire_validate_registry_tables <- function(bundles, artifacts) {
+  if (!nrow(bundles) || !nrow(artifacts)) stop("Phase 13 source registries must not be empty", call. = FALSE)
+  for (bundle_id in unique(as.character(bundles$bundle_id))) {
+    bundle <- bundles[as.character(bundles$bundle_id) == bundle_id, , drop = FALSE]
+    bundle_artifacts <- artifacts[as.character(artifacts$bundle_id) == bundle_id, , drop = FALSE]
+    if (nrow(bundle) != 1L || !nrow(bundle_artifacts)) {
+      stop("Phase 13 source registry bundle/artifact linkage is incomplete: ", bundle_id, call. = FALSE)
+    }
+    phase13_validate_source_bundle(bundle, bundle_artifacts)
+  }
+  invisible(TRUE)
+}
+
+phase13_acquire_update_registries <- function(candidate, registry_root, project_root = phase13_acquire_project_root) {
   dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
   bundle_path <- file.path(registry_root, "source_bundles.csv")
   artifact_path <- file.path(registry_root, "source_artifacts.csv")
   old_bundles <- phase13_acquire_read_registry(bundle_path)
   old_artifacts <- phase13_acquire_read_registry(artifact_path)
-  bundles <- if (is.null(old_bundles)) candidate$bundle else rbind(old_bundles[old_bundles$bundle_id != candidate$bundle$bundle_id, , drop = FALSE], candidate$bundle)
-  artifacts <- if (is.null(old_artifacts)) candidate$artifacts else rbind(old_artifacts[old_artifacts$bundle_id != candidate$bundle$bundle_id, , drop = FALSE], candidate$artifacts)
-  phase13_source_write_csv(bundles, bundle_path)
-  phase13_source_write_csv(artifacts, artifact_path)
+  if (xor(is.null(old_bundles), is.null(old_artifacts))) {
+    stop("Phase 13 source registries must be present as a pair", call. = FALSE)
+  }
+  if (is.null(old_bundles)) {
+    bundles <- candidate$bundle
+    artifacts <- candidate$artifacts
+  } else {
+    old_artifacts <- phase13_acquire_normalize_registry_artifacts(old_artifacts, project_root)
+    old_bundle_rows <- lapply(unique(as.character(old_bundles$bundle_id)), function(bundle_id) {
+      bundle <- old_bundles[as.character(old_bundles$bundle_id) == bundle_id, , drop = FALSE]
+      bundle_artifacts <- old_artifacts[as.character(old_artifacts$bundle_id) == bundle_id, , drop = FALSE]
+      if (nrow(bundle) != 1L || !nrow(bundle_artifacts)) {
+        stop("Phase 13 existing source registry bundle is incomplete: ", bundle_id, call. = FALSE)
+      }
+      phase13_acquire_normalize_registry_bundle(bundle, bundle_artifacts)
+    })
+    old_bundles <- do.call(rbind, old_bundle_rows)
+    old_bundles <- old_bundles[as.character(old_bundles$bundle_id) != as.character(candidate$bundle$bundle_id), , drop = FALSE]
+    old_artifacts <- old_artifacts[as.character(old_artifacts$bundle_id) != as.character(candidate$bundle$bundle_id), , drop = FALSE]
+    old_bundles <- phase13_acquire_align_registry_columns(old_bundles, names(candidate$bundle))
+    old_artifacts <- phase13_acquire_align_registry_columns(old_artifacts, names(candidate$artifacts))
+    bundles <- rbind(old_bundles, candidate$bundle)
+    artifacts <- rbind(old_artifacts, candidate$artifacts)
+  }
+  phase13_acquire_validate_registry_tables(bundles, artifacts)
+
+  staged_root <- tempfile(".phase13-registry-stage-", tmpdir = registry_root)
+  dir.create(staged_root, recursive = TRUE, showWarnings = FALSE)
+  staged_bundle_path <- file.path(staged_root, basename(bundle_path))
+  staged_artifact_path <- file.path(staged_root, basename(artifact_path))
+  backup_root <- tempfile(".phase13-registry-backup-", tmpdir = registry_root)
+  dir.create(backup_root, recursive = TRUE, showWarnings = FALSE)
+  bundle_backup <- NULL
+  artifact_backup <- NULL
+  promoted_bundle <- FALSE
+  promoted_artifact <- FALSE
+  success <- FALSE
+  rollback <- function() {
+    if (promoted_artifact && file.exists(artifact_path)) unlink(artifact_path)
+    if (promoted_bundle && file.exists(bundle_path)) unlink(bundle_path)
+    if (!is.null(artifact_backup) && file.exists(artifact_backup)) file.rename(artifact_backup, artifact_path)
+    if (!is.null(bundle_backup) && file.exists(bundle_backup)) file.rename(bundle_backup, bundle_path)
+  }
+  on.exit({
+    if (!success) rollback()
+    if (dir.exists(staged_root)) unlink(staged_root, recursive = TRUE)
+    if (dir.exists(backup_root)) unlink(backup_root, recursive = TRUE)
+  }, add = TRUE)
+  phase13_source_write_csv(bundles, staged_bundle_path)
+  phase13_source_write_csv(artifacts, staged_artifact_path)
+  staged_bundles <- phase13_acquire_read_registry(staged_bundle_path)
+  staged_artifacts <- phase13_acquire_read_registry(staged_artifact_path)
+  phase13_acquire_validate_registry_tables(staged_bundles, staged_artifacts)
+
+  if (file.exists(bundle_path)) {
+    bundle_backup <- file.path(backup_root, basename(bundle_path))
+    if (!file.rename(bundle_path, bundle_backup)) stop("Could not stage the previous source bundle registry", call. = FALSE)
+  }
+  if (file.exists(artifact_path)) {
+    artifact_backup <- file.path(backup_root, basename(artifact_path))
+    if (!file.rename(artifact_path, artifact_backup)) stop("Could not stage the previous source artifact registry", call. = FALSE)
+  }
+  if (!file.rename(staged_bundle_path, bundle_path)) stop("Could not publish the source bundle registry", call. = FALSE)
+  promoted_bundle <- TRUE
+  if (!file.rename(staged_artifact_path, artifact_path)) stop("Could not publish the source artifact registry", call. = FALSE)
+  promoted_artifact <- TRUE
+  success <- TRUE
   invisible(list(source_bundles = bundles, source_artifacts = artifacts))
 }
 
@@ -709,9 +981,16 @@ phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
       return(invisible(candidate))
     }
     phase13_acquire_write_raw_store(candidate, raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
-    phase13_acquire_publish_accepted(candidate, output_root, edition_id, raw_root)
+    if (isTRUE(options$publish_accepted)) {
+      phase13_acquire_publish_accepted(candidate, output_root, edition_id, raw_root)
+    }
     phase13_acquire_update_registries(candidate, registry_root)
-    message(sprintf("Phase 13 accepted %s source bundle: %s", edition_id, candidate$bundle$bundle_id[[1L]]))
+    message(sprintf(
+      "Phase 13 %s %s source bundle: %s",
+      if (isTRUE(options$publish_accepted)) "accepted" else "captured",
+      edition_id,
+      candidate$bundle$bundle_id[[1L]]
+    ))
     invisible(candidate)
   }, error = function(error) {
     if (!isTRUE(options$dry_run)) {
