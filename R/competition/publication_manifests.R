@@ -209,10 +209,21 @@ phase13_publication_manifest_artifact_hash <- function(artifacts) {
   phase13_canonical_sha256(artifacts, key = "artifact_id")
 }
 
-phase13_publication_manifest_content_hash <- function(artifacts) {
-  phase13_canonical_sha256(
-    artifacts[, c("artifact_id", "artifact_type", "canonical_content_sha256"), drop = FALSE],
-    key = "artifact_id"
+phase13_publication_manifest_content_table <- function(bundle, artifacts) {
+  bundle_fields <- setdiff(
+    names(bundle),
+    c("canonical_content_sha256", "manifest_self_sha256", "row_sha256")
+  )
+  artifact_fields <- setdiff(names(artifacts), c("canonical_content_sha256", "row_sha256"))
+  cbind(
+    bundle[rep(1L, nrow(artifacts)), bundle_fields, drop = FALSE],
+    artifacts[, artifact_fields, drop = FALSE]
+  )
+}
+
+phase13_publication_manifest_content_hash <- function(bundle, artifacts) {
+  phase13_source_sha256(
+    phase13_publication_csv_bytes(phase13_publication_manifest_content_table(bundle, artifacts))
   )
 }
 
@@ -223,7 +234,7 @@ phase13_publication_manifest_build_bundle <- function(bundle_input, artifacts) {
     bundle$canonical_content_sha256 <- ""
   }
   artifact_hash <- phase13_publication_manifest_artifact_hash(artifacts)
-  content_hash <- phase13_publication_manifest_content_hash(artifacts)
+  content_hash <- phase13_publication_manifest_content_hash(bundle, artifacts)
   bundle$source_bundle_sha256[[1L]] <- artifact_hash
   bundle$artifact_manifest_sha256[[1L]] <- artifact_hash
   bundle$canonical_content_sha256[[1L]] <- content_hash
