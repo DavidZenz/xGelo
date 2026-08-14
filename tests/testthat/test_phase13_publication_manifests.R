@@ -174,6 +174,12 @@ test_that("accepted manifests and source bundles regenerate as one complete five
 
   for (edition_id in fixture$editions) {
     manifest <- refreshed$manifests[[edition_id]]
+    manifest_on_disk <- phase13_manifest_test_read_csv(refreshed$manifest_paths[[edition_id]])
+    expect_identical(names(manifest_on_disk), phase13_publication_manifest_schema())
+    expect_equal(nrow(manifest_on_disk), 5L)
+    row.names(manifest_on_disk) <- NULL
+    row.names(manifest) <- NULL
+    expect_equal(manifest_on_disk, manifest)
     artifact_rows <- refreshed$source_artifacts[
       refreshed$source_artifacts$edition_id == edition_id,
       ,
@@ -190,7 +196,9 @@ test_that("accepted manifests and source bundles regenerate as one complete five
     expect_true(all(as.character(manifest$bundle_id) == as.character(bundle$bundle_id[[1L]])))
     expect_true(all(as.character(manifest$source_artifact_id) %in% artifact_rows$source_artifact_id))
     expect_true(all(as.character(manifest$raw_sha256) %in% artifact_rows$raw_sha256))
-    expect_true(all(as.character(manifest$canonical_content_sha256) %in% artifact_rows$canonical_content_sha256))
+    canonical_columns <- which(names(manifest) == "canonical_content_sha256")
+    expect_length(canonical_columns, 2L)
+    expect_true(all(as.character(manifest[[canonical_columns[[2L]]]]) %in% artifact_rows$canonical_content_sha256))
     expect_length(unique(as.character(manifest$source_bundle_sha256)), 1L)
     expect_length(unique(as.character(manifest$artifact_manifest_sha256)), 1L)
     expect_length(unique(as.character(manifest$manifest_self_sha256)), 1L)
@@ -212,6 +220,12 @@ test_that("accepted manifests and source bundles regenerate as one complete five
     )
     expect_silent(phase13_validate_source_bundle(bundle, artifact_rows))
   }
+
+  bundles_on_disk <- phase13_manifest_test_read_csv(refreshed$source_bundles_path)
+  expect_identical(names(bundles_on_disk), names(refreshed$source_bundles))
+  row.names(bundles_on_disk) <- NULL
+  row.names(refreshed$source_bundles) <- NULL
+  expect_equal(bundles_on_disk, refreshed$source_bundles)
 
   for (index in seq_along(fixture$editions)) {
     manifest_path <- file.path(
