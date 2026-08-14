@@ -6,8 +6,11 @@ phase13_source_test_project_root <- normalizePath(
 )
 
 phase13_source_test_load_apis <- function() {
-  source_path <- file.path(phase13_source_test_project_root, "R/competition/source_contracts.R")
-  if (file.exists(source_path)) source(source_path, local = .GlobalEnv)
+  source_paths <- file.path(
+    phase13_source_test_project_root,
+    c("R/competition/source_contracts.R", "R/competition/team_identity.R")
+  )
+  for (source_path in source_paths) if (file.exists(source_path)) source(source_path, local = .GlobalEnv)
   invisible(TRUE)
 }
 
@@ -643,6 +646,90 @@ test_that("bounded acquisition replays compact structured fixtures into an accep
   expect_true(file.exists(file.path(raw_root, "uefa_nations_league_2026_27")))
 })
 
+test_that("accepted fixture publication uses the durable identity registry and preserves source values", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  output_root <- tempfile("phase13-normalized-fixture-output-")
+  registry_root <- tempfile("phase13-normalized-fixture-registries-")
+  raw_root <- tempfile("phase13-normalized-fixture-raw-")
+  result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--publish-accepted"
+  ))
+  expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+
+  acquire <- phase13_source_test_load_acquire()
+  accepted_root <- file.path(output_root, "uefa_nations_league_2026_27")
+  fixtures <- utils::read.csv(
+    file.path(accepted_root, "fixtures.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  phase13_source_test_load_apis()
+  expect_identical(names(fixtures), phase13_normalized_fixture_schema())
+  expect_identical(fixtures$edition_id, "uefa_nations_league_2026_27")
+  expect_identical(fixtures$home_team_id, "team_aut")
+  expect_identical(fixtures$away_team_id, "team_deu")
+  expect_identical(as.character(fixtures$home_uefa_source_team_id), "100")
+  expect_identical(as.character(fixtures$away_uefa_source_team_id), "101")
+  expect_identical(fixtures$home_display_name, "Austria")
+  expect_identical(fixtures$away_display_name, "Germany")
+  expect_identical(fixtures$source_artifact_id, "nl-2026-27-official-sample-v1-fixtures")
+  expect_identical(fixtures$home_mapping_method, "source_id")
+  expect_identical(fixtures$away_mapping_method, "source_id")
+  expect_silent(phase13_source_validate_hash_column(fixtures, "row_sha256", "accepted normalized fixtures"))
+})
+
+test_that("unresolved accepted fixture identity fails before replacing the accepted directory", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  invalid_dir <- tempfile("phase13-unresolved-fixture-")
+  dir.create(invalid_dir, recursive = TRUE, showWarnings = FALSE)
+  invalid <- jsonlite::fromJSON(
+    file.path(fixture_dir, "uefa_nations_league_sample.json"),
+    simplifyVector = FALSE
+  )
+  invalid$resources$fixtures[[1L]]$home$uefa_source_team_id <- "missing"
+  invalid$resources$fixtures[[1L]]$home$display_name <- "Unknown Team"
+  jsonlite::write_json(
+    invalid,
+    file.path(invalid_dir, "uefa_nations_league_sample.json"),
+    auto_unbox = TRUE,
+    pretty = FALSE
+  )
+
+  output_root <- tempfile("phase13-unresolved-output-")
+  registry_root <- tempfile("phase13-unresolved-registries-")
+  raw_root <- tempfile("phase13-unresolved-raw-")
+  accepted <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--publish-accepted"
+  ))
+  expect_equal(accepted$status, 0L, info = paste(accepted$output, collapse = "\n"))
+  fixtures_path <- file.path(output_root, "uefa_nations_league_2026_27", "fixtures.csv")
+  before <- readLines(fixtures_path, warn = FALSE)
+
+  blocked <- suppressWarnings(phase13_source_test_run_acquire(c(
+    "--fixture-dir", invalid_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--publish-accepted",
+    "--bundle-id", "nl-2026-27-unresolved-v1"
+  )))
+  expect_false(identical(blocked$status, 0L))
+  expect_match(paste(blocked$output, collapse = "\n"), "unresolved|identity")
+  expect_identical(readLines(fixtures_path, warn = FALSE), before)
+})
+
 test_that("official capture rejects rendered HTML and PDF resource bodies", {
   phase13_source_test_load_apis()
   phase13_source_test_require_api(c("phase13_source_validate_structured_bytes"))
@@ -793,15 +880,16 @@ test_that("accepted publication validates the complete staged directory and prot
   sidecar_paths <- c(blocked_path, history_path, editions_path)
   sidecar_before <- lapply(sidecar_paths, function(path) readBin(path, what = "raw", n = file.info(path)$size))
 
-  expect_silent(
-    acquire$phase13_acquire_publish_accepted(
+  published <- NULL
+  expect_silent({
+    published <- acquire$phase13_acquire_publish_accepted(
       candidate,
       output_root = output_root,
       edition_id = edition_id,
       raw_root = raw_root,
       registry_root = registry_root
     )
-  )
+  })
   accepted_root <- file.path(output_root, edition_id)
   expect_setequal(
     list.files(accepted_root),
@@ -817,7 +905,7 @@ test_that("accepted publication validates the complete staged directory and prot
   expect_true(grepl(paste0(bundle_id, "-fixtures"), status$source_artifact_id[[1L]], fixed = TRUE))
   expect_true(grepl(paste0(bundle_id, "-results"), status$source_artifact_id[[1L]], fixed = TRUE))
   for (artifact_type in phase13_source_required_resource_types()) {
-    artifact <- candidate$artifacts[candidate$artifacts$artifact_type == artifact_type, , drop = FALSE]
+    artifact <- published$artifacts[published$artifacts$artifact_type == artifact_type, , drop = FALSE]
     table_path <- file.path(accepted_root, paste0(artifact_type, ".csv"))
     expect_identical(
       digest::digest(readBin(table_path, what = "raw", n = file.info(table_path)$size), algo = "sha256", serialize = FALSE),

@@ -33,6 +33,7 @@ phase13_acquire_project_root <- normalizePath(
   mustWork = TRUE
 )
 source(file.path(phase13_acquire_project_root, "R/competition/source_contracts.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/team_identity.R"))
 
 phase13_acquire_now_utc <- function() {
   format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
@@ -43,6 +44,72 @@ phase13_acquire_resolve_path <- function(path, project_root = phase13_acquire_pr
   value <- if (grepl("^/", path)) path else file.path(project_root, path)
   normalizePath(value, winslash = "/", mustWork = FALSE)
 }
+
+phase13_acquire_load_edition_context <- function(
+    edition_id,
+    registry_root = file.path(phase13_acquire_project_root, "data/competition/registries"),
+    project_root = phase13_acquire_project_root) {
+  edition_id <- phase13_source_safe_relative_path(edition_id)
+  registry_root <- phase13_acquire_resolve_path(registry_root, project_root)
+  if (!dir.exists(registry_root)) {
+    stop("Phase 13 edition registry root is missing: ", registry_root, call. = FALSE)
+  }
+
+  identity_path <- file.path(registry_root, "team_identity.csv")
+  edition_path <- file.path(registry_root, "competition_editions.csv")
+  if (!file.exists(identity_path) || !file.exists(edition_path)) {
+    stop(
+      "Phase 13 accepted publication requires team identity and competition edition registries",
+      call. = FALSE
+    )
+  }
+
+  identity_registry <- load_phase13_team_identity_registry(identity_path)
+  editions <- utils::read.csv(
+    edition_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  required <- c("edition_id", "lifecycle_state", "source_bundle_id", "row_sha256")
+  missing <- setdiff(required, names(editions))
+  if (length(missing)) {
+    stop(
+      "Phase 13 competition edition registry is missing columns: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+  selected <- editions[as.character(editions$edition_id) == edition_id, , drop = FALSE]
+  if (nrow(selected) != 1L) {
+    stop("Phase 13 competition edition registry must contain exactly one selected edition: ", edition_id, call. = FALSE)
+  }
+  lifecycle_state <- as.character(selected$lifecycle_state[[1L]])
+  if (!lifecycle_state %in% c("pre_draw", "scheduled", "in_progress", "complete")) {
+    stop("Phase 13 selected edition has an unsupported lifecycle state: ", lifecycle_state, call. = FALSE)
+  }
+  if (is.na(selected$source_bundle_id[[1L]]) || !nzchar(as.character(selected$source_bundle_id[[1L]]))) {
+    stop("Phase 13 selected edition requires a source bundle ID", call. = FALSE)
+  }
+  actual_hash <- tolower(as.character(selected$row_sha256[[1L]]))
+  expected_hash <- phase13_row_sha256(selected)
+  if (!grepl("^[0-9a-f]{64}$", actual_hash) || !identical(actual_hash, expected_hash[[1L]])) {
+    stop("Phase 13 selected edition registry row SHA-256 mismatch", call. = FALSE)
+  }
+
+  list(
+    edition_id = edition_id,
+    lifecycle_state = lifecycle_state,
+    source_bundle_id = as.character(selected$source_bundle_id[[1L]]),
+    identity_registry = identity_registry,
+    edition_registry = selected,
+    registry_root = registry_root,
+    identity_path = normalizePath(identity_path, winslash = "/", mustWork = TRUE),
+    edition_path = normalizePath(edition_path, winslash = "/", mustWork = TRUE)
+  )
+}
+
+phase13_acquire_load_registry_context <- phase13_acquire_load_edition_context
 
 phase13_acquire_value <- function(value, name, default = "") {
   if (is.null(value) || !length(value)) return(default)
@@ -721,10 +788,17 @@ phase13_acquire_validate_accepted_directory <- function(path, candidate, edition
     if (nrow(artifact) != 1L) stop("Phase 13 accepted publication has an incomplete artifact manifest", call. = FALSE)
     table_path <- file.path(path, paste0(artifact_type, ".csv"))
     table <- utils::read.csv(table_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
-    expected_columns <- c(
-      "schema_version", phase13_source_compact_resource_schema()[[artifact_type]],
-      "edition_id", "source_artifact_id", "row_sha256"
-    )
+    expected_table <- if (!is.null(candidate$accepted_tables)) {
+      candidate$accepted_tables[[artifact_type]]
+    } else {
+      phase13_acquire_resource_table(
+        candidate$resources[[artifact_type]],
+        artifact_type,
+        edition_id,
+        as.character(artifact$source_artifact_id[[1L]])
+      )
+    }
+    expected_columns <- names(expected_table)
     if (!identical(names(table), expected_columns)) {
       stop("Phase 13 accepted resource schema mismatch: ", artifact_type, call. = FALSE)
     }
@@ -749,6 +823,71 @@ phase13_acquire_resource_table <- function(payload, artifact_type, edition_id, a
   )
   table$row_sha256 <- phase13_row_sha256(table)
   table
+}
+
+phase13_acquire_accepted_tables <- function(candidate, edition_context) {
+  required <- phase13_source_required_resource_types()
+  artifact_ids <- setNames(
+    as.character(candidate$artifacts$source_artifact_id),
+    as.character(candidate$artifacts$artifact_type)
+  )
+  accepted <- setNames(vector("list", length(required)), required)
+  for (artifact_type in required) {
+    if (is.null(artifact_ids[[artifact_type]]) || !nzchar(artifact_ids[[artifact_type]])) {
+      stop("Phase 13 accepted publication is missing source artifact lineage: ", artifact_type, call. = FALSE)
+    }
+    accepted[[artifact_type]] <- phase13_acquire_resource_table(
+      candidate$resources[[artifact_type]],
+      artifact_type,
+      edition_context$edition_id,
+      artifact_ids[[artifact_type]]
+    )
+  }
+
+  source_fixture_table <- phase13_source_resource_table(
+    candidate$resources$fixtures,
+    "fixtures",
+    edition_context$edition_id,
+    artifact_ids[["fixtures"]]
+  )
+  accepted$fixtures <- phase13_normalize_fixture_rows(
+    source_fixture_table,
+    identity_map = edition_context$identity_registry,
+    edition_id = edition_context$edition_id,
+    source_artifact_id = artifact_ids[["fixtures"]],
+    lifecycle_state = edition_context$lifecycle_state
+  )
+  accepted
+}
+
+phase13_acquire_rebuild_accepted_candidate <- function(candidate, accepted_tables) {
+  required <- phase13_source_required_resource_types()
+  if (!is.list(accepted_tables) || !setequal(names(accepted_tables), required)) {
+    stop("Phase 13 accepted publication requires all five normalized resource tables", call. = FALSE)
+  }
+  artifacts <- candidate$artifacts
+  canonical_hashes <- character(nrow(artifacts))
+  for (index in seq_len(nrow(artifacts))) {
+    artifact_type <- as.character(artifacts$artifact_type[[index]])
+    table <- accepted_tables[[artifact_type]]
+    if (!is.data.frame(table)) stop("Phase 13 accepted resource table is not a data frame: ", artifact_type, call. = FALSE)
+    phase13_source_validate_hash_column(table, "row_sha256", paste("Phase 13 accepted", artifact_type))
+    canonical_hashes[[index]] <- phase13_acquire_canonical_content_sha256(table)
+  }
+  artifacts$canonical_content_sha256 <- canonical_hashes
+  artifacts$row_sha256 <- phase13_row_sha256(artifacts)
+
+  bundle <- phase13_acquire_rebuild_bundle_row(candidate$bundle, artifacts)
+  bundle$canonical_content_sha256 <- phase13_acquire_canonical_content_sha256(
+    phase13_acquire_bundle_content_table(bundle, artifacts)
+  )
+  bundle <- phase13_acquire_rebuild_bundle_row(bundle, artifacts)
+  phase13_validate_source_bundle(bundle, artifacts)
+  candidate$bundle <- bundle
+  candidate$artifacts <- artifacts
+  candidate$accepted_tables <- accepted_tables
+  candidate$manifest <- phase13_acquire_source_manifest_table(bundle, artifacts)
+  candidate
 }
 
 phase13_acquire_bundle_content_table <- function(bundle, artifacts) {
@@ -872,13 +1011,25 @@ phase13_acquire_write_raw_store <- function(candidate, raw_root, edition_id, bun
 }
 
 phase13_acquire_write_resource_table <- function(
-    payload, artifact_type, edition_id, artifact_id, path, source_artifact_id = artifact_id) {
-  table <- phase13_acquire_resource_table(payload, artifact_type, edition_id, source_artifact_id)
+    payload, artifact_type, edition_id, artifact_id, path, source_artifact_id = artifact_id,
+    table_override = NULL) {
+  table <- if (is.null(table_override)) {
+    phase13_acquire_resource_table(payload, artifact_type, edition_id, source_artifact_id)
+  } else {
+    if (!is.data.frame(table_override)) stop("Phase 13 accepted resource override must be a data frame", call. = FALSE)
+    table_override
+  }
   phase13_source_write_csv(table, path)
   table
 }
 
-phase13_acquire_publish_accepted <- function(candidate, output_root, edition_id, raw_root, registry_root = NULL) {
+phase13_acquire_publish_accepted <- function(
+    candidate,
+    output_root,
+    edition_id,
+    raw_root,
+    registry_root = NULL,
+    registry_context_root = NULL) {
   edition_id <- phase13_source_safe_relative_path(edition_id)
   if (!is.data.frame(candidate$bundle) || !is.data.frame(candidate$artifacts) ||
       !is.data.frame(candidate$manifest) || !is.list(candidate$resources)) {
@@ -887,6 +1038,34 @@ phase13_acquire_publish_accepted <- function(candidate, output_root, edition_id,
   if (nrow(candidate$bundle) != 1L || !identical(as.character(candidate$bundle$edition_id[[1L]]), edition_id)) {
     stop("Phase 13 accepted publication candidate edition does not match the target", call. = FALSE)
   }
+  phase13_validate_source_bundle(candidate$bundle, candidate$artifacts)
+  phase13_acquire_validate_candidate_raw_bytes(candidate)
+  original_manifest <- phase13_acquire_source_manifest_table(candidate$bundle, candidate$artifacts)
+  phase13_acquire_validate_manifest(candidate$manifest, original_manifest)
+  if (is.null(registry_context_root)) {
+    candidate_registry_root <- if (!is.null(registry_root)) {
+      phase13_acquire_resolve_path(registry_root)
+    } else {
+      ""
+    }
+    has_candidate_context <- nzchar(candidate_registry_root) &&
+      file.exists(file.path(candidate_registry_root, "team_identity.csv")) &&
+      file.exists(file.path(candidate_registry_root, "competition_editions.csv"))
+    registry_context_root <- if (has_candidate_context) {
+      candidate_registry_root
+    } else {
+      file.path(phase13_acquire_project_root, "data/competition/registries")
+    }
+  }
+  edition_context <- phase13_acquire_load_edition_context(
+    edition_id,
+    registry_root = registry_context_root,
+    project_root = phase13_acquire_project_root
+  )
+  candidate <- phase13_acquire_rebuild_accepted_candidate(
+    candidate,
+    phase13_acquire_accepted_tables(candidate, edition_context)
+  )
   phase13_validate_source_bundle(candidate$bundle, candidate$artifacts)
   phase13_acquire_validate_candidate_raw_bytes(candidate)
   phase13_acquire_validate_raw_store(candidate, raw_root, edition_id)
@@ -932,7 +1111,8 @@ phase13_acquire_publish_accepted <- function(candidate, output_root, edition_id,
       candidate$resources[[artifact_type]], artifact_type, edition_id,
       as.character(artifact$artifact_id[[1L]]),
       file.path(staged, paste0(artifact_type, ".csv")),
-      source_artifact_id = as.character(artifact$source_artifact_id[[1L]])
+      source_artifact_id = as.character(artifact$source_artifact_id[[1L]]),
+      table_override = candidate$accepted_tables[[artifact_type]]
     )
   }
   phase13_acquire_validate_accepted_directory(staged, candidate, edition_id)
@@ -948,7 +1128,8 @@ phase13_acquire_publish_accepted <- function(candidate, output_root, edition_id,
   promoted <- TRUE
   phase13_acquire_validate_accepted_directory(target, candidate, edition_id)
   success <- TRUE
-  normalizePath(target, winslash = "/", mustWork = TRUE)
+  candidate$accepted_path <- normalizePath(target, winslash = "/", mustWork = TRUE)
+  candidate
 }
 
 phase13_acquire_read_registry <- function(path) {
@@ -1164,7 +1345,7 @@ phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
     }
     phase13_acquire_write_raw_store(candidate, raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
     if (isTRUE(options$publish_accepted)) {
-      phase13_acquire_publish_accepted(candidate, output_root, edition_id, raw_root, registry_root)
+      candidate <- phase13_acquire_publish_accepted(candidate, output_root, edition_id, raw_root, registry_root)
     }
     phase13_acquire_update_registries(candidate, registry_root)
     message(sprintf(
