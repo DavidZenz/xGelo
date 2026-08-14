@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-12-PLAN.md
-last_updated: "2026-08-14T14:14:18.956Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-05-PLAN.md
+last_updated: "2026-08-14T15:24:56.263Z"
 last_activity: 2026-08-14
 last_activity_desc: Plan 13-12 completed; locked normalized fourteen-target publication graph ready for verification
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 10
 ---
 
 # xGelo Project State
@@ -21,7 +21,7 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
-Plan: 6 of 12 (next chronological incomplete plan)
+Plan: 7 of 12 (next chronological incomplete plan)
 Status: Plan 13-12 complete; remaining Phase 13 plans are pending
 Last activity: 2026-08-14 — Plan 13-12 completed; locked normalized fourteen-target publication graph ready for verification
 
@@ -85,6 +85,9 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase ?]: The durable publication envelope owns exactly fourteen files; refresh_batches remains outside the target and cleanup scope.
 - [Phase ?]: Canonical and manifest hash calculation remains delegated to Plan 13-11 helpers inside the transaction staging root.
 - [Phase ?]: Production acquisition routes complete two-edition roots through normalized publication while isolated one-edition fixture replay remains supported.
+- [Phase ?]: Use Plan 13-12's production normalized publication transaction to regenerate the complete fourteen-target graph from committed compact fixtures; do not repair hashes manually.
+- [Phase ?]: Keep accepted snapshots and refresh-batch history as separate trust boundaries; this loader validates only the replaceable accepted tree.
+- [Phase ?]: Set bundle source_bundle_sha256 and artifact_manifest_sha256 before computing bundle canonical content so the canonical hash covers its complete non-circular projection.
 
 ## Accumulated Context
 
@@ -102,8 +105,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T14:14:18.948Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-12-PLAN.md
+**Last session:** 2026-08-14T15:24:56.254Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-05-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -125,3 +128,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13 P04 | 27min | 2 tasks | 4 files |
 | Phase 13 P11 | 26m | 2 tasks | 4 files |
 | Phase 13 P12 | 29min | 2 tasks | 4 files |
+| Phase 13 P05 | 1h 10m | 2 tasks | 13 files |
