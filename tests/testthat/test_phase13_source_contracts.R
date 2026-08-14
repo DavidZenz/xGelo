@@ -706,6 +706,156 @@ test_that("blocked candidate writes failure metadata and retains the prior accep
   expect_identical(blocked_metadata$status, "blocked")
 })
 
+test_that("accepted publication validates the complete staged directory and protects registry-side refresh records", {
+  acquire <- phase13_source_test_load_acquire()
+  fixture <- phase13_source_test_derived_fixture()
+  fixture_file <- tempfile("phase13-publish-derived-", fileext = ".json")
+  jsonlite::write_json(fixture, fixture_file, auto_unbox = TRUE, pretty = FALSE)
+  edition_id <- fixture$edition_id
+  bundle_id <- "nl-2026-27-accepted-boundary-v1"
+  output_root <- tempfile("phase13-publish-output-")
+  registry_root <- tempfile("phase13-publish-registries-")
+  raw_root <- tempfile("phase13-publish-raw-")
+  candidate <- acquire$phase13_acquire_candidate(
+    list(
+      `fixture-dir` = dirname(fixture_file),
+      `fixture-file` = fixture_file,
+      `fallback-file` = NULL,
+      `bundle-id` = bundle_id
+    ),
+    edition_id,
+    project_root = phase13_source_test_project_root
+  )
+
+  refresh_batch_id <- "refresh-2026-08-14T120000Z"
+  refresh_dir <- file.path(registry_root, "refresh_batches", edition_id, refresh_batch_id)
+  dir.create(refresh_dir, recursive = TRUE, showWarnings = FALSE)
+  blocked_path <- file.path(refresh_dir, "blocked_refresh.json")
+  history_path <- file.path(file.path(registry_root, "refresh_batches", edition_id), "status_history.csv")
+  editions_path <- file.path(registry_root, "competition_editions.csv")
+  jsonlite::write_json(
+    list(
+      schema_version = "phase13-refresh-batch-v1",
+      refresh_batch_id = refresh_batch_id,
+      status = "blocked",
+      edition_id = edition_id,
+      candidate_bundle_id = "nl-2026-27-invalid-v1",
+      last_accepted_bundle_id = "nl-2026-27-previous-v1",
+      last_accepted_output_bundle_id = "nl-2026-27-previous-v1",
+      registry_revision = 3L,
+      parser_commit_sha = "0123456789abcdef0123456789abcdef01234567"
+    ),
+    blocked_path,
+    auto_unbox = TRUE,
+    pretty = TRUE
+  )
+  utils::write.csv(
+    data.frame(
+      schema_version = "phase13-refresh-status-history-v1",
+      refresh_batch_id = refresh_batch_id,
+      event_sequence = 1L,
+      edition_id = edition_id,
+      status = "blocked",
+      stringsAsFactors = FALSE
+    ),
+    history_path,
+    row.names = FALSE,
+    quote = TRUE
+  )
+  utils::write.csv(
+    data.frame(
+      schema_version = "phase13-competition-edition-v2",
+      edition_id = edition_id,
+      blocked_refresh_batch_id = refresh_batch_id,
+      stringsAsFactors = FALSE
+    ),
+    editions_path,
+    row.names = FALSE,
+    quote = TRUE
+  )
+  sidecar_paths <- c(blocked_path, history_path, editions_path)
+  sidecar_before <- lapply(sidecar_paths, function(path) readBin(path, what = "raw", n = file.info(path)$size))
+
+  expect_silent(
+    acquire$phase13_acquire_publish_accepted(
+      candidate,
+      output_root = output_root,
+      edition_id = edition_id,
+      raw_root = raw_root,
+      registry_root = registry_root
+    )
+  )
+  accepted_root <- file.path(output_root, edition_id)
+  expect_setequal(
+    list.files(accepted_root),
+    paste0(c("source_bundle_manifest", "fixtures", "groups", "standings", "results", "status"), ".csv")
+  )
+  manifest <- utils::read.csv(file.path(accepted_root, "source_bundle_manifest.csv"), stringsAsFactors = FALSE, check.names = FALSE)
+  expect_true(all(c(
+    "source_artifact_id", "source_url_lineage", "status_provenance", "canonical_content_sha256"
+  ) %in% names(manifest)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", manifest$canonical_content_sha256)))
+
+  status <- utils::read.csv(file.path(accepted_root, "status.csv"), stringsAsFactors = FALSE, check.names = FALSE)
+  expect_true(grepl(paste0(bundle_id, "-fixtures"), status$source_artifact_id[[1L]], fixed = TRUE))
+  expect_true(grepl(paste0(bundle_id, "-results"), status$source_artifact_id[[1L]], fixed = TRUE))
+  for (artifact_type in phase13_source_required_resource_types()) {
+    artifact <- candidate$artifacts[candidate$artifacts$artifact_type == artifact_type, , drop = FALSE]
+    table_path <- file.path(accepted_root, paste0(artifact_type, ".csv"))
+    expect_identical(
+      digest::digest(readBin(table_path, what = "raw", n = file.info(table_path)$size), algo = "sha256", serialize = FALSE),
+      as.character(artifact$canonical_content_sha256[[1L]])
+    )
+  }
+  sidecar_after <- lapply(sidecar_paths, function(path) readBin(path, what = "raw", n = file.info(path)$size))
+  expect_identical(sidecar_after, sidecar_before)
+  expect_identical(
+    jsonlite::fromJSON(blocked_path)$refresh_batch_id,
+    utils::read.csv(editions_path, stringsAsFactors = FALSE)$blocked_refresh_batch_id[[1L]]
+  )
+
+  accepted_before <- lapply(
+    list.files(accepted_root, full.names = TRUE),
+    function(path) readBin(path, what = "raw", n = file.info(path)$size)
+  )
+  forged <- candidate
+  forged$manifest$bundle_id <- "forged-bundle-id"
+  expect_error(
+    acquire$phase13_acquire_publish_accepted(
+      forged,
+      output_root = output_root,
+      edition_id = edition_id,
+      raw_root = raw_root,
+      registry_root = registry_root
+    ),
+    "manifest|bundle|hash|provenance"
+  )
+  accepted_after <- lapply(
+    list.files(accepted_root, full.names = TRUE),
+    function(path) readBin(path, what = "raw", n = file.info(path)$size)
+  )
+  expect_identical(accepted_after, accepted_before)
+})
+
+test_that("dry-run validates a candidate without publishing accepted output or registries", {
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  output_root <- tempfile("phase13-dry-run-output-")
+  registry_root <- tempfile("phase13-dry-run-registries-")
+  raw_root <- tempfile("phase13-dry-run-raw-")
+  result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", fixture_dir,
+    "--edition-id", "uefa_nations_league_2026_27",
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--dry-run"
+  ))
+  expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+  expect_false(dir.exists(file.path(output_root, "uefa_nations_league_2026_27")))
+  expect_false(file.exists(file.path(registry_root, "source_bundles.csv")))
+  expect_false(dir.exists(file.path(raw_root, "uefa_nations_league_2026_27")))
+})
+
 test_that("capture-only registries retain exact raw bytes and canonical source hashes", {
   phase13_source_test_load_apis()
   acquire <- phase13_source_test_load_acquire()
@@ -777,11 +927,16 @@ test_that("capture-only registries retain exact raw bytes and canonical source h
       as.character(artifact$raw_sha256[[1L]])
     )
 
+    source_artifact_id <- if (artifact_type == "status" && identical(status$status_provenance, "derived")) {
+      status$source_artifact_id[[1L]]
+    } else {
+      artifact$artifact_id[[1L]]
+    }
     table <- phase13_source_resource_table(
       candidate$resources[[artifact_type]],
       artifact_type,
       edition_id,
-      artifact$artifact_id[[1L]]
+      source_artifact_id
     )
     table <- cbind(
       schema_version = rep(paste0("phase13-", artifact_type, "-v1"), nrow(table)),
