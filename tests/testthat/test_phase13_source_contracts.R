@@ -444,6 +444,151 @@ phase13_source_test_run_acquire <- function(args) {
   )
 }
 
+phase13_source_test_load_acquire <- function() {
+  environment <- new.env(parent = globalenv())
+  sys.source(
+    file.path(phase13_source_test_project_root, "scripts/acquire_uefa_snapshot.R"),
+    envir = environment
+  )
+  environment
+}
+
+test_that("bounded live fetch retries transient responses through injectable httr2 callbacks", {
+  acquire <- phase13_source_test_load_acquire()
+  fixture <- phase13_source_test_fixture()
+  requests <- list()
+  performed <- 0L
+  sleeps <- numeric()
+  responses <- list(
+    httr2::response_json(status_code = 503, body = list(error = "temporary")),
+    httr2::response_json(body = fixture$resources$fixtures)
+  )
+
+  perform <- function(request) {
+    performed <<- performed + 1L
+    requests[[performed]] <<- request
+    responses[[performed]]
+  }
+
+  fetched <- acquire$phase13_acquire_fetch_structured_url(
+    url = "https://example.test/fixtures",
+    artifact_type = "fixtures",
+    request_fn = function(url) httr2::request(url),
+    perform_fn = perform,
+    clock_fn = function() 100,
+    sleep_fn = function(seconds) sleeps <<- c(sleeps, seconds)
+  )
+
+  expect_equal(performed, 2L)
+  expect_equal(fetched$source_url, "https://example.test/fixtures")
+  expect_equal(fetched$payload[[1L]]$source_fixture_id, "nl-2026-0001")
+  expect_identical(as.character(requests[[1L]]$headers$Accept), "application/json")
+  expect_true(any(sleeps >= 1))
+  expect_true(all(sleeps <= 8))
+})
+
+test_that("bounded live fetch caps transient retries and rejects non-JSON bodies", {
+  acquire <- phase13_source_test_load_acquire()
+  attempts <- 0L
+  sleeps <- numeric()
+  expect_error(
+    acquire$phase13_acquire_fetch_structured_url(
+      url = "https://example.test/fixtures",
+      artifact_type = "fixtures",
+      perform_fn = function(request) {
+        attempts <<- attempts + 1L
+        httr2::response_json(status_code = c(500L, 502L, 504L)[[attempts]], body = list(error = "temporary"))
+      },
+      clock_fn = function() 100,
+      sleep_fn = function(seconds) sleeps <<- c(sleeps, seconds)
+    ),
+    "fixtures|status|attempt"
+  )
+  expect_equal(attempts, 3L)
+  expect_true(length(sleeps) >= 2L)
+  expect_true(all(sleeps <= 8))
+
+  expect_error(
+    acquire$phase13_acquire_fetch_structured_url(
+      url = "https://example.test/fixtures",
+      artifact_type = "fixtures",
+      perform_fn = function(request) httr2::response(
+        headers = list(`Content-Type` = "text/html"),
+        body = charToRaw("<!doctype html><html></html>")
+      ),
+      sleep_fn = function(seconds) NULL
+    ),
+    "JSON|HTML|structured"
+  )
+})
+
+test_that("live input derives status from validated mandatory resources without a status URL", {
+  acquire <- phase13_source_test_load_acquire()
+  fixture <- phase13_source_test_fixture()
+  resources <- fixture$resources[c("fixtures", "groups", "standings", "results")]
+  resources$fixtures[[1L]]$source_edition_id <- fixture$source_edition_id
+  resources$fixtures[[1L]]$competition_status <- "scheduled"
+  options <- setNames(
+    as.list(c(
+      "https://example.test/fixtures",
+      "https://example.test/groups",
+      "https://example.test/standings",
+      "https://example.test/results"
+    )),
+    paste0(c("fixtures", "groups", "standings", "results"), "-url")
+  )
+  fetch <- function(url, artifact_type, ...) {
+    payload <- resources[[artifact_type]]
+    list(
+      payload = payload,
+      raw_bytes = jsonlite::toJSON(payload, auto_unbox = TRUE, pretty = FALSE, null = "null", digits = 17),
+      source_url = url
+    )
+  }
+
+  input <- acquire$phase13_acquire_live_input(
+    options,
+    fixture$edition_id,
+    fetch_fn = fetch,
+    sleep_fn = function(seconds) NULL
+  )
+
+  expect_setequal(names(input$resources), c("fixtures", "groups", "standings", "results", "status"))
+  expect_identical(input$status_provenance, "derived")
+  expect_identical(input$resources$status[[1L]]$competition_status, "scheduled")
+  expect_identical(input$resources$status[[1L]]$source_edition_id, fixture$source_edition_id)
+  expect_true(grepl("example.test/fixtures", input$source_urls$status, fixed = TRUE))
+  expect_true(grepl("example.test/results", input$source_urls$status, fixed = TRUE))
+})
+
+test_that("live input reports missing optional status evidence instead of guessing", {
+  acquire <- phase13_source_test_load_acquire()
+  fixture <- phase13_source_test_fixture()
+  resources <- fixture$resources[c("fixtures", "groups", "standings", "results")]
+  options <- setNames(
+    as.list(c(
+      "https://example.test/fixtures",
+      "https://example.test/groups",
+      "https://example.test/standings",
+      "https://example.test/results"
+    )),
+    paste0(c("fixtures", "groups", "standings", "results"), "-url")
+  )
+  expect_error(
+    acquire$phase13_acquire_live_input(
+      options,
+      fixture$edition_id,
+      fetch_fn = function(url, artifact_type, ...) list(
+        payload = resources[[artifact_type]],
+        raw_bytes = jsonlite::toJSON(resources[[artifact_type]], auto_unbox = TRUE),
+        source_url = url
+      ),
+      sleep_fn = function(seconds) NULL
+    ),
+    "status|bearing|optional"
+  )
+})
+
 test_that("bounded acquisition replays compact structured fixtures into an accepted edition", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
   output_root <- tempfile("phase13-accepted-")
