@@ -446,6 +446,9 @@ phase13_source_test_run_acquire <- function(args) {
 
 phase13_source_test_load_acquire <- function() {
   environment <- new.env(parent = globalenv())
+  previous_directory <- getwd()
+  setwd(phase13_source_test_project_root)
+  on.exit(setwd(previous_directory), add = TRUE)
   sys.source(
     file.path(phase13_source_test_project_root, "scripts/acquire_uefa_snapshot.R"),
     envir = environment
@@ -528,6 +531,8 @@ test_that("live input derives status from validated mandatory resources without 
   resources <- fixture$resources[c("fixtures", "groups", "standings", "results")]
   resources$fixtures[[1L]]$source_edition_id <- fixture$source_edition_id
   resources$fixtures[[1L]]$competition_status <- "scheduled"
+  resources$results[[1L]]$source_edition_id <- fixture$source_edition_id
+  resources$results[[1L]]$competition_status <- "scheduled"
   options <- setNames(
     as.list(c(
       "https://example.test/fixtures",
@@ -557,8 +562,8 @@ test_that("live input derives status from validated mandatory resources without 
   expect_identical(input$status_provenance, "derived")
   expect_identical(input$resources$status[[1L]]$competition_status, "scheduled")
   expect_identical(input$resources$status[[1L]]$source_edition_id, fixture$source_edition_id)
-  expect_true(grepl("example.test/fixtures", input$source_urls$status, fixed = TRUE))
-  expect_true(grepl("example.test/results", input$source_urls$status, fixed = TRUE))
+  expect_true(grepl("example.test/fixtures", input$source_urls[["status"]], fixed = TRUE))
+  expect_true(grepl("example.test/results", input$source_urls[["status"]], fixed = TRUE))
 })
 
 test_that("live input reports missing optional status evidence instead of guessing", {

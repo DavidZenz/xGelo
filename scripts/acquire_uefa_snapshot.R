@@ -5,10 +5,27 @@
 # It never parses rendered page text and never publishes a candidate before the
 # complete edition-wide bundle has passed the source contract.
 
-phase13_acquire_script_file <- sub(
-  "^--file=",
-  "",
-  commandArgs(trailingOnly = FALSE)[grep("^--file=", commandArgs(trailingOnly = FALSE))][1L]
+phase13_acquire_command_args <- commandArgs(trailingOnly = FALSE)
+phase13_acquire_script_args <- phase13_acquire_command_args[grepl("^--file=", phase13_acquire_command_args)]
+phase13_acquire_source_file <- tryCatch(sys.frame(1L)$ofile, error = function(error) NULL)
+phase13_acquire_script_candidates <- c(
+  if (length(phase13_acquire_script_args)) sub("^--file=", "", phase13_acquire_script_args[[1L]]) else character(),
+  if (!is.null(phase13_acquire_source_file)) as.character(phase13_acquire_source_file) else character(),
+  file.path(getwd(), "scripts/acquire_uefa_snapshot.R")
+)
+phase13_acquire_script_candidates <- phase13_acquire_script_candidates[
+  !is.na(phase13_acquire_script_candidates) & nzchar(phase13_acquire_script_candidates)
+]
+phase13_acquire_script_file <- phase13_acquire_script_candidates[
+  vapply(phase13_acquire_script_candidates, file.exists, logical(1))
+][1L]
+if (is.na(phase13_acquire_script_file) || !nzchar(phase13_acquire_script_file)) {
+  stop("Phase 13 capture entrypoint could not resolve its script path", call. = FALSE)
+}
+phase13_acquire_script_file <- normalizePath(
+  phase13_acquire_script_file,
+  winslash = "/",
+  mustWork = TRUE
 )
 phase13_acquire_project_root <- normalizePath(
   file.path(dirname(phase13_acquire_script_file), ".."),
@@ -77,7 +94,7 @@ phase13_acquire_help <- function() {
     "",
     "Bounded live capture:",
     "  --edition-id EDITION --fixtures-url URL --groups-url URL --standings-url URL",
-    "  --results-url URL --status-url URL [the same output options as above]",
+    "  --results-url URL [--status-url URL] [the same output options as above]",
     "",
     "Only structured JSON resources are accepted.  Rendered HTML and PDF inputs are rejected."
   )
@@ -138,7 +155,16 @@ phase13_acquire_fixture_input <- function(fixture_dir, edition_id, fixture_file 
     stop("Phase 13 fixture must include resources and source_urls", call. = FALSE)
   }
   resources <- fixture$resources
-  resource_types <- phase13_source_required_resource_types()
+  mandatory_types <- c("fixtures", "groups", "standings", "results")
+  missing <- setdiff(mandatory_types, names(resources))
+  if (length(missing)) {
+    stop("Phase 13 fixture is missing mandatory resource classes: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  resource_types <- mandatory_types
+  if ("status" %in% names(resources) && "status" %in% names(fixture$source_urls) &&
+      nzchar(phase13_acquire_value(fixture$source_urls$status, "status URL"))) {
+    resource_types <- c(resource_types, "status")
+  }
   raw_bytes <- lapply(resources[resource_types], function(value) {
     jsonlite::toJSON(value, auto_unbox = TRUE, pretty = FALSE, null = "null", digits = 17)
   })
@@ -151,57 +177,350 @@ phase13_acquire_fixture_input <- function(fixture_dir, edition_id, fixture_file 
   )
 }
 
-phase13_acquire_fetch_structured_url <- function(url, artifact_type, max_bytes = 5e6) {
-  url <- phase13_source_scalar(url, paste0(artifact_type, " URL"))
-  if (!grepl("^https://", tolower(url))) stop("Phase 13 live capture requires an HTTPS URL for ", artifact_type, call. = FALSE)
-  target <- tempfile("phase13-uefa-response-", fileext = ".json")
-  on.exit(if (file.exists(target)) unlink(target), add = TRUE)
-  result <- tryCatch(
-    utils::download.file(url, target, mode = "wb", quiet = TRUE),
-    error = function(error) stop("Phase 13 structured URL capture failed for ", artifact_type, ": ", conditionMessage(error), call. = FALSE)
+phase13_acquire_clock_seconds <- function(clock_fn) {
+  value <- clock_fn()
+  if (inherits(value, "POSIXt")) value <- as.numeric(value)
+  value <- suppressWarnings(as.numeric(value[[1L]]))
+  if (length(value) != 1L || is.na(value) || !is.finite(value)) {
+    stop("Phase 13 capture clock callback must return one finite number", call. = FALSE)
+  }
+  value
+}
+
+phase13_acquire_response_status <- function(response) {
+  if (inherits(response, "httr2_response")) return(as.integer(httr2::resp_status(response)))
+  if (is.list(response)) {
+    value <- response$status_code %||% response$status
+    if (length(value)) return(as.integer(value[[1L]]))
+  }
+  stop("Phase 13 structured response did not expose an HTTP status", call. = FALSE)
+}
+
+phase13_acquire_response_header <- function(response, header, default = "") {
+  if (inherits(response, "httr2_response")) {
+    return(as.character(httr2::resp_header(response, header, default = default) %||% default))
+  }
+  headers <- if (is.list(response)) response$headers else NULL
+  if (is.null(headers) || !length(headers)) return(default)
+  names_lower <- tolower(names(headers))
+  match_index <- match(tolower(header), names_lower)
+  if (is.na(match_index)) default else as.character(headers[[match_index]])
+}
+
+phase13_acquire_response_raw <- function(response, artifact_type) {
+  raw_bytes <- if (inherits(response, "httr2_response")) {
+    tryCatch(
+      httr2::resp_body_raw(response),
+      error = function(error) stop("Phase 13 structured response has no body for ", artifact_type, call. = FALSE)
+    )
+  } else if (is.list(response)) {
+    response$raw_bytes %||% response$body
+  } else {
+    NULL
+  }
+  if (is.null(raw_bytes)) stop("Phase 13 structured response has no body for ", artifact_type, call. = FALSE)
+  phase13_source_raw_bytes(raw_bytes)
+}
+
+phase13_acquire_retryable_statuses <- function() {
+  c(408L, 425L, 429L, 500L, 502L, 503L, 504L)
+}
+
+phase13_acquire_rate_limit_wait <- function(
+    rate_limit_state,
+    clock_fn,
+    sleep_fn,
+    min_interval_seconds) {
+  now <- phase13_acquire_clock_seconds(clock_fn)
+  previous <- if (exists("next_allowed_at", envir = rate_limit_state, inherits = FALSE)) {
+    get("next_allowed_at", envir = rate_limit_state, inherits = FALSE)
+  } else {
+    NULL
+  }
+  wait <- if (is.null(previous)) 0 else max(0, as.numeric(previous) - now)
+  if (wait > 0) sleep_fn(wait)
+  assign(
+    "next_allowed_at",
+    max(now, if (is.null(previous)) now else as.numeric(previous)) + min_interval_seconds,
+    envir = rate_limit_state
   )
-  if (!identical(as.integer(result), 0L)) stop("Phase 13 structured URL capture failed for ", artifact_type, call. = FALSE)
-  size <- file.info(target)$size
-  if (is.na(size) || size <= 0 || size > max_bytes) stop("Phase 13 structured URL response exceeds the bounded byte limit: ", artifact_type, call. = FALSE)
-  raw_bytes <- readBin(target, what = "raw", n = size)
-  phase13_source_validate_structured_bytes(raw_bytes, artifact_type)
-  list(
-    payload = jsonlite::fromJSON(rawToChar(raw_bytes), simplifyVector = FALSE),
-    raw_bytes = raw_bytes,
-    source_url = url
+  invisible(wait)
+}
+
+phase13_acquire_fetch_structured_url <- function(
+    url,
+    artifact_type,
+    max_bytes = 5e6,
+    max_attempts = 3L,
+    timeout_seconds = 30,
+    min_interval_seconds = 1,
+    backoff_base_seconds = 1,
+    request_fn = NULL,
+    perform_fn = NULL,
+    clock_fn = function() as.numeric(Sys.time()),
+    sleep_fn = Sys.sleep,
+    rate_limit_state = NULL) {
+  url <- phase13_source_scalar(url, paste0(artifact_type, " URL"))
+  artifact_type <- phase13_source_scalar(artifact_type, "artifact_type")
+  if (!grepl("^https://", tolower(url))) {
+    stop("Phase 13 live capture requires an HTTPS URL for ", artifact_type, call. = FALSE)
+  }
+  if (!requireNamespace("httr2", quietly = TRUE)) {
+    stop("httr2 is required for Phase 13 live structured capture", call. = FALSE)
+  }
+  max_bytes <- suppressWarnings(as.numeric(max_bytes))
+  max_attempts <- suppressWarnings(as.integer(max_attempts))
+  timeout_seconds <- suppressWarnings(as.numeric(timeout_seconds))
+  min_interval_seconds <- suppressWarnings(as.numeric(min_interval_seconds))
+  backoff_base_seconds <- suppressWarnings(as.numeric(backoff_base_seconds))
+  if (is.na(max_bytes) || max_bytes <= 0 || is.na(max_attempts) || max_attempts < 1L ||
+      is.na(timeout_seconds) || timeout_seconds <= 0 || is.na(min_interval_seconds) || min_interval_seconds < 0 ||
+      is.na(backoff_base_seconds) || backoff_base_seconds <= 0) {
+    stop("Phase 13 structured capture bounds must be positive", call. = FALSE)
+  }
+  max_attempts <- min(max_attempts, 3L)
+  if (is.null(rate_limit_state)) rate_limit_state <- new.env(parent = emptyenv())
+  if (is.null(request_fn)) request_fn <- function(value) httr2::request(value)
+  if (is.null(perform_fn)) perform_fn <- function(request) httr2::req_perform(request)
+
+  last_message <- ""
+  for (attempt in seq_len(max_attempts)) {
+    phase13_acquire_rate_limit_wait(
+      rate_limit_state, clock_fn, sleep_fn, min_interval_seconds
+    )
+    request <- tryCatch(
+      request_fn(url),
+      error = function(error) stop(
+        "Phase 13 structured URL request construction failed for ", artifact_type,
+        ": ", conditionMessage(error), call. = FALSE
+      )
+    )
+    if (inherits(request, "httr2_request")) {
+      request <- httr2::req_headers(request, Accept = "application/json")
+      request <- httr2::req_timeout(request, seconds = timeout_seconds)
+    } else if (is.list(request)) {
+      request$headers <- c(request$headers %||% list(), list(Accept = "application/json"))
+      request$timeout_seconds <- timeout_seconds
+    }
+
+    response_error <- NULL
+    response <- tryCatch(
+      perform_fn(request),
+      error = function(error) {
+        response_error <<- error
+        NULL
+      }
+    )
+    status <- if (is.null(response)) NA_integer_ else {
+      tryCatch(phase13_acquire_response_status(response), error = function(error) NA_integer_)
+    }
+    transient <- is.na(status) || status %in% phase13_acquire_retryable_statuses()
+    if (!is.null(response) && status >= 200L && status < 300L) {
+      content_type <- tolower(trimws(phase13_acquire_response_header(response, "content-type", "")))
+      if (!grepl("^application/(json|[a-z0-9.+-]+\\+json)(;|$)", content_type)) {
+        stop("Phase 13 structured response for ", artifact_type, " is not JSON (content-type: ", content_type, ")", call. = FALSE)
+      }
+      raw_bytes <- phase13_acquire_response_raw(response, artifact_type)
+      if (!length(raw_bytes) || length(raw_bytes) > max_bytes) {
+        stop("Phase 13 structured URL response exceeds the bounded byte limit: ", artifact_type, call. = FALSE)
+      }
+      phase13_source_validate_structured_bytes(raw_bytes, artifact_type)
+      payload <- tryCatch(
+        jsonlite::fromJSON(rawToChar(raw_bytes), simplifyVector = FALSE),
+        error = function(error) stop(
+          "Phase 13 structured response JSON parsing failed for ", artifact_type,
+          ": ", conditionMessage(error), call. = FALSE
+        )
+      )
+      tryCatch(
+        phase13_source_validate_resource_payload(payload, artifact_type),
+        error = function(error) stop(
+          "Phase 13 structured response schema validation failed for ", artifact_type,
+          ": ", conditionMessage(error), call. = FALSE
+        )
+      )
+      return(list(payload = payload, raw_bytes = raw_bytes, source_url = url))
+    }
+
+    last_message <- if (!is.null(response_error)) {
+      conditionMessage(response_error)
+    } else if (is.na(status)) {
+      "response did not expose an HTTP status"
+    } else {
+      paste0("HTTP status ", status)
+    }
+    if (!transient || attempt >= max_attempts) break
+    sleep_fn(min(8, backoff_base_seconds * (2 ^ (attempt - 1L))))
+  }
+  stop(
+    "Phase 13 structured URL capture failed for ", artifact_type,
+    " after ", max_attempts, " attempt(s): ", last_message,
+    call. = FALSE
   )
 }
 
-phase13_acquire_live_input <- function(options, edition_id) {
-  resource_types <- phase13_source_required_resource_types()
-  url_values <- vapply(resource_types, function(artifact_type) {
-    candidates <- c(
-      options[[paste0(artifact_type, "-url")]],
-      options[[paste0("url-", artifact_type)]],
-      options[[paste0("source-url-", artifact_type)]]
-    )
-    candidates <- candidates[!vapply(candidates, is.null, logical(1))]
-    if (!length(candidates)) return(NA_character_)
-    as.character(candidates[[1L]])
-  }, character(1))
-  if (any(is.na(url_values) | !nzchar(url_values))) {
-    stop("Live Phase 13 capture requires explicit HTTPS URLs for fixtures, groups, standings, results, and status", call. = FALSE)
+phase13_acquire_option_url <- function(options, artifact_type) {
+  candidates <- c(
+    options[[paste0(artifact_type, "-url")]],
+    options[[paste0("url-", artifact_type)]],
+    options[[paste0("source-url-", artifact_type)]]
+  )
+  candidates <- candidates[!vapply(candidates, is.null, logical(1))]
+  candidates <- candidates[vapply(candidates, function(value) length(value) && !is.na(value[[1L]]) && nzchar(as.character(value[[1L]])), logical(1))]
+  if (!length(candidates)) return(NULL)
+  as.character(candidates[[1L]])
+}
+
+phase13_acquire_status_evidence <- function(resource_payloads) {
+  status_fields <- c(
+    "competition_status", "competition_state", "edition_status", "edition_state",
+    "lifecycle_state", "source_snapshot_state"
+  )
+  edition_fields <- c(
+    "source_edition_id", "source_edition", "source_competition_id",
+    "competition_edition_id", "edition_id"
+  )
+  evidence <- list()
+  visit <- function(value, resource_type) {
+    if (is.data.frame(value)) {
+      for (index in seq_len(nrow(value))) visit(as.list(value[index, , drop = FALSE]), resource_type)
+      return(invisible(NULL))
+    }
+    if (!is.list(value)) return(invisible(NULL))
+    fields <- names(value)
+    if (length(fields)) {
+      for (field in intersect(fields, c(status_fields, edition_fields))) {
+        candidate <- value[[field]]
+        if (is.atomic(candidate) && length(candidate)) {
+          candidate <- as.character(candidate)
+          candidate <- candidate[!is.na(candidate) & nzchar(trimws(candidate))]
+          if (length(candidate)) evidence[[length(evidence) + 1L]] <<- list(
+            resource_type = resource_type,
+            field = field,
+            values = candidate
+          )
+        }
+      }
+      for (field in setdiff(fields, c(status_fields, edition_fields))) visit(value[[field]], resource_type)
+    } else {
+      for (child in value) visit(child, resource_type)
+    }
+    invisible(NULL)
   }
+  for (resource_type in intersect(names(resource_payloads), c("fixtures", "groups", "standings", "results"))) {
+    visit(resource_payloads[[resource_type]], resource_type)
+  }
+  evidence
+}
+
+phase13_acquire_derive_status <- function(input, edition_id) {
+  evidence <- phase13_acquire_status_evidence(input$resources)
+  status_evidence <- evidence[vapply(evidence, function(item) item$field %in% c(
+    "competition_status", "competition_state", "edition_status", "edition_state",
+    "lifecycle_state", "source_snapshot_state"
+  ), logical(1))]
+  statuses <- sort(unique(unlist(lapply(status_evidence, function(item) item$values), use.names = FALSE)))
+  if (!length(statuses)) {
+    stop(
+      "Phase 13 status source unavailable: optional status URL was not supplied and no status-bearing fields were found",
+      call. = FALSE
+    )
+  }
+  if (length(statuses) != 1L) {
+    stop("Phase 13 derived status has conflicting status-bearing fields", call. = FALSE)
+  }
+  edition_evidence <- evidence[vapply(evidence, function(item) item$field %in% c(
+    "source_edition_id", "source_edition", "source_competition_id", "competition_edition_id", "edition_id"
+  ), logical(1))]
+  source_edition <- sort(unique(unlist(lapply(edition_evidence, function(item) item$values), use.names = FALSE)))
+  if (length(source_edition) > 1L) {
+    stop("Phase 13 derived status has conflicting source edition identifiers", call. = FALSE)
+  }
+  source_edition <- if (length(source_edition)) source_edition[[1L]] else edition_id
+  contributors <- sort(unique(vapply(status_evidence, function(item) item$resource_type, character(1))))
+  if (!length(contributors)) stop("Phase 13 derived status has no contributing resources", call. = FALSE)
+  status_payload <- list(list(
+    source_edition_id = source_edition,
+    competition_status = statuses[[1L]]
+  ))
+  source_urls <- as.character(input$source_urls[contributors])
+  source_urls <- source_urls[!is.na(source_urls) & nzchar(source_urls)]
+  if (!length(source_urls)) stop("Phase 13 derived status has no contributing source URLs", call. = FALSE)
+  status_url <- paste(sort(unique(source_urls)), collapse = " | ")
+  raw_bytes <- jsonlite::toJSON(status_payload, auto_unbox = TRUE, pretty = FALSE, null = "null", digits = 17)
+  input$resources$status <- status_payload
+  input$source_urls[["status"]] <- status_url
+  input$raw_bytes_by_resource$status <- raw_bytes
+  input$status_provenance <- "derived"
+  input$status_contributors <- contributors
+  input
+}
+
+phase13_acquire_finalize_input <- function(input, edition_id) {
+  mandatory <- c("fixtures", "groups", "standings", "results")
+  missing <- setdiff(mandatory, names(input$resources))
+  if (length(missing)) stop("Phase 13 capture is missing mandatory resource classes: ", paste(missing, collapse = ", "), call. = FALSE)
+  invisible(lapply(mandatory, function(type) phase13_source_validate_resource_payload(input$resources[[type]], type)))
+  has_explicit_status <- "status" %in% names(input$resources) && "status" %in% names(input$source_urls) &&
+    !is.null(input$source_urls[["status"]]) && nzchar(as.character(input$source_urls[["status"]]))
+  if (has_explicit_status) {
+    phase13_source_validate_resource_payload(input$resources$status, "status")
+    input$status_provenance <- "explicit"
+    input$status_contributors <- "status"
+    return(input)
+  }
+  phase13_acquire_derive_status(input, edition_id)
+}
+
+phase13_acquire_live_input <- function(
+    options,
+    edition_id,
+    fetch_fn = phase13_acquire_fetch_structured_url,
+    clock_fn = function() as.numeric(Sys.time()),
+    sleep_fn = Sys.sleep,
+    rate_limit_state = NULL) {
+  mandatory <- c("fixtures", "groups", "standings", "results")
+  url_values <- setNames(vapply(mandatory, function(type) {
+    value <- phase13_acquire_option_url(options, type)
+    if (is.null(value)) return(NA_character_)
+    value
+  }, character(1)), mandatory)
+  if (any(is.na(url_values) | !nzchar(url_values))) {
+    stop("Live Phase 13 capture requires explicit HTTPS URLs for fixtures, groups, standings, and results", call. = FALSE)
+  }
+  if (is.null(rate_limit_state)) rate_limit_state <- new.env(parent = emptyenv())
   payloads <- list()
   raw_bytes <- list()
-  for (artifact_type in resource_types) {
-    captured <- phase13_acquire_fetch_structured_url(url_values[[artifact_type]], artifact_type)
+  for (artifact_type in mandatory) {
+    captured <- fetch_fn(
+      url_values[[artifact_type]], artifact_type,
+      rate_limit_state = rate_limit_state, clock_fn = clock_fn, sleep_fn = sleep_fn
+    )
     payloads[[artifact_type]] <- captured$payload
     raw_bytes[[artifact_type]] <- captured$raw_bytes
   }
-  list(
+  input <- list(
     edition_id = edition_id,
     resources = payloads,
     source_urls = url_values,
     raw_bytes_by_resource = raw_bytes,
     retrieved_at_utc = phase13_acquire_now_utc()
   )
+  status_url <- phase13_acquire_option_url(options, "status")
+  if (!is.null(status_url)) {
+    captured <- fetch_fn(
+      status_url, "status",
+      rate_limit_state = rate_limit_state, clock_fn = clock_fn, sleep_fn = sleep_fn
+    )
+    input$resources$status <- captured$payload
+    input$source_urls[["status"]] <- captured$source_url %||% status_url
+    input$raw_bytes_by_resource$status <- captured$raw_bytes
+    input$status_provenance <- "explicit"
+    input$status_contributors <- "status"
+  }
+  phase13_acquire_finalize_input(input, edition_id)
 }
+
 
 phase13_acquire_read_fallback <- function(path) {
   metadata <- jsonlite::fromJSON(path, simplifyVector = FALSE)
@@ -221,6 +540,7 @@ phase13_acquire_candidate <- function(options, edition_id, project_root = phase1
   } else {
     phase13_acquire_live_input(options, edition_id)
   }
+  input <- phase13_acquire_finalize_input(input, edition_id)
   if (!identical(as.character(input$edition_id), edition_id)) {
     stop("Phase 13 input edition does not match --edition-id", call. = FALSE)
   }
