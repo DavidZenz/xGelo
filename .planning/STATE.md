@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-07-PLAN.md
-last_updated: "2026-08-14T11:43:39.691Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-09-PLAN.md
+last_updated: "2026-08-14T12:13:17.353Z"
 last_activity: 2026-08-13
 last_activity_desc: Plan 13-03 completed; ready for Phase 13 verification
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 12
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # xGelo Project State
@@ -69,6 +69,10 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase ?]: Capture-only is the default; accepted-directory publication remains an explicit opt-in for legacy replay checks and later plans own normal publication.
 - [Phase ?]: A missing status URL is valid only when one unambiguous status and edition identity can be derived from validated mandatory structured resources.
 - [Phase ?]: Derived status lineage is recorded as sorted contributing source artifact IDs and URL lineage, while canonical content hashes cover complete CSV bytes including headers.
+- [Phase 13]: The accepted publisher validates the complete manifest and five compact tables before replacing only the edition directory.
+- [Phase 13]: Derived status canonical content is hashed with its complete sorted source_artifact_id lineage, not the synthetic status artifact ID.
+- [Phase 13]: data/competition/registries/refresh_batches remains outside the accepted replacement scope and is never created, renamed, or deleted by the publisher.
+- [Phase 13]: The committed Nations League output remains a source-shaped seed; identity normalization and final canonical/hash-graph promotion stay with Plans 13-04, 13-11, and 13-12.
 
 ## Accumulated Context
 
@@ -86,8 +90,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T11:43:39.683Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-07-PLAN.md
+**Last session:** 2026-08-14T12:13:17.345Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-09-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -104,3 +108,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13-source-contracts-and-competition-registry P02 | 26 min | 2 tasks | 18 files |
 | Phase 13 P03 | 27 min | 2 tasks | 5 files |
 | Phase 13 P07 | 20min | 2 tasks | 4 files |
+| Phase 13 P09 | 26min | 2 tasks | 3 files |
