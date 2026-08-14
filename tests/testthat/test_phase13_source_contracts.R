@@ -77,6 +77,16 @@ phase13_source_test_raw_bytes <- function(fixture) {
   )
 }
 
+phase13_source_test_derived_fixture <- function() {
+  fixture <- phase13_source_test_fixture()
+  fixture$source_urls$status <- NULL
+  for (artifact_type in c("fixtures", "results")) {
+    fixture$resources[[artifact_type]][[1L]]$source_edition_id <- fixture$source_edition_id
+    fixture$resources[[artifact_type]][[1L]]$competition_status <- "scheduled"
+  }
+  fixture
+}
+
 test_that("Wave 0 exposes the source-contract API seam", {
   phase13_source_test_load_apis()
   phase13_source_test_require_api(c(
@@ -604,7 +614,8 @@ test_that("bounded acquisition replays compact structured fixtures into an accep
     "--edition-id", "uefa_nations_league_2026_27",
     "--output-root", output_root,
     "--registry-root", registry_root,
-    "--raw-root", raw_root
+    "--raw-root", raw_root,
+    "--publish-accepted"
   ))
   expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
   accepted_root <- file.path(output_root, "uefa_nations_league_2026_27")
@@ -644,6 +655,7 @@ test_that("reviewed fallback acceptance is complete and never mixes provenance",
   expect_true(all(artifacts$review_state == "approved"))
   expect_true(nzchar(bundle$fallback_source))
   expect_match(bundle$fallback_checksum, "^[0-9a-f]{64}$")
+  expect_true(all(grepl("^[0-9a-f]{64}$", artifacts$canonical_content_sha256)))
 })
 
 test_that("blocked candidate writes failure metadata and retains the prior accepted bundle", {
@@ -656,7 +668,8 @@ test_that("blocked candidate writes failure metadata and retains the prior accep
     "--edition-id", "uefa_nations_league_2026_27",
     "--output-root", output_root,
     "--registry-root", registry_root,
-    "--raw-root", raw_root
+    "--raw-root", raw_root,
+    "--publish-accepted"
   ))
   expect_equal(accepted$status, 0L, info = paste(accepted$output, collapse = "\n"))
   accepted_manifest <- file.path(output_root, "uefa_nations_league_2026_27", "source_bundle_manifest.csv")
@@ -691,4 +704,174 @@ test_that("blocked candidate writes failure metadata and retains the prior accep
   expect_identical(blocked_metadata$last_accepted_bundle_id, "nl-2026-27-official-sample-v1")
   expect_identical(blocked_metadata$output_bundle_target, "uefa_nations_league_2026_27")
   expect_identical(blocked_metadata$status, "blocked")
+})
+
+test_that("capture-only registries retain exact raw bytes and canonical source hashes", {
+  phase13_source_test_load_apis()
+  acquire <- phase13_source_test_load_acquire()
+  fixture <- phase13_source_test_derived_fixture()
+  fixture_file <- tempfile("phase13-derived-fixture-", fileext = ".json")
+  jsonlite::write_json(fixture, fixture_file, auto_unbox = TRUE, pretty = FALSE)
+  edition_id <- fixture$edition_id
+  fixture_options <- list(
+    `fixture-dir` = dirname(fixture_file),
+    `fixture-file` = fixture_file,
+    `fallback-file` = NULL,
+    `bundle-id` = NULL
+  )
+  candidate <- acquire$phase13_acquire_candidate(
+    fixture_options,
+    edition_id,
+    project_root = phase13_source_test_project_root
+  )
+  registry_root <- tempfile("phase13-capture-registries-")
+  raw_root <- tempfile("phase13-capture-raw-")
+  output_root <- tempfile("phase13-capture-only-")
+  result <- phase13_source_test_run_acquire(c(
+    "--fixture-dir", dirname(fixture_file),
+    "--fixture-file", fixture_file,
+    "--edition-id", edition_id,
+    "--output-root", output_root,
+    "--registry-root", registry_root,
+    "--raw-root", raw_root
+  ))
+  expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+  expect_false(dir.exists(file.path(output_root, edition_id)))
+
+  bundles <- utils::read.csv(
+    file.path(registry_root, "source_bundles.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  artifacts <- utils::read.csv(
+    file.path(registry_root, "source_artifacts.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  expect_equal(nrow(bundles), 1L)
+  expect_equal(nrow(artifacts), 5L)
+  expect_true(all(c("canonical_content_sha256", "row_sha256") %in% names(bundles)))
+  expect_true(all(c(
+    "source_artifact_id", "source_url_lineage", "status_provenance",
+    "canonical_content_sha256", "raw_sha256", "row_sha256"
+  ) %in% names(artifacts)))
+  expect_match(bundles$canonical_content_sha256, "^[0-9a-f]{64}$")
+  expect_true(all(grepl("^[0-9a-f]{64}$", artifacts$canonical_content_sha256)))
+
+  status <- artifacts[artifacts$artifact_type == "status", , drop = FALSE]
+  expect_equal(nrow(status), 1L)
+  expect_identical(status$status_provenance, "derived")
+  expect_true(grepl(paste0(candidate$bundle$bundle_id[[1L]], "-fixtures"), status$source_artifact_id, fixed = TRUE))
+  expect_true(grepl(paste0(candidate$bundle$bundle_id[[1L]], "-results"), status$source_artifact_id, fixed = TRUE))
+  expect_true(grepl("example", status$source_url_lineage, fixed = TRUE) || grepl("uefa.com", status$source_url_lineage, fixed = TRUE))
+
+  raw_dir <- file.path(raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
+  for (artifact_type in phase13_source_required_resource_types()) {
+    artifact <- artifacts[artifacts$artifact_type == artifact_type, , drop = FALSE]
+    raw_path <- file.path(raw_dir, paste0(artifact_type, ".json"))
+    expect_true(file.exists(raw_path))
+    raw_bytes <- readBin(raw_path, what = "raw", n = file.info(raw_path)$size)
+    expect_identical(as.integer(length(raw_bytes)), as.integer(artifact$bytes[[1L]]))
+    expect_identical(
+      digest::digest(raw_bytes, algo = "sha256", serialize = FALSE),
+      as.character(artifact$raw_sha256[[1L]])
+    )
+
+    table <- phase13_source_resource_table(
+      candidate$resources[[artifact_type]],
+      artifact_type,
+      edition_id,
+      artifact$artifact_id[[1L]]
+    )
+    table <- cbind(
+      schema_version = rep(paste0("phase13-", artifact_type, "-v1"), nrow(table)),
+      table
+    )
+    table$row_sha256 <- phase13_row_sha256(table)
+    canonical_path <- tempfile("phase13-canonical-", fileext = ".csv")
+    utils::write.csv(table, canonical_path, row.names = FALSE, na = "", quote = TRUE)
+    canonical_bytes <- readBin(canonical_path, what = "raw", n = file.info(canonical_path)$size)
+    expect_identical(
+      digest::digest(canonical_bytes, algo = "sha256", serialize = FALSE),
+      as.character(artifact$canonical_content_sha256[[1L]])
+    )
+  }
+})
+
+test_that("source registry replacement is pairwise atomic and failed candidates leave no raw bundle", {
+  acquire <- phase13_source_test_load_acquire()
+  fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
+  edition_id <- "uefa_nations_league_2026_27"
+  registry_root <- tempfile("phase13-atomic-registries-")
+  raw_root <- tempfile("phase13-atomic-raw-")
+  base_candidate <- acquire$phase13_acquire_candidate(
+    list(
+      `fixture-dir` = fixture_dir,
+      `fixture-file` = NULL,
+      `fallback-file` = NULL,
+      `bundle-id` = "nl-2026-27-atomic-base-v1"
+    ),
+    edition_id,
+    project_root = phase13_source_test_project_root
+  )
+  acquire$phase13_acquire_update_registries(base_candidate, registry_root)
+  bundle_path <- file.path(registry_root, "source_bundles.csv")
+  artifact_path <- file.path(registry_root, "source_artifacts.csv")
+  before_bundle <- readBin(bundle_path, what = "raw", n = file.info(bundle_path)$size)
+  before_artifact <- readBin(artifact_path, what = "raw", n = file.info(artifact_path)$size)
+
+  replacement <- acquire$phase13_acquire_candidate(
+    list(
+      `fixture-dir` = fixture_dir,
+      `fixture-file` = NULL,
+      `fallback-file` = NULL,
+      `bundle-id` = "nl-2026-27-atomic-replacement-v1"
+    ),
+    edition_id,
+    project_root = phase13_source_test_project_root
+  )
+  original_writer <- acquire$phase13_source_write_csv
+  writer_state <- new.env(parent = emptyenv())
+  writer_state$writes <- 0L
+  mock_writer <- (function(state) {
+    function(data, path) {
+      state$writes <- state$writes + 1L
+      if (state$writes == 2L) stop("forced second registry write failure", call. = FALSE)
+      utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+    }
+  })(writer_state)
+  assign("phase13_source_write_csv", mock_writer, envir = acquire)
+  on.exit(assign("phase13_source_write_csv", original_writer, envir = acquire), add = TRUE)
+  expect_error(
+    acquire$phase13_acquire_update_registries(replacement, registry_root),
+    "forced second registry write failure"
+  )
+  expect_identical(readBin(bundle_path, what = "raw", n = file.info(bundle_path)$size), before_bundle)
+  expect_identical(readBin(artifact_path, what = "raw", n = file.info(artifact_path)$size), before_artifact)
+
+  invalid_fixture_dir <- tempfile("phase13-atomic-invalid-")
+  dir.create(invalid_fixture_dir, recursive = TRUE)
+  invalid_fixture <- jsonlite::fromJSON(
+    file.path(fixture_dir, "uefa_nations_league_sample.json"),
+    simplifyVector = FALSE
+  )
+  invalid_fixture$resources$standings[[1L]]$points <- NULL
+  jsonlite::write_json(
+    invalid_fixture,
+    file.path(invalid_fixture_dir, "uefa_nations_league_sample.json"),
+    auto_unbox = TRUE,
+    pretty = FALSE
+  )
+  blocked <- suppressWarnings(phase13_source_test_run_acquire(c(
+    "--fixture-dir", invalid_fixture_dir,
+    "--edition-id", edition_id,
+    "--output-root", tempfile("phase13-atomic-blocked-output-"),
+    "--registry-root", registry_root,
+    "--raw-root", raw_root,
+    "--bundle-id", "nl-2026-27-atomic-invalid-v1"
+  )))
+  expect_false(identical(blocked$status, 0L))
+  expect_identical(readBin(bundle_path, what = "raw", n = file.info(bundle_path)$size), before_bundle)
+  expect_identical(readBin(artifact_path, what = "raw", n = file.info(artifact_path)$size), before_artifact)
+  expect_false(dir.exists(file.path(raw_root, edition_id, "nl-2026-27-atomic-invalid-v1")))
 })
