@@ -174,6 +174,7 @@ test_that("stale and forged source links fail before any normalized target is pr
   artifacts <- phase13_integration_test_read_table(artifacts_path)
   artifacts$canonical_content_sha256[[1L]] <- paste(rep("0", 64L), collapse = "")
   utils::write.csv(artifacts, artifacts_path, row.names = FALSE, na = "", quote = TRUE)
+  before_forged <- phase13_integration_test_target_bytes(targets)
   expect_error(
     acquire$phase13_publish_normalized_editions(
       output_root = sandbox$accepted_root,
@@ -182,7 +183,7 @@ test_that("stale and forged source links fail before any normalized target is pr
     ),
     "stale|hash|row|manifest|source"
   )
-  expect_identical(phase13_integration_test_target_bytes(targets), before)
+  expect_identical(phase13_integration_test_target_bytes(targets), before_forged)
 })
 
 test_that("normalized identity and edition assignments remain stable under source row changes", {

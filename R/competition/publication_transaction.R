@@ -345,7 +345,11 @@ phase13_with_publication_lock <- function(
   }
   snapshot <- phase13_snapshot_publication_targets(targets)
   relative <- names(targets)
-  staging_targets <- file.path(staging_root, relative)
+  # Keep the staging root shaped like the project root.  The stage-only
+  # canonical and manifest helpers consume data/competition/... paths, while
+  # the durable target vector remains anchored at the sibling accepted and
+  # registries roots.
+  staging_targets <- file.path(staging_root, "data", "competition", relative)
   names(staging_targets) <- relative
   state <- new.env(parent = emptyenv())
   state$promoted_count <- 0L

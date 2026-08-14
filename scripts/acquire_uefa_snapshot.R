@@ -34,6 +34,20 @@ phase13_acquire_project_root <- normalizePath(
 )
 source(file.path(phase13_acquire_project_root, "R/competition/source_contracts.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/team_identity.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/publication_hashes.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/publication_manifests.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/publication_transaction.R"))
+
+# `source()` intentionally keeps the shared contract helpers in the process
+# environment for the command-line entrypoint.  Rebind the transaction and
+# hash helpers into a sys.source() caller's environment as well, so tests and
+# embedded acquisition callers receive the same executable API.
+phase13_normalized_publication_targets <- get("phase13_normalized_publication_targets", envir = .GlobalEnv)
+phase13_with_publication_lock <- get("phase13_with_publication_lock", envir = .GlobalEnv)
+phase13_seed_publication_staging <- get("phase13_seed_publication_staging", envir = .GlobalEnv)
+phase13_promote_publication_targets <- get("phase13_promote_publication_targets", envir = .GlobalEnv)
+phase13_refresh_canonical_table_hashes <- get("phase13_refresh_canonical_table_hashes", envir = .GlobalEnv)
+phase13_refresh_accepted_manifest_hashes <- get("phase13_refresh_accepted_manifest_hashes", envir = .GlobalEnv)
 
 phase13_acquire_now_utc <- function() {
   format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
@@ -1145,6 +1159,544 @@ phase13_acquire_publish_accepted <- function(
   candidate
 }
 
+phase13_acquire_publication_read_csv <- function(path, label) {
+  if (!file.exists(path) || dir.exists(path)) {
+    stop("Phase 13 normalized publication ", label, " is missing: ", path, call. = FALSE)
+  }
+  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+}
+
+phase13_acquire_publication_validate_source_manifest <- function(
+    manifest,
+    bundle,
+    artifacts,
+    edition_id,
+    accepted_dir) {
+  expected_schema <- phase13_publication_manifest_schema()
+  if (!is.data.frame(manifest) || !identical(names(manifest), expected_schema) || nrow(manifest) != 5L) {
+    stop("Phase 13 normalized publication source handoff manifest is incomplete for ", edition_id, call. = FALSE)
+  }
+  if (any(as.character(manifest$edition_id) != edition_id) ||
+      length(unique(as.character(manifest$bundle_id))) != 1L ||
+      !identical(as.character(manifest$bundle_id[[1L]]), as.character(bundle$bundle_id[[1L]]))) {
+    stop("Phase 13 normalized publication source handoff manifest has forged edition or bundle links: ", edition_id, call. = FALSE)
+  }
+  if (!setequal(as.character(manifest$artifact_type), phase13_source_required_resource_types()) ||
+      anyDuplicated(as.character(manifest$artifact_type))) {
+    stop("Phase 13 normalized publication source handoff manifest has an incomplete resource graph: ", edition_id, call. = FALSE)
+  }
+  canonical_columns <- which(names(manifest) == "canonical_content_sha256")
+  if (length(canonical_columns) != 2L) {
+    stop("Phase 13 normalized publication source handoff manifest has an ambiguous canonical hash projection: ", edition_id, call. = FALSE)
+  }
+  compare_columns <- c(
+    "artifact_id", "artifact_type", "source_artifact_id", "source_url",
+    "source_url_lineage", "fallback_status", "review_state",
+    "relative_local_raw_path", "status_provenance"
+  )
+  for (artifact_type in phase13_source_required_resource_types()) {
+    manifest_row <- manifest[as.character(manifest$artifact_type) == artifact_type, , drop = FALSE]
+    artifact_row <- artifacts[as.character(artifacts$artifact_type) == artifact_type, , drop = FALSE]
+    if (nrow(manifest_row) != 1L || nrow(artifact_row) != 1L) {
+      stop("Phase 13 normalized publication source handoff manifest link is missing: ", edition_id, "/", artifact_type, call. = FALSE)
+    }
+    for (column in compare_columns) {
+      manifest_value <- phase13_source_canonical_scalar(manifest_row[[column]][[1L]])
+      artifact_value <- phase13_source_canonical_scalar(artifact_row[[column]][[1L]])
+      if (!identical(manifest_value, artifact_value)) {
+        stop("Phase 13 normalized publication source handoff manifest has stale source link: ", edition_id, "/", artifact_type, call. = FALSE)
+      }
+    }
+    manifest_canonical <- phase13_source_canonical_scalar(manifest_row[[canonical_columns[[2L]]]][[1L]])
+    artifact_canonical <- phase13_source_canonical_scalar(artifact_row$canonical_content_sha256[[1L]])
+    if (!identical(manifest_canonical, artifact_canonical)) {
+      manifest_retrieved <- phase13_source_canonical_scalar(manifest_row$retrieved_at_utc[[1L]])
+      artifact_retrieved <- phase13_source_canonical_scalar(artifact_row$retrieved_at_utc[[1L]])
+      if (!nzchar(manifest_retrieved) || !nzchar(artifact_retrieved) || manifest_retrieved <= artifact_retrieved) {
+        stop("Phase 13 normalized publication source handoff manifest has stale canonical hash: ", edition_id, "/", artifact_type, call. = FALSE)
+      }
+    }
+    for (column in c("bytes", "raw_sha256")) {
+      manifest_value <- phase13_source_canonical_scalar(manifest_row[[column]][[1L]])
+      artifact_value <- phase13_source_canonical_scalar(artifact_row[[column]][[1L]])
+      if (!identical(manifest_value, artifact_value)) {
+        manifest_retrieved <- phase13_source_canonical_scalar(manifest_row$retrieved_at_utc[[1L]])
+        artifact_retrieved <- phase13_source_canonical_scalar(artifact_row$retrieved_at_utc[[1L]])
+        if (!nzchar(manifest_retrieved) || !nzchar(artifact_retrieved) || manifest_retrieved <= artifact_retrieved) {
+          stop("Phase 13 normalized publication source handoff manifest has stale raw provenance: ", edition_id, "/", artifact_type, call. = FALSE)
+        }
+      }
+    }
+    source_table_path <- file.path(
+      accepted_dir,
+      paste0(artifact_type, ".csv")
+    )
+    if (!identical(
+      tolower(manifest_canonical),
+      tolower(phase13_acquire_file_sha256(source_table_path))
+    )) {
+      stop("Phase 13 normalized publication source handoff manifest canonical bytes are stale: ", edition_id, "/", artifact_type, call. = FALSE)
+    }
+  }
+  invisible(manifest)
+}
+
+phase13_acquire_publication_validate_source_table <- function(
+    table,
+    edition_id,
+    artifact_type,
+    artifact) {
+  compact_schema <- phase13_source_compact_resource_schema()[[artifact_type]]
+  expected_schema <- c(
+    "schema_version", compact_schema, "edition_id", "source_artifact_id", "row_sha256"
+  )
+  if (!is.data.frame(table) || !identical(names(table), expected_schema)) {
+    stop("Phase 13 normalized publication source handoff schema mismatch: ", edition_id, "/", artifact_type, call. = FALSE)
+  }
+  phase13_source_validate_hash_column(
+    table,
+    "row_sha256",
+    paste("Phase 13 normalized publication source handoff", edition_id, artifact_type)
+  )
+  if (nrow(table)) {
+    if (any(as.character(table$edition_id) != edition_id) ||
+        any(as.character(table$source_artifact_id) != as.character(artifact$source_artifact_id[[1L]]))) {
+      stop("Phase 13 normalized publication source handoff has a forged source-artifact link: ", edition_id, "/", artifact_type, call. = FALSE)
+    }
+  }
+  invisible(table)
+}
+
+phase13_acquire_publication_validate_source_handoff <- function(
+    accepted_root,
+    registry_root,
+    edition_id) {
+  artifacts <- phase13_acquire_publication_read_csv(
+    file.path(registry_root, "source_artifacts.csv"),
+    "source artifact registry"
+  )
+  bundles <- phase13_acquire_publication_read_csv(
+    file.path(registry_root, "source_bundles.csv"),
+    "source bundle registry"
+  )
+  phase13_validate_source_artifacts(artifacts)
+  artifact_rows <- artifacts[as.character(artifacts$edition_id) == edition_id, , drop = FALSE]
+  bundle_rows <- bundles[as.character(bundles$edition_id) == edition_id, , drop = FALSE]
+  if (nrow(artifact_rows) != length(phase13_source_required_resource_types()) ||
+      nrow(bundle_rows) != 1L) {
+    stop("Phase 13 normalized publication source handoff registry is incomplete for ", edition_id, call. = FALSE)
+  }
+  bundle <- bundle_rows[1L, , drop = FALSE]
+  phase13_validate_source_bundle(bundle, artifact_rows)
+
+  accepted_dir <- file.path(accepted_root, edition_id)
+  expected_files <- paste0(c("source_bundle_manifest", phase13_source_required_resource_types()), ".csv")
+  actual_files <- list.files(accepted_dir, all.files = FALSE, full.names = FALSE)
+  if (!dir.exists(accepted_dir) || !setequal(actual_files, expected_files)) {
+    stop("Phase 13 normalized publication source handoff must contain exactly one manifest and five tables: ", edition_id, call. = FALSE)
+  }
+  manifest <- phase13_acquire_publication_read_csv(
+    file.path(accepted_dir, "source_bundle_manifest.csv"),
+    paste("source handoff manifest for", edition_id)
+  )
+  phase13_acquire_publication_validate_source_manifest(
+    manifest,
+    bundle,
+    artifact_rows,
+    edition_id,
+    accepted_dir
+  )
+
+  tables <- setNames(vector("list", length(phase13_source_required_resource_types())), phase13_source_required_resource_types())
+  for (artifact_type in phase13_source_required_resource_types()) {
+    artifact <- artifact_rows[as.character(artifact_rows$artifact_type) == artifact_type, , drop = FALSE]
+    if (nrow(artifact) != 1L) {
+      stop("Phase 13 normalized publication source handoff has an incomplete artifact link: ", edition_id, "/", artifact_type, call. = FALSE)
+    }
+    table <- phase13_acquire_publication_read_csv(
+      file.path(accepted_dir, paste0(artifact_type, ".csv")),
+      paste("source handoff table for", edition_id, artifact_type)
+    )
+    phase13_acquire_publication_validate_source_table(table, edition_id, artifact_type, artifact)
+    tables[[artifact_type]] <- table
+  }
+  list(
+    edition_id = edition_id,
+    bundle = bundle,
+    artifacts = artifact_rows,
+    manifest = manifest,
+    tables = tables
+  )
+}
+
+phase13_acquire_publication_validate_handoffs <- function(accepted_root, registry_root) {
+  all_artifacts <- phase13_acquire_publication_read_csv(
+    file.path(registry_root, "source_artifacts.csv"),
+    "source artifact registry"
+  )
+  all_bundles <- phase13_acquire_publication_read_csv(
+    file.path(registry_root, "source_bundles.csv"),
+    "source bundle registry"
+  )
+  phase13_validate_source_artifacts(all_artifacts)
+  if (nrow(all_artifacts) != 10L || nrow(all_bundles) != 2L) {
+    stop("Phase 13 normalized publication requires exactly ten source artifacts and two source bundles", call. = FALSE)
+  }
+  handoffs <- lapply(
+    phase13_publication_editions(),
+    function(edition_id) phase13_acquire_publication_validate_source_handoff(accepted_root, registry_root, edition_id)
+  )
+  names(handoffs) <- phase13_publication_editions()
+  list(artifacts = all_artifacts, bundles = all_bundles, handoffs = handoffs)
+}
+
+phase13_acquire_publication_assert_immutable_provenance <- function(before, after) {
+  if (!is.data.frame(before) || !is.data.frame(after)) {
+    stop("Phase 13 normalized publication provenance comparison requires registry tables", call. = FALSE)
+  }
+  key <- if ("artifact_id" %in% names(before)) "artifact_id" else "bundle_id"
+  derived <- if (identical(key, "artifact_id")) {
+    c("row_sha256", "canonical_content_sha256")
+  } else {
+    c(
+      "source_bundle_sha256", "artifact_manifest_sha256", "canonical_content_sha256",
+      "manifest_self_sha256", "row_sha256"
+    )
+  }
+  compare <- setdiff(intersect(names(before), names(after)), derived)
+  if (!length(compare) || !key %in% names(after)) {
+    stop("Phase 13 normalized publication provenance comparison has an incomplete registry", call. = FALSE)
+  }
+  for (identifier in unique(as.character(before[[key]]))) {
+    before_row <- before[as.character(before[[key]]) == identifier, , drop = FALSE]
+    after_row <- after[as.character(after[[key]]) == identifier, , drop = FALSE]
+    if (nrow(before_row) != 1L || nrow(after_row) != 1L) {
+      stop("Phase 13 normalized publication changed registry identity cardinality: ", identifier, call. = FALSE)
+    }
+    for (column in compare) {
+      before_value <- phase13_source_canonical_scalar(before_row[[column]][[1L]])
+      after_value <- phase13_source_canonical_scalar(after_row[[column]][[1L]])
+      if (!identical(before_value, after_value)) {
+        stop("Phase 13 normalized publication changed immutable provenance: ", identifier, "/", column, call. = FALSE)
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+phase13_acquire_publication_stage_normalized_edition <- function(
+    transaction,
+    edition_id,
+    registry_context_root,
+    handoff) {
+  staged_dir <- file.path(transaction$staging_root, "data/competition/accepted", edition_id)
+  context <- phase13_acquire_load_edition_context(
+    edition_id,
+    registry_root = registry_context_root,
+    project_root = phase13_acquire_project_root
+  )
+  fixture_artifact <- handoff$artifacts[
+    as.character(handoff$artifacts$artifact_type) == "fixtures", , drop = FALSE
+  ]
+  result_artifact <- handoff$artifacts[
+    as.character(handoff$artifacts$artifact_type) == "results", , drop = FALSE
+  ]
+  if (nrow(fixture_artifact) != 1L || nrow(result_artifact) != 1L) {
+    stop("Phase 13 normalized publication requires fixture and result source artifacts: ", edition_id, call. = FALSE)
+  }
+  normalized_fixtures <- phase13_normalize_fixture_rows(
+    handoff$tables$fixtures,
+    identity_map = context$identity_registry,
+    edition_id = edition_id,
+    source_artifact_id = as.character(fixture_artifact$source_artifact_id[[1L]]),
+    lifecycle_state = context$lifecycle_state
+  )
+  normalized_results <- phase13_normalize_accepted_result_rows(
+    handoff$tables$results,
+    normalized_fixtures = normalized_fixtures,
+    edition_id = edition_id,
+    source_artifact_id = as.character(result_artifact$source_artifact_id[[1L]]),
+    lifecycle_state = context$lifecycle_state
+  )
+  phase13_publication_write_csv(normalized_fixtures, file.path(staged_dir, "fixtures.csv"))
+  phase13_publication_write_csv(normalized_results, file.path(staged_dir, "results.csv"))
+  invisible(list(
+    edition_id = edition_id,
+    lifecycle_state = context$lifecycle_state,
+    fixtures = normalized_fixtures,
+    results = normalized_results
+  ))
+}
+
+phase13_acquire_publication_validate_normalized_graph <- function(
+    staged_root,
+    canonical_refresh,
+    manifest_refresh,
+    provenance_before) {
+  table_targets <- phase13_normalized_resource_targets(staged_root)
+  canonical_refresh <- phase13_publication_manifest_require_canonical(canonical_refresh, staged_root)
+  if (!is.list(manifest_refresh) || !all(c("manifests", "source_bundles", "source_artifacts") %in% names(manifest_refresh))) {
+    stop("Phase 13 normalized publication manifest refresh is incomplete", call. = FALSE)
+  }
+  artifacts <- phase13_publication_manifest_read_artifacts(staged_root, manifest_refresh$source_artifacts)
+  bundles <- phase13_publication_manifest_read_bundles(staged_root, manifest_refresh$source_bundles)
+  if (nrow(artifacts) != 10L || nrow(bundles) != 2L) {
+    stop("Phase 13 normalized publication hash graph must contain ten artifacts and two bundles", call. = FALSE)
+  }
+  tables <- vector("list", length(table_targets))
+  names(tables) <- names(table_targets)
+  for (key in names(table_targets)) {
+    parts <- strsplit(key, "::", fixed = TRUE)[[1L]]
+    path <- table_targets[[key]]
+    table <- phase13_acquire_publication_read_csv(path, paste("normalized table", key))
+    phase13_publication_validate_table_shape(table, parts[[1L]], parts[[2L]], path)
+    phase13_source_validate_hash_column(table, "row_sha256", paste("Phase 13 normalized table", key))
+    artifact <- artifacts[
+      as.character(artifacts$edition_id) == parts[[1L]] &
+        as.character(artifacts$artifact_type) == parts[[2L]],
+      , drop = FALSE
+    ]
+    if (nrow(artifact) != 1L || (!nrow(table) && !nzchar(as.character(artifact$source_artifact_id[[1L]])))) {
+      stop("Phase 13 normalized publication table has an incomplete artifact graph: ", key, call. = FALSE)
+    }
+    if (nrow(table)) {
+      links <- unique(as.character(table$source_artifact_id))
+      if (length(links) != 1L || !identical(links[[1L]], as.character(artifact$source_artifact_id[[1L]]))) {
+        stop("Phase 13 normalized publication table has a forged source-artifact link: ", key, call. = FALSE)
+      }
+    }
+    actual_hash <- phase13_publication_file_sha256(path)
+    if (!identical(tolower(actual_hash), tolower(as.character(artifact$canonical_content_sha256[[1L]])))) {
+      stop("Phase 13 normalized publication table has a stale canonical hash: ", key, call. = FALSE)
+    }
+    tables[[key]] <- table
+  }
+  phase13_publication_validate_pre_draw(tables)
+  for (edition_id in phase13_publication_editions()) {
+    bundle <- bundles[as.character(bundles$edition_id) == edition_id, , drop = FALSE]
+    edition_artifacts <- artifacts[as.character(artifacts$edition_id) == edition_id, , drop = FALSE]
+    if (nrow(bundle) != 1L || nrow(edition_artifacts) != 5L) {
+      stop("Phase 13 normalized publication bundle graph is incomplete: ", edition_id, call. = FALSE)
+    }
+    phase13_validate_source_bundle(bundle, edition_artifacts)
+    manifest_path <- phase13_publication_manifest_paths(staged_root)[[edition_id]]
+    manifest <- phase13_acquire_publication_read_csv(manifest_path, paste("normalized manifest", edition_id))
+    phase13_publication_manifest_validate_rows(manifest, bundle, edition_artifacts)
+  }
+  phase13_acquire_publication_assert_immutable_provenance(
+    provenance_before$artifacts,
+    artifacts
+  )
+  phase13_acquire_publication_assert_immutable_provenance(
+    provenance_before$bundles,
+    bundles
+  )
+  list(
+    table_targets = table_targets,
+    tables = tables,
+    source_artifacts = artifacts,
+    source_bundles = bundles,
+    manifests = manifest_refresh$manifests
+  )
+}
+
+phase13_acquire_publication_candidate_handoff <- function(candidate, edition_id) {
+  if (!is.list(candidate) || !is.data.frame(candidate$bundle) ||
+      !is.data.frame(candidate$artifacts) || !is.list(candidate$resources)) {
+    stop("Phase 13 normalized publication candidate is incomplete", call. = FALSE)
+  }
+  if (nrow(candidate$bundle) != 1L ||
+      !identical(as.character(candidate$bundle$edition_id[[1L]]), edition_id)) {
+    stop("Phase 13 normalized publication candidate edition does not match the target", call. = FALSE)
+  }
+  phase13_validate_source_bundle(candidate$bundle, candidate$artifacts)
+  artifact_ids <- setNames(
+    as.character(candidate$artifacts$source_artifact_id),
+    as.character(candidate$artifacts$artifact_type)
+  )
+  required <- phase13_source_required_resource_types()
+  if (!setequal(names(artifact_ids), required) || any(is.na(artifact_ids) | !nzchar(artifact_ids))) {
+    stop("Phase 13 normalized publication candidate is missing source-artifact lineage", call. = FALSE)
+  }
+  tables <- setNames(vector("list", length(required)), required)
+  for (artifact_type in required) {
+    tables[[artifact_type]] <- phase13_acquire_resource_table(
+      candidate$resources[[artifact_type]],
+      artifact_type,
+      edition_id,
+      artifact_ids[[artifact_type]]
+    )
+  }
+  manifest <- phase13_acquire_source_manifest_table(candidate$bundle, candidate$artifacts)
+  list(
+    edition_id = edition_id,
+    bundle = candidate$bundle,
+    artifacts = candidate$artifacts,
+    manifest = manifest,
+    tables = tables
+  )
+}
+
+phase13_acquire_publication_merge_candidate_registry <- function(
+    source_registries,
+    candidate_handoff) {
+  edition_id <- candidate_handoff$edition_id
+  old_bundles <- source_registries$bundles[
+    as.character(source_registries$bundles$edition_id) != edition_id,
+    , drop = FALSE
+  ]
+  old_artifacts <- source_registries$artifacts[
+    as.character(source_registries$artifacts$edition_id) != edition_id,
+    , drop = FALSE
+  ]
+  bundle_columns <- unique(c(names(source_registries$bundles), names(candidate_handoff$bundle)))
+  artifact_columns <- unique(c(names(source_registries$artifacts), names(candidate_handoff$artifacts)))
+  old_bundles <- phase13_acquire_align_registry_columns(old_bundles, bundle_columns)
+  candidate_bundle <- phase13_acquire_align_registry_columns(candidate_handoff$bundle, bundle_columns)
+  old_artifacts <- phase13_acquire_align_registry_columns(old_artifacts, artifact_columns)
+  candidate_artifacts <- phase13_acquire_align_registry_columns(candidate_handoff$artifacts, artifact_columns)
+  bundles <- rbind(old_bundles, candidate_bundle)
+  artifacts <- rbind(old_artifacts, candidate_artifacts)
+  phase13_validate_source_artifacts(artifacts)
+  for (edition in phase13_publication_editions()) {
+    bundle <- bundles[as.character(bundles$edition_id) == edition, , drop = FALSE]
+    edition_artifacts <- artifacts[as.character(artifacts$edition_id) == edition, , drop = FALSE]
+    if (nrow(bundle) != 1L) stop("Phase 13 normalized publication candidate registry has a duplicate edition", call. = FALSE)
+    phase13_validate_source_bundle(bundle, edition_artifacts)
+  }
+  list(bundles = bundles, artifacts = artifacts)
+}
+
+phase13_acquire_publication_stage_candidate_handoff <- function(transaction, candidate_handoff, registry_tables) {
+  staged_registry <- file.path(transaction$staging_root, "data/competition/registries")
+  staged_accepted <- file.path(
+    transaction$staging_root,
+    "data/competition/accepted",
+    candidate_handoff$edition_id
+  )
+  phase13_publication_write_csv(
+    registry_tables$artifacts,
+    file.path(staged_registry, "source_artifacts.csv")
+  )
+  phase13_publication_write_csv(
+    registry_tables$bundles,
+    file.path(staged_registry, "source_bundles.csv")
+  )
+  phase13_publication_write_csv(
+    candidate_handoff$manifest,
+    file.path(staged_accepted, "source_bundle_manifest.csv")
+  )
+  for (artifact_type in phase13_source_required_resource_types()) {
+    phase13_publication_write_csv(
+      candidate_handoff$tables[[artifact_type]],
+      file.path(staged_accepted, paste0(artifact_type, ".csv"))
+    )
+  }
+  invisible(candidate_handoff)
+}
+
+phase13_acquire_normalized_publication_ready <- function(output_root, registry_root) {
+  tryCatch({
+    accepted_root <- normalizePath(output_root, winslash = "/", mustWork = TRUE)
+    registry_root <- normalizePath(registry_root, winslash = "/", mustWork = TRUE)
+    required_context <- file.path(registry_root, c("team_identity.csv", "competition_editions.csv"))
+    all(file.exists(required_context)) &&
+      all(file.exists(unname(phase13_normalized_publication_targets(accepted_root, registry_root))))
+  }, error = function(error) FALSE)
+}
+
+#' Normalize and atomically publish both accepted edition handoffs.
+phase13_publish_normalized_editions <- function(
+    output_root = file.path(phase13_acquire_project_root, "data/competition/accepted"),
+    registry_root = file.path(phase13_acquire_project_root, "data/competition/registries"),
+    registry_context_root = registry_root,
+    failure_injector = NULL,
+    handoff_root = output_root,
+    candidate = NULL) {
+  accepted_root <- phase13_acquire_resolve_path(output_root)
+  registry_root <- phase13_acquire_resolve_path(registry_root)
+  registry_context_root <- phase13_acquire_resolve_path(registry_context_root)
+  handoff_root <- phase13_acquire_resolve_path(handoff_root)
+  if (!dir.exists(accepted_root) || !dir.exists(registry_root) || !dir.exists(handoff_root)) {
+    stop("Phase 13 normalized publication requires accepted, registry, and handoff roots", call. = FALSE)
+  }
+  accepted_root <- normalizePath(accepted_root, winslash = "/", mustWork = TRUE)
+  registry_root <- normalizePath(registry_root, winslash = "/", mustWork = TRUE)
+  registry_context_root <- normalizePath(registry_context_root, winslash = "/", mustWork = TRUE)
+  handoff_root <- normalizePath(handoff_root, winslash = "/", mustWork = TRUE)
+  if (!identical(handoff_root, accepted_root)) {
+    stop("Phase 13 normalized publication handoff root must be the accepted root", call. = FALSE)
+  }
+  targets <- phase13_normalized_publication_targets(accepted_root, registry_root)
+  if (any(!file.exists(unname(targets)))) {
+    missing <- unname(targets)[!file.exists(unname(targets))]
+    stop("Phase 13 normalized publication target graph is incomplete: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  handoffs <- phase13_acquire_publication_validate_handoffs(accepted_root, registry_root)
+  provenance_before <- list(
+    artifacts = handoffs$artifacts,
+    bundles = handoffs$bundles
+  )
+  publication_root <- phase13_transaction_common_root(accepted_root, registry_root)
+  phase13_with_publication_lock(
+    publication_root = publication_root,
+    targets = targets,
+    failure_injector = failure_injector,
+    require_complete_promotion = TRUE,
+    callback = function(transaction) {
+      phase13_seed_publication_staging(transaction)
+      graph_provenance <- provenance_before
+      if (!is.null(candidate)) {
+        candidate_edition <- phase13_source_scalar(candidate$bundle$edition_id[[1L]], "candidate edition_id")
+        candidate_handoff <- phase13_acquire_publication_candidate_handoff(candidate, candidate_edition)
+        merged_registries <- phase13_acquire_publication_merge_candidate_registry(
+          handoffs,
+          candidate_handoff
+        )
+        phase13_acquire_publication_stage_candidate_handoff(
+          transaction,
+          candidate_handoff,
+          merged_registries
+        )
+        handoffs$handoffs[[candidate_edition]] <- candidate_handoff
+        graph_provenance <- merged_registries
+      }
+      normalized <- lapply(
+        phase13_publication_editions(),
+        function(edition_id) phase13_acquire_publication_stage_normalized_edition(
+          transaction,
+          edition_id,
+          registry_context_root,
+          handoffs$handoffs[[edition_id]]
+        )
+      )
+      names(normalized) <- phase13_publication_editions()
+      canonical_refresh <- phase13_refresh_canonical_table_hashes(transaction$staging_root)
+      manifest_refresh <- phase13_refresh_accepted_manifest_hashes(
+        transaction$staging_root,
+        canonical_refresh = canonical_refresh
+      )
+      graph <- phase13_acquire_publication_validate_normalized_graph(
+        transaction$staging_root,
+        canonical_refresh,
+        manifest_refresh,
+        graph_provenance
+      )
+      phase13_promote_publication_targets(transaction)
+      transaction$result <- list(
+        targets = targets,
+        normalized_editions = normalized,
+        canonical_refresh = canonical_refresh,
+        manifest_refresh = manifest_refresh,
+        graph = graph,
+        loader_ready = TRUE,
+        candidate = candidate
+      )
+      transaction$result
+    }
+  )
+}
+
 phase13_acquire_read_registry <- function(path) {
   if (!file.exists(path)) return(NULL)
   utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
@@ -1358,6 +1910,24 @@ phase13_acquire_main <- function(args = commandArgs(trailingOnly = TRUE)) {
     }
     phase13_acquire_write_raw_store(candidate, raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
     if (isTRUE(options$publish_accepted)) {
+      if (phase13_acquire_normalized_publication_ready(output_root, registry_root)) {
+        published <- phase13_publish_normalized_editions(
+          output_root = output_root,
+          registry_root = registry_root,
+          registry_context_root = registry_root,
+          candidate = candidate
+        )
+        candidate$normalized_publication <- published
+        message(sprintf(
+          "Phase 13 accepted normalized publication for %s source bundle: %s",
+          edition_id,
+          candidate$bundle$bundle_id[[1L]]
+        ))
+        return(invisible(candidate))
+      }
+      # A one-edition temporary capture root is still supported for bounded
+      # fixture replay. Production roots with both source handoffs always use
+      # the fourteen-target transaction above.
       candidate <- phase13_acquire_publish_accepted(candidate, output_root, edition_id, raw_root, registry_root)
     }
     phase13_acquire_update_registries(candidate, registry_root)
