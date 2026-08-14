@@ -1,0 +1,4 @@
+match_id,date,home_team,away_team,home_source_team_id,away_source_team_id,home_score,away_score,tournament,city,country,neutral,home_team_canonical,away_team_canonical,home_team_fifa,away_team_fifa,result,is_home
+martj42-0001,2026-09-05,Österreich,Deutschland,100,101,0,0,UEFA Nations League,Vienna,Austria,FALSE,Austria,Germany,AUT,GER,0.5,TRUE
+martj42-0002,2026-10-05,Austria,Germany,,,2,1,UEFA Nations League,Berlin,Germany,FALSE,Austria,Germany,AUT,GER,1,TRUE
+martj42-0003,2027-01-10,Austria,Germany,,,1,1,Friendly,Vienna,Austria,FALSE,Austria,Germany,AUT,GER,0.5,TRUE
