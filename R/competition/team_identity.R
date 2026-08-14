@@ -445,13 +445,37 @@ phase13_team_identity_registry_hash <- function(identity_registry) {
   digest::digest(paste(c(names(ordered), capture.output(utils::write.csv(ordered, stdout(), row.names = FALSE))), collapse = "\n"), algo = "sha256", serialize = FALSE)
 }
 
-load_phase13_team_identity_registry <- function(path = "data/competition/registries/team_identity.csv", validate = TRUE) {
+load_phase13_team_identity_registry <- function(
+    path = "data/competition/registries/team_identity.csv",
+    validate = TRUE,
+    source_bundles = NULL,
+    source_bundle_path = NULL) {
   if (length(path) != 1L || is.na(path) || !nzchar(path) || !file.exists(path)) {
     stop("Phase 13 team identity registry file is missing: ", path, call. = FALSE)
   }
   registry <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
-  if (isTRUE(validate)) phase13_validate_team_identity_registry(registry)
+  if (isTRUE(validate)) {
+    if (is.null(source_bundles)) {
+      if (is.null(source_bundle_path)) {
+        source_bundle_path <- file.path(dirname(path), "source_bundles.csv")
+      }
+      if (length(source_bundle_path) != 1L || is.na(source_bundle_path) || !nzchar(source_bundle_path) ||
+          !file.exists(source_bundle_path)) {
+        stop("Phase 13 adjacent source bundle registry file is missing: ", source_bundle_path, call. = FALSE)
+      }
+      source_bundles <- utils::read.csv(
+        source_bundle_path,
+        stringsAsFactors = FALSE,
+        check.names = FALSE,
+        na.strings = ""
+      )
+    }
+    phase13_validate_team_identity_registry(registry, source_bundles = source_bundles)
+  }
   attr(registry, "path") <- normalizePath(path, winslash = "/", mustWork = TRUE)
+  if (!is.null(source_bundle_path)) {
+    attr(registry, "source_bundle_path") <- normalizePath(source_bundle_path, winslash = "/", mustWork = TRUE)
+  }
   registry
 }
 
