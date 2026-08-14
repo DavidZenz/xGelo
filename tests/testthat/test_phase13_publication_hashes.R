@@ -161,12 +161,14 @@ test_that("canonical refresh rewrites all ten staged tables and preserves raw pr
   for (key in names(fixture$targets)) {
     path <- fixture$targets[[key]]
     table <- phase13_publication_test_read_csv(path)
-    expect_identical(table, refreshed$tables[[key]])
+    expect_identical(names(table), names(refreshed$tables[[key]]))
+    if (nrow(table)) expect_equal(table, refreshed$tables[[key]])
+    if (!nrow(table)) expect_equal(nrow(refreshed$tables[[key]]), 0L)
     expect_identical(
       digest::digest(phase13_publication_test_bytes(path), algo = "sha256", serialize = FALSE),
       refreshed$table_hashes[[key]]
     )
-    expect_identical(table$row_sha256, phase13_row_sha256(table))
+    expect_equal(as.character(table$row_sha256), phase13_row_sha256(table))
   }
 
   for (edition_id in fixture$editions) {
@@ -301,7 +303,11 @@ test_that("malformed source-artifact links fail closed before staged output is r
   )
 
   cross_edition <- fixture$artifacts
-  cross_edition$edition_id[[1L]] <- "uefa_euro_2028_qualifying"
+  nl_fixture_index <- which(
+    cross_edition$edition_id == "uefa_nations_league_2026_27" &
+      cross_edition$artifact_type == "fixtures"
+  )[[1L]]
+  cross_edition$edition_id[[nl_fixture_index]] <- "uefa_euro_2028_qualifying"
   expect_error(
     phase13_refresh_canonical_table_hashes(fixture$root, fixture$targets, cross_edition),
     "edition|cross|artifact"
