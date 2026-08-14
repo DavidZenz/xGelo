@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-03-PLAN.md
-last_updated: "2026-08-13T21:14:22.664Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-07-PLAN.md
+last_updated: "2026-08-14T11:43:39.691Z"
 last_activity: 2026-08-13
 last_activity_desc: Plan 13-03 completed; ready for Phase 13 verification
 progress:
   total_phases: 1
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  completed_phases: 0
+  total_plans: 12
+  completed_plans: 4
 ---
 
 # xGelo Project State
@@ -66,6 +66,9 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase 13]: Allow only deterministic exact normalized-name fallback, and require visible warning/audit metadata for it.
 - [Phase 13]: Preflight the sole approved Phase 12 release manifest before accepting competition-edition model pins.
 - [Phase 13]: Represent EURO qualifying as explicit pre_draw metadata with real source/output slots and no fabricated structures.
+- [Phase ?]: Capture-only is the default; accepted-directory publication remains an explicit opt-in for legacy replay checks and later plans own normal publication.
+- [Phase ?]: A missing status URL is valid only when one unambiguous status and edition identity can be derived from validated mandatory structured resources.
+- [Phase ?]: Derived status lineage is recorded as sorted contributing source artifact IDs and URL lineage, while canonical content hashes cover complete CSV bytes including headers.
 
 ## Accumulated Context
 
@@ -83,8 +86,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-13T21:14:22.657Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-03-PLAN.md
+**Last session:** 2026-08-14T11:43:39.683Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-07-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -100,3 +103,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13-source-contracts-and-competition-registry P01 | 25 min | 2 tasks | 8 files |
 | Phase 13-source-contracts-and-competition-registry P02 | 26 min | 2 tasks | 18 files |
 | Phase 13 P03 | 27 min | 2 tasks | 5 files |
+| Phase 13 P07 | 20min | 2 tasks | 4 files |
