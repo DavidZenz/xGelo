@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-05-PLAN.md
-last_updated: "2026-08-14T15:24:56.263Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-08-PLAN.md
+last_updated: "2026-08-14T20:04:07.006Z"
 last_activity: 2026-08-14
-last_activity_desc: Plan 13-12 completed; locked normalized fourteen-target publication graph ready for verification
+last_activity_desc: Plan 13-08 completed; stable martj42 source-ID normalization and durable historical artifact ready for verification
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
-Plan: 7 of 12 (next chronological incomplete plan)
-Status: Plan 13-12 complete; remaining Phase 13 plans are pending
-Last activity: 2026-08-14 — Plan 13-12 completed; locked normalized fourteen-target publication graph ready for verification
+Plan: 8 of 12 (next chronological incomplete plan)
+Status: Plan 13-08 complete; Plan 13-06 remains pending
+Last activity: 2026-08-14 — Plan 13-08 completed; stable martj42 source-ID normalization and durable historical artifact ready for verification
 
 ## Progress
 
@@ -35,7 +35,7 @@ Last activity: 2026-08-14 — Plan 13-12 completed; locked normalized fourteen-t
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 9 of 12 plans complete.
+**Overall:** 1 of 5 phases ready for verification (20%); Phase 13 has 11 of 12 plans complete.
 
 ## Project Reference
 
@@ -88,6 +88,10 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase ?]: Use Plan 13-12's production normalized publication transaction to regenerate the complete fourteen-target graph from committed compact fixtures; do not repair hashes manually.
 - [Phase ?]: Keep accepted snapshots and refresh-batch history as separate trust boundaries; this loader validates only the replaceable accepted tree.
 - [Phase ?]: Set bundle source_bundle_sha256 and artifact_manifest_sha256 before computing bundle canonical content so the canonical hash covers its complete non-circular projection.
+- [Phase ?]: Plan 13-08 uses the user-selected option 1: explicit source-contract source_match_id enters before preprocessing, with scores, row order, and score-bearing hashes excluded from identity.
+- [Phase ?]: Unique martj42 non-score projections use deterministic SHA-256 IDs; the duplicate Tahiti/New Caledonia projection uses two explicit reviewed source IDs.
+- [Phase ?]: The current Phase 13 registry is primary and the legacy historical team map is supplemental, with current stable IDs taking precedence and three explicit historical aliases.
+- [Phase ?]: Historical edition membership is assigned only through the explicit martj42_historical_v1 match-to-edition lookup.
 
 ## Accumulated Context
 
@@ -105,8 +109,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T15:24:56.254Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-05-PLAN.md
+**Last session:** 2026-08-14T20:04:06.998Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-08-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -129,3 +133,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13 P11 | 26m | 2 tasks | 4 files |
 | Phase 13 P12 | 29min | 2 tasks | 4 files |
 | Phase 13 P05 | 1h 10m | 2 tasks | 13 files |
+| Phase 13 P08 | 36m | 1 tasks | 11 files |
