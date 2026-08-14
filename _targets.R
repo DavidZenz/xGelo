@@ -32,6 +32,8 @@ tar_option_set(
 )
 
 source("R/elo/preprocess.R")
+source("R/competition/source_contracts.R")
+source("R/competition/team_identity.R")
 source("R/elo/runner_optimized.R")
 source("R/elo/validation.R")
 source("R/xg/features.R")
@@ -147,6 +149,22 @@ list(
       espn_scoreboard_files
       preprocess_martj42()
     }
+  ),
+  tar_target(
+    martj42_historical_normalized_file,
+    {
+      elo_matches
+      phase13_load_martj42_historical_results(
+        results_path = "data/processed/elo_matches.csv",
+        identity_registry_path = "data/competition/registries/team_identity.csv",
+        identity_map_path = "data/competition/registries/martj42_identity_map.csv",
+        edition_lookup_path = "data/competition/registries/martj42_edition_lookup.csv",
+        source_dataset = "martj42",
+        source_artifact_id = "martj42-results",
+        output_path = "data/processed/martj42_historical_normalized.csv"
+      )
+    },
+    format = "file"
   ),
   tar_target(
     elo_result,

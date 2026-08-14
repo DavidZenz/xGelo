@@ -471,16 +471,120 @@ download_espn_scoreboard_files <- function(
   out
 }
 
+#' Build the canonical non-score projection used by martj42 source IDs.
+#'
+#' This intentionally excludes home_score, away_score, result, score_source,
+#' and all other outcome fields.  The projection is a source-contract check,
+#' not a replacement for a source-provided or reviewed ID.
+xgelo_martj42_non_score_key <- function(results) {
+  required <- c("date", "home_team", "away_team", "tournament", "city", "country", "neutral")
+  missing <- setdiff(required, names(results))
+  if (length(missing)) {
+    stop(
+      "martj42 source ID validation requires non-score columns: ",
+      paste(missing, collapse = ", "),
+      call. = FALSE
+    )
+  }
+
+  optional <- intersect(c("home_source_team_id", "away_source_team_id"), names(results))
+  fields <- c(required, optional)
+  values <- lapply(fields, function(field) {
+    value <- results[[field]]
+    if (field == "date") {
+      parsed <- as.Date(as.character(value))
+      if (any(is.na(parsed))) stop("martj42 source ID validation found malformed dates", call. = FALSE)
+      return(format(parsed, "%Y-%m-%d"))
+    }
+    if (field == "neutral") {
+      logical_value <- as.logical(value)
+      if (any(is.na(logical_value))) stop("martj42 source ID validation found malformed neutral values", call. = FALSE)
+      return(ifelse(logical_value, "true", "false"))
+    }
+    value <- trimws(as.character(value))
+    if (any(is.na(value) | !nzchar(value))) {
+      stop("martj42 source ID validation found missing non-score values in ", field, call. = FALSE)
+    }
+    value
+  })
+  do.call(paste, c(values, sep = "\x1f"))
+}
+
+#' Return the deterministic ID for one non-score source key.
+xgelo_martj42_non_score_id <- function(key) {
+  if (!requireNamespace("digest", quietly = TRUE)) {
+    stop("digest is required for martj42 non-score source IDs", call. = FALSE)
+  }
+  paste0("martj42-ns-", digest::digest(key, algo = "sha256", serialize = FALSE))
+}
+
+#' Validate the stable identifier carried by a martj42 source contract.
+#'
+#' A source contract must carry an ID before preprocessing.  This prevents the
+#' legacy team/date key from silently becoming the identity of a duplicate
+#' source event.  IDs labelled `non_score_hash` are checked against the
+#' canonical projection above; reviewed/source IDs remain explicit contract
+#' values and are never reconstructed from outcomes or row position.
+xgelo_validate_martj42_source_match_ids <- function(
+    results,
+    source_match_id_column = "source_match_id") {
+  if (!is.data.frame(results)) stop("martj42 source ID validation requires a data frame", call. = FALSE)
+  if (length(source_match_id_column) != 1L || is.na(source_match_id_column) || !nzchar(source_match_id_column)) {
+    stop("martj42 source_match_id_column must be one non-empty column name", call. = FALSE)
+  }
+  if (!source_match_id_column %in% names(results)) {
+    stop(
+      "martj42 preprocessing requires the stable non-score source identifier column: ",
+      source_match_id_column,
+      call. = FALSE
+    )
+  }
+  ids <- trimws(as.character(results[[source_match_id_column]]))
+  if (any(is.na(ids) | !nzchar(ids))) stop("martj42 source match IDs must be non-empty", call. = FALSE)
+  if (anyDuplicated(ids)) stop("martj42 source match IDs must be unique", call. = FALSE)
+  if (any(!grepl("^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$", ids))) {
+    stop("martj42 source match IDs contain unsafe values", call. = FALSE)
+  }
+
+  methods <- if ("source_match_id_method" %in% names(results)) {
+    trimws(as.character(results$source_match_id_method))
+  } else {
+    rep("source_contract", nrow(results))
+  }
+  if (any(is.na(methods) | !nzchar(methods))) stop("martj42 source match ID methods must be non-empty", call. = FALSE)
+  allowed_methods <- c("non_score_hash", "reviewed_source_id", "source_provided", "source_contract")
+  if (any(!methods %in% allowed_methods)) stop("martj42 source match ID method is unsupported", call. = FALSE)
+
+  non_score_keys <- xgelo_martj42_non_score_key(results)
+  hash_rows <- methods == "non_score_hash"
+  if (any(hash_rows)) {
+    expected <- vapply(non_score_keys[hash_rows], xgelo_martj42_non_score_id, character(1))
+    if (any(ids[hash_rows] != expected)) {
+      stop("martj42 non-score source match ID does not match its non-score source projection", call. = FALSE)
+    }
+  }
+
+  results[[source_match_id_column]] <- ids
+  if (source_match_id_column != "source_match_id") {
+    results$source_match_id <- ids
+  }
+  results$source_match_id_method <- methods
+  results
+}
+
 #' Preprocess martj42 results for Elo computation
 #'
-#' @param results_path Path to the martj42 results.csv file
+#' @param results_path Path to the martj42 source-contract results CSV.
 #' @param team_map_path Path to the team name mapping CSV file
 #' @param output_path Path to save the preprocessed data (default: "data/processed/elo_matches.csv")
+#' @param source_match_id_column Source-contract column carrying the stable
+#'   non-score match identifier.
 #' @return Data frame with preprocessed matches
 #' @export
-preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
+preprocess_martj42 <- function(results_path = "data/raw/martj42/results_source_contract.csv",
                             team_map_path = "data/raw/team_name_map.csv",
                             output_path = "data/processed/elo_matches.csv",
+                            source_match_id_column = "source_match_id",
                             eloratings_latest_path = "data/raw/eloratings/latest.tsv",
                             eloratings_teams_path = "data/raw/eloratings/en.teams.tsv",
                             use_eloratings_fallback = file.exists(eloratings_latest_path) && file.exists(eloratings_teams_path),
@@ -504,9 +608,18 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
     stop(paste("Results file not found:", results_path))
   }
   
-  results <- read.csv(results_path, stringsAsFactors = FALSE)
-  
+  results <- read.csv(results_path, stringsAsFactors = FALSE, check.names = FALSE)
+
   message(paste("Loaded", nrow(results), "matches from", results_path))
+
+  # A source-contract ID is captured before any score fallback or derived Elo
+  # fields are added.  It is the only identifier allowed to cross the
+  # preprocessing boundary: scores, row order, and score-bearing hashes must
+  # never participate in historical identity.
+  results <- xgelo_validate_martj42_source_match_ids(
+    results,
+    source_match_id_column = source_match_id_column
+  )
 
   if (use_eloratings_fallback) {
     eloratings_results <- read_eloratings_latest_results(
@@ -673,7 +786,9 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
     
     # Create match identifier
     mutate(
-      match_id = paste(home_team_canonical, away_team_canonical, date, sep = "_")
+      legacy_match_id = paste(home_team_canonical, away_team_canonical, date, sep = "_"),
+      match_id = source_match_id,
+      match_id_source = "source_match_id"
     ) |>
     
     # Mark home/away
@@ -720,7 +835,7 @@ preprocess_martj42 <- function(results_path = "data/raw/martj42/results.csv",
 #' @param output_path Path to save output
 #' @return Path to saved file
 #' @export
-preprocess_and_save_elo_matches <- function(results_path = "data/raw/martj42/results.csv",
+preprocess_and_save_elo_matches <- function(results_path = "data/raw/martj42/results_source_contract.csv",
                                            team_map_path = "data/raw/team_name_map.csv",
                                            output_path = "data/processed/elo_matches.csv") {
   result <- preprocess_martj42(results_path, team_map_path, output_path)

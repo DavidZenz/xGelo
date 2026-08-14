@@ -571,7 +571,7 @@ phase13_martj42_identity_map_required_columns <- function() {
 
 phase13_normalized_historical_result_schema <- function() {
   c(
-    "schema_version", "source_result_id", "match_id", "date", "home_team", "away_team",
+    "schema_version", "source_result_id", "source_match_id", "source_match_id_method", "match_id", "date", "home_team", "away_team",
     "home_display_name", "away_display_name", "home_source_team_id", "away_source_team_id",
     "home_source_identity_key", "away_source_identity_key", "home_team_id", "away_team_id",
     "home_mapping_method", "away_mapping_method", "home_mapping_warning", "away_mapping_warning",
@@ -637,6 +637,28 @@ phase13_martj42_source_team_id_column <- function(data, side) {
   available[[1L]]
 }
 
+phase13_martj42_history_match_id_column <- function(history) {
+  if ("source_match_id" %in% names(history)) "source_match_id" else "match_id"
+}
+
+phase13_martj42_history_match_ids <- function(history) {
+  column <- phase13_martj42_history_match_id_column(history)
+  ids <- trimws(as.character(history[[column]]))
+  if (any(is.na(ids) | !nzchar(ids))) {
+    stop("Phase 13 martj42 historical input contains missing ", column, " values", call. = FALSE)
+  }
+  if (anyDuplicated(ids)) {
+    stop("Phase 13 martj42 historical input contains duplicate ", column, " values", call. = FALSE)
+  }
+  if (column == "source_match_id" && "match_id" %in% names(history)) {
+    legacy_ids <- trimws(as.character(history$match_id))
+    if (any(is.na(legacy_ids) | !nzchar(legacy_ids)) || any(legacy_ids != ids)) {
+      stop("Phase 13 martj42 historical match_id must retain source_match_id", call. = FALSE)
+    }
+  }
+  ids
+}
+
 phase13_martj42_clean_optional_id <- function(value) {
   value <- as.character(value)
   value[is.na(value) | !nzchar(trimws(value))] <- NA_character_
@@ -664,13 +686,7 @@ phase13_martj42_validate_history_shape <- function(history) {
     stop("Phase 13 martj42 historical input missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
   }
   if (!nrow(history)) stop("Phase 13 martj42 historical input must not be empty", call. = FALSE)
-  match_ids <- as.character(history$match_id)
-  if (any(is.na(match_ids) | !nzchar(trimws(match_ids)))) {
-    stop("Phase 13 martj42 historical input contains missing match_id values", call. = FALSE)
-  }
-  if (anyDuplicated(match_ids)) {
-    stop("Phase 13 martj42 historical input contains duplicate match_id values", call. = FALSE)
-  }
+  phase13_martj42_history_match_ids(history)
   parsed_dates <- as.Date(as.character(history$date))
   if (any(is.na(parsed_dates))) stop("Phase 13 martj42 historical input contains malformed dates", call. = FALSE)
   for (side in c("home", "away")) {
@@ -785,6 +801,58 @@ phase13_martj42_registry_table <- function(identity_registry) {
     stop("Phase 13 martj42 identity registry contains duplicate source team IDs", call. = FALSE)
   }
   identity_registry
+}
+
+#' Merge the edition-scoped Phase 13 registry with the legacy historical team map.
+#'
+#' The Phase 13 registry intentionally contains the current UEFA edition teams;
+#' martj42 history also contains historical and non-FIFA entities.  The legacy
+#' map is supplemental only: explicit Phase 13 rows win by stable team_id and
+#' every resulting alias is revalidated before it can resolve a historical row.
+phase13_martj42_merge_identity_registries <- function(
+    identity_registry,
+    supplemental_registry = NULL) {
+  primary <- phase13_martj42_registry_table(identity_registry)
+  if (is.null(supplemental_registry)) return(primary)
+  supplemental <- phase13_martj42_registry_table(supplemental_registry)
+  core <- c(
+    "team_id", "canonical_name", "fifa_code", "aliases", "source_name",
+    "uefa_display_name_current", "registry_source_team_id"
+  )
+  primary <- primary[, core, drop = FALSE]
+  supplemental <- supplemental[, core, drop = FALSE]
+  primary_fifa_codes <- unique(phase13_martj42_clean_optional_id(primary$fifa_code))
+  primary_fifa_codes <- primary_fifa_codes[!is.na(primary_fifa_codes)]
+  primary_aliases <- unique(unlist(lapply(seq_len(nrow(primary)), function(index) {
+    values <- c(
+      primary$canonical_name[[index]],
+      primary$source_name[[index]],
+      primary$uefa_display_name_current[[index]],
+      if (is.na(primary$aliases[[index]])) character(0) else
+        unlist(strsplit(primary$aliases[[index]], "\\|", fixed = FALSE), use.names = FALSE)
+    )
+    phase13_normalize_team_name(values)
+  }), use.names = FALSE))
+  supplemental_aliases <- lapply(seq_len(nrow(supplemental)), function(index) {
+    values <- c(
+      supplemental$canonical_name[[index]],
+      supplemental$source_name[[index]],
+      supplemental$uefa_display_name_current[[index]],
+      if (is.na(supplemental$aliases[[index]])) character(0) else
+        unlist(strsplit(supplemental$aliases[[index]], "\\|", fixed = FALSE), use.names = FALSE)
+    )
+    phase13_normalize_team_name(values)
+  })
+  duplicate_primary <- vapply(seq_len(nrow(supplemental)), function(index) {
+    same_team_id <- supplemental$team_id[[index]] %in% primary$team_id
+    same_fifa_code <- !is.na(supplemental$fifa_code[[index]]) &&
+      supplemental$fifa_code[[index]] %in% primary_fifa_codes
+    same_alias <- any(supplemental_aliases[[index]] %in% primary_aliases)
+    same_team_id || same_fifa_code || same_alias
+  }, logical(1))
+  supplemental <- supplemental[!duplicate_primary, , drop = FALSE]
+  if (!nrow(supplemental)) return(primary)
+  phase13_martj42_registry_table(rbind(primary, supplemental))
 }
 
 phase13_martj42_resolve_registry_identity <- function(registry, source_team_id, source_display_name) {
@@ -1057,8 +1125,8 @@ phase13_validate_martj42_edition_lookup <- function(edition_lookup) {
   invisible(edition_lookup)
 }
 
-phase13_martj42_preserved_value <- function(data, column, n) {
-  if (!column %in% names(data)) return(rep(NA_character_, n))
+phase13_martj42_preserved_value <- function(data, column, n, default = NA_character_) {
+  if (!column %in% names(data)) return(rep(default, n))
   as.character(data[[column]])
 }
 
@@ -1074,7 +1142,7 @@ phase13_normalize_historical_result_rows <- function(
   phase13_martj42_validate_history_shape(history)
   phase13_validate_martj42_identity_coverage(history, identity_map)
   phase13_validate_martj42_edition_lookup(edition_lookup)
-  history_match_ids <- as.character(history$match_id)
+  history_match_ids <- phase13_martj42_history_match_ids(history)
   lookup_match_ids <- as.character(edition_lookup$match_id)
   if (!setequal(history_match_ids, lookup_match_ids)) {
     missing <- setdiff(history_match_ids, lookup_match_ids)
@@ -1098,7 +1166,6 @@ phase13_normalize_historical_result_rows <- function(
     stop("Phase 13 martj42 normalization provenance does not match the identity map", call. = FALSE)
   }
   lookup_by_match <- edition_lookup[match(history_match_ids, lookup_match_ids), , drop = FALSE]
-  source_lookup <- identity_map[match(phase13_martj42_history_identity_tokens(history)$source_identity_key, identity_map$source_identity_key), , drop = FALSE]
   source_ids <- lapply(c("home", "away"), function(side) {
     column <- phase13_martj42_source_team_id_column(history, side)
     if (is.na(column)) rep(NA_character_, nrow(history)) else phase13_martj42_clean_optional_id(history[[column]])
@@ -1110,8 +1177,15 @@ phase13_normalize_historical_result_rows <- function(
   score_values <- lapply(c("home", "away"), function(side) suppressWarnings(as.numeric(as.character(history[[paste0(side, "_score")]]))))
   output <- data.frame(
     schema_version = rep("phase13-martj42-historical-normalized-v1", n),
-    source_result_id = as.character(history$match_id),
-    match_id = as.character(history$match_id),
+    source_result_id = history_match_ids,
+    source_match_id = history_match_ids,
+    source_match_id_method = phase13_martj42_preserved_value(
+      history,
+      "source_match_id_method",
+      n,
+      default = "legacy_match_id"
+    ),
+    match_id = history_match_ids,
     date = as.character(history$date),
     home_team = as.character(history$home_team),
     away_team = as.character(history$away_team),
@@ -1133,13 +1207,13 @@ phase13_normalize_historical_result_rows <- function(
     tournament = as.character(history$tournament),
     city = phase13_martj42_preserved_value(history, "city", n),
     country = phase13_martj42_preserved_value(history, "country", n),
-    neutral = as.character(history$neutral),
+    neutral = as.logical(as.character(history$neutral)),
     home_team_canonical = phase13_martj42_preserved_value(history, "home_team_canonical", n),
     away_team_canonical = phase13_martj42_preserved_value(history, "away_team_canonical", n),
     home_team_fifa = phase13_martj42_preserved_value(history, "home_team_fifa", n),
     away_team_fifa = phase13_martj42_preserved_value(history, "away_team_fifa", n),
     result = phase13_martj42_preserved_value(history, "result", n),
-    is_home = phase13_martj42_preserved_value(history, "is_home", n),
+    is_home = as.logical(phase13_martj42_preserved_value(history, "is_home", n)),
     score_source = phase13_martj42_preserved_value(history, "score_source", n),
     source_dataset = rep(source_dataset, n),
     source_version = rep(source_version, n),
@@ -1156,4 +1230,124 @@ phase13_normalize_historical_result_rows <- function(
   )
   output$row_sha256 <- phase13_identity_row_hash(output)
   output[, phase13_normalized_historical_result_schema(), drop = FALSE]
+}
+
+phase13_martj42_file_sha256 <- function(path) {
+  if (!file.exists(path)) stop("Phase 13 martj42 source file is missing: ", path, call. = FALSE)
+  bytes <- readBin(path, what = "raw", n = file.info(path)$size)
+  if (exists("phase13_source_sha256", mode = "function")) return(tolower(phase13_source_sha256(bytes)))
+  if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Phase 13 martj42 source hashes", call. = FALSE)
+  tolower(digest::digest(bytes, algo = "sha256", serialize = FALSE))
+}
+
+phase13_martj42_compare_tables <- function(left, right, key) {
+  if (!identical(names(left), names(right))) return(FALSE)
+  normalize <- function(data) {
+    output <- as.data.frame(lapply(data, function(value) {
+      value <- as.character(value)
+      value[is.na(value)] <- ""
+      value
+    }), stringsAsFactors = FALSE, check.names = FALSE)
+    if (key %in% names(output)) output <- output[order(output[[key]]), , drop = FALSE]
+    rownames(output) <- NULL
+    output
+  }
+  identical(normalize(left), normalize(right))
+}
+
+#' Load the complete martj42 history through the production normalization seam.
+#'
+#' The committed identity map is compared with a fresh map generated from the
+#' complete preprocessed input before any normalized artifact is replaced.  The
+#' supplemental legacy map is used only for historical entities absent from the
+#' current UEFA edition registry; it is merged and revalidated as one identity
+#' registry before resolution.
+phase13_load_martj42_historical_results <- function(
+    results_path = "data/processed/elo_matches.csv",
+    identity_registry_path = "data/competition/registries/team_identity.csv",
+    identity_map_path = "data/competition/registries/martj42_identity_map.csv",
+    edition_lookup_path = "data/competition/registries/martj42_edition_lookup.csv",
+    source_dataset = "martj42",
+    source_artifact_id = "martj42-results",
+    output_path = "data/processed/martj42_historical_normalized.csv") {
+  paths <- c(results_path, identity_registry_path, identity_map_path, edition_lookup_path, output_path)
+  if (any(is.na(paths) | !nzchar(paths))) stop("Phase 13 martj42 loader paths must be non-empty", call. = FALSE)
+  required_inputs <- c(results_path, identity_registry_path, identity_map_path, edition_lookup_path)
+  missing <- required_inputs[!file.exists(required_inputs)]
+  if (length(missing)) stop("Phase 13 martj42 loader input is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+
+  source_dataset <- phase13_martj42_version_scalar(source_dataset, "source_dataset")
+  source_artifact_id <- phase13_martj42_version_scalar(source_artifact_id, "source_artifact_id")
+  source_version <- "martj42-results-v1"
+  source_input_sha256 <- phase13_martj42_file_sha256(results_path)
+  history <- utils::read.csv(results_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+
+  project_root <- if (exists("phase13_source_find_project_root", mode = "function")) {
+    phase13_source_find_project_root(dirname(results_path))
+  } else {
+    normalizePath(".", winslash = "/", mustWork = TRUE)
+  }
+  supplemental_path <- file.path(project_root, "data/raw/team_name_map.csv")
+  primary_path <- normalizePath(identity_registry_path, winslash = "/", mustWork = TRUE)
+  supplemental <- if (file.exists(supplemental_path) &&
+      normalizePath(supplemental_path, winslash = "/", mustWork = TRUE) != primary_path) supplemental_path else NULL
+  registry <- phase13_martj42_merge_identity_registries(identity_registry_path, supplemental)
+
+  generated_map <- phase13_generate_martj42_identity_map(
+    history = history,
+    identity_registry = registry,
+    source_dataset = source_dataset,
+    source_version = source_version,
+    source_input_sha256 = source_input_sha256,
+    source_artifact_id = source_artifact_id,
+    output_path = NULL
+  )
+  committed_map <- utils::read.csv(
+    identity_map_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  phase13_validate_martj42_identity_map(committed_map)
+  if (!phase13_martj42_compare_tables(generated_map, committed_map, "source_identity_key")) {
+    stop("Phase 13 martj42 production identity map disagrees with the complete preprocessed input", call. = FALSE)
+  }
+  phase13_validate_martj42_identity_coverage(history, committed_map)
+
+  edition_lookup <- utils::read.csv(
+    edition_lookup_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  phase13_validate_martj42_edition_lookup(edition_lookup)
+  for (column in c("source_dataset", "source_artifact_id")) {
+    values <- unique(as.character(edition_lookup[[column]]))
+    if (length(values) != 1L || !identical(values[[1L]], get(column))) {
+      stop("Phase 13 martj42 edition lookup provenance disagrees with the loader contract: ", column, call. = FALSE)
+    }
+  }
+
+  normalized <- phase13_normalize_historical_result_rows(
+    history = history,
+    identity_map = committed_map,
+    edition_lookup = edition_lookup,
+    source_dataset = source_dataset,
+    source_artifact_id = source_artifact_id,
+    source_version = source_version,
+    identity_map_version = unique(as.character(committed_map$identity_map_version))[[1L]]
+  )
+  if (!identical(names(normalized), phase13_normalized_historical_result_schema())) {
+    stop("Phase 13 martj42 normalized historical schema drifted", call. = FALSE)
+  }
+  if (exists("phase13_source_write_csv", mode = "function")) {
+    phase13_source_write_csv(normalized, output_path)
+  } else {
+    dir.create(dirname(output_path), recursive = TRUE, showWarnings = FALSE)
+    staged <- tempfile(paste0(".", basename(output_path), "-"), tmpdir = dirname(output_path))
+    on.exit(if (file.exists(staged)) unlink(staged), add = TRUE)
+    utils::write.csv(normalized, staged, row.names = FALSE, na = "", quote = TRUE)
+    if (!file.rename(staged, output_path)) stop("Could not publish Phase 13 martj42 normalized history: ", output_path, call. = FALSE)
+  }
+  output_path
 }

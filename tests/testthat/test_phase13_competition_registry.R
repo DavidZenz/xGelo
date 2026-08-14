@@ -9,6 +9,7 @@ phase13_registry_test_load_apis <- function() {
   source_paths <- file.path(
     phase13_registry_test_project_root,
     c(
+      "R/elo/preprocess.R",
       "R/competition/source_contracts.R",
       "R/competition/team_identity.R",
       "R/competition/edition_registry.R"
@@ -917,6 +918,7 @@ test_that("martj42 history identity and edition contracts survive append, reorde
   }
   future_history <- history[3L, , drop = FALSE]
   future_history$match_id <- "martj42-0004"
+  future_history$source_match_id <- future_history$match_id
   future_history$date <- "2027-05-10"
   future_history$home_score <- 3
   future_history$away_score <- 2
@@ -1055,4 +1057,127 @@ test_that("martj42 identity-map malformed, unresolved, duplicate, conflicting, a
     ),
     "ambiguous normalized aliases"
   )
+})
+
+test_that("martj42 preprocessing requires stable non-score source match IDs", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "xgelo_martj42_non_score_key",
+    "xgelo_martj42_non_score_id",
+    "xgelo_validate_martj42_source_match_ids"
+  ))
+
+  source_rows <- data.frame(
+    source_match_id = c(
+      "martj42-reviewed-tahiti-new-caledonia-1974-02-17-a",
+      "martj42-reviewed-tahiti-new-caledonia-1974-02-17-b"
+    ),
+    source_match_id_method = c("reviewed_source_id", "reviewed_source_id"),
+    date = c("1974-02-17", "1974-02-17"),
+    home_team = c("Tahiti", "Tahiti"),
+    away_team = c("New Caledonia", "New Caledonia"),
+    home_score = c(2L, 1L),
+    away_score = c(1L, 2L),
+    tournament = c("Friendly", "Friendly"),
+    city = c("Papeete", "Papeete"),
+    country = c("Tahiti", "Tahiti"),
+    neutral = c(FALSE, FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  validated <- xgelo_validate_martj42_source_match_ids(source_rows)
+  expect_identical(validated$source_match_id, source_rows$source_match_id)
+  expect_identical(validated$source_match_id_method, source_rows$source_match_id_method)
+
+  score_changed <- source_rows
+  score_changed$home_score <- c(9L, 0L)
+  score_changed$away_score <- c(0L, 9L)
+  score_changed <- xgelo_validate_martj42_source_match_ids(score_changed[c(2L, 1L), , drop = FALSE])
+  expect_setequal(score_changed$source_match_id, validated$source_match_id)
+
+  hash_row <- source_rows[1L, , drop = FALSE]
+  hash_row$source_match_id_method <- "non_score_hash"
+  hash_row$source_match_id <- xgelo_martj42_non_score_id(
+    xgelo_martj42_non_score_key(hash_row)
+  )
+  expect_silent(xgelo_validate_martj42_source_match_ids(hash_row))
+  hash_changed <- hash_row
+  hash_changed$home_score <- 0L
+  hash_changed$away_score <- 0L
+  expect_silent(xgelo_validate_martj42_source_match_ids(hash_changed))
+
+  missing_id <- source_rows
+  missing_id$source_match_id <- NULL
+  expect_error(
+    xgelo_validate_martj42_source_match_ids(missing_id),
+    "stable non-score source identifier"
+  )
+  duplicate_id <- source_rows
+  duplicate_id$source_match_id[[2L]] <- duplicate_id$source_match_id[[1L]]
+  expect_error(
+    xgelo_validate_martj42_source_match_ids(duplicate_id),
+    "source match IDs must be unique"
+  )
+})
+
+test_that("production martj42 history retains source identity through normalized artifact and target", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c(
+    "phase13_load_martj42_historical_results",
+    "phase13_normalized_historical_result_schema",
+    "phase13_validate_martj42_identity_map",
+    "phase13_validate_martj42_edition_lookup",
+    "phase13_identity_row_hash"
+  ))
+
+  root <- phase13_registry_test_project_root
+  results_path <- file.path(root, "data/processed/elo_matches.csv")
+  identity_registry_path <- file.path(root, "data/competition/registries/team_identity.csv")
+  identity_map_path <- file.path(root, "data/competition/registries/martj42_identity_map.csv")
+  edition_lookup_path <- file.path(root, "data/competition/registries/martj42_edition_lookup.csv")
+  output_path <- file.path(root, "data/processed/martj42_historical_normalized.csv")
+  expect_identical(
+    phase13_load_martj42_historical_results(
+      results_path = results_path,
+      identity_registry_path = identity_registry_path,
+      identity_map_path = identity_map_path,
+      edition_lookup_path = edition_lookup_path,
+      output_path = output_path
+    ),
+    output_path
+  )
+
+  history <- utils::read.csv(results_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  normalized <- utils::read.csv(output_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  identity_map <- utils::read.csv(identity_map_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  edition_lookup <- utils::read.csv(edition_lookup_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+
+  expect_named(normalized, phase13_normalized_historical_result_schema())
+  expect_equal(nrow(normalized), nrow(history))
+  expect_equal(length(unique(normalized$source_match_id)), nrow(normalized))
+  expect_identical(normalized$source_match_id, history$source_match_id)
+  expect_identical(normalized$match_id, normalized$source_match_id)
+  expect_true(all(normalized$source_match_id_method %in% c("non_score_hash", "reviewed_source_id")))
+  expect_true(all(grepl("^[0-9a-f]{64}$", normalized$row_sha256)))
+  expect_identical(normalized$row_sha256, phase13_identity_row_hash(normalized))
+  expect_equal(nrow(identity_map), length(unique(c(history$home_team, history$away_team))))
+  expect_equal(nrow(edition_lookup), nrow(history))
+  expect_silent(phase13_validate_martj42_identity_map(identity_map))
+  expect_silent(phase13_validate_martj42_edition_lookup(edition_lookup))
+
+  tahiti <- normalized[
+    normalized$date == "1974-02-17" &
+      normalized$home_team == "Tahiti" &
+      normalized$away_team == "New Caledonia",
+    , drop = FALSE
+  ]
+  expect_equal(nrow(tahiti), 2L)
+  expect_equal(sort(paste(tahiti$home_score, tahiti$away_score, sep = "-")), c("1-2", "2-1"))
+  expect_equal(length(unique(tahiti$source_match_id)), 2L)
+  expect_true(all(tahiti$source_match_id_method == "reviewed_source_id"))
+
+  targets_text <- paste(readLines(file.path(root, "_targets.R"), warn = FALSE), collapse = "\n")
+  expect_match(targets_text, "martj42_historical_normalized_file")
+  expect_match(targets_text, "phase13_load_martj42_historical_results")
+  expect_match(targets_text, "format = \"file\"")
 })
