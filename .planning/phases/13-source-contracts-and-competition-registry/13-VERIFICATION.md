@@ -1,54 +1,45 @@
 ---
 phase: 13-source-contracts-and-competition-registry
-verified: 2026-08-13T21:31:32Z
+verified: 2026-08-15T14:31:35Z
 status: gaps_found
-score: 4/8 must-haves verified
+score: 7/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/8
+  gaps_closed:
+    - "Accepted production fixture and result publication now resolves stable team IDs while preserving UEFA source values and edition provenance."
+    - "Failed refresh publication now persists the blocked edition overlay, registry-side blocked_refresh.json, and append-only status history."
+    - "Production loaders now validate accepted directories, canonical/raw/manifest hashes, normalized result lineage, and default identity source-bundle provenance."
+  gaps_remaining:
+    - "Plan 13-12's bounded normalized publication transaction is not wired into the public acquisition entrypoint."
+  regressions: []
 gaps:
-  - truth: "Accepted fixture records resolve source teams to stable xGelo team IDs while retaining UEFA display names and edition IDs."
+  - truth: "A successful production acquisition routes both trusted source-shaped edition handoffs through the bounded fourteen-target normalized publication transaction."
     status: failed
-    reason: "The normalizer exists and its focused unit test passes, but acquisition publishes only source-shaped fixtures.csv; no production capture path calls phase13_normalize_fixture_rows and no normalized accepted table is committed."
+    reason: "phase13_publish_normalized_editions() is defined and tested, but no production call site reaches it. The public acquisition path publishes one edition through phase13_acquire_publish_accepted() and updates registries separately; invoking the transaction against the current accepted tree fails because its handoff validator expects source-shaped fixtures while the committed tree is already normalized."
     artifacts:
       - path: "scripts/acquire_uefa_snapshot.R"
-        issue: "phase13_acquire_write_resource_table() writes phase13_source_resource_table() output and never invokes the identity resolver."
-      - path: "data/competition/accepted/uefa_nations_league_2026_27/fixtures.csv"
-        issue: "The committed schema has UEFA source team IDs and display names but no home_team_id or away_team_id."
+        issue: "phase13_acquire_main() calls phase13_acquire_publish_refresh(), which calls phase13_acquire_publish_accepted() and phase13_acquire_update_registries(), but never calls phase13_publish_normalized_editions()."
+      - path: "R/competition/publication_transaction.R"
+        issue: "The lock/snapshot/rollback primitives are substantive and imported, but they do not by themselves connect the production acquisition flow."
+      - path: "tests/testthat/test_phase13_publication_integration.R"
+        issue: "The integration harness rewrites temporary accepted tables into source-shaped handoffs before calling phase13_publish_normalized_editions(); it does not prove the public acquisition entrypoint invokes that transaction."
     missing:
-      - "Wire accepted fixture publication through the stable identity resolver."
-      - "Publish and validate a normalized fixture artifact, or provide an equivalent production loader that materializes it before downstream consumption."
-  - truth: "A failed refresh marks the edition blocked while retaining the last accepted output."
-    status: failed
-    reason: "The capture script preserves the accepted manifest and writes blocked_refresh.json, but it does not update competition_editions.csv or any edition registry row to blocked."
-    artifacts:
-      - path: "scripts/acquire_uefa_snapshot.R"
-        issue: "The error path calls phase13_acquire_write_blocked_metadata() only; the success path updates source registries only."
-      - path: "data/competition/registries/competition_editions.csv"
-        issue: "The Nations League row remains blocked=FALSE after a failed candidate simulation."
-    missing:
-      - "Persist the blocked overlay, failure reason/timestamp, and last accepted output in the edition registry through the refresh failure path."
-      - "Validate the updated edition registry before exposing the blocked state."
-  - truth: "Production loaders enforce the accepted-snapshot and team-identity provenance links."
-    status: partial
-    reason: "The edition loader validates source bundle CSVs and the Phase 12 release pin, but it never reads accepted/<edition_id> resource tables; the team identity loader validates source_bundle_id only when callers explicitly pass source_bundles."
-    artifacts:
-      - path: "R/competition/edition_registry.R"
-        issue: "load_competition_edition_registries() loads competition_editions.csv, source_bundles.csv, and source_artifacts.csv only."
-      - path: "R/competition/team_identity.R"
-        issue: "load_phase13_team_identity_registry() calls validation without the source bundle registry."
-    missing:
-      - "Add a production accepted-snapshot loader/validator and wire identity provenance validation into the normal load path."
+      - "Wire the complete two-edition normalized transaction into the production acquisition route, or provide an equivalent public orchestration entrypoint that is actually called."
+      - "Add an end-to-end regression through phase13_acquire_main()/phase13_acquire_publish_refresh() proving the fourteen-target graph, hash refresh, loader success, and all-or-nothing promotion."
 ---
 
 # Phase 13: Source Contracts and Competition Registry Verification Report
 
 **Phase Goal:** Analysts can capture authoritative UEFA competition snapshots and register both competition editions under one auditable contract.
 
-**Verified:** 2026-08-13T21:31:32Z
+**Verified:** 2026-08-15T14:31:35Z
 
 **Status:** gaps_found
 
-**Re-verification:** No — initial verification.
+**Re-verification:** Yes — after Plans 13-07 through 13-12 and the validation updates.
 
 ## Goal Achievement
 
@@ -56,120 +47,125 @@ gaps:
 
 | # | Truth | Status | Evidence |
 |---|---|---|---|
-| 1 | An analyst can capture official five-class UEFA snapshots for both editions. | ? UNCERTAIN | The bounded script requires five explicit HTTPS JSON URLs and deterministic fixture replay passes. No live official-URL capture was run, and EURO's committed pre-draw bundle intentionally contains empty resource tables. |
-| 2 | Accepted snapshots expose URL, retrieval time, raw-byte hash, Git parser identity, fallback status, and stable hashes while raw bytes remain ignored. | ✓ VERIFIED | Source tests pass; committed artifact registries contain the required fields; an independent check verified all 10 local raw files against their recorded byte counts and SHA-256 values; `git ls-files data/competition/local_raw` is empty. |
-| 3 | Reviewed manual fallback is complete, visible, edition-wide, and cannot mix with official artifacts. | ✓ VERIFIED | Focused source tests pass; fixture-backed CLI fallback acceptance produces `reviewed_fallback`, `reviewed`, approved artifact states, source/reason/operator/checksum metadata, and mixed-status rejection. |
-| 4 | Normalized records retain UEFA names while resolving to stable team and edition IDs in the accepted production path. | ✗ FAILED | `phase13_normalize_fixture_rows()` resolves IDs and preserves names in unit tests, but the acquisition path writes source-shaped fixtures only. The committed fixture header has no `home_team_id` or `away_team_id`; the independent expected-schema check failed. |
-| 5 | Both edition registry rows contain lifecycle, source bundle, approved model release, and output target. | ✓ VERIFIED | `load_competition_edition_registries()` and `validate_competition_edition_registries()` pass against committed CSVs; both required IDs are present and the Phase 12 release preflight resolves `phase12-wc2026-incumbent-retained-v1`. |
-| 6 | Failed refreshes fail closed, retain the active output, and mark the edition blocked. | ✗ FAILED | The focused failure test proves the prior manifest is retained and `blocked_refresh.json` is written. An independent temporary-copy check showed `competition_editions.csv` is unchanged, so the edition-level blocked overlay is not wired. |
-| 7 | Lifecycle transitions are forward-only, blocked recovery is explicit, and EURO remains truthful pre-draw. | ✓ VERIFIED | Registry tests pass for adjacent transitions, blocked recovery requiring operator action and validation, order-stable hashes, and EURO `pre_draw`; committed EURO tables are schema-valid empty tables with no fabricated structures. |
-| 8 | Production loaders connect accepted snapshot tables and identity provenance to the registry contract. | ✗ FAILED | The edition loader succeeds even when pointed at a temporary registry copy with no accepted snapshot directories. The identity loader accepts a recomputed row with a forged `source_bundle_id` when `source_bundles` is not supplied. |
+| 1 | An analyst can capture official five-class UEFA snapshots for both editions. | ? UNCERTAIN | Both edition fixture replays pass the CLI dry-run. The repository's own validation record says the undocumented live UEFA JSON endpoints were unavailable; retained “official” evidence is fixture-backed, so live official capture remains a human/operational check. |
+| 2 | Accepted snapshots expose URL, retrieval time, raw-byte hash, Git parser identity, fallback status, and stable hashes while raw bytes remain ignored. | ✓ VERIFIED | Current production loader passes against both editions, validating ten raw artifacts, manifests, canonical hashes, and provenance. `data/competition/local_raw/` is ignored and `git ls-files data/competition/local_raw` is empty; the source suite passes 175 expectations. |
+| 3 | Reviewed manual fallback is complete, visible, edition-wide, and cannot mix with official artifacts. | ✓ VERIFIED | Focused source/refresh checks pass. The retained fallback evidence has all five Nations League artifacts marked `reviewed_fallback`/`approved` with source, retrieval date, reason, operator note, and checksum; mixed-provenance rejection is covered by the source tests. |
+| 4 | Normalized records retain UEFA names while resolving to stable team and edition IDs in the accepted production path. | ✓ VERIFIED | `phase13_acquire_publish_accepted()` calls `phase13_normalize_fixture_rows()` and `phase13_normalize_accepted_result_rows()` before staged promotion. Current accepted Nations League fixtures/results contain stable team IDs, UEFA IDs/display names, edition IDs, and both artifact links; the source and registry suites pass 175 and 155 expectations. EURO remains schema-complete and empty. |
+| 5 | Both edition registry rows contain lifecycle, source bundle, approved model release, and output target. | ✓ VERIFIED | `load_competition_edition_registries()` and the trusted Phase 12 release preflight pass. Current rows contain source bundle IDs, `phase12-wc2026-incumbent-retained-v1`, output targets, and lifecycle states `scheduled` and `pre_draw`. |
+| 6 | Failed refreshes fail closed, retain the active output, and mark the edition blocked. | ✓ VERIFIED | The focused refresh suite passes 40 expectations. Its temporary-copy failure path updates `competition_editions.csv`, writes the registry-side `blocked_refresh.json` and append-only `status_history.csv`, retains accepted/source bytes, and exercises sidecar rollback and explicit recovery. |
+| 7 | Lifecycle transitions are forward-only, blocked recovery is explicit, and EURO remains truthful pre-draw. | ✓ VERIFIED | The registry suite passes lifecycle/recovery and pre-draw regressions. Current EURO has `pre_draw`, explicit status, zero fixtures/groups/standings/results, and the pre-draw note; no fabricated structures are present. |
+| 8 | Production loaders connect accepted snapshot tables and identity provenance to the registry contract. | ✓ VERIFIED | An independent current-state load returned `loader=OK editions=2 accepted_snapshots=2`. Loader tests cover missing accepted directories, table/manifest tampering, stale canonical hashes, forged identity foreign keys, and result/fixture lineage; the registry suite passes 155 expectations. |
 
-**Score:** 4/8 merged contract truths verified. One truth is uncertain pending live source validation; three truths are failed due production wiring gaps.
+**Score:** 7/8 truths verified. Truth 1 remains uncertain only because live external-service evidence is unavailable; the phase is nevertheless `gaps_found` because the later Plan 13-12 production-wiring contract is observably broken.
 
 ## Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `R/competition/source_contracts.R` | Structured resource, provenance, hash, fallback, and bundle validators | ✓ VERIFIED | 806 lines; exercised by 63 passing source-contract assertions and by the acquisition script. |
-| `scripts/acquire_uefa_snapshot.R` | Bounded fixture/live capture and fail-closed publication | ⚠️ PARTIAL | 414 lines; fixture replay, raw retention, accepted promotion, and fallback checks work, but identity normalization and edition-registry blocked updates are not wired. |
-| `R/competition/team_identity.R` | Stable IDs, visible fallback, normalized fixture output, and registry validation | ⚠️ PARTIAL | 345 lines; direct-ID/fallback/ambiguity behavior passes, but the production capture path does not consume the normalized output and the default loader omits source-bundle FK validation. |
-| `R/competition/edition_registry.R` | Lifecycle, blocked overlay, source-bundle and Phase 12 release validation | ✓ VERIFIED | 499 lines; committed registry load and focused lifecycle/release tests pass. The capture script does not call its blocked-overlay mutation on failure. |
-| `data/competition/registries/source_bundles.csv` and `source_artifacts.csv` | Compact accepted provenance registries | ✓ VERIFIED | Both committed registries load and validate; all five resource classes appear per accepted bundle. |
-| `data/competition/registries/team_identity.csv` | Stable identity registry with aliases, warning metadata, provenance, and row hashes | ⚠️ PARTIAL | File validates and contains stable NL mappings; its source-bundle link is not checked by the default production loader. |
-| `data/competition/registries/competition_editions.csv` | Both durable edition rows and explicit pre-draw EURO state | ✓ VERIFIED | Both rows validate with non-null source/model/output slots; EURO is `pre_draw` with draw date `2026-12-06`. |
-| `data/competition/accepted/{uefa_nations_league_2026_27,uefa_euro_2028_qualifying}/` | Compact accepted snapshot tables and manifest | ⚠️ HOLLOW | All five tables and manifests exist and row hashes pass, but fixtures are source-shaped and no production loader validates or materializes stable team IDs. |
-| `tests/testthat/test_phase13_source_contracts.R` and `test_phase13_competition_registry.R` | Focused contract and edge tests | ✓ VERIFIED | 63 and 51 assertions pass respectively, with no failures, warnings, or skips. |
+| `R/competition/source_contracts.R` | Structured-resource, provenance, raw-byte, fallback, and hash contracts | ✓ VERIFIED | Substantive implementation; sourced by acquisition and loader paths and exercised by the 175-expectation source suite. |
+| `R/competition/team_identity.R` | Stable identity resolver, normalized fixture/result schemas, historical identity contracts | ✓ VERIFIED | Normalizers are called by accepted publication; default identity loading validates adjacent `source_bundles.csv`; registry and source suites pass. |
+| `R/competition/edition_registry.R` | Edition lifecycle, release, accepted-snapshot, hash, and provenance validation | ✓ VERIFIED | Production loader reads and validates both accepted edition trees and the trusted release pin. |
+| `R/competition/publication_hashes.R` and `R/competition/publication_manifests.R` | Staged canonical and derived hash-graph refresh | ✓ VERIFIED | Hash suite: 107 expectations; manifest suite: 68 expectations; both pass without warnings/skips. |
+| `R/competition/publication_transaction.R` | Bounded fourteen-target lock, snapshot, promotion, and rollback envelope | ⚠️ PARTIAL | Implementation is substantive and imported by the acquisition script; its production call path is missing, which is the remaining blocker. |
+| `scripts/acquire_uefa_snapshot.R` | Bounded capture, accepted publication, fallback, refresh blocking, and normalized transaction integration | ⚠️ PARTIAL | Direct one-edition accepted publication and refresh blocking work. The public entrypoint does not invoke the dual-edition normalized transaction. |
+| `data/competition/accepted/{uefa_nations_league_2026_27,uefa_euro_2028_qualifying}/` | Manifest plus five accepted resource tables per edition | ✓ VERIFIED | Current loader validates all twelve files; Nations League fixtures/results are normalized, and EURO pre-draw tables are schema-valid empty tables. |
+| `data/competition/registries/{competition_editions,source_bundles,source_artifacts,team_identity}.csv` | Durable edition, bundle, artifact, and identity provenance | ✓ VERIFIED | Both editions and all ten artifacts load with matching hashes and foreign keys. |
+| `data/competition/registries/martj42_identity_map.csv`, `martj42_edition_lookup.csv`, and `data/processed/martj42_historical_normalized.csv` | Complete historical identity/edition projection and normalized artifact | ✓ VERIFIED | Current files contain 337 identity rows and 49,520 historical/lookup rows; the registry suite covers the targets seam and future/score-only safety. |
+| `tests/testthat/test_phase13_*.R` | Focused source, registry, hash, manifest, transaction, integration, and refresh regressions | ✓ VERIFIED | All seven focused suites pass with 751 total expectations and no failures, warnings, or skips. |
 
 ## Key Link Verification
 
 | From | To | Via | Status | Details |
 |---|---|---|---|---|
-| Structured fixture/live payload | Source artifact and bundle registries | `phase13_capture_structured_bundle()` and acquisition script | ✓ WIRED | Five resource classes, provenance, hashes, fallback status, and bundle manifests are produced and validated. |
-| Candidate bundle | Accepted edition directory | `phase13_acquire_publish_accepted()` | ✓ WIRED | Candidate output is staged and promoted only after bundle validation; prior output is retained on promotion failure. |
-| Failed candidate | Edition blocked overlay | `phase13_acquire_main()` error path | ✗ NOT WIRED | Error handling writes only `blocked_refresh.json`; it does not update `competition_editions.csv`. |
-| Accepted source fixture | Stable team identity | `phase13_normalize_fixture_rows()` | ⚠️ PARTIAL | Function-to-function behavior is tested, but no acquisition/publish call or accepted normalized artifact connects the two. |
-| Edition registry | Accepted source bundle and approved Phase 12 release | `load_competition_edition_registries()` | ✓ WIRED | Foreign-key and trusted release preflight pass against committed registries. |
-| Team identity registry | Accepted source bundle registry | Optional `source_bundles` argument | ⚠️ PARTIAL | Validator supports the link, but `load_phase13_team_identity_registry()` does not supply the source bundle registry. |
+| Structured fixture/live payload | Source artifact and bundle registries | Capture candidate validation and manifest construction | ✓ WIRED | Five required resource classes, URL/retrieval/raw hash/parser/fallback metadata, and bundle links are built and validated. |
+| Candidate bundle | Accepted edition directory | `phase13_acquire_publish_accepted()` | ✓ WIRED | Raw bytes, candidate manifest, normalized tables, and the complete six-file accepted directory are staged and validated before promotion. |
+| Accepted source fixtures | Stable team identity | `phase13_normalize_fixture_rows()` | ✓ WIRED | The production accepted path calls the resolver; current fixtures carry stable IDs and preserved UEFA source values. |
+| Accepted source results + normalized fixtures | Normalized results | `phase13_normalize_accepted_result_rows()` | ✓ WIRED | Exact `source_fixture_id` join preserves identity, status, scores, edition, result artifact, and fixture artifact lineage. |
+| Accepted table content | Artifact canonical hash | Plan 13-11 hash helpers | ✓ WIRED | Ten-resource hash and manifest suites pass; production loader recomputes and rejects drift. |
+| Edition/identity registries | Accepted snapshots | Production loaders | ✓ WIRED | Current loader succeeds for both editions and default identity loading checks source-bundle foreign keys. |
+| Failed candidate | Blocked edition, sidecar, and history | Refresh failure path | ✓ WIRED | Focused refresh tests and retained invalid-replacement evidence show matching batch IDs, blocked state, retained output, rollback, and explicit recovery. |
+| Source-shaped dual-edition handoffs | Normalized fourteen-target transaction | `phase13_publish_normalized_editions()` from public acquisition | ✗ NOT WIRED | The function has no production call site. The current-root invocation fails with `Phase 13 normalized publication source handoff schema mismatch: uefa_nations_league_2026_27/fixtures`; the integration test first rewrites its temporary accepted tables to source-shaped handoffs. |
+| Successful normalized transaction | Post-normalization loader | Transaction callback then `load_competition_edition_registries()` | ⚠️ PARTIAL | Direct temporary-root helper tests pass, but the production acquisition entrypoint cannot reach this chain. |
 
 ## Data-Flow Trace (Level 4)
 
 | Artifact | Data variable | Source | Produces real data | Status |
 |---|---|---|---|---|
-| `scripts/acquire_uefa_snapshot.R` | `candidate$resources` | Fixture replay or explicit HTTPS JSON capture | Yes for fixture replay; live path not exercised | ⚠️ LIVE UNVERIFIED |
-| `source_artifacts.csv` / `source_bundles.csv` | Raw/provenance metadata | Exact raw bytes and bundle validation | Yes; 10/10 committed raw files match recorded hashes | ✓ FLOWING |
-| Accepted `fixtures.csv` | Fixture rows | `phase13_source_resource_table()` | Yes, but source-shaped only | ⚠️ DISCONNECTED FROM IDENTITY |
-| `team_identity.csv` | Stable team mappings | Committed identity registry and resolver | Yes | ⚠️ PARTIAL — no default source-bundle FK check |
-| `competition_editions.csv` | Edition lifecycle/release slots | Committed registry plus trusted Phase 12 release root | Yes | ✓ FLOWING |
+| Accepted Nations League `fixtures.csv`/`results.csv` | Normalized fixture/result rows | Fixture replay or bounded capture → accepted-table normalizers | Yes; current rows contain stable IDs, source names, edition, and lineage | ✓ FLOWING |
+| Accepted EURO resource tables | Empty normalized structures | Explicit `pre_draw` adapter/status | Yes, intentionally empty and schema-valid | ✓ FLOWING |
+| `source_artifacts.csv`/`source_bundles.csv` and manifests | Raw/canonical/derived provenance | Ignored local JSON bytes and staged hash helpers | Yes; current loader verifies the graph | ✓ FLOWING |
+| Historical normalized artifact | Stable historical IDs/editions | `elo_matches` → `phase13_load_martj42_historical_results()` target seam | Yes; 49,520 rows | ✓ FLOWING |
+| Dual-edition normalized publication | Atomic fourteen-target output | `phase13_publish_normalized_editions()` helper tests | Yes in temporary source-shaped test handoffs | ⚠️ DISCONNECTED FROM PUBLIC ACQUISITION |
 
 ## Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| Source contracts and fallback/schema edges | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_source_contracts.R")'` | 63 assertions, 0 failures/warnings/skips | ✓ PASS |
-| Identity, lifecycle, pre-draw, and release-pin edges | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_competition_registry.R")'` | 51 assertions, 0 failures/warnings/skips | ✓ PASS |
-| Fixture-backed bounded capture | `Rscript --vanilla scripts/acquire_uefa_snapshot.R ... --dry-run` | Candidate `nl-2026-27-official-sample-v1` valid | ✓ PASS |
-| Production edition registry loading | `source("R/competition/edition_registry.R"); load_competition_edition_registries(...)` | Both editions loaded and validated | ✓ PASS |
-| Committed raw-byte integrity | Independent R check over `source_artifacts.csv` and ignored raw files | 10/10 byte counts and SHA-256 values match | ✓ PASS |
-| Accepted-table row integrity | Independent R check over both accepted edition directories | All five tables per edition have matching row hashes and edition IDs | ✓ PASS |
-| Accepted fixture stable-ID contract | Independent R check requiring `home_team_id` and `away_team_id` in committed fixtures | Check failed: both columns absent | ✗ FAIL |
-| Failed-refresh edition state | Temporary-copy failure run | Accepted manifest preserved and blocked sidecar written, but `competition_editions.csv` unchanged | ✗ FAIL |
+| Source contracts, bounded capture, accepted publication, fallback, and raw-byte boundaries | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_source_contracts.R")'` | 175 expectations; 0 failures/warnings/skips | ✓ PASS |
+| Identity, normalized records, edition registry, loader, and historical contracts | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_competition_registry.R")'` | 155 expectations; 0 failures/warnings/skips | ✓ PASS |
+| Canonical table/content hashes | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_publication_hashes.R")'` | 107 expectations; 0 failures/warnings/skips | ✓ PASS |
+| Accepted manifests and derived hash graph | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_publication_manifests.R")'` | 68 expectations; 0 failures/warnings/skips | ✓ PASS |
+| Publication lock, snapshots, fourteen-target rollback | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_publication_transaction.R")'` | 117 expectations; 0 failures/warnings/skips | ✓ PASS |
+| Temporary dual-edition normalized publication integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_publication_integration.R")'` | 89 expectations; 0 failures/warnings/skips | ✓ PASS, but helper-level only |
+| Failed refresh, blocked state, sidecar rollback, and recovery | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_refresh_failure.R")'` | 40 expectations; 0 failures/warnings/skips | ✓ PASS |
+| Both current edition fixture dry-runs | `Rscript --vanilla scripts/acquire_uefa_snapshot.R --fixture-dir tests/fixtures/phase13 --edition-id <edition> --dry-run` | Nations League and EURO candidates both valid | ✓ PASS |
+| Current production registry load | `load_competition_edition_registries("data/competition/registries")` | `loader=OK editions=2 accepted_snapshots=2` | ✓ PASS |
+| Current accepted tree through normalized transaction helper | `phase13_publish_normalized_editions(output_root="data/competition/accepted", registry_root="data/competition/registries", ...)` | Fails before promotion: source-handoff schema mismatch on normalized fixtures | ✗ FAIL |
+
+The repository-wide `testthat::test_dir("tests/testthat")` suite was not rerun in this verification. The current `13-VALIDATION.md`/13-06 validation record separately documents its known unrelated Phase 10 statistical-challenger drift: the full run exits nonzero on pre-existing `source_artifact_sha256` feature-contract rows 42–47, while all Phase 13 suites pass. This is not counted as a Phase 13 gap and was not altered.
 
 ## Probe Execution
 
-No phase-declared or conventional `scripts/*/tests/probe-*.sh` probes were found. Probe execution skipped.
+No phase-declared or conventional `scripts/*/tests/probe-*.sh` probes were found. Probe execution was skipped.
 
 ## Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 |---|---|---|---|---|
-| DATA-01 | 13-01, 13-02 | Capture official UEFA fixtures, groups, standings, results, and status snapshots | ? NEEDS HUMAN | Fixture-backed five-class capture and structured-only rejection pass; live official endpoint capture remains untested. |
-| DATA-02 | 13-01, 13-02 | Record URL, retrieval time, raw-byte hash, parser identity, and fallback status | ✓ SATISFIED | Committed artifact/bundle metadata validates; independent raw-byte check passes 10/10. Git SHA is the locked parser identity. |
-| DATA-03 | 13-01, 13-03 | Normalize records to stable team/edition IDs while preserving source names | ✗ BLOCKED | Resolver and unit tests pass, but accepted production fixtures are not normalized or consumed by a loader. |
-| DATA-04 | 13-01, 13-02 | Support visible audited manual fallback snapshots | ✓ SATISFIED | Reviewed fallback metadata, approved artifact states, checksum, and mixed-provenance rejection pass focused tests and fixture replay. |
-| COMP-01 | 13-01, 13-03 | Register lifecycle, ruleset, source bundle, model release, and output bundle | ✓ SATISFIED with refresh-risk | Both rows and trusted release pins validate; the refresh failure path still does not persist the blocked overlay. |
+| DATA-01 | 13-01, 13-02, 13-07, 13-09, 13-10, 13-12 | Capture official UEFA fixtures, groups, standings, results, and status snapshots | ? NEEDS HUMAN | Both fixture-backed five-class candidate dry-runs pass; current live official structured endpoint evidence is unavailable. |
+| DATA-02 | 13-01, 13-02, 13-05, 13-07, 13-09, 13-10, 13-11, 13-12 | Preserve URL, retrieval time, raw-byte hash, parser identity, fallback, and canonical/derived provenance | ✓ SATISFIED | Current loader and focused source/hash/manifest suites validate the ten-artifact graph and ignored raw-byte store. |
+| DATA-03 | 13-01, 13-03, 13-04, 13-05, 13-08, 13-11, 13-12 | Normalize stable team/edition IDs while preserving source names and historical identity | ✓ SATISFIED with atomic-publication gap | Direct accepted publication, current data, loaders, historical target seam, and focused tests pass; the separate Plan 13-12 dual-edition transaction is not reached by the public acquisition path. |
+| DATA-04 | 13-01, 13-02, 13-06, 13-07, 13-09, 13-10, 13-11, 13-12 | Support visible, reviewed, edition-wide fallback without mixed provenance | ✓ SATISFIED | Fallback metadata/checksum and mixed-provenance rejection pass; failed refresh preserves accepted output and source registries. |
+| COMP-01 | 13-01, 13-03, 13-05, 13-06 | Register lifecycle, source bundle, release, output target, blocked state, and recovery | ✓ SATISFIED | Both current registry rows load; focused registry/refresh tests prove blocked sidecar/history linkage and explicit recovery. |
 
-No Phase 13 requirement IDs are orphaned: all five roadmap IDs are claimed by the plans. Later roadmap phases do not clearly cover the missing Phase 13 identity-publication and edition-registry failure-path wiring, so no gaps are deferred.
+No Phase 13 requirement IDs are orphaned. Later roadmap phases 14–17 have no specific success criterion covering the missing Plan 13-12 acquisition wiring, so no gap is deferred.
 
 ## Anti-Patterns Found
 
 | File | Line | Pattern | Severity | Impact |
 |---|---:|---|---|---|
-| `scripts/acquire_uefa_snapshot.R` | 279-300 | Accepted publication emits source-shaped tables only; identity normalizer is unused | 🛑 BLOCKER | Stable team IDs are not present in the accepted production records. |
-| `scripts/acquire_uefa_snapshot.R` | 396-406 | Failure path writes a sidecar but does not update edition registry state | 🛑 BLOCKER | D-16's edition-level blocked overlay is not durable. |
-| `R/competition/edition_registry.R` | 451-490 | Registry loader does not inspect accepted snapshot directories | ⚠️ WARNING | Tampered/missing accepted CSVs can remain outside the production validation path. |
-| `R/competition/team_identity.R` | 265-270 | Default identity loader omits `source_bundles` provenance input | ⚠️ WARNING | A recomputed row hash can preserve a forged source-bundle reference through the default loader. |
-| `data/competition/accepted/uefa_euro_2028_qualifying/*.csv` | — | Intentional zero-row pre-draw resource tables | ℹ️ INFO | Schema-valid and consistent with the no-fabrication pre-draw contract; not classified as stubs. |
-
-No unreferenced `TBD`, `FIXME`, or `XXX` debt markers were found in Phase 13 implementation, tests, or committed data artifacts.
+| `scripts/acquire_uefa_snapshot.R` | 2003–2089, 2733–2799 | Normalized fourteen-target transaction is defined and fully tested, but the public refresh/acquisition path never calls it | 🛑 BLOCKER | Production can publish a one-edition normalized output without the declared dual-edition atomic publication boundary. |
+| Phase 13 implementation/tests/data | — | `TBD`, `FIXME`, or `XXX` debt markers; placeholder/empty implementation patterns | ℹ️ NONE FOUND | Anti-pattern scan returned no matches. EURO empty tables are intentional `pre_draw` data, not stubs. |
 
 ## Human Verification Required
 
-### 1. Live official structured capture
+These items remain human/operational checks; they do not replace the failed production-wiring gap.
 
-**Test:** Supply one real official HTTPS structured URL for each of fixtures, groups, standings, results, and status to `scripts/acquire_uefa_snapshot.R` for the Nations League edition; inspect the captured manifest and accepted output.
+### 1. Official live structured replay
 
-**Expected:** Each response is structured JSON, all five classes validate together, URLs/retrieval time/raw hashes/Git parser SHA/fallback status are visible, and no rendered HTML/PDF is accepted. Repeat for EURO only when official post-draw resources exist; before then, confirm the explicit pre-draw path remains empty and truthful.
+**Test:** Run the acquisition entrypoint with current official HTTPS JSON URLs for fixtures, groups, standings, results, and optional status, in an isolated output/registry/raw root; then verify normalized publication and the production loader.
 
-**Why human:** This depends on current UEFA endpoint availability and response shape; the automated checks use committed compact fixtures and do not exercise the external service.
+**Expected:** All five resources are structured JSON, provenance/raw hashes/parser identity are recorded, both required edition contracts remain coherent, and loader success follows the final normalized publication path.
 
-### 2. Reviewed fallback operator workflow
+**Why human:** UEFA endpoint availability and response shape are external and were not evidenced by the committed fixture replay.
 
-**Test:** Run the capture entrypoint with a real reviewed fallback bundle and inspect the published metadata and failure/recovery behavior.
+### 2. Reviewed fallback and failed-replacement operator review
 
-**Expected:** The fallback is an edition-wide reviewed bundle with visible source, date, reason, operator note, checksum, and approved review state; an invalid replacement leaves the previously accepted output active and exposes the blocked state to the operator.
+**Test:** Independently review the isolated fallback and invalid-replacement evidence, including the operator approval, prior-output byte preservation, blocked sidecar/history linkage, and explicit recovery.
 
-**Why human:** The manual review decision and operational source evidence cannot be established from repository contents alone.
+**Expected:** Fallback metadata is accepted only as a complete edition-wide reviewed bundle; invalid replacement remains blocked and recovery uses a distinct batch without mutating the immutable blocked record.
+
+**Why human:** Review approval and operational evidence cannot be established by source inspection alone; `13-UAT.md` records these as passes but also notes that the human-check metadata is not in the supported automated format.
 
 ## Gaps Summary
 
-The phase has strong source-contract and registry primitives: the focused suites pass, compact registries and accepted snapshots are committed, exact local raw bytes are ignored and hash-verified, fallback mixing is rejected, and both edition rows are release-pinned and validated. The goal is not achieved because the production capture path stops at source-shaped fixtures instead of publishing stable team IDs, and refresh failures stop at a sidecar instead of updating the durable edition blocked overlay. The production loaders also do not validate accepted snapshot directories or identity-to-source-bundle foreign keys by default.
+The three gaps from the 2026-08-13 initial report are closed in the current codebase: direct accepted publication now emits normalized fixture/result records, refresh failure updates durable blocked state, and production loaders validate accepted snapshots and identity provenance. All seven focused Phase 13 suites pass (751 expectations), both current editions load successfully, and the committed data satisfies the five roadmap success criteria except for the external live-capture evidence.
 
-## Next Action
+The remaining blocker comes from the later Plan 13-12 contract. `phase13_publish_normalized_editions()` is a real lock/hash/rollback implementation, but the public acquisition path does not call it. Its direct current-root invocation fails on the already-normalized `fixtures.csv`, while the passing integration test first converts temporary tables back to source-shaped handoffs. The phase must not advance until this production orchestration seam is wired and covered end to end.
 
-Address the three structured gaps before advancing to Phase 14: wire identity normalization into accepted publication, persist/validate the edition blocked overlay on capture failure, and make production loaders validate accepted snapshot and identity provenance links. Then rerun the focused tests, add regression coverage for these links, and complete the live official-source human check.
+No implementation or unrelated files were changed by this verification; this report is the only intended update.
 
 ---
 
-_Verified: 2026-08-13T21:31:32Z_  
+_Verified: 2026-08-15T14:31:35Z_
 _Verifier: the agent (gsd-verifier)_
