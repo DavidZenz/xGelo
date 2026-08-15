@@ -202,6 +202,51 @@ test_that("normalized display-name fallback is visible and ambiguity fails close
   )
 })
 
+test_that("alias fixture drives warning-bearing fallback and rejects ambiguous aliases", {
+  phase13_registry_test_load_apis()
+  phase13_registry_test_require_api(c("phase13_prepare_team_identity_map", "phase13_resolve_team_identity"))
+  fixture_path <- file.path(
+    phase13_registry_test_project_root,
+    "tests/fixtures/phase13/team_identity_aliases.csv"
+  )
+  alias_cases <- utils::read.csv(fixture_path, stringsAsFactors = FALSE, check.names = FALSE)
+  required <- phase13_team_identity_required_columns()
+  expect_true(all(required %in% names(alias_cases)))
+  prepared <- phase13_prepare_team_identity_map(alias_cases[, required, drop = FALSE])
+
+  accented <- alias_cases[alias_cases$case_id == "accented-fallback", , drop = FALSE]
+  expect_warning(
+    accented_result <- phase13_resolve_team_identity(
+      prepared,
+      source_team_id = "missing-accented-id",
+      display_name = accented$lookup_display_name[[1L]]
+    ),
+    "normalized display-name fallback"
+  )
+  expect_identical(accented_result$team_id, accented$expected_team_id[[1L]])
+  expect_identical(accented_result$mapping_warning, "normalized_display_name_requires_review")
+
+  reviewed <- alias_cases[alias_cases$case_id == "reviewed-alias", , drop = FALSE]
+  expect_warning(
+    reviewed_result <- phase13_resolve_team_identity(
+      prepared,
+      source_team_id = "missing-reviewed-id",
+      display_name = reviewed$lookup_display_name[[1L]]
+    ),
+    "normalized display-name fallback"
+  )
+  expect_identical(reviewed_result$team_id, reviewed$expected_team_id[[1L]])
+
+  expect_error(
+    phase13_resolve_team_identity(
+      prepared,
+      source_team_id = "missing-ambiguous-id",
+      display_name = "Same Alias"
+    ),
+    "ambiguous"
+  )
+})
+
 test_that("empty normalized tables retain a complete schema and reject null input", {
   phase13_registry_test_load_apis()
   phase13_registry_test_require_api(c(

@@ -1,0 +1,5 @@
+case_id,team_id,fifa_code,canonical_name,aliases,uefa_source_team_id,uefa_display_name_current,lookup_display_name,expected_team_id
+accented-fallback,team_civ,CIV,Cote d'Ivoire,Côte d'Ivoire,200,Côte d'Ivoire,Cote d'Ivoire,team_civ
+reviewed-alias,team_swe,SWE,Sweden,Sverige|Sweden,201,Sverige,Sweden,team_swe
+ambiguous-a,team_dup_a,DPA,Duplicate A,Same Alias,202,Duplicate A,,
+ambiguous-b,team_dup_b,DPB,Duplicate B,Same Alias,203,Duplicate B,,
