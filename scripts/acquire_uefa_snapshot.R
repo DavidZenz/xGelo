@@ -3040,7 +3040,7 @@ phase13_acquire_publish_refresh <- function(
       any(as.character(source_bundles$edition_id) == companion_edition[[1L]])
   }
   if (!all(file.exists(source_registry_files)) || !has_companion_source_registry) {
-    publication <- phase13_acquire_publish_accepted(
+    candidate <- phase13_acquire_publish_accepted(
       candidate = candidate,
       output_root = resolved_output_root,
       edition_id = edition_id,
@@ -3049,17 +3049,16 @@ phase13_acquire_publish_refresh <- function(
       registry_context_root = registry_context_root
     )
     phase13_acquire_update_registries(candidate, resolved_registry_root)
-    candidate$publication <- publication
     return(candidate)
   }
-  if (!is.null(recovery_context)) {
+  if (!is.null(recovery_context) && isTRUE(recovery_context$was_blocked)) {
     if (!isTRUE(validation_passed) || phase13_registry_blank(operator_action)) {
       stop(
         "Phase 13 blocked lifecycle recovery requires explicit operator action and validation",
         call. = FALSE
       )
     }
-    publication <- phase13_acquire_publish_accepted(
+    candidate <- phase13_acquire_publish_accepted(
       candidate = candidate,
       output_root = resolved_output_root,
       edition_id = edition_id,
@@ -3081,7 +3080,6 @@ phase13_acquire_publish_refresh <- function(
       recovery_context = recovery_context,
       raw_root = resolved_raw_root
     )
-    candidate$publication <- publication
     return(candidate)
   }
   handoff_set <- phase13_acquire_build_source_handoff_set(
