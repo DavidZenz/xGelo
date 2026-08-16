@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 16
+open_count: 18
 waived_count: 0
 fixed_count: 0
-total_count: 16
-last_updated: 2026-08-16T18:09:06.769Z
+total_count: 18
+last_updated: 2026-08-16T18:33:00.587Z
 ---
 
 # Broken Windows Ledger
@@ -31,6 +31,8 @@ last_updated: 2026-08-16T18:09:06.769Z
 | 14 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 231 | Empirical calibration assertions await phase14_evaluate_incumbent_calibration in Plan 14-04 | open |  | 2026-08-16T18:09:06.357Z |  |
 | 15 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 252 | Selector-aware preflight assertions await phase14_resolve_approved_release in Plan 14-06 | open |  | 2026-08-16T18:09:06.566Z |  |
 | 16 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 325 | Dual-repin rollback assertions await phase14_repin_both_competition_releases and phase14_promote_calibrated_release in Plan 14-09 | open |  | 2026-08-16T18:09:06.769Z |  |
+| 17 | 14 | skipped-test | tests/testthat/test_phase14_forecast_layer.R | 419 | Forecast production assertions await phase14_build_fixture_forecasts in Plan 14-16 | open |  | 2026-08-16T18:33:00.480Z |  |
+| 18 | 14 | skipped-test | tests/testthat/test_phase14_state_bundle.R | 247 | State-candidate production assertions await phase14_build_competition_state_candidate in Plan 14-16 | open |  | 2026-08-16T18:33:00.587Z |  |
 
 ````json
 [
@@ -224,6 +226,30 @@ last_updated: 2026-08-16T18:09:06.769Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-16T18:09:06.769Z",
+    "resolved_at": null
+  },
+  {
+    "id": 17,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_forecast_layer.R",
+    "line": 419,
+    "description": "Forecast production assertions await phase14_build_fixture_forecasts in Plan 14-16",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T18:33:00.480Z",
+    "resolved_at": null
+  },
+  {
+    "id": 18,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_state_bundle.R",
+    "line": 247,
+    "description": "State-candidate production assertions await phase14_build_competition_state_candidate in Plan 14-16",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T18:33:00.587Z",
     "resolved_at": null
   }
 ]
