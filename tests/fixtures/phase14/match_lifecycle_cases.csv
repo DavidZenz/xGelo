@@ -1,0 +1,15 @@
+case_id,identity_case_id,source_fixture_id,source_status,expected_match_status,expected_completion_method,regulation_home_goals,regulation_away_goals,final_home_goals,final_away_goals,shootout_home_goals,shootout_away_goals,winner_team_id,counts_for_standings,counts_for_form,expected_match_id,expected_valid,expected_reason
+scheduled,scheduled-1,nl-fixture-scheduled,scheduled,scheduled,not_applicable,,,,,,,,FALSE,FALSE,match-nl-scheduled,TRUE,valid
+in-progress,in-progress-1,nl-fixture-live,live,in_progress,not_applicable,,,,,,,,FALSE,FALSE,match-nl-live,TRUE,valid
+completed-regulation,regulation-1,nl-fixture-regulation,finished,completed,regulation,2,1,2,1,,,team_home,TRUE,TRUE,match-nl-regulation,TRUE,valid
+completed-extra-time,extra-time-1,nl-fixture-extra-time,after_extra_time,completed,extra_time,1,1,2,1,,,team_home,TRUE,TRUE,match-nl-extra-time,TRUE,valid
+completed-penalties,penalties-1,nl-fixture-penalties,after_penalties,completed,penalties,1,1,1,1,5,4,team_home,TRUE,TRUE,match-nl-penalties,TRUE,valid
+completed-awarded,awarded-1,nl-fixture-awarded,awarded,completed,awarded,,,3,0,,,team_home,TRUE,FALSE,match-nl-awarded,TRUE,valid
+postponed,postponed-1,nl-fixture-postponed,postponed,postponed,not_applicable,,,,,,,,FALSE,FALSE,match-nl-postponed,TRUE,valid
+abandoned,abandoned-1,nl-fixture-abandoned,abandoned,abandoned,not_applicable,,,,,,,,FALSE,FALSE,match-nl-abandoned,TRUE,valid
+unknown-source,unknown-1,nl-fixture-unknown,mystery_closed,,not_applicable,,,,,,,,FALSE,FALSE,match-nl-unknown,FALSE,unmapped_source_status
+invalid-final-pair,invalid-final-pair-1,nl-fixture-invalid-final,finished,completed,regulation,2,1,2,,,,team_home,TRUE,TRUE,match-nl-invalid-final,FALSE,unpaired_final_score
+invalid-penalty-final,invalid-penalty-final-1,nl-fixture-invalid-penalty,after_penalties,completed,penalties,2,1,2,1,5,4,team_home,TRUE,TRUE,match-nl-invalid-penalty,FALSE,penalty_requires_tied_final_score
+invalid-shootout-axis,invalid-shootout-axis-1,nl-fixture-invalid-shootout,finished,completed,regulation,2,1,2,1,5,4,team_home,TRUE,TRUE,match-nl-invalid-shootout,FALSE,shootout_requires_penalty_completion
+correction-original,correction-1,nl-fixture-correction,scheduled,scheduled,not_applicable,,,,,,,,FALSE,FALSE,match-nl-correction,TRUE,valid
+correction-completed,correction-1,nl-fixture-correction,finished,completed,regulation,1,0,1,0,,,team_home,TRUE,TRUE,match-nl-correction,TRUE,valid
