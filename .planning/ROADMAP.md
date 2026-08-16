@@ -13,7 +13,7 @@ simulations, and fail-closed hourly publication.
 
 ## Phases
 
-- [ ] **Phase 13: Source Contracts and Competition Registry** - Freeze official snapshot, fallback, normalization, and edition-registry contracts for both competitions.
+- [x] **Phase 13: Source Contracts and Competition Registry** - Freeze official snapshot, fallback, normalization, and edition-registry contracts for both competitions. (completed 2026-08-16)
 - [ ] **Phase 14: Shared Competition State and Forecast Layer** - Build the shared standings, status, form, and point-in-time forecast layer that both competitions consume.
 - [ ] **Phase 15: Nations League Rules and Outcomes** - Deliver the full 2026/27 Nations League state, forecasts, and projection logic.
 - [ ] **Phase 16: EURO Qualifying Activation and Play-off Rules** - Deliver truthful EURO 2028 qualifying pre-draw behavior and official post-draw qualification logic.
@@ -122,7 +122,7 @@ simulations, and fail-closed hourly publication.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 13. Source Contracts and Competition Registry | 13/13 | In Progress|  |
+| 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
 | 14. Shared Competition State and Forecast Layer | 0/TBD | Not started | - |
 | 15. Nations League Rules and Outcomes | 0/TBD | Not started | - |
 | 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |

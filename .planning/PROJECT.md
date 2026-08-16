@@ -91,6 +91,8 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 | **Elo from all international matches** | National teams play few games; qualifiers-only sample too sparse for reliable ratings | Confirmed |
 | **Logistic regression baseline** | Interpretable, fast, good performance; can extend to mixed-effects later | Confirmed |
 | **Poisson goal model** | Standard for football forecasting; supports Monte Carlo simulation | Confirmed |
+| **UEFA source contract** | Structured, edition-scoped source bundles with ignored raw bytes, explicit provenance, and reviewed fallback keep public capture auditable | Confirmed in Phase 13 |
+| **Dual-edition publication boundary** | Both competition editions share one locked fourteen-target normalized publication transaction while blocked refresh history remains separate | Confirmed in Phase 13 |
 | **FotMob as optional layer** | Most practical WCQ shot source but ToS-restricted; manual cache only | Pending validation |
 | **Three operating modes** | Open (no WCQ shots), Hybrid (cached FotMob), Experimental (full archive) — allows progressive enhancement | Pending |
 
@@ -105,6 +107,7 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 - ✓ Automated tests, targets orchestration, model documentation, and forecast artifacts — v1.0
 - ✓ Trustworthy pre-kickoff 2026 forecast ledger and retrospective scorecard — validated in Phase 8
 - ✓ Leakage-safe rolling multi-tournament benchmark infrastructure and frozen promotion gates — validated in Phase 9
+- ✓ UEFA source, identity, and competition-registry contracts for Nations League and EURO qualifying — validated in Phase 13
 
 ### Active
 
@@ -205,6 +208,8 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
+**v3.0:** Phase 13 (source contracts and competition registry) is complete; Phase 14 is ready to plan.
+
 **v1.0 MVP (Open Mode)**: ✅ **SHIPPED** - 2026-06-05
 
 Production-ready forecasting system using only open data (martj42 + StatsBomb).
@@ -248,4 +253,4 @@ frozen contract.
 - Dashboard behavior remains stable while model evaluation and replacement happen behind explicit versioned contracts.
 
 ---
-*Last updated: 2026-08-13 after v3.0 milestone definition*
+*Last updated: 2026-08-16 after Phase 13 completion*
