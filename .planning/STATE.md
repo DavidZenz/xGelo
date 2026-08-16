@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 13
 current_phase_name: Source Contracts and Competition Registry
 status: verifying
-stopped_at: Completed 13-source-contracts-and-competition-registry-06-PLAN.md
-last_updated: "2026-08-15T14:00:00.000Z"
+stopped_at: Completed 13-source-contracts-and-competition-registry-13-PLAN.md
+last_updated: "2026-08-16T11:51:09.327Z"
 last_activity: 2026-08-15
 last_activity_desc: Plan 13-06 completed; durable refresh failure evidence approved and Phase 13 is ready for verification
 progress:
   total_phases: 1
-  completed_phases: 0
-  total_plans: 12
-  completed_plans: 12
+  completed_phases: 1
+  total_plans: 13
+  completed_plans: 13
 ---
 
 # xGelo Project State
@@ -21,7 +21,7 @@ progress:
 ## Current Position
 
 Phase: 13 (Source Contracts and Competition Registry) — VERIFYING
-Plan: 12 of 12 (complete; phase verification pending)
+Plan: 13 of 13
 Status: Plan 13-06 complete; Phase 13 is ready for verification
 Last activity: 2026-08-15 — Plan 13-06 completed; durable refresh failure evidence approved and Phase 13 is ready for verification
 
@@ -92,6 +92,8 @@ and the shared competition registry for Nations League and EURO qualifying.
 - [Phase ?]: Unique martj42 non-score projections use deterministic SHA-256 IDs; the duplicate Tahiti/New Caledonia projection uses two explicit reviewed source IDs.
 - [Phase ?]: The current Phase 13 registry is primary and the legacy historical team map is supplemental, with current stable IDs taking precedence and three explicit historical aliases.
 - [Phase ?]: Historical edition membership is assigned only through the explicit martj42_historical_v1 match-to-edition lookup.
+- [Phase 13]: Route complete public acquisition refreshes through raw-source dual-edition handoffs and one fourteen-target transaction.
+- [Phase 13]: Preserve isolated one-edition fixture replay and explicit blocked recovery compatibility boundaries.
 
 ## Accumulated Context
 
@@ -109,8 +111,8 @@ Run `$gsd-verify-work` for Phase 13.
 
 ## Session Continuity
 
-**Last session:** 2026-08-14T20:04:06.998Z
-**Stopped at:** Completed 13-source-contracts-and-competition-registry-06-PLAN.md
+**Last session:** 2026-08-16T11:50:49.914Z
+**Stopped at:** Completed 13-source-contracts-and-competition-registry-13-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -134,3 +136,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 13 P12 | 29min | 2 tasks | 4 files |
 | Phase 13 P05 | 1h 10m | 2 tasks | 13 files |
 | Phase 13 P08 | 36m | 1 tasks | 11 files |
+| Phase 13 P13 | 43m | 2 tasks | 2 files |

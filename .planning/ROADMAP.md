@@ -34,7 +34,9 @@ simulations, and fail-closed hourly publication.
 4. Normalized records retain UEFA display names while resolving to stable team IDs and competition-edition IDs for both competition editions.
 5. Registry entries exist for the 2026/27 Nations League and EURO 2028 qualifying editions with lifecycle state, source bundle, model release slot, and output bundle target.
 
-**Plans**: 12/12 plans executed
+**Plans**: 13/13 plans executed
+
+- [x] 13-13-PLAN.md
 
 - [x] 13-04-PLAN.md
 - [x] 13-05-PLAN.md
@@ -120,7 +122,7 @@ simulations, and fail-closed hourly publication.
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 13. Source Contracts and Competition Registry | 11/12 | In Progress|  |
+| 13. Source Contracts and Competition Registry | 13/13 | In Progress|  |
 | 14. Shared Competition State and Forecast Layer | 0/TBD | Not started | - |
 | 15. Nations League Rules and Outcomes | 0/TBD | Not started | - |
 | 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |
