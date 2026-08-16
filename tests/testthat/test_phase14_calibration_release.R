@@ -104,6 +104,32 @@ phase14_release_test_gate_fields <- function(result) {
   result
 }
 
+phase14_release_test_require_implementation <- function(required) {
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) {
+    fail(paste0("Plan 14-04 implementation is missing: ", paste(missing, collapse = ", ")))
+  }
+  invisible(TRUE)
+}
+
+phase14_release_test_development_inputs <- function() {
+  list(
+    predictions = utils::read.csv(
+      file.path(
+        phase14_release_test_project_root,
+        "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/predictions/fixture_predictions.csv"
+      ),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    fixtures = utils::read.csv(
+      file.path(phase14_release_test_project_root, "data/benchmark/phase09/fixtures.csv"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  )
+}
+
 test_that("14-02 release descriptors distinguish raw fallback from fitted calibration", {
   raw <- phase14_release_fixture_descriptor(file.path(
     phase14_release_test_project_root,
@@ -225,6 +251,131 @@ test_that("14-02 explicit selector remains exact when directory discovery is amb
   expect_error(
     preflight_phase12_approved_release(raw$trusted_root),
     "ambiguous or missing"
+  )
+})
+
+test_that("14-04 incumbent development panel is the exact label-safe 630-fixture slice", {
+  phase14_release_test_require_implementation(
+    c(
+      "phase14_build_incumbent_development_panel",
+      "phase14_fit_rolling_incumbent_calibration"
+    )
+  )
+  inputs <- phase14_release_test_development_inputs()
+  panel <- phase14_build_incumbent_development_panel(
+    predictions = inputs$predictions,
+    fixtures = inputs$fixtures
+  )
+
+  expect_identical(nrow(panel), 630L)
+  expect_identical(length(unique(panel$fixture_id)), 630L)
+  expect_true(all(panel$model_id == "open_nb_incumbent"))
+  expect_true(all(panel$track_id == "updating"))
+  expect_true(all(panel$panel_id == "open_core"))
+  expect_false(any(grepl("wc2026", tolower(panel$edition_id))))
+  expect_false(any(grepl("wc2026", tolower(panel$fixture_id))))
+
+  wrong_slice <- inputs$predictions
+  selected <- which(
+    wrong_slice$model_id == "open_nb_incumbent" &
+      wrong_slice$track_id == "updating" &
+      wrong_slice$panel_id == "open_core"
+  )
+  wrong_slice$panel_id[selected[[1L]]] <- "wrong_panel"
+  expect_error(
+    phase14_build_incumbent_development_panel(wrong_slice, inputs$fixtures),
+    "630"
+  )
+
+  duplicate_slice <- inputs$predictions
+  duplicate_slice$fixture_id[selected[[2L]]] <- duplicate_slice$fixture_id[selected[[1L]]]
+  expect_error(
+    phase14_build_incumbent_development_panel(duplicate_slice, inputs$fixtures),
+    "unique|duplicate"
+  )
+
+  holdout_slice <- inputs$predictions
+  holdout_slice$edition_id[selected[[1L]]] <- "wc2026"
+  expect_error(
+    phase14_build_incumbent_development_panel(holdout_slice, inputs$fixtures),
+    "WC2026|holdout"
+  )
+  expect_error(
+    phase14_build_incumbent_development_panel(
+      predictions = "outputs/benchmarks/rolling_tournaments/phase12-calibration-release/final_evaluation/labels.csv",
+      fixtures = inputs$fixtures
+    ),
+    "WC2026|final-label|labels"
+  )
+})
+
+test_that("14-04 rolling calibration is strictly prior-edition and hash-bound", {
+  phase14_release_test_require_implementation(
+    c(
+      "phase14_build_incumbent_development_panel",
+      "phase14_fit_rolling_incumbent_calibration"
+    )
+  )
+  inputs <- phase14_release_test_development_inputs()
+  panel <- phase14_build_incumbent_development_panel(inputs$predictions, inputs$fixtures)
+  output_root <- tempfile("phase14-incumbent-calibration-")
+  result <- phase14_fit_rolling_incumbent_calibration(
+    panel = panel,
+    output_root = output_root
+  )
+
+  expect_identical(nrow(result$calibrated_predictions), 630L)
+  expect_identical(length(unique(result$calibrated_predictions$fixture_id)), 630L)
+  expect_identical(
+    as.character(result$calibrated_predictions$score_distribution_id),
+    as.character(panel$score_distribution_id)
+  )
+  expect_identical(as.character(result$calibrator$fit_status), "fitted")
+  expect_identical(as.integer(result$calibrator$score_support), 40L)
+  expect_identical(as.integer(result$calibrator$development_row_count), 630L)
+  expect_identical(
+    as.character(result$calibrator$calibration_evidence_cutoff),
+    "2024-07-14"
+  )
+  expect_match(as.character(result$calibrator$model_sha256), "^[0-9a-f]{64}$")
+  expect_match(as.character(result$calibrator$source_predictions_sha256), "^[0-9a-f]{64}$")
+  expect_match(as.character(result$calibrator$fixtures_sha256), "^[0-9a-f]{64}$")
+  expect_match(as.character(result$calibrator$protocol_sha256), "^[0-9a-f]{64}$")
+  expect_match(as.character(result$calibrator$code_commit), "^[0-9a-f]{40}$")
+  expect_true(file.exists(file.path(output_root, "calibrator.rds")))
+  expect_true(file.exists(file.path(output_root, "calibrated_predictions.csv")))
+
+  fitted_rows <- result$calibrated_predictions[
+    result$calibrated_predictions$calibration_training_row_count > 0L,
+    ,
+    drop = FALSE
+  ]
+  expect_true(all(fitted_rows$calibration_max_evidence_date < fitted_rows$edition_open_date))
+  expect_true(all(vapply(seq_len(nrow(fitted_rows)), function(i) {
+    training <- strsplit(fitted_rows$calibration_training_editions[[i]], "\\|", fixed = FALSE)[[1L]]
+    all(as.integer(sub(".*([0-9]{4}).*", "\\1", training)) <
+          as.integer(sub(".*([0-9]{4}).*", "\\1", fitted_rows$edition_id[[i]])))
+  }, logical(1))))
+
+  equal_time <- panel
+  euro2008_open <- min(as.Date(equal_time$scheduled_date[equal_time$edition_id == "euro2008"]))
+  equal_time$actual_completion_date[equal_time$edition_id == "euro2004"] <- euro2008_open
+  expect_error(
+    phase14_fit_rolling_incumbent_calibration(
+      panel = equal_time,
+      output_root = tempfile("phase14-equal-fold-")
+    ),
+    "strictly prior|precede|chronology"
+  )
+
+  future_time <- panel
+  future_time$actual_completion_date[future_time$edition_id == "euro2004"] <- euro2008_open + 1L
+  expect_error(
+    phase14_fit_rolling_incumbent_calibration(
+      panel = future_time,
+      output_root = tempfile("phase14-future-fold-")
+    ),
+    "strictly prior|precede|chronology"
   )
 })
 
