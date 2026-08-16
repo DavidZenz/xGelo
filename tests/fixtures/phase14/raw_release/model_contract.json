@@ -1,0 +1,24 @@
+{
+  "schema_version": "phase14-release-fixture-descriptor-v1",
+  "release_id": "phase14-fixture-raw-fallback-v1",
+  "source_release_id": "phase12-wc2026-incumbent-retained-v1",
+  "status": "incumbent retained",
+  "selected_model_id": "open_nb_incumbent",
+  "model_sha256": "c65a4f90477e5b799e234d1a313ff333f6cce12cfc08de93e342d7718c252ff8",
+  "model_data_cutoff": "2026-06-10",
+  "support_max": 40,
+  "raw_probability_view": "raw_1x2",
+  "primary_probability_view": "raw_1x2",
+  "calibrator": {
+    "calibrator_id": "phase14-fixture-raw-fallback-calibrator-v1",
+    "sha256": "ceb61e24f2e012032f6d24a7082a028a422bac7a14484d412cd1b4b501ce812b",
+    "fit_status": "raw_fallback",
+    "calibration_data_cutoff": "unavailable"
+  },
+  "calibration_gate": {
+    "gate_id": "phase14-fixture-calibration-blocked-v1",
+    "sha256": "08462d667457d3f1f9fa060bd0bb5eb20e99dcc931da9609abb318458c852c89",
+    "passed": false
+  },
+  "labels_embedded": false
+}

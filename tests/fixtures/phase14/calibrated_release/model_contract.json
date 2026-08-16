@@ -1,0 +1,24 @@
+{
+  "schema_version": "phase14-release-fixture-descriptor-v1",
+  "release_id": "phase14-fixture-calibrated-v1",
+  "source_release_id": "phase12-wc2026-incumbent-retained-v1",
+  "status": "approved",
+  "selected_model_id": "open_nb_incumbent",
+  "model_sha256": "c65a4f90477e5b799e234d1a313ff333f6cce12cfc08de93e342d7718c252ff8",
+  "model_data_cutoff": "2026-06-10",
+  "support_max": 40,
+  "raw_probability_view": "raw_1x2",
+  "primary_probability_view": "calibrated_1x2",
+  "calibrator": {
+    "calibrator_id": "phase14-fixture-fitted-calibrator-v1",
+    "sha256": "a00de8169c7716dfcd65f4e718f13e1673bf5a71113ff06a4ff8be56b376e8a5",
+    "fit_status": "fitted",
+    "calibration_data_cutoff": "2024-07-14"
+  },
+  "calibration_gate": {
+    "gate_id": "phase14-fixture-calibration-passed-v1",
+    "sha256": "99fbee2656234290c6f76b9e924c7c5470121e37252905c88161e7ce0c2a0750",
+    "passed": true
+  },
+  "labels_embedded": false
+}
