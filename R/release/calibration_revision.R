@@ -216,6 +216,7 @@ phase14_build_incumbent_development_panel <- function(
   panel$actual_completion_date <- completion_date
   panel$regulation_home_goals <- as.integer(matched_fixtures$regulation_home_goals)
   panel$regulation_away_goals <- as.integer(matched_fixtures$regulation_away_goals)
+  panel$score_eligible <- as.logical(matched_fixtures$score_eligible)
   panel$observed_class <- phase14_calibration_revision_observed_class(
     panel$regulation_home_goals, panel$regulation_away_goals
   )
@@ -360,7 +361,8 @@ phase14_fit_rolling_incumbent_calibration <- function(
   fixtures_sha256 <- phase14_calibration_revision_table_sha256(
     panel[, c(
       "edition_id", "fixture_id", "scheduled_date", "actual_completion_date",
-      "regulation_home_goals", "regulation_away_goals", "fixture_row_sha256"
+      "regulation_home_goals", "regulation_away_goals", "score_eligible",
+      "fixture_row_sha256"
     ), drop = FALSE],
     c("edition_id", "fixture_id")
   )
@@ -483,4 +485,608 @@ phase14_fit_rolling_incumbent_calibration <- function(
     calibrator_path = calibrator_path,
     calibrated_predictions_path = predictions_path
   )
+}
+
+phase14_calibration_revision_output_paths <- function(output_root) {
+  root <- phase14_calibration_revision_resolve_path(output_root)
+  c(
+    calibrator = file.path(root, "calibrator.rds"),
+    calibrated_predictions = file.path(root, "calibrated_predictions.csv"),
+    calibration_gate = file.path(root, "calibration_gate.csv"),
+    revision_manifest = file.path(root, "calibration_revision_manifest.csv")
+  )
+}
+
+phase14_calibration_revision_score_view <- function(predictions, fixtures, model_id) {
+  fixture_index <- match(as.character(predictions$fixture_id), as.character(fixtures$fixture_id))
+  if (anyNA(fixture_index)) stop("Phase 14 calibration scoring fixtures are incomplete", call. = FALSE)
+  output <- lapply(seq_len(nrow(predictions)), function(i) {
+    prediction <- predictions[i, , drop = FALSE]
+    prediction$model_id <- as.character(model_id)
+    fixture <- fixtures[fixture_index[[i]], , drop = FALSE]
+    observed <- phase14_calibration_revision_observed_class(
+      fixture$regulation_home_goals[[1L]], fixture$regulation_away_goals[[1L]]
+    )
+    probabilities <- setNames(
+      as.numeric(prediction[1L, c("p_home", "p_draw", "p_away")]),
+      c("home", "draw", "away")
+    )
+    values <- c(
+      rps = ranked_probability_score(probabilities, observed),
+      brier = multiclass_brier(probabilities, observed),
+      log_loss = log_score(probabilities, observed)
+    )
+    do.call(rbind, lapply(names(values), function(metric) {
+      benchmark_metric_row(prediction, fixture, metric, values[[metric]], "regulation_1x2")
+    }))
+  })
+  result <- do.call(rbind, output)
+  rownames(result) <- NULL
+  result
+}
+
+phase14_calibration_revision_comparison <- function(calibration_result, protocol = NULL) {
+  if (!is.list(calibration_result) || !is.data.frame(calibration_result$panel) ||
+      !is.data.frame(calibration_result$calibrated_predictions) ||
+      !is.list(calibration_result$calibrator)) {
+    stop("Phase 14 calibration comparison requires fitted panel evidence", call. = FALSE)
+  }
+  panel <- calibration_result$panel
+  calibrated_rows <- calibration_result$calibrated_predictions
+  calibrator <- calibration_result$calibrator
+  if (nrow(panel) != 630L || nrow(calibrated_rows) != 630L ||
+      anyDuplicated(as.character(calibrated_rows$fixture_id)) ||
+      !setequal(as.character(panel$fixture_id), as.character(calibrated_rows$fixture_id))) {
+    stop("Phase 14 calibration comparison requires identical 630-fixture views", call. = FALSE)
+  }
+  calibrated_rows <- calibrated_rows[
+    match(as.character(panel$fixture_id), as.character(calibrated_rows$fixture_id)),
+    ,
+    drop = FALSE
+  ]
+  identity_columns <- phase12_selection_expected_identity()
+  phase14_calibration_revision_require_columns(
+    calibrated_rows,
+    c(identity_columns, "p_home", "p_draw", "p_away", "p_home_calibrated", "p_draw_calibrated", "p_away_calibrated"),
+    "Phase 14 calibrated prediction evidence"
+  )
+  raw <- calibrated_rows[, c(identity_columns, "p_home", "p_draw", "p_away"), drop = FALSE]
+  calibrated <- raw
+  calibrated$p_home <- as.numeric(calibrated_rows$p_home_calibrated)
+  calibrated$p_draw <- as.numeric(calibrated_rows$p_draw_calibrated)
+  calibrated$p_away <- as.numeric(calibrated_rows$p_away_calibrated)
+  identity <- phase12_selection_identity(raw, calibrated, as.character(panel$fixture_id))
+  raw_scores <- phase14_calibration_revision_score_view(raw, panel, "raw_1x2")
+  calibrated_scores <- phase14_calibration_revision_score_view(
+    calibrated, panel, "calibrated_1x2"
+  )
+  editions <- unique(as.character(panel$edition_id[order(panel$edition_sequence)]))
+  if (length(editions) != 12L) {
+    stop("Phase 14 calibration comparison requires 12 registered editions", call. = FALSE)
+  }
+  raw_summaries <- aggregate_benchmark_scores(raw_scores, editions)
+  calibrated_summaries <- aggregate_benchmark_scores(calibrated_scores, editions)
+  raw_calibration <- fixed_benchmark_calibration(raw, panel, as.character(panel$fixture_id))
+  calibrated_calibration <- fixed_benchmark_calibration(
+    calibrated, panel, as.character(panel$fixture_id)
+  )
+  raw_pair <- raw_scores
+  calibrated_pair <- calibrated_scores
+  paired <- make_paired_fold_comparisons(
+    rbind(raw_pair, calibrated_pair),
+    "calibrated_1x2",
+    "raw_1x2",
+    phase12_selection_tournaments(editions),
+    as.character(panel$fixture_id),
+    metric = "rps",
+    target = "regulation_1x2"
+  )
+  unchanged_columns <- c(
+    "fixture_id", "edition_id", "track_id", "score_distribution_id",
+    "p_over_2_5", "p_under_2_5", "p_btts", "prediction_status"
+  )
+  distribution_unchanged <- identical(
+    lapply(raw[unchanged_columns], as.character),
+    lapply(calibrated[unchanged_columns], as.character)
+  )
+  raw_headline <- stats::setNames(
+    vapply(
+      c("rps", "brier", "log_loss"),
+      function(metric) phase12_selection_metric_headline(raw_summaries, metric),
+      numeric(1)
+    ),
+    c("rps", "brier", "log_loss")
+  )
+  calibrated_headline <- stats::setNames(
+    vapply(
+      c("rps", "brier", "log_loss"),
+      function(metric) phase12_selection_metric_headline(calibrated_summaries, metric),
+      numeric(1)
+    ),
+    c("rps", "brier", "log_loss")
+  )
+  list(
+    candidate_id = "open_nb_incumbent",
+    track_id = "updating",
+    run_id = as.character(raw$run_id[[1L]]),
+    panel_id = "open_core",
+    raw_predictions = raw,
+    calibrated_predictions = calibrated,
+    raw_scores = raw_scores,
+    calibrated_scores = calibrated_scores,
+    raw_summaries = raw_summaries,
+    calibrated_summaries = calibrated_summaries,
+    raw_calibration = raw_calibration,
+    calibrated_calibration = calibrated_calibration,
+    raw_headline = raw_headline,
+    calibrated_headline = calibrated_headline,
+    raw_tournament_metrics = stats::setNames(
+      lapply(c("rps", "brier", "log_loss"), function(metric) {
+        phase12_selection_tournament_metric(raw_summaries, metric)
+      }),
+      c("rps", "brier", "log_loss")
+    ),
+    calibrated_tournament_metrics = stats::setNames(
+      lapply(c("rps", "brier", "log_loss"), function(metric) {
+        phase12_selection_tournament_metric(calibrated_summaries, metric)
+      }),
+      c("rps", "brier", "log_loss")
+    ),
+    raw_calibration_values = phase12_selection_calibration_values(raw_calibration),
+    calibrated_calibration_values = phase12_selection_calibration_values(calibrated_calibration),
+    paired_rps = paired,
+    expected_fixture_ids = as.character(panel$fixture_id),
+    expected_editions = editions,
+    coverage_numerator = length(unique(calibrated$fixture_id)),
+    coverage_denominator = nrow(panel),
+    coverage_valid = length(unique(calibrated$fixture_id)) == nrow(panel),
+    calibration_support_valid = identical(as.character(calibrator$fit_status), "fitted"),
+    distribution_unchanged = isTRUE(distribution_unchanged),
+    identity = identity
+  )
+}
+
+phase14_calibration_revision_or <- function(value, fallback) {
+  if (is.null(value) || !length(value)) fallback else value
+}
+
+phase14_calibration_revision_reason_string <- function(reasons) {
+  if (!length(reasons)) "" else paste(as.character(reasons), collapse = "|")
+}
+
+phase14_calibration_revision_gate_row <- function(
+    comparison, calibrator = NULL, chronology_valid = TRUE, protocol = NULL
+) {
+  decision <- phase12_selection_decision(comparison, protocol = protocol)
+  reasons <- as.character(decision$reason_codes)
+  has_reason <- function(reason) reason %in% reasons
+  expected_count <- as.integer(phase14_calibration_revision_or(
+    comparison$coverage_denominator, 0L
+  ))
+  observed_count <- as.integer(phase14_calibration_revision_or(
+    comparison$coverage_numerator, 0L
+  ))
+  fixture_count <- if (!is.null(comparison$expected_fixture_ids)) {
+    length(unique(as.character(comparison$expected_fixture_ids)))
+  } else observed_count
+  fit_status <- if (is.list(calibrator)) as.character(calibrator$fit_status) else "not_supplied"
+  model_data_cutoff <- if (is.list(calibrator)) {
+    as.character(phase14_calibration_revision_or(calibrator$model_data_cutoff, ""))
+  } else ""
+  calibration_evidence_cutoff <- if (is.list(calibrator)) {
+    as.character(phase14_calibration_revision_or(calibrator$calibration_evidence_cutoff, ""))
+  } else ""
+  row <- data.frame(
+    schema_version = "phase14-calibration-gate-v1",
+    disposition = if (isTRUE(decision$calibration_promoted)) {
+      "CALIBRATION_RELEASE_APPROVED"
+    } else "CALIBRATION_RELEASE_BLOCKED",
+    model_id = "open_nb_incumbent",
+    track_id = "updating",
+    panel_id = "open_core",
+    expected_row_count = expected_count,
+    observed_row_count = observed_count,
+    unique_fixture_count = as.integer(fixture_count),
+    chronology_valid = isTRUE(chronology_valid),
+    calibration_support_valid = !has_reason("calibration_support_insufficient"),
+    coverage_valid = !has_reason("fixture_coverage_veto"),
+    score_identity_valid = !has_reason("score_identity_veto"),
+    rps_valid = !has_reason("rps_veto"),
+    brier_valid = !has_reason("brier_veto"),
+    log_loss_valid = !has_reason("log_loss_veto"),
+    fold_stability_valid = !has_reason("fold_stability_veto"),
+    calibration_improvement_valid = !has_reason("calibration_not_improved"),
+    raw_headline_rps = as.numeric(decision$raw_headline[["rps"]]),
+    calibrated_headline_rps = as.numeric(decision$calibrated_headline[["rps"]]),
+    rps_delta = as.numeric(decision$rps_delta),
+    raw_headline_brier = as.numeric(decision$raw_headline[["brier"]]),
+    calibrated_headline_brier = as.numeric(decision$calibrated_headline[["brier"]]),
+    brier_relative_change = as.numeric(decision$brier_relative_change),
+    raw_headline_log_loss = as.numeric(decision$raw_headline[["log_loss"]]),
+    calibrated_headline_log_loss = as.numeric(decision$calibrated_headline[["log_loss"]]),
+    log_loss_relative_change = as.numeric(decision$log_loss_relative_change),
+    fold_stability_max_regression = as.numeric(decision$max_fold_regression),
+    raw_calibration_error = as.numeric(comparison$raw_calibration_values$calibration_error),
+    calibrated_calibration_error = as.numeric(
+      comparison$calibrated_calibration_values$calibration_error
+    ),
+    calibration_error_delta = as.numeric(decision$calibration_delta),
+    reason_codes = phase14_calibration_revision_reason_string(reasons),
+    reason_count = length(reasons),
+    fit_status = fit_status,
+    primary_probability_view = as.character(decision$primary_probability_view),
+    calibration_promoted = isTRUE(decision$calibration_promoted),
+    model_data_cutoff = model_data_cutoff,
+    calibration_evidence_cutoff = calibration_evidence_cutoff,
+    score_support_g = 40L,
+    holdout_labels_used = FALSE,
+    authority_mutated = FALSE,
+    protocol_sha256 = if (is.list(calibrator)) {
+      as.character(phase14_calibration_revision_or(calibrator$protocol_sha256, ""))
+    } else "",
+    code_commit = phase14_calibration_revision_git_commit(),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  row$row_sha256 <- phase14_calibration_revision_table_sha256(row)
+  row
+}
+
+phase14_calibration_revision_write_csv <- function(data, path) {
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  invisible(path)
+}
+
+phase14_calibration_revision_manifest_self_hash <- function(manifest) {
+  phase14_calibration_revision_table_sha256(
+    manifest[, setdiff(names(manifest), "manifest_self_sha256"), drop = FALSE]
+  )
+}
+
+phase14_calibration_revision_manifest <- function(output_root, gate, calibrator) {
+  paths <- phase14_calibration_revision_output_paths(output_root)
+  required <- paths[c("calibrator", "calibrated_predictions", "calibration_gate")]
+  if (any(!file.exists(required))) {
+    stop("Phase 14 calibration manifest requires all fitted and gate artifacts", call. = FALSE)
+  }
+  source_predictions_path <- phase14_calibration_revision_resolve_path(
+    "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/predictions/fixture_predictions.csv"
+  )
+  fixtures_path <- phase14_calibration_revision_resolve_path("data/benchmark/phase09/fixtures.csv")
+  model_path <- phase14_calibration_revision_resolve_path(
+    "outputs/releases/phase12-wc2026-incumbent-retained-v1/model/approved_model.rds"
+  )
+  freeze_path <- phase14_calibration_revision_resolve_path(
+    "data/benchmark/phase12/freeze_manifest.csv"
+  )
+  recipe_path <- phase14_calibration_revision_resolve_path(
+    "data/benchmark/phase12/calibration_recipe.json"
+  )
+  protocol_path <- phase14_calibration_revision_resolve_path(
+    "data/benchmark/phase09/promotion_protocol.json"
+  )
+  manifest <- data.frame(
+    schema_version = "phase14-calibration-revision-manifest-v1",
+    model_id = "open_nb_incumbent",
+    track_id = "updating",
+    panel_id = "open_core",
+    disposition = as.character(gate$disposition[[1L]]),
+    reason_codes = as.character(gate$reason_codes[[1L]]),
+    development_row_count = 630L,
+    unique_fixture_count = 630L,
+    model_data_cutoff = as.character(calibrator$model_data_cutoff),
+    calibration_evidence_cutoff = as.character(calibrator$calibration_evidence_cutoff),
+    score_support_g = 40L,
+    model_sha256 = phase14_calibration_revision_file_sha256(model_path),
+    source_predictions_file_sha256 = phase14_calibration_revision_file_sha256(
+      source_predictions_path
+    ),
+    source_predictions_slice_sha256 = as.character(calibrator$source_predictions_sha256),
+    fixtures_file_sha256 = phase14_calibration_revision_file_sha256(fixtures_path),
+    fixtures_sha256 = as.character(calibrator$fixtures_sha256),
+    freeze_manifest_sha256 = phase14_calibration_revision_file_sha256(freeze_path),
+    recipe_sha256 = phase14_calibration_revision_file_sha256(recipe_path),
+    protocol_sha256 = phase14_calibration_revision_file_sha256(protocol_path),
+    code_commit = phase14_calibration_revision_git_commit(),
+    code_sha256 = phase14_calibration_revision_file_sha256(
+      "R/release/calibration_revision.R"
+    ),
+    calibrator_sha256 = phase14_calibration_revision_file_sha256(paths[["calibrator"]]),
+    calibrated_predictions_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["calibrated_predictions"]]
+    ),
+    calibration_gate_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["calibration_gate"]]
+    ),
+    calibration_promoted = isTRUE(gate$calibration_promoted[[1L]]),
+    primary_probability_view = as.character(gate$primary_probability_view[[1L]]),
+    fit_status = as.character(calibrator$fit_status),
+    chronology_valid = isTRUE(gate$chronology_valid[[1L]]),
+    holdout_labels_used = FALSE,
+    authority_mutated = FALSE,
+    manifest_self_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  manifest$manifest_self_sha256 <- phase14_calibration_revision_manifest_self_hash(manifest)
+  manifest
+}
+
+phase14_calibration_revision_load_result <- function(output_root) {
+  paths <- phase14_calibration_revision_output_paths(output_root)
+  if (any(!file.exists(paths[c("calibrator", "calibrated_predictions")]))) {
+    stop("Phase 14 fitted calibration evidence is missing", call. = FALSE)
+  }
+  list(
+    calibrator = readRDS(paths[["calibrator"]]),
+    calibrated_predictions = utils::read.csv(
+      paths[["calibrated_predictions"]],
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = character()
+    ),
+    panel = phase14_build_incumbent_development_panel(),
+    calibrator_path = paths[["calibrator"]],
+    calibrated_predictions_path = paths[["calibrated_predictions"]]
+  )
+}
+
+#' Apply the unchanged Phase 12 vetoes and persist one pass-or-block gate.
+#' @export
+phase14_evaluate_incumbent_calibration <- function(
+    comparison = NULL,
+    calibration_result = NULL,
+    output_root = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision",
+    protocol = "data/benchmark/phase09/promotion_protocol.json"
+) {
+  if (is.null(calibration_result) && is.null(comparison)) {
+    calibration_result <- phase14_calibration_revision_load_result(output_root)
+  }
+  if (is.null(comparison)) {
+    comparison <- phase14_calibration_revision_comparison(calibration_result, protocol)
+  }
+  calibrator <- if (is.list(calibration_result)) calibration_result$calibrator else NULL
+  chronology_valid <- if (is.list(calibration_result) &&
+      is.data.frame(calibration_result$calibrated_predictions)) {
+    rows <- calibration_result$calibrated_predictions
+    prior_rows <- rows$calibration_training_row_count > 0L
+    isTRUE(all(
+      !prior_rows |
+        as.Date(rows$calibration_max_evidence_date) < as.Date(rows$edition_open_date)
+    ))
+  } else TRUE
+  gate <- phase14_calibration_revision_gate_row(
+    comparison,
+    calibrator = calibrator,
+    chronology_valid = chronology_valid,
+    protocol = protocol
+  )
+  output_root <- phase14_calibration_revision_resolve_path(output_root)
+  dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+  paths <- phase14_calibration_revision_output_paths(output_root)
+  phase14_calibration_revision_write_csv(gate, paths[["calibration_gate"]])
+  manifest <- NULL
+  if (!is.null(calibrator) && all(file.exists(paths[c("calibrator", "calibrated_predictions")]))) {
+    manifest <- phase14_calibration_revision_manifest(output_root, gate, calibrator)
+    phase14_calibration_revision_write_csv(manifest, paths[["revision_manifest"]])
+  }
+  list(
+    comparison = comparison,
+    decision = phase12_selection_decision(comparison, protocol = protocol),
+    gate = gate,
+    manifest = manifest,
+    paths = paths
+  )
+}
+
+phase14_calibration_revision_read_character_csv <- function(path, name) {
+  if (!file.exists(path)) stop(name, " is missing", call. = FALSE)
+  utils::read.csv(
+    path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    colClasses = "character",
+    na.strings = character()
+  )
+}
+
+phase14_calibration_revision_as_logical <- function(value) {
+  identical(toupper(as.character(value)), "TRUE")
+}
+
+#' Validate complete empirical calibration evidence without requiring promotion.
+#' @export
+phase14_validate_calibration_revision <- function(
+    output_root = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision",
+    require_promoted = FALSE
+) {
+  paths <- phase14_calibration_revision_output_paths(output_root)
+  if (any(!file.exists(paths))) {
+    stop("Phase 14 calibration revision artifact set is incomplete", call. = FALSE)
+  }
+  gate <- phase14_calibration_revision_read_character_csv(
+    paths[["calibration_gate"]], "Phase 14 calibration gate"
+  )
+  manifest <- phase14_calibration_revision_read_character_csv(
+    paths[["revision_manifest"]], "Phase 14 calibration revision manifest"
+  )
+  if (nrow(gate) != 1L || nrow(manifest) != 1L) {
+    stop("Phase 14 calibration revision requires one gate and one manifest row", call. = FALSE)
+  }
+  required_gate <- c(
+    "disposition", "reason_codes", "calibration_promoted", "primary_probability_view",
+    "fit_status", "chronology_valid", "holdout_labels_used", "authority_mutated",
+    "row_sha256"
+  )
+  required_manifest <- c(
+    "model_sha256", "source_predictions_file_sha256", "source_predictions_slice_sha256",
+    "fixtures_file_sha256", "fixtures_sha256", "freeze_manifest_sha256", "recipe_sha256",
+    "protocol_sha256", "code_sha256", "calibrator_sha256",
+    "calibrated_predictions_sha256", "calibration_gate_sha256",
+    "manifest_self_sha256"
+  )
+  phase14_calibration_revision_require_columns(gate, required_gate, "Phase 14 calibration gate")
+  phase14_calibration_revision_require_columns(
+    manifest, required_manifest, "Phase 14 calibration revision manifest"
+  )
+  gate_hash <- phase14_calibration_revision_table_sha256(
+    gate[, setdiff(names(gate), "row_sha256"), drop = FALSE]
+  )
+  if (!identical(tolower(gate$row_sha256[[1L]]), tolower(gate_hash))) {
+    stop("Phase 14 calibration gate row hash mismatch", call. = FALSE)
+  }
+  manifest_hash <- phase14_calibration_revision_manifest_self_hash(manifest)
+  if (!identical(
+    tolower(manifest$manifest_self_sha256[[1L]]),
+    tolower(manifest_hash)
+  )) {
+    stop("Phase 14 calibration revision manifest self-hash mismatch", call. = FALSE)
+  }
+  expected_file_hashes <- c(
+    calibrator_sha256 = phase14_calibration_revision_file_sha256(paths[["calibrator"]]),
+    calibrated_predictions_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["calibrated_predictions"]]
+    ),
+    calibration_gate_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["calibration_gate"]]
+    ),
+    source_predictions_file_sha256 = phase14_calibration_revision_file_sha256(
+      "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/predictions/fixture_predictions.csv"
+    ),
+    fixtures_file_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/fixtures.csv"
+    ),
+    freeze_manifest_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase12/freeze_manifest.csv"
+    ),
+    recipe_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase12/calibration_recipe.json"
+    ),
+    protocol_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/promotion_protocol.json"
+    ),
+    code_sha256 = phase14_calibration_revision_file_sha256(
+      "R/release/calibration_revision.R"
+    ),
+    model_sha256 = phase14_calibration_revision_file_sha256(
+      "outputs/releases/phase12-wc2026-incumbent-retained-v1/model/approved_model.rds"
+    )
+  )
+  for (field in names(expected_file_hashes)) {
+    if (!identical(tolower(manifest[[field]][[1L]]), tolower(expected_file_hashes[[field]]))) {
+      stop("Phase 14 calibration revision artifact hash mismatch: ", field, call. = FALSE)
+    }
+  }
+  calibrator <- readRDS(paths[["calibrator"]])
+  if (!is.list(calibrator) || !identical(as.character(calibrator$fit_status), "fitted") ||
+      !identical(as.character(calibrator$model_id), "open_nb_incumbent") ||
+      !identical(as.character(calibrator$track_id), "updating") ||
+      !identical(as.character(calibrator$panel_id), "open_core") ||
+      !identical(as.integer(calibrator$development_row_count), 630L) ||
+      !identical(as.integer(calibrator$development_fixture_count), 630L) ||
+      !identical(as.integer(calibrator$score_support), 40L) ||
+      isTRUE(calibrator$holdout_labels_used)) {
+    stop("Phase 14 fitted calibrator identity is invalid", call. = FALSE)
+  }
+  if (!identical(
+    tolower(as.character(calibrator$source_predictions_sha256)),
+    tolower(manifest$source_predictions_slice_sha256[[1L]])
+  ) || !identical(
+    tolower(as.character(calibrator$fixtures_sha256)),
+    tolower(manifest$fixtures_sha256[[1L]])
+  )) {
+    stop("Phase 14 fitted calibrator source hash mismatch", call. = FALSE)
+  }
+  calibrated_predictions <- utils::read.csv(
+    paths[["calibrated_predictions"]],
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = character()
+  )
+  panel <- phase14_build_incumbent_development_panel()
+  if (nrow(calibrated_predictions) != 630L ||
+      anyDuplicated(as.character(calibrated_predictions$fixture_id)) ||
+      !identical(as.character(calibrated_predictions$fixture_id), as.character(panel$fixture_id)) ||
+      phase14_calibration_revision_has_holdout_identity(calibrated_predictions)) {
+    stop("Phase 14 calibrated prediction identity is invalid", call. = FALSE)
+  }
+  for (column in c("p_home", "p_draw", "p_away", "score_distribution_id")) {
+    if (!identical(as.character(calibrated_predictions[[column]]), as.character(panel[[column]]))) {
+      stop("Phase 14 calibrated prediction raw or score identity drifted", call. = FALSE)
+    }
+  }
+  calibrated_matrix <- as.matrix(
+    calibrated_predictions[, c("p_home_calibrated", "p_draw_calibrated", "p_away_calibrated")]
+  )
+  storage.mode(calibrated_matrix) <- "double"
+  if (anyNA(calibrated_matrix) || any(!is.finite(calibrated_matrix)) ||
+      any(calibrated_matrix < 0 | calibrated_matrix > 1) ||
+      any(abs(rowSums(calibrated_matrix) - 1) > 1e-10)) {
+    stop("Phase 14 calibrated prediction simplex is invalid", call. = FALSE)
+  }
+  chronology_valid <- all(
+    calibrated_predictions$calibration_training_row_count == 0L |
+      as.Date(calibrated_predictions$calibration_max_evidence_date) <
+        as.Date(calibrated_predictions$edition_open_date)
+  ) && as.Date(calibrator$calibration_evidence_cutoff) < as.Date(calibrator$model_data_cutoff)
+  if (!isTRUE(chronology_valid)) {
+    stop("Phase 14 calibration chronology is invalid", call. = FALSE)
+  }
+  calibration_result <- list(
+    calibrator = calibrator,
+    calibrated_predictions = calibrated_predictions,
+    panel = panel
+  )
+  comparison <- phase14_calibration_revision_comparison(calibration_result)
+  expected_gate <- phase14_calibration_revision_gate_row(
+    comparison,
+    calibrator = calibrator,
+    chronology_valid = chronology_valid,
+    protocol = "data/benchmark/phase09/promotion_protocol.json"
+  )
+  decision_fields <- setdiff(names(expected_gate), c("code_commit", "row_sha256"))
+  numeric_decision_fields <- c(
+    "expected_row_count", "observed_row_count", "unique_fixture_count",
+    "raw_headline_rps", "calibrated_headline_rps", "rps_delta",
+    "raw_headline_brier", "calibrated_headline_brier", "brier_relative_change",
+    "raw_headline_log_loss", "calibrated_headline_log_loss",
+    "log_loss_relative_change", "fold_stability_max_regression",
+    "raw_calibration_error", "calibrated_calibration_error",
+    "calibration_error_delta", "reason_count", "score_support_g"
+  )
+  for (field in decision_fields) {
+    matches <- if (field %in% numeric_decision_fields) {
+      isTRUE(all.equal(
+        as.numeric(gate[[field]]),
+        as.numeric(expected_gate[[field]]),
+        tolerance = 1e-12
+      ))
+    } else {
+      identical(as.character(gate[[field]]), as.character(expected_gate[[field]]))
+    }
+    if (!matches) {
+      stop("Phase 14 calibration gate decision drifted: ", field, call. = FALSE)
+    }
+  }
+  if (phase14_calibration_revision_as_logical(gate$calibration_promoted[[1L]])) {
+    if (!identical(as.character(gate$disposition[[1L]]), "CALIBRATION_RELEASE_APPROVED") ||
+        nzchar(as.character(gate$reason_codes[[1L]])) ||
+        !identical(as.character(gate$primary_probability_view[[1L]]), "calibrated_1x2")) {
+      stop("Phase 14 calibration promoted gate is internally inconsistent", call. = FALSE)
+    }
+  } else if (!identical(
+    as.character(gate$disposition[[1L]]), "CALIBRATION_RELEASE_BLOCKED"
+  ) || !nzchar(as.character(gate$reason_codes[[1L]])) ||
+      !identical(as.character(gate$primary_probability_view[[1L]]), "raw_1x2")) {
+    stop("Phase 14 calibration blocked gate is internally inconsistent", call. = FALSE)
+  }
+  if (phase14_calibration_revision_as_logical(gate$holdout_labels_used[[1L]]) ||
+      phase14_calibration_revision_as_logical(gate$authority_mutated[[1L]])) {
+    stop("Phase 14 calibration evidence claims forbidden holdout or authority mutation", call. = FALSE)
+  }
+  if (isTRUE(require_promoted) &&
+      !phase14_calibration_revision_as_logical(gate$calibration_promoted[[1L]])) {
+    stop("Phase 14 calibration release is blocked and not promoted", call. = FALSE)
+  }
+  invisible(TRUE)
 }
