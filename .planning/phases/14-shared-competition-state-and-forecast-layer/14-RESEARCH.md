@@ -368,21 +368,17 @@ discrete_interval <- function(goals, probability) {
 |---|-------|---------|---------------|
 | — | None. Recommendations are derived from locked decisions, inspected code/artifacts, or cited official documentation. | — | — |
 
-## Open Questions
+## Planning Resolutions
 
-1. **Will an incumbent calibrator pass the frozen development vetoes?**
-   - What we know: 630 updating-track `open_nb_incumbent` development predictions exist across 12 historical tournament editions; the installed calibrator is not fitted. [VERIFIED: Phase 09 predictions and installed RDS]
-   - What's unclear: the gate result has not been computed in this bounded research pass.
-   - Recommendation: make this an early automated abort gate; do not relax thresholds.
+1. **Calibration is an empirical pass-or-block gate.** The executor computes the frozen development comparison before any release authority changes. A pass requires every existing support, coverage, score-identity, RPS, Brier, log-loss, fold-stability, and strict calibration-improvement veto to pass unchanged. Any failure records `CALIBRATION_RELEASE_BLOCKED`, leaves the approved selector and both edition pins byte-identical, and retains `release_not_calibrated` suppression. Final holdout labels are never reopened and raw 1X2 is never relabelled as calibrated.
 
-2. **Which exact UEFA source fields provide completion time, kickoff confirmation, and split scores?**
-   - What we know: current accepted v1 samples do not include them, and Phase 13 noted that live structured endpoint access was unavailable during its final audit. [VERIFIED: Phase 13 accepted fixtures and validation]
-   - What's unclear: adapter-specific field paths in future live payloads.
-   - Recommendation: define canonical optional source inputs and complete fixture tests now; keep production rows suppressed/unresolved until an accepted adapter proves the mapping.
+2. **Adapter-specific completion, kickoff-confirmation, and split-score fields are optional and fail closed.** The accepted schema exposes typed canonical inputs, but an absent or unmapped source field remains missing/unresolved. Dependent standings, form, or forecast behavior is blocked or suppressed until an accepted adapter proves the mapping; no source adapter may infer completion or scores from unrelated fields.
 
-3. **What is the durable canonical-match ID minting policy?**
-   - What we know: competition `fixture_id` and martj42 `match_id` are currently different namespaces. [VERIFIED: accepted fixtures and normalized history]
-   - Recommendation: use a durable source-to-canonical crosswalk with one-to-one constraints and explicit reviewed collision rows; do not hash mutable scores/status into identity.
+3. **Canonical match IDs use a durable crosswalk.** `data/competition/registries/match_identity.csv` maps competition and historical source IDs to one canonical `match_id` with one-to-one constraints and explicit reviewed collision rows. Minting inputs are stable source identity, edition, teams, scheduled time/date, and neutral/venue context; scores, lifecycle/status, row order, and score-bearing hashes are excluded so corrections cannot remint identity.
+
+4. **National-team xG is optional shared evidence whose requiredness comes from the immutable release manifest.** Repository evidence fixes this boundary: `data/processed/rolling_form.csv` contains domestic clubs only; the Phase 10 feature contract registers xGF/xGA/xGD EWMA as optional open/derived predictors; and the approved Phase 09 incumbent manifest activates only `elo_diff` while recording xGF/xGA/xGD as `missing_or_zero_variance`/dropped. Phase 14 therefore adds a declared `national_team_xg` source registry/adapter that accepts only reviewed, shot-derived, point-in-time senior national-team rows with stable match/team IDs, evidence timestamps, and source hashes. It adds no scraper/API and rejects club xG or goals relabelled as national-team xG. Current Austria/Germany xG availability is `unavailable` with reason/source/sample_count/cutoff fields and `NA` descriptive/model-form values per D-09/D-12/D-18.
+
+   `phase14_adapt_matches_for_forecast()` maps canonical rows to the exact `build_forecast_feature_table()` match contract (`date`, canonical home/away names, scores, `match_id`, and `venue`) through the accepted team registry and explicit kickoff/cutoff. `phase14_build_release_features()` hash-binds `active_predictors`/`dropped_predictors_with_reason`, requires strictly prior evidence only for active predictors, and permits registered internal missingness only for inactive dropped predictors while public xG remains unavailable/NA. The current Elo-only approved release can forecast Austria versus Germany through G=40 with unavailable xG recorded in lineage; a synthetic xG-active release suppresses that fixture as `feature_evidence_unavailable` until accepted national-team xG covers both teams before kickoff. Failure fan-out applies to required active shared inputs; optional inactive xG absence is audited without invalidating both editions. Production tests must prove adapter columns, strict-before Elo, Elo-only availability, xG-active suppression, and club-only rolling-form rejection.
 
 ## Environment Availability
 
