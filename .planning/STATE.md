@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-08-16T18:34:55.701Z"
+stopped_at: Completed 14-04-PLAN.md
+last_updated: "2026-08-16T19:25:20.795Z"
 last_activity: 2026-08-16
 last_activity_desc: Phase 14 execution started
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 33
-  completed_plans: 16
+  completed_plans: 17
 ---
 
 # xGelo Project State
@@ -21,7 +21,7 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — EXECUTING
-Plan: 4 of 20
+Plan: 5 of 20
 Status: Ready to execute
 Last activity: 2026-08-16 — Phase 14 execution started
 
@@ -96,6 +96,7 @@ for Nations League and EURO qualifying.
 - [Phase 13]: Preserve isolated one-edition fixture replay and explicit blocked recovery compatibility boundaries.
 - [Phase 14]: Keep Plan 14 release fixtures descriptor-only and reconstruct complete trusted roots from the incumbent model during tests.
 - [Phase 14]: Bind fixture authority to a one-row self-hashed selector and exact manifest/object hashes while preserving distinct raw and fitted probability views.
+- [Phase 14]: D-15 remains CALIBRATION_RELEASE_BLOCKED under unchanged RPS and strict calibration-improvement vetoes. — Frozen evidence worsened RPS by 0.0008328552 and calibration error by 0.00307133; authority remains raw and downstream promotion refuses blocked evidence.
 
 ## Accumulated Context
 
@@ -113,8 +114,8 @@ Run `$gsd-discuss-phase 14` to plan the shared competition state and forecast la
 
 ## Session Continuity
 
-**Last session:** 2026-08-16T18:34:55.691Z
-**Stopped at:** Completed 14-03-PLAN.md
+**Last session:** 2026-08-16T19:25:20.785Z
+**Stopped at:** Completed 14-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -142,3 +143,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P01 | 17min | 3 tasks | 7 files |
 | Phase 14 P02 | 21m | 2 tasks | 6 files |
 | Phase 14 P03 | 17m | 2 tasks | 4 files |
+| Phase 14 P04 | 41m | 2 tasks | 6 files |
