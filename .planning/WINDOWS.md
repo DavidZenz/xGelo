@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 13
+open_count: 16
 waived_count: 0
 fixed_count: 0
-total_count: 13
-last_updated: 2026-08-16T17:44:31.640Z
+total_count: 16
+last_updated: 2026-08-16T18:09:06.769Z
 ---
 
 # Broken Windows Ledger
@@ -28,6 +28,9 @@ last_updated: 2026-08-16T17:44:31.640Z
 | 11 | 14 | skipped-test | tests/testthat/test_phase14_form.R | 161 | Display-form assertions await phase14_build_display_form in Plan 14-15 | open |  | 2026-08-16T17:44:31.228Z |  |
 | 12 | 14 | skipped-test | tests/testthat/test_phase14_form.R | 184 | Model-form assertions await phase14_build_model_form in Plan 14-15 | open |  | 2026-08-16T17:44:31.435Z |  |
 | 13 | 14 | skipped-test | tests/testthat/test_phase14_cutoffs.R | 122 | Cutoff-validator assertions await phase14_assert_form_cutoffs in Plan 14-15 | open |  | 2026-08-16T17:44:31.640Z |  |
+| 14 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 231 | Empirical calibration assertions await phase14_evaluate_incumbent_calibration in Plan 14-04 | open |  | 2026-08-16T18:09:06.357Z |  |
+| 15 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 252 | Selector-aware preflight assertions await phase14_resolve_approved_release in Plan 14-06 | open |  | 2026-08-16T18:09:06.566Z |  |
+| 16 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 325 | Dual-repin rollback assertions await phase14_repin_both_competition_releases and phase14_promote_calibrated_release in Plan 14-09 | open |  | 2026-08-16T18:09:06.769Z |  |
 
 ````json
 [
@@ -185,6 +188,42 @@ last_updated: 2026-08-16T17:44:31.640Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-16T17:44:31.640Z",
+    "resolved_at": null
+  },
+  {
+    "id": 14,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_calibration_release.R",
+    "line": 231,
+    "description": "Empirical calibration assertions await phase14_evaluate_incumbent_calibration in Plan 14-04",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T18:09:06.357Z",
+    "resolved_at": null
+  },
+  {
+    "id": 15,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_calibration_release.R",
+    "line": 252,
+    "description": "Selector-aware preflight assertions await phase14_resolve_approved_release in Plan 14-06",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T18:09:06.566Z",
+    "resolved_at": null
+  },
+  {
+    "id": 16,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_calibration_release.R",
+    "line": 325,
+    "description": "Dual-repin rollback assertions await phase14_repin_both_competition_releases and phase14_promote_calibrated_release in Plan 14-09",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-16T18:09:06.769Z",
     "resolved_at": null
   }
 ]
