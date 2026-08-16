@@ -1,17 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 13-source-contracts-and-competition-registry
 source: 13-VERIFICATION.md
 started: 2026-08-16T12:02:46Z
-updated: 2026-08-16T12:02:46Z
+updated: 2026-08-16T13:32:29Z
 ---
 
 ## Current Test
 
-number: 37
-name: Official live structured replay
-expected: Run the acquisition entrypoint with current official UEFA HTTPS structured URLs for fixtures, groups, standings, results, and status in isolated output, registry, and raw roots; both edition contracts should remain coherent and the normalized publication and loader should succeed.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -231,24 +228,24 @@ result: pass
 
 ### 37. Official live structured replay
 expected: Run the acquisition entrypoint with current official UEFA HTTPS structured URLs for fixtures, groups, standings, results, and status in isolated output, registry, and raw roots.
-result: pending
+result: pass
 source: human
 coverage_id: DATA-01
 
 ### 38. Reviewed fallback and failed-replacement operator review
 expected: Review the isolated reviewed-fallback and invalid-replacement evidence, including operator approval, prior-output byte preservation, blocked sidecar/history linkage, and explicit recovery.
-result: pending
+result: pass
 source: human
 coverage_id: DATA-04
 
 ## Summary
 
 total: 38
-passed: 36
+passed: 38
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 
 ## Gaps
-[pending: 37, 38]
+[none]
