@@ -4,11 +4,11 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
-status: executing
-stopped_at: Completed 14-04-PLAN.md
-last_updated: "2026-08-16T19:25:20.795Z"
+status: blocked
+stopped_at: "14-05 calibration gate: CALIBRATION_RELEASE_BLOCKED"
+last_updated: "2026-08-16T19:28:15Z"
 last_activity: 2026-08-16
-last_activity_desc: Phase 14 execution started
+last_activity_desc: Phase 14 stopped at immutable calibration gate
 progress:
   total_phases: 2
   completed_phases: 1
@@ -20,22 +20,22 @@ progress:
 
 ## Current Position
 
-Phase: 14 (shared-competition-state-and-forecast-layer) — EXECUTING
+Phase: 14 (shared-competition-state-and-forecast-layer) — BLOCKED
 Plan: 5 of 20
-Status: Ready to execute
-Last activity: 2026-08-16 — Phase 14 execution started
+Status: CALIBRATION_RELEASE_BLOCKED
+Last activity: 2026-08-16 — Fresh-process Plan 14-05 validation refused calibration promotion
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Not started | 7/7 |
+| 14 | Shared Competition State and Forecast Layer | Blocked at Plan 14-05 (4/20 plans complete) | 0/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 is ready to plan.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 is blocked at its empirical calibration checkpoint.
 
 ## Project Reference
 
@@ -106,16 +106,16 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Prepare Phase 14 planning around shared standings, form, and point-in-time forecast safety.
+- Revisit the calibration candidate or frozen release policy in a separately planned revision; do not weaken the existing empirical vetoes.
 
 ## Next Action
 
-Run `$gsd-discuss-phase 14` to plan the shared competition state and forecast layer.
+Do not execute Plans 14-06 through 14-20 under the current evidence. Resume only after a separately reviewed calibration revision passes the immutable Plan 14-05 gate.
 
 ## Session Continuity
 
-**Last session:** 2026-08-16T19:25:20.785Z
-**Stopped at:** Completed 14-04-PLAN.md
+**Last session:** 2026-08-16T19:28:15Z
+**Stopped at:** Plan 14-05 fresh-process gate returned `CALIBRATION_RELEASE_BLOCKED`
 **Resume file:** None
 
 ## Performance Metrics
