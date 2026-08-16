@@ -380,9 +380,11 @@ test_that("14-04 rolling calibration is strictly prior-edition and hash-bound", 
 })
 
 test_that("14-04 empirical calibration gate preserves failed disposition", {
-  phase14_release_test_require_api(
-    "phase14_evaluate_incumbent_calibration",
-    "empirical calibration"
+  phase14_release_test_require_implementation(
+    c(
+      "phase14_evaluate_incumbent_calibration",
+      "phase14_validate_calibration_revision"
+    )
   )
   evaluator <- get("phase14_evaluate_incumbent_calibration", mode = "function")
   expect_true("comparison" %in% names(formals(evaluator)))
@@ -398,6 +400,108 @@ test_that("14-04 empirical calibration gate preserves failed disposition", {
   expect_false(isTRUE(promoted))
   expect_identical(as.character(view), "raw_1x2")
   expect_true(length(reasons) > 0L && any(nzchar(as.character(reasons))))
+  expect_identical(
+    strsplit(as.character(reasons), "\\|", fixed = FALSE)[[1L]],
+    phase12_selection_decision(phase14_release_test_failed_comparison())$reason_codes
+  )
+  disposition <- if (is.data.frame(result)) result$disposition[[1L]] else result$disposition
+  expect_identical(as.character(disposition), "CALIBRATION_RELEASE_BLOCKED")
+})
+
+test_that("14-04 empirical gate is reproducible, hash-bound, and authority-neutral", {
+  phase14_release_test_require_implementation(
+    c(
+      "phase14_build_incumbent_development_panel",
+      "phase14_fit_rolling_incumbent_calibration",
+      "phase14_evaluate_incumbent_calibration",
+      "phase14_validate_calibration_revision"
+    )
+  )
+  release_manifest <- file.path(
+    phase14_release_test_project_root,
+    "outputs/releases/phase12-wc2026-incumbent-retained-v1/release_manifest.csv"
+  )
+  edition_registry <- file.path(
+    phase14_release_test_project_root,
+    "data/competition/registries/competition_editions.csv"
+  )
+  release_before <- phase14_release_test_read_bytes(release_manifest)
+  registry_before <- phase14_release_test_read_bytes(edition_registry)
+
+  output_root <- tempfile("phase14-empirical-gate-")
+  panel <- phase14_build_incumbent_development_panel()
+  fitted <- phase14_fit_rolling_incumbent_calibration(panel, output_root)
+  evaluated <- phase14_evaluate_incumbent_calibration(
+    comparison = NULL,
+    calibration_result = fitted,
+    output_root = output_root
+  )
+  gate <- evaluated$gate
+  expected_reasons <- phase12_selection_decision(evaluated$comparison)$reason_codes
+
+  expect_identical(nrow(gate), 1L)
+  expect_identical(as.character(gate$model_id), "open_nb_incumbent")
+  expect_identical(as.character(gate$track_id), "updating")
+  expect_identical(as.character(gate$panel_id), "open_core")
+  expect_identical(as.integer(gate$expected_row_count), 630L)
+  expect_identical(as.integer(gate$observed_row_count), 630L)
+  expect_identical(as.integer(gate$unique_fixture_count), 630L)
+  expect_true(isTRUE(gate$chronology_valid[[1L]]))
+  expect_identical(
+    strsplit(as.character(gate$reason_codes), "\\|", fixed = FALSE)[[1L]],
+    expected_reasons
+  )
+  expect_identical(
+    isTRUE(gate$calibration_promoted[[1L]]),
+    length(expected_reasons) == 0L
+  )
+  expect_identical(
+    as.character(gate$disposition),
+    if (length(expected_reasons)) "CALIBRATION_RELEASE_BLOCKED" else "CALIBRATION_RELEASE_APPROVED"
+  )
+  expect_identical(
+    as.character(gate$primary_probability_view),
+    if (length(expected_reasons)) "raw_1x2" else "calibrated_1x2"
+  )
+  expect_identical(as.character(gate$fit_status), "fitted")
+  expect_identical(as.character(gate$model_data_cutoff), "2026-06-10")
+  expect_identical(as.character(gate$calibration_evidence_cutoff), "2024-07-14")
+  expect_true(file.exists(file.path(output_root, "calibration_gate.csv")))
+  expect_true(file.exists(file.path(output_root, "calibration_revision_manifest.csv")))
+  expect_invisible(phase14_validate_calibration_revision(output_root))
+  if (isTRUE(gate$calibration_promoted[[1L]])) {
+    expect_invisible(phase14_validate_calibration_revision(output_root, require_promoted = TRUE))
+  } else {
+    expect_error(
+      phase14_validate_calibration_revision(output_root, require_promoted = TRUE),
+      "blocked|not promoted"
+    )
+  }
+
+  expect_identical(phase14_release_test_read_bytes(release_manifest), release_before)
+  expect_identical(phase14_release_test_read_bytes(edition_registry), registry_before)
+
+  gate_path <- file.path(output_root, "calibration_gate.csv")
+  manifest_path <- file.path(output_root, "calibration_revision_manifest.csv")
+  gate_before <- phase14_release_test_read_bytes(gate_path)
+  manifest_before <- phase14_release_test_read_bytes(manifest_path)
+  forged_gate <- utils::read.csv(
+    gate_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    colClasses = "character"
+  )
+  forged_gate$calibration_promoted <- if (
+    identical(forged_gate$calibration_promoted, "TRUE")
+  ) "FALSE" else "TRUE"
+  utils::write.csv(forged_gate, gate_path, row.names = FALSE, na = "", quote = TRUE)
+  expect_error(
+    phase14_validate_calibration_revision(output_root),
+    "hash|gate|decision"
+  )
+  phase14_release_test_write_bytes(gate_path, gate_before)
+  phase14_release_test_write_bytes(manifest_path, manifest_before)
+  expect_invisible(phase14_validate_calibration_revision(output_root))
 })
 
 test_that("14-06 selector-aware preflight rejects forgery and ignores unselected roots", {
