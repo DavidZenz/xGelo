@@ -1,14 +1,17 @@
 ---
-status: complete
+status: testing
 phase: 13-source-contracts-and-competition-registry
-source: 13-01-SUMMARY.md, 13-02-SUMMARY.md, 13-03-SUMMARY.md, 13-04-SUMMARY.md, 13-05-SUMMARY.md, 13-06-SUMMARY.md, 13-07-SUMMARY.md, 13-08-SUMMARY.md, 13-09-SUMMARY.md, 13-10-SUMMARY.md, 13-11-SUMMARY.md, 13-12-SUMMARY.md
-started: 2026-08-15T13:39:27Z
-updated: 2026-08-15T13:42:22Z
+source: 13-VERIFICATION.md
+started: 2026-08-16T12:02:46Z
+updated: 2026-08-16T12:02:46Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 37
+name: Official live structured replay
+expected: Run the acquisition entrypoint with current official UEFA HTTPS structured URLs for fixtures, groups, standings, results, and status in isolated output, registry, and raw roots; both edition contracts should remain coherent and the normalized publication and loader should succeed.
+awaiting: user response
 
 ## Tests
 
@@ -226,15 +229,26 @@ result: pass
 
 - `13-06-SUMMARY.md` contains three human-judgment entries whose metadata uses unsupported `human-check` verification kinds/statuses and omits the required rationale field. Those entries are retained as manual UAT checks 34-36 rather than treated as automated passes.
 
+### 37. Official live structured replay
+expected: Run the acquisition entrypoint with current official UEFA HTTPS structured URLs for fixtures, groups, standings, results, and status in isolated output, registry, and raw roots.
+result: pending
+source: human
+coverage_id: DATA-01
+
+### 38. Reviewed fallback and failed-replacement operator review
+expected: Review the isolated reviewed-fallback and invalid-replacement evidence, including operator approval, prior-output byte preservation, blocked sidecar/history linkage, and explicit recovery.
+result: pending
+source: human
+coverage_id: DATA-04
+
 ## Summary
 
-total: 36
+total: 38
 passed: 36
 issues: 0
-pending: 0
+pending: 2
 skipped: 0
 blocked: 0
 
 ## Gaps
-
-[none yet]
+[pending: 37, 38]
