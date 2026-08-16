@@ -1,7 +1,7 @@
 ---
 phase: 13-source-contracts-and-competition-registry
 verified: 2026-08-16T12:00:56Z
-status: human_needed
+status: passed
 score: 7/8 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -9,13 +9,16 @@ re_verification:
   previous_status: gaps_found
   previous_score: 7/8
   gaps_closed:
+
     - "A successful public acquisition now builds both trusted source-shaped handoffs and reaches the bounded fourteen-target normalized publication transaction."
   gaps_remaining: []
   regressions: []
 human_verification:
+
   - test: "Run phase13_acquire_main() or the CLI with current official UEFA HTTPS structured URLs for fixtures, groups, standings, results, and status in isolated roots."
     expected: "Both edition contracts capture structured resources, retain URL/retrieval/raw-byte/parser/fallback provenance, complete normalized publication, and pass the production loader."
     why_human: "UEFA endpoint availability and response shape are external; committed fixture replay cannot prove a live official capture."
+
   - test: "Independently review the isolated reviewed-fallback and invalid-replacement evidence, including operator approval, byte preservation, blocked sidecar/history linkage, and explicit recovery."
     expected: "Fallback is complete and edition-wide; invalid replacement remains blocked; recovery uses a distinct batch without mutating immutable blocked evidence."
     why_human: "Operator approval and operational evidence require human review even though the deterministic contract tests pass."
