@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: in_progress
-stopped_at: Completed 14-08-PLAN.md
-last_updated: "2026-08-17T11:52:12.899Z"
+stopped_at: Completed 14-09-PLAN.md
+last_updated: "2026-08-17T13:30:29.293Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-08 non-authoritative calibrated selector candidate
+last_activity_desc: Completed Plan 14-09 atomic calibrated selector and dual registry promotion
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 23
+  completed_plans: 24
 ---
 
 # xGelo Project State
@@ -21,21 +21,21 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 10 of 22 complete; Plan 14-09 is next
-Status: Non-authoritative calibrated selector candidate is fresh-process verified; durable selector and registry authority remain unchanged
-Last activity: 2026-08-17 — Completed Plan 14-08 release selector candidate contract
+Plan: 11 of 22 complete; Plan 14-10 is next
+Status: Calibrated selector authority is durable and both competition editions are pinned at revision 2; dashboard consumption remains pending
+Last activity: 2026-08-17 — Completed Plan 14-09 atomic calibrated selector and dual registry promotion
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Selector candidate validated; atomic authority promotion deferred (10/22 complete) | 4/7 |
+| 14 | Shared Competition State and Forecast Layer | Calibrated selector and dual-edition authority promoted; dashboard consumption pending (11/22 complete) | 4/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a validated non-authoritative selector candidate ready for Plan 14-09's atomic authority transaction.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector and dual-edition revision-2 authority, with Plan 14-10 next.
 
 ## Project Reference
 
@@ -110,6 +110,9 @@ for Nations League and EURO qualifying.
 - [Phase 14]: Allow only phase14-open-nb-incumbent-calibrated-v1 to satisfy the selector-candidate contract. — Explicit allowlisting prevents directory discovery, raw fallback selection, and unknown release authority.
 - [Phase 14]: Keep the persisted selector candidate non-authoritative until Plan 14-09. — Runtime selector creation and both competition registry repins must remain one atomic transaction.
 - [Phase 14]: Keep FORECAST-01 addressed but pending through Plan 14-08. — Requirement completion depends on downstream dashboard consumption of the calibrated release.
+- [Phase 14]: Promote the selector and both competition-edition rows only through one locked transaction; stale expected bytes fail closed and no durable retry was attempted.
+- [Phase 14]: Runtime and registry validation use phase14_resolve_approved_release(selector_path, trusted_release_root); direct release manifests remain internal staging inputs.
+- [Phase 14]: Keep FORECAST-01 addressed but pending until downstream dashboard consumers expose the calibrated release lineage.
 
 ## Accumulated Context
 
@@ -119,16 +122,16 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Execute Plan 14-09's selector-plus-dual-registry atomic authority transaction; reject split pins and preserve rollback safety.
+- Consume the durable calibrated authority in downstream dashboards; keep FORECAST-01 pending until both expose model identity and cutoff lineage.
 
 ## Next Action
 
-Plan 14-09 is next. It consumes Plan 14-08's validated candidate and owns the one atomic durable-selector plus dual-registry repin transaction.
+Plan 14-10 is next. It builds on Plan 14-09's durable calibrated selector and dual-edition authority.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T11:52:12.888Z
-**Stopped at:** Completed 14-08-PLAN.md
+**Last session:** 2026-08-17T13:30:29.283Z
+**Stopped at:** Completed 14-09-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -162,3 +165,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P06 | 48min | 2 tasks | 3 files |
 | Phase 14 P07 | 43m | 2 tasks | 18 files |
 | Phase 14 P08 | 21m | 2 tasks | 3 files |
+| Phase 14 P09 | 1h 10m | 2 tasks | 5 files |
