@@ -131,8 +131,6 @@ test_that("score and status corrections cannot remint canonical identity", {
 })
 
 test_that("canonical match API enforces the frozen lifecycle and score contract", {
-  skip_if_not(exists("phase14_build_canonical_matches"))
-
   cases <- phase14_match_state_cases()
   valid <- cases[cases$expected_valid, , drop = FALSE]
   canonical <- phase14_build_canonical_matches(
@@ -146,12 +144,13 @@ test_that("canonical match API enforces the frozen lifecycle and score contract"
     "final_away_goals", "shootout_home_goals", "shootout_away_goals",
     "winner_team_id", "counts_for_standings", "counts_for_form"
   ) %in% names(canonical)))
-  expect_identical(as.character(canonical$match_id), valid$expected_match_id)
-  expect_identical(as.character(canonical$source_status), valid$source_status)
-  expect_identical(as.character(canonical$match_status), valid$expected_match_status)
+  expected_order <- order(valid$expected_match_id, method = "radix")
+  expect_identical(as.character(canonical$match_id), valid$expected_match_id[expected_order])
+  expect_identical(as.character(canonical$source_status), valid$source_status[expected_order])
+  expect_identical(as.character(canonical$match_status), valid$expected_match_status[expected_order])
   expect_identical(
     as.character(canonical$completion_method),
-    valid$expected_completion_method
+    valid$expected_completion_method[expected_order]
   )
 
   invalid <- cases[!cases$expected_valid, , drop = FALSE]
@@ -164,6 +163,120 @@ test_that("canonical match API enforces the frozen lifecycle and score contract"
       info = invalid$case_id[[index]]
     )
   }
+})
+
+test_that("canonical match validator enforces independent lifecycle and completion axes", {
+  cases <- phase14_match_state_cases()
+  base <- phase14_match_state_builder_input(cases[cases$case_id == "completed-regulation", , drop = FALSE])
+
+  invalid_axes <- list(
+    lifecycle_completion_mismatch = transform(base, match_status = "scheduled"),
+    completed_without_method = transform(base, completion_method = "not_applicable"),
+    scheduled_with_score = transform(
+      phase14_match_state_builder_input(cases[cases$case_id == "scheduled", , drop = FALSE]),
+      final_home_goals = 1L,
+      final_away_goals = 0L
+    ),
+    unknown_source_status = transform(base, source_status = "mystery_closed", match_status = NA_character_)
+  )
+
+  for (name in names(invalid_axes)) {
+    expect_error(
+      phase14_build_canonical_matches(invalid_axes[[name]]),
+      "status|completion|score|unknown|unmapped",
+      info = name
+    )
+  }
+})
+
+test_that("canonical score semantics reject foreign links and preserve correction hashes", {
+  cases <- phase14_match_state_cases()
+  valid <- phase14_match_state_builder_input(cases[cases$case_id == "completed-penalties", , drop = FALSE])
+  valid$home_team_id <- "team_home"
+  valid$away_team_id <- "team_away"
+  valid$edition_id <- "edition-test"
+  valid$scheduled_at_utc <- "2026-01-01T12:00:00Z"
+  valid$evidence_completed_at_utc <- "2026-01-01T13:00:00Z"
+
+  canonical <- phase14_build_canonical_matches(valid, require_evidence = TRUE)
+  expect_identical(canonical$winner_team_id, "team_home")
+  expect_identical(canonical$final_home_goals, 1L)
+  expect_identical(canonical$shootout_home_goals, 5L)
+  expect_silent(phase14_validate_canonical_matches(canonical, require_evidence = TRUE))
+
+  corrected <- valid
+  corrected$final_home_goals <- 2L
+  corrected$final_away_goals <- 2L
+  corrected$shootout_home_goals <- 6L
+  corrected$shootout_away_goals <- 5L
+  corrected$winner_team_id <- "team_home"
+  corrected$evidence_completed_at_utc <- "2026-01-01T14:00:00Z"
+  corrected_canonical <- phase14_build_canonical_matches(corrected, require_evidence = TRUE)
+  expect_identical(corrected_canonical$match_id, canonical$match_id)
+  expect_false(identical(corrected_canonical$row_sha256, canonical$row_sha256))
+
+  foreign <- list(
+    fixtures = data.frame(
+      edition_id = "edition-test",
+      fixture_id = "fixture-1",
+      uefa_source_fixture_id = "fixture-1",
+      home_team_id = "team_home",
+      away_team_id = "team_away",
+      scheduled_at_utc = "2026-01-01T12:00:00Z",
+      source_status = "scheduled",
+      stringsAsFactors = FALSE
+    ),
+    results = transform(
+      valid,
+      source_fixture_id = "foreign-fixture",
+      source_status = "finished"
+    )
+  )
+  expect_error(
+    phase14_build_canonical_matches(foreign),
+    "foreign|fixture|link|source",
+    info = "foreign accepted result link"
+  )
+})
+
+test_that("canonical production batch covers accepted and historical inputs", {
+  historical <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/processed/martj42_historical_normalized.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  fixtures <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted/uefa_nations_league_2026_27/fixtures.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  results <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted/uefa_nations_league_2026_27/results.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  crosswalk <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/competition/registries/match_identity.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+
+  canonical <- phase14_build_canonical_matches(
+    list(competition = list(fixtures = fixtures, results = results), historical = historical),
+    crosswalk = crosswalk
+  )
+
+  expect_equal(nrow(canonical), 49521L)
+  expect_equal(length(unique(canonical$match_id)), 49521L)
+  expect_true(all(c(
+    "edition_id", "source_lineage_id", "source_status", "match_status",
+    "completion_method", "evidence_completed_at_utc", "row_sha256", "table_sha256"
+  ) %in% names(canonical)))
+  expect_silent(phase14_validate_canonical_matches(canonical, crosswalk = crosswalk))
 })
 
 phase14_match_state_test_identity_map <- function() {
