@@ -207,6 +207,159 @@ phase13_empty_normalized_result_rows <- function() {
   output
 }
 
+phase14_normalized_fixture_schema <- function() {
+  c(
+    "schema_version", "edition_id", "fixture_id", "uefa_source_fixture_id",
+    "source_group_id", "group_id", "home_team_id", "away_team_id",
+    "home_uefa_source_team_id", "away_uefa_source_team_id",
+    "home_display_name", "away_display_name", "scheduled_at_utc",
+    "kickoff_confirmed", "confirmed_kickoff_at_utc", "source_status",
+    "source_artifact_id", "home_mapping_method", "away_mapping_method",
+    "home_mapping_warning", "away_mapping_warning", "row_sha256"
+  )
+}
+
+phase14_empty_normalized_fixture_rows <- function() {
+  schema <- phase14_normalized_fixture_schema()
+  as.data.frame(setNames(lapply(schema, function(column) {
+    if (identical(column, "kickoff_confirmed")) logical(0) else character(0)
+  }), schema), stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+phase14_normalized_result_schema <- function() {
+  c(
+    "schema_version", "edition_id", "fixture_id", "uefa_source_fixture_id",
+    "source_group_id", "group_id", "home_team_id", "away_team_id",
+    "home_uefa_source_team_id", "away_uefa_source_team_id",
+    "home_display_name", "away_display_name", "scheduled_at_utc",
+    "kickoff_confirmed", "confirmed_kickoff_at_utc", "source_status",
+    "match_status", "completion_method", "home_goals", "away_goals",
+    "regulation_home_goals", "regulation_away_goals", "final_home_goals",
+    "final_away_goals", "shootout_home_goals", "shootout_away_goals",
+    "winner_team_id", "evidence_completed_at_utc", "counts_for_standings",
+    "counts_for_form", "source_artifact_id", "fixture_source_artifact_id",
+    "home_mapping_method", "away_mapping_method", "home_mapping_warning",
+    "away_mapping_warning", "row_sha256"
+  )
+}
+
+phase14_empty_normalized_result_rows <- function() {
+  schema <- phase14_normalized_result_schema()
+  numeric_fields <- c(
+    "home_goals", "away_goals", "regulation_home_goals", "regulation_away_goals",
+    "final_home_goals", "final_away_goals", "shootout_home_goals", "shootout_away_goals"
+  )
+  logical_fields <- c("kickoff_confirmed", "counts_for_standings", "counts_for_form")
+  as.data.frame(setNames(lapply(schema, function(column) {
+    if (column %in% numeric_fields) integer(0)
+    else if (column %in% logical_fields) logical(0)
+    else character(0)
+  }), schema), stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+phase14_match_status_values <- function() {
+  c("scheduled", "in_progress", "completed", "postponed", "abandoned")
+}
+
+phase14_completion_method_values <- function() {
+  c("regulation", "extra_time", "penalties", "awarded", "not_applicable")
+}
+
+phase14_optional_character <- function(data, columns, n = nrow(data), default = NA_character_) {
+  columns <- as.character(columns)
+  output <- rep(default, n)
+  for (column in columns) {
+    if (!column %in% names(data)) next
+    values <- as.character(data[[column]])
+    if (length(values) != n) stop("Phase 14 optional column has an unexpected length: ", column, call. = FALSE)
+    present <- !is.na(values) & nzchar(trimws(values))
+    replace <- present & (is.na(output) | !nzchar(trimws(output)))
+    output[replace] <- values[replace]
+  }
+  output
+}
+
+phase14_optional_logical <- function(data, column, n = nrow(data), default = FALSE) {
+  if (!column %in% names(data)) return(rep(default, n))
+  values <- data[[column]]
+  if (length(values) != n) stop("Phase 14 optional column has an unexpected length: ", column, call. = FALSE)
+  text <- tolower(trimws(as.character(values)))
+  output <- rep(default, n)
+  missing <- is.na(values) | !nzchar(text)
+  output[missing] <- default
+  true <- !missing & text %in% c("true", "t", "1", "yes", "y")
+  false <- !missing & text %in% c("false", "f", "0", "no", "n")
+  invalid <- !missing & !(true | false)
+  if (any(invalid)) stop("Phase 14 optional logical column contains an unsupported value: ", column, call. = FALSE)
+  output[true] <- TRUE
+  output[false] <- FALSE
+  output
+}
+
+phase14_optional_goal <- function(data, column, n = nrow(data)) {
+  if (!column %in% names(data)) return(rep(NA_integer_, n))
+  values <- data[[column]]
+  if (length(values) != n) stop("Phase 14 optional column has an unexpected length: ", column, call. = FALSE)
+  vapply(seq_len(n), function(index) {
+    value <- values[[index]]
+    if (is.null(value) || !length(value) || is.na(value) || !nzchar(trimws(as.character(value)))) return(NA_integer_)
+    numeric_value <- suppressWarnings(as.numeric(as.character(value)))
+    if (is.na(numeric_value) || !is.finite(numeric_value) || numeric_value < 0 || numeric_value != floor(numeric_value)) {
+      stop("Phase 14 optional goal column contains an invalid value: ", column, call. = FALSE)
+    }
+    as.integer(numeric_value)
+  }, integer(1))
+}
+
+phase14_resolve_lineage_value <- function(data, column, supplied, name) {
+  supplied <- phase13_identity_scalar(supplied, name, allow_empty = TRUE)
+  if (!column %in% names(data) || !nrow(data)) return(supplied)
+  values <- phase14_optional_character(data, column)
+  values <- unique(values[!is.na(values) & nzchar(trimws(values))])
+  if (length(values) > 1L) stop("Phase 14 accepted rows contain multiple ", name, " values", call. = FALSE)
+  if (!nzchar(supplied) && length(values) == 1L) supplied <- values[[1L]]
+  if (nzchar(supplied) && length(values) == 1L && !identical(supplied, values[[1L]])) {
+    stop("Phase 14 accepted rows contain a forged ", name, " link", call. = FALSE)
+  }
+  supplied
+}
+
+phase14_validate_goal_pair <- function(home, away, name) {
+  if (any(xor(is.na(home), is.na(away)))) {
+    stop("Phase 14 ", name, " scores must provide both values or neither", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+phase14_source_status_to_match_status <- function(source_status) {
+  normalized <- tolower(trimws(as.character(source_status)))
+  output <- rep(NA_character_, length(normalized))
+  output[normalized %in% c("scheduled", "not_started", "upcoming")] <- "scheduled"
+  output[normalized %in% c("in_progress", "live", "playing")] <- "in_progress"
+  output[normalized %in% c("completed", "complete", "final", "finished", "full_time", "played", "after_extra_time", "after_penalties", "awarded")] <- "completed"
+  output[normalized %in% c("postponed")] <- "postponed"
+  output[normalized %in% c("abandoned")] <- "abandoned"
+  output
+}
+
+phase14_source_status_to_completion_method <- function(source_status) {
+  normalized <- tolower(trimws(as.character(source_status)))
+  output <- rep("not_applicable", length(normalized))
+  output[normalized == "after_extra_time"] <- "extra_time"
+  output[normalized == "after_penalties"] <- "penalties"
+  output[normalized == "awarded"] <- "awarded"
+  output
+}
+
+phase14_validate_enum_column <- function(values, allowed, name, unresolved = TRUE) {
+  values <- as.character(values)
+  present <- !is.na(values) & nzchar(trimws(values))
+  invalid <- present & !(values %in% allowed)
+  if (any(invalid)) stop("Phase 14 ", name, " contains an unsupported value: ", values[which(invalid)[[1L]]], call. = FALSE)
+  if (!isTRUE(unresolved)) values[!present] <- allowed[[1L]]
+  values
+}
+
 phase13_result_goal_value <- function(value, label, index) {
   if (is.null(value) || !length(value) || is.na(value[[1L]]) || !nzchar(trimws(as.character(value[[1L]])))) {
     return(NA_integer_)
@@ -247,7 +400,23 @@ phase13_normalize_accepted_result_rows <- function(
     normalized_fixtures,
     edition_id = NULL,
     source_artifact_id = "",
-    lifecycle_state = NULL) {
+    lifecycle_state = NULL,
+    schema_version = NULL) {
+  if (!is.null(schema_version)) {
+    schema_version <- phase13_identity_scalar(schema_version, "schema_version")
+    if (identical(schema_version, "phase14-normalized-result-v2")) {
+      return(phase14_normalize_accepted_result_rows(
+        results = results,
+        normalized_fixtures = normalized_fixtures,
+        edition_id = edition_id,
+        source_artifact_id = source_artifact_id,
+        lifecycle_state = lifecycle_state
+      ))
+    }
+    if (!identical(schema_version, "phase13-normalized-result-v1")) {
+      stop("Phase 13 accepted result normalization received an unsupported schema version: ", schema_version, call. = FALSE)
+    }
+  }
   if (!is.data.frame(results)) stop("Phase 13 accepted result source table must be a data frame", call. = FALSE)
   if (!is.data.frame(normalized_fixtures)) stop("Phase 13 normalized fixture table must be a data frame", call. = FALSE)
   required_results <- c("source_fixture_id", "status", "home_goals", "away_goals")
@@ -371,6 +540,156 @@ phase13_normalize_accepted_result_rows <- function(
   output
 }
 
+#' Normalize source-shaped accepted results into the explicit Phase 14 v2 contract.
+phase14_normalize_accepted_result_rows <- function(
+    results,
+    normalized_fixtures,
+    edition_id = NULL,
+    source_artifact_id = "",
+    lifecycle_state = NULL) {
+  if (!is.data.frame(results)) stop("Phase 14 accepted result source table must be a data frame", call. = FALSE)
+  if (!is.data.frame(normalized_fixtures)) stop("Phase 14 normalized fixture table must be a data frame", call. = FALSE)
+  missing_fixtures <- setdiff(phase14_normalized_fixture_schema(), names(normalized_fixtures))
+  if (length(missing_fixtures)) {
+    stop("Phase 14 normalized fixture table missing columns: ", paste(missing_fixtures, collapse = ", "), call. = FALSE)
+  }
+  if (nrow(normalized_fixtures) && any(as.character(normalized_fixtures$schema_version) != "phase14-normalized-fixture-v2")) {
+    stop("Phase 14 v2 results require phase14-normalized-fixture-v2 inputs", call. = FALSE)
+  }
+  if (!is.null(edition_id)) edition_id <- phase13_identity_scalar(edition_id, "edition_id")
+  fixture_edition <- if (nrow(normalized_fixtures)) unique(as.character(normalized_fixtures$edition_id)) else character(0)
+  if (length(fixture_edition) > 1L || any(is.na(fixture_edition) | !nzchar(fixture_edition))) {
+    stop("Phase 14 normalized fixtures require one explicit edition_id", call. = FALSE)
+  }
+  if (is.null(edition_id)) {
+    if (!length(fixture_edition)) stop("Phase 14 accepted results require an explicit edition_id when fixtures are empty", call. = FALSE)
+    edition_id <- fixture_edition[[1L]]
+  } else if (length(fixture_edition) && !identical(edition_id, fixture_edition[[1L]])) {
+    stop("Phase 14 accepted result edition does not match normalized fixtures", call. = FALSE)
+  }
+  if (!is.null(lifecycle_state)) {
+    lifecycle_state <- phase13_identity_scalar(lifecycle_state, "lifecycle_state")
+    if (!lifecycle_state %in% c("pre_draw", "scheduled", "in_progress", "complete")) {
+      stop("Phase 14 accepted result normalization received an unsupported lifecycle state", call. = FALSE)
+    }
+  }
+  source_artifact_id <- phase14_resolve_lineage_value(results, "source_artifact_id", source_artifact_id, "source_artifact_id")
+
+  if (!nrow(results)) return(phase14_empty_normalized_result_rows())
+  required_results <- c("source_fixture_id")
+  missing_results <- setdiff(required_results, names(results))
+  if (length(missing_results)) stop("Phase 14 accepted result source table missing columns: ", paste(missing_results, collapse = ", "), call. = FALSE)
+  source_keys <- as.character(results$source_fixture_id)
+  if (any(is.na(source_keys) | !nzchar(trimws(source_keys)))) stop("Phase 14 accepted results require non-empty source fixture keys", call. = FALSE)
+  if (anyDuplicated(source_keys)) stop("Phase 14 accepted results contain duplicate source fixture keys", call. = FALSE)
+  fixture_keys <- as.character(normalized_fixtures$uefa_source_fixture_id)
+  if (any(is.na(fixture_keys) | !nzchar(trimws(fixture_keys))) || anyDuplicated(fixture_keys)) {
+    stop("Phase 14 normalized fixtures require unique non-empty source fixture keys", call. = FALSE)
+  }
+  matches <- match(source_keys, fixture_keys)
+  if (anyNA(matches)) stop("Phase 14 accepted result references an unknown normalized fixture: ", source_keys[which(is.na(matches))[[1L]]], call. = FALSE)
+  fixture_rows <- normalized_fixtures[matches, , drop = FALSE]
+
+  phase14_validate_if_supplied <- function(column, expected) {
+    if (!column %in% names(results)) return(invisible(TRUE))
+    actual <- as.character(results[[column]])
+    present <- !is.na(actual) & nzchar(trimws(actual))
+    if (any(present & !all(present))) stop("Phase 14 accepted result identity column contains partial values: ", column, call. = FALSE)
+    if (any(present & (is.na(expected) | actual != as.character(expected)))) {
+      stop("Phase 14 accepted result identity or edition mismatch in column: ", column, call. = FALSE)
+    }
+    invisible(TRUE)
+  }
+  phase14_validate_if_supplied("edition_id", rep(edition_id, nrow(results)))
+  phase14_validate_if_supplied("fixture_id", fixture_rows$fixture_id)
+  phase14_validate_if_supplied("home_team_id", fixture_rows$home_team_id)
+  phase14_validate_if_supplied("away_team_id", fixture_rows$away_team_id)
+  phase14_validate_if_supplied("home_uefa_source_team_id", fixture_rows$home_uefa_source_team_id)
+  phase14_validate_if_supplied("away_uefa_source_team_id", fixture_rows$away_uefa_source_team_id)
+  phase14_validate_if_supplied("home_display_name", fixture_rows$home_display_name)
+  phase14_validate_if_supplied("away_display_name", fixture_rows$away_display_name)
+  phase14_validate_if_supplied("scheduled_at_utc", fixture_rows$scheduled_at_utc)
+  phase14_validate_if_supplied("fixture_source_artifact_id", fixture_rows$source_artifact_id)
+  phase14_validate_if_supplied("source_artifact_id", rep(source_artifact_id, nrow(results)))
+
+  source_status <- phase14_optional_character(results, c("source_status", "status"))
+  if (any(is.na(source_status) | !nzchar(trimws(source_status)))) stop("Phase 14 accepted results require non-empty source status values", call. = FALSE)
+  explicit_match_status <- phase14_optional_character(results, "match_status")
+  match_status <- phase14_source_status_to_match_status(source_status)
+  explicit_match <- !is.na(explicit_match_status) & nzchar(trimws(explicit_match_status))
+  match_status[explicit_match] <- explicit_match_status[explicit_match]
+  match_status <- phase14_validate_enum_column(match_status, phase14_match_status_values(), "match_status")
+
+  completion_method <- phase14_source_status_to_completion_method(source_status)
+  explicit_completion <- phase14_optional_character(results, "completion_method")
+  has_explicit_completion <- !is.na(explicit_completion) & nzchar(trimws(explicit_completion))
+  completion_method[has_explicit_completion] <- explicit_completion[has_explicit_completion]
+  completion_method <- phase14_validate_enum_column(completion_method, phase14_completion_method_values(), "completion_method", unresolved = FALSE)
+
+  home_goals <- phase14_optional_goal(results, "home_goals")
+  away_goals <- phase14_optional_goal(results, "away_goals")
+  phase14_validate_goal_pair(home_goals, away_goals, "source")
+  regulation_home_goals <- phase14_optional_goal(results, "regulation_home_goals")
+  regulation_away_goals <- phase14_optional_goal(results, "regulation_away_goals")
+  phase14_validate_goal_pair(regulation_home_goals, regulation_away_goals, "regulation")
+  final_home_goals <- phase14_optional_goal(results, "final_home_goals")
+  final_away_goals <- phase14_optional_goal(results, "final_away_goals")
+  phase14_validate_goal_pair(final_home_goals, final_away_goals, "final")
+  shootout_home_goals <- phase14_optional_goal(results, "shootout_home_goals")
+  shootout_away_goals <- phase14_optional_goal(results, "shootout_away_goals")
+  phase14_validate_goal_pair(shootout_home_goals, shootout_away_goals, "shootout")
+  winner_team_id <- phase14_optional_character(results, "winner_team_id")
+  evidence_completed_at_utc <- phase14_optional_character(
+    results,
+    c("evidence_completed_at_utc", "result_evidence_at_utc")
+  )
+  counts_for_standings <- phase14_optional_logical(results, "counts_for_standings", default = FALSE)
+  counts_for_form <- phase14_optional_logical(results, "counts_for_form", default = FALSE)
+
+  output <- data.frame(
+    schema_version = rep("phase14-normalized-result-v2", nrow(results)),
+    edition_id = rep(edition_id, nrow(results)),
+    fixture_id = as.character(fixture_rows$fixture_id),
+    uefa_source_fixture_id = as.character(fixture_rows$uefa_source_fixture_id),
+    source_group_id = as.character(fixture_rows$source_group_id),
+    group_id = as.character(fixture_rows$group_id),
+    home_team_id = as.character(fixture_rows$home_team_id),
+    away_team_id = as.character(fixture_rows$away_team_id),
+    home_uefa_source_team_id = as.character(fixture_rows$home_uefa_source_team_id),
+    away_uefa_source_team_id = as.character(fixture_rows$away_uefa_source_team_id),
+    home_display_name = as.character(fixture_rows$home_display_name),
+    away_display_name = as.character(fixture_rows$away_display_name),
+    scheduled_at_utc = as.character(fixture_rows$scheduled_at_utc),
+    kickoff_confirmed = as.logical(fixture_rows$kickoff_confirmed),
+    confirmed_kickoff_at_utc = as.character(fixture_rows$confirmed_kickoff_at_utc),
+    source_status = source_status,
+    match_status = match_status,
+    completion_method = completion_method,
+    home_goals = home_goals,
+    away_goals = away_goals,
+    regulation_home_goals = regulation_home_goals,
+    regulation_away_goals = regulation_away_goals,
+    final_home_goals = final_home_goals,
+    final_away_goals = final_away_goals,
+    shootout_home_goals = shootout_home_goals,
+    shootout_away_goals = shootout_away_goals,
+    winner_team_id = winner_team_id,
+    evidence_completed_at_utc = evidence_completed_at_utc,
+    counts_for_standings = counts_for_standings,
+    counts_for_form = counts_for_form,
+    source_artifact_id = rep(source_artifact_id, nrow(results)),
+    fixture_source_artifact_id = as.character(fixture_rows$source_artifact_id),
+    home_mapping_method = as.character(fixture_rows$home_mapping_method),
+    away_mapping_method = as.character(fixture_rows$away_mapping_method),
+    home_mapping_warning = as.character(fixture_rows$home_mapping_warning),
+    away_mapping_warning = as.character(fixture_rows$away_mapping_warning),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  output$row_sha256 <- phase13_identity_row_hash(output)
+  output[, phase14_normalized_result_schema(), drop = FALSE]
+}
+
 phase13_identity_row_hash <- function(data) {
   if (exists("phase13_row_sha256", mode = "function")) return(phase13_row_sha256(data))
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Phase 13 identity hashes", call. = FALSE)
@@ -489,7 +808,23 @@ phase13_normalize_fixture_rows <- function(
     identity_map,
     edition_id,
     source_artifact_id = "",
-    lifecycle_state = NULL) {
+    lifecycle_state = NULL,
+    schema_version = NULL) {
+  if (!is.null(schema_version)) {
+    schema_version <- phase13_identity_scalar(schema_version, "schema_version")
+    if (identical(schema_version, "phase14-normalized-fixture-v2")) {
+      return(phase14_normalize_accepted_fixture_rows(
+        fixtures = fixtures,
+        identity_map = identity_map,
+        edition_id = edition_id,
+        source_artifact_id = source_artifact_id,
+        lifecycle_state = lifecycle_state
+      ))
+    }
+    if (!identical(schema_version, "phase13-normalized-fixture-v1")) {
+      stop("Phase 13 fixture normalization received an unsupported schema version: ", schema_version, call. = FALSE)
+    }
+  }
   if (!is.data.frame(fixtures)) stop("Phase 13 fixture source table must be a data frame", call. = FALSE)
   required <- c(
     "source_fixture_id", "home_uefa_source_team_id", "away_uefa_source_team_id",
@@ -549,6 +884,96 @@ phase13_normalize_fixture_rows <- function(
   output <- do.call(rbind, rows)
   output$row_sha256 <- phase13_identity_row_hash(output)
   output
+}
+
+#' Normalize source-shaped accepted fixtures into the explicit Phase 14 v2 contract.
+phase14_normalize_accepted_fixture_rows <- function(
+    fixtures,
+    identity_map,
+    edition_id,
+    source_artifact_id = "",
+    lifecycle_state = NULL) {
+  if (!is.data.frame(fixtures)) stop("Phase 14 fixture source table must be a data frame", call. = FALSE)
+  required <- c(
+    "source_fixture_id", "home_uefa_source_team_id", "away_uefa_source_team_id",
+    "home_display_name", "away_display_name", "scheduled_at_utc"
+  )
+  missing <- setdiff(required, names(fixtures))
+  if (length(missing)) stop("Phase 14 fixture source table missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  edition_id <- phase13_identity_scalar(edition_id, "edition_id")
+  source_artifact_id <- phase14_resolve_lineage_value(fixtures, "source_artifact_id", source_artifact_id, "source_artifact_id")
+  identity_map <- phase13_prepare_team_identity_map(identity_map)
+  if (!is.null(lifecycle_state)) {
+    lifecycle_state <- phase13_identity_scalar(lifecycle_state, "lifecycle_state")
+    if (!lifecycle_state %in% c("pre_draw", "scheduled", "in_progress", "complete")) {
+      stop("Phase 14 fixture normalization received an unsupported lifecycle state", call. = FALSE)
+    }
+    if (!nrow(fixtures) && lifecycle_state != "pre_draw") {
+      stop("Phase 14 empty source fixture rows are permitted only for pre_draw editions", call. = FALSE)
+    }
+  }
+  if (!nrow(fixtures)) return(phase14_empty_normalized_fixture_rows())
+  if (!nrow(identity_map)) stop("Phase 14 cannot normalize non-empty source fixture rows with an empty identity map", call. = FALSE)
+
+  source_keys <- as.character(fixtures$source_fixture_id)
+  if (any(is.na(source_keys) | !nzchar(trimws(source_keys)))) {
+    stop("Phase 14 accepted fixtures require non-empty source fixture keys", call. = FALSE)
+  }
+  if (anyDuplicated(source_keys)) stop("Phase 14 accepted fixtures contain duplicate source fixture keys", call. = FALSE)
+  source_status <- phase14_optional_character(fixtures, c("source_status", "status"))
+  if (any(is.na(source_status) | !nzchar(trimws(source_status)))) {
+    stop("Phase 14 accepted fixtures require non-empty source status values", call. = FALSE)
+  }
+  source_group_id <- phase14_optional_character(fixtures, "source_group_id")
+  group_id <- phase14_optional_character(fixtures, "group_id")
+  kickoff_confirmed <- phase14_optional_logical(fixtures, "kickoff_confirmed", default = FALSE)
+  confirmed_kickoff_at_utc <- phase14_optional_character(
+    fixtures,
+    c("confirmed_kickoff_at_utc", "kickoff_confirmed_at_utc")
+  )
+
+  rows <- lapply(seq_len(nrow(fixtures)), function(index) {
+    home <- phase13_resolve_team_identity(
+      identity_map,
+      fixtures$home_uefa_source_team_id[[index]],
+      fixtures$home_display_name[[index]]
+    )
+    away <- phase13_resolve_team_identity(
+      identity_map,
+      fixtures$away_uefa_source_team_id[[index]],
+      fixtures$away_display_name[[index]]
+    )
+    if (identical(home$team_id, away$team_id)) stop("Phase 14 fixture cannot contain the same home and away team", call. = FALSE)
+    data.frame(
+      schema_version = "phase14-normalized-fixture-v2",
+      edition_id = edition_id,
+      fixture_id = paste(edition_id, source_keys[[index]], sep = "-"),
+      uefa_source_fixture_id = source_keys[[index]],
+      source_group_id = source_group_id[[index]],
+      group_id = group_id[[index]],
+      home_team_id = home$team_id,
+      away_team_id = away$team_id,
+      home_uefa_source_team_id = home$uefa_source_team_id,
+      away_uefa_source_team_id = away$uefa_source_team_id,
+      home_display_name = as.character(fixtures$home_display_name[[index]]),
+      away_display_name = as.character(fixtures$away_display_name[[index]]),
+      scheduled_at_utc = as.character(fixtures$scheduled_at_utc[[index]]),
+      kickoff_confirmed = kickoff_confirmed[[index]],
+      confirmed_kickoff_at_utc = confirmed_kickoff_at_utc[[index]],
+      source_status = source_status[[index]],
+      source_artifact_id = source_artifact_id,
+      home_mapping_method = home$mapping_method,
+      away_mapping_method = away$mapping_method,
+      home_mapping_warning = home$mapping_warning,
+      away_mapping_warning = away$mapping_warning,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  })
+  output <- do.call(rbind, rows)
+  output <- output[, setdiff(phase14_normalized_fixture_schema(), "row_sha256"), drop = FALSE]
+  output$row_sha256 <- phase13_identity_row_hash(output)
+  output[, phase14_normalized_fixture_schema(), drop = FALSE]
 }
 
 #' Required source-shaped columns at the martj42 preprocessing boundary.

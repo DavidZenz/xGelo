@@ -33,6 +33,54 @@ phase13_source_compact_resource_schema <- function() {
   )
 }
 
+#' Phase 14 source-shaped fields retained for state-ready normalization.
+#'
+#' These schemas describe the richer accepted-boundary projection.  The Phase
+#' 13 capture validator intentionally remains on its v1 required columns so
+#' existing raw bundles can be replayed without manufacturing optional source
+#' evidence.
+phase14_source_resource_schema <- function() {
+  list(
+    fixtures = c(
+      phase13_source_resource_schema()$fixtures,
+      "source_group_id", "group_id", "source_status", "kickoff_confirmed",
+      "confirmed_kickoff_at_utc"
+    ),
+    groups = phase13_source_resource_schema()$groups,
+    standings = c(
+      phase13_source_resource_schema()$standings,
+      "group_id", "team_id", "official_rank", "played", "wins", "draws",
+      "losses", "goals_for", "goals_against", "goal_difference", "official_points",
+      "official_played", "official_wins", "official_draws", "official_losses",
+      "official_goals_for", "official_goals_against", "official_goal_difference",
+      "source_bundle_id", "mapping_warning"
+    ),
+    results = c(
+      phase13_source_resource_schema()$results,
+      "source_status", "match_status", "completion_method",
+      "regulation_home_goals", "regulation_away_goals", "final_home_goals",
+      "final_away_goals", "shootout_home_goals", "shootout_away_goals",
+      "winner_team_id", "evidence_completed_at_utc", "counts_for_standings",
+      "counts_for_form"
+    ),
+    status = phase13_source_resource_schema()$status
+  )
+}
+
+phase14_source_compact_resource_schema <- function() {
+  list(
+    fixtures = c(
+      phase13_source_compact_resource_schema()$fixtures,
+      "source_group_id", "group_id", "source_status", "kickoff_confirmed",
+      "confirmed_kickoff_at_utc"
+    ),
+    groups = phase13_source_compact_resource_schema()$groups,
+    standings = phase14_source_resource_schema()$standings,
+    results = phase14_source_resource_schema()$results,
+    status = phase13_source_compact_resource_schema()$status
+  )
+}
+
 phase13_validate_structured_resource_names <- function(resource_types) {
   if (is.null(resource_types) || !length(resource_types)) {
     stop("Phase 13 structured resource set must not be empty", call. = FALSE)
