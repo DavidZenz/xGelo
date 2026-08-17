@@ -418,3 +418,152 @@ test_that("active required shared input failure fans out while inactive xG remai
     "cross-edition|edition_id"
   )
 })
+
+phase14_state_test_expected_inventory <- function() {
+  c(
+    "state/canonical_matches.csv",
+    "state/standings.csv",
+    "state/competition_form.csv",
+    "state/all_international_form.csv",
+    "state/model_form.csv",
+    "state/forecast_status.csv",
+    "state/forecasts.csv",
+    "state/forecast_top10.csv",
+    "audit/standings_reconciliation.csv",
+    "audit/state_manifest.csv",
+    "local/score_distributions.rds"
+  )
+}
+
+phase14_state_test_batch <- function(canonical_matches = phase14_state_tracer_fixture(), ...) {
+  inputs <- phase14_state_tracer_inputs()
+  phase14_build_competition_state_batch(
+    edition_id = phase14_state_test_edition_ids(),
+    edition_registry = inputs$editions,
+    canonical_matches = canonical_matches,
+    team_registry = inputs$teams,
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$release_root,
+    resolved_release = phase14_resolve_approved_release(
+      selector_path = inputs$selector_path,
+      trusted_release_root = inputs$release_root
+    ),
+    elo_ratings = inputs$elo,
+    national_team_xg_registry = inputs$xg_registry,
+    model_manifest_path = inputs$model_manifest_path,
+    generated_at_utc = "2026-08-17T00:00:00Z",
+    ...
+  )
+}
+
+test_that("production state batch exposes exact isolated inventory and validates candidates", {
+  batch <- phase14_state_test_batch()
+
+  expect_true(is.list(batch))
+  expect_identical(batch$edition_ids, phase14_state_test_edition_ids())
+  expect_identical(names(batch$candidates), phase14_state_test_edition_ids())
+  expect_true(is.data.frame(batch$batch_manifest))
+  expect_setequal(batch$batch_manifest$edition_id, phase14_state_test_edition_ids())
+
+  for (candidate in batch$candidates) {
+    expect_true(is.data.frame(candidate$state_manifest))
+    expect_setequal(candidate$state_manifest$artifact_path, phase14_state_test_expected_inventory())
+    expect_true(isTRUE(phase14_validate_competition_state_bundle(candidate)))
+    expect_true(all(candidate$state_manifest$model_data_cutoff == "2026-06-10"))
+    expect_true(all(candidate$state_manifest$active_predictors == "elo_diff"))
+  }
+
+  nl <- batch$candidates[["uefa_nations_league_2026_27"]]
+  euro <- batch$candidates[["uefa_euro_2028_qualifying"]]
+  expect_equal(nrow(nl$forecast$score_distributions), 41L * 41L)
+  expect_equal(nrow(nl$forecast$forecast_top10), 10L)
+  expect_identical(nl$forecast_status$forecast_status, "available")
+  expect_identical(euro$lifecycle_state, "pre_draw")
+  expect_identical(euro$forecast_status, "pre_draw")
+  expect_equal(nrow(euro$forecast$score_distributions), 0L)
+  expect_equal(nrow(euro$forecast$forecast_top10), 0L)
+})
+
+test_that("state batch replay is byte/hash deterministic and preserves edition-local rows", {
+  first <- phase14_state_test_batch()
+  second <- phase14_state_test_batch()
+
+  expect_identical(first$batch_sha256, second$batch_sha256)
+  expect_identical(first$batch_manifest, second$batch_manifest)
+  for (edition_id in first$edition_ids) {
+    expect_identical(
+      first$candidates[[edition_id]]$state_manifest,
+      second$candidates[[edition_id]]$state_manifest
+    )
+    expect_identical(
+      first$candidates[[edition_id]]$forecast$forecasts,
+      second$candidates[[edition_id]]$forecast$forecasts
+    )
+  }
+})
+
+test_that("shared identity failure fans out before edition work while local failure stays local", {
+  inputs <- phase14_state_tracer_inputs()
+  bad_identity <- inputs$teams
+  bad_identity$canonical_name[[1L]] <- bad_identity$canonical_name[[2L]]
+  shared <- phase14_state_test_batch(team_registry = bad_identity)
+
+  expect_true(all(vapply(shared$candidates, function(candidate) {
+    identical(candidate$candidate_status, "invalid") &&
+      identical(candidate$failure_scope, "shared")
+  }, logical(1))))
+  expect_identical(shared$shared_input_audit$failure_reason, "shared_identity_validation_failed")
+  expect_identical(shared$shared_input_audit$fan_out, 2L)
+
+  local_fixture <- phase14_state_tracer_fixture()
+  local_fixture$match_status <- "postponed"
+  local_fixture$source_status <- "postponed"
+  local <- phase14_state_test_batch(canonical_matches = local_fixture)
+  expect_identical(local$candidates[["uefa_nations_league_2026_27"]]$candidate_status, "invalid")
+  expect_identical(local$candidates[["uefa_nations_league_2026_27"]]$failure_scope, "edition_local")
+  expect_identical(local$candidates[["uefa_euro_2028_qualifying"]]$candidate_status, "valid")
+  expect_identical(local$shared_input_audit$fan_out, 0L)
+})
+
+test_that("build script uses fixed startup seed and dry-run replay without durable mutation", {
+  script_path <- file.path(phase14_state_test_project_root, "scripts/build_competition_state.R")
+  expect_true(file.exists(script_path))
+  script_lines <- readLines(script_path, warn = FALSE)
+  expect_true(any(grepl("set.seed\\(14017L\\)", script_lines, fixed = FALSE)))
+
+  script_env <- new.env(parent = globalenv())
+  sys.source(script_path, envir = script_env)
+  expect_true(exists("phase14_build_competition_state_main", envir = script_env, inherits = FALSE))
+
+  inputs <- phase14_state_tracer_inputs()
+  loader <- function(edition_ids, project_root) {
+    list(
+      edition_registry = inputs$editions,
+      canonical_matches = phase14_state_tracer_fixture(),
+      team_registry = inputs$teams,
+      resolved_release = phase14_resolve_approved_release(inputs$selector_path, inputs$release_root),
+      elo_ratings = inputs$elo,
+      national_team_xg_registry = inputs$xg_registry,
+      model_manifest_path = inputs$model_manifest_path
+    )
+  }
+  run_once <- function() {
+    script_env$phase14_build_competition_state_main(
+      args = c("--edition-id", "both", "--dry-run"),
+      project_root = phase14_state_test_project_root,
+      input_loader_fn = loader,
+      build_batch_fn = phase14_build_competition_state_batch,
+      validate_fn = phase14_validate_competition_state_bundle
+    )
+  }
+  before <- digest::digest(file = inputs$selector_path, algo = "sha256")
+  first <- run_once()
+  second <- run_once()
+  after <- digest::digest(file = inputs$selector_path, algo = "sha256")
+
+  expect_true(isTRUE(first$dry_run))
+  expect_identical(first$seed, 14017L)
+  expect_identical(first$batch$batch_sha256, second$batch$batch_sha256)
+  expect_identical(first$batch$batch_manifest, second$batch$batch_manifest)
+  expect_identical(before, after)
+})
