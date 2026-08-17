@@ -119,8 +119,6 @@ test_that("model evidence is only shot-derived senior national-team xG", {
 })
 
 test_that("production cutoff validator rejects equal and ambiguous evidence", {
-  skip_if_not(exists("phase14_assert_form_cutoffs"))
-
   cases <- phase14_cutoff_cases()
   history <- cases[cases$record_type == "history", , drop = FALSE]
   eligible <- history[history$expected_cutoff_eligible, , drop = FALSE]

@@ -10,6 +10,11 @@ phase14_form_fixture_path <- file.path(
   "tests/fixtures/phase14/point_in_time_history.csv"
 )
 
+phase14_form_registry_path <- file.path(
+  phase14_form_test_project_root,
+  "data/competition/registries/national_team_xg_sources.csv"
+)
+
 phase14_form_cases <- function() {
   utils::read.csv(
     phase14_form_fixture_path,
@@ -17,6 +22,46 @@ phase14_form_cases <- function() {
     check.names = FALSE,
     na.strings = c("", "NA")
   )
+}
+
+phase14_form_accepted_history <- function(history) {
+  accepted <- history[history$expected_model_form_eligible, , drop = FALSE]
+  accepted$source_id <- "fixture-shot-xg-v1"
+  accepted$source_artifact_id <- "fixture-shot-xg-v1"
+  accepted$source_lineage_id <- paste0("fixture-shot-xg-v1::", accepted$match_id)
+  accepted$source_row_sha256 <- vapply(seq_len(nrow(accepted)), function(index) {
+    digest::digest(
+      paste(accepted$match_id[[index]], accepted$team_id[[index]], accepted$xgf[[index]], accepted$xga[[index]], sep = "|"),
+      algo = "sha256",
+      serialize = FALSE
+    )
+  }, character(1))
+  accepted
+}
+
+phase14_form_accepted_registry <- function() {
+  artifact_path <- tempfile("phase14-shot-xg-", fileext = ".csv")
+  writeLines("fixture shot-derived evidence", artifact_path)
+  registry <- data.frame(
+    schema_version = "phase14-national-team-xg-source-v1",
+    source_id = "fixture-shot-xg-v1",
+    source_scope = "senior_mens_national_team",
+    evidence_basis = "shot_derived",
+    acceptance_status = "accepted",
+    accepted_artifact_path = artifact_path,
+    accepted_artifact_sha256 = digest::digest(file = artifact_path, algo = "sha256"),
+    stable_match_id_contract = "canonical_match_id_required",
+    stable_team_id_contract = "xgelo_team_id_required",
+    point_in_time_evidence_contract = "evidence_completed_at_utc_strictly_before_feature_cutoff_utc",
+    review_state = "reviewed",
+    reviewed_at_utc = "2026-08-17T00:00:00Z",
+    reviewed_by = "phase14-test",
+    review_note = "test-only accepted shot-derived source",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  registry$row_sha256 <- phase14_national_team_xg_registry_row_hash(registry)
+  registry
 }
 
 phase14_fixture_result <- function(goals_for, goals_against) {
@@ -246,8 +291,6 @@ test_that("production all-senior display form accepts normalized full history", 
 })
 
 test_that("production model form preserves explicit unavailable evidence", {
-  skip_if_not(exists("phase14_build_model_form"))
-
   cases <- phase14_form_cases()
   history <- cases[cases$record_type == "history", , drop = FALSE]
   model_form <- phase14_build_model_form(
@@ -261,4 +304,93 @@ test_that("production model form preserves explicit unavailable evidence", {
   expect_identical(zero$availability_status, "unavailable")
   expect_equal(zero$sample_count, 0L)
   expect_true(all(is.na(zero[, c("xgf_ewma", "xga_ewma", "xgd_ewma")])))
+})
+
+test_that("the current national-team xG registry is explicit and unaccepted", {
+  registry <- utils::read.csv(
+    phase14_form_registry_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = c("", "NA")
+  )
+
+  expect_named(registry, phase14_national_team_xg_source_schema())
+  expect_true(nrow(registry) >= 1L)
+  expect_true(all(registry$source_scope == "senior_mens_national_team"))
+  expect_true(all(registry$evidence_basis == "shot_derived"))
+  expect_false(any(registry$acceptance_status == "accepted"))
+  expect_silent(phase14_validate_national_team_xg_registry(registry))
+})
+
+test_that("accepted shot-derived national-team xG produces span-12 EWMA", {
+  cases <- phase14_form_cases()
+  history <- cases[cases$record_type == "history", , drop = FALSE]
+  accepted_history <- phase14_form_accepted_history(history)
+  registry <- phase14_form_accepted_registry()
+
+  adapted <- phase14_adapt_national_team_xg(
+    xg_history = accepted_history,
+    registry = registry,
+    feature_cutoff_utc = "2026-06-10T12:00:00Z"
+  )
+  expect_equal(nrow(adapted), 6L)
+  expect_true(all(adapted$source_id == "fixture-shot-xg-v1"))
+  expect_true(all(adapted$source_scope == "senior_mens_national_team"))
+  expect_true(all(adapted$evidence_basis == "shot_derived"))
+  expect_true(all(grepl("^[0-9a-f]{64}$", adapted$source_row_sha256)))
+
+  model <- phase14_build_model_form(
+    xg_history = accepted_history,
+    teams = c("TEAM_ZERO", "TEAM_MORE"),
+    feature_cutoff_utc = "2026-06-10T12:00:00Z",
+    span = 12L,
+    registry = registry
+  )
+  more <- model[model$team_id == "TEAM_MORE", , drop = FALSE]
+  zero <- model[model$team_id == "TEAM_ZERO", , drop = FALSE]
+  expect_identical(more$availability_status, "available")
+  expect_equal(more$sample_count, 6L)
+  expect_equal(more$window_span, 12L)
+  expect_true(is.finite(more$xgf_ewma) && is.finite(more$xga_ewma) && is.finite(more$xgd_ewma))
+  expect_equal(more$xgd_ewma, more$xgf_ewma - more$xga_ewma)
+  expect_identical(zero$availability_status, "unavailable")
+  expect_true(all(is.na(zero[, c("xgf_ewma", "xga_ewma", "xgd_ewma")])))
+
+  reversed <- phase14_build_model_form(
+    xg_history = accepted_history[rev(seq_len(nrow(accepted_history))), , drop = FALSE],
+    teams = c("TEAM_ZERO", "TEAM_MORE"),
+    feature_cutoff_utc = "2026-06-10T12:00:00Z",
+    span = 12L,
+    registry = registry
+  )
+  expect_identical(model$canonical_table_sha256, reversed$canonical_table_sha256)
+  expect_identical(
+    model$canonical_row_sha256[model$team_id == "TEAM_MORE"],
+    reversed$canonical_row_sha256[reversed$team_id == "TEAM_MORE"]
+  )
+})
+
+test_that("national-team xG adapter rejects club form and non-shot evidence", {
+  cases <- phase14_form_cases()
+  history <- cases[cases$record_type == "history", , drop = FALSE]
+  registry <- phase14_form_accepted_registry()
+  accepted_history <- phase14_form_accepted_history(history)
+
+  club_form <- utils::read.csv(
+    file.path(phase14_form_test_project_root, "data/processed/rolling_form.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  expect_error(
+    phase14_adapt_national_team_xg(club_form, registry, "2026-06-10T12:00:00Z"),
+    "club|national.team.xG|stable match"
+  )
+
+  scoreline <- accepted_history
+  scoreline$source_scope <- "results_only"
+  scoreline$evidence_basis <- "scoreline"
+  expect_error(
+    phase14_adapt_national_team_xg(scoreline, registry, "2026-06-10T12:00:00Z"),
+    "scope|shot_derived|scoreline"
+  )
 })
