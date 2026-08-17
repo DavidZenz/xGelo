@@ -962,6 +962,191 @@ test_that("14-06 calibrated bundle rejects gate, chronology, label, and score fo
   )
 })
 
+test_that("14-07 complete candidate has the exact immutable thirteen-file contract", {
+  release_id <- "phase14-open-nb-incumbent-calibrated-v1"
+  durable_root <- file.path(
+    phase14_release_test_project_root,
+    "outputs/releases",
+    release_id
+  )
+  selector_path <- file.path(
+    phase14_release_test_project_root,
+    "outputs/releases/approved_release.csv"
+  )
+  registry_path <- file.path(
+    phase14_release_test_project_root,
+    "data/competition/registries/competition_editions.csv"
+  )
+  staging_parent <- tempfile(
+    ".phase14-open-nb-incumbent-calibrated-v1-candidate-",
+    tmpdir = file.path(phase14_release_test_project_root, "outputs/releases")
+  )
+  dir.create(staging_parent, recursive = TRUE)
+  on.exit(unlink(staging_parent, recursive = TRUE), add = TRUE)
+
+  path_snapshot <- function(path) {
+    if (!file.exists(path) && !dir.exists(path)) return(list(exists = FALSE))
+    if (!dir.exists(path)) {
+      return(list(
+        exists = TRUE,
+        directory = FALSE,
+        bytes = phase14_release_test_read_bytes(path)
+      ))
+    }
+    files <- list.files(
+      path,
+      recursive = TRUE,
+      full.names = TRUE,
+      all.files = TRUE,
+      no.. = TRUE
+    )
+    files <- files[!isTRUE(file.info(files)$isdir)]
+    relative <- substring(files, nchar(path) + 2L)
+    hashes <- vapply(files, phase12_release_file_sha256, character(1))
+    list(
+      exists = TRUE,
+      directory = TRUE,
+      hashes = hashes[order(relative, method = "radix")]
+    )
+  }
+
+  durable_before <- path_snapshot(durable_root)
+  selector_before <- path_snapshot(selector_path)
+  registry_before <- path_snapshot(registry_path)
+  candidate <- phase14_release_test_build_complete_candidate(
+    staging_parent = staging_parent,
+    release_id = release_id
+  )
+
+  expected_inventory <- c(
+    "limitations.md",
+    "manifests/calibration_gate.csv",
+    "manifests/calibration_revision_manifest.csv",
+    "manifests/final_evaluation_manifest.csv",
+    "manifests/freeze_manifest.csv",
+    "manifests/provenance.json",
+    "model/approved_model.rds",
+    "model/calibrator.rds",
+    "model_contract.json",
+    "release_manifest.csv",
+    "reports/benchmark_report.md",
+    "reports/model_card.md",
+    "reproducibility.json"
+  )
+  inventory <- list.files(
+    candidate$release_root,
+    recursive = TRUE,
+    full.names = TRUE,
+    all.files = TRUE,
+    no.. = TRUE
+  )
+  inventory <- inventory[!isTRUE(file.info(inventory)$isdir)]
+  inventory <- substring(inventory, nchar(candidate$release_root) + 2L)
+  expect_identical(sort(inventory, method = "radix"), expected_inventory)
+  expect_false(nzchar(Sys.readlink(candidate$release_root)))
+  expect_false(nzchar(Sys.readlink(phase14_release_test_source_release_root())))
+  expect_false(identical(
+    normalizePath(candidate$release_root, winslash = "/"),
+    normalizePath(phase14_release_test_source_release_root(), winslash = "/")
+  ))
+
+  expect_false(any(c("model", "calibrator") %in% names(candidate$metadata_only)))
+  expect_true(all(c("model_object", "calibrator") %in% names(candidate$loaded)))
+  manifest <- candidate$loaded$release_manifest
+  expect_identical(nrow(manifest), 13L)
+  expect_setequal(as.character(manifest$relative_path), expected_inventory)
+  expect_identical(
+    as.character(manifest$release_id),
+    rep(release_id, nrow(manifest))
+  )
+
+  source_root <- phase14_release_test_source_release_root()
+  exact_copies <- c(
+    "model/approved_model.rds",
+    "manifests/freeze_manifest.csv",
+    "manifests/final_evaluation_manifest.csv"
+  )
+  for (relative_path in exact_copies) {
+    expect_identical(
+      phase12_release_file_sha256(file.path(candidate$release_root, relative_path)),
+      phase12_release_file_sha256(file.path(source_root, relative_path)),
+      info = relative_path
+    )
+  }
+  revision_root <- phase14_release_test_remediation_root()
+  for (relative_path in c(
+    "calibration_revision_manifest.csv",
+    "calibration_gate.csv"
+  )) {
+    expect_identical(
+      phase12_release_file_sha256(file.path(
+        candidate$release_root,
+        "manifests",
+        relative_path
+      )),
+      phase12_release_file_sha256(file.path(revision_root, relative_path)),
+      info = relative_path
+    )
+  }
+
+  contract <- candidate$loaded$model_contract
+  required_contract <- c(
+    "release_id", "source_release_id", "source_release_manifest_sha256",
+    "model_sha256", "calibrator_sha256", "model_data_cutoff",
+    "calibration_data_cutoff", "support_max", "raw_probability_view",
+    "primary_probability_view", "labels_embedded", "freeze_manifest_sha256",
+    "final_evaluation_manifest_sha256", "calibration_gate_sha256",
+    "calibration_revision_manifest_self_sha256", "code_commit",
+    "protocol_sha256", "calibration_recipe_sha256",
+    "reproducibility_artifact", "reproducibility_sha256"
+  )
+  expect_length(setdiff(required_contract, names(contract)), 0L)
+  expect_identical(as.character(contract$release_id), release_id)
+  expect_identical(as.character(contract$model_data_cutoff), "2026-06-10")
+  expect_identical(as.character(contract$calibration_data_cutoff), "2024-07-14")
+  expect_identical(as.integer(contract$support_max), 40L)
+  expect_identical(as.character(contract$raw_probability_view), "raw_1x2")
+  expect_identical(as.character(contract$primary_probability_view), "calibrated_1x2")
+  expect_identical(contract$labels_embedded, FALSE)
+  expect_identical(
+    as.character(contract$reproducibility_artifact),
+    "reproducibility.json"
+  )
+  expect_identical(
+    as.character(contract$reproducibility_sha256),
+    phase12_release_file_sha256(file.path(candidate$release_root, "reproducibility.json"))
+  )
+  expect_true(isTRUE(candidate$loaded$calibrator$distribution_unchanged))
+  expect_false(isTRUE(candidate$loaded$calibrator$holdout_labels_used))
+
+  expect_identical(path_snapshot(durable_root), durable_before)
+  expect_identical(path_snapshot(selector_path), selector_before)
+  expect_identical(path_snapshot(registry_path), registry_before)
+})
+
+test_that("14-07 candidate construction fails closed instead of overwriting", {
+  release_id <- "phase14-open-nb-incumbent-calibrated-v1"
+  staging_parent <- tempfile(
+    ".phase14-existing-release-",
+    tmpdir = file.path(phase14_release_test_project_root, "outputs/releases")
+  )
+  existing_root <- file.path(staging_parent, release_id)
+  dir.create(existing_root, recursive = TRUE)
+  sentinel <- file.path(existing_root, "sentinel.txt")
+  writeLines("immutable", sentinel)
+  sentinel_before <- phase14_release_test_read_bytes(sentinel)
+  on.exit(unlink(staging_parent, recursive = TRUE), add = TRUE)
+
+  expect_error(
+    phase14_release_test_build_complete_candidate(
+      staging_parent = staging_parent,
+      release_id = release_id
+    ),
+    "already exists|immutable"
+  )
+  expect_identical(phase14_release_test_read_bytes(sentinel), sentinel_before)
+})
+
 test_that("14-09 dual repin contract rejects split pins and exposes injected rollback", {
   phase14_release_test_require_api(
     c(
