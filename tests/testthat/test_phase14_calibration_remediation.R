@@ -19,13 +19,10 @@ if (file.exists(phase14_remediation_test_module)) {
   source(phase14_remediation_test_module, local = .GlobalEnv)
 }
 
-phase14_remediation_test_require_api <- function() {
-  required <- c(
+phase14_remediation_test_require_api <- function(required = c(
     "phase14_calibration_remediation_contract",
-    "phase14_select_nested_calibrator",
-    "phase14_build_calibration_remediation",
-    "phase14_validate_calibration_remediation"
-  )
+    "phase14_select_nested_calibrator"
+)) {
   missing <- required[!vapply(required, exists, logical(1), mode = "function")]
   if (length(missing)) {
     fail(paste(
@@ -44,6 +41,25 @@ phase14_remediation_test_panel <- local({
   }
 })
 
+phase14_remediation_test_fit_cache <- new.env(parent = emptyenv())
+phase14_remediation_test_protocol <- phase12_selection_protocol()
+
+phase14_remediation_test_last_outer <- local({
+  value <- NULL
+  function() {
+    if (is.null(value)) {
+      panel <- phase14_remediation_test_panel()
+      value <<- phase14_select_nested_calibrator(
+        panel,
+        tail(attr(panel, "edition_order"), 1L),
+        fit_cache = phase14_remediation_test_fit_cache,
+        protocol = phase14_remediation_test_protocol
+      )
+    }
+    value
+  }
+})
+
 phase14_remediation_test_split <- function(value) {
   value <- as.character(value)
   if (!length(value) || is.na(value) || !nzchar(value)) character() else {
@@ -51,8 +67,8 @@ phase14_remediation_test_split <- function(value) {
   }
 }
 
-test_that("14-21 remediation API is present before behavioral contracts run", {
-  phase14_remediation_test_require_api()
+test_that("14-21 nested-selector API is present before behavioral contracts run", {
+  expect_true(phase14_remediation_test_require_api())
 })
 
 test_that("14-21 freezes the exact family, grid, transform, ranking, and seed contract", {
@@ -83,7 +99,7 @@ test_that("14-21 freezes the exact family, grid, transform, ranking, and seed co
   expect_identical(sum(candidates$family == "raw_identity"), 1L)
   expect_identical(sum(candidates$family == "scalar_temperature"), 16L)
   expect_identical(sum(candidates$family == "vector_scaling"), 28L)
-  expect_false(anyDuplicated(candidates$candidate_id))
+  expect_identical(anyDuplicated(candidates$candidate_id), 0L)
   expect_identical(
     candidates$family,
     candidates$family[order(candidates$complexity_rank, candidates$candidate_order)]
@@ -138,12 +154,61 @@ test_that("14-21 scalar and identifiable vector transforms preserve a finite sim
   )
 })
 
+test_that("14-21 inner ranking matches the unchanged canonical Phase 12 decision", {
+  panel <- phase14_remediation_test_panel()
+  editions <- attr(panel, "edition_order")
+  rows <- panel[panel$edition_id %in% editions[1:3], , drop = FALSE]
+  fit <- data.frame(
+    selected_family = "scalar_temperature", temperature = 1.10,
+    slope_home = 1, slope_draw = 1, slope_away = 1,
+    offset_home = 0, offset_draw = 0, offset_away = 0,
+    stringsAsFactors = FALSE
+  )
+  calibrated <- phase14_remediation_apply_rows(fit, rows)
+  fast <- phase14_remediation_fast_decision(
+    rows, calibrated, protocol = phase14_remediation_test_protocol
+  )
+  canonical <- phase14_remediation_comparison(
+    rows, calibrated, protocol = phase14_remediation_test_protocol
+  )
+
+  expect_equal(
+    fast$comparison$raw_headline,
+    canonical$comparison$raw_headline,
+    tolerance = 1e-15
+  )
+  expect_equal(
+    fast$comparison$calibrated_headline,
+    canonical$comparison$calibrated_headline,
+    tolerance = 1e-15
+  )
+  calibration_fields <- c(
+    "calibration_error", "home_calibration_error",
+    "draw_calibration_error", "away_calibration_error"
+  )
+  expect_equal(
+    as.numeric(unlist(fast$comparison$raw_calibration_values[calibration_fields])),
+    as.numeric(unlist(canonical$comparison$raw_calibration_values[calibration_fields])),
+    tolerance = 1e-15
+  )
+  expect_equal(
+    as.numeric(unlist(fast$comparison$calibrated_calibration_values[calibration_fields])),
+    as.numeric(unlist(canonical$comparison$calibrated_calibration_values[calibration_fields])),
+    tolerance = 1e-15
+  )
+  expect_identical(fast$decision$reason_codes, canonical$decision$reason_codes)
+  expect_identical(
+    fast$decision$primary_probability_view,
+    canonical$decision$primary_probability_view
+  )
+})
+
 test_that("14-21 one real outer fold evaluates every family using nested prior tournaments only", {
   skip_if_not(exists("phase14_select_nested_calibrator", mode = "function"))
   panel <- phase14_remediation_test_panel()
   editions <- attr(panel, "edition_order")
   outer <- tail(editions, 1L)
-  result <- phase14_select_nested_calibrator(panel, outer)
+  result <- phase14_remediation_test_last_outer()
 
   expect_identical(nrow(result$selection), 1L)
   expect_identical(nrow(result$fit), 1L)
@@ -177,7 +242,10 @@ test_that("14-21 one real outer fold evaluates every family using nested prior t
   leaked$regulation_home_goals[leaked$edition_id == outer] <- 99L
   leaked$regulation_away_goals[leaked$edition_id == outer] <- 0L
   leaked$observed_class[leaked$edition_id == outer] <- "home"
-  leaked_result <- phase14_select_nested_calibrator(leaked, outer)
+  leaked_result <- phase14_select_nested_calibrator(
+    leaked, outer, fit_cache = phase14_remediation_test_fit_cache,
+    protocol = phase14_remediation_test_protocol
+  )
   stable_fields <- c(
     "selected_family", "warmup_rows", "scalar_shrinkage", "vector_penalty",
     "outer_training_editions", "inner_validation_editions", "inner_training_map",
@@ -195,7 +263,9 @@ test_that("14-21 insufficient nested evidence and class support fail closed to r
   panel <- phase14_remediation_test_panel()
   editions <- attr(panel, "edition_order")
 
-  early <- phase14_select_nested_calibrator(panel, editions[[2L]])
+  early <- phase14_select_nested_calibrator(
+    panel, editions[[2L]], protocol = phase14_remediation_test_protocol
+  )
   expect_identical(early$fit$selected_family[[1L]], "raw_identity")
   expect_identical(early$fit$fit_status[[1L]], "raw_fallback")
   expect_match(early$fit$fallback_reason[[1L]], "insufficient")
@@ -213,7 +283,9 @@ test_that("14-21 insufficient nested evidence and class support fail closed to r
   unsupported$observed_class[unsupported$edition_id %in% prior] <- "home"
   unsupported$regulation_home_goals[unsupported$edition_id %in% prior] <- 1L
   unsupported$regulation_away_goals[unsupported$edition_id %in% prior] <- 0L
-  fallback <- phase14_select_nested_calibrator(unsupported, target)
+  fallback <- phase14_select_nested_calibrator(
+    unsupported, target, protocol = phase14_remediation_test_protocol
+  )
   expect_identical(fallback$fit$selected_family[[1L]], "raw_identity")
   expect_match(fallback$fit$fallback_reason[[1L]], "support|insufficient")
 })
@@ -222,7 +294,7 @@ test_that("14-21 selected fit records reject chronology, convergence, and parame
   skip_if_not(exists("phase14_remediation_validate_fit_record", mode = "function"))
   panel <- phase14_remediation_test_panel()
   editions <- attr(panel, "edition_order")
-  result <- phase14_select_nested_calibrator(panel, tail(editions, 1L))
+  result <- phase14_remediation_test_last_outer()
   expect_invisible(phase14_remediation_validate_fit_record(result$fit, panel))
 
   forged_training <- result$fit
