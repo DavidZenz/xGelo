@@ -854,11 +854,40 @@ phase13_accepted_snapshot_validate_manifest <- function(manifest, bundle, artifa
   invisible(TRUE)
 }
 
-phase13_accepted_snapshot_table_schema <- function(artifact_type) {
+phase13_accepted_snapshot_table_schema <- function(artifact_type, schema_version = NULL) {
+  if (!is.null(schema_version)) {
+    schema_version <- phase13_registry_scalar(schema_version, "schema_version")
+    if (identical(schema_version, "phase14-normalized-fixture-v2") && identical(artifact_type, "fixtures")) {
+      return(phase14_normalized_fixture_schema())
+    }
+    if (identical(schema_version, "phase14-normalized-result-v2") && identical(artifact_type, "results")) {
+      return(phase14_normalized_result_schema())
+    }
+    if (identical(schema_version, "phase14-normalized-standings-v2") && identical(artifact_type, "standings")) {
+      return(phase14_normalized_standings_schema())
+    }
+    stop("Phase 14 accepted snapshot schema version is unsupported for ", artifact_type, call. = FALSE)
+  }
   if (identical(artifact_type, "fixtures")) return(phase13_normalized_fixture_schema())
   if (identical(artifact_type, "results")) return(phase13_normalized_result_schema())
   compact <- phase13_source_compact_resource_schema()[[artifact_type]]
   c("schema_version", compact, "edition_id", "source_artifact_id", "row_sha256")
+}
+
+phase13_accepted_snapshot_detect_schema_version <- function(table, artifact_type) {
+  if (identical(artifact_type, "fixtures") &&
+      identical(names(table), phase14_normalized_fixture_schema())) {
+    return("phase14-normalized-fixture-v2")
+  }
+  if (identical(artifact_type, "results") &&
+      identical(names(table), phase14_normalized_result_schema())) {
+    return("phase14-normalized-result-v2")
+  }
+  if (identical(artifact_type, "standings") &&
+      identical(names(table), phase14_normalized_standings_schema())) {
+    return("phase14-normalized-standings-v2")
+  }
+  NULL
 }
 
 phase13_accepted_snapshot_validate_identity_links <- function(data, identity_registry, name) {
@@ -882,12 +911,13 @@ phase13_accepted_snapshot_validate_identity_links <- function(data, identity_reg
 
 phase13_accepted_snapshot_validate_fixture_rows <- function(fixtures, identity_registry) {
   if (!nrow(fixtures)) return(invisible(TRUE))
+  status_field <- if ("status" %in% names(fixtures)) "status" else "source_status"
   phase13_accepted_snapshot_require_nonempty(
     fixtures,
     c(
       "fixture_id", "uefa_source_fixture_id", "home_team_id", "away_team_id",
       "home_uefa_source_team_id", "away_uefa_source_team_id", "home_display_name",
-      "away_display_name", "scheduled_at_utc", "status", "source_artifact_id"
+      "away_display_name", "scheduled_at_utc", status_field, "source_artifact_id"
     ),
     "Phase 13 normalized accepted fixtures"
   )
@@ -904,12 +934,13 @@ phase13_accepted_snapshot_validate_fixture_rows <- function(fixtures, identity_r
 phase13_accepted_snapshot_validate_result_rows <- function(results, fixtures, identity_registry) {
   if (!nrow(results)) return(invisible(TRUE))
   if (!nrow(fixtures)) stop("Phase 13 normalized accepted results require normalized fixtures", call. = FALSE)
+  status_field <- if ("status" %in% names(results)) "status" else "source_status"
   phase13_accepted_snapshot_require_nonempty(
     results,
     c(
       "fixture_id", "uefa_source_fixture_id", "home_team_id", "away_team_id",
       "home_uefa_source_team_id", "away_uefa_source_team_id", "home_display_name",
-      "away_display_name", "scheduled_at_utc", "status", "source_artifact_id",
+      "away_display_name", "scheduled_at_utc", status_field, "source_artifact_id",
       "fixture_source_artifact_id"
     ),
     "Phase 13 normalized accepted results"
@@ -1061,9 +1092,13 @@ phase13_validate_accepted_snapshot <- function(
   tables <- setNames(vector("list", length(required)), required)
   for (artifact_type in required) {
     table <- read_table(paste0(artifact_type, ".csv"))
-    expected_schema <- phase13_accepted_snapshot_table_schema(artifact_type)
+    schema_version <- phase13_accepted_snapshot_detect_schema_version(table, artifact_type)
+    expected_schema <- phase13_accepted_snapshot_table_schema(artifact_type, schema_version = schema_version)
     if (!identical(names(table), expected_schema)) {
       stop("Phase 13 accepted snapshot schema mismatch: ", artifact_type, call. = FALSE)
+    }
+    if (!is.null(schema_version) && nrow(table) && any(as.character(table$schema_version) != schema_version)) {
+      stop("Phase 14 accepted snapshot schema-version value is inconsistent: ", artifact_type, call. = FALSE)
     }
     phase13_source_validate_hash_column(table, "row_sha256", paste("Phase 13 accepted", artifact_type))
     if (nrow(table)) {

@@ -1806,30 +1806,44 @@ phase13_acquire_publication_stage_normalized_edition <- function(
   result_artifact <- handoff$artifacts[
     as.character(handoff$artifacts$artifact_type) == "results", , drop = FALSE
   ]
-  if (nrow(fixture_artifact) != 1L || nrow(result_artifact) != 1L) {
-    stop("Phase 13 normalized publication requires fixture and result source artifacts: ", edition_id, call. = FALSE)
+  standings_artifact <- handoff$artifacts[
+    as.character(handoff$artifacts$artifact_type) == "standings", , drop = FALSE
+  ]
+  if (nrow(fixture_artifact) != 1L || nrow(result_artifact) != 1L || nrow(standings_artifact) != 1L) {
+    stop("Phase 13 normalized publication requires fixture, result, and standings source artifacts: ", edition_id, call. = FALSE)
   }
   normalized_fixtures <- phase13_normalize_fixture_rows(
     handoff$tables$fixtures,
     identity_map = context$identity_registry,
     edition_id = edition_id,
     source_artifact_id = as.character(fixture_artifact$source_artifact_id[[1L]]),
-    lifecycle_state = context$lifecycle_state
+    lifecycle_state = context$lifecycle_state,
+    schema_version = "phase14-normalized-fixture-v2"
   )
   normalized_results <- phase13_normalize_accepted_result_rows(
     handoff$tables$results,
     normalized_fixtures = normalized_fixtures,
     edition_id = edition_id,
     source_artifact_id = as.character(result_artifact$source_artifact_id[[1L]]),
-    lifecycle_state = context$lifecycle_state
+    lifecycle_state = context$lifecycle_state,
+    schema_version = "phase14-normalized-result-v2"
+  )
+  normalized_standings <- phase14_normalize_accepted_standings_rows(
+    handoff$tables$standings,
+    identity_map = context$identity_registry,
+    edition_id = edition_id,
+    source_bundle_id = context$source_bundle_id,
+    source_artifact_id = as.character(standings_artifact$source_artifact_id[[1L]])
   )
   phase13_publication_write_csv(normalized_fixtures, file.path(staged_dir, "fixtures.csv"))
   phase13_publication_write_csv(normalized_results, file.path(staged_dir, "results.csv"))
+  phase13_publication_write_csv(normalized_standings, file.path(staged_dir, "standings.csv"))
   invisible(list(
     edition_id = edition_id,
     lifecycle_state = context$lifecycle_state,
     fixtures = normalized_fixtures,
-    results = normalized_results
+    results = normalized_results,
+    standings = normalized_standings
   ))
 }
 
