@@ -122,7 +122,7 @@ Each task was committed atomically:
 
 1. **Task 14-12-01: Promote and freshly validate the fourteen-target schema revision** - `632a23d` (`feat`)
 
-**Plan metadata:** pending final close-out commit after STATE/ROADMAP updates.
+**Plan metadata:** `0a9bc4d` (docs: complete plan)
 
 ## Files Created/Modified
 
@@ -179,7 +179,7 @@ The durable accepted layer is loader-valid, hash-consistent, provenance-preservi
 
 - Summary file exists.
 - Artifact commit `632a23d` exists.
-- The final metadata commit will contain this summary plus the scoped STATE/ROADMAP updates.
+- Final metadata commit `0a9bc4d` contains this summary plus the scoped STATE/ROADMAP updates.
 
 ---
 *Phase: 14-shared-competition-state-and-forecast-layer*
