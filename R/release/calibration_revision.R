@@ -65,6 +65,15 @@ phase14_calibration_revision_source_if_missing(
     "preflight_phase12_approved_release"
   )
 )
+phase14_calibration_revision_source_if_missing(
+  "R/competition/edition_registry.R",
+  c(
+    "phase13_competition_edition_ids",
+    "phase13_registry_row_hash",
+    "phase14_repin_both_competition_releases",
+    "phase14_validate_dual_repin_candidate"
+  )
+)
 
 phase14_release_selector_schema <- function() {
   c(
@@ -1245,4 +1254,386 @@ phase14_validate_calibration_revision <- function(
     stop("Phase 14 calibration release is blocked and not promoted", call. = FALSE)
   }
   invisible(TRUE)
+}
+
+phase14_authority_file_sha256 <- function(path) {
+  if (!file.exists(path) || dir.exists(path)) {
+    stop("Phase 14 authority file is missing: ", path, call. = FALSE)
+  }
+  digest::digest(file = path, algo = "sha256", serialize = FALSE)
+}
+
+phase14_authority_read_bytes <- function(path) {
+  if (!file.exists(path) || dir.exists(path)) {
+    stop("Phase 14 authority file is missing: ", path, call. = FALSE)
+  }
+  readBin(path, what = "raw", n = file.info(path)$size)
+}
+
+phase14_authority_write_bytes <- function(path, bytes) {
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  connection <- file(path, open = "wb")
+  on.exit(close(connection), add = TRUE)
+  writeBin(bytes, connection)
+  invisible(path)
+}
+
+phase14_authority_normalize_path <- function(path, project_root, name, must_work = FALSE) {
+  value <- as.character(path)
+  if (length(value) != 1L || is.na(value) || !nzchar(value)) {
+    stop("Phase 14 ", name, " must be one non-empty path", call. = FALSE)
+  }
+  if (!grepl("^/", value)) value <- file.path(project_root, value)
+  if (!must_work && !file.exists(value)) {
+    return(file.path(
+      normalizePath(dirname(value), winslash = "/", mustWork = TRUE),
+      basename(value)
+    ))
+  }
+  normalizePath(value, winslash = "/", mustWork = must_work)
+}
+
+phase14_authority_assert_under_root <- function(path, root, name) {
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  if (!identical(path, root) && !startsWith(path, paste0(root, "/"))) {
+    stop("Phase 14 ", name, " escapes the transaction root", call. = FALSE)
+  }
+  link_target <- Sys.readlink(path)
+  if (!is.na(link_target) && nzchar(link_target)) {
+    stop("Phase 14 ", name, " must not be a symlink", call. = FALSE)
+  }
+  path
+}
+
+phase14_authority_snapshot <- function(path) {
+  exists <- file.exists(path)
+  if (exists && dir.exists(path)) {
+    stop("Phase 14 authority path must be a regular file: ", path, call. = FALSE)
+  }
+  bytes <- if (exists) phase14_authority_read_bytes(path) else raw()
+  list(
+    exists = exists,
+    bytes = bytes,
+    sha256 = if (exists) digest::digest(bytes, algo = "sha256", serialize = FALSE) else ""
+  )
+}
+
+phase14_authority_restore_snapshot <- function(path, snapshot, scratch_root) {
+  if (!isTRUE(snapshot$exists)) {
+    if (file.exists(path)) {
+      unlink(path, force = TRUE)
+      if (file.exists(path)) {
+        stop("Phase 14 rollback could not restore absent authority: ", path, call. = FALSE)
+      }
+    }
+    return(invisible(TRUE))
+  }
+  restore_path <- tempfile("restore-", tmpdir = scratch_root)
+  phase14_authority_write_bytes(restore_path, snapshot$bytes)
+  if (file.exists(path)) {
+    unlink(path, force = TRUE)
+    if (file.exists(path)) {
+      stop("Phase 14 rollback could not remove changed authority: ", path, call. = FALSE)
+    }
+  }
+  if (!file.rename(restore_path, path)) {
+    stop("Phase 14 rollback could not restore authority: ", path, call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+phase14_authority_verify_snapshot <- function(path, snapshot) {
+  if (!identical(file.exists(path), isTRUE(snapshot$exists))) return(FALSE)
+  if (!isTRUE(snapshot$exists)) return(TRUE)
+  identical(phase14_authority_read_bytes(path), snapshot$bytes)
+}
+
+phase14_authority_link_release_tree <- function(source_root, target_root) {
+  source_root <- normalizePath(source_root, winslash = "/", mustWork = TRUE)
+  dir.create(target_root, recursive = TRUE, showWarnings = FALSE)
+  entries <- list.files(
+    source_root,
+    recursive = TRUE,
+    full.names = TRUE,
+    all.files = TRUE,
+    include.dirs = TRUE,
+    no.. = TRUE
+  )
+  if (!length(entries)) return(invisible(target_root))
+  information <- file.info(entries)
+  directories <- entries[!is.na(information$isdir) & information$isdir]
+  for (directory in directories) {
+    relative <- substring(directory, nchar(source_root) + 2L)
+    dir.create(file.path(target_root, relative), recursive = TRUE, showWarnings = FALSE)
+  }
+  files <- entries[!is.na(information$isdir) & !information$isdir]
+  for (source_path in files) {
+    relative <- substring(source_path, nchar(source_root) + 2L)
+    target_path <- file.path(target_root, relative)
+    dir.create(dirname(target_path), recursive = TRUE, showWarnings = FALSE)
+    linked <- suppressWarnings(file.link(source_path, target_path))
+    if (!isTRUE(linked) && !file.copy(source_path, target_path, overwrite = FALSE)) {
+      stop("Phase 14 could not stage release artifact: ", relative, call. = FALSE)
+    }
+  }
+  invisible(target_root)
+}
+
+phase14_authority_inject_failure <- function(failure_injector, point, transaction) {
+  if (is.null(failure_injector)) return(invisible(FALSE))
+  if (!is.function(failure_injector)) {
+    stop("Phase 14 failure injector must be a function", call. = FALSE)
+  }
+  if (isTRUE(failure_injector(point, transaction))) {
+    stop("injected failure at ", point, call. = FALSE)
+  }
+  invisible(FALSE)
+}
+
+#' Atomically promote the calibrated selector and both registry pins.
+#' @export
+phase14_promote_calibrated_release <- function(
+    candidate_selector_path,
+    selector_path = "outputs/releases/approved_release.csv",
+    registry_path = "data/competition/registries/competition_editions.csv",
+    trusted_release_root = "outputs/releases",
+    project_root = ".",
+    audit_at_utc,
+    operator,
+    operator_action,
+    expected_selector_sha256 = "",
+    expected_registry_sha256,
+    failure_injector = NULL) {
+  project_root <- normalizePath(project_root, winslash = "/", mustWork = TRUE)
+  candidate_selector_path <- phase14_authority_normalize_path(
+    candidate_selector_path, project_root, "candidate selector", must_work = TRUE
+  )
+  selector_path <- phase14_authority_normalize_path(
+    selector_path, project_root, "durable selector", must_work = FALSE
+  )
+  registry_path <- phase14_authority_normalize_path(
+    registry_path, project_root, "competition registry", must_work = TRUE
+  )
+  trusted_release_root <- phase14_authority_normalize_path(
+    trusted_release_root, project_root, "trusted release root", must_work = TRUE
+  )
+  candidate_selector_path <- phase14_authority_assert_under_root(
+    candidate_selector_path, project_root, "candidate selector"
+  )
+  selector_path <- phase14_authority_assert_under_root(
+    selector_path, project_root, "durable selector"
+  )
+  registry_path <- phase14_authority_assert_under_root(
+    registry_path, project_root, "competition registry"
+  )
+  trusted_release_root <- phase14_authority_assert_under_root(
+    trusted_release_root, project_root, "trusted release root"
+  )
+  if (!identical(dirname(selector_path), trusted_release_root) ||
+      !identical(basename(selector_path), "approved_release.csv")) {
+    stop("Phase 14 durable selector must be approved_release.csv in the trusted release root", call. = FALSE)
+  }
+  if (!identical(basename(registry_path), "competition_editions.csv")) {
+    stop("Phase 14 registry path must name competition_editions.csv", call. = FALSE)
+  }
+  source_bundles_path <- file.path(dirname(registry_path), "source_bundles.csv")
+  if (!file.exists(source_bundles_path)) {
+    stop("Phase 14 source bundle registry is missing", call. = FALSE)
+  }
+  expected_selector_sha256 <- tolower(as.character(expected_selector_sha256))
+  expected_registry_sha256 <- tolower(as.character(expected_registry_sha256))
+  if (length(expected_selector_sha256) != 1L || is.na(expected_selector_sha256) ||
+      (nzchar(expected_selector_sha256) && !grepl("^[0-9a-f]{64}$", expected_selector_sha256))) {
+    stop("Phase 14 expected selector SHA-256 is invalid", call. = FALSE)
+  }
+  if (length(expected_registry_sha256) != 1L || is.na(expected_registry_sha256) ||
+      !grepl("^[0-9a-f]{64}$", expected_registry_sha256)) {
+    stop("Phase 14 expected registry SHA-256 is invalid", call. = FALSE)
+  }
+
+  selector_snapshot <- phase14_authority_snapshot(selector_path)
+  registry_snapshot <- phase14_authority_snapshot(registry_path)
+  selector_matches <- if (nzchar(expected_selector_sha256)) {
+    selector_snapshot$exists && identical(selector_snapshot$sha256, expected_selector_sha256)
+  } else {
+    !selector_snapshot$exists
+  }
+  if (!selector_matches || !identical(registry_snapshot$sha256, expected_registry_sha256)) {
+    stop(
+      "prior-authority-changed: expected prior bytes do not match; inspect and reconcile before retry",
+      call. = FALSE
+    )
+  }
+
+  lock_path <- file.path(project_root, ".phase14-authority-promotion.lock")
+  if (!dir.create(lock_path, showWarnings = FALSE)) {
+    stop("Phase 14 authority promotion lock is already held", call. = FALSE)
+  }
+  stage_root <- tempfile(".phase14-authority-stage-", tmpdir = project_root)
+  backup_root <- tempfile(".phase14-authority-backup-", tmpdir = project_root)
+  dir.create(stage_root, recursive = FALSE)
+  dir.create(backup_root, recursive = FALSE)
+  cleanup <- function() {
+    if (dir.exists(stage_root)) unlink(stage_root, recursive = TRUE, force = TRUE)
+    if (dir.exists(backup_root)) unlink(backup_root, recursive = TRUE, force = TRUE)
+    if (dir.exists(lock_path)) unlink(lock_path, recursive = TRUE, force = TRUE)
+  }
+  on.exit(cleanup(), add = TRUE)
+
+  candidate_selector <- utils::read.csv(
+    candidate_selector_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    colClasses = "character",
+    na.strings = character()
+  )
+  phase14_validate_release_selector(candidate_selector, trusted_root = trusted_release_root)
+  release_id <- as.character(candidate_selector$release_id[[1L]])
+  staged_release_root <- file.path(stage_root, "releases")
+  phase14_authority_link_release_tree(
+    file.path(trusted_release_root, release_id),
+    file.path(staged_release_root, release_id)
+  )
+  staged_selector_path <- file.path(staged_release_root, "approved_release.csv")
+  phase14_authority_write_bytes(
+    staged_selector_path,
+    phase14_authority_read_bytes(candidate_selector_path)
+  )
+  staged_resolved <- phase14_resolve_approved_release(
+    selector_path = staged_selector_path,
+    trusted_release_root = staged_release_root
+  )
+  prior_registries <- utils::read.csv(
+    registry_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  source_bundles <- utils::read.csv(
+    source_bundles_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  candidate_registries <- phase14_repin_both_competition_releases(
+    prior_registries,
+    staged_resolved,
+    source_bundles,
+    audit_at_utc,
+    operator,
+    operator_action
+  )
+  staged_registry_path <- file.path(stage_root, "competition_editions.csv")
+  utils::write.csv(
+    candidate_registries,
+    staged_registry_path,
+    row.names = FALSE,
+    na = "",
+    quote = TRUE
+  )
+  staged_registry <- utils::read.csv(
+    staged_registry_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  phase14_validate_dual_repin_candidate(
+    prior_registries,
+    staged_registry,
+    staged_resolved,
+    source_bundles
+  )
+
+  transaction <- list(
+    selector_path = selector_path,
+    registry_path = registry_path,
+    release_id = release_id,
+    stage_root = stage_root,
+    backup_root = backup_root
+  )
+  selector_backup <- file.path(backup_root, "approved_release.csv")
+  registry_backup <- file.path(backup_root, "competition_editions.csv")
+  promotion <- tryCatch({
+    if (selector_snapshot$exists) {
+      phase14_authority_inject_failure(failure_injector, "before_selector_backup", transaction)
+      if (!file.rename(selector_path, selector_backup)) {
+        stop("Phase 14 selector backup rename failed", call. = FALSE)
+      }
+      phase14_authority_inject_failure(failure_injector, "after_selector_backup", transaction)
+    }
+    phase14_authority_inject_failure(failure_injector, "before_selector_promote", transaction)
+    if (!file.rename(staged_selector_path, selector_path)) {
+      stop("Phase 14 selector promotion rename failed", call. = FALSE)
+    }
+    phase14_authority_inject_failure(failure_injector, "after_selector_promote", transaction)
+    phase14_authority_inject_failure(failure_injector, "before_registry_backup", transaction)
+    if (!file.rename(registry_path, registry_backup)) {
+      stop("Phase 14 registry backup rename failed", call. = FALSE)
+    }
+    phase14_authority_inject_failure(failure_injector, "after_registry_backup", transaction)
+    phase14_authority_inject_failure(failure_injector, "before_registry_promote", transaction)
+    if (!file.rename(staged_registry_path, registry_path)) {
+      stop("Phase 14 registry promotion rename failed", call. = FALSE)
+    }
+    phase14_authority_inject_failure(failure_injector, "after_registry_promote", transaction)
+    phase14_authority_inject_failure(failure_injector, "before_post_validate", transaction)
+    durable_resolved <- phase14_resolve_approved_release(
+      selector_path = selector_path,
+      trusted_release_root = trusted_release_root
+    )
+    durable_registries <- utils::read.csv(
+      registry_path,
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    )
+    phase14_validate_dual_repin_candidate(
+      prior_registries,
+      durable_registries,
+      durable_resolved,
+      source_bundles
+    )
+    list(resolved = durable_resolved, registries = durable_registries)
+  }, error = function(error) error)
+
+  if (inherits(promotion, "error")) {
+    rollback_error <- tryCatch({
+      phase14_authority_restore_snapshot(selector_path, selector_snapshot, backup_root)
+      phase14_authority_restore_snapshot(registry_path, registry_snapshot, backup_root)
+      if (!phase14_authority_verify_snapshot(selector_path, selector_snapshot) ||
+          !phase14_authority_verify_snapshot(registry_path, registry_snapshot)) {
+        stop("restored authority bytes do not match the snapshot", call. = FALSE)
+      }
+      NULL
+    }, error = function(error) error)
+    if (inherits(rollback_error, "error")) {
+      stop(
+        "Phase 14 authority rollback failed after '", conditionMessage(promotion),
+        "': ", conditionMessage(rollback_error),
+        call. = FALSE
+      )
+    }
+    stop("rollback-restored: ", conditionMessage(promotion), call. = FALSE)
+  }
+
+  candidate_bytes <- phase14_authority_read_bytes(candidate_selector_path)
+  if (!identical(phase14_authority_read_bytes(selector_path), candidate_bytes)) {
+    stop("Phase 14 durable selector bytes differ from the validated candidate", call. = FALSE)
+  }
+  list(
+    status = "promoted",
+    release_id = release_id,
+    prior_identity = list(
+      selector_exists = selector_snapshot$exists,
+      selector_sha256 = selector_snapshot$sha256,
+      registry_sha256 = registry_snapshot$sha256
+    ),
+    post_identity = list(
+      selector_sha256 = phase14_authority_file_sha256(selector_path),
+      registry_sha256 = phase14_authority_file_sha256(registry_path),
+      model_data_cutoff = promotion$resolved$model_data_cutoff,
+      registry_revisions = as.integer(promotion$registries$registry_revision)
+    )
+  )
 }

@@ -45,9 +45,12 @@ phase13_competition_edition_catalog <- function() {
 }
 
 phase13_approved_model_release_ids <- function() {
-  # This is a compatibility projection.  Acceptance still preflights the
-  # trusted Phase 12 release root and compares every row with its metadata.
-  "phase12-wc2026-incumbent-retained-v1"
+  # Compatibility projection only. Runtime authority is selected through
+  # approved_release.csv once that selector exists.
+  c(
+    "phase12-wc2026-incumbent-retained-v1",
+    "phase14-open-nb-incumbent-calibrated-v1"
+  )
 }
 
 phase13_registry_scalar <- function(value, name, allow_empty = FALSE) {
@@ -143,6 +146,7 @@ phase13_edition_source_contracts <- function(project_root = ".") {
 phase13_preflight_approved_model_release <- function(
     trusted_root = "outputs/releases",
     release_manifest_path = NULL,
+    selector_path = NULL,
     project_root = ".") {
   root <- phase13_edition_project_root(project_root)
   phase13_edition_source_contracts(root)
@@ -151,6 +155,28 @@ phase13_preflight_approved_model_release <- function(
     stop("Phase 13 approved release root is invalid", call. = FALSE)
   }
   if (!grepl("^/", trusted_root)) trusted_root <- file.path(root, trusted_root)
+  if (!is.null(selector_path)) {
+    if (!is.null(release_manifest_path)) {
+      stop("Phase 13 selector resolution cannot also receive a release manifest", call. = FALSE)
+    }
+    if (!exists("phase14_resolve_approved_release", mode = "function")) {
+      stop("Phase 13 edition registry could not load the Phase 14 selector resolver", call. = FALSE)
+    }
+    return(phase14_resolve_approved_release(
+      selector_path = selector_path,
+      trusted_release_root = trusted_root
+    ))
+  }
+  # Pre-selector compatibility is deliberately pinned to the incumbent
+  # manifest. It avoids directory scanning and is never used by the loader
+  # after approved_release.csv exists.
+  if (is.null(release_manifest_path)) {
+    release_manifest_path <- file.path(
+      trusted_root,
+      "phase12-wc2026-incumbent-retained-v1",
+      "release_manifest.csv"
+    )
+  }
   preflight_phase12_approved_release(trusted_root, release_manifest_path)
 }
 
@@ -158,9 +184,25 @@ phase13_validate_approved_model_release_pin <- function(
     model_release_ids,
     trusted_root = "outputs/releases",
     approved_model_release_ids = phase13_approved_model_release_ids(),
+    selector_path = NULL,
+    resolved_release = NULL,
     project_root = ".") {
-  preflight <- phase13_preflight_approved_model_release(trusted_root, project_root = project_root)
-  expected <- as.character(preflight$metadata$release_id)
+  preflight <- resolved_release
+  if (is.null(preflight)) {
+    preflight <- phase13_preflight_approved_model_release(
+      trusted_root = trusted_root,
+      selector_path = selector_path,
+      project_root = project_root
+    )
+  }
+  expected <- if (!is.null(preflight$release_identity$release_id)) {
+    as.character(preflight$release_identity$release_id)
+  } else {
+    as.character(preflight$metadata$release_id)
+  }
+  if (length(expected) != 1L || is.na(expected) || !nzchar(expected)) {
+    stop("Phase 13 approved release resolution returned no release identity", call. = FALSE)
+  }
   if (length(approved_model_release_ids) && !expected %in% as.character(approved_model_release_ids)) {
     stop("Phase 13 approved model release projection disagrees with the trusted Phase 12 release", call. = FALSE)
   }
@@ -271,6 +313,8 @@ phase13_validate_competition_edition_registries <- function(
     source_bundles = NULL,
     approved_model_release_ids = phase13_approved_model_release_ids(),
     trusted_release_root = NULL,
+    selector_path = NULL,
+    resolved_release = NULL,
     require_complete = NULL,
     project_root = ".") {
   if (!is.data.frame(registries)) stop("Phase 13 competition edition registry must be a data frame", call. = FALSE)
@@ -281,6 +325,7 @@ phase13_validate_competition_edition_registries <- function(
   if (is.null(source_bundles)) source_bundles <- attr(registries, "source_bundles")
   if (is.null(trusted_release_root)) trusted_release_root <- attr(registries, "trusted_release_root")
   if (is.null(trusted_release_root)) trusted_release_root <- "outputs/releases"
+  if (is.null(selector_path)) selector_path <- attr(registries, "selector_path")
   if (!nrow(registries)) {
     if (isTRUE(require_complete)) stop("Phase 13 competition edition registry must contain both required editions", call. = FALSE)
     return(invisible(registries))
@@ -333,6 +378,8 @@ phase13_validate_competition_edition_registries <- function(
     registries$model_release_id,
     trusted_root = trusted_release_root,
     approved_model_release_ids = approved_model_release_ids,
+    selector_path = selector_path,
+    resolved_release = resolved_release,
     project_root = project_root
   )
 
@@ -369,12 +416,16 @@ phase13_validate_competition_edition_row <- function(
     source_bundles = NULL,
     approved_model_release_ids = phase13_approved_model_release_ids(),
     trusted_release_root = "outputs/releases",
+    selector_path = NULL,
+    resolved_release = NULL,
     project_root = ".") {
   phase13_validate_competition_edition_registries(
     row,
     source_bundles = source_bundles,
     approved_model_release_ids = approved_model_release_ids,
     trusted_release_root = trusted_release_root,
+    selector_path = selector_path,
+    resolved_release = resolved_release,
     require_complete = FALSE,
     project_root = project_root
   )
@@ -468,6 +519,121 @@ phase13_repin_competition_model_release <- function(
   row$operator <- phase13_registry_scalar(operator, "operator")
   row$row_sha256 <- phase13_registry_row_hash(row)
   row
+}
+
+phase14_dual_repin_release_id <- function(resolved_release) {
+  release_id <- if (is.list(resolved_release)) {
+    resolved_release$release_identity$release_id
+  } else NULL
+  release_id <- as.character(release_id)
+  if (length(release_id) != 1L || is.na(release_id) || !nzchar(release_id) ||
+      !identical(release_id, "phase14-open-nb-incumbent-calibrated-v1")) {
+    stop("selector-release-mismatch: calibrated release identity is invalid", call. = FALSE)
+  }
+  cutoff <- suppressWarnings(as.Date(as.character(resolved_release$model_data_cutoff)))
+  if (length(cutoff) != 1L || is.na(cutoff)) {
+    stop("selector-release-mismatch: calibrated release cutoff is missing", call. = FALSE)
+  }
+  release_id
+}
+
+#' Validate a complete two-edition release repin candidate.
+#' @export
+phase14_validate_dual_repin_candidate <- function(
+    prior_registries,
+    candidate_registries,
+    resolved_release,
+    source_bundles) {
+  expected_editions <- phase13_competition_edition_ids()
+  for (value in list(prior_registries, candidate_registries)) {
+    if (!is.data.frame(value) || nrow(value) != length(expected_editions) ||
+        !setequal(as.character(value$edition_id), expected_editions) ||
+        anyDuplicated(as.character(value$edition_id))) {
+      stop("missing-edition-rejected: exactly two required editions must be repinned", call. = FALSE)
+    }
+  }
+  prior_ordered <- prior_registries[match(expected_editions, prior_registries$edition_id), , drop = FALSE]
+  candidate_ordered <- candidate_registries[match(expected_editions, candidate_registries$edition_id), , drop = FALSE]
+  release_id <- phase14_dual_repin_release_id(resolved_release)
+  candidate_ids <- as.character(candidate_ordered$model_release_id)
+  if (length(unique(candidate_ids)) != 1L || any(candidate_ids != release_id)) {
+    stop("selector-release-mismatch: both edition pins must equal selector authority", call. = FALSE)
+  }
+  revision_delta <- as.integer(candidate_ordered$registry_revision) -
+    as.integer(prior_ordered$registry_revision)
+  if (anyNA(revision_delta) || any(revision_delta != 1L)) {
+    stop("wrong-revision-delta: each registry revision must increment exactly once", call. = FALSE)
+  }
+  mutable <- c(
+    "model_release_id", "registry_revision", "audit_event",
+    "audit_at_utc", "operator", "row_sha256"
+  )
+  immutable <- setdiff(names(prior_ordered), mutable)
+  if (!identical(names(prior_ordered), names(candidate_ordered)) ||
+      !identical(prior_ordered[immutable], candidate_ordered[immutable])) {
+    stop("changed-lineage: release repin changed edition-local authority or output lineage", call. = FALSE)
+  }
+  if (any(as.character(candidate_ordered$audit_event) != "model_release_repin")) {
+    stop("Phase 14 release repin requires the model_release_repin audit event", call. = FALSE)
+  }
+  phase13_validate_competition_edition_registries(
+    candidate_ordered,
+    source_bundles = source_bundles,
+    approved_model_release_ids = release_id,
+    resolved_release = resolved_release,
+    require_complete = TRUE
+  )
+  invisible(candidate_ordered)
+}
+
+#' Repin both allowlisted competition editions in one pure transformation.
+#' @export
+phase14_repin_both_competition_releases <- function(
+    registries,
+    resolved_release,
+    source_bundles,
+    audit_at_utc,
+    operator,
+    operator_action) {
+  expected_editions <- phase13_competition_edition_ids()
+  if (!is.data.frame(registries) || nrow(registries) != length(expected_editions) ||
+      !setequal(as.character(registries$edition_id), expected_editions) ||
+      anyDuplicated(as.character(registries$edition_id))) {
+    stop("missing-edition-rejected: exactly two required editions must be repinned", call. = FALSE)
+  }
+  prior_ids <- as.character(registries$model_release_id)
+  if (anyNA(prior_ids) || any(!nzchar(prior_ids)) || length(unique(prior_ids)) != 1L) {
+    stop("split-pin-rejected: both editions must share one prior release pin", call. = FALSE)
+  }
+  phase13_registry_scalar(operator_action, "operator_action")
+  audit_at_utc <- phase13_registry_scalar(audit_at_utc, "audit_at_utc")
+  operator <- phase13_registry_scalar(operator, "operator")
+  release_id <- phase14_dual_repin_release_id(resolved_release)
+  prior_resolved <- list(
+    release_identity = list(release_id = unique(prior_ids)),
+    model_data_cutoff = resolved_release$model_data_cutoff
+  )
+  phase13_validate_competition_edition_registries(
+    registries,
+    source_bundles = source_bundles,
+    approved_model_release_ids = unique(prior_ids),
+    resolved_release = prior_resolved,
+    require_complete = TRUE
+  )
+  candidate <- registries
+  candidate$model_release_id <- release_id
+  candidate$registry_revision <- as.integer(registries$registry_revision) + 1L
+  candidate$audit_event <- "model_release_repin"
+  candidate$audit_at_utc <- audit_at_utc
+  candidate$operator <- operator
+  candidate$row_sha256 <- phase13_registry_row_hash(candidate)
+  phase14_validate_dual_repin_candidate(
+    registries,
+    candidate,
+    resolved_release,
+    source_bundles
+  )
+  candidate
 }
 
 phase13_accepted_snapshot_resource_types <- function() {
@@ -996,12 +1162,15 @@ load_competition_edition_registries <- function(
   attr(registries, "trusted_root") <- root
   if (is.null(trusted_release_root)) trusted_release_root <- file.path(root, "outputs/releases")
   attr(registries, "trusted_release_root") <- trusted_release_root
+  selector_path <- file.path(trusted_release_root, "approved_release.csv")
+  if (file.exists(selector_path)) attr(registries, "selector_path") <- selector_path
   attr(registries, "phase13_complete_registry") <- TRUE
   if (isTRUE(validate)) {
     phase13_validate_competition_edition_registries(
       registries,
       source_bundles = source_bundles,
       trusted_release_root = trusted_release_root,
+      selector_path = if (file.exists(selector_path)) selector_path else NULL,
       require_complete = TRUE,
       project_root = root
     )
