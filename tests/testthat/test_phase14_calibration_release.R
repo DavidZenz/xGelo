@@ -1408,6 +1408,25 @@ phase14_release_test_authority_sandbox <- function(selector_present = FALSE) {
       overwrite = FALSE
     ))
   }
+  sandbox_registries <- utils::read.csv(
+    file.path(registry_root, "competition_editions.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  sandbox_registries$model_release_id <- "phase12-wc2026-incumbent-retained-v1"
+  sandbox_registries$registry_revision <- 1L
+  sandbox_registries$audit_event <- "initial_registration"
+  sandbox_registries$audit_at_utc <- "2026-08-13T20:44:00Z"
+  sandbox_registries$operator <- "system"
+  sandbox_registries$row_sha256 <- phase13_registry_row_hash(sandbox_registries)
+  utils::write.csv(
+    sandbox_registries,
+    file.path(registry_root, "competition_editions.csv"),
+    row.names = FALSE,
+    na = "",
+    quote = TRUE
+  )
   candidate_path <- file.path(evidence_root, "approved_release_candidate.csv")
   expect_true(file.copy(
     file.path(
