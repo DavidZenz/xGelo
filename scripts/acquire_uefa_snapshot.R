@@ -34,6 +34,7 @@ phase13_acquire_project_root <- normalizePath(
 )
 source(file.path(phase13_acquire_project_root, "R/competition/source_contracts.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/team_identity.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/uefa_nations_league_adapter.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/edition_registry.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/publication_hashes.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/publication_manifests.R"))
@@ -140,9 +141,15 @@ phase13_acquire_parse_args <- function(args) {
     "standings-url", "results-url", "status-url", "url-fixtures", "url-groups",
     "url-standings", "url-results", "url-status", "source-url-fixtures",
     "source-url-groups", "source-url-standings", "source-url-results", "source-url-status",
-    "refresh-batch-id", "operator", "operator-action", "validation-passed"
+    "refresh-batch-id", "operator", "operator-action", "validation-passed",
+    "uefa-matches-url", "uefa-api-key"
   )
-  output <- list(dry_run = FALSE, help = FALSE, publish_accepted = FALSE)
+  output <- list(
+    dry_run = FALSE,
+    help = FALSE,
+    publish_accepted = FALSE,
+    official_uefa_nations_league = FALSE
+  )
   index <- 1L
   while (index <= length(args)) {
     token <- args[[index]]
@@ -161,6 +168,11 @@ phase13_acquire_parse_args <- function(args) {
     }
     if (identical(key, "publish-accepted")) {
       output$publish_accepted <- TRUE
+      index <- index + 1L
+      next
+    }
+    if (identical(key, "official-uefa-nations-league")) {
+      output$official_uefa_nations_league <- TRUE
       index <- index + 1L
       next
     }
@@ -577,6 +589,10 @@ phase13_acquire_help <- function() {
     "  --results-url URL [--status-url URL] [--publish-accepted] [the same output options as above]",
     "  [--refresh-batch-id ID] [--operator NAME] [--operator-action TEXT] [--validation-passed true|false]",
     "",
+    "Official Nations League capture:",
+    "  --official-uefa-nations-league --edition-id uefa_nations_league_2026_27",
+    "  [--uefa-matches-url URL] [--uefa-api-key VALUE|UEFA_PUBLIC_API_KEY]",
+    "",
     "Only structured JSON resources are accepted.  Rendered HTML and PDF inputs are rejected."
   )
 }
@@ -745,7 +761,9 @@ phase13_acquire_fetch_structured_url <- function(
     perform_fn = NULL,
     clock_fn = function() as.numeric(Sys.time()),
     sleep_fn = Sys.sleep,
-    rate_limit_state = NULL) {
+    rate_limit_state = NULL,
+    request_headers = NULL,
+    validate_payload_fn = phase13_source_validate_resource_payload) {
   url <- phase13_source_scalar(url, paste0(artifact_type, " URL"))
   artifact_type <- phase13_source_scalar(artifact_type, "artifact_type")
   if (!grepl("^https://", tolower(url))) {
@@ -783,9 +801,12 @@ phase13_acquire_fetch_structured_url <- function(
     )
     if (inherits(request, "httr2_request")) {
       request <- httr2::req_headers(request, Accept = "application/json")
+      if (!is.null(request_headers) && length(request_headers)) {
+        request <- do.call(httr2::req_headers, c(list(request), request_headers))
+      }
       request <- httr2::req_timeout(request, seconds = timeout_seconds)
     } else if (is.list(request)) {
-      request$headers <- c(request$headers %||% list(), list(Accept = "application/json"))
+      request$headers <- c(request$headers %||% list(), list(Accept = "application/json"), request_headers %||% list())
       request$timeout_seconds <- timeout_seconds
     }
 
@@ -818,8 +839,11 @@ phase13_acquire_fetch_structured_url <- function(
           ": ", conditionMessage(error), call. = FALSE
         )
       )
+      if (!is.function(validate_payload_fn)) {
+        stop("Phase 13 structured payload validator must be a function", call. = FALSE)
+      }
       tryCatch(
-        phase13_source_validate_resource_payload(payload, artifact_type),
+        validate_payload_fn(payload, artifact_type),
         error = function(error) stop(
           "Phase 13 structured response schema validation failed for ", artifact_type,
           ": ", conditionMessage(error), call. = FALSE
@@ -1021,7 +1045,19 @@ phase13_acquire_read_fallback <- function(path) {
 
 phase13_acquire_candidate <- function(options, edition_id, project_root = phase13_acquire_project_root) {
   fallback <- !is.null(options[["fallback-file"]])
-  input <- if (!is.null(options[["fixture-dir"]])) {
+  official_uefa_nations_league <- isTRUE(options$official_uefa_nations_league)
+  if (official_uefa_nations_league && !identical(edition_id, phase14_uefa_nl_edition_id())) {
+    stop("Official UEFA Nations League capture requires the Nations League 2026/27 edition", call. = FALSE)
+  }
+  if (official_uefa_nations_league && (!is.null(options[["fixture-dir"]]) || fallback)) {
+    stop("Official UEFA Nations League capture cannot be combined with fixture or fallback replay", call. = FALSE)
+  }
+  input <- if (official_uefa_nations_league) {
+    phase14_uefa_nl_live_input(
+      options = options,
+      fetch_fn = phase13_acquire_fetch_structured_url
+    )
+  } else if (!is.null(options[["fixture-dir"]])) {
     phase13_acquire_fixture_input(options[["fixture-dir"]], edition_id, options[["fixture-file"]])
   } else {
     phase13_acquire_live_input(options, edition_id)
@@ -1032,6 +1068,8 @@ phase13_acquire_candidate <- function(options, edition_id, project_root = phase1
   }
   bundle_id <- if (!is.null(options[["bundle-id"]])) {
     phase13_source_scalar(options[["bundle-id"]], "bundle_id")
+  } else if (official_uefa_nations_league) {
+    phase14_uefa_nl_bundle_id()
   } else {
     phase13_acquire_default_bundle_id(edition_id, fallback)
   }
@@ -1649,13 +1687,19 @@ phase13_acquire_publication_validate_source_manifest <- function(
 phase13_acquire_publication_validate_source_table <- function(
     table,
     edition_id,
-    artifact_type,
+  artifact_type,
     artifact) {
   compact_schema <- phase13_source_compact_resource_schema()[[artifact_type]]
-  expected_schema <- c(
+  expected_schemas <- list(c(
     "schema_version", compact_schema, "edition_id", "source_artifact_id", "row_sha256"
-  )
-  if (!is.data.frame(table) || !identical(names(table), expected_schema)) {
+  ))
+  if (identical(artifact_type, "fixtures")) {
+    expected_schemas[[2L]] <- c(
+      "schema_version", phase14_source_compact_resource_schema()$fixtures,
+      "edition_id", "source_artifact_id", "row_sha256"
+    )
+  }
+  if (!is.data.frame(table) || !any(vapply(expected_schemas, function(schema) identical(names(table), schema), logical(1)))) {
     stop("Phase 13 normalized publication source handoff schema mismatch: ", edition_id, "/", artifact_type, call. = FALSE)
   }
   phase13_source_validate_hash_column(
@@ -2040,6 +2084,11 @@ phase13_acquire_source_handoff_from_raw_store <- function(
         stop("Phase 13 EURO pre_draw raw source handoff contains fabricated structure: ", artifact_type, call. = FALSE)
       }
       parsed <- phase13_acquire_empty_resource(artifact_type)
+    }
+    official_uefa_nations_league <- identical(edition_id, phase14_uefa_nl_edition_id()) &&
+      any(as.character(artifact$source_url) == phase14_uefa_nl_matches_url())
+    if (official_uefa_nations_league) {
+      parsed <- phase14_uefa_nl_adapt_raw_bytes(raw_bytes, artifact_type)
     }
     phase13_source_validate_resource_payload(parsed, artifact_type)
     resources[[artifact_type]] <- parsed
@@ -3136,7 +3185,13 @@ phase13_acquire_main <- function(
   registry_root <- phase13_acquire_resolve_path(options[["registry-root"]] %||% "data/competition/registries")
   raw_root <- phase13_acquire_resolve_path(options[["raw-root"]] %||% "data/competition/local_raw")
   fallback <- !is.null(options[["fallback-file"]])
-  bundle_id <- if (!is.null(options[["bundle-id"]])) options[["bundle-id"]] else phase13_acquire_default_bundle_id(edition_id, fallback)
+  bundle_id <- if (!is.null(options[["bundle-id"]])) {
+    options[["bundle-id"]]
+  } else if (isTRUE(options$official_uefa_nations_league)) {
+    phase14_uefa_nl_bundle_id()
+  } else {
+    phase13_acquire_default_bundle_id(edition_id, fallback)
+  }
   refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(options[["refresh-batch-id"]], edition_id)
   operator <- if (!is.null(options[["operator"]])) phase13_source_scalar(options[["operator"]], "operator") else "system"
   operator_action <- if (!is.null(options[["operator-action"]])) as.character(options[["operator-action"]]) else ""
