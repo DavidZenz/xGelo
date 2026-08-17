@@ -99,9 +99,10 @@ phase14_remediation_candidate_grid <- function() {
     candidate_order = 1L,
     stringsAsFactors = FALSE
   )
+  scalar_labels <- gsub("\\.", "p", formatC(shrinkage, digits = 2L, format = "f"))
   scalar <- do.call(rbind, lapply(warmup, function(rows) {
     data.frame(
-      candidate_id = paste0("scalar_w", rows, "_s", gsub("\\.", "p", format(shrinkage, trim = TRUE))),
+      candidate_id = paste0("scalar_w", rows, "_s", scalar_labels),
       family = "scalar_temperature",
       warmup_rows = rows,
       scalar_shrinkage = shrinkage,
@@ -112,9 +113,10 @@ phase14_remediation_candidate_grid <- function() {
     )
   }))
   scalar$candidate_order <- seq_len(nrow(scalar))
+  vector_labels <- gsub("\\.", "p", formatC(penalties, digits = 3L, format = "f"))
   vector <- do.call(rbind, lapply(warmup, function(rows) {
     data.frame(
-      candidate_id = paste0("vector_w", rows, "_p", gsub("\\.", "p", format(penalties, trim = TRUE, scientific = FALSE))),
+      candidate_id = paste0("vector_w", rows, "_p", vector_labels),
       family = "vector_scaling",
       warmup_rows = rows,
       scalar_shrinkage = NA_real_,
