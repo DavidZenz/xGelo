@@ -437,7 +437,7 @@ phase14_state_test_expected_inventory <- function() {
 
 phase14_state_test_batch <- function(canonical_matches = phase14_state_tracer_fixture(), ...) {
   inputs <- phase14_state_tracer_inputs()
-  phase14_build_competition_state_batch(
+  arguments <- list(
     edition_id = phase14_state_test_edition_ids(),
     edition_registry = inputs$editions,
     canonical_matches = canonical_matches,
@@ -451,9 +451,11 @@ phase14_state_test_batch <- function(canonical_matches = phase14_state_tracer_fi
     elo_ratings = inputs$elo,
     national_team_xg_registry = inputs$xg_registry,
     model_manifest_path = inputs$model_manifest_path,
-    generated_at_utc = "2026-08-17T00:00:00Z",
-    ...
+    generated_at_utc = "2026-08-17T00:00:00Z"
   )
+  overrides <- list(...)
+  arguments[names(overrides)] <- overrides
+  do.call(phase14_build_competition_state_batch, arguments)
 }
 
 test_that("production state batch exposes exact isolated inventory and validates candidates", {
