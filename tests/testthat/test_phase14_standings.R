@@ -162,8 +162,6 @@ test_that("D-08 reconciliation distinguishes every fail-closed outcome", {
 })
 
 test_that("production standings reducer honors frozen keys and arithmetic", {
-  skip_if_not(exists("phase14_compute_standings"))
-
   cases <- phase14_standings_cases()
   matches <- cases[cases$record_type == "match", , drop = FALSE]
   matches$match_status <- "completed"
@@ -188,6 +186,79 @@ test_that("production standings reducer honors frozen keys and arithmetic", {
   expect_equal(standings$points, expected$points)
   expect_equal(standings$computed_rank, expected$computed_rank)
   expect_true(all(standings$ordering_status == "provisional"))
+  expect_identical(unique(standings$ruleset_adapter_id), "none")
+  expect_true(all(grepl("^[0-9a-f]{64}$", standings$row_sha256)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", standings$table_sha256)))
+})
+
+test_that("production standings exclude late evidence and reject foreign snapshot provenance", {
+  cases <- phase14_standings_cases()
+  matches <- cases[cases$record_type == "match", , drop = FALSE]
+  matches$match_status <- "completed"
+  late <- matches[1, , drop = FALSE]
+  late$match_id <- "late-evidence"
+  late$evidence_completed_at_utc <- "2026-06-21T00:00:00Z"
+  late$counts_for_standings <- TRUE
+
+  baseline <- phase14_compute_standings(
+    matches = matches,
+    edition_id = "wc2026",
+    group_id = "A",
+    state_cutoff_utc = "2026-06-20T00:00:00Z",
+    source_bundle_id = "bundle-a"
+  )
+  with_late <- phase14_compute_standings(
+    matches = rbind(matches, late),
+    edition_id = "wc2026",
+    group_id = "A",
+    state_cutoff_utc = "2026-06-20T00:00:00Z",
+    source_bundle_id = "bundle-a"
+  )
+  metric_fields <- c(
+    "team_id", "played", "wins", "draws", "losses", "goals_for",
+    "goals_against", "goal_difference", "points", "computed_rank"
+  )
+  expect_identical(
+    baseline[, metric_fields, drop = FALSE],
+    with_late[, metric_fields, drop = FALSE]
+  )
+
+  foreign <- matches
+  foreign$source_bundle_id[[1L]] <- "bundle-foreign"
+  expect_error(
+    phase14_compute_standings(
+      matches = foreign,
+      edition_id = "wc2026",
+      group_id = "A",
+      state_cutoff_utc = "2026-06-20T00:00:00Z",
+      source_bundle_id = "bundle-a"
+    ),
+    "source_bundle_id|foreign"
+  )
+})
+
+test_that("standings invoke a supplied adapter without claiming universal ordering is official", {
+  cases <- phase14_standings_cases()
+  matches <- cases[cases$record_type == "match", , drop = FALSE]
+  matches$match_status <- "completed"
+  adapter <- function(snapshot) {
+    snapshot$computed_rank <- match(sort(snapshot$team_id), snapshot$team_id)
+    snapshot
+  }
+  attr(adapter, "adapter_id") <- "test-ruleset"
+
+  standings <- phase14_compute_standings(
+    matches = matches,
+    edition_id = "wc2026",
+    group_id = "A",
+    state_cutoff_utc = "2026-06-20T00:00:00Z",
+    source_bundle_id = "bundle-a",
+    ruleset_adapter = adapter
+  )
+
+  expect_identical(unique(standings$ruleset_adapter_id), "test-ruleset")
+  expect_identical(unique(standings$ordering_status), "ruleset_adapter")
+  expect_identical(standings$computed_rank, seq_len(nrow(standings)))
 })
 
 phase14_standings_test_identity_map <- function() {
