@@ -1,5 +1,9 @@
 library(testthat)
 
+# Fixture replay cases in this file use the deliberately synthetic
+# tests/fixtures/phase13 Nations League payload.  They exercise contracts only
+# and must not be treated as production schedule evidence.
+
 phase13_source_test_project_root <- normalizePath(
   file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
   winslash = "/"
@@ -674,8 +678,8 @@ test_that("accepted fixture publication uses the durable identity registry and p
   expect_identical(fixtures$edition_id, "uefa_nations_league_2026_27")
   expect_identical(fixtures$home_team_id, "team_aut")
   expect_identical(fixtures$away_team_id, "team_deu")
-  expect_identical(as.character(fixtures$home_uefa_source_team_id), "100")
-  expect_identical(as.character(fixtures$away_uefa_source_team_id), "101")
+  expect_identical(as.character(fixtures$home_uefa_source_team_id), "8")
+  expect_identical(as.character(fixtures$away_uefa_source_team_id), "47")
   expect_identical(fixtures$home_display_name, "Austria")
   expect_identical(fixtures$away_display_name, "Germany")
   expect_identical(fixtures$source_artifact_id, "nl-2026-27-official-sample-v1-fixtures")

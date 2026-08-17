@@ -6,9 +6,9 @@ current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
 stopped_at: Completed 14-17-PLAN.md
-last_updated: "2026-08-17T19:58:36.733Z"
+last_updated: "2026-08-17T21:32:31Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-17 deterministic production batch state and forecast expansion
+last_activity_desc: Resolved Plan 14-18 Nations League source-data blocker with the official UEFA 2027 schedule
 progress:
   total_phases: 2
   completed_phases: 1
@@ -140,6 +140,7 @@ for Nations League and EURO qualifying.
 - [Phase ?]: Phase 14 Plan 14-17: production candidates use an exact eleven-artifact in-memory inventory with hashes and no Phase 17 durable promotion.
 - [Phase ?]: Phase 14 Plan 14-17: shared active evidence is preflighted only for forecastable rows, preserving edition-local kickoff and status suppression.
 - [Phase ?]: Phase 14 Plan 14-17: fixed startup seed 14017L and deterministic replay protect repeated dry-run batch outputs.
+- [Phase 14]: Replace the fictional Nations League sample acceptance with the immutable official UEFA 2026/27 schedule bundle; preserve stable xGelo IDs, rebuild the dependent match-identity hashes, and never confirm the synthetic Austria/Germany unit row.
 
 ## Accumulated Context
 
@@ -204,4 +205,4 @@ Plan 13-01 execution metrics are recorded below.
 
 ### Blockers
 
-- Plan 14-18 blocked: accepted UEFA Nations League Austria/Germany fixture has kickoff_confirmed=FALSE and blank confirmed_kickoff_at_utc; D-13 and the plan require confirmed kickoff before an available forecast, so no bundle promotion is safe.
+- None. Resolved 2026-08-17: the fictional `nl-2026-27-official-sample-v1` acceptance was replaced by `nl-2026-27-official-uefa-v2`, acquired from the official UEFA endpoint with 156 fixtures, 14 groups, and 54 teams (`raw_sha256=a8b9a1d9c4329a33ffa15a447cb84f2cf92c01caac9668f46d3f0f0abeaed4cd`). Every official fixture has a confirmed kickoff and no Austria/Germany production pair is present; Plan 14-18 is ready to resume. EURO qualifying remains `pre_draw` with the calibrated release authority unchanged.

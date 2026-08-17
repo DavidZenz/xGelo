@@ -293,8 +293,10 @@ test_that("canonical production batch covers accepted and historical inputs", {
     crosswalk = crosswalk
   )
 
-  expect_equal(nrow(canonical), 49521L)
-  expect_equal(length(unique(canonical$match_id)), 49521L)
+  expect_equal(nrow(fixtures), 156L)
+  expect_equal(nrow(results), 156L)
+  expect_equal(nrow(canonical), nrow(historical) + nrow(fixtures))
+  expect_equal(length(unique(canonical$match_id)), nrow(historical) + nrow(fixtures))
   expect_true(all(c(
     "edition_id", "source_lineage_id", "source_status", "match_status",
     "completion_method", "evidence_completed_at_utc", "row_sha256", "table_sha256"
@@ -722,6 +724,8 @@ test_that("temporary schema-v2 publication graph is complete and loader-valid", 
   artifact_derived <- c("row_sha256", "canonical_content_sha256")
   artifacts_before <- publication$source_artifacts_before[order(publication$source_artifacts_before$artifact_id), setdiff(names(publication$source_artifacts_before), artifact_derived), drop = FALSE]
   artifacts_after <- publication$source_artifacts_after[order(publication$source_artifacts_after$artifact_id), setdiff(names(publication$source_artifacts_after), artifact_derived), drop = FALSE]
+  row.names(artifacts_before) <- NULL
+  row.names(artifacts_after) <- NULL
   expect_identical(artifacts_after, artifacts_before)
   bundle_derived <- c(
     "source_bundle_sha256", "artifact_manifest_sha256", "canonical_content_sha256",
@@ -729,6 +733,8 @@ test_that("temporary schema-v2 publication graph is complete and loader-valid", 
   )
   bundles_before <- publication$source_bundles_before[order(publication$source_bundles_before$bundle_id), setdiff(names(publication$source_bundles_before), bundle_derived), drop = FALSE]
   bundles_after <- publication$source_bundles_after[order(publication$source_bundles_after$bundle_id), setdiff(names(publication$source_bundles_after), bundle_derived), drop = FALSE]
+  row.names(bundles_before) <- NULL
+  row.names(bundles_after) <- NULL
   expect_identical(bundles_after, bundles_before)
 
   artifacts <- publication$source_artifacts_after
@@ -1096,8 +1102,10 @@ test_that("production crosswalk covers every accepted and historical input", {
     historical = historical
   ))
 
-  expect_equal(nrow(crosswalk), nrow(historical) + 2L)
-  expect_equal(length(unique(crosswalk$match_id)), nrow(historical) + 1L)
+  expect_equal(nrow(fixtures), 156L)
+  expect_equal(nrow(results), 156L)
+  expect_equal(nrow(crosswalk), nrow(historical) + nrow(fixtures) + nrow(results))
+  expect_equal(length(unique(crosswalk$match_id)), nrow(historical) + nrow(fixtures))
   expect_true(all(grepl("^[0-9a-f]{64}$", crosswalk$row_sha256)))
   expect_true(all(grepl("^[0-9a-f]{64}$", crosswalk$table_sha256)))
   expect_silent(phase14_validate_match_identity_crosswalk(crosswalk))

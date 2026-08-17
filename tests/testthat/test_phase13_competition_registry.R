@@ -1,5 +1,9 @@
 library(testthat)
 
+# Direct source-ID and publication cases backed by tests/fixtures/phase13 are
+# synthetic contract fixtures.  The active official schedule is covered by
+# test_uefa_nations_league_production.R.
+
 phase13_registry_test_project_root <- normalizePath(
   file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
   winslash = "/"
@@ -623,7 +627,7 @@ test_that("team identity registry carries provenance and order-stable row hashes
 
   fixture <- phase13_registry_test_fixture()
   identity_map <- phase13_prepare_team_identity_map(phase13_registry_test_identity_map(fixture))
-  resolved <- phase13_resolve_team_identity(identity_map, "101", "Germany")
+  resolved <- phase13_resolve_team_identity(identity_map, "47", "Germany")
   expect_true(all(c("aliases", "source_bundle_id", "row_sha256") %in% names(resolved)))
   expect_identical(resolved$mapping_method, "source_id")
   expect_true(grepl("^[0-9a-f]{64}$", resolved$row_sha256))
@@ -758,6 +762,16 @@ test_that("production loading returns normalized accepted snapshots and truthful
   expect_named(nations$results, phase14_normalized_result_schema())
   expect_true(all(c("home_team_id", "away_team_id", "edition_id", "source_artifact_id") %in% names(nations$fixtures)))
   expect_true(all(c("home_team_id", "away_team_id", "edition_id", "fixture_source_artifact_id") %in% names(nations$results)))
+  expect_equal(nrow(nations$fixtures), 156L)
+  expect_equal(nrow(nations$groups), 14L)
+  expect_equal(nrow(nations$standings), 0L)
+  expect_equal(nrow(nations$results), 156L)
+  expect_true(all(as.logical(nations$fixtures$kickoff_confirmed)))
+  expect_false(any(
+    (as.character(nations$fixtures$home_team_id) == "team_aut" & as.character(nations$fixtures$away_team_id) == "team_deu") |
+      (as.character(nations$fixtures$home_team_id) == "team_deu" & as.character(nations$fixtures$away_team_id) == "team_aut")
+  ))
+  expect_false(any(grepl("sample", as.character(nations$fixtures$source_artifact_id), fixed = TRUE)))
   expect_true(all(nzchar(as.character(nations$fixtures$home_display_name))))
   expect_true(all(nzchar(as.character(nations$fixtures$away_display_name))))
   expect_identical(

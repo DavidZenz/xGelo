@@ -17,11 +17,11 @@
         "scheduled_at_utc": "2026-09-05T18:45:00Z",
         "status": "scheduled",
         "home": {
-          "uefa_source_team_id": "100",
+          "uefa_source_team_id": "8",
           "display_name": "Austria"
         },
         "away": {
-          "uefa_source_team_id": "101",
+          "uefa_source_team_id": "47",
           "display_name": "Germany"
         }
       }
@@ -35,7 +35,7 @@
     ],
     "standings": [
       {
-        "source_team_id": "100",
+        "source_team_id": "8",
         "source_group_id": "league-a-group-1",
         "position": 1,
         "points": 0
@@ -62,7 +62,7 @@
       "fifa_code": "AUT",
       "canonical_name": "Austria",
       "aliases": "Austria|Österreich",
-      "uefa_source_team_id": "100",
+      "uefa_source_team_id": "8",
       "uefa_display_name_current": "Austria"
     },
     {
@@ -70,7 +70,7 @@
       "fifa_code": "GER",
       "canonical_name": "Germany",
       "aliases": "Germany|Deutschland",
-      "uefa_source_team_id": "101",
+      "uefa_source_team_id": "47",
       "uefa_display_name_current": "Germany"
     }
   ]

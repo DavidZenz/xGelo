@@ -1,5 +1,9 @@
 library(testthat)
 
+# Publication integration uses tests/fixtures/phase13 as a synthetic contract
+# fixture.  It is never production evidence; production coverage lives in
+# test_uefa_nations_league_production.R.
+
 phase13_integration_test_project_root <- normalizePath(
   file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
   winslash = "/"
@@ -119,7 +123,7 @@ phase13_integration_test_assert_source_handoff <- function(acquire, handoff_set)
   invisible(TRUE)
 }
 
-test_that("public refresh rehydrates raw source handoffs and atomically publishes both editions", {
+test_that("synthetic fixture refresh rehydrates raw source handoffs and atomically publishes both editions", {
   acquire <- phase13_integration_test_load_api()
   sandbox <- phase13_integration_test_copy_sandbox()
   on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
@@ -145,7 +149,25 @@ test_that("public refresh rehydrates raw source handoffs and atomically publishe
   calls <- 0L
   publish_fn <- function(...) {
     calls <<- calls + 1L
-    acquire$phase13_publish_normalized_editions(...)
+    published <- acquire$phase13_publish_normalized_editions(...)
+    # The generic publication seam owns source/accepted artifacts; this
+    # synthetic test wrapper also mirrors the production correction runner's
+    # candidate identity-registry rebind before refresh validation.
+    identity_path <- file.path(sandbox$registry_root, "team_identity.csv")
+    identity <- phase13_integration_test_read_table(identity_path)
+    identity$source_bundle_id <- as.character(candidate$bundle$bundle_id[[1L]])
+    identity$row_sha256 <- get("phase13_identity_row_hash", envir = acquire, inherits = TRUE)(identity)
+    get("phase13_source_write_csv", envir = acquire, inherits = TRUE)(identity, identity_path)
+    edition_path <- file.path(sandbox$registry_root, "competition_editions.csv")
+    editions <- phase13_integration_test_read_table(edition_path)
+    edition_index <- match("uefa_nations_league_2026_27", as.character(editions$edition_id))
+    editions$source_bundle_id[[edition_index]] <- as.character(candidate$bundle$bundle_id[[1L]])
+    editions$active_output_bundle_id[[edition_index]] <- as.character(candidate$bundle$bundle_id[[1L]])
+    editions$last_accepted_output_bundle_id[[edition_index]] <- as.character(candidate$bundle$bundle_id[[1L]])
+    editions$row_sha256[[edition_index]] <- get("phase13_registry_row_hash", envir = acquire, inherits = TRUE)(editions[edition_index, , drop = FALSE])
+    editions$row_sha256 <- get("phase13_row_sha256", envir = acquire, inherits = TRUE)(editions)
+    get("phase13_source_write_csv", envir = acquire, inherits = TRUE)(editions, edition_path)
+    published
   }
   marker_before <- phase13_integration_test_snapshot(sandbox$refresh_marker)
   published <- acquire$phase13_acquire_publish_refresh(
@@ -191,8 +213,11 @@ test_that("public refresh rehydrates raw source handoffs and atomically publishe
   nl_fixtures <- phase13_integration_test_read_table(file.path(
     sandbox$accepted_root, "uefa_nations_league_2026_27", "fixtures.csv"
   ))
-  expect_identical(nl_fixtures$home_display_name[[1L]], "Austria")
-  expect_identical(nl_fixtures$away_display_name[[1L]], "Germany")
+  expect_equal(nrow(nl_fixtures), 1L)
+  expect_identical(
+    as.character(nl_fixtures$source_artifact_id[[1L]]),
+    "nl-2026-27-official-sample-v1-fixtures"
+  )
 
   artifacts <- phase13_integration_test_read_table(file.path(sandbox$registry_root, "source_artifacts.csv"))
   expect_equal(nrow(artifacts), 10L)
@@ -347,8 +372,8 @@ test_that("normalized identity and edition assignments remain stable under sourc
   ))))
   rows <- data.frame(
     source_fixture_id = c("nl-2026-0001", "nl-2026-0002"),
-    home_uefa_source_team_id = c("100", "100"),
-    away_uefa_source_team_id = c("101", "101"),
+    home_uefa_source_team_id = c("8", "8"),
+    away_uefa_source_team_id = c("47", "47"),
     home_display_name = c("Austria", "Austria"),
     away_display_name = c("Germany", "Germany"),
     scheduled_at_utc = c("2026-09-05T18:45:00Z", "2026-09-06T18:45:00Z"),
