@@ -98,7 +98,15 @@ phase12_release_contract_manifest_path <- function(trusted_root, release_manifes
   }
   supplied <- as.character(release_manifest_path)
   if (!grepl("^/", supplied)) {
-    supplied <- phase12_release_path_under_root(trusted_root, supplied, must_work = TRUE)
+    if (file.exists(supplied)) {
+      supplied <- normalizePath(supplied, winslash = "/", mustWork = TRUE)
+      prefix <- paste0(trusted_root, "/")
+      if (!startsWith(supplied, prefix)) {
+        stop("Phase 12 release manifest path escapes the trusted root", call. = FALSE)
+      }
+    } else {
+      supplied <- phase12_release_path_under_root(trusted_root, supplied, must_work = TRUE)
+    }
   } else {
     supplied <- normalizePath(supplied, winslash = "/", mustWork = TRUE)
     prefix <- paste0(trusted_root, "/")
@@ -406,6 +414,7 @@ preflight_phase12_approved_release <- function(trusted_root = NULL, release_mani
   result$metadata$candidate_id <- authority$candidate_id
   result$metadata$incumbent_id <- authority$incumbent_id
   result$metadata$freeze_id <- authority$freeze_id
+  result$release_id <- as.character(result$metadata$release_id)
   result
 }
 

@@ -108,6 +108,14 @@ phase12_test_release_root <- function() {
   file.path(phase12_test_project_root, "outputs/releases")
 }
 
+phase12_test_incumbent_manifest <- function() {
+  file.path(
+    phase12_test_release_root(),
+    "phase12-wc2026-incumbent-retained-v1",
+    "release_manifest.csv"
+  )
+}
+
 phase12_test_copy_release <- function() {
   source(file.path(phase12_test_project_root, "R/release/release_bundle.R"), local = .GlobalEnv)
   source(file.path(phase12_test_project_root, "R/release/release_install.R"), local = .GlobalEnv)
@@ -158,7 +166,10 @@ phase12_test_refresh_contract_manifest_row <- function(release_root) {
 
 test_that("12-09 metadata preflight is label-free and authoritative", {
   source(file.path(phase12_test_project_root, "R/release/release_contract.R"), local = .GlobalEnv)
-  preflight <- preflight_phase12_approved_release(phase12_test_release_root())
+  preflight <- preflight_phase12_approved_release(
+    phase12_test_release_root(),
+    phase12_test_incumbent_manifest()
+  )
   expect_identical(preflight$metadata$status, "incumbent retained")
   expect_identical(preflight$metadata$selected_model_id, "open_nb_incumbent")
   expect_false("model" %in% names(preflight))
@@ -210,7 +221,10 @@ test_that("12-09 direct resolver preflights before reading invalid model bytes",
   fixture <- phase12_test_copy_release()
   writeBin(charToRaw("not an RDS"), file.path(fixture$release_root, "model/approved_model.rds"))
   expect_error(resolve_phase12_approved_release(fixture$trusted_root), "hash|metadata")
-  resolved <- resolve_phase12_approved_release(phase12_test_release_root())
+  resolved <- resolve_phase12_approved_release(
+    phase12_test_release_root(),
+    phase12_test_incumbent_manifest()
+  )
   expect_identical(resolved$metadata$status, "incumbent retained")
 })
 
@@ -305,7 +319,10 @@ test_that("12-10 freeze, evaluation, provenance, and compatibility links fail cl
   phase12_test_refresh_release_hashes(fixture$release_root)
   expect_error(preflight_phase12_approved_release(fixture$trusted_root), "promotion report identity")
 
-  valid <- preflight_phase12_approved_release(phase12_test_release_root())
+  valid <- preflight_phase12_approved_release(
+    phase12_test_release_root(),
+    phase12_test_incumbent_manifest()
+  )
   expect_null(valid$model_contract$freeze_self_sha256)
   expect_identical(valid$metadata$primary_probability_view, "raw_1x2")
 })

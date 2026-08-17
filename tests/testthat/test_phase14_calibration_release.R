@@ -1082,6 +1082,19 @@ test_that("14-07 complete candidate has the exact immutable thirteen-file contra
   ))
 
   expect_false(any(c("model", "calibrator") %in% names(candidate$metadata_only)))
+  expect_identical(as.character(candidate$metadata_only$release_id), release_id)
+  previous_working_directory <- setwd(phase14_release_test_project_root)
+  on.exit(setwd(previous_working_directory), add = TRUE)
+  relative_preflight <- preflight_phase12_approved_release(
+    trusted_root = staging_parent,
+    release_manifest_path = file.path(
+      "outputs/releases",
+      basename(staging_parent),
+      release_id,
+      "release_manifest.csv"
+    )
+  )
+  expect_identical(as.character(relative_preflight$release_id), release_id)
   expect_true(all(c("model_object", "calibrator") %in% names(candidate$loaded)))
   manifest <- candidate$loaded$release_manifest
   expect_identical(nrow(manifest), 13L)
