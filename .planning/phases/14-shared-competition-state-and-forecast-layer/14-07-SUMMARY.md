@@ -39,7 +39,8 @@ decisions:
   - Build and completely validate the release under a sibling staging parent, then install only by one guarded atomic directory rename.
   - Preserve the incumbent model, freeze manifest, and final-evaluation manifest byte-for-byte; calibration lineage remains development-only and leaves the score distribution unchanged.
   - Keep approved_release.csv absent and competition-edition registry bytes unchanged; authority promotion belongs to later plans.
-requirements-completed: [FORECAST-01]
+requirements-addressed: [FORECAST-01]
+requirements-completed: []
 coverage:
   dimensions:
     D1: exact inventory, hashes, identities, and no-overwrite candidate contract
