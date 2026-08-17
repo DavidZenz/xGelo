@@ -104,6 +104,14 @@ test_that("14-21 freezes the exact family, grid, transform, ranking, and seed co
     candidates$family,
     candidates$family[order(candidates$complexity_rank, candidates$candidate_order)]
   )
+
+  default_candidate_ids <- candidates$candidate_id
+  old_options <- options(digits = 17L)
+  on.exit(options(old_options), add = TRUE)
+  expect_identical(
+    phase14_calibration_remediation_contract()$candidates$candidate_id,
+    default_candidate_ids
+  )
 })
 
 test_that("14-21 scalar and identifiable vector transforms preserve a finite simplex", {
