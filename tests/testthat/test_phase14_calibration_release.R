@@ -505,10 +505,10 @@ test_that("14-04 empirical gate is reproducible, hash-bound, and authority-neutr
 })
 
 test_that("14-06 selector-aware preflight rejects forgery and ignores unselected roots", {
-  phase14_release_test_require_api(
-    "phase14_resolve_approved_release",
-    "selector-aware preflight"
-  )
+  if (!exists("phase14_resolve_approved_release", mode = "function")) {
+    fail("Plan 14-06 selector-aware preflight API is missing: phase14_resolve_approved_release")
+    return(invisible(NULL))
+  }
   fitted <- phase14_release_test_fixture("fitted")
   resolver <- get("phase14_resolve_approved_release", mode = "function")
   resolved <- resolver(
@@ -520,8 +520,41 @@ test_that("14-06 selector-aware preflight rejects forgery and ignores unselected
     "calibrator_identity", "model_data_cutoff", "calibration_data_cutoff",
     "support_max", "primary_probability_view", "model", "calibrator"
   )
-  expect_true(all(required %in% names(resolved)))
+  expect_setequal(names(resolved), required)
+  expect_identical(normalizePath(resolved$release_dir, winslash = "/"), fitted$release_root)
+  expect_identical(
+    normalizePath(resolved$release_manifest_path, winslash = "/"),
+    fitted$release_manifest_path
+  )
   expect_identical(as.character(resolved$release_identity$release_id), fitted$release_id)
+  expect_identical(
+    as.character(resolved$release_identity$manifest_sha256),
+    fitted$release_manifest_sha256
+  )
+  expect_identical(
+    as.character(resolved$release_identity$manifest_self_sha256),
+    fitted$manifest_self_sha256
+  )
+  expect_identical(
+    as.character(resolved$release_identity$selector_self_sha256),
+    fitted$selector_self_sha256
+  )
+  expect_identical(as.character(resolved$model_identity$model_id), "open_nb_incumbent")
+  expect_identical(as.character(resolved$model_identity$sha256), fitted$model_sha256)
+  expect_identical(
+    as.character(resolved$calibrator_identity$calibrator_id),
+    fitted$calibrator_id
+  )
+  expect_identical(
+    as.character(resolved$calibrator_identity$sha256),
+    fitted$calibrator_sha256
+  )
+  expect_identical(as.character(resolved$calibrator_identity$fit_status), "fitted")
+  expect_identical(as.character(resolved$model_data_cutoff), fitted$model_data_cutoff)
+  expect_identical(
+    as.character(resolved$calibration_data_cutoff),
+    fitted$calibration_data_cutoff
+  )
   expect_identical(as.integer(resolved$support_max), 40L)
   expect_identical(as.character(resolved$primary_probability_view), "calibrated_1x2")
 
@@ -553,6 +586,136 @@ test_that("14-06 selector-aware preflight rejects forgery and ignores unselected
     ),
     "manifest|hash|selector"
   )
+})
+
+test_that("14-06 runtime resolution rejects raw fallback and direct-manifest authority", {
+  if (!exists("phase14_resolve_approved_release", mode = "function")) {
+    fail("Plan 14-06 selector-aware preflight API is missing: phase14_resolve_approved_release")
+    return(invisible(NULL))
+  }
+  resolver <- get("phase14_resolve_approved_release", mode = "function")
+  raw <- phase14_release_test_fixture("raw")
+  fitted <- phase14_release_test_fixture("fitted")
+
+  expect_error(
+    resolver(
+      selector_path = raw$selector_path,
+      trusted_release_root = raw$trusted_root
+    ),
+    "fitted|calibrated|raw fallback"
+  )
+  expect_error(
+    resolver(
+      selector_path = fitted$release_manifest_path,
+      trusted_release_root = fitted$trusted_root
+    ),
+    "selector"
+  )
+})
+
+test_that("14-06 selector path, self-hash, traversal, and topology fail closed", {
+  if (!exists("phase14_resolve_approved_release", mode = "function")) {
+    fail("Plan 14-06 selector-aware preflight API is missing: phase14_resolve_approved_release")
+    return(invisible(NULL))
+  }
+  resolver <- get("phase14_resolve_approved_release", mode = "function")
+  fitted <- phase14_release_test_fixture("fitted")
+  selector <- utils::read.csv(
+    fitted$selector_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    colClasses = "character",
+    na.strings = character()
+  )
+
+  copied_selector <- tempfile("phase14-copied-selector-", fileext = ".csv")
+  phase12_release_write_csv(selector, copied_selector)
+  expect_error(
+    resolver(copied_selector, fitted$trusted_root),
+    "selector.*trusted root|approved_release"
+  )
+
+  forged_selector <- tempfile("phase14-self-hash-selector-", fileext = ".csv")
+  self_hash_forgery <- selector
+  self_hash_forgery$release_id <- "forged-release"
+  phase12_release_write_csv(self_hash_forgery, forged_selector)
+  expect_error(
+    resolver(forged_selector, fitted$trusted_root),
+    "selector.*trusted root|approved_release|self-hash"
+  )
+
+  selector_bytes <- phase14_release_test_read_bytes(fitted$selector_path)
+  traversal <- selector
+  traversal$release_manifest_path <- "../outside/release_manifest.csv"
+  traversal$row_sha256 <- phase14_release_fixture_selector_hash(traversal)
+  phase12_release_write_csv(traversal, fitted$selector_path)
+  expect_error(
+    resolver(fitted$selector_path, fitted$trusted_root),
+    "relative path|traversal|trusted root"
+  )
+  phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
+
+  identity_drift <- selector
+  identity_drift$release_id <- "forged-release"
+  identity_drift$row_sha256 <- phase14_release_fixture_selector_hash(identity_drift)
+  phase12_release_write_csv(identity_drift, fitted$selector_path)
+  expect_error(
+    resolver(fitted$selector_path, fitted$trusted_root),
+    "selector.*release identity|topology"
+  )
+  phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
+
+  unlink(fitted$selector_path)
+  expect_true(file.symlink(copied_selector, fitted$selector_path))
+  expect_error(
+    resolver(fitted$selector_path, fitted$trusted_root),
+    "selector.*symlink"
+  )
+  unlink(fitted$selector_path)
+  phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
+})
+
+test_that("14-06 selected manifest preflight precedes RDS reads and stays fresh", {
+  if (!exists("phase14_resolve_approved_release", mode = "function")) {
+    fail("Plan 14-06 selector-aware preflight API is missing: phase14_resolve_approved_release")
+    return(invisible(NULL))
+  }
+  resolver <- get("phase14_resolve_approved_release", mode = "function")
+  fitted <- phase14_release_test_fixture("fitted")
+
+  unselected <- file.path(fitted$trusted_root, "another-unselected-release")
+  dir.create(unselected, showWarnings = FALSE)
+  file.copy(fitted$release_manifest_path, file.path(unselected, "release_manifest.csv"))
+  selected_preflight <- preflight_phase12_approved_release(
+    trusted_root = fitted$trusted_root,
+    release_manifest_path = fitted$release_manifest_path
+  )
+  expect_identical(selected_preflight$release_manifest_path, fitted$release_manifest_path)
+  expect_false("model" %in% names(selected_preflight))
+  expect_false("calibrator" %in% names(selected_preflight))
+
+  model_path <- file.path(fitted$release_root, "model/approved_model.rds")
+  model_bytes <- phase14_release_test_read_bytes(model_path)
+  writeBin(charToRaw("not an RDS object"), model_path)
+  expect_error(
+    resolver(fitted$selector_path, fitted$trusted_root),
+    "artifact hash|hash|metadata"
+  )
+  phase14_release_test_write_bytes(model_path, model_bytes)
+
+  manifest_bytes <- phase14_release_test_read_bytes(fitted$release_manifest_path)
+  selector_bytes <- phase14_release_test_read_bytes(fitted$selector_path)
+  model <- readRDS(model_path)
+  model$model_id <- "forged-model-id"
+  phase12_release_write_rds(model, model_path)
+  phase14_release_test_rebind_selector(fitted)
+  expect_error(
+    resolver(fitted$selector_path, fitted$trusted_root),
+    "model identity"
+  )
+  phase14_release_test_write_bytes(model_path, model_bytes)
+  phase14_release_test_write_bytes(fitted$release_manifest_path, manifest_bytes)
+  phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
 })
 
 test_that("14-06 immutable release validation binds fitted object and manifest bytes", {
