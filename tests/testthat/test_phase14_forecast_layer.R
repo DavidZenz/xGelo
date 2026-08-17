@@ -692,7 +692,6 @@ test_that("batch forecast resolves release, features, and prediction exactly onc
   second <- matches
   second$fixture_id <- "uefa_nations_league_2026_27-nl-2026-0002"
   second$match_id <- second$fixture_id
-  second$feature_cutoff_utc <- "2026-09-06T18:44:59Z"
   calls <- new.env(parent = emptyenv())
   calls$resolve <- 0L
   calls$features <- 0L
