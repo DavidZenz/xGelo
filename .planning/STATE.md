@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-14-PLAN.md
-last_updated: "2026-08-17T17:19:34.044Z"
+stopped_at: Completed 14-15-PLAN.md
+last_updated: "2026-08-17T18:00:31.630Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-14 cutoff-safe universal standings and official reconciliation
+last_activity_desc: Completed Plan 14-15 cutoff-safe form and honest national-team xG availability
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 29
+  completed_plans: 30
 ---
 
 # xGelo Project State
@@ -21,21 +21,21 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 16 of 22 complete; Plan 14-15 is next
+Plan: 17 of 22 complete; Plan 14-16 is next
 Status: Ready to execute
-Last activity: 2026-08-17 — Completed Plan 14-14 cutoff-safe universal standings and official reconciliation
+Last activity: 2026-08-17 — Completed Plan 14-15 cutoff-safe form and honest national-team xG availability
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Canonical match identity, lifecycle/score engine, and cutoff-safe universal standings delivered; downstream form and forecast consumption pending (16/22 complete) | 4/7 |
+| 14 | Shared Competition State and Forecast Layer | Canonical match identity, lifecycle/score engine, cutoff-safe universal standings, and honest form availability delivered; downstream forecast consumption pending (17/22 complete) | 4/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, and cutoff-safe universal standings with fail-closed official reconciliation, with Plan 14-15 next.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, and honest form availability, with Plan 14-16 next.
 
 ## Project Reference
 
@@ -128,6 +128,9 @@ for Nations League and EURO qualifying.
 - [Phase ?]: Plan 14-14 keeps universal standings arithmetic separate from competition-specific ordering; no adapter is explicitly provisional.
 - [Phase ?]: Plan 14-14 requires counts_for_standings, completed paired scores, and evidence completion at or before the state cutoff.
 - [Phase ?]: Plan 14-14 reconciles official aggregates only within the computed source bundle and retains prior state for aggregate, partial, or foreign mismatches.
+- [Phase ?]: Keep competition last-five, all-senior last-five, and national-team xG EWMA as separate products; display result history never substitutes for xG evidence.
+- [Phase ?]: Do not fabricate current national-team xG: the no-accepted-source registry preserves explicit unavailable/NA rows for Austria and Germany.
+- [Phase ?]: Reject club rolling_form.csv, football-goal relabels, non-shot evidence, and non-exclusive point-in-time evidence at the national_team_xg adapter boundary.
 
 ## Accumulated Context
 
@@ -141,12 +144,12 @@ for Nations League and EURO qualifying.
 
 ## Next Action
 
-Plan 14-15 is next. It builds on Plan 14-14's cutoff-safe universal standings and same-bundle official reconciliation.
+Plan 14-16 is next. It builds on Plan 14-15's separate display/model form contracts and explicit national-team xG availability boundary.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T17:19:34.034Z
-**Stopped at:** Completed 14-14-PLAN.md
+**Last session:** 2026-08-17T18:00:31.619Z
+**Stopped at:** Completed 14-15-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -186,3 +189,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P12 | 24m 39s | 1 tasks | 10 files |
 | Phase 14 P13 | 1h 18m | 2 tasks | 4 files |
 | Phase 14 P14 | 12m | 2 tasks | 2 files |
+| Phase 14 P15 | 39 min | 2 tasks | 4 files |
