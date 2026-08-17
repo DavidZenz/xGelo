@@ -756,3 +756,167 @@ test_that("every promotion index restores the complete graph and unrelated paths
   expect_true(is.list(rollback))
   expect_true(isTRUE(rollback$passed))
 })
+
+phase14_match_state_test_crosswalk_sources <- function() {
+  list(
+    competition = list(
+      fixtures = data.frame(
+        source_fixture_id = "nl-2026-0001",
+        edition_id = "uefa_nations_league_2026_27",
+        home_team_id = "team_aut",
+        away_team_id = "team_deu",
+        scheduled_at_utc = "2026-09-05T18:45:00Z",
+        neutral = FALSE,
+        venue = "Vienna",
+        source_artifact_id = "nl-fixtures-v1",
+        source_status = "scheduled",
+        final_home_goals = NA_integer_,
+        final_away_goals = NA_integer_,
+        row_sha256 = "score-bearing-or-mutable",
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      ),
+      results = data.frame(
+        source_fixture_id = "nl-2026-0001",
+        edition_id = "uefa_nations_league_2026_27",
+        home_team_id = "team_aut",
+        away_team_id = "team_deu",
+        scheduled_at_utc = "2026-09-05T18:45:00Z",
+        neutral = FALSE,
+        venue = "Vienna",
+        source_artifact_id = "nl-results-v1",
+        source_status = "scheduled",
+        final_home_goals = NA_integer_,
+        final_away_goals = NA_integer_,
+        row_sha256 = "score-bearing-or-mutable",
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+    ),
+    historical = data.frame(
+      source_match_id = "martj42-ns-example",
+      source_result_id = "martj42-ns-example",
+      match_id = "martj42-ns-example",
+      edition_id = "martj42_historical_v1",
+      home_team_id = "team_aut",
+      away_team_id = "team_deu",
+      date = "2026-07-19",
+      neutral = FALSE,
+      city = "Vienna",
+      country = "Austria",
+      source_artifact_id = "martj42-results",
+      source_match_id_method = "non_score_hash",
+      source_status = "finished",
+      home_score = 2L,
+      away_score = 1L,
+      row_sha256 = "score-bearing-or-mutable",
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  )
+}
+
+test_that("durable crosswalk uses one-to-one source IDs and a score/status-free minting projection", {
+  sources <- phase14_match_state_test_crosswalk_sources()
+  crosswalk <- phase14_build_match_identity_crosswalk(sources)
+
+  expect_true(all(c(
+    "schema_version", "match_id", "source_namespace", "source_match_id",
+    "edition_id", "home_team_id", "away_team_id", "scheduled_at_utc",
+    "minting_projection", "minting_projection_sha256", "competition_lineage_id",
+    "history_lineage_id", "collision_status", "review_state", "row_sha256",
+    "table_sha256"
+  ) %in% names(crosswalk)))
+  expect_true(all(grepl("^match-", crosswalk$match_id)))
+  expect_equal(
+    nrow(unique(crosswalk[, c("source_namespace", "source_match_id")])),
+    nrow(crosswalk)
+  )
+  expect_false(any(grepl(
+    "score|status|row_sha256|home_goals|away_goals",
+    tolower(crosswalk$minting_projection)
+  )))
+  expect_silent(phase14_validate_match_identity_crosswalk(crosswalk))
+})
+
+test_that("crosswalk minting is correction-stable and reorder-stable", {
+  original <- phase14_match_state_test_crosswalk_sources()
+  corrected <- original
+  corrected$competition$fixtures$source_status <- "finished"
+  corrected$competition$fixtures$final_home_goals <- 3L
+  corrected$competition$fixtures$final_away_goals <- 2L
+  corrected$competition$fixtures$row_sha256 <- "changed-semantic-row-hash"
+  corrected$competition$results$source_status <- "finished"
+  corrected$competition$results$final_home_goals <- 3L
+  corrected$competition$results$final_away_goals <- 2L
+  corrected$competition$results$row_sha256 <- "changed-semantic-row-hash"
+  corrected$historical$home_score <- 4L
+  corrected$historical$away_score <- 0L
+  corrected$historical$row_sha256 <- "changed-semantic-row-hash"
+
+  before <- phase14_build_match_identity_crosswalk(original)
+  after <- phase14_build_match_identity_crosswalk(corrected)
+  before <- before[order(before$source_namespace, before$source_match_id), , drop = FALSE]
+  after <- after[order(after$source_namespace, after$source_match_id), , drop = FALSE]
+
+  expect_identical(before$match_id, after$match_id)
+  expect_identical(before$minting_projection, after$minting_projection)
+  expect_identical(before$minting_projection_sha256, after$minting_projection_sha256)
+  expect_identical(before$table_sha256, after$table_sha256)
+
+  reversed <- original
+  reversed$competition$fixtures <- reversed$competition$fixtures[1, , drop = FALSE]
+  reversed$competition$results <- reversed$competition$results[1, , drop = FALSE]
+  reversed$historical <- reversed$historical[1, , drop = FALSE]
+  reordered <- phase14_build_match_identity_crosswalk(reversed)
+  expect_identical(
+    before[, setdiff(names(before), "table_sha256"), drop = FALSE],
+    reordered[order(reordered$source_namespace, reordered$source_match_id), setdiff(names(reordered), "table_sha256"), drop = FALSE]
+  )
+})
+
+test_that("unreviewed source identity collisions fail closed", {
+  sources <- phase14_match_state_test_crosswalk_sources()
+  collision <- rbind(
+    sources$historical,
+    transform(sources$historical, home_team_id = "team_deu", away_team_id = "team_aut")
+  )
+  sources$historical <- collision
+
+  expect_error(
+    phase14_build_match_identity_crosswalk(sources),
+    "collision|duplicate|one-to-one"
+  )
+})
+
+test_that("production crosswalk covers every accepted and historical input", {
+  historical <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/processed/martj42_historical_normalized.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  fixtures <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted/uefa_nations_league_2026_27/fixtures.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  results <- utils::read.csv(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted/uefa_nations_league_2026_27/results.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+
+  crosswalk <- phase14_build_match_identity_crosswalk(list(
+    competition = list(fixtures = fixtures, results = results),
+    historical = historical
+  ))
+
+  expect_equal(nrow(crosswalk), nrow(historical) + 2L)
+  expect_equal(length(unique(crosswalk$match_id)), nrow(historical) + 1L)
+  expect_true(all(grepl("^[0-9a-f]{64}$", crosswalk$row_sha256)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", crosswalk$table_sha256)))
+  expect_silent(phase14_validate_match_identity_crosswalk(crosswalk))
+})
