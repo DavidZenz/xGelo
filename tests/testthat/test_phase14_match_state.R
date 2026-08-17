@@ -357,10 +357,310 @@ test_that("result v2 keeps lifecycle/completion and score axes independent", {
   expect_true(is.na(unresolved$evidence_completed_at_utc))
 })
 
+phase14_match_state_test_api <- function(acquire, name) {
+  get(name, envir = acquire, inherits = TRUE)
+}
+
+phase14_match_state_test_copy_tree <- function(source, target) {
+  dir.create(target, recursive = TRUE, showWarnings = FALSE)
+  for (path in list.files(source, full.names = TRUE, all.files = FALSE)) {
+    destination <- file.path(target, basename(path))
+    if (dir.exists(path)) {
+      phase14_match_state_test_copy_tree(path, destination)
+    } else {
+      stopifnot(file.copy(path, destination, overwrite = TRUE))
+    }
+  }
+  invisible(target)
+}
+
+phase14_match_state_test_snapshot_tree <- function(root) {
+  if (!dir.exists(root)) return(setNames(list(), character()))
+  files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE, no.. = TRUE)
+  files <- files[!file.info(files)$isdir]
+  if (!length(files)) return(setNames(list(), character()))
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  setNames(lapply(files, function(path) {
+    bytes <- readBin(path, what = "raw", n = file.info(path)$size)
+    list(
+      bytes = bytes,
+      byte_count = length(bytes),
+      sha256 = digest::digest(bytes, algo = "sha256", serialize = FALSE)
+    )
+  }), substring(files, nchar(root) + 2L))
+}
+
+phase14_match_state_test_load_acquire <- function() {
+  acquire <- new.env(parent = globalenv())
+  previous_directory <- getwd()
+  setwd(phase14_match_state_test_project_root)
+  on.exit(setwd(previous_directory), add = TRUE)
+  sys.source(
+    file.path(phase14_match_state_test_project_root, "scripts/acquire_uefa_snapshot.R"),
+    envir = acquire
+  )
+  acquire
+}
+
+phase14_match_state_test_copy_sandbox <- function() {
+  root <- tempfile("phase14-schema-v2-", tmpdir = phase14_match_state_test_project_root)
+  accepted_root <- file.path(root, "data/competition/accepted")
+  registry_root <- file.path(root, "data/competition/registries")
+  raw_root <- file.path(root, "data/competition/local_raw")
+  phase14_match_state_test_copy_tree(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted"),
+    accepted_root
+  )
+  phase14_match_state_test_copy_tree(
+    file.path(phase14_match_state_test_project_root, "data/competition/local_raw"),
+    raw_root
+  )
+  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
+  registry_files <- file.path(
+    phase14_match_state_test_project_root,
+    "data/competition/registries",
+    c("competition_editions.csv", "source_artifacts.csv", "source_bundles.csv", "team_identity.csv")
+  )
+  stopifnot(all(file.copy(registry_files, registry_root, overwrite = TRUE)))
+  refresh_marker <- file.path(
+    registry_root,
+    "refresh_batches",
+    "keep",
+    "blocked_refresh.json"
+  )
+  dir.create(dirname(refresh_marker), recursive = TRUE, showWarnings = FALSE)
+  writeBin(charToRaw("pre-existing refresh history"), refresh_marker)
+  unrelated <- file.path(root, "data/competition/unrelated-sibling.txt")
+  writeBin(charToRaw("pre-existing unrelated sibling"), unrelated)
+  list(
+    root = root,
+    accepted_root = accepted_root,
+    registry_root = registry_root,
+    raw_root = raw_root,
+    refresh_marker = refresh_marker,
+    unrelated = unrelated
+  )
+}
+
+phase14_match_state_test_build_source_handoff <- function(acquire, sandbox) {
+  editions <- phase14_match_state_test_api(acquire, "phase13_publication_editions")()
+  resource_types <- phase14_match_state_test_api(acquire, "phase13_source_required_resource_types")()
+  handoffs <- lapply(editions, function(edition_id) {
+    acquire$phase13_acquire_source_handoff_from_raw_store(
+      edition_id = edition_id,
+      registry_root = sandbox$registry_root,
+      raw_root = sandbox$raw_root,
+      project_root = phase14_match_state_test_project_root
+    )
+  })
+  names(handoffs) <- editions
+  handoff_root <- tempfile("phase14-source-handoff-", tmpdir = sandbox$root)
+  handoff_accepted <- file.path(handoff_root, "data/competition/accepted")
+  handoff_registries <- file.path(handoff_root, "data/competition/registries")
+  dir.create(handoff_accepted, recursive = TRUE, showWarnings = FALSE)
+  dir.create(handoff_registries, recursive = TRUE, showWarnings = FALSE)
+  write_csv <- phase14_match_state_test_api(acquire, "phase13_publication_write_csv")
+  bundles <- do.call(rbind, lapply(handoffs, function(handoff) handoff$bundle))
+  artifacts <- do.call(rbind, lapply(handoffs, function(handoff) handoff$artifacts))
+  row.names(bundles) <- NULL
+  row.names(artifacts) <- NULL
+  write_csv(bundles, file.path(handoff_registries, "source_bundles.csv"))
+  write_csv(artifacts, file.path(handoff_registries, "source_artifacts.csv"))
+  for (edition_id in editions) {
+    handoff <- handoffs[[edition_id]]
+    edition_root <- file.path(handoff_accepted, edition_id)
+    write_csv(handoff$manifest, file.path(edition_root, "source_bundle_manifest.csv"))
+    for (artifact_type in resource_types) {
+      write_csv(
+        handoff$tables[[artifact_type]],
+        file.path(edition_root, paste0(artifact_type, ".csv"))
+      )
+    }
+  }
+  handoff_root
+}
+
+phase14_match_state_test_build_v2_publication <- function() {
+  acquire <- phase14_match_state_test_load_acquire()
+  sandbox <- phase14_match_state_test_copy_sandbox()
+  keep_sandbox <- FALSE
+  on.exit(
+    if (!keep_sandbox) unlink(sandbox$root, recursive = TRUE, force = TRUE),
+    add = TRUE
+  )
+  durable_targets <- acquire$phase13_normalized_publication_targets(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted"),
+    file.path(phase14_match_state_test_project_root, "data/competition/registries")
+  )
+  snapshot_targets <- phase14_match_state_test_api(acquire, "phase13_snapshot_publication_targets")
+  durable_before <- snapshot_targets(durable_targets)
+  raw_before <- phase14_match_state_test_snapshot_tree(sandbox$raw_root)
+  source_artifacts_before <- utils::read.csv(
+    file.path(sandbox$registry_root, "source_artifacts.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  source_bundles_before <- utils::read.csv(
+    file.path(sandbox$registry_root, "source_bundles.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  handoff_root <- phase14_match_state_test_build_source_handoff(acquire, sandbox)
+  publication <- acquire$phase13_publish_normalized_editions(
+    output_root = sandbox$accepted_root,
+    registry_root = sandbox$registry_root,
+    registry_context_root = sandbox$registry_root,
+    handoff_root = handoff_root
+  )
+  loader <- phase14_match_state_test_api(acquire, "load_competition_edition_registries")
+  loaded <- loader(
+    registry_dir = sandbox$registry_root,
+    project_root = phase14_match_state_test_project_root,
+    accepted_root = sandbox$accepted_root,
+    raw_root = sandbox$raw_root
+  )
+  durable_after <- snapshot_targets(durable_targets)
+  publication$sandbox <- sandbox
+  publication$acquire <- acquire
+  publication$loaded <- loaded
+  publication$temporary_snapshot <- snapshot_targets(publication$targets)
+  publication$durable_targets <- durable_targets
+  publication$durable_before <- durable_before
+  publication$durable_after <- durable_after
+  publication$raw_before <- raw_before
+  publication$raw_after <- phase14_match_state_test_snapshot_tree(sandbox$raw_root)
+  publication$source_artifacts_before <- source_artifacts_before
+  publication$source_bundles_before <- source_bundles_before
+  publication$source_artifacts_after <- utils::read.csv(
+    file.path(sandbox$registry_root, "source_artifacts.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  publication$source_bundles_after <- utils::read.csv(
+    file.path(sandbox$registry_root, "source_bundles.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  keep_sandbox <- TRUE
+  publication
+}
+
+phase14_match_state_test_expect_snapshot_equal <- function(actual, expected) {
+  expect_identical(actual$path, expected$path)
+  expect_identical(actual$exists, expected$exists)
+  expect_identical(actual$byte_count, expected$byte_count)
+  expect_identical(actual$sha256, expected$sha256)
+  expect_identical(actual$bytes, expected$bytes)
+}
+
 test_that("temporary schema-v2 publication graph is complete and loader-valid", {
   publication <- phase14_match_state_test_build_v2_publication()
+  on.exit(unlink(publication$sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  acquire <- publication$acquire
+  editions <- phase14_match_state_test_api(acquire, "phase13_publication_editions")()
+  resource_types <- phase14_match_state_test_api(acquire, "phase13_publication_resource_types")()
+  expected_relative <- c(
+    file.path("registries", c("source_artifacts.csv", "source_bundles.csv")),
+    unlist(lapply(editions, function(edition_id) file.path(
+      "accepted", edition_id,
+      c("source_bundle_manifest.csv", paste0(resource_types, ".csv"))
+    )), use.names = FALSE)
+  )
+  expect_identical(
+    unname(publication$targets),
+    file.path(normalizePath(file.path(publication$sandbox$root, "data/competition"), winslash = "/", mustWork = TRUE), expected_relative)
+  )
+  expect_true(all(file.exists(unname(publication$targets))))
+  expect_true(all(grepl("^[0-9a-f]{64}$", publication$temporary_snapshot$sha256)))
+  expect_identical(unname(publication$temporary_snapshot$exists), rep(TRUE, 14L))
+  phase14_match_state_test_expect_snapshot_equal(
+    publication$durable_after,
+    publication$durable_before
+  )
+  expect_identical(publication$raw_after, publication$raw_before)
 
-  expect_true(is.list(publication))
-  expect_length(publication$targets, 14L)
-  expect_true(isTRUE(publication$loader_ready))
+  artifact_derived <- c("row_sha256", "canonical_content_sha256")
+  artifacts_before <- publication$source_artifacts_before[order(publication$source_artifacts_before$artifact_id), setdiff(names(publication$source_artifacts_before), artifact_derived), drop = FALSE]
+  artifacts_after <- publication$source_artifacts_after[order(publication$source_artifacts_after$artifact_id), setdiff(names(publication$source_artifacts_after), artifact_derived), drop = FALSE]
+  expect_identical(artifacts_after, artifacts_before)
+  bundle_derived <- c(
+    "source_bundle_sha256", "artifact_manifest_sha256", "canonical_content_sha256",
+    "manifest_self_sha256", "row_sha256"
+  )
+  bundles_before <- publication$source_bundles_before[order(publication$source_bundles_before$bundle_id), setdiff(names(publication$source_bundles_before), bundle_derived), drop = FALSE]
+  bundles_after <- publication$source_bundles_after[order(publication$source_bundles_after$bundle_id), setdiff(names(publication$source_bundles_after), bundle_derived), drop = FALSE]
+  expect_identical(bundles_after, bundles_before)
+
+  artifacts <- publication$source_artifacts_after
+  expect_equal(nrow(artifacts), 10L)
+  expect_true(all(grepl("^[0-9a-f]{64}$", artifacts$row_sha256)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", artifacts$canonical_content_sha256)))
+  bundles <- publication$source_bundles_after
+  expect_equal(nrow(bundles), 2L)
+  expect_true(all(vapply(bundles[c(
+    "source_bundle_sha256", "artifact_manifest_sha256", "canonical_content_sha256",
+    "manifest_self_sha256", "row_sha256"
+  )], function(column) all(grepl("^[0-9a-f]{64}$", column)), logical(1))))
+
+  manifest_schema <- phase14_match_state_test_api(acquire, "phase13_publication_manifest_schema")()
+  v2_schema <- phase14_match_state_test_api(acquire, "phase14_publication_table_schema")
+  v1_schema <- phase14_match_state_test_api(acquire, "phase13_publication_table_schema")
+  for (edition_id in editions) {
+    manifest <- utils::read.csv(
+      file.path(publication$sandbox$accepted_root, edition_id, "source_bundle_manifest.csv"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    )
+    expect_identical(names(manifest), manifest_schema)
+    expect_equal(nrow(manifest), 5L)
+    expect_true(all(grepl("^[0-9a-f]{64}$", manifest$row_sha256)))
+    expect_true(all(grepl("^[0-9a-f]{64}$", manifest$manifest_self_sha256)))
+    expect_true(all(grepl("^[0-9a-f]{64}$", manifest$canonical_content_sha256)))
+    for (artifact_type in resource_types) {
+      path <- file.path(publication$sandbox$accepted_root, edition_id, paste0(artifact_type, ".csv"))
+      table <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+      expected_schema <- if (artifact_type %in% c("fixtures", "results", "standings")) {
+        v2_schema(artifact_type, phase14_publication_schema_versions()[[artifact_type]])
+      } else {
+        v1_schema(artifact_type)
+      }
+      expect_identical(names(table), expected_schema, info = paste(edition_id, artifact_type))
+      if (nrow(table)) {
+        expect_true(all(as.character(table$edition_id) == edition_id))
+        expect_true(all(nzchar(as.character(table$source_artifact_id))))
+        expect_true(all(grepl("^[0-9a-f]{64}$", table$row_sha256)))
+      }
+      artifact <- artifacts[
+        as.character(artifacts$edition_id) == edition_id &
+          as.character(artifacts$artifact_type) == artifact_type,
+        , drop = FALSE
+      ]
+      expect_equal(nrow(artifact), 1L)
+      expect_identical(
+        tolower(as.character(artifact$canonical_content_sha256[[1L]])),
+        tolower(phase14_match_state_test_api(acquire, "phase13_publication_file_sha256")(path))
+      )
+    }
+  }
+
+  snapshots <- attr(publication$loaded, "accepted_snapshots")
+  expect_named(snapshots, editions)
+  euro <- snapshots[["uefa_euro_2028_qualifying"]]
+  for (artifact_type in c("fixtures", "groups", "standings", "results")) {
+    expect_equal(nrow(euro[[artifact_type]]), 0L)
+    expect_identical(
+      names(euro[[artifact_type]]),
+      if (artifact_type %in% c("fixtures", "results", "standings")) {
+        v2_schema(artifact_type, phase14_publication_schema_versions()[[artifact_type]])
+      } else {
+        v1_schema(artifact_type)
+      }
+    )
+  }
+  expect_true(isTRUE(attr(publication$loaded, "phase13_complete_registry")))
 })
