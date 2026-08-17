@@ -4,16 +4,16 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
-status: in_progress
-stopped_at: Completed 14-09-PLAN.md
-last_updated: "2026-08-17T13:30:29.293Z"
+status: executing
+stopped_at: Completed 14-10-PLAN.md
+last_updated: "2026-08-17T14:16:22.447Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-09 atomic calibrated selector and dual registry promotion
+last_activity_desc: Completed Plan 14-10 state-ready v2 contracts
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 24
+  completed_plans: 25
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 11 of 22 complete; Plan 14-10 is next
-Status: Calibrated selector authority is durable and both competition editions are pinned at revision 2; dashboard consumption remains pending
-Last activity: 2026-08-17 — Completed Plan 14-09 atomic calibrated selector and dual registry promotion
+Plan: 12 of 22 complete; Plan 14-11 is next
+Status: In progress
+Last activity: 2026-08-17 — Completed Plan 14-10 state-ready v2 contracts
 
 ## Progress
 
@@ -113,6 +113,9 @@ for Nations League and EURO qualifying.
 - [Phase 14]: Promote the selector and both competition-edition rows only through one locked transaction; stale expected bytes fail closed and no durable retry was attempted.
 - [Phase 14]: Runtime and registry validation use phase14_resolve_approved_release(selector_path, trusted_release_root); direct release manifests remain internal staging inputs.
 - [Phase 14]: Keep FORECAST-01 addressed but pending until downstream dashboard consumers expose the calibrated release lineage.
+- [Phase 14]: Keep Phase 13 v1 source/normalized replay as the default and select v2 only through explicit schema branches.
+- [Phase 14]: Preserve source_status verbatim; match_status and completion_method remain orthogonal, and absent evidence never creates completed state or score axes.
+- [Phase 14]: Leave STATE-01 and STATE-02 pending until downstream canonical semantics, reconciliation, transaction proof, and durable promotion plans complete.
 
 ## Accumulated Context
 
@@ -130,8 +133,8 @@ Plan 14-10 is next. It builds on Plan 14-09's durable calibrated selector and du
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T13:30:29.283Z
-**Stopped at:** Completed 14-09-PLAN.md
+**Last session:** 2026-08-17T14:15:18.234Z
+**Stopped at:** Completed 14-10-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -166,3 +169,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P07 | 43m | 2 tasks | 18 files |
 | Phase 14 P08 | 21m | 2 tasks | 3 files |
 | Phase 14 P09 | 1h 10m | 2 tasks | 5 files |
+| Phase 14 P10 | 32m 26s | 3 tasks | 7 files |
