@@ -6,7 +6,7 @@ current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
 stopped_at: Completed 14-17-PLAN.md
-last_updated: "2026-08-17T19:41:06.299Z"
+last_updated: "2026-08-17T19:58:36.733Z"
 last_activity: 2026-08-17
 last_activity_desc: Completed Plan 14-17 deterministic production batch state and forecast expansion
 progress:
@@ -201,3 +201,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P15 | 39 min | 2 tasks | 4 files |
 | Phase 14 P16 | 36min | 1 tasks | 4 files |
 | Phase 14 P17 | 47min | 2 tasks | 5 files |
+
+### Blockers
+
+- Plan 14-18 blocked: accepted UEFA Nations League Austria/Germany fixture has kickoff_confirmed=FALSE and blank confirmed_kickoff_at_utc; D-13 and the plan require confirmed kickoff before an available forecast, so no bundle promotion is safe.
