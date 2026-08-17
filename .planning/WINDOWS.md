@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 21
+open_count: 25
 waived_count: 0
 fixed_count: 2
-total_count: 23
-last_updated: 2026-08-17T10:35:39.324Z
+total_count: 27
+last_updated: 2026-08-17T11:24:47.234Z
 ---
 
 # Broken Windows Ledger
@@ -38,6 +38,10 @@ last_updated: 2026-08-17T10:35:39.324Z
 | 21 | 14 | deviation | .planning/STATE.md |  | Reconciled stale Plan 14-22 state prose after SDK count advancement | open |  | 2026-08-17T09:40:52.544Z |  |
 | 22 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 966 | Pre-existing Plan 14-09 dual-repin Wave 0 guard remains skipped until its owning plan implements the atomic API | open |  | 2026-08-17T10:33:48.191Z |  |
 | 23 | 14 | deviation | .planning/STATE.md |  | Reconciled stale Plan 14-06 state prose after SDK count advancement | open |  | 2026-08-17T10:35:39.324Z |  |
+| 24 | 14 | deviation | R/release/release_bundle.R |  | Rule 2: completed calibrated release support to validate and describe the exact 13-file bundle | open |  | 2026-08-17T11:22:19.294Z |  |
+| 25 | 14 | deviation | R/release/release_contract.R |  | Rule 1: accepted explicit project-relative manifests under the trusted root and exposed release_id for fresh-process preflight | open |  | 2026-08-17T11:22:19.398Z |  |
+| 26 | 14 | deviation | tests/testthat/test_phase12_release.R |  | Rule 3: pinned legacy Phase 12 regression checks to the incumbent after the second unpromoted release made root discovery ambiguous | open |  | 2026-08-17T11:22:19.499Z |  |
+| 27 | 14 | deviation | .planning/STATE.md |  | Rule 3: reconciled stale Plan 14-07 state prose and Phase labels after SDK count advancement | open |  | 2026-08-17T11:24:47.234Z |  |
 
 ````json
 [
@@ -315,6 +319,54 @@ last_updated: 2026-08-17T10:35:39.324Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T10:35:39.324Z",
+    "resolved_at": null
+  },
+  {
+    "id": 24,
+    "kind": "deviation",
+    "phase": "14",
+    "file": "R/release/release_bundle.R",
+    "line": null,
+    "description": "Rule 2: completed calibrated release support to validate and describe the exact 13-file bundle",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:22:19.294Z",
+    "resolved_at": null
+  },
+  {
+    "id": 25,
+    "kind": "deviation",
+    "phase": "14",
+    "file": "R/release/release_contract.R",
+    "line": null,
+    "description": "Rule 1: accepted explicit project-relative manifests under the trusted root and exposed release_id for fresh-process preflight",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:22:19.398Z",
+    "resolved_at": null
+  },
+  {
+    "id": 26,
+    "kind": "deviation",
+    "phase": "14",
+    "file": "tests/testthat/test_phase12_release.R",
+    "line": null,
+    "description": "Rule 3: pinned legacy Phase 12 regression checks to the incumbent after the second unpromoted release made root discovery ambiguous",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:22:19.499Z",
+    "resolved_at": null
+  },
+  {
+    "id": 27,
+    "kind": "deviation",
+    "phase": "14",
+    "file": ".planning/STATE.md",
+    "line": null,
+    "description": "Rule 3: reconciled stale Plan 14-07 state prose and Phase labels after SDK count advancement",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T11:24:47.234Z",
     "resolved_at": null
   }
 ]

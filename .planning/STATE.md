@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: in_progress
-stopped_at: Completed 14-06-PLAN.md
-last_updated: "2026-08-17T10:34:51.631Z"
+stopped_at: Completed 14-07-PLAN.md
+last_updated: "2026-08-17T11:23:55.579Z"
 last_activity: 2026-08-17
 last_activity_desc: Completed Plan 14-06 selector-aware preflight and calibrated revision staging contract
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 # xGelo Project State
@@ -21,21 +21,21 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 8 of 22 complete; Plan 14-07 is next
-Status: Selector-aware preflight and calibrated staging complete; release authority remains unchanged and Plan 14-07 is unblocked
-Last activity: 2026-08-17 — Completed Plan 14-06 selector-aware preflight and calibrated revision staging contract
+Plan: 9 of 22 complete; Plan 14-08 is next
+Status: Immutable calibrated release installed and fresh-process verified; release authority remains unchanged and Plan 14-08 is unblocked
+Last activity: 2026-08-17 — Completed Plan 14-07 immutable calibrated release installation
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Selector-aware release staging ready; Plan 14-07 unblocked (8/22 complete) | 4/7 |
+| 14 | Shared Competition State and Forecast Layer | Immutable calibrated release installed; authority promotion deferred (9/22 complete) | 4/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 can now stage the accepted calibrated release while durable release authority remains unchanged for Plan 14-07.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 now has the immutable calibrated release and can build its non-authoritative selector candidate in Plan 14-08.
 
 ## Project Reference
 
@@ -104,6 +104,9 @@ for Nations League and EURO qualifying.
 - [Phase 14]: The acknowledged calibration-v2-gate-passed signal satisfies Plan 14-06's precondition without mutating release selectors, registries, public suppression, or runtime authority.
 - [Phase 14]: Selector-only calibrated release authority — Runtime callers use the exact self-hashed approved_release.csv selector; direct manifests remain internal staging inputs.
 - [Phase 14]: Plan 14-22 identity is mandatory for calibrated staging — The accepted manifest, gate, source release, model, and source calibrator hashes are pinned; staging does not write or promote a selector.
+- [Phase 14]: Plan 14-07 installs a completely validated sibling candidate only through one guarded atomic directory rename; existing release IDs are never overwritten.
+- [Phase 14]: Plan 14-07 preserves incumbent model, freeze, and final-evaluation bytes while development-only calibration leaves the score distribution unchanged.
+- [Phase 14]: Plan 14-07 creates no approved release selector and changes no competition-edition registry row; authority promotion remains deferred.
 
 ## Accumulated Context
 
@@ -113,16 +116,16 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Execute Plan 14-07's immutable calibrated release installation when requested; do not move selector or competition-registry authority in that plan.
+- Execute Plan 14-08's non-authoritative selector-candidate contract; do not create the durable selector or change competition-registry authority.
 
 ## Next Action
 
-Plan 14-07 is the next eligible plan after Plan 14-06 completed the selector-aware trust boundary and calibrated staging contract. It owns immutable release installation without selector or registry promotion.
+Plan 14-08 is the next eligible plan after Plan 14-07 installed and verified the immutable calibrated release. It owns selector-candidate semantics without durable selector or registry promotion.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T10:34:41.569Z
-**Stopped at:** Completed 14-06-PLAN.md
+**Last session:** 2026-08-17T11:23:55.569Z
+**Stopped at:** Completed 14-07-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -154,3 +157,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P21 | 1h21m | 2 tasks | 9 files |
 | Phase 14 P22 | 56min | 2 tasks | 3 files |
 | Phase 14 P06 | 48min | 2 tasks | 3 files |
+| Phase 14 P07 | 43m | 2 tasks | 18 files |
