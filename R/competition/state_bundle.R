@@ -510,6 +510,16 @@ phase14_build_competition_state_candidate <- function(
 
 phase14_build_competition_state_candidates <- phase14_build_competition_state_candidate
 
+# Several older analytical modules define a scalar-only `%||%` helper.  State
+# batches legitimately pass data frames and multi-value vectors through this
+# operator, so restore a length-safe definition at the shared boundary before
+# any embedded caller invokes the production API.
+`%||%` <- function(left, right) {
+  if (is.null(left) || !length(left)) return(right)
+  if (length(left) == 1L && is.na(left[[1L]])) return(right)
+  left
+}
+
 # ---------------------------------------------------------------------------
 # Phase 14 production state-batch boundary
 # ---------------------------------------------------------------------------
