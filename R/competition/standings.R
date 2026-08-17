@@ -253,7 +253,7 @@ phase14_standings_validate_metrics <- function(data, context = "snapshot") {
     stop("Phase 14 standings ", context, " has points arithmetic mismatch", call. = FALSE)
   }
   ranks <- phase14_standings_nonnegative_integer(data$computed_rank, "computed_rank", allow_missing = FALSE)
-  if (any(ranks < 1L) || !setequal(ranks, seq_len(nrow(data)))) {
+  if (any(ranks < 1L) || (nrow(data) > 1L && !setequal(ranks, seq_len(nrow(data))))) {
     stop("Phase 14 standings ", context, " must have one contiguous computed rank per team", call. = FALSE)
   }
   invisible(TRUE)
@@ -610,7 +610,10 @@ phase14_reconcile_standings <- function(
     aggregate_values <- as.numeric(official_row[phase14_standings_official_metric_fields()][1L, , drop = TRUE])
     aggregate_missing <- any(is.na(aggregate_values))
     rank_missing <- is.na(official_row$official_rank[[1L]])
-    if (!is.na(accepted_source_bundle_id) && !identical(expected_bundle, accepted_source_bundle_id)) {
+    accepted_bundle_mismatch <- !is.null(accepted_source_bundle_id) &&
+      !is.na(accepted_source_bundle_id) &&
+      !identical(expected_bundle, accepted_source_bundle_id)
+    if (accepted_bundle_mismatch) {
       status <- "foreign_source_bundle_rejected"
     } else if (!is.na(official_bundle) && !identical(official_bundle, expected_bundle)) {
       status <- "foreign_source_bundle_rejected"
