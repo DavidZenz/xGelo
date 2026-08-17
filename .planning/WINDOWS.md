@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 22
+open_count: 23
 waived_count: 0
 fixed_count: 5
-total_count: 27
-last_updated: 2026-08-17T13:33:41.185Z
+total_count: 28
+last_updated: 2026-08-17T16:40:31.043Z
 ---
 
 # Broken Windows Ledger
@@ -42,6 +42,7 @@ last_updated: 2026-08-17T13:33:41.185Z
 | 25 | 14 | deviation | R/release/release_contract.R |  | Rule 1: accepted explicit project-relative manifests under the trusted root and exposed release_id for fresh-process preflight | open |  | 2026-08-17T11:22:19.398Z |  |
 | 26 | 14 | deviation | tests/testthat/test_phase12_release.R |  | Rule 3: pinned legacy Phase 12 regression checks to the incumbent after the second unpromoted release made root discovery ambiguous | open |  | 2026-08-17T11:22:19.499Z |  |
 | 27 | 14 | deviation | .planning/STATE.md |  | Rule 3: reconciled stale Plan 14-07 state prose and Phase labels after SDK count advancement | open |  | 2026-08-17T11:24:47.234Z |  |
+| 28 | 14 | deviation | .planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md |  | Phase 13 registry regression remains at 4 legacy-v1 schema-name failures against accepted Phase 14 v2 snapshots; outside Plan 14-13 scope. | open |  | 2026-08-17T16:40:31.043Z |  |
 
 ````json
 [
@@ -367,6 +368,18 @@ last_updated: 2026-08-17T13:33:41.185Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T11:24:47.234Z",
+    "resolved_at": null
+  },
+  {
+    "id": 28,
+    "kind": "deviation",
+    "phase": "14",
+    "file": ".planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md",
+    "line": null,
+    "description": "Phase 13 registry regression remains at 4 legacy-v1 schema-name failures against accepted Phase 14 v2 snapshots; outside Plan 14-13 scope.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T16:40:31.043Z",
     "resolved_at": null
   }
 ]
