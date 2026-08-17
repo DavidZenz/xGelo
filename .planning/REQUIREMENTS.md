@@ -24,12 +24,12 @@
 - [x] **STATE-01**: The analyst can compute competition-specific standings from completed results with played, wins, draws, losses, goals, goal difference, points, and official rank.
 - [x] **STATE-02**: The data model keeps scheduled, completed, postponed, abandoned, extra-time, and penalty-shootout states distinct, including regulation and final scores where applicable.
 - [x] **STATE-03**: The dashboard reports competition-specific recent form and a separate all-international form view with explicit windows and point-in-time cutoffs.
-- [ ] **STATE-04**: Nations League and EURO state remain independent while sharing canonical team identity, Elo/xG strength, and international match history.
+- [x] **STATE-04**: Nations League and EURO state remain independent while sharing canonical team identity, Elo/xG strength, and international match history.
 
 ### Match Forecasts
 
-- [ ] **FORECAST-01**: Both dashboards use the approved calibrated model release and expose its model identity, data cutoff, and feature cutoff.
-- [ ] **FORECAST-02**: Each open fixture has calibrated home/draw/away probabilities, expected goals, a most likely score, a bounded scoreline distribution, and uncertainty metadata.
+- [x] **FORECAST-01**: Both dashboards use the approved calibrated model release and expose its model identity, data cutoff, and feature cutoff.
+- [x] **FORECAST-02**: Each open fixture has calibrated home/draw/away probabilities, expected goals, a most likely score, a bounded scoreline distribution, and uncertainty metadata.
 - [x] **FORECAST-03**: Forecast generation proves point-in-time feature safety and never uses future competition standings or outcomes as pre-match model inputs.
 
 ### Competition Simulation
@@ -91,9 +91,9 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | STATE-01 | Phase 14 | Complete |
 | STATE-02 | Phase 14 | Complete |
 | STATE-03 | Phase 14 | Complete |
-| STATE-04 | Phase 14 | Pending |
-| FORECAST-01 | Phase 14 | Pending |
-| FORECAST-02 | Phase 14 | Pending |
+| STATE-04 | Phase 14 | Complete |
+| FORECAST-01 | Phase 14 | Complete |
+| FORECAST-02 | Phase 14 | Complete |
 | FORECAST-03 | Phase 14 | Complete |
 | SIM-01 | Phase 15 | Pending |
 | SIM-02 | Phase 16 | Pending |

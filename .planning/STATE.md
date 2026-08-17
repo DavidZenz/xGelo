@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-15-PLAN.md
-last_updated: "2026-08-17T18:00:31.630Z"
+stopped_at: Completed 14-16-PLAN.md
+last_updated: "2026-08-17T18:39:53.674Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-15 cutoff-safe form and honest national-team xG availability
+last_activity_desc: Completed Plan 14-16 release-active vertical state-to-forecast tracer
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 30
+  completed_plans: 31
 ---
 
 # xGelo Project State
@@ -21,21 +21,23 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 17 of 22 complete; Plan 14-16 is next
+Plan: 18 of 22 complete; Plan 14-17 is next
 Status: Ready to execute
-Last activity: 2026-08-17 — Completed Plan 14-15 cutoff-safe form and honest national-team xG availability
+Last activity: 2026-08-17 — Completed Plan 14-16 release-active vertical state-to-forecast tracer
 
 ## Progress
+
+**Progress:** [█████████░] 89% (31/35 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Canonical match identity, lifecycle/score engine, cutoff-safe universal standings, and honest form availability delivered; downstream forecast consumption pending (17/22 complete) | 4/7 |
+| 14 | Shared Competition State and Forecast Layer | Canonical state, cutoff-safe form, release-active forecast tracer, and edition-isolated candidate orchestration delivered; batch expansion pending (18/22 complete) | 7/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, and honest form availability, with Plan 14-16 next.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, honest form availability, and a release-active state-to-forecast tracer, with Plan 14-17 next.
 
 ## Project Reference
 
@@ -131,6 +133,9 @@ for Nations League and EURO qualifying.
 - [Phase ?]: Keep competition last-five, all-senior last-five, and national-team xG EWMA as separate products; display result history never substitutes for xG evidence.
 - [Phase ?]: Do not fabricate current national-team xG: the no-accepted-source registry preserves explicit unavailable/NA rows for Austria and Germany.
 - [Phase ?]: Reject club rolling_form.csv, football-goal relabels, non-shot evidence, and non-exclusive point-in-time evidence at the national_team_xg adapter boundary.
+- [Phase ?]: Plan 14-16: runtime forecast authority remains the exact self-hashed approved release selector; raw manifests are not fallback authority.
+- [Phase ?]: Plan 14-16: immutable active predictors control evidence sufficiency; inactive national-team xG remains audited unavailable/NA, while synthetic xG-active releases suppress.
+- [Phase ?]: Plan 14-16: required active shared-input failures fan out across edition candidates, while EURO pre_draw remains structurally empty and derived state stays edition-scoped.
 
 ## Accumulated Context
 
@@ -144,12 +149,12 @@ for Nations League and EURO qualifying.
 
 ## Next Action
 
-Plan 14-16 is next. It builds on Plan 14-15's separate display/model form contracts and explicit national-team xG availability boundary.
+Plan 14-17 is next. It builds on Plan 14-16's release-active forecast tracer, edition-scoped candidate state, and explicit national-team xG availability boundary.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T18:00:31.619Z
-**Stopped at:** Completed 14-15-PLAN.md
+**Last session:** 2026-08-17T18:39:53.663Z
+**Stopped at:** Completed 14-16-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -190,3 +195,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P13 | 1h 18m | 2 tasks | 4 files |
 | Phase 14 P14 | 12m | 2 tasks | 2 files |
 | Phase 14 P15 | 39 min | 2 tasks | 4 files |
+| Phase 14 P16 | 36min | 1 tasks | 4 files |
