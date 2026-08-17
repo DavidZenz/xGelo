@@ -117,13 +117,14 @@ The plan metadata commit is recorded separately after STATE/ROADMAP reconciliati
 - R/competition/match_state.R — crosswalk builder/validator/persistence plus canonical lifecycle and score engine.
 - data/competition/registries/match_identity.csv — persisted 49,522-row source-to-canonical identity registry.
 - tests/testthat/test_phase14_match_state.R — RED/GREEN coverage for identity, lifecycle, score, lineage, production, and hash contracts.
-- .planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md — scoped record of the unrelated Phase 13 v1/v2 regression mismatch.
-- .planning/WINDOWS.md — broken-windows ledger entry for the deferred Phase 13 regression.
+- tests/testthat/test_phase13_competition_registry.R — production-loading assertions updated to the authoritative Phase 14 v2 accepted-snapshot schema while retaining the existing v1 normalization coverage.
+- .planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md — audit record of the resolved Phase 13 v1/v2 regression mismatch.
+- .planning/WINDOWS.md — broken-windows ledger entry closed after the compatibility regression passed.
 
 ## Verification
 
 - Phase 14 exact match-state regression: FAIL 0 | WARN 0 | SKIP 0 | PASS 369.
-- Phase 13 exact registry regression: FAIL 4 | WARN 0 | SKIP 0 | PASS 151. All four failures are pre-existing production-loading assertions comparing legacy phase13_normalized_fixture_schema() / phase13_normalized_result_schema() names with the accepted Phase 14 v2 snapshot schema. No Phase 13 source, fixture, or test was changed; details are in deferred-items.md.
+- Phase 13 exact registry regression after compatibility reconciliation: FAIL 0 | WARN 0 | SKIP 0 | PASS 226. The four production-loading assertions now verify the authoritative Phase 14 v2 snapshot schema; the separate v1 normalization regressions remain intact.
 - TDD gate compliance: RED commits precede their corresponding GREEN commits for both tasks; the final Phase 14 regression is fully green.
 
 ## Deviations from Plan
@@ -175,13 +176,21 @@ The plan metadata commit is recorded separately after STATE/ROADMAP reconciliati
 - Verification: all historical production inputs resolve and canonical counts match the persisted crosswalk.
 - Committed in: eaa5a4e.
 
-Total deviations: 5 auto-fixed issues (Rules 1 and 3); 1 pre-existing Phase 13 regression mismatch deferred.
+**6. [Rule 3 - Blocking issue] Production registry regression expected the superseded v1 accepted-snapshot schema**
+
+- Found during: Plan 14-13 final regression reconciliation.
+- Issue: Four production-loading assertions expected Phase 13 v1 fixture/result columns although the durable accepted snapshots and schema-aware loader now authoritatively expose Phase 14 v2 columns.
+- Fix: Point only the production snapshot assertions at the exact v2 schemas; preserve all existing v1 normalization and replay coverage.
+- Files modified: tests/testthat/test_phase13_competition_registry.R.
+- Verification: exact Phase 13 registry regression passes 226 assertions with zero failures, warnings, or skips.
+
+Total deviations: 6 auto-fixed issues (Rules 1 and 3); no unresolved Plan 14-13 regression remains.
 
 Impact on plan: All fixes were required for deterministic identity, truthful lifecycle semantics, or production-scale execution. No unrelated implementation scope was changed.
 
 ## Deferred Issues
 
-The exact Phase 13 registry regression remains red for the four legacy-v1 schema-name assertions described in deferred-items.md. The owning Phase 13/v2 contract work must reconcile those expectations; Plan 14-13 intentionally did not modify out-of-scope files.
+None. The previously recorded Phase 13 v1/v2 production-schema mismatch is resolved and retained in deferred-items.md only as audit history.
 
 ## Known Stubs
 

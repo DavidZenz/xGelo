@@ -4,7 +4,7 @@ open_count: 23
 waived_count: 0
 fixed_count: 5
 total_count: 28
-last_updated: 2026-08-17T16:40:31.043Z
+last_updated: 2026-08-17T16:56:36Z
 ---
 
 # Broken Windows Ledger
@@ -42,7 +42,7 @@ last_updated: 2026-08-17T16:40:31.043Z
 | 25 | 14 | deviation | R/release/release_contract.R |  | Rule 1: accepted explicit project-relative manifests under the trusted root and exposed release_id for fresh-process preflight | open |  | 2026-08-17T11:22:19.398Z |  |
 | 26 | 14 | deviation | tests/testthat/test_phase12_release.R |  | Rule 3: pinned legacy Phase 12 regression checks to the incumbent after the second unpromoted release made root discovery ambiguous | open |  | 2026-08-17T11:22:19.499Z |  |
 | 27 | 14 | deviation | .planning/STATE.md |  | Rule 3: reconciled stale Plan 14-07 state prose and Phase labels after SDK count advancement | open |  | 2026-08-17T11:24:47.234Z |  |
-| 28 | 14 | deviation | .planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md |  | Phase 13 registry regression remains at 4 legacy-v1 schema-name failures against accepted Phase 14 v2 snapshots; outside Plan 14-13 scope. | open |  | 2026-08-17T16:40:31.043Z |  |
+| 28 | 14 | deviation | .planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md |  | Phase 13 registry regression remains at 4 legacy-v1 schema-name failures against accepted Phase 14 v2 snapshots; outside Plan 14-13 scope. | fixed | Updated the production integration assertions to the authoritative v2 schemas while preserving v1 normalization coverage; exact registry regression passes 226 assertions. | 2026-08-17T16:40:31.043Z | 2026-08-17T16:56:36Z |
 
 ````json
 [
@@ -377,10 +377,10 @@ last_updated: 2026-08-17T16:40:31.043Z
     "file": ".planning/phases/14-shared-competition-state-and-forecast-layer/deferred-items.md",
     "line": null,
     "description": "Phase 13 registry regression remains at 4 legacy-v1 schema-name failures against accepted Phase 14 v2 snapshots; outside Plan 14-13 scope.",
-    "status": "open",
-    "reason": "",
+    "status": "fixed",
+    "reason": "Updated the production integration assertions to the authoritative v2 schemas while preserving v1 normalization coverage; exact registry regression passes 226 assertions.",
     "recorded_at": "2026-08-17T16:40:31.043Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-17T16:56:36Z"
   }
 ]
 ````

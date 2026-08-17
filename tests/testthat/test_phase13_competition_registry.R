@@ -746,7 +746,7 @@ test_that("competition edition CSV is a checked two-edition release registry", {
 
 test_that("production loading returns normalized accepted snapshots and truthful EURO pre-draw state", {
   phase13_registry_test_load_apis()
-  phase13_registry_test_require_api(c("load_competition_edition_registries", "phase13_normalized_fixture_schema", "phase13_normalized_result_schema"))
+  phase13_registry_test_require_api(c("load_competition_edition_registries", "phase14_normalized_fixture_schema", "phase14_normalized_result_schema"))
   registries <- load_competition_edition_registries(
     file.path(phase13_registry_test_project_root, "data/competition/registries")
   )
@@ -754,8 +754,8 @@ test_that("production loading returns normalized accepted snapshots and truthful
   expect_true(setequal(names(snapshots), c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying")))
 
   nations <- snapshots[["uefa_nations_league_2026_27"]]
-  expect_named(nations$fixtures, phase13_normalized_fixture_schema())
-  expect_named(nations$results, phase13_normalized_result_schema())
+  expect_named(nations$fixtures, phase14_normalized_fixture_schema())
+  expect_named(nations$results, phase14_normalized_result_schema())
   expect_true(all(c("home_team_id", "away_team_id", "edition_id", "source_artifact_id") %in% names(nations$fixtures)))
   expect_true(all(c("home_team_id", "away_team_id", "edition_id", "fixture_source_artifact_id") %in% names(nations$results)))
   expect_true(all(nzchar(as.character(nations$fixtures$home_display_name))))
@@ -767,8 +767,8 @@ test_that("production loading returns normalized accepted snapshots and truthful
   expect_identical(as.character(nations$status$competition_status), "scheduled")
 
   euro <- snapshots[["uefa_euro_2028_qualifying"]]
-  expect_named(euro$fixtures, phase13_normalized_fixture_schema())
-  expect_named(euro$results, phase13_normalized_result_schema())
+  expect_named(euro$fixtures, phase14_normalized_fixture_schema())
+  expect_named(euro$results, phase14_normalized_result_schema())
   expect_equal(nrow(euro$fixtures), 0L)
   expect_equal(nrow(euro$groups), 0L)
   expect_equal(nrow(euro$standings), 0L)
