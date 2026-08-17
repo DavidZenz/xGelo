@@ -1344,27 +1344,373 @@ test_that("14-08 selector ambiguity and forgery fail before release object loadi
   )
 })
 
-test_that("14-09 dual repin contract rejects split pins and exposes injected rollback", {
-  phase14_release_test_require_api(
-    c(
-      "phase14_repin_both_competition_releases",
-      "phase14_promote_calibrated_release"
-    ),
-    "atomic dual-repin"
-  )
-  repin <- get("phase14_repin_both_competition_releases", mode = "function")
-  promote <- get("phase14_promote_calibrated_release", mode = "function")
-  repin_formals <- names(formals(repin))
-  promote_formals <- names(formals(promote))
-  expect_true("registries" %in% repin_formals)
-  expect_true(any(c("model_release_id", "release_identity", "resolved_release") %in% repin_formals))
-  expect_true(any(c("inject_failure", "failure_injector") %in% promote_formals))
+phase14_release_test_sha256_bytes <- function(bytes) {
+  digest::digest(bytes, algo = "sha256", serialize = FALSE)
+}
 
-  repin_body <- paste(deparse(body(repin)), collapse = "\n")
-  promote_body <- paste(deparse(body(promote)), collapse = "\n")
-  expect_match(repin_body, "split|unique\\(.*model_release_id|one-release", perl = TRUE)
-  expect_match(repin_body, "registry_revision", fixed = TRUE)
-  expect_match(promote_body, "snapshot|prior.*bytes|readBin", perl = TRUE)
-  expect_match(promote_body, "rollback|restore", perl = TRUE)
-  expect_match(promote_body, "inject.*fail|fail.*inject", perl = TRUE)
+phase14_release_test_link_tree <- function(source_root, target_root) {
+  source_root <- normalizePath(source_root, winslash = "/", mustWork = TRUE)
+  dir.create(target_root, recursive = TRUE, showWarnings = FALSE)
+  entries <- list.files(
+    source_root,
+    recursive = TRUE,
+    full.names = TRUE,
+    all.files = TRUE,
+    include.dirs = TRUE,
+    no.. = TRUE
+  )
+  if (!length(entries)) return(invisible(target_root))
+  relative <- substring(entries, nchar(source_root) + 2L)
+  info <- file.info(entries)
+  directories <- entries[isTRUE(info$isdir) | (!is.na(info$isdir) & info$isdir)]
+  if (length(directories)) {
+    directory_relative <- substring(directories, nchar(source_root) + 2L)
+    for (path in file.path(target_root, directory_relative)) {
+      dir.create(path, recursive = TRUE, showWarnings = FALSE)
+    }
+  }
+  files <- entries[!is.na(info$isdir) & !info$isdir]
+  file_relative <- substring(files, nchar(source_root) + 2L)
+  for (index in seq_along(files)) {
+    target <- file.path(target_root, file_relative[[index]])
+    dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
+    linked <- suppressWarnings(file.link(files[[index]], target))
+    if (!isTRUE(linked)) {
+      expect_true(file.copy(files[[index]], target, overwrite = FALSE))
+    }
+  }
+  invisible(target_root)
+}
+
+phase14_release_test_authority_sandbox <- function(selector_present = FALSE) {
+  root <- tempfile("phase14-authority-transaction-")
+  release_root <- file.path(root, "outputs/releases")
+  registry_root <- file.path(root, "data/competition/registries")
+  evidence_root <- file.path(root, "evidence")
+  dir.create(release_root, recursive = TRUE, showWarnings = FALSE)
+  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
+  dir.create(evidence_root, recursive = TRUE, showWarnings = FALSE)
+
+  release_id <- "phase14-open-nb-incumbent-calibrated-v1"
+  phase14_release_test_link_tree(
+    file.path(phase14_release_test_project_root, "outputs/releases", release_id),
+    file.path(release_root, release_id)
+  )
+  registry_files <- c("competition_editions.csv", "source_bundles.csv")
+  for (name in registry_files) {
+    expect_true(file.copy(
+      file.path(
+        phase14_release_test_project_root,
+        "data/competition/registries",
+        name
+      ),
+      file.path(registry_root, name),
+      overwrite = FALSE
+    ))
+  }
+  candidate_path <- file.path(evidence_root, "approved_release_candidate.csv")
+  expect_true(file.copy(
+    file.path(
+      phase14_release_test_project_root,
+      "outputs/benchmarks/rolling_tournaments",
+      "phase14-incumbent-calibration-remediation-v2",
+      "approved_release_candidate.csv"
+    ),
+    candidate_path,
+    overwrite = FALSE
+  ))
+  selector_path <- file.path(release_root, "approved_release.csv")
+  if (isTRUE(selector_present)) {
+    phase14_release_test_write_bytes(
+      selector_path,
+      charToRaw("prior-selector-bytes-must-be-restored\n")
+    )
+  }
+  list(
+    root = root,
+    release_id = release_id,
+    release_root = release_root,
+    selector_path = selector_path,
+    candidate_path = candidate_path,
+    registry_root = registry_root,
+    registry_path = file.path(registry_root, "competition_editions.csv"),
+    source_bundles_path = file.path(registry_root, "source_bundles.csv")
+  )
+}
+
+phase14_release_test_expected_prior <- function(sandbox) {
+  selector_exists <- file.exists(sandbox$selector_path)
+  selector_bytes <- if (selector_exists) {
+    phase14_release_test_read_bytes(sandbox$selector_path)
+  } else raw()
+  registry_bytes <- phase14_release_test_read_bytes(sandbox$registry_path)
+  list(
+    selector_exists = selector_exists,
+    selector_bytes = selector_bytes,
+    selector_sha256 = if (selector_exists) {
+      phase14_release_test_sha256_bytes(selector_bytes)
+    } else "",
+    registry_bytes = registry_bytes,
+    registry_sha256 = phase14_release_test_sha256_bytes(registry_bytes)
+  )
+}
+
+phase14_release_test_promote_arguments <- function(sandbox, prior, failure_injector = NULL) {
+  list(
+    candidate_selector_path = sandbox$candidate_path,
+    selector_path = sandbox$selector_path,
+    registry_path = sandbox$registry_path,
+    trusted_release_root = sandbox$release_root,
+    project_root = sandbox$root,
+    audit_at_utc = "2026-08-17T12:00:00Z",
+    operator = "test-operator",
+    operator_action = "approve calibrated authority in test sandbox",
+    expected_selector_sha256 = prior$selector_sha256,
+    expected_registry_sha256 = prior$registry_sha256,
+    failure_injector = failure_injector
+  )
+}
+
+phase14_release_test_expect_prior_restored <- function(sandbox, prior) {
+  expect_identical(file.exists(sandbox$selector_path), prior$selector_exists)
+  if (prior$selector_exists) {
+    expect_identical(
+      phase14_release_test_read_bytes(sandbox$selector_path),
+      prior$selector_bytes
+    )
+  }
+  expect_identical(
+    phase14_release_test_read_bytes(sandbox$registry_path),
+    prior$registry_bytes
+  )
+  expect_false(file.exists(file.path(
+    sandbox$root,
+    ".phase14-authority-promotion.lock"
+  )))
+  leftovers <- list.files(
+    sandbox$root,
+    pattern = "^\\.phase14-authority-(stage|backup)-",
+    full.names = TRUE,
+    all.files = TRUE
+  )
+  expect_length(leftovers, 0L)
+}
+
+test_that("14-09 transaction restores exact present selector and registry bytes at every rename boundary", {
+  required <- c(
+    "phase14_repin_both_competition_releases",
+    "phase14_promote_calibrated_release"
+  )
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) fail(paste("Plan 14-09 implementation is missing:", paste(missing, collapse = ", ")))
+
+  sandbox <- phase14_release_test_authority_sandbox(selector_present = TRUE)
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  prior <- phase14_release_test_expected_prior(sandbox)
+  failure_points <- c(
+    "before_selector_backup", "after_selector_backup",
+    "before_selector_promote", "after_selector_promote",
+    "before_registry_backup", "after_registry_backup",
+    "before_registry_promote", "after_registry_promote",
+    "before_post_validate"
+  )
+  for (failure_point in failure_points) {
+    injector <- local({
+      selected <- failure_point
+      function(point, transaction) identical(point, selected)
+    })
+    expect_error(
+      do.call(
+        phase14_promote_calibrated_release,
+        phase14_release_test_promote_arguments(sandbox, prior, injector)
+      ),
+      "rollback-restored|injected",
+      info = failure_point
+    )
+    phase14_release_test_expect_prior_restored(sandbox, prior)
+  }
+})
+
+test_that("14-09 selector-absent prior state is restored at every applicable rename boundary", {
+  required <- c(
+    "phase14_repin_both_competition_releases",
+    "phase14_promote_calibrated_release"
+  )
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) fail(paste("Plan 14-09 implementation is missing:", paste(missing, collapse = ", ")))
+
+  sandbox <- phase14_release_test_authority_sandbox(selector_present = FALSE)
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  prior <- phase14_release_test_expected_prior(sandbox)
+  expect_false(prior$selector_exists)
+  failure_points <- c(
+    "before_selector_promote", "after_selector_promote",
+    "before_registry_backup", "after_registry_backup",
+    "before_registry_promote", "after_registry_promote",
+    "before_post_validate"
+  )
+  for (failure_point in failure_points) {
+    injector <- local({
+      selected <- failure_point
+      function(point, transaction) identical(point, selected)
+    })
+    expect_error(
+      do.call(
+        phase14_promote_calibrated_release,
+        phase14_release_test_promote_arguments(sandbox, prior, injector)
+      ),
+      "rollback-restored|injected",
+      info = failure_point
+    )
+    phase14_release_test_expect_prior_restored(sandbox, prior)
+  }
+})
+
+test_that("14-09 repin rejects split pins, missing editions, wrong revisions, and changed lineage", {
+  required <- c(
+    "phase14_repin_both_competition_releases",
+    "phase14_validate_dual_repin_candidate"
+  )
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) fail(paste("Plan 14-09 implementation is missing:", paste(missing, collapse = ", ")))
+
+  sandbox <- phase14_release_test_authority_sandbox(selector_present = FALSE)
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  expect_true(file.copy(sandbox$candidate_path, sandbox$selector_path))
+  resolved <- phase14_resolve_approved_release(
+    selector_path = sandbox$selector_path,
+    trusted_release_root = sandbox$release_root
+  )
+  registries <- utils::read.csv(
+    sandbox$registry_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  source_bundles <- utils::read.csv(
+    sandbox$source_bundles_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+
+  split <- registries
+  split$model_release_id[[1L]] <- sandbox$release_id
+  split$row_sha256 <- phase13_registry_row_hash(split)
+  expect_error(
+    phase14_repin_both_competition_releases(
+      split, resolved, source_bundles,
+      "2026-08-17T12:00:00Z", "test-operator", "repin"
+    ),
+    "split-pin-rejected|split pin"
+  )
+  expect_error(
+    phase14_repin_both_competition_releases(
+      registries[-1L, , drop = FALSE], resolved, source_bundles,
+      "2026-08-17T12:00:00Z", "test-operator", "repin"
+    ),
+    "missing-edition-rejected|exactly.*two|required editions"
+  )
+
+  candidate <- phase14_repin_both_competition_releases(
+    registries, resolved, source_bundles,
+    "2026-08-17T12:00:00Z", "test-operator", "repin"
+  )
+  wrong_revision <- candidate
+  wrong_revision$registry_revision[[1L]] <- wrong_revision$registry_revision[[1L]] + 1L
+  wrong_revision$row_sha256 <- phase13_registry_row_hash(wrong_revision)
+  expect_error(
+    phase14_validate_dual_repin_candidate(
+      registries, wrong_revision, resolved, source_bundles
+    ),
+    "wrong-revision-delta|revision"
+  )
+  changed_lineage <- candidate
+  changed_lineage$active_output_bundle_id[[1L]] <- "forged-output-lineage"
+  changed_lineage$row_sha256 <- phase13_registry_row_hash(changed_lineage)
+  expect_error(
+    phase14_validate_dual_repin_candidate(
+      registries, changed_lineage, resolved, source_bundles
+    ),
+    "changed-lineage|lineage"
+  )
+  mismatched_release <- resolved
+  mismatched_release$release_identity$release_id <- "forged-release"
+  expect_error(
+    phase14_validate_dual_repin_candidate(
+      registries, candidate, mismatched_release, source_bundles
+    ),
+    "selector-release-mismatch|release"
+  )
+})
+
+test_that("14-09 temporary success promotes one authority once and stale retry fails closed", {
+  required <- c(
+    "phase14_repin_both_competition_releases",
+    "phase14_promote_calibrated_release"
+  )
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) fail(paste("Plan 14-09 implementation is missing:", paste(missing, collapse = ", ")))
+
+  sandbox <- phase14_release_test_authority_sandbox(selector_present = FALSE)
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  prior <- phase14_release_test_expected_prior(sandbox)
+  before <- utils::read.csv(
+    sandbox$registry_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  result <- do.call(
+    phase14_promote_calibrated_release,
+    phase14_release_test_promote_arguments(sandbox, prior)
+  )
+  expect_identical(result$status, "promoted")
+  expect_identical(result$release_id, sandbox$release_id)
+  expect_identical(
+    phase14_release_test_read_bytes(sandbox$selector_path),
+    phase14_release_test_read_bytes(sandbox$candidate_path)
+  )
+
+  after <- utils::read.csv(
+    sandbox$registry_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  expect_identical(nrow(after), 2L)
+  expect_identical(unique(as.character(after$model_release_id)), sandbox$release_id)
+  expect_identical(
+    as.integer(after$registry_revision),
+    as.integer(before$registry_revision) + 1L
+  )
+  preserved <- c(
+    "source_bundle_id", "lifecycle_state", "ruleset_version",
+    "output_bundle_target", "active_output_bundle_id",
+    "last_accepted_output_bundle_id"
+  )
+  expect_identical(after[preserved], before[preserved])
+  resolved <- phase14_resolve_approved_release(
+    selector_path = sandbox$selector_path,
+    trusted_release_root = sandbox$release_root
+  )
+  expect_identical(resolved$release_identity$release_id, sandbox$release_id)
+  expect_false(is.na(as.Date(resolved$model_data_cutoff)))
+
+  selector_after <- phase14_release_test_read_bytes(sandbox$selector_path)
+  registry_after <- phase14_release_test_read_bytes(sandbox$registry_path)
+  expect_error(
+    do.call(
+      phase14_promote_calibrated_release,
+      phase14_release_test_promote_arguments(sandbox, prior)
+    ),
+    "prior-authority-changed|inspect and reconcile|expected prior"
+  )
+  expect_identical(phase14_release_test_read_bytes(sandbox$selector_path), selector_after)
+  expect_identical(phase14_release_test_read_bytes(sandbox$registry_path), registry_after)
+
+  promote_body <- paste(deparse(body(phase14_promote_calibrated_release)), collapse = "\n")
+  expect_match(promote_body, "phase14_resolve_approved_release")
+  expect_match(promote_body, "selector_path")
+  expect_false(grepl("selector_path\\s*=\\s*[^,)]*release_manifest", promote_body))
 })
