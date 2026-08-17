@@ -158,8 +158,6 @@ test_that("last-five display form and span-12 model form cannot substitute", {
 })
 
 test_that("production display form honors the frozen scopes and windows", {
-  skip_if_not(exists("phase14_build_display_form"))
-
   cases <- phase14_form_cases()
   history <- cases[cases$record_type == "history", , drop = FALSE]
   expected <- cases[cases$record_type == "expectation", , drop = FALSE]
@@ -178,6 +176,73 @@ test_that("production display form honors the frozen scopes and windows", {
   ) %in% names(display_form)))
   expect_true(all(display_form$window_type == "last_five"))
   expect_lte(max(display_form$sample_count), 5L)
+})
+
+test_that("production display form keeps competition and all-senior history independent", {
+  cases <- phase14_form_cases()
+  history <- cases[cases$record_type == "history", , drop = FALSE]
+  teams <- c("TEAM_ZERO", "TEAM_ONE", "TEAM_FOUR", "TEAM_FIVE", "TEAM_MORE")
+
+  all_senior <- phase14_build_display_form(
+    matches = history,
+    teams = teams,
+    edition_id = "euro2024",
+    feature_cutoff_utc = "2026-06-10T12:00:00Z",
+    form_scope = "all_senior_international"
+  )
+  competition <- phase14_build_display_form(
+    matches = history,
+    teams = teams,
+    edition_id = "euro2024",
+    feature_cutoff_utc = "2026-06-10T12:00:00Z",
+    form_scope = "competition"
+  )
+
+  expect_equal(
+    all_senior$sample_count[match(all_senior$team_id, teams)],
+    c(0L, 1L, 4L, 5L, 5L)
+  )
+  expect_equal(
+    competition$sample_count[match(competition$team_id, teams)],
+    c(0L, 1L, 4L, 5L, 4L)
+  )
+
+  more_all <- all_senior[all_senior$team_id == "TEAM_MORE", , drop = FALSE]
+  more_competition <- competition[competition$team_id == "TEAM_MORE", , drop = FALSE]
+  expect_identical(
+    more_all$contributing_match_ids,
+    "MORE-02|MORE-03|MORE-04|MORE-05|MORE-06"
+  )
+  expect_identical(
+    more_competition$contributing_match_ids,
+    "MORE-03|MORE-04|MORE-05|MORE-06"
+  )
+  expect_identical(more_all$result_sequence, "LWDLW")
+  expect_true(grepl("friendly", more_all$competition_type, fixed = TRUE))
+  expect_false(grepl("friendly", more_competition$competition_type, fixed = TRUE))
+  expect_true(all(is.na(all_senior$xgf)))
+})
+
+test_that("production all-senior display form accepts normalized full history", {
+  historical <- utils::read.csv(
+    file.path(phase14_form_test_project_root, "data/processed/martj42_historical_normalized.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = c("", "NA")
+  )
+
+  display_form <- phase14_build_display_form(
+    matches = historical,
+    teams = c("team_aut", "team_deu"),
+    feature_cutoff_utc = "2026-08-01T00:00:00Z",
+    form_scope = "all_senior_international"
+  )
+
+  expect_equal(nrow(display_form), 2L)
+  expect_true(all(display_form$sample_count <= 5L))
+  expect_true(all(display_form$availability_status == "available"))
+  expect_true(all(display_form$feature_cutoff_utc == "2026-08-01T00:00:00Z"))
+  expect_true(all(is.na(display_form$xgf) & is.na(display_form$xga) & is.na(display_form$xgd)))
 })
 
 test_that("production model form preserves explicit unavailable evidence", {
