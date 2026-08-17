@@ -196,7 +196,7 @@ phase14_form_source_hash <- function(data, index) {
   value <- phase14_form_pick(
     data,
     index,
-    c("row_sha256", "source_row_sha256", "canonical_row_sha256", "match_hash"),
+    c("row_sha256", "source_row_sha256", "canonical_row_sha256", "source_hash", "match_hash"),
     NA_character_
   )
   if (is.na(value)) {
@@ -210,7 +210,7 @@ phase14_form_evidence <- function(data, index) {
   timestamp <- phase14_form_pick(
     data,
     index,
-    c("evidence_completed_at_utc", "completed_at_utc", "evidence_time_utc", "updated_at_utc"),
+    c("evidence_completed_at_utc", "completed_at_utc", "evidence_time_utc", "evidence_timestamp_utc", "evidence_at_utc", "updated_at_utc"),
     NA_character_
   )
   timestamp <- if (is.na(timestamp)) NA_character_ else phase14_form_timestamp(timestamp, "evidence_completed_at_utc")
@@ -305,7 +305,7 @@ phase14_form_normalize_wide_fast <- function(matches) {
   competition_type <- ifelse(grepl("friendly", tolower(competition_text)), "friendly", "competition")
 
   evidence_timestamp <- phase14_form_timestamp_vector(
-    phase14_form_first_column(matches, c("evidence_completed_at_utc", "completed_at_utc", "evidence_time_utc", "updated_at_utc")),
+    phase14_form_first_column(matches, c("evidence_completed_at_utc", "completed_at_utc", "evidence_time_utc", "evidence_timestamp_utc", "evidence_at_utc", "updated_at_utc")),
     "evidence_completed_at_utc"
   )
   evidence_date <- phase14_form_date_vector(
@@ -320,7 +320,7 @@ phase14_form_normalize_wide_fast <- function(matches) {
   if (any(invalid_precision)) stop("Phase 14 form evidence_precision contains an unsupported value", call. = FALSE)
 
   source_id <- phase14_form_first_column(matches, c("source_id", "source_artifact_id", "source_result_id", "source_match_id", "source_fixture_id", "source_namespace", "source_dataset"))
-  source_hash <- phase14_form_first_column(matches, c("row_sha256", "source_row_sha256", "canonical_row_sha256", "match_hash"))
+  source_hash <- phase14_form_first_column(matches, c("row_sha256", "source_row_sha256", "canonical_row_sha256", "source_hash", "match_hash"))
   missing_hash <- is.na(source_hash)
   if (any(missing_hash)) {
     source_hash[missing_hash] <- vapply(which(missing_hash), function(index) phase14_form_source_hash(matches, index), character(1))
@@ -631,6 +631,404 @@ phase14_build_display_form <- function(
   output <- lapply(teams, function(team_id) {
     rows <- eligible[eligible$team_id == team_id, , drop = FALSE]
     phase14_form_output_row(team_id, rows, scope, edition_id, cutoff)
+  })
+  phase14_form_add_hashes(do.call(rbind, output))
+}
+
+#' Durable boundary for optional shot-derived national-team xG.
+phase14_national_team_xg_source_schema <- function() {
+  c(
+    "schema_version", "source_id", "source_scope", "evidence_basis",
+    "acceptance_status", "accepted_artifact_path", "accepted_artifact_sha256",
+    "stable_match_id_contract", "stable_team_id_contract",
+    "point_in_time_evidence_contract", "review_state", "reviewed_at_utc",
+    "reviewed_by", "review_note", "row_sha256"
+  )
+}
+
+phase14_national_team_xg_registry_row_hash <- function(registry) {
+  if (!is.data.frame(registry)) stop("Phase 14 national-team xG registry must be a data frame", call. = FALSE)
+  fields <- setdiff(phase14_national_team_xg_source_schema(), "row_sha256")
+  missing <- setdiff(fields, names(registry))
+  if (length(missing)) stop("Phase 14 national-team xG registry hash is missing fields: ", paste(missing, collapse = ", "), call. = FALSE)
+  vapply(seq_len(nrow(registry)), function(index) {
+    values <- vapply(registry[index, fields, drop = FALSE], phase14_form_canonical_scalar, character(1))
+    phase14_form_digest(paste(values, collapse = "|"))
+  }, character(1))
+}
+
+phase14_form_find_project_root <- function(path = ".") {
+  candidate <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
+  repeat {
+    if (dir.exists(file.path(candidate, ".git")) || file.exists(file.path(candidate, ".git"))) return(candidate)
+    parent <- dirname(candidate)
+    if (identical(parent, candidate)) break
+    candidate <- parent
+  }
+  normalizePath(path, winslash = "/", mustWork = FALSE)
+}
+
+phase14_national_team_xg_registry_read <- function(registry, project_root = ".") {
+  root <- if (identical(project_root, ".")) phase14_form_find_project_root() else project_root
+  if (is.null(registry)) registry <- file.path(root, "data/competition/registries/national_team_xg_sources.csv")
+  if (is.character(registry) && length(registry) == 1L) {
+    path <- as.character(registry[[1L]])
+    if (!grepl("^/", path) && !file.exists(path)) path <- file.path(root, path)
+    if (!file.exists(path)) stop("Phase 14 national-team xG registry is missing: ", path, call. = FALSE)
+    return(utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = c("", "NA")))
+  }
+  if (!is.data.frame(registry)) stop("Phase 14 national-team xG registry must be a data frame or CSV path", call. = FALSE)
+  registry
+}
+
+phase14_national_team_xg_registry_path <- function(path, project_root = ".") {
+  if (is.na(path) || !nzchar(path)) return(NA_character_)
+  if (grepl("^/", path)) return(path)
+  root <- if (identical(project_root, ".")) phase14_form_find_project_root() else project_root
+  file.path(root, path)
+}
+
+#' Validate the declared national-team xG source boundary.
+phase14_validate_national_team_xg_registry <- function(
+    registry = NULL,
+    project_root = ".",
+    verify_artifacts = TRUE) {
+  registry <- phase14_national_team_xg_registry_read(registry, project_root = project_root)
+  schema <- phase14_national_team_xg_source_schema()
+  missing <- setdiff(schema, names(registry))
+  if (length(missing)) {
+    stop("Phase 14 national-team xG registry is missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
+  }
+  registry <- registry[, schema, drop = FALSE]
+  if (!nrow(registry)) return(invisible(registry))
+  for (field in c("schema_version", "source_id", "source_scope", "evidence_basis", "acceptance_status", "stable_match_id_contract", "stable_team_id_contract", "point_in_time_evidence_contract", "review_state")) {
+    values <- phase14_form_clean_text(registry[[field]])
+    if (any(is.na(values))) stop("Phase 14 national-team xG registry has missing ", field, call. = FALSE)
+  }
+  if (anyDuplicated(as.character(registry$source_id))) stop("Phase 14 national-team xG registry has duplicate source_id values", call. = FALSE)
+  if (any(as.character(registry$source_scope) != "senior_mens_national_team")) {
+    stop("Phase 14 national-team xG registry source_scope must be senior_mens_national_team", call. = FALSE)
+  }
+  if (any(as.character(registry$evidence_basis) != "shot_derived")) {
+    stop("Phase 14 national-team xG registry evidence_basis must be shot_derived", call. = FALSE)
+  }
+  allowed_status <- c("not_accepted", "accepted", "rejected", "blocked")
+  if (any(!as.character(registry$acceptance_status) %in% allowed_status)) {
+    stop("Phase 14 national-team xG registry has an unsupported acceptance_status", call. = FALSE)
+  }
+  allowed_review <- c("reviewed", "not_reviewed", "pending_review", "not_required")
+  if (any(!as.character(registry$review_state) %in% allowed_review)) {
+    stop("Phase 14 national-team xG registry has an unsupported review_state", call. = FALSE)
+  }
+  accepted <- as.character(registry$acceptance_status) == "accepted"
+  if (any(accepted & as.character(registry$review_state) != "reviewed")) {
+    stop("Phase 14 accepted national-team xG source must have review_state=reviewed", call. = FALSE)
+  }
+  accepted_paths <- phase14_form_clean_text(registry$accepted_artifact_path)
+  accepted_hashes <- tolower(phase14_form_clean_text(registry$accepted_artifact_sha256))
+  if (any(accepted & (is.na(accepted_paths) | !grepl("^[0-9a-f]{64}$", accepted_hashes)))) {
+    stop("Phase 14 accepted national-team xG source requires an artifact path and SHA-256", call. = FALSE)
+  }
+  if (any(accepted & !grepl("strictly|before|exclusive", tolower(registry$point_in_time_evidence_contract)))) {
+    stop("Phase 14 accepted national-team xG source requires an exclusive point-in-time evidence contract", call. = FALSE)
+  }
+  if (isTRUE(verify_artifacts) && any(accepted)) {
+    for (index in which(accepted)) {
+      path <- phase14_national_team_xg_registry_path(accepted_paths[[index]], project_root = project_root)
+      if (!file.exists(path)) stop("Phase 14 accepted national-team xG artifact is missing: ", accepted_paths[[index]], call. = FALSE)
+      actual_hash <- tolower(digest::digest(file = path, algo = "sha256"))
+      if (!identical(actual_hash, accepted_hashes[[index]])) {
+        stop("Phase 14 accepted national-team xG artifact hash mismatch for source_id: ", registry$source_id[[index]], call. = FALSE)
+      }
+    }
+  }
+  actual_rows <- phase14_form_clean_text(registry$row_sha256)
+  if (any(is.na(actual_rows) | !grepl("^[0-9a-f]{64}$", tolower(actual_rows)))) {
+    stop("Phase 14 national-team xG registry requires SHA-256 row hashes", call. = FALSE)
+  }
+  expected_rows <- phase14_national_team_xg_registry_row_hash(registry)
+  if (any(tolower(actual_rows) != tolower(expected_rows))) {
+    stop("Phase 14 national-team xG registry row SHA-256 mismatch", call. = FALSE)
+  }
+  invisible(registry)
+}
+
+phase14_form_cutoff_value <- function(data, index, feature_cutoff_utc = NULL) {
+  if (!is.null(feature_cutoff_utc)) return(feature_cutoff_utc)
+  value <- phase14_form_pick(
+    data,
+    index,
+    c("feature_cutoff_utc", "fixture_cutoff_utc", "forecast_cutoff_utc", "cutoff_utc"),
+    NA_character_
+  )
+  if (is.na(value)) stop("Phase 14 form cutoff is required", call. = FALSE)
+  value
+}
+
+#' Assert that every evidence row is strictly before its feature cutoff.
+phase14_assert_form_cutoffs <- function(data, feature_cutoff_utc = NULL) {
+  if (!is.data.frame(data)) stop("Phase 14 form cutoff validation requires a data frame", call. = FALSE)
+  if (!nrow(data)) return(invisible(TRUE))
+  for (index in seq_len(nrow(data))) {
+    cutoff_value <- phase14_form_cutoff_value(data, index, feature_cutoff_utc)
+    cutoff <- phase14_form_cutoff(cutoff_value)
+    precision <- tolower(phase14_form_pick(data, index, c("evidence_precision"), ""))
+    timestamp <- phase14_form_pick(data, index, c("evidence_completed_at_utc", "completed_at_utc", "evidence_timestamp_utc", "evidence_at_utc"), NA_character_)
+    evidence_date <- phase14_form_pick(data, index, c("evidence_date", "match_date", "date"), NA_character_)
+    if (!precision %in% c("timestamp", "date", "missing")) {
+      precision <- if (!is.na(timestamp)) "timestamp" else if (!is.na(evidence_date)) "date" else "missing"
+    }
+    if (identical(precision, "timestamp")) {
+      if (is.na(timestamp)) stop("Phase 14 form evidence timestamp is missing at cutoff", call. = FALSE)
+      evidence <- as.POSIXct(phase14_form_timestamp(timestamp, "evidence_completed_at_utc"), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+      if (is.na(evidence) || evidence >= cutoff$instant) {
+        stop("Phase 14 form evidence is equal to or after the feature cutoff", call. = FALSE)
+      }
+    } else if (identical(precision, "date")) {
+      if (is.na(evidence_date)) stop("Phase 14 date-only form evidence is missing its evidence date", call. = FALSE)
+      evidence_date <- as.Date(phase14_form_date(evidence_date, "evidence_date"))
+      if (is.na(evidence_date) || evidence_date >= cutoff$date) {
+        stop("Phase 14 date-only evidence is same-day or after the feature cutoff", call. = FALSE)
+      }
+    } else {
+      stop("Phase 14 form evidence has missing or ambiguous time precision", call. = FALSE)
+    }
+  }
+  invisible(TRUE)
+}
+
+phase14_national_team_xg_empty <- function() {
+  data.frame(
+    match_id = character(0),
+    team_id = character(0),
+    opponent_team_id = character(0),
+    source_id = character(0),
+    source_scope = character(0),
+    evidence_basis = character(0),
+    source_row_sha256 = character(0),
+    source_lineage_id = character(0),
+    edition_id = character(0),
+    evidence_completed_at_utc = character(0),
+    evidence_date = character(0),
+    evidence_precision = character(0),
+    feature_cutoff_utc = character(0),
+    xgf = numeric(0),
+    xga = numeric(0),
+    xgd = numeric(0),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase14_form_is_goal_relabelled_xg <- function(rows) {
+  if (!nrow(rows)) return(FALSE)
+  xgf <- suppressWarnings(as.numeric(rows$xgf))
+  xga <- suppressWarnings(as.numeric(rows$xga))
+  goals_for <- suppressWarnings(as.numeric(rows$football_goals_for))
+  goals_against <- suppressWarnings(as.numeric(rows$football_goals_against))
+  complete <- is.finite(xgf) & is.finite(xga) & is.finite(goals_for) & is.finite(goals_against)
+  isTRUE(any(complete)) && isTRUE(all(complete)) &&
+    isTRUE(all(xgf == goals_for)) && isTRUE(all(xga == goals_against))
+}
+
+#' Adapt only a reviewed registry-approved shot-derived national-team xG table.
+phase14_adapt_national_team_xg <- function(
+    xg_history,
+    registry = NULL,
+    feature_cutoff_utc,
+    strict_cutoff = TRUE,
+    project_root = ".") {
+  if (!is.data.frame(xg_history)) stop("Phase 14 national-team xG history must be a data frame", call. = FALSE)
+  if ("team" %in% names(xg_history) && "match_date" %in% names(xg_history) &&
+      !any(c("match_id", "canonical_match_id", "source_match_id") %in% names(xg_history))) {
+    stop("Phase 14 national-team xG adapter rejects club rolling_form.csv: stable national match_id is missing", call. = FALSE)
+  }
+  cutoff <- phase14_form_cutoff(feature_cutoff_utc)
+  registry <- phase14_national_team_xg_registry_read(registry, project_root = project_root)
+  phase14_validate_national_team_xg_registry(registry, project_root = project_root, verify_artifacts = TRUE)
+  accepted_registry <- registry[registry$acceptance_status == "accepted", , drop = FALSE]
+  if (!nrow(accepted_registry)) {
+    output <- phase14_national_team_xg_empty()
+    attr(output, "availability_reason") <- "no_accepted_national_team_xg_source"
+    attr(output, "registry") <- registry
+    return(output)
+  }
+  normalized <- phase14_form_prefer_lineage(phase14_form_normalize_matches(xg_history))
+  if (!nrow(normalized)) return(phase14_national_team_xg_empty())
+  if (phase14_form_is_goal_relabelled_xg(normalized)) {
+    stop("Phase 14 national-team xG evidence rejects football goals relabelled as xG", call. = FALSE)
+  }
+  normalized$source_row_sha256 <- as.character(normalized$source_hash)
+  required_text <- c("match_id", "team_id", "source_id", "source_row_sha256", "source_scope", "evidence_basis")
+  for (field in required_text) {
+    values <- phase14_form_clean_text(normalized[[field]])
+    if (any(is.na(values))) stop("Phase 14 national-team xG evidence requires stable ", field, call. = FALSE)
+  }
+  if (any(!grepl("^[0-9a-f]{64}$", tolower(normalized$source_row_sha256)))) {
+    stop("Phase 14 national-team xG evidence requires a stable source row SHA-256", call. = FALSE)
+  }
+  accepted_ids <- as.character(accepted_registry$source_id)
+  if (any(!normalized$source_id %in% accepted_ids)) {
+    stop("Phase 14 national-team xG evidence references a source that is not registry-accepted", call. = FALSE)
+  }
+  if (any(normalized$source_scope != "senior_mens_national_team")) {
+    stop("Phase 14 national-team xG evidence has a non-national source scope", call. = FALSE)
+  }
+  if (any(normalized$evidence_basis != "shot_derived")) {
+    stop("Phase 14 national-team xG evidence must be shot_derived, not scoreline or goals", call. = FALSE)
+  }
+  if (any(!is.finite(normalized$xgf) | !is.finite(normalized$xga) | normalized$xgf < 0 | normalized$xga < 0)) {
+    stop("Phase 14 national-team xG evidence requires finite non-negative xGF and xGA", call. = FALSE)
+  }
+  if (isTRUE(strict_cutoff)) {
+    phase14_assert_form_cutoffs(normalized, feature_cutoff_utc = cutoff$text)
+    cutoff_eligible <- rep(TRUE, nrow(normalized))
+  } else {
+    cutoff_eligible <- vapply(seq_len(nrow(normalized)), function(index) {
+      phase14_form_before_cutoff(normalized[index, , drop = FALSE], cutoff)
+    }, logical(1))
+  }
+  normalized <- normalized[cutoff_eligible, , drop = FALSE]
+  if (!nrow(normalized)) return(phase14_national_team_xg_empty())
+  normalized$feature_cutoff_utc <- cutoff$text
+  normalized$xgd <- normalized$xgf - normalized$xga
+  normalized <- normalized[, c(
+    "match_id", "team_id", "opponent_team_id", "source_id", "source_scope",
+    "evidence_basis", "source_row_sha256", "source_lineage", "edition_id",
+    "evidence_completed_at_utc", "evidence_date", "evidence_precision",
+    "feature_cutoff_utc", "xgf", "xga", "xgd"
+  ), drop = FALSE]
+  names(normalized)[names(normalized) == "source_lineage"] <- "source_lineage_id"
+  normalized[phase14_form_order(normalized), , drop = FALSE]
+}
+
+phase14_form_ewma <- function(values, span) {
+  values <- suppressWarnings(as.numeric(values))
+  if (!length(values) || any(!is.finite(values))) return(NA_real_)
+  alpha <- 2 / (as.numeric(span) + 1)
+  output <- values[[1L]]
+  if (length(values) > 1L) {
+    for (index in 2:length(values)) output <- alpha * values[[index]] + (1 - alpha) * output
+  }
+  as.numeric(output)
+}
+
+phase14_model_form_output_row <- function(team_id, rows, form_scope, edition_id, cutoff, span, unavailable_reason) {
+  edition_value <- if (!is.null(edition_id) && length(edition_id) && !is.na(edition_id[[1L]])) {
+    as.character(edition_id[[1L]])
+  } else {
+    NA_character_
+  }
+  if (!nrow(rows)) {
+    return(data.frame(
+      edition_id = edition_value,
+      team_id = as.character(team_id),
+      form_scope = form_scope,
+      window_type = "ewma",
+      window_size = as.integer(span),
+      window_span = as.integer(span),
+      sample_count = 0L,
+      eligible_sample_count = 0L,
+      result_sequence = NA_character_,
+      competition_type = NA_character_,
+      feature_cutoff_utc = cutoff$text,
+      latest_evidence_completed_at_utc = NA_character_,
+      latest_evidence_date = NA_character_,
+      latest_evidence_precision = "missing",
+      contributing_match_ids = NA_character_,
+      contributing_match_hashes = NA_character_,
+      contributing_source_lineages = NA_character_,
+      xgf = NA_real_,
+      xga = NA_real_,
+      xgd = NA_real_,
+      xgf_ewma = NA_real_,
+      xga_ewma = NA_real_,
+      xgd_ewma = NA_real_,
+      availability_status = "unavailable",
+      availability_reason = unavailable_reason,
+      source_id = NA_character_,
+      source_scope = "senior_mens_national_team",
+      evidence_basis = "shot_derived",
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ))
+  }
+  ordered <- rows[phase14_form_order(rows), , drop = FALSE]
+  xgf_ewma <- phase14_form_ewma(ordered$xgf, span)
+  xga_ewma <- phase14_form_ewma(ordered$xga, span)
+  xgd_ewma <- xgf_ewma - xga_ewma
+  timestamp_values <- ordered$evidence_completed_at_utc[!is.na(ordered$evidence_completed_at_utc)]
+  date_values <- ordered$evidence_date[!is.na(ordered$evidence_date)]
+  latest_timestamp <- if (length(timestamp_values)) tail(timestamp_values, 1L)[[1L]] else NA_character_
+  latest_date <- if (length(date_values)) tail(date_values, 1L)[[1L]] else NA_character_
+  data.frame(
+    edition_id = edition_value,
+    team_id = as.character(team_id),
+    form_scope = form_scope,
+    window_type = "ewma",
+    window_size = as.integer(span),
+    window_span = as.integer(span),
+    sample_count = as.integer(nrow(ordered)),
+    eligible_sample_count = as.integer(nrow(ordered)),
+    result_sequence = NA_character_,
+    competition_type = NA_character_,
+    feature_cutoff_utc = cutoff$text,
+    latest_evidence_completed_at_utc = latest_timestamp,
+    latest_evidence_date = latest_date,
+    latest_evidence_precision = if (length(timestamp_values)) "timestamp" else if (length(date_values)) "date" else "missing",
+    contributing_match_ids = paste(ordered$match_id, collapse = "|"),
+    contributing_match_hashes = paste(ordered$source_row_sha256, collapse = "|"),
+    contributing_source_lineages = paste(ordered$source_lineage_id, collapse = "|"),
+    xgf = xgf_ewma,
+    xga = xga_ewma,
+    xgd = xgd_ewma,
+    xgf_ewma = xgf_ewma,
+    xga_ewma = xga_ewma,
+    xgd_ewma = xgd_ewma,
+    availability_status = "available",
+    availability_reason = "accepted_shot_derived_national_team_xg",
+    source_id = paste(unique(ordered$source_id), collapse = "|"),
+    source_scope = "senior_mens_national_team",
+    evidence_basis = "shot_derived",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+#' Build the optional span-12 national-team xG model-form product.
+phase14_build_model_form <- function(
+    xg_history,
+    teams = NULL,
+    feature_cutoff_utc,
+    span = 12L,
+    registry = NULL,
+    edition_id = NULL,
+    project_root = ".") {
+  if (length(span) != 1L || is.na(span) || span < 1 || span != floor(span)) {
+    stop("Phase 14 national-team xG span must be one positive integer", call. = FALSE)
+  }
+  cutoff <- phase14_form_cutoff(feature_cutoff_utc)
+  registry <- phase14_national_team_xg_registry_read(registry, project_root = project_root)
+  phase14_validate_national_team_xg_registry(registry, project_root = project_root, verify_artifacts = TRUE)
+  if (is.null(teams)) {
+    if (is.data.frame(xg_history) && "team_id" %in% names(xg_history)) teams <- unique(as.character(xg_history$team_id)) else teams <- character()
+  }
+  teams <- unique(as.character(teams))
+  teams <- teams[!is.na(teams) & nzchar(teams)]
+  if (!length(teams)) return(phase14_form_add_hashes(data.frame(stringsAsFactors = FALSE)))
+  accepted_exists <- any(registry$acceptance_status == "accepted")
+  adapted <- phase14_adapt_national_team_xg(
+    xg_history = xg_history,
+    registry = registry,
+    feature_cutoff_utc = cutoff$text,
+    strict_cutoff = FALSE,
+    project_root = project_root
+  )
+  reason <- if (accepted_exists) "no_point_in_time_national_team_xg_evidence" else "no_accepted_national_team_xg_source"
+  output <- lapply(teams, function(team_id) {
+    rows <- adapted[adapted$team_id == team_id, , drop = FALSE]
+    phase14_model_form_output_row(team_id, rows, "national_team_xg", edition_id, cutoff, as.integer(span), reason)
   })
   phase14_form_add_hashes(do.call(rbind, output))
 }

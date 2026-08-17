@@ -306,6 +306,31 @@ test_that("production model form preserves explicit unavailable evidence", {
   expect_true(all(is.na(zero[, c("xgf_ewma", "xga_ewma", "xgd_ewma")])))
 })
 
+test_that("current Austria and Germany model form remains unavailable", {
+  historical <- utils::read.csv(
+    file.path(phase14_form_test_project_root, "data/processed/martj42_historical_normalized.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = c("", "NA")
+  )
+  model_form <- phase14_build_model_form(
+    xg_history = historical,
+    teams = c("team_aut", "team_deu"),
+    feature_cutoff_utc = "2026-08-01T00:00:00Z",
+    span = 12L
+  )
+
+  expect_identical(model_form$availability_status, c("unavailable", "unavailable"))
+  expect_identical(
+    model_form$availability_reason,
+    c("no_accepted_national_team_xg_source", "no_accepted_national_team_xg_source")
+  )
+  expect_true(all(is.na(model_form$source_id)))
+  expect_true(all(model_form$sample_count == 0L))
+  expect_true(all(model_form$feature_cutoff_utc == "2026-08-01T00:00:00Z"))
+  expect_true(all(is.na(model_form[, c("xgf", "xga", "xgd", "xgf_ewma", "xga_ewma", "xgd_ewma")])))
+})
+
 test_that("the current national-team xG registry is explicit and unaccepted", {
   registry <- utils::read.csv(
     phase14_form_registry_path,
@@ -392,5 +417,22 @@ test_that("national-team xG adapter rejects club form and non-shot evidence", {
   expect_error(
     phase14_adapt_national_team_xg(scoreline, registry, "2026-06-10T12:00:00Z"),
     "scope|shot_derived|scoreline"
+  )
+})
+
+test_that("national-team xG adapter rejects football goals relabelled as xG", {
+  cases <- phase14_form_cases()
+  history <- cases[cases$record_type == "history", , drop = FALSE]
+  relabelled <- phase14_form_accepted_history(history)
+  relabelled$xgf <- relabelled$football_goals_for
+  relabelled$xga <- relabelled$football_goals_against
+
+  expect_error(
+    phase14_adapt_national_team_xg(
+      relabelled,
+      registry = phase14_form_accepted_registry(),
+      feature_cutoff_utc = "2026-06-10T12:00:00Z"
+    ),
+    "goals relabelled as xG"
   )
 })
