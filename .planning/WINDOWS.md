@@ -2,9 +2,9 @@
 schema_version: 1
 open_count: 21
 waived_count: 0
-fixed_count: 0
-total_count: 21
-last_updated: 2026-08-17T09:40:52.544Z
+fixed_count: 2
+total_count: 23
+last_updated: 2026-08-17T10:35:39.324Z
 ---
 
 # Broken Windows Ledger
@@ -29,13 +29,15 @@ last_updated: 2026-08-17T09:40:52.544Z
 | 12 | 14 | skipped-test | tests/testthat/test_phase14_form.R | 184 | Model-form assertions await phase14_build_model_form in Plan 14-15 | open |  | 2026-08-16T17:44:31.435Z |  |
 | 13 | 14 | skipped-test | tests/testthat/test_phase14_cutoffs.R | 122 | Cutoff-validator assertions await phase14_assert_form_cutoffs in Plan 14-15 | open |  | 2026-08-16T17:44:31.640Z |  |
 | 14 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 231 | Empirical calibration assertions await phase14_evaluate_incumbent_calibration in Plan 14-04 | open |  | 2026-08-16T18:09:06.357Z |  |
-| 15 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 252 | Selector-aware preflight assertions await phase14_resolve_approved_release in Plan 14-06 | open |  | 2026-08-16T18:09:06.566Z |  |
+| 15 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 252 | Selector-aware preflight assertions await phase14_resolve_approved_release in Plan 14-06 | fixed |  | 2026-08-16T18:09:06.566Z | 2026-08-17T10:34:13.034Z |
 | 16 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 325 | Dual-repin rollback assertions await phase14_repin_both_competition_releases and phase14_promote_calibrated_release in Plan 14-09 | open |  | 2026-08-16T18:09:06.769Z |  |
 | 17 | 14 | skipped-test | tests/testthat/test_phase14_forecast_layer.R | 419 | Forecast production assertions await phase14_build_fixture_forecasts in Plan 14-16 | open |  | 2026-08-16T18:33:00.480Z |  |
 | 18 | 14 | skipped-test | tests/testthat/test_phase14_state_bundle.R | 247 | State-candidate production assertions await phase14_build_competition_state_candidate in Plan 14-16 | open |  | 2026-08-16T18:33:00.587Z |  |
-| 19 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 508 | Pre-existing Wave 0 selector-aware preflight guard awaits phase14_resolve_approved_release | open |  | 2026-08-17T08:36:57.031Z |  |
+| 19 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 508 | Pre-existing Wave 0 selector-aware preflight guard awaits phase14_resolve_approved_release | fixed |  | 2026-08-17T08:36:57.031Z | 2026-08-17T10:34:12.977Z |
 | 20 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 581 | Pre-existing Wave 0 dual-repin guard awaits phase14_repin_both_competition_releases and phase14_promote_calibrated_release | open |  | 2026-08-17T08:36:57.134Z |  |
 | 21 | 14 | deviation | .planning/STATE.md |  | Reconciled stale Plan 14-22 state prose after SDK count advancement | open |  | 2026-08-17T09:40:52.544Z |  |
+| 22 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 966 | Pre-existing Plan 14-09 dual-repin Wave 0 guard remains skipped until its owning plan implements the atomic API | open |  | 2026-08-17T10:33:48.191Z |  |
+| 23 | 14 | deviation | .planning/STATE.md |  | Reconciled stale Plan 14-06 state prose after SDK count advancement | open |  | 2026-08-17T10:35:39.324Z |  |
 
 ````json
 [
@@ -214,10 +216,10 @@ last_updated: 2026-08-17T09:40:52.544Z
     "file": "tests/testthat/test_phase14_calibration_release.R",
     "line": 252,
     "description": "Selector-aware preflight assertions await phase14_resolve_approved_release in Plan 14-06",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-08-16T18:09:06.566Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-17T10:34:13.034Z"
   },
   {
     "id": 16,
@@ -262,10 +264,10 @@ last_updated: 2026-08-17T09:40:52.544Z
     "file": "tests/testthat/test_phase14_calibration_release.R",
     "line": 508,
     "description": "Pre-existing Wave 0 selector-aware preflight guard awaits phase14_resolve_approved_release",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-08-17T08:36:57.031Z",
-    "resolved_at": null
+    "resolved_at": "2026-08-17T10:34:12.977Z"
   },
   {
     "id": 20,
@@ -289,6 +291,30 @@ last_updated: 2026-08-17T09:40:52.544Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T09:40:52.544Z",
+    "resolved_at": null
+  },
+  {
+    "id": 22,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_calibration_release.R",
+    "line": 966,
+    "description": "Pre-existing Plan 14-09 dual-repin Wave 0 guard remains skipped until its owning plan implements the atomic API",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T10:33:48.191Z",
+    "resolved_at": null
+  },
+  {
+    "id": 23,
+    "kind": "deviation",
+    "phase": "14",
+    "file": ".planning/STATE.md",
+    "line": null,
+    "description": "Reconciled stale Plan 14-06 state prose after SDK count advancement",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T10:35:39.324Z",
     "resolved_at": null
   }
 ]

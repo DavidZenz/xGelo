@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: in_progress
-stopped_at: Completed 14-22-PLAN.md; Plan 14-06 is unblocked but not executed
-last_updated: "2026-08-17T09:40:03.503Z"
+stopped_at: Completed 14-06-PLAN.md
+last_updated: "2026-08-17T10:34:51.631Z"
 last_activity: 2026-08-17
-last_activity_desc: Plan 14-22 independently accepted the remediation graph; Plan 14-06 is unblocked but not executed
+last_activity_desc: Completed Plan 14-06 selector-aware preflight and calibrated revision staging contract
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # xGelo Project State
@@ -21,21 +21,21 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 7 of 22 complete; Plan 14-06 is next
-Status: Independent remediation acceptance complete; release authority remains unchanged and Plan 14-06 is unblocked
-Last activity: 2026-08-17 — Completed Plan 14-22 independent acceptance with a fresh zero-reason replay and acknowledged checkpoint
+Plan: 8 of 22 complete; Plan 14-07 is next
+Status: Selector-aware preflight and calibrated staging complete; release authority remains unchanged and Plan 14-07 is unblocked
+Last activity: 2026-08-17 — Completed Plan 14-06 selector-aware preflight and calibrated revision staging contract
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Remediation independently accepted; Plan 14-06 unblocked (7/22 complete) | 4/7 |
+| 14 | Shared Competition State and Forecast Layer | Selector-aware release staging ready; Plan 14-07 unblocked (8/22 complete) | 4/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 has independently accepted remediation evidence while release authority remains unchanged for Plan 14-06.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 can now stage the accepted calibrated release while durable release authority remains unchanged for Plan 14-07.
 
 ## Project Reference
 
@@ -102,6 +102,8 @@ for Nations League and EURO qualifying.
 - [Phase 14]: Final candidate vector_w400_p0p010 was fitted on all 630 development rows only after the actual outer pass.
 - [Phase 14]: Plan 14-22 makes the independent semantic replay and adversarial suite the calibration-remediation acceptance authority; producer pass flags and self-consistent hashes are insufficient.
 - [Phase 14]: The acknowledged calibration-v2-gate-passed signal satisfies Plan 14-06's precondition without mutating release selectors, registries, public suppression, or runtime authority.
+- [Phase 14]: Selector-only calibrated release authority — Runtime callers use the exact self-hashed approved_release.csv selector; direct manifests remain internal staging inputs.
+- [Phase 14]: Plan 14-22 identity is mandatory for calibrated staging — The accepted manifest, gate, source release, model, and source calibrator hashes are pinned; staging does not write or promote a selector.
 
 ## Accumulated Context
 
@@ -111,16 +113,16 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Execute Plan 14-06's selector-aware release trust boundary when requested; do not infer or mutate release authority outside that plan.
+- Execute Plan 14-07's immutable calibrated release installation when requested; do not move selector or competition-registry authority in that plan.
 
 ## Next Action
 
-Plan 14-06 is the next eligible plan after the independently proven and acknowledged `calibration-v2-gate-passed` result. It remains unexecuted and owns the next release trust-boundary changes.
+Plan 14-07 is the next eligible plan after Plan 14-06 completed the selector-aware trust boundary and calibrated staging contract. It owns immutable release installation without selector or registry promotion.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T09:40:03.491Z
-**Stopped at:** Completed 14-22-PLAN.md; Plan 14-06 is unblocked but not executed
+**Last session:** 2026-08-17T10:34:41.569Z
+**Stopped at:** Completed 14-06-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -151,3 +153,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P04 | 41m | 2 tasks | 6 files |
 | Phase 14 P21 | 1h21m | 2 tasks | 9 files |
 | Phase 14 P22 | 56min | 2 tasks | 3 files |
+| Phase 14 P06 | 48min | 2 tasks | 3 files |
