@@ -33,6 +33,11 @@ phase14_release_calibration_v2_identity <- function() {
       "0e4220775d2975aa7834eda42d41a0b6dd6aff7cdb30b6ef2f1f6595b95d1f95",
     source_calibrator_sha256 =
       "c634805d742cd4008b8050bacd1525a2ce6a98a573d12960c268503d47fede2d",
+    calibration_recipe_sha256 =
+      "7b9cecc347e49965a317af22b6febcf31feb9becbfebe65582d51a36b1e8ff21",
+    protocol_sha256 =
+      "984b73132baa78b064ea11d20ee108f672bfbc5bffb0ed93ecc226e81d950efd",
+    code_commit = "5f55988dd30f9cf37948017c61dfd78c4ccd4295",
     calibrator_id = "vector_w400_p0p010",
     track_id = "updating",
     panel_id = "open_core",
@@ -203,6 +208,7 @@ phase14_release_validate_revision_metadata <- function(revision_path, gate_path)
     "outer_fold_count", "fit_record_count", "outer_gate_passed",
     "final_fit_performed", "calibration_promoted", "primary_probability_view",
     "fit_status", "holdout_labels_used", "authority_mutated", "candidate_authority",
+    "calibration_recipe_sha256", "protocol_sha256", "code_commit",
     "calibrator_sha256", "calibration_gate_sha256", "manifest_self_sha256"
   )
   required_gate <- c(
@@ -319,6 +325,19 @@ phase14_release_validate_revision_metadata <- function(revision_path, gate_path)
   )
   if (!identical(actual_hashes, expected_hashes)) {
     stop("Phase 14 calibration evidence hash does not match the accepted Plan 14-22 graph", call. = FALSE)
+  }
+  revision_lineage <- c(
+    calibration_recipe_sha256 = tolower(scalar(revision, "calibration_recipe_sha256")),
+    protocol_sha256 = tolower(scalar(revision, "protocol_sha256")),
+    code_commit = tolower(scalar(revision, "code_commit"))
+  )
+  expected_lineage <- c(
+    calibration_recipe_sha256 = identity$calibration_recipe_sha256,
+    protocol_sha256 = identity$protocol_sha256,
+    code_commit = identity$code_commit
+  )
+  if (!identical(revision_lineage, expected_lineage)) {
+    stop("Phase 14 calibration recipe, protocol, or code identity drifted", call. = FALSE)
   }
   list(identity = identity, revision = revision, gate = gate)
 }
@@ -559,6 +578,12 @@ phase14_release_validate_source_release <- function(
   source_model_path <- phase12_release_path_under_root(
     source_release_root, "model/approved_model.rds", must_work = TRUE
   )
+  source_freeze_path <- phase12_release_path_under_root(
+    source_release_root, "manifests/freeze_manifest.csv", must_work = TRUE
+  )
+  source_final_path <- phase12_release_path_under_root(
+    source_release_root, "manifests/final_evaluation_manifest.csv", must_work = TRUE
+  )
   if (!identical(
     phase12_release_file_sha256(source_manifest_path),
     identity$source_release_manifest_sha256
@@ -587,6 +612,8 @@ phase14_release_validate_source_release <- function(
   list(
     release_root = source_release_root,
     model_path = source_model_path,
+    freeze_path = source_freeze_path,
+    final_evaluation_path = source_final_path,
     manifest_path = source_manifest_path,
     validated = source
   )
@@ -650,12 +677,14 @@ phase14_release_validate_staged_calibration_metadata <- function(
   required_contract <- c(
     "source_release_id", "source_release_manifest_sha256", "model_sha256",
     "model_data_cutoff", "raw_probability_view", "calibration_data_cutoff",
+    "support_max", "freeze_manifest_sha256", "final_evaluation_manifest_sha256",
     "calibrator_id", "calibrator_sha256", "source_calibrator_sha256",
     "calibrator_fit_status", "calibration_revision_manifest_artifact",
     "calibration_revision_manifest_sha256",
     "calibration_revision_manifest_self_sha256", "calibration_gate_artifact",
     "calibration_gate_id", "calibration_gate_sha256",
-    "calibration_gate_row_sha256", "calibration_gate_passed"
+    "calibration_gate_row_sha256", "calibration_gate_passed",
+    "code_commit", "protocol_sha256", "calibration_recipe_sha256"
   )
   if (length(setdiff(required_contract, names(contract)))) {
     stop("Phase 14 calibrated release contract is incomplete", call. = FALSE)
@@ -688,6 +717,11 @@ phase14_release_validate_staged_calibration_metadata <- function(
     model_data_cutoff = as.character(contract$model_data_cutoff),
     raw_probability_view = as.character(contract$raw_probability_view),
     calibration_data_cutoff = as.character(contract$calibration_data_cutoff),
+    support_max = as.character(contract$support_max),
+    freeze_manifest_sha256 = tolower(as.character(contract$freeze_manifest_sha256)),
+    final_evaluation_manifest_sha256 = tolower(
+      as.character(contract$final_evaluation_manifest_sha256)
+    ),
     calibrator_id = as.character(contract$calibrator_id),
     source_calibrator_sha256 = tolower(as.character(contract$source_calibrator_sha256)),
     calibrator_fit_status = as.character(contract$calibrator_fit_status),
@@ -697,7 +731,12 @@ phase14_release_validate_staged_calibration_metadata <- function(
     ),
     gate_id = as.character(contract$calibration_gate_id),
     gate_file_sha256 = tolower(as.character(contract$calibration_gate_sha256)),
-    gate_row_sha256 = tolower(as.character(contract$calibration_gate_row_sha256))
+    gate_row_sha256 = tolower(as.character(contract$calibration_gate_row_sha256)),
+    code_commit = tolower(as.character(contract$code_commit)),
+    protocol_sha256 = tolower(as.character(contract$protocol_sha256)),
+    calibration_recipe_sha256 = tolower(
+      as.character(contract$calibration_recipe_sha256)
+    )
   )
   expected_contract <- c(
     source_release_id = identity$source_release_id,
@@ -706,6 +745,13 @@ phase14_release_validate_staged_calibration_metadata <- function(
     model_data_cutoff = identity$model_data_cutoff,
     raw_probability_view = "raw_1x2",
     calibration_data_cutoff = identity$calibration_data_cutoff,
+    support_max = as.character(identity$support_max),
+    freeze_manifest_sha256 = phase12_release_file_sha256(file.path(
+      staged_root, "manifests/freeze_manifest.csv"
+    )),
+    final_evaluation_manifest_sha256 = phase12_release_file_sha256(file.path(
+      staged_root, "manifests/final_evaluation_manifest.csv"
+    )),
     calibrator_id = identity$calibrator_id,
     source_calibrator_sha256 = identity$source_calibrator_sha256,
     calibrator_fit_status = "fitted",
@@ -713,7 +759,10 @@ phase14_release_validate_staged_calibration_metadata <- function(
     revision_manifest_self_sha256 = identity$revision_manifest_self_sha256,
     gate_id = identity$gate_schema,
     gate_file_sha256 = identity$gate_file_sha256,
-    gate_row_sha256 = identity$gate_row_sha256
+    gate_row_sha256 = identity$gate_row_sha256,
+    code_commit = identity$code_commit,
+    protocol_sha256 = identity$protocol_sha256,
+    calibration_recipe_sha256 = identity$calibration_recipe_sha256
   )
   if (!identical(contract_identity, expected_contract) ||
       !isTRUE(contract$calibration_gate_passed) ||
@@ -976,6 +1025,17 @@ stage_phase12_release_bundle <- function(
     identity$score_support_g <- accepted$support_max
     identity$primary_probability_view <- "calibrated_1x2"
     calibrator <- phase14_release_enrich_calibrator(calibrator, accepted)
+    if (!"schema_version" %in% names(decision$rows)) {
+      decision$rows$schema_version <- "phase14-calibrated-release-decision-v1"
+    }
+    if (!"candidate_id" %in% names(decision$rows)) {
+      decision$rows$candidate_id <- accepted$model_id
+    }
+    decision$rows <- decision$rows[, c(
+      "schema_version",
+      "candidate_id",
+      setdiff(names(decision$rows), c("schema_version", "candidate_id"))
+    ), drop = FALSE]
   }
   root <- phase12_release_resolve_path(output_root, must_work = FALSE)
   dir.create(root, recursive = TRUE, showWarnings = FALSE)
@@ -998,12 +1058,20 @@ stage_phase12_release_bundle <- function(
       revision_source$gate_path,
       file.path(staged_root, "manifests/calibration_gate.csv")
     )
+    phase14_release_copy_exact_file(
+      source_release$freeze_path,
+      file.path(staged_root, "manifests/freeze_manifest.csv")
+    )
+    phase14_release_copy_exact_file(
+      source_release$final_evaluation_path,
+      file.path(staged_root, "manifests/final_evaluation_manifest.csv")
+    )
   } else {
     phase12_release_write_rds(model_object, file.path(staged_root, "model/approved_model.rds"))
+    phase12_release_write_csv(freeze, file.path(staged_root, "manifests/freeze_manifest.csv"))
+    phase12_release_write_csv(final_evaluation, file.path(staged_root, "manifests/final_evaluation_manifest.csv"))
   }
   phase12_release_write_rds(calibrator, file.path(staged_root, "model/calibrator.rds"))
-  phase12_release_write_csv(freeze, file.path(staged_root, "manifests/freeze_manifest.csv"))
-  phase12_release_write_csv(final_evaluation, file.path(staged_root, "manifests/final_evaluation_manifest.csv"))
 
   metadata <- list(
     release_id = release_id, status = decision$status,
@@ -1039,8 +1107,15 @@ stage_phase12_release_bundle <- function(
     contract$source_release_manifest_sha256 <- accepted$source_release_manifest_sha256
     contract$model_sha256 <- accepted$model_sha256
     contract$model_data_cutoff <- accepted$model_data_cutoff
+    contract$support_max <- accepted$support_max
     contract$raw_probability_view <- "raw_1x2"
     contract$calibration_data_cutoff <- accepted$calibration_data_cutoff
+    contract$freeze_manifest_sha256 <- phase12_release_file_sha256(
+      file.path(staged_root, "manifests/freeze_manifest.csv")
+    )
+    contract$final_evaluation_manifest_sha256 <- phase12_release_file_sha256(
+      file.path(staged_root, "manifests/final_evaluation_manifest.csv")
+    )
     contract$calibrator_id <- accepted$calibrator_id
     contract$calibrator_sha256 <- phase12_release_file_sha256(
       file.path(staged_root, "model/calibrator.rds")
@@ -1057,6 +1132,9 @@ stage_phase12_release_bundle <- function(
     contract$calibration_gate_sha256 <- accepted$gate_file_sha256
     contract$calibration_gate_row_sha256 <- accepted$gate_row_sha256
     contract$calibration_gate_passed <- TRUE
+    contract$code_commit <- accepted$code_commit
+    contract$protocol_sha256 <- accepted$protocol_sha256
+    contract$calibration_recipe_sha256 <- accepted$calibration_recipe_sha256
   }
   phase12_release_write_json(contract, file.path(staged_root, "model_contract.json"))
   provenance <- list(
@@ -1081,10 +1159,16 @@ stage_phase12_release_bundle <- function(
     provenance$source_calibrator_sha256 <- accepted$source_calibrator_sha256
     provenance$model_data_cutoff <- accepted$model_data_cutoff
     provenance$calibration_data_cutoff <- accepted$calibration_data_cutoff
+    provenance$code_commit <- accepted$code_commit
+    provenance$protocol_sha256 <- accepted$protocol_sha256
+    provenance$calibration_recipe_sha256 <- accepted$calibration_recipe_sha256
   }
   phase12_release_write_json(provenance, file.path(staged_root, "manifests/provenance.json"))
   report_lines <- c(
-    "# Phase 12 benchmark report", "", paste0("- Release: `", release_id, "`"),
+    if (isTRUE(calibrated_revision)) {
+      "# Phase 14 calibrated release benchmark report"
+    } else "# Phase 12 benchmark report",
+    "", paste0("- Release: `", release_id, "`"),
     paste0("- Decision: **", decision$status, "**"), paste0("- Selected model: `", decision$selected_id, "`"),
     paste0("- Track/panel: `", identity$track_id, "` / `", identity$panel_id, "`"),
     paste0("- Score support: G=", identity$score_support_g),
@@ -1096,11 +1180,21 @@ stage_phase12_release_bundle <- function(
   )
   phase12_release_write_text(report_lines, file.path(staged_root, "reports/benchmark_report.md"))
   model_card <- c(
-    "# Phase 12 model card", "", paste0("Model identity: `", decision$selected_id, "`"),
+    if (isTRUE(calibrated_revision)) {
+      "# Phase 14 calibrated incumbent model card"
+    } else "# Phase 12 model card",
+    "", paste0("Model identity: `", decision$selected_id, "`"),
     paste0("Release status: `", decision$status, "`"), paste0("Track: `", identity$track_id, "`"),
     paste0("Panel: `", identity$panel_id, "`"), paste0("Scoreline support: G=", identity$score_support_g),
     paste0("Primary view: `", identity$primary_probability_view, "`"), "",
-    "The incumbent is retained when challenger evidence fails a registered gate. Challenger failures remain audit evidence and do not control the consumer model.",
+    if (isTRUE(calibrated_revision)) {
+      paste(
+        "The accepted calibrator was fitted on development evidence only.",
+        "Calibrated 1X2 is primary and raw 1X2 remains available for audit."
+      )
+    } else {
+      "The incumbent is retained when challenger evidence fails a registered gate. Challenger failures remain audit evidence and do not control the consumer model."
+    },
     "The release does not embed FIFA match outcome labels. The scoreline distribution and its G=40 support are unchanged from the evaluated model contract.", "",
     paste0("Decision SHA-256: `", decision$decision_sha256, "`")
   )

@@ -189,6 +189,37 @@ phase14_release_test_stage_calibrated_revision <- function(
   list(output_root = output_root, release_root = path)
 }
 
+phase14_release_test_build_complete_candidate <- function(
+    staging_parent,
+    release_id = "phase14-open-nb-incumbent-calibrated-v1"
+) {
+  staged <- phase14_release_test_stage_calibrated_revision(
+    output_root = staging_parent,
+    release_id = release_id
+  )
+  complete_phase12_release_bundle(
+    staged_root = staged$release_root,
+    runtime_metadata = list(
+      installation_contract = "validated sibling candidate; one atomic directory rename",
+      authority_promoted = FALSE
+    )
+  )
+  metadata_only <- preflight_phase12_approved_release(
+    trusted_root = staging_parent,
+    release_manifest_path = file.path(staged$release_root, "release_manifest.csv")
+  )
+  loaded <- validate_phase12_complete_release_bundle(
+    staged$release_root,
+    load_models = TRUE
+  )
+  list(
+    staging_parent = staging_parent,
+    release_root = staged$release_root,
+    metadata_only = metadata_only,
+    loaded = loaded
+  )
+}
+
 phase14_release_test_copy_staged_revision <- function(staged) {
   trusted_root <- tempfile("phase14-calibrated-release-copy-")
   dir.create(trusted_root, recursive = TRUE)
@@ -1000,7 +1031,7 @@ test_that("14-07 complete candidate has the exact immutable thirteen-file contra
       all.files = TRUE,
       no.. = TRUE
     )
-    files <- files[!isTRUE(file.info(files)$isdir)]
+    files <- files[!file.info(files)$isdir]
     relative <- substring(files, nchar(path) + 2L)
     hashes <- vapply(files, phase12_release_file_sha256, character(1))
     list(
@@ -1040,7 +1071,7 @@ test_that("14-07 complete candidate has the exact immutable thirteen-file contra
     all.files = TRUE,
     no.. = TRUE
   )
-  inventory <- inventory[!isTRUE(file.info(inventory)$isdir)]
+  inventory <- inventory[!file.info(inventory)$isdir]
   inventory <- substring(inventory, nchar(candidate$release_root) + 2L)
   expect_identical(sort(inventory, method = "radix"), expected_inventory)
   expect_false(nzchar(Sys.readlink(candidate$release_root)))
