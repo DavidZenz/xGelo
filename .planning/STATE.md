@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-11-PLAN.md
-last_updated: "2026-08-17T14:44:05.873Z"
+stopped_at: Completed 14-12-PLAN.md
+last_updated: "2026-08-17T15:10:45.798Z"
 last_activity: 2026-08-17
 last_activity_desc: Completed Plan 14-11 schema-v2 candidate and rollback proof
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 26
+  completed_plans: 27
 ---
 
 # xGelo Project State
@@ -21,7 +21,7 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 13 of 22 complete; Plan 14-12 is next
+Plan: 14 of 22 complete; Plan 14-12 is next
 Status: Ready to execute
 Last activity: 2026-08-17 — Completed Plan 14-11 schema-v2 candidate and rollback proof
 
@@ -119,6 +119,9 @@ for Nations League and EURO qualifying.
 - [Phase 14]: Keep the schema-v2 candidate and rollback evidence isolated from durable accepted, registry, release, state, and dashboard files until the later promotion plan.
 - [Phase 14]: Delegate normalization, hashing, manifests, loading, promotion, failure injection, and rollback to production callbacks; tests add assertions only.
 - [Phase 14]: Leave STATE-01 and STATE-02 pending because downstream canonical semantics and durable promotion remain unfinished.
+- [Phase ?]: Promote the exact fourteen-target Phase 13 envelope through the production snapshot/stage/promote transaction; exclude competition_editions.csv, refresh_batches, release authority, state outputs, rules, dashboards, and unrelated siblings.
+- [Phase ?]: Use the production raw-store source handoff builder as the publication input and refresh all derived identities through production callbacks; never hand-edit hashes or provenance.
+- [Phase ?]: Keep STATE-01 and STATE-02 pending until later semantic state and forecast consumers complete.
 
 ## Accumulated Context
 
@@ -136,8 +139,8 @@ Plan 14-12 is next. It builds on Plan 14-11's isolated schema-v2 candidate and r
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T14:44:05.863Z
-**Stopped at:** Completed 14-11-PLAN.md
+**Last session:** 2026-08-17T15:10:45.787Z
+**Stopped at:** Completed 14-12-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -174,3 +177,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P09 | 1h 10m | 2 tasks | 5 files |
 | Phase 14 P10 | 32m 26s | 3 tasks | 7 files |
 | Phase 14 P11 | 14m 34s | 2 tasks | 2 files |
+| Phase 14 P12 | 24m 39s | 1 tasks | 10 files |
