@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: in_progress
-stopped_at: "14-21 ready: nested calibration remediation planned"
-last_updated: "2026-08-17T06:28:50Z"
+stopped_at: Completed 14-21-PLAN.md; Plan 14-22 independent acceptance is next
+last_updated: "2026-08-17T08:37:50.661Z"
 last_activity: 2026-08-17
-last_activity_desc: Phase 14 remediation branch planned behind completed fail-closed checkpoint
+last_activity_desc: Plan 14-21 produced an approved non-authoritative remediation candidate; Plan 14-22 acceptance is next
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 18
+  completed_plans: 19
 ---
 
 # xGelo Project State
@@ -21,21 +21,21 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 5 of 22 complete; Plan 14-21 is next
-Status: Calibration remediation planned; release work remains gated
-Last activity: 2026-08-17 — Added nested remediation and independent acceptance plans after the immutable Plan 14-05 block
+Plan: 6 of 22 complete; Plan 14-22 is next
+Status: Remediation outer gate approved; release authority remains unchanged pending independent acceptance
+Last activity: 2026-08-17 — Completed Plan 14-21 nested calibration remediation with a zero-reason outer pass
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Remediation ready after completed fail-closed Plan 14-05 (5/22 complete) | 0/7 |
+| 14 | Shared Competition State and Forecast Layer | Approved remediation candidate awaiting Plan 14-22 acceptance (6/22 complete) | 0/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 is active on its calibration-remediation branch while release-dependent work remains blocked.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 has an approved non-authoritative remediation candidate awaiting independent acceptance.
 
 ## Project Reference
 
@@ -97,6 +97,9 @@ for Nations League and EURO qualifying.
 - [Phase 14]: Keep Plan 14 release fixtures descriptor-only and reconstruct complete trusted roots from the incumbent model during tests.
 - [Phase 14]: Bind fixture authority to a one-row self-hashed selector and exact manifest/object hashes while preserving distinct raw and fitted probability views.
 - [Phase 14]: D-15 remains CALIBRATION_RELEASE_BLOCKED under unchanged RPS and strict calibration-improvement vetoes. — Frozen evidence worsened RPS by 0.0008328552 and calibration error by 0.00307133; authority remains raw and downstream promotion refuses blocked evidence.
+- [Phase 14]: Plan 14-21 freezes one raw, 16 shrunk-scalar, and 28 regularized-vector remediation candidates; exploratory values never control selection.
+- [Phase 14]: The unchanged Phase 12 outer gate approved the remediation evidence with zero reasons, but candidate_authority remains false pending Plan 14-22.
+- [Phase 14]: Final candidate vector_w400_p0p010 was fitted on all 630 development rows only after the actual outer pass.
 
 ## Accumulated Context
 
@@ -106,17 +109,17 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Execute the locked nested calibration remediation and independent acceptance branch without weakening the existing empirical vetoes.
+- Independently validate the complete Plan 14-21 remediation graph in Plan 14-22 before any release-authority mutation.
 
 ## Next Action
 
-Execute Plan 14-21, then Plan 14-22. Do not execute Plans 14-06 through 14-20 unless Plan 14-22 independently passes the complete remediation graph and emits `calibration-v2-gate-passed`; any failed remediation remains blocking.
+Execute Plan 14-22. Do not execute Plans 14-06 through 14-20 unless Plan 14-22 independently passes the complete remediation graph and emits `calibration-v2-gate-passed`; any failed acceptance remains blocking.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T06:28:50Z
-**Stopped at:** Phase 14 remediation planning complete; Plan 14-21 is the next executable plan
-**Resume file:** `.planning/phases/14-shared-competition-state-and-forecast-layer/14-21-PLAN.md`
+**Last session:** 2026-08-17T08:37:50.649Z
+**Stopped at:** Completed 14-21-PLAN.md; Plan 14-22 independent acceptance is next
+**Resume file:** .planning/phases/14-shared-competition-state-and-forecast-layer/14-22-PLAN.md
 
 ## Performance Metrics
 
@@ -144,3 +147,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P02 | 21m | 2 tasks | 6 files |
 | Phase 14 P03 | 17m | 2 tasks | 4 files |
 | Phase 14 P04 | 41m | 2 tasks | 6 files |
+| Phase 14 P21 | 1h21m | 2 tasks | 9 files |

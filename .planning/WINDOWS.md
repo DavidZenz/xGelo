@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 18
+open_count: 20
 waived_count: 0
 fixed_count: 0
-total_count: 18
-last_updated: 2026-08-16T18:33:00.587Z
+total_count: 20
+last_updated: 2026-08-17T08:36:57.134Z
 ---
 
 # Broken Windows Ledger
@@ -33,6 +33,8 @@ last_updated: 2026-08-16T18:33:00.587Z
 | 16 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 325 | Dual-repin rollback assertions await phase14_repin_both_competition_releases and phase14_promote_calibrated_release in Plan 14-09 | open |  | 2026-08-16T18:09:06.769Z |  |
 | 17 | 14 | skipped-test | tests/testthat/test_phase14_forecast_layer.R | 419 | Forecast production assertions await phase14_build_fixture_forecasts in Plan 14-16 | open |  | 2026-08-16T18:33:00.480Z |  |
 | 18 | 14 | skipped-test | tests/testthat/test_phase14_state_bundle.R | 247 | State-candidate production assertions await phase14_build_competition_state_candidate in Plan 14-16 | open |  | 2026-08-16T18:33:00.587Z |  |
+| 19 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 508 | Pre-existing Wave 0 selector-aware preflight guard awaits phase14_resolve_approved_release | open |  | 2026-08-17T08:36:57.031Z |  |
+| 20 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 581 | Pre-existing Wave 0 dual-repin guard awaits phase14_repin_both_competition_releases and phase14_promote_calibrated_release | open |  | 2026-08-17T08:36:57.134Z |  |
 
 ````json
 [
@@ -250,6 +252,30 @@ last_updated: 2026-08-16T18:33:00.587Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-16T18:33:00.587Z",
+    "resolved_at": null
+  },
+  {
+    "id": 19,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_calibration_release.R",
+    "line": 508,
+    "description": "Pre-existing Wave 0 selector-aware preflight guard awaits phase14_resolve_approved_release",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T08:36:57.031Z",
+    "resolved_at": null
+  },
+  {
+    "id": 20,
+    "kind": "skipped-test",
+    "phase": "14",
+    "file": "tests/testthat/test_phase14_calibration_release.R",
+    "line": 581,
+    "description": "Pre-existing Wave 0 dual-repin guard awaits phase14_repin_both_competition_releases and phase14_promote_calibrated_release",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T08:36:57.134Z",
     "resolved_at": null
   }
 ]
