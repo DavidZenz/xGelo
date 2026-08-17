@@ -317,3 +317,11 @@ test_that("standings v2 keeps absent official aggregate evidence typed and unres
   ), drop = FALSE])))
   expect_true(nzchar(normalized$mapping_warning))
 })
+
+test_that("temporary schema-v2 standings publication is loader-valid", {
+  publication <- phase14_standings_test_build_v2_publication()
+
+  expect_true(is.list(publication))
+  expect_length(publication$targets, 14L)
+  expect_true(isTRUE(publication$loader_ready))
+})

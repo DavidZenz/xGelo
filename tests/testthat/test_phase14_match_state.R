@@ -356,3 +356,11 @@ test_that("result v2 keeps lifecycle/completion and score axes independent", {
   expect_false(unresolved$counts_for_form)
   expect_true(is.na(unresolved$evidence_completed_at_utc))
 })
+
+test_that("temporary schema-v2 publication graph is complete and loader-valid", {
+  publication <- phase14_match_state_test_build_v2_publication()
+
+  expect_true(is.list(publication))
+  expect_length(publication$targets, 14L)
+  expect_true(isTRUE(publication$loader_ready))
+})
