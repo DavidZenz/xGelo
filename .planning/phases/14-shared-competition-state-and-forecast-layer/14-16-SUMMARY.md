@@ -145,6 +145,7 @@ Plan metadata is reconciled in the final documentation commit after STATE/ROADMA
 
 - The shared master worktree contained unrelated dirty benchmark and scratch artifacts. They were left untouched and excluded from every task staging operation.
 - The sandbox required an approved escalation for the Git index lock during commit; no code or repository-content blocker remained.
+- The legacy STATE.md had no body `Progress:` field for the GSD progress handler; a scoped progress marker was added, the handler was rerun successfully, and no unrelated state content was changed.
 
 ## User Setup Required
 

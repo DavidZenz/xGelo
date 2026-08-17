@@ -145,7 +145,7 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Consume the durable calibrated authority in downstream dashboards; keep FORECAST-01 pending until both expose model identity and cutoff lineage.
+- Downstream dashboards still need to consume the durable calibrated authority and expose its model/cutoff lineage; the shared forecast engine and state candidate now provide that contract.
 
 ## Next Action
 
