@@ -687,9 +687,6 @@ phase14_match_state_test_run_v2_rollback_matrix <- function() {
     sandbox$registry_root
   )
   snapshot_targets <- phase14_match_state_test_api(acquire, "phase13_snapshot_publication_targets")
-  restore_target_snapshot <- function(actual, expected) {
-    phase14_match_state_test_expect_snapshot_equal(actual, expected)
-  }
   durable_targets <- acquire$phase13_normalized_publication_targets(
     file.path(phase14_match_state_test_project_root, "data/competition/accepted"),
     file.path(phase14_match_state_test_project_root, "data/competition/registries")
@@ -727,7 +724,7 @@ phase14_match_state_test_run_v2_rollback_matrix <- function() {
       ),
       "Injected|promotion|failure"
     )
-    restore_target_snapshot(snapshot_targets(targets), baseline)
+    phase14_match_state_test_expect_snapshot_equal(snapshot_targets(targets), baseline)
     expect_identical(
       phase14_match_state_test_snapshot_file(file.path(sandbox$registry_root, "competition_editions.csv")),
       competition_editions_before
@@ -740,10 +737,9 @@ phase14_match_state_test_run_v2_rollback_matrix <- function() {
     expect_false(file.exists(file.path(publication_root, ".phase13-publication.lock")))
     expect_false(any(grepl("^\\.phase13-publication-(stage|backup)-", list.files(publication_root))))
   }
-  expect_identical(
-    snapshot_targets(durable_targets)$sha256,
-    durable_before$sha256
-  )
+  durable_after <- snapshot_targets(durable_targets)
+  expect_identical(durable_after$sha256, durable_before$sha256)
+  expect_identical(durable_after$bytes, durable_before$bytes)
   expect_identical(
     phase14_match_state_test_snapshot_tree(
       file.path(phase14_match_state_test_project_root, "outputs/releases"),
