@@ -261,6 +261,106 @@ test_that("standings invoke a supplied adapter without claiming universal orderi
   expect_identical(standings$computed_rank, seq_len(nrow(standings)))
 })
 
+phase14_standings_fixture_reconciliation <- function(row) {
+  computed <- data.frame(
+    edition_id = row$edition_id,
+    group_id = row$group_id,
+    state_cutoff_utc = row$state_cutoff_utc,
+    source_bundle_id = row$source_bundle_id,
+    team_id = row$team_id,
+    played = as.integer(row$played),
+    wins = as.integer(row$wins),
+    draws = as.integer(row$draws),
+    losses = as.integer(row$losses),
+    goals_for = as.integer(row$goals_for),
+    goals_against = as.integer(row$goals_against),
+    goal_difference = as.integer(row$goal_difference),
+    points = as.integer(row$points),
+    computed_rank = as.integer(row$computed_rank),
+    ordering_status = "provisional",
+    ruleset_adapter_id = "none",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  official <- data.frame(
+    edition_id = row$edition_id,
+    group_id = row$group_id,
+    state_cutoff_utc = row$state_cutoff_utc,
+    source_bundle_id = row$source_bundle_id,
+    team_id = row$team_id,
+    official_source_bundle_id = row$official_source_bundle_id,
+    official_rank = as.integer(row$official_rank),
+    official_played = as.integer(row$official_played),
+    official_wins = as.integer(row$official_wins),
+    official_draws = as.integer(row$official_draws),
+    official_losses = as.integer(row$official_losses),
+    official_goals_for = as.integer(row$official_goals_for),
+    official_goals_against = as.integer(row$official_goals_against),
+    official_goal_difference = as.integer(row$official_goal_difference),
+    official_points = as.integer(row$official_points),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(computed = computed, official = official)
+}
+
+test_that("production reconciliation matches every frozen D-08 disposition", {
+  cases <- phase14_standings_cases()
+  reconciliation <- cases[cases$record_type == "reconciliation", , drop = FALSE]
+  actual <- lapply(seq_len(nrow(reconciliation)), function(index) {
+    fixture <- phase14_standings_fixture_reconciliation(reconciliation[index, , drop = FALSE])
+    phase14_reconcile_standings(fixture$computed, fixture$official)
+  })
+
+  expect_identical(
+    vapply(actual, function(snapshot) unique(snapshot$reconciliation_status), character(1)),
+    reconciliation$expected_reconciliation_status
+  )
+  expect_identical(
+    vapply(actual, function(snapshot) unique(snapshot$reconciliation_severity), character(1)),
+    reconciliation$expected_severity
+  )
+  expect_identical(
+    vapply(actual, function(snapshot) unique(snapshot$publication_disposition), character(1)),
+    reconciliation$expected_publication_disposition
+  )
+  expect_identical(
+    vapply(actual, function(snapshot) unique(snapshot$ordering_status), character(1)),
+    reconciliation$expected_ordering_status
+  )
+  expect_true(all(vapply(actual, function(snapshot) {
+    all(c(
+      "played", "official_played", "points", "official_points",
+      "reconciliation_reason", "prior_state_retention", "blocked",
+      "row_sha256", "table_sha256"
+    ) %in% names(snapshot))
+  }, logical(1))))
+  expect_true(all(vapply(actual, function(snapshot) {
+    isTRUE(phase14_validate_standings_snapshot(snapshot))
+  }, logical(1))))
+})
+
+test_that("standings validation rejects forged exact reconciliation and hash changes", {
+  cases <- phase14_standings_cases()
+  exact <- cases[cases$record_type == "reconciliation" & cases$case_id == "exact", , drop = FALSE]
+  fixture <- phase14_standings_fixture_reconciliation(exact)
+  snapshot <- phase14_reconcile_standings(fixture$computed, fixture$official)
+
+  forged_status <- snapshot
+  forged_status$official_points <- forged_status$official_points + 1L
+  expect_error(
+    phase14_validate_standings_snapshot(forged_status, verify_hashes = FALSE),
+    "exact|aggregate"
+  )
+
+  forged_hash <- snapshot
+  forged_hash$points <- forged_hash$points + 1L
+  expect_error(
+    phase14_validate_standings_snapshot(forged_hash),
+    "hash|arithmetic"
+  )
+})
+
 phase14_standings_test_identity_map <- function() {
   data.frame(
     team_id = c("team-a", "team-b"),
