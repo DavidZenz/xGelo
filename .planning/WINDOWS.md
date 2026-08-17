@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 20
+open_count: 21
 waived_count: 0
 fixed_count: 0
-total_count: 20
-last_updated: 2026-08-17T08:36:57.134Z
+total_count: 21
+last_updated: 2026-08-17T09:40:52.544Z
 ---
 
 # Broken Windows Ledger
@@ -35,6 +35,7 @@ last_updated: 2026-08-17T08:36:57.134Z
 | 18 | 14 | skipped-test | tests/testthat/test_phase14_state_bundle.R | 247 | State-candidate production assertions await phase14_build_competition_state_candidate in Plan 14-16 | open |  | 2026-08-16T18:33:00.587Z |  |
 | 19 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 508 | Pre-existing Wave 0 selector-aware preflight guard awaits phase14_resolve_approved_release | open |  | 2026-08-17T08:36:57.031Z |  |
 | 20 | 14 | skipped-test | tests/testthat/test_phase14_calibration_release.R | 581 | Pre-existing Wave 0 dual-repin guard awaits phase14_repin_both_competition_releases and phase14_promote_calibrated_release | open |  | 2026-08-17T08:36:57.134Z |  |
+| 21 | 14 | deviation | .planning/STATE.md |  | Reconciled stale Plan 14-22 state prose after SDK count advancement | open |  | 2026-08-17T09:40:52.544Z |  |
 
 ````json
 [
@@ -276,6 +277,18 @@ last_updated: 2026-08-17T08:36:57.134Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-08-17T08:36:57.134Z",
+    "resolved_at": null
+  },
+  {
+    "id": 21,
+    "kind": "deviation",
+    "phase": "14",
+    "file": ".planning/STATE.md",
+    "line": null,
+    "description": "Reconciled stale Plan 14-22 state prose after SDK count advancement",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-08-17T09:40:52.544Z",
     "resolved_at": null
   }
 ]
