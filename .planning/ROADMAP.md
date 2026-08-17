@@ -70,7 +70,7 @@ simulations, and fail-closed hourly publication.
 4. Open fixtures show calibrated home, draw, and away probabilities, expected goals, a most likely score, a bounded score distribution, and uncertainty metadata from the approved release.
 5. Forecast audits prove point-in-time feature safety, and Nations League and EURO competition states remain independent while sharing canonical team identity and strength inputs.
 
-**Plans**: 18/22 plans executed
+**Plans**: 19/22 plans executed
 
 - [x] 14-01-PLAN.md
 - [x] 14-02-PLAN.md
@@ -88,7 +88,7 @@ simulations, and fail-closed hourly publication.
 - [x] 14-14-PLAN.md
 - [x] 14-15-PLAN.md
 - [x] 14-16-PLAN.md
-- [ ] 14-17-PLAN.md
+- [x] 14-17-PLAN.md
 - [ ] 14-18-PLAN.md
 - [ ] 14-19-PLAN.md
 - [ ] 14-20-PLAN.md
@@ -146,7 +146,7 @@ simulations, and fail-closed hourly publication.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
-| 14. Shared Competition State and Forecast Layer | 18/22 | In Progress|  |
+| 14. Shared Competition State and Forecast Layer | 19/22 | In Progress|  |
 | 15. Nations League Rules and Outcomes | 0/TBD | Not started | - |
 | 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |
 | 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |

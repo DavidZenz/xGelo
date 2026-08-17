@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-16-PLAN.md
-last_updated: "2026-08-17T18:39:53.674Z"
+stopped_at: Completed 14-17-PLAN.md
+last_updated: "2026-08-17T19:41:06.299Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-16 release-active vertical state-to-forecast tracer
+last_activity_desc: Completed Plan 14-17 deterministic production batch state and forecast expansion
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 31
+  completed_plans: 32
 ---
 
 # xGelo Project State
@@ -21,23 +21,23 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 18 of 22 complete; Plan 14-17 is next
+Plan: 19 of 22 complete; Plan 14-18 is next
 Status: Ready to execute
-Last activity: 2026-08-17 — Completed Plan 14-16 release-active vertical state-to-forecast tracer
+Last activity: 2026-08-17 — Completed Plan 14-17 deterministic production batch state and forecast expansion
 
 ## Progress
 
-**Progress:** [█████████░] 89% (31/35 plans complete)
+**Progress:** [█████████░] 91% (32/35 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Canonical state, cutoff-safe form, release-active forecast tracer, and edition-isolated candidate orchestration delivered; batch expansion pending (18/22 complete) | 7/7 |
+| 14 | Shared Competition State and Forecast Layer | Canonical state, cutoff-safe form, release-active forecast tracer, deterministic production batch state/forecast expansion, and edition-isolated candidates delivered (19/22 complete) | 7/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, honest form availability, and a release-active state-to-forecast tracer, with Plan 14-17 next.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, honest form availability, and deterministic production state-to-forecast batches, with Plan 14-18 next.
 
 ## Project Reference
 
@@ -136,6 +136,10 @@ for Nations League and EURO qualifying.
 - [Phase ?]: Plan 14-16: runtime forecast authority remains the exact self-hashed approved release selector; raw manifests are not fallback authority.
 - [Phase ?]: Plan 14-16: immutable active predictors control evidence sufficiency; inactive national-team xG remains audited unavailable/NA, while synthetic xG-active releases suppress.
 - [Phase ?]: Plan 14-16: required active shared-input failures fan out across edition candidates, while EURO pre_draw remains structurally empty and derived state stays edition-scoped.
+- [Phase ?]: Phase 14 Plan 14-17: approved selector and immutable active-predictor manifest remain the sole batch forecast authority.
+- [Phase ?]: Phase 14 Plan 14-17: production candidates use an exact eleven-artifact in-memory inventory with hashes and no Phase 17 durable promotion.
+- [Phase ?]: Phase 14 Plan 14-17: shared active evidence is preflighted only for forecastable rows, preserving edition-local kickoff and status suppression.
+- [Phase ?]: Phase 14 Plan 14-17: fixed startup seed 14017L and deterministic replay protect repeated dry-run batch outputs.
 
 ## Accumulated Context
 
@@ -149,12 +153,12 @@ for Nations League and EURO qualifying.
 
 ## Next Action
 
-Plan 14-17 is next. It builds on Plan 14-16's release-active forecast tracer, edition-scoped candidate state, and explicit national-team xG availability boundary.
+Plan 14-18 is next. It builds on Plan 14-17's deterministic batch candidates, exact artifact manifests, and scoped forecast/state failure semantics.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T18:39:53.663Z
-**Stopped at:** Completed 14-16-PLAN.md
+**Last session:** 2026-08-17T19:41:06.289Z
+**Stopped at:** Completed 14-17-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -196,3 +200,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P14 | 12m | 2 tasks | 2 files |
 | Phase 14 P15 | 39 min | 2 tasks | 4 files |
 | Phase 14 P16 | 36min | 1 tasks | 4 files |
+| Phase 14 P17 | 47min | 2 tasks | 5 files |
