@@ -249,3 +249,172 @@ test_that("production state candidate builder retains the edition-scoped entry p
   builder <- get("phase14_build_competition_state_candidate", mode = "function")
   expect_true("edition_id" %in% names(formals(builder)))
 })
+
+phase14_state_tracer_root <- phase14_state_test_project_root
+
+phase14_state_tracer_inputs <- function() {
+  list(
+    editions = utils::read.csv(
+      file.path(phase14_state_tracer_root, "data/competition/registries/competition_editions.csv"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    ),
+    teams = utils::read.csv(
+      file.path(phase14_state_tracer_root, "data/competition/registries/team_identity.csv"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    ),
+    elo = utils::read.csv(
+      file.path(phase14_state_tracer_root, "data/processed/elo_ratings.csv"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    ),
+    selector_path = file.path(phase14_state_tracer_root, "outputs/releases/approved_release.csv"),
+    release_root = file.path(phase14_state_tracer_root, "outputs/releases"),
+    model_manifest_path = file.path(
+      phase14_state_tracer_root,
+      "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv"
+    ),
+    xg_registry = file.path(
+      phase14_state_tracer_root,
+      "data/competition/registries/national_team_xg_sources.csv"
+    )
+  )
+}
+
+phase14_state_tracer_fixture <- function() {
+  data.frame(
+    edition_id = "uefa_nations_league_2026_27",
+    match_id = "uefa_nations_league_2026_27-nl-2026-0001",
+    fixture_id = "uefa_nations_league_2026_27-nl-2026-0001",
+    home_team_id = "team_aut",
+    away_team_id = "team_deu",
+    scheduled_at_utc = "2026-09-05T18:45:00Z",
+    kickoff_utc = "2026-09-05T18:45:00Z",
+    kickoff_confirmed = TRUE,
+    confirmed_kickoff_at_utc = "2026-09-05T18:45:00Z",
+    feature_cutoff_utc = "2026-09-05T18:44:59Z",
+    source_status = "scheduled",
+    match_status = "scheduled",
+    venue = "home",
+    home_score = NA_real_,
+    away_score = NA_real_,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+test_that("state candidate keeps NL forecastable and EURO pre_draw structurally empty", {
+  inputs <- phase14_state_tracer_inputs()
+  fixture <- phase14_state_tracer_fixture()
+  resolved <- phase14_resolve_approved_release(
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$release_root
+  )
+
+  nl <- phase14_build_competition_state_candidate(
+    edition_id = "uefa_nations_league_2026_27",
+    edition_registry = inputs$editions,
+    canonical_matches = fixture,
+    team_registry = inputs$teams,
+    resolved_release = resolved,
+    elo_ratings = inputs$elo,
+    national_team_xg_registry = inputs$xg_registry,
+    model_manifest_path = inputs$model_manifest_path
+  )
+  expect_identical(nl$candidate_status, "valid")
+  expect_identical(nl$lifecycle_state, "scheduled")
+  expect_identical(nl$forecast_status$forecast_status, "available")
+  expect_identical(nl$forecast_status$suppression_reason, "none")
+  expect_identical(nl$forecast$forecasts$primary_probability_view, "calibrated_1x2")
+
+  euro <- phase14_build_competition_state_candidate(
+    edition_id = "uefa_euro_2028_qualifying",
+    edition_registry = inputs$editions,
+    canonical_matches = fixture[FALSE, , drop = FALSE],
+    team_registry = inputs$teams,
+    resolved_release = resolved,
+    elo_ratings = inputs$elo,
+    national_team_xg_registry = inputs$xg_registry,
+    model_manifest_path = inputs$model_manifest_path
+  )
+  expect_identical(euro$candidate_status, "valid")
+  expect_identical(euro$lifecycle_state, "pre_draw")
+  expect_identical(euro$forecast_status, "pre_draw")
+  expect_equal(nrow(euro$fixtures), 0L)
+  expect_equal(nrow(euro$results), 0L)
+  expect_equal(nrow(euro$groups), 0L)
+  expect_equal(nrow(euro$standings), 0L)
+  expect_equal(nrow(euro$competition_form), 0L)
+  expect_equal(nrow(euro$all_senior_form), 0L)
+  expect_equal(nrow(euro$forecast$forecasts), 0L)
+  expect_equal(nrow(euro$forecast$score_distributions), 0L)
+})
+
+test_that("active required shared input failure fans out while inactive xG remains audited", {
+  inputs <- phase14_state_tracer_inputs()
+  fixture <- phase14_state_tracer_fixture()
+  manifest <- utils::read.csv(
+    inputs$model_manifest_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  manifest <- manifest[manifest$model_id == "open_nb_incumbent", , drop = FALSE][1L, , drop = FALSE]
+  manifest$active_predictors <- "elo_diff|xgf_ewma_diff|xga_ewma_diff|xgd_ewma_diff"
+  manifest$dropped_predictors_with_reason <- "form_index_diff|inactive_optional"
+
+  candidates <- phase14_build_competition_state_candidate(
+    edition_id = c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying"),
+    edition_registry = inputs$editions,
+    canonical_matches = fixture,
+    team_registry = inputs$teams,
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$release_root,
+    elo_ratings = inputs$elo,
+    national_team_xg_registry = inputs$xg_registry,
+    model_manifest = manifest
+  )
+  expect_true(is.list(candidates$candidates))
+  expect_equal(length(candidates$candidates), 2L)
+  expect_true(all(vapply(candidates$candidates, function(candidate) {
+    identical(candidate$candidate_status, "invalid") &&
+      identical(candidate$failure_reason, "active_national_team_xg_unavailable")
+  }, logical(1))))
+  expect_identical(candidates$shared_input_audit$fan_out, 2L)
+
+  inactive <- phase14_build_competition_state_candidate(
+    edition_id = c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying"),
+    edition_registry = inputs$editions,
+    canonical_matches = fixture,
+    team_registry = inputs$teams,
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$release_root,
+    elo_ratings = inputs$elo,
+    national_team_xg_registry = inputs$xg_registry,
+    model_manifest_path = inputs$model_manifest_path
+  )
+  expect_true(all(vapply(inactive$candidates, function(candidate) {
+    identical(candidate$shared_input_audit$xg_evidence_status, "inactive_optional_unavailable")
+  }, logical(1))))
+
+  foreign <- fixture
+  foreign$edition_id <- "uefa_euro_2028_qualifying"
+  expect_error(
+    phase14_build_competition_state_candidate(
+      edition_id = "uefa_nations_league_2026_27",
+      edition_registry = inputs$editions,
+      canonical_matches = foreign,
+      team_registry = inputs$teams,
+      selector_path = inputs$selector_path,
+      trusted_release_root = inputs$release_root,
+      elo_ratings = inputs$elo,
+      national_team_xg_registry = inputs$xg_registry,
+      model_manifest_path = inputs$model_manifest_path
+    ),
+    "cross-edition|edition_id"
+  )
+})

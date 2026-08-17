@@ -437,3 +437,188 @@ test_that("production forecast API enforces the frozen Wave 0 contract", {
     cases$suppression_reason[cases$expected_status_row_count == 1L]
   )
 })
+
+phase14_forecast_tracer_registry <- function() {
+  utils::read.csv(
+    file.path(phase14_forecast_test_project_root, "data/competition/registries/team_identity.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+}
+
+phase14_forecast_tracer_match <- function(edition_id = "uefa_nations_league_2026_27") {
+  data.frame(
+    edition_id = edition_id,
+    match_id = "uefa_nations_league_2026_27-nl-2026-0001",
+    fixture_id = "uefa_nations_league_2026_27-nl-2026-0001",
+    home_team_id = "team_aut",
+    away_team_id = "team_deu",
+    scheduled_at_utc = "2026-09-05T18:45:00Z",
+    kickoff_utc = "2026-09-05T18:45:00Z",
+    kickoff_confirmed = TRUE,
+    confirmed_kickoff_at_utc = "2026-09-05T18:45:00Z",
+    feature_cutoff_utc = "2026-09-05T18:44:59Z",
+    match_status = "scheduled",
+    source_status = "scheduled",
+    venue = "home",
+    home_score = NA_real_,
+    away_score = NA_real_,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase14_forecast_tracer_release_inputs <- function() {
+  list(
+    selector_path = file.path(phase14_forecast_test_project_root, "outputs/releases/approved_release.csv"),
+    trusted_release_root = file.path(phase14_forecast_test_project_root, "outputs/releases"),
+    model_manifest_path = file.path(
+      phase14_forecast_test_project_root,
+      "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv"
+    ),
+    elo_ratings = utils::read.csv(
+      file.path(phase14_forecast_test_project_root, "data/processed/elo_ratings.csv"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    ),
+    national_team_xg_registry = file.path(
+      phase14_forecast_test_project_root,
+      "data/competition/registries/national_team_xg_sources.csv"
+    )
+  )
+}
+
+test_that("permanent Austria/Germany tracer adapts the canonical fixture and preserves strict lineage", {
+  inputs <- phase14_forecast_tracer_release_inputs()
+  matches <- phase14_forecast_tracer_match()
+  registry <- phase14_forecast_tracer_registry()
+
+  adapted <- phase14_adapt_matches_for_forecast(
+    canonical_matches = matches,
+    team_registry = registry,
+    feature_cutoff_utc = matches$feature_cutoff_utc
+  )
+
+  expect_named(
+    adapted,
+    c(
+      "edition_id", "match_id", "fixture_id", "home_team_id", "away_team_id",
+      "date", "home_team_canonical", "away_team_canonical", "home_score",
+      "away_score", "venue", "kickoff_utc", "feature_cutoff_utc",
+      "kickoff_confirmed"
+    ),
+    ignore.order = FALSE
+  )
+  expect_identical(adapted$date, as.Date("2026-09-05"))
+  expect_identical(adapted$home_team_canonical, "Austria")
+  expect_identical(adapted$away_team_canonical, "Germany")
+  expect_identical(adapted$match_id, matches$match_id)
+  expect_identical(adapted$venue, "home")
+  expect_true(is.na(adapted$home_score) && is.na(adapted$away_score))
+  expect_identical(adapted$kickoff_utc, "2026-09-05T18:45:00Z")
+  expect_identical(adapted$feature_cutoff_utc, "2026-09-05T18:44:59Z")
+
+  resolved <- phase14_resolve_approved_release(
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$trusted_release_root
+  )
+  features <- phase14_build_release_features(
+    adapted_matches = adapted,
+    resolved_release = resolved,
+    elo_ratings = inputs$elo_ratings,
+    national_team_xg_registry = inputs$national_team_xg_registry,
+    model_manifest_path = inputs$model_manifest_path
+  )
+
+  expect_identical(features$active_predictors, "elo_diff")
+  expect_true(all(grepl("xg|form", features$dropped_predictors_with_reason)))
+  expect_true(isTRUE(features$feature_table$elo_diff__value_present[[1L]]))
+  expect_true(is.finite(features$feature_table$elo_diff[[1L]]))
+  expect_identical(features$feature_evidence_status, "available")
+  expect_identical(features$xg_evidence_status, "inactive_optional_unavailable")
+  expect_true(all(is.na(features$feature_table[1L, c(
+    "xgf_ewma_diff", "xga_ewma_diff", "xgd_ewma_diff", "form_index_diff"
+  )])))
+  expect_false(any(grepl("rolling_form|club|xg", features$feature_evidence_source)))
+
+  result <- phase14_build_fixture_forecasts(
+    canonical_matches = matches,
+    team_registry = registry,
+    resolved_release = resolved,
+    elo_ratings = inputs$elo_ratings,
+    national_team_xg_registry = inputs$national_team_xg_registry,
+    model_manifest_path = inputs$model_manifest_path
+  )
+  expect_equal(nrow(result$forecasts), 1L)
+  expect_equal(nrow(result$score_distributions), 41L * 41L)
+  expect_identical(result$fixture_status$forecast_status, "available")
+  expect_identical(result$fixture_status$suppression_reason, "none")
+  expect_identical(result$forecasts$score_support_max, 40L)
+  expect_identical(result$forecasts$primary_probability_view, "calibrated_1x2")
+  expect_equal(sum(unlist(result$forecasts[1L, c("p_home", "p_draw", "p_away")])), 1, tolerance = 1e-12)
+  expect_true(all(is.finite(unlist(result$forecasts[1L, c(
+    "expected_home_goals", "expected_away_goals", "modal_score_probability",
+    "entropy_nats", "top10_scoreline_mass", "top10_omitted_mass"
+  )]))))
+  expect_true(all(result$score_distributions$home_goals %in% 0:40))
+  expect_true(all(result$score_distributions$away_goals %in% 0:40))
+  expect_true(result$forecasts$feature_cutoff_utc[[1L]] < result$forecasts$kickoff_utc[[1L]])
+  expect_true(result$forecasts$latest_evidence_at_utc[[1L]] < result$forecasts$feature_cutoff_utc[[1L]])
+  expect_true(grepl("^[0-9a-f]{64}$", result$forecasts$release_manifest_sha256[[1L]]))
+})
+
+test_that("active xG release suppresses the same fixture while club form is rejected", {
+  inputs <- phase14_forecast_tracer_release_inputs()
+  matches <- phase14_forecast_tracer_match()
+  registry <- phase14_forecast_tracer_registry()
+  manifest <- utils::read.csv(
+    inputs$model_manifest_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  manifest <- manifest[manifest$model_id == "open_nb_incumbent", , drop = FALSE]
+  manifest <- manifest[1L, , drop = FALSE]
+  manifest$active_predictors <- "elo_diff|xgf_ewma_diff|xga_ewma_diff|xgd_ewma_diff"
+  manifest$dropped_predictors_with_reason <- "form_index_diff|inactive_optional"
+  attr(manifest, "immutable_manifest_sha256") <- digest::digest(
+    paste(capture.output(utils::write.csv(manifest, stdout(), row.names = FALSE)), collapse = "\n"),
+    algo = "sha256",
+    serialize = FALSE
+  )
+
+  suppressed <- phase14_build_fixture_forecasts(
+    canonical_matches = matches,
+    team_registry = registry,
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$trusted_release_root,
+    elo_ratings = inputs$elo_ratings,
+    national_team_xg_registry = inputs$national_team_xg_registry,
+    model_manifest = manifest
+  )
+  expect_identical(suppressed$fixture_status$forecast_status, "suppressed")
+  expect_identical(suppressed$fixture_status$suppression_reason, "feature_evidence_unavailable")
+  expect_equal(nrow(suppressed$forecasts), 0L)
+  expect_equal(nrow(suppressed$score_distributions), 0L)
+
+  expect_error(
+    phase14_build_release_features(
+      adapted_matches = phase14_adapt_matches_for_forecast(
+        matches, registry, matches$feature_cutoff_utc
+      ),
+      selector_path = inputs$selector_path,
+      trusted_release_root = inputs$trusted_release_root,
+      elo_ratings = inputs$elo_ratings,
+      national_team_xg_history = utils::read.csv(
+        file.path(phase14_forecast_test_project_root, "data/processed/rolling_form.csv"),
+        stringsAsFactors = FALSE,
+        check.names = FALSE,
+        na.strings = ""
+      ),
+      model_manifest = manifest
+    ),
+    "club rolling_form|national-team xG|stable national match_id"
+  )
+})
