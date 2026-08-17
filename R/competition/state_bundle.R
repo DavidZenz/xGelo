@@ -158,6 +158,13 @@ phase14_state_bundle_active_input_audit <- function(
   xg_active <- phase14_forecast_active_xg(manifest$active_predictors)
   xg_status <- if (!xg_active) "inactive_optional_unavailable" else "active_required_missing"
   xg_reason <- if (!xg_active) "inactive_predictors_registered_missingness" else "no_accepted_point_in_time_national_team_xg"
+  forecastable <- if (is.data.frame(canonical_matches) && nrow(canonical_matches)) {
+    edition_values <- if ("edition_id" %in% names(canonical_matches)) unique(as.character(canonical_matches$edition_id)) else character()
+    edition_for_check <- if (length(edition_values)) edition_values[[1L]] else ""
+    vapply(seq_len(nrow(canonical_matches)), function(index) {
+      identical(phase14_forecast_eligibility(canonical_matches, index, edition_for_check), "eligible")
+    }, logical(1))
+  } else logical()
 
   xg_registry <- national_team_xg_registry
   if (is.null(xg_registry)) {
@@ -178,7 +185,7 @@ phase14_state_bundle_active_input_audit <- function(
     )
     accepted <- any(as.character(xg_registry$acceptance_status) == "accepted")
     history_present <- is.data.frame(national_team_xg_history) && nrow(national_team_xg_history) > 0L
-    if (accepted && history_present && nrow(canonical_matches)) {
+    if (accepted && history_present && any(forecastable)) {
       teams <- unique(c(as.character(canonical_matches$home_team_id), as.character(canonical_matches$away_team_id)))
       cutoff <- min(as.POSIXct(canonical_matches$feature_cutoff_utc, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), na.rm = TRUE)
       form <- phase14_build_model_form(
@@ -195,6 +202,9 @@ phase14_state_bundle_active_input_audit <- function(
         xg_status <- "available"
         xg_reason <- "accepted_point_in_time_national_team_xg"
       }
+    } else if (!any(forecastable)) {
+      xg_status <- "active_not_required_ineligible"
+      xg_reason <- "no_forecastable_fixture"
     }
   }
 
@@ -208,7 +218,7 @@ phase14_state_bundle_active_input_audit <- function(
       required_status <- "unavailable"
       failure_reason <- "active_predictor_evidence_unavailable"
     } else if (nrow(canonical_matches)) {
-      eligible <- tolower(as.character(phase14_forecast_column(canonical_matches, c("match_status", "source_status"), "scheduled"))) %in% c("scheduled", "open", "pending")
+      eligible <- forecastable
       if (any(eligible)) {
         available <- vapply(which(eligible), function(index) {
           kickoff <- tryCatch(phase14_forecast_match_kickoff(canonical_matches, index), error = function(error) NULL)
