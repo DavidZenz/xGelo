@@ -154,8 +154,38 @@ phase13_publication_validate_resource_targets <- function(
   resolved
 }
 
-phase13_publication_table_schema <- function(artifact_type) {
+phase14_publication_schema_versions <- function() {
+  c(
+    fixtures = "phase14-normalized-fixture-v2",
+    results = "phase14-normalized-result-v2",
+    standings = "phase14-normalized-standings-v2"
+  )
+}
+
+phase14_publication_table_schema <- function(artifact_type, schema_version) {
   artifact_type <- phase13_publication_scalar(artifact_type, "artifact_type")
+  schema_version <- phase13_publication_scalar(schema_version, "schema_version")
+  versions <- phase14_publication_schema_versions()
+  if (!artifact_type %in% names(versions) || !identical(schema_version, unname(versions[[artifact_type]]))) {
+    stop("Phase 14 publication schema version is unsupported for ", artifact_type, ": ", schema_version, call. = FALSE)
+  }
+  if (identical(artifact_type, "fixtures")) return(phase14_normalized_fixture_schema())
+  if (identical(artifact_type, "results")) return(phase14_normalized_result_schema())
+  if (identical(artifact_type, "standings")) return(phase14_normalized_standings_schema())
+  stop("Phase 14 publication resource class is unsupported: ", artifact_type, call. = FALSE)
+}
+
+phase13_publication_table_schema <- function(artifact_type, schema_version = NULL) {
+  artifact_type <- phase13_publication_scalar(artifact_type, "artifact_type")
+  if (!is.null(schema_version)) {
+    schema_version <- phase13_publication_scalar(schema_version, "schema_version")
+    if (startsWith(schema_version, "phase14-")) {
+      return(phase14_publication_table_schema(artifact_type, schema_version))
+    }
+    if (!identical(schema_version, "phase13-normalized-resource-v1")) {
+      stop("Phase 13 publication schema version is unsupported: ", schema_version, call. = FALSE)
+    }
+  }
   if (artifact_type == "fixtures") {
     return(phase13_normalized_fixture_schema())
   }
@@ -167,15 +197,28 @@ phase13_publication_table_schema <- function(artifact_type) {
   c("schema_version", compact, "edition_id", "source_artifact_id", "row_sha256")
 }
 
+phase13_publication_detect_table_schema_version <- function(table, artifact_type) {
+  versions <- phase14_publication_schema_versions()
+  if (!artifact_type %in% names(versions)) return(NULL)
+  if (identical(names(table), phase14_publication_table_schema(artifact_type, unname(versions[[artifact_type]])))) {
+    return(unname(versions[[artifact_type]]))
+  }
+  NULL
+}
+
 phase13_publication_validate_table_shape <- function(table, edition_id, artifact_type, path) {
   if (!is.data.frame(table)) stop("Phase 13 publication resource is not a data frame: ", path, call. = FALSE)
-  expected <- phase13_publication_table_schema(artifact_type)
+  schema_version <- phase13_publication_detect_table_schema_version(table, artifact_type)
+  expected <- phase13_publication_table_schema(artifact_type, schema_version = schema_version)
   if (!identical(names(table), expected)) {
     stop(
       "Phase 13 publication resource schema mismatch for ", edition_id, "/", artifact_type,
       "; expected exact normalized or source-shaped columns",
       call. = FALSE
     )
+  }
+  if (!is.null(schema_version) && nrow(table) && any(as.character(table$schema_version) != schema_version)) {
+    stop("Phase 14 publication resource has a schema-version value inconsistent with its columns: ", path, call. = FALSE)
   }
   if (anyDuplicated(names(table))) stop("Phase 13 publication resource schema contains duplicate columns: ", path, call. = FALSE)
   if (nrow(table)) {

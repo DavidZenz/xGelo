@@ -257,6 +257,31 @@ phase14_empty_normalized_result_rows <- function() {
   }), schema), stringsAsFactors = FALSE, check.names = FALSE)
 }
 
+phase14_normalized_standings_schema <- function() {
+  c(
+    "schema_version", "edition_id", "group_id", "source_group_id", "team_id",
+    "source_team_id", "official_rank", "played", "wins", "draws", "losses",
+    "goals_for", "goals_against", "goal_difference", "points", "official_played",
+    "official_wins", "official_draws", "official_losses", "official_goals_for",
+    "official_goals_against", "official_goal_difference", "official_points",
+    "source_bundle_id", "source_artifact_id", "team_mapping_method",
+    "group_mapping_method", "mapping_method", "mapping_warning", "row_sha256"
+  )
+}
+
+phase14_empty_normalized_standings_rows <- function() {
+  schema <- phase14_normalized_standings_schema()
+  integer_fields <- c(
+    "official_rank", "played", "wins", "draws", "losses", "goals_for",
+    "goals_against", "goal_difference", "points", "official_played",
+    "official_wins", "official_draws", "official_losses", "official_goals_for",
+    "official_goals_against", "official_goal_difference", "official_points"
+  )
+  as.data.frame(setNames(lapply(schema, function(column) {
+    if (column %in% integer_fields) integer(0) else character(0)
+  }), schema), stringsAsFactors = FALSE, check.names = FALSE)
+}
+
 phase14_match_status_values <- function() {
   c("scheduled", "in_progress", "completed", "postponed", "abandoned")
 }
@@ -309,6 +334,27 @@ phase14_optional_goal <- function(data, column, n = nrow(data)) {
     }
     as.integer(numeric_value)
   }, integer(1))
+}
+
+phase14_optional_integer <- function(data, columns, n = nrow(data), default = NA_integer_) {
+  output <- rep(default, n)
+  for (column in as.character(columns)) {
+    if (!column %in% names(data)) next
+    values <- data[[column]]
+    if (length(values) != n) stop("Phase 14 optional column has an unexpected length: ", column, call. = FALSE)
+    parsed <- vapply(seq_len(n), function(index) {
+      value <- values[[index]]
+      if (is.null(value) || !length(value) || is.na(value) || !nzchar(trimws(as.character(value)))) return(NA_integer_)
+      numeric_value <- suppressWarnings(as.numeric(as.character(value)))
+      if (is.na(numeric_value) || !is.finite(numeric_value) || numeric_value != floor(numeric_value)) {
+        stop("Phase 14 optional integer column contains an invalid value: ", column, call. = FALSE)
+      }
+      as.integer(numeric_value)
+    }, integer(1))
+    replace <- !is.na(parsed) & is.na(output)
+    output[replace] <- parsed[replace]
+  }
+  output
 }
 
 phase14_resolve_lineage_value <- function(data, column, supplied, name) {
@@ -688,6 +734,145 @@ phase14_normalize_accepted_result_rows <- function(
   )
   output$row_sha256 <- phase13_identity_row_hash(output)
   output[, phase14_normalized_result_schema(), drop = FALSE]
+}
+
+#' Normalize source-shaped accepted standings into the explicit Phase 14 v2 contract.
+phase14_normalize_accepted_standings_rows <- function(
+    standings,
+    identity_map,
+    edition_id,
+    source_bundle_id = "",
+    source_artifact_id = "") {
+  if (!is.data.frame(standings)) stop("Phase 14 standings source table must be a data frame", call. = FALSE)
+  edition_id <- phase13_identity_scalar(edition_id, "edition_id")
+  source_bundle_id <- phase14_resolve_lineage_value(standings, "source_bundle_id", source_bundle_id, "source_bundle_id")
+  source_artifact_id <- phase14_resolve_lineage_value(standings, "source_artifact_id", source_artifact_id, "source_artifact_id")
+  identity_map <- phase13_prepare_team_identity_map(identity_map)
+  if (!nrow(standings)) return(phase14_empty_normalized_standings_rows())
+  if (!nrow(identity_map)) stop("Phase 14 cannot normalize non-empty standings with an empty identity map", call. = FALSE)
+
+  source_team_id <- phase14_optional_character(standings, c("source_team_id", "uefa_source_team_id"))
+  explicit_team_id <- phase14_optional_character(standings, "team_id")
+  display_name <- phase14_optional_character(standings, c("display_name", "team_display_name", "source_display_name"))
+  source_group_id <- phase14_optional_character(standings, "source_group_id")
+  explicit_group_id <- phase14_optional_character(standings, "group_id")
+  group_id <- explicit_group_id
+  group_missing <- is.na(group_id) | !nzchar(trimws(group_id))
+  group_from_source <- group_missing & !is.na(source_group_id) & nzchar(trimws(source_group_id))
+  group_id[group_from_source] <- source_group_id[group_from_source]
+  group_mapping_method <- rep(NA_character_, nrow(standings))
+  group_mapping_method[group_from_source | (!group_missing & !is.na(source_group_id) & nzchar(trimws(source_group_id)))] <- "source_id"
+  group_mapping_method[!group_missing & is.na(group_mapping_method)] <- "explicit"
+
+  team_rows <- lapply(seq_len(nrow(standings)), function(index) {
+    source_id <- source_team_id[[index]]
+    source_id_present <- !is.na(source_id) && nzchar(trimws(source_id))
+    explicit_id <- explicit_team_id[[index]]
+    explicit_id_present <- !is.na(explicit_id) && nzchar(trimws(explicit_id))
+    direct <- if (source_id_present) {
+      identity_map[as.character(identity_map$uefa_source_team_id) == source_id, , drop = FALSE]
+    } else {
+      identity_map[0, , drop = FALSE]
+    }
+    if (nrow(direct) > 1L) stop("Phase 14 standings source team ID is ambiguous: ", source_id, call. = FALSE)
+    if (!nrow(direct) && explicit_id_present) {
+      direct <- identity_map[as.character(identity_map$team_id) == explicit_id, , drop = FALSE]
+      if (nrow(direct) > 1L) stop("Phase 14 standings stable team ID is ambiguous: ", explicit_id, call. = FALSE)
+    }
+    if (nrow(direct) == 1L) {
+      return(list(
+        team_id = as.character(direct$team_id[[1L]]),
+        mapping_method = if (source_id_present) "source_id" else "explicit",
+        mapping_warning = "none"
+      ))
+    }
+    if (!is.na(display_name[[index]]) && nzchar(trimws(display_name[[index]]))) {
+      resolved <- phase13_resolve_team_identity(identity_map, if (source_id_present) source_id else NA_character_, display_name[[index]])
+      return(list(
+        team_id = as.character(resolved$team_id[[1L]]),
+        mapping_method = as.character(resolved$mapping_method[[1L]]),
+        mapping_warning = as.character(resolved$mapping_warning[[1L]])
+      ))
+    }
+    stop("Phase 14 standings contains an unknown or missing source team identity", call. = FALSE)
+  })
+  team_id <- vapply(team_rows, `[[`, character(1), "team_id")
+  team_mapping_method <- vapply(team_rows, `[[`, character(1), "mapping_method")
+  team_mapping_warning <- vapply(team_rows, `[[`, character(1), "mapping_warning")
+  if (anyDuplicated(paste(ifelse(is.na(group_id), "", group_id), ifelse(is.na(source_team_id), "", source_team_id), sep = "|"))) {
+    stop("Phase 14 standings contains duplicate source group/team identities", call. = FALSE)
+  }
+
+  aggregate_fields <- c(
+    "played", "wins", "draws", "losses", "goals_for", "goals_against", "goal_difference"
+  )
+  aggregate <- setNames(lapply(aggregate_fields, function(field) phase14_optional_integer(standings, field)), aggregate_fields)
+  official_aggregate <- setNames(lapply(aggregate_fields, function(field) {
+    phase14_optional_integer(standings, c(paste0("official_", field), field))
+  }), aggregate_fields)
+  points <- phase14_optional_integer(standings, "points")
+  official_points <- phase14_optional_integer(standings, c("official_points", "points"))
+  official_rank <- phase14_optional_integer(standings, c("official_rank", "position"))
+  complete_official <- vapply(official_aggregate, function(values) all(!is.na(values)), logical(1))
+  official_warning <- if (all(!vapply(official_aggregate, function(values) all(is.na(values)), logical(1)))) {
+    "official_aggregate_partial"
+  } else if (all(vapply(official_aggregate, function(values) all(is.na(values)), logical(1)))) {
+    "official_aggregate_unavailable"
+  } else if (!all(complete_official)) {
+    "official_aggregate_partial"
+  } else {
+    "none"
+  }
+  mapping_warning <- vapply(seq_len(nrow(standings)), function(index) {
+    warnings <- c(
+      team_mapping_warning[[index]],
+      if (is.na(group_id[[index]]) || !nzchar(trimws(group_id[[index]]))) "group_unresolved" else character(0),
+      if (identical(official_warning, "none")) character(0) else official_warning
+    )
+    warnings <- unique(warnings[!is.na(warnings) & nzchar(warnings) & warnings != "none"])
+    if (length(warnings)) paste(warnings, collapse = "|") else "none"
+  }, character(1))
+  mapping_method <- ifelse(
+    team_mapping_method == "source_id" & !is.na(group_mapping_method),
+    "source_id",
+    paste(team_mapping_method, ifelse(is.na(group_mapping_method), "unresolved", group_mapping_method), sep = "|")
+  )
+
+  output <- data.frame(
+    schema_version = rep("phase14-normalized-standings-v2", nrow(standings)),
+    edition_id = rep(edition_id, nrow(standings)),
+    group_id = group_id,
+    source_group_id = source_group_id,
+    team_id = team_id,
+    source_team_id = source_team_id,
+    official_rank = official_rank,
+    played = aggregate$played,
+    wins = aggregate$wins,
+    draws = aggregate$draws,
+    losses = aggregate$losses,
+    goals_for = aggregate$goals_for,
+    goals_against = aggregate$goals_against,
+    goal_difference = aggregate$goal_difference,
+    points = points,
+    official_played = official_aggregate$played,
+    official_wins = official_aggregate$wins,
+    official_draws = official_aggregate$draws,
+    official_losses = official_aggregate$losses,
+    official_goals_for = official_aggregate$goals_for,
+    official_goals_against = official_aggregate$goals_against,
+    official_goal_difference = official_aggregate$goal_difference,
+    official_points = official_points,
+    source_bundle_id = source_bundle_id,
+    source_artifact_id = source_artifact_id,
+    team_mapping_method = team_mapping_method,
+    group_mapping_method = group_mapping_method,
+    mapping_method = mapping_method,
+    mapping_warning = mapping_warning,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  output$row_sha256 <- phase13_identity_row_hash(output)
+  output[, phase14_normalized_standings_schema(), drop = FALSE]
 }
 
 phase13_identity_row_hash <- function(data) {
