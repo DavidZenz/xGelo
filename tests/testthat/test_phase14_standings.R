@@ -81,6 +81,9 @@ production_path <- file.path(
   "R/competition/standings.R"
 )
 if (file.exists(production_path)) source(production_path, local = .GlobalEnv)
+source(file.path(phase14_standings_test_project_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
+source(file.path(phase14_standings_test_project_root, "R/competition/team_identity.R"), local = .GlobalEnv)
+source(file.path(phase14_standings_test_project_root, "R/competition/publication_hashes.R"), local = .GlobalEnv)
 
 test_that("standings fixture freezes D-06 universal arithmetic", {
   cases <- phase14_standings_cases()
@@ -185,4 +188,132 @@ test_that("production standings reducer honors frozen keys and arithmetic", {
   expect_equal(standings$points, expected$points)
   expect_equal(standings$computed_rank, expected$computed_rank)
   expect_true(all(standings$ordering_status == "provisional"))
+})
+
+phase14_standings_test_identity_map <- function() {
+  data.frame(
+    team_id = c("team-a", "team-b"),
+    fifa_code = c("AAA", "BBB"),
+    canonical_name = c("Team A", "Team B"),
+    aliases = c("", ""),
+    uefa_source_team_id = c("source-a", "source-b"),
+    uefa_display_name_current = c("Team A", "Team B"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+test_that("accepted standings expose an exact state-ready v2 schema and hash dispatch", {
+  expected <- phase14_normalized_standings_schema()
+  expect_identical(expected[[1L]], "schema_version")
+  expect_true(all(c(
+    "edition_id", "group_id", "source_group_id", "team_id", "source_team_id",
+    "official_rank", "played", "wins", "draws", "losses", "goals_for",
+    "goals_against", "goal_difference", "points", "official_played",
+    "official_wins", "official_draws", "official_losses", "official_goals_for",
+    "official_goals_against", "official_goal_difference", "official_points",
+    "source_bundle_id", "source_artifact_id", "mapping_warning", "row_sha256"
+  ) %in% expected))
+  expect_identical(
+    phase14_publication_table_schema("standings", "phase14-normalized-standings-v2"),
+    expected
+  )
+  expect_identical(
+    phase13_publication_table_schema("standings", "phase14-normalized-standings-v2"),
+    expected
+  )
+  expect_identical(
+    phase13_publication_table_schema("standings"),
+    c("schema_version", phase13_source_compact_resource_schema()$standings, "edition_id", "source_artifact_id", "row_sha256")
+  )
+})
+
+test_that("accepted standings preserve mapped identities and official aggregates independently", {
+  identity_map <- phase14_standings_test_identity_map()
+  source_rows <- data.frame(
+    source_team_id = "source-a",
+    source_group_id = "group-a",
+    position = 1L,
+    points = 7L,
+    played = 3L,
+    wins = 2L,
+    draws = 1L,
+    losses = 0L,
+    goals_for = 5L,
+    goals_against = 1L,
+    goal_difference = 4L,
+    source_bundle_id = "bundle-a",
+    source_artifact_id = "artifact-standings-v2",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  normalized <- phase14_normalize_accepted_standings_rows(
+    source_rows,
+    identity_map = identity_map,
+    edition_id = "edition-v2",
+    source_bundle_id = "bundle-a",
+    source_artifact_id = "artifact-standings-v2"
+  )
+
+  expect_named(normalized, phase14_normalized_standings_schema())
+  expect_identical(normalized$schema_version, "phase14-normalized-standings-v2")
+  expect_identical(normalized$team_id, "team-a")
+  expect_identical(normalized$source_team_id, "source-a")
+  expect_identical(normalized$group_id, "group-a")
+  expect_identical(normalized$source_group_id, "group-a")
+  expect_identical(normalized$official_rank, 1L)
+  expect_identical(normalized$official_points, 7L)
+  expect_identical(normalized$played, 3L)
+  expect_identical(normalized$official_played, 3L)
+  expect_identical(normalized$goal_difference, 4L)
+  expect_identical(normalized$official_goal_difference, 4L)
+  expect_identical(normalized$source_bundle_id, "bundle-a")
+  expect_identical(normalized$source_artifact_id, "artifact-standings-v2")
+  expect_true(grepl("^[0-9a-f]{64}$", normalized$row_sha256))
+
+  reordered <- normalized[, rev(names(normalized)), drop = FALSE]
+  reordered <- reordered[, phase14_normalized_standings_schema(), drop = FALSE]
+  reordered$row_sha256 <- phase13_row_sha256(reordered)
+  expect_identical(reordered$row_sha256, normalized$row_sha256)
+
+  expect_error(
+    phase14_normalize_accepted_standings_rows(
+      source_rows,
+      identity_map = identity_map,
+      edition_id = "edition-v2",
+      source_bundle_id = "foreign-bundle",
+      source_artifact_id = "artifact-standings-v2"
+    ),
+    "source_bundle|forged|lineage"
+  )
+})
+
+test_that("standings v2 keeps absent official aggregate evidence typed and unresolved", {
+  identity_map <- phase14_standings_test_identity_map()
+  source_rows <- data.frame(
+    source_team_id = "source-a",
+    source_group_id = "group-a",
+    position = 1L,
+    points = 0L,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  normalized <- phase14_normalize_accepted_standings_rows(
+    source_rows,
+    identity_map = identity_map,
+    edition_id = "edition-v2",
+    source_bundle_id = "bundle-a",
+    source_artifact_id = "artifact-standings-v2"
+  )
+
+  expect_identical(normalized$official_rank, 1L)
+  expect_identical(normalized$official_points, 0L)
+  expect_true(all(is.na(normalized[, c(
+    "played", "wins", "draws", "losses", "goals_for", "goals_against",
+    "goal_difference", "official_played", "official_wins", "official_draws",
+    "official_losses", "official_goals_for", "official_goals_against",
+    "official_goal_difference"
+  ), drop = FALSE])))
+  expect_true(nzchar(normalized$mapping_warning))
 })
