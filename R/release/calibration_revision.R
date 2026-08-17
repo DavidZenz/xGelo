@@ -53,6 +53,162 @@ phase14_calibration_revision_source_if_missing(
   "R/calibration/calibration_selection.R",
   c("phase12_selection_freeze")
 )
+phase14_calibration_revision_source_if_missing(
+  "R/release/release_contract.R",
+  c(
+    "phase12_release_contract_assert_selected_topology",
+    "phase12_release_file_sha256",
+    "phase12_release_path_under_root",
+    "phase12_release_safe_relative_path",
+    "phase12_release_trusted_root",
+    "phase14_release_selector_hash",
+    "preflight_phase12_approved_release"
+  )
+)
+
+phase14_release_selector_schema <- function() {
+  c(
+    "release_id", "release_manifest_path", "manifest_sha256",
+    "approved_at_utc", "row_sha256"
+  )
+}
+
+phase14_release_selector_allowed_release_ids <- function() {
+  "phase14-open-nb-incumbent-calibrated-v1"
+}
+
+phase14_release_selector_validate_approved_at <- function(approved_at_utc) {
+  value <- as.character(approved_at_utc)
+  if (length(value) != 1L || is.na(value) ||
+      !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", value)) {
+    stop("Phase 14 selector approved_at_utc must be one canonical UTC timestamp", call. = FALSE)
+  }
+  parsed <- suppressWarnings(as.POSIXct(
+    value,
+    format = "%Y-%m-%dT%H:%M:%SZ",
+    tz = "UTC"
+  ))
+  if (is.na(parsed) || !identical(format(parsed, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), value)) {
+    stop("Phase 14 selector approved_at_utc is not a valid UTC timestamp", call. = FALSE)
+  }
+  value
+}
+
+phase14_release_selector_validate_release_id <- function(release_id) {
+  value <- as.character(release_id)
+  if (length(value) != 1L || is.na(value) || !nzchar(value) ||
+      grepl("[/\\\\]", value) || grepl("(^|/)\\.\\.?(/|$)", value)) {
+    stop("Phase 14 selector release identity is unsafe", call. = FALSE)
+  }
+  if (!value %in% phase14_release_selector_allowed_release_ids()) {
+    stop("Phase 14 selector release identity is not in the explicit allowlist", call. = FALSE)
+  }
+  value
+}
+
+phase14_release_selector_manifest_path <- function(
+    release_id, release_manifest_path, trusted_root
+) {
+  release_id <- phase14_release_selector_validate_release_id(release_id)
+  relative_manifest <- phase12_release_safe_relative_path(release_manifest_path)
+  expected_manifest <- paste0(release_id, "/release_manifest.csv")
+  if (!identical(relative_manifest, expected_manifest)) {
+    stop("Phase 14 selector manifest topology disagrees with release identity", call. = FALSE)
+  }
+  trusted_root <- phase12_release_trusted_root(trusted_root)
+  manifest_path <- phase12_release_path_under_root(
+    trusted_root,
+    relative_manifest,
+    must_work = TRUE
+  )
+  topology <- phase12_release_contract_assert_selected_topology(
+    trusted_root,
+    manifest_path
+  )
+  list(
+    trusted_root = trusted_root,
+    relative_manifest = relative_manifest,
+    manifest_path = topology$manifest_path,
+    release_dir = topology$release_dir
+  )
+}
+
+#' Build one explicit non-authoritative approved-release selector row.
+#' @export
+phase14_build_release_selector_row <- function(
+    release_id,
+    release_manifest_path,
+    approved_at_utc,
+    trusted_root = "outputs/releases"
+) {
+  selected <- phase14_release_selector_manifest_path(
+    release_id,
+    release_manifest_path,
+    trusted_root
+  )
+  selector <- data.frame(
+    release_id = phase14_release_selector_validate_release_id(release_id),
+    release_manifest_path = selected$relative_manifest,
+    manifest_sha256 = phase12_release_file_sha256(selected$manifest_path),
+    approved_at_utc = phase14_release_selector_validate_approved_at(approved_at_utc),
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  selector$row_sha256 <- phase14_release_selector_hash(selector)
+  phase14_validate_release_selector(selector, trusted_root = selected$trusted_root)
+  selector
+}
+
+#' Validate one selector candidate without granting runtime authority.
+#' @export
+phase14_validate_release_selector <- function(
+    selector,
+    trusted_root = "outputs/releases"
+) {
+  expected_schema <- phase14_release_selector_schema()
+  if (!is.data.frame(selector) || nrow(selector) != 1L ||
+      !identical(names(selector), expected_schema)) {
+    stop("Phase 14 selector candidate must contain one exact row", call. = FALSE)
+  }
+  values <- vapply(selector[1L, expected_schema, drop = FALSE], as.character, character(1))
+  if (anyNA(values) || any(!nzchar(values))) {
+    stop("Phase 14 selector candidate contains an empty identity", call. = FALSE)
+  }
+  if (!grepl("^[0-9a-fA-F]{64}$", values[["manifest_sha256"]]) ||
+      !grepl("^[0-9a-fA-F]{64}$", values[["row_sha256"]])) {
+    stop("Phase 14 selector candidate hash identity is invalid", call. = FALSE)
+  }
+  expected_self_hash <- phase14_release_selector_hash(selector)
+  if (!identical(tolower(values[["row_sha256"]]), expected_self_hash)) {
+    stop("Phase 14 selector candidate self-hash mismatch", call. = FALSE)
+  }
+
+  release_id <- phase14_release_selector_validate_release_id(values[["release_id"]])
+  phase14_release_selector_validate_approved_at(values[["approved_at_utc"]])
+  selected <- phase14_release_selector_manifest_path(
+    release_id,
+    values[["release_manifest_path"]],
+    trusted_root
+  )
+  manifest_sha256 <- phase12_release_file_sha256(selected$manifest_path)
+  if (!identical(manifest_sha256, tolower(values[["manifest_sha256"]]))) {
+    stop("Phase 14 selector candidate manifest hash mismatch", call. = FALSE)
+  }
+
+  preflight <- preflight_phase12_approved_release(
+    trusted_root = selected$trusted_root,
+    release_manifest_path = selected$manifest_path
+  )
+  if (!identical(as.character(preflight$release_id), release_id) ||
+      !identical(basename(preflight$release_root), release_id) ||
+      !identical(as.character(preflight$metadata$primary_probability_view), "calibrated_1x2") ||
+      !identical(as.character(preflight$model_contract$calibrator_fit_status), "fitted") ||
+      !isTRUE(preflight$model_contract$calibration_gate_passed)) {
+    stop("Phase 14 selector candidate release authority is invalid", call. = FALSE)
+  }
+  invisible(TRUE)
+}
 
 phase14_calibration_revision_file_sha256 <- function(path) {
   path <- phase14_calibration_revision_resolve_path(path)
