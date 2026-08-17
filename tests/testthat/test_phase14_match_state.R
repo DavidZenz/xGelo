@@ -875,6 +875,34 @@ test_that("crosswalk minting is correction-stable and reorder-stable", {
   )
 })
 
+test_that("reviewed corrections retain prior source lineages under a stable match ID", {
+  original <- phase14_match_state_test_crosswalk_sources()
+  before <- phase14_build_match_identity_crosswalk(original)
+  corrected <- original
+  corrected$competition$fixtures$source_lineage_id <- "fixtures-correction-lineage"
+  corrected$competition$results$source_lineage_id <- "results-correction-lineage"
+  corrected$competition$fixtures$final_home_goals <- 3L
+  corrected$competition$fixtures$final_away_goals <- 2L
+  corrected$competition$results$final_home_goals <- 3L
+  corrected$competition$results$final_away_goals <- 2L
+
+  after <- phase14_build_match_identity_crosswalk(
+    corrected,
+    existing_crosswalk = before
+  )
+
+  expect_equal(length(unique(after$match_id)), 2L)
+  expect_equal(
+    unique(after$match_id[after$source_namespace == "competition_fixture"]),
+    unique(before$match_id[before$source_namespace == "competition_fixture"])
+  )
+  expect_true(all(c(
+    "nl-fixtures-v1::nl-2026-0001", "fixtures-correction-lineage",
+    "nl-results-v1::nl-2026-0001", "results-correction-lineage"
+  ) %in% after$source_lineage_id))
+  expect_silent(phase14_validate_match_identity_crosswalk(after))
+})
+
 test_that("unreviewed source identity collisions fail closed", {
   sources <- phase14_match_state_test_crosswalk_sources()
   collision <- rbind(
