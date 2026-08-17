@@ -327,3 +327,157 @@ test_that("14-21 selected fit records reject chronology, convergence, and parame
     )
   }
 })
+
+phase14_remediation_test_root <- file.path(
+  phase14_remediation_test_project_root,
+  "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-remediation-v2"
+)
+
+phase14_remediation_test_artifact_paths <- function(root = phase14_remediation_test_root) {
+  file.path(root, c(
+    "remediation_contract.csv", "outer_fold_selection.csv", "outer_fold_fits.csv",
+    "calibrator.rds", "calibrated_predictions.csv", "calibration_gate.csv",
+    "calibration_revision_manifest.csv"
+  ))
+}
+
+test_that("14-21 complete remediation graph API is present", {
+  expect_true(phase14_remediation_test_require_api(c(
+    "phase14_build_calibration_remediation",
+    "phase14_validate_calibration_remediation"
+  )))
+})
+
+test_that("14-21 durable graph covers all 12 outer tournaments and 630 identities", {
+  skip_if_not(exists("phase14_validate_calibration_remediation", mode = "function"))
+  paths <- phase14_remediation_test_artifact_paths()
+  expect_true(all(file.exists(paths)), info = paste(paths[!file.exists(paths)], collapse = ", "))
+  if (!all(file.exists(paths))) return(invisible())
+  expect_true(phase14_validate_calibration_remediation(
+    phase14_remediation_test_root, require_promoted = FALSE
+  ))
+
+  selection <- read.csv(paths[[2L]], stringsAsFactors = FALSE, check.names = FALSE)
+  fits <- read.csv(paths[[3L]], stringsAsFactors = FALSE, check.names = FALSE)
+  predictions <- read.csv(paths[[5L]], stringsAsFactors = FALSE, check.names = FALSE)
+  panel <- phase14_remediation_test_panel()
+  editions <- attr(panel, "edition_order")
+
+  expect_identical(nrow(selection), 12L)
+  expect_identical(nrow(fits), 12L)
+  expect_identical(nrow(predictions), 630L)
+  expect_identical(as.character(selection$outer_edition_id), editions)
+  expect_identical(as.character(fits$outer_edition_id), editions)
+  expect_identical(anyDuplicated(predictions$fixture_id), 0L)
+  expect_setequal(as.character(predictions$fixture_id), as.character(panel$fixture_id))
+  expect_identical(
+    as.character(predictions$score_distribution_id[match(panel$fixture_id, predictions$fixture_id)]),
+    as.character(panel$score_distribution_id)
+  )
+  expect_false(phase14_calibration_revision_has_holdout_identity(predictions))
+  expect_true(all(abs(rowSums(predictions[c(
+    "p_home_calibrated", "p_draw_calibrated", "p_away_calibrated"
+  )]) - 1) < 1e-12))
+})
+
+test_that("14-21 persisted outer fits independently replay every probability", {
+  skip_if_not(exists("phase14_validate_calibration_remediation", mode = "function"))
+  paths <- phase14_remediation_test_artifact_paths()
+  if (!all(file.exists(paths))) skip("durable remediation graph not built yet")
+  fits <- read.csv(paths[[3L]], stringsAsFactors = FALSE, check.names = FALSE)
+  predictions <- read.csv(paths[[5L]], stringsAsFactors = FALSE, check.names = FALSE)
+  panel <- phase14_remediation_test_panel()
+  editions <- attr(panel, "edition_order")
+
+  for (index in seq_along(editions)) {
+    edition <- editions[[index]]
+    fit <- fits[fits$outer_edition_id == edition, , drop = FALSE]
+    expect_invisible(phase14_remediation_validate_fit_record(fit, panel))
+    rows <- panel[panel$edition_id == edition, , drop = FALSE]
+    replay <- phase14_remediation_apply_rows(fit, rows)
+    persisted <- predictions[
+      match(rows$fixture_id, predictions$fixture_id),
+      c("p_home_calibrated", "p_draw_calibrated", "p_away_calibrated"),
+      drop = FALSE
+    ]
+    expect_equal(unname(replay), unname(as.matrix(persisted)), tolerance = 1e-12)
+    expect_identical(
+      phase14_remediation_test_split(fit$outer_training_editions[[1L]]),
+      if (index == 1L) character() else editions[seq_len(index - 1L)]
+    )
+  }
+})
+
+test_that("14-21 final fitting is permitted only after an actual outer pass", {
+  skip_if_not(exists("phase14_validate_calibration_remediation", mode = "function"))
+  paths <- phase14_remediation_test_artifact_paths()
+  if (!all(file.exists(paths))) skip("durable remediation graph not built yet")
+  gate <- read.csv(paths[[6L]], stringsAsFactors = FALSE, check.names = FALSE)
+  calibrator <- readRDS(paths[[4L]])
+  expect_identical(nrow(gate), 1L)
+  expect_identical(as.logical(gate$outer_gate_passed[[1L]]), gate$reason_count[[1L]] == 0L)
+  expect_false(as.logical(gate$holdout_labels_used[[1L]]))
+  expect_false(as.logical(gate$authority_mutated[[1L]]))
+  if (isTRUE(as.logical(gate$outer_gate_passed[[1L]]))) {
+    expect_identical(calibrator$fit_status, "fitted")
+    expect_true(isTRUE(calibrator$final_fit_performed))
+    expect_identical(gate$primary_probability_view[[1L]], "calibrated_1x2")
+  } else {
+    expect_identical(calibrator$fit_status, "raw_fallback")
+    expect_false(isTRUE(calibrator$final_fit_performed))
+    expect_false(isTRUE(calibrator$calibration_promoted))
+    expect_identical(gate$primary_probability_view[[1L]], "raw_1x2")
+  }
+})
+
+test_that("14-21 manifest binds original authority and rejects graph tampering", {
+  skip_if_not(exists("phase14_validate_calibration_remediation", mode = "function"))
+  paths <- phase14_remediation_test_artifact_paths()
+  if (!all(file.exists(paths))) skip("durable remediation graph not built yet")
+  manifest <- read.csv(paths[[7L]], stringsAsFactors = FALSE, check.names = FALSE)
+  root <- phase14_remediation_test_project_root
+  expected_authority <- c(
+    original_gate_sha256 = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision/calibration_gate.csv",
+    original_manifest_sha256 = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision/calibration_revision_manifest.csv",
+    protocol_sha256 = "data/benchmark/phase09/promotion_protocol.json",
+    freeze_manifest_sha256 = "data/benchmark/phase12/freeze_manifest.csv",
+    calibration_recipe_sha256 = "data/benchmark/phase12/calibration_recipe.json",
+    model_registry_sha256 = "data/benchmark/phase09/model_registry.csv",
+    seed_registry_sha256 = "data/benchmark/phase09/seed_registry.csv",
+    phase12_selector_sha256 = "R/calibration/calibration_selection.R"
+  )
+  expect_identical(nrow(manifest), 1L)
+  for (field in names(expected_authority)) {
+    expect_identical(
+      tolower(as.character(manifest[[field]][[1L]])),
+      tolower(phase14_calibration_revision_file_sha256(file.path(root, expected_authority[[field]])))
+    )
+  }
+
+  tampered_root <- tempfile("phase14-remediation-tamper-")
+  dir.create(tampered_root, recursive = TRUE)
+  expect_true(all(file.copy(paths, tampered_root)))
+  tampered_fits_path <- file.path(tampered_root, "outer_fold_fits.csv")
+  tampered_fits <- read.csv(tampered_fits_path, stringsAsFactors = FALSE, check.names = FALSE)
+  tampered_fits$offset_home[[1L]] <- 0.10
+  tampered_fits$fit_record_sha256[[1L]] <- phase14_remediation_fit_record_sha256(
+    tampered_fits[1L, , drop = FALSE]
+  )
+  write.csv(tampered_fits, tampered_fits_path, row.names = FALSE, na = "")
+  expect_error(
+    phase14_validate_calibration_remediation(tampered_root, require_promoted = FALSE),
+    "fit|identity|replay|hash|manifest"
+  )
+})
+
+test_that("14-21 every selector path rejects synthetic holdout identity", {
+  panel <- phase14_remediation_test_panel()
+  panel$edition_id[[1L]] <- "wc2026"
+  expect_error(
+    phase14_select_nested_calibrator(
+      panel, tail(attr(phase14_remediation_test_panel(), "edition_order"), 1L),
+      protocol = phase14_remediation_test_protocol
+    ),
+    "sealed|development|holdout|630"
+  )
+})
