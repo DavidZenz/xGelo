@@ -130,6 +130,72 @@ phase14_release_test_development_inputs <- function() {
   )
 }
 
+phase14_release_test_remediation_root <- function() {
+  file.path(
+    phase14_release_test_project_root,
+    "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-remediation-v2"
+  )
+}
+
+phase14_release_test_source_release_root <- function() {
+  file.path(
+    phase14_release_test_project_root,
+    "outputs/releases/phase12-wc2026-incumbent-retained-v1"
+  )
+}
+
+phase14_release_test_stage_calibrated_revision <- function(
+    output_root = tempfile("phase14-calibrated-release-root-"),
+    release_id = "phase14-calibrated-release-test-v2",
+    calibrator = NULL
+) {
+  stage <- get("stage_phase12_release_bundle", mode = "function")
+  required_formals <- c("calibration_revision_root", "source_release_root")
+  missing_formals <- setdiff(required_formals, names(formals(stage)))
+  if (length(missing_formals)) {
+    fail(paste0(
+      "Plan 14-06 calibrated staging API is missing: ",
+      paste(missing_formals, collapse = ", ")
+    ))
+    return(invisible(NULL))
+  }
+  source_root <- phase14_release_test_source_release_root()
+  revision_root <- phase14_release_test_remediation_root()
+  if (is.null(calibrator)) {
+    calibrator <- readRDS(file.path(revision_root, "calibrator.rds"))
+  }
+  dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+  decision <- data.frame(
+    candidate_id = "open_nb_incumbent",
+    incumbent_id = "open_nb_incumbent",
+    release_decision = "incumbent retained",
+    selected_id = "open_nb_incumbent",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  path <- stage(
+    final_decision = decision,
+    final_evaluation_manifest = file.path(
+      source_root, "manifests/final_evaluation_manifest.csv"
+    ),
+    freeze_manifest = file.path(source_root, "manifests/freeze_manifest.csv"),
+    model_object = readRDS(file.path(source_root, "model/approved_model.rds")),
+    calibrator = calibrator,
+    release_id = release_id,
+    output_root = output_root,
+    calibration_revision_root = revision_root,
+    source_release_root = source_root
+  )
+  list(output_root = output_root, release_root = path)
+}
+
+phase14_release_test_copy_staged_revision <- function(staged) {
+  trusted_root <- tempfile("phase14-calibrated-release-copy-")
+  dir.create(trusted_root, recursive = TRUE)
+  expect_true(file.copy(staged$release_root, trusted_root, recursive = TRUE))
+  file.path(trusted_root, basename(staged$release_root))
+}
+
 test_that("14-02 release descriptors distinguish raw fallback from fitted calibration", {
   raw <- phase14_release_fixture_descriptor(file.path(
     phase14_release_test_project_root,
@@ -739,6 +805,161 @@ test_that("14-06 immutable release validation binds fitted object and manifest b
     "hash"
   )
   phase14_release_test_write_bytes(calibrator_path, calibrator_bytes)
+})
+
+test_that("14-06 stages only the independently accepted calibrated revision", {
+  staged <- phase14_release_test_stage_calibrated_revision()
+  if (is.null(staged)) return(invisible(NULL))
+  expect_false(file.exists(file.path(staged$output_root, "approved_release.csv")))
+
+  validated <- validate_phase12_release_bundle(staged$release_root, load_models = TRUE)
+  contract <- validated$model_contract
+  expect_identical(validated$status, "approved")
+  expect_identical(validated$selected_model_id, "open_nb_incumbent")
+  expect_identical(validated$primary_probability_view, "calibrated_1x2")
+  expect_identical(as.character(contract$source_release_id),
+                   "phase12-wc2026-incumbent-retained-v1")
+  expect_identical(as.character(contract$model_data_cutoff), "2026-06-10")
+  expect_identical(as.character(contract$calibration_data_cutoff), "2024-07-14")
+  expect_identical(as.character(contract$raw_probability_view), "raw_1x2")
+  expect_identical(
+    as.character(contract$calibration_revision_manifest_self_sha256),
+    "8adb6d0475474971596d4255a174fcc7b3c8c9847a14d6112f20848bbdec82e1"
+  )
+  expect_identical(
+    as.character(contract$calibration_gate_row_sha256),
+    "0e4220775d2975aa7834eda42d41a0b6dd6aff7cdb30b6ef2f1f6595b95d1f95"
+  )
+  expect_identical(as.character(validated$calibrator$fit_status), "fitted")
+  expect_identical(
+    as.character(validated$calibrator$selected_candidate_id),
+    "vector_w400_p0p010"
+  )
+  expect_true(isTRUE(validated$calibrator$distribution_unchanged))
+  expect_false(isTRUE(validated$calibrator$holdout_labels_used))
+  expect_false(isTRUE(validated$calibrator$authority_mutated))
+  expect_false(isTRUE(validated$calibrator$candidate_authority))
+  expect_setequal(
+    c(
+      "manifests/calibration_revision_manifest.csv",
+      "manifests/calibration_gate.csv"
+    ),
+    intersect(
+      as.character(validated$release_manifest$artifact),
+      c(
+        "manifests/calibration_revision_manifest.csv",
+        "manifests/calibration_gate.csv"
+      )
+    )
+  )
+})
+
+test_that("14-06 calibrated revision staging rejects raw and wrong-source inputs", {
+  source_root <- phase14_release_test_source_release_root()
+  raw <- readRDS(file.path(source_root, "model/calibrator.rds"))
+  expect_error(
+    phase14_release_test_stage_calibrated_revision(
+      output_root = tempfile("phase14-raw-calibrator-root-"),
+      release_id = "phase14-raw-calibrator-v2",
+      calibrator = raw
+    ),
+    "accepted fitted calibrator|calibrator identity"
+  )
+
+  stage <- get("stage_phase12_release_bundle", mode = "function")
+  if (!all(c("calibration_revision_root", "source_release_root") %in% names(formals(stage)))) {
+    return(invisible(NULL))
+  }
+  wrong_source <- tempfile("phase14-wrong-source-")
+  dir.create(wrong_source, recursive = TRUE)
+  expect_true(file.copy(source_root, wrong_source, recursive = TRUE))
+  wrong_source <- file.path(wrong_source, basename(source_root))
+  file.rename(wrong_source, file.path(dirname(wrong_source), "wrong-source-release"))
+  wrong_source <- file.path(dirname(wrong_source), "wrong-source-release")
+  revision_root <- phase14_release_test_remediation_root()
+  expect_error(
+    stage(
+      final_decision = data.frame(
+        candidate_id = "open_nb_incumbent",
+        incumbent_id = "open_nb_incumbent",
+        release_decision = "incumbent retained",
+        selected_id = "open_nb_incumbent",
+        stringsAsFactors = FALSE
+      ),
+      final_evaluation_manifest = file.path(
+        source_root, "manifests/final_evaluation_manifest.csv"
+      ),
+      freeze_manifest = file.path(source_root, "manifests/freeze_manifest.csv"),
+      model_object = readRDS(file.path(source_root, "model/approved_model.rds")),
+      calibrator = readRDS(file.path(revision_root, "calibrator.rds")),
+      release_id = "phase14-wrong-source-v2",
+      output_root = tempfile("phase14-wrong-source-output-"),
+      calibration_revision_root = revision_root,
+      source_release_root = wrong_source
+    ),
+    "source release"
+  )
+})
+
+test_that("14-06 calibrated bundle rejects gate, chronology, label, and score forgeries", {
+  staged <- phase14_release_test_stage_calibrated_revision(
+    release_id = "phase14-calibrated-forgery-base-v2"
+  )
+  if (is.null(staged)) return(invisible(NULL))
+
+  release_root <- phase14_release_test_copy_staged_revision(staged)
+  gate_path <- file.path(release_root, "manifests/calibration_gate.csv")
+  gate <- utils::read.csv(
+    gate_path, stringsAsFactors = FALSE, check.names = FALSE,
+    colClasses = "character", na.strings = character()
+  )
+  gate$chronology_valid <- "FALSE"
+  phase12_release_write_csv(gate, gate_path)
+  phase14_release_fixture_refresh_manifest(release_root)
+  expect_error(
+    validate_phase12_release_bundle(release_root, load_models = FALSE),
+    "chronology"
+  )
+
+  release_root <- phase14_release_test_copy_staged_revision(staged)
+  revision_path <- file.path(release_root, "manifests/calibration_revision_manifest.csv")
+  revision <- utils::read.csv(
+    revision_path, stringsAsFactors = FALSE, check.names = FALSE,
+    colClasses = "character", na.strings = character()
+  )
+  revision$holdout_labels_used <- "TRUE"
+  phase12_release_write_csv(revision, revision_path)
+  phase14_release_fixture_refresh_manifest(release_root)
+  expect_error(
+    validate_phase12_release_bundle(release_root, load_models = FALSE),
+    "holdout|label"
+  )
+
+  release_root <- phase14_release_test_copy_staged_revision(staged)
+  calibrator_path <- file.path(release_root, "model/calibrator.rds")
+  contract_path <- file.path(release_root, "model_contract.json")
+  calibrator <- readRDS(calibrator_path)
+  calibrator$distribution_unchanged <- FALSE
+  phase12_release_write_rds(calibrator, calibrator_path)
+  contract <- phase12_release_read_contract(contract_path)
+  contract$calibrator_sha256 <- phase12_release_file_sha256(calibrator_path)
+  phase12_release_write_json(contract, contract_path)
+  phase14_release_fixture_refresh_manifest(release_root)
+  expect_error(
+    validate_phase12_release_bundle(release_root, load_models = TRUE),
+    "score-distribution|distribution"
+  )
+
+  release_root <- phase14_release_test_copy_staged_revision(staged)
+  contract_path <- file.path(release_root, "model_contract.json")
+  contract <- phase12_release_read_contract(contract_path)
+  contract$model_data_cutoff <- "2026-06-09"
+  phase12_release_write_json(contract, contract_path)
+  phase14_release_fixture_refresh_manifest(release_root)
+  expect_error(
+    validate_phase12_release_bundle(release_root, load_models = FALSE),
+    "model data cutoff|model_data_cutoff"
+  )
 })
 
 test_that("14-09 dual repin contract rejects split pins and exposes injected rollback", {
