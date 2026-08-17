@@ -33,6 +33,15 @@ phase14_match_state_builder_input <- function(cases) {
   output$match_id <- cases$expected_match_id
   output$match_status <- cases$expected_match_status
   output$completion_method <- cases$expected_completion_method
+  output$edition_id <- "phase14-test-edition"
+  output$home_team_id <- "team_home"
+  output$away_team_id <- "team_away"
+  output$scheduled_at_utc <- "2026-01-01T12:00:00Z"
+  output$evidence_completed_at_utc <- ifelse(
+    cases$expected_match_status == "completed",
+    "2026-01-01T13:00:00Z",
+    NA_character_
+  )
   output
 }
 
@@ -137,20 +146,21 @@ test_that("canonical match API enforces the frozen lifecycle and score contract"
     phase14_match_state_builder_input(valid)
   )
 
-  expect_equal(nrow(canonical), nrow(valid))
+  expected_valid <- valid[!duplicated(valid$expected_match_id, fromLast = TRUE), , drop = FALSE]
+  expect_equal(nrow(canonical), nrow(expected_valid))
   expect_true(all(c(
     "match_id", "source_status", "match_status", "completion_method",
     "regulation_home_goals", "regulation_away_goals", "final_home_goals",
     "final_away_goals", "shootout_home_goals", "shootout_away_goals",
     "winner_team_id", "counts_for_standings", "counts_for_form"
   ) %in% names(canonical)))
-  expected_order <- order(valid$expected_match_id, method = "radix")
-  expect_identical(as.character(canonical$match_id), valid$expected_match_id[expected_order])
-  expect_identical(as.character(canonical$source_status), valid$source_status[expected_order])
-  expect_identical(as.character(canonical$match_status), valid$expected_match_status[expected_order])
+  expected_order <- order(expected_valid$expected_match_id, method = "radix")
+  expect_identical(as.character(canonical$match_id), expected_valid$expected_match_id[expected_order])
+  expect_identical(as.character(canonical$source_status), expected_valid$source_status[expected_order])
+  expect_identical(as.character(canonical$match_status), expected_valid$expected_match_status[expected_order])
   expect_identical(
     as.character(canonical$completion_method),
-    valid$expected_completion_method[expected_order]
+    expected_valid$expected_completion_method[expected_order]
   )
 
   invalid <- cases[!cases$expected_valid, , drop = FALSE]
@@ -187,6 +197,19 @@ test_that("canonical match validator enforces independent lifecycle and completi
       info = name
     )
   }
+})
+
+test_that("completed source labels do not collapse the independent completion axis", {
+  cases <- phase14_match_state_cases()
+  extra_time <- phase14_match_state_builder_input(
+    cases[cases$case_id == "completed-extra-time", , drop = FALSE]
+  )
+  extra_time$source_status <- "completed"
+  canonical <- phase14_build_canonical_matches(extra_time)
+  expect_identical(canonical$match_status, "completed")
+  expect_identical(canonical$completion_method, "extra_time")
+  expect_identical(canonical$regulation_home_goals, 1L)
+  expect_identical(canonical$final_home_goals, 2L)
 })
 
 test_that("canonical score semantics reject foreign links and preserve correction hashes", {
@@ -928,6 +951,24 @@ phase14_match_state_test_crosswalk_sources <- function() {
     )
   )
 }
+
+test_that("accepted competition fields win while historical lineage remains attached", {
+  sources <- phase14_match_state_test_crosswalk_sources()
+  sources$historical$date <- "2026-09-05"
+  sources$historical$scheduled_at_utc <- "2026-09-05T18:45:00Z"
+  sources$historical$city <- "Vienna"
+  sources$historical$country <- NA_character_
+  crosswalk <- phase14_build_match_identity_crosswalk(sources)
+  canonical <- phase14_build_canonical_matches(sources, crosswalk = crosswalk)
+
+  expect_equal(nrow(canonical), 1L)
+  expect_identical(canonical$source_namespace, "competition_result")
+  expect_identical(canonical$source_status, "scheduled")
+  expect_true(nzchar(canonical$competition_lineage_id))
+  expect_true(nzchar(canonical$history_lineage_id))
+  expect_identical(canonical$home_team_id, "team_aut")
+  expect_silent(phase14_validate_canonical_matches(canonical, crosswalk = crosswalk))
+})
 
 test_that("durable crosswalk uses one-to-one source IDs and a score/status-free minting projection", {
   sources <- phase14_match_state_test_crosswalk_sources()
