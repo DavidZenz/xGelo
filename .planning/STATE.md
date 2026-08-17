@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-10-PLAN.md
-last_updated: "2026-08-17T14:16:22.447Z"
+stopped_at: Completed 14-11-PLAN.md
+last_updated: "2026-08-17T14:44:05.873Z"
 last_activity: 2026-08-17
-last_activity_desc: Completed Plan 14-10 state-ready v2 contracts
+last_activity_desc: Completed Plan 14-11 schema-v2 candidate and rollback proof
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 25
+  completed_plans: 26
 ---
 
 # xGelo Project State
@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 12 of 22 complete; Plan 14-11 is next
-Status: In progress
-Last activity: 2026-08-17 — Completed Plan 14-10 state-ready v2 contracts
+Plan: 13 of 22 complete; Plan 14-12 is next
+Status: Ready to execute
+Last activity: 2026-08-17 — Completed Plan 14-11 schema-v2 candidate and rollback proof
 
 ## Progress
 
@@ -35,7 +35,7 @@ Last activity: 2026-08-17 — Completed Plan 14-10 state-ready v2 contracts
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector and dual-edition revision-2 authority, with Plan 14-10 next.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, and isolated schema-v2 transaction proof, with Plan 14-12 next.
 
 ## Project Reference
 
@@ -116,6 +116,9 @@ for Nations League and EURO qualifying.
 - [Phase 14]: Keep Phase 13 v1 source/normalized replay as the default and select v2 only through explicit schema branches.
 - [Phase 14]: Preserve source_status verbatim; match_status and completion_method remain orthogonal, and absent evidence never creates completed state or score axes.
 - [Phase 14]: Leave STATE-01 and STATE-02 pending until downstream canonical semantics, reconciliation, transaction proof, and durable promotion plans complete.
+- [Phase 14]: Keep the schema-v2 candidate and rollback evidence isolated from durable accepted, registry, release, state, and dashboard files until the later promotion plan.
+- [Phase 14]: Delegate normalization, hashing, manifests, loading, promotion, failure injection, and rollback to production callbacks; tests add assertions only.
+- [Phase 14]: Leave STATE-01 and STATE-02 pending because downstream canonical semantics and durable promotion remain unfinished.
 
 ## Accumulated Context
 
@@ -129,12 +132,12 @@ for Nations League and EURO qualifying.
 
 ## Next Action
 
-Plan 14-10 is next. It builds on Plan 14-09's durable calibrated selector and dual-edition authority.
+Plan 14-12 is next. It builds on Plan 14-11's isolated schema-v2 candidate and rollback proof.
 
 ## Session Continuity
 
-**Last session:** 2026-08-17T14:15:18.234Z
-**Stopped at:** Completed 14-10-PLAN.md
+**Last session:** 2026-08-17T14:44:05.863Z
+**Stopped at:** Completed 14-11-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -170,3 +173,4 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P08 | 21m | 2 tasks | 3 files |
 | Phase 14 P09 | 1h 10m | 2 tasks | 5 files |
 | Phase 14 P10 | 32m 26s | 3 tasks | 7 files |
+| Phase 14 P11 | 14m 34s | 2 tasks | 2 files |
