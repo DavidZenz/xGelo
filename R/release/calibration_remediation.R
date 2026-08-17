@@ -1115,3 +1115,547 @@ phase14_select_nested_calibrator <- function(
     inner_folds = inner_folds
   )
 }
+
+phase14_remediation_output_paths <- function(
+    output_root = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-remediation-v2"
+) {
+  root <- phase14_remediation_resolve_path(output_root)
+  c(
+    remediation_contract = file.path(root, "remediation_contract.csv"),
+    outer_fold_selection = file.path(root, "outer_fold_selection.csv"),
+    outer_fold_fits = file.path(root, "outer_fold_fits.csv"),
+    calibrator = file.path(root, "calibrator.rds"),
+    calibrated_predictions = file.path(root, "calibrated_predictions.csv"),
+    calibration_gate = file.path(root, "calibration_gate.csv"),
+    revision_manifest = file.path(root, "calibration_revision_manifest.csv")
+  )
+}
+
+phase14_remediation_rank_eligible <- function(candidate_scores) {
+  eligible <- candidate_scores[candidate_scores$eligible, , drop = FALSE]
+  if (!nrow(eligible)) return(eligible)
+  eligible[order(
+    eligible$ranking_rps,
+    eligible$ranking_calibration_error,
+    eligible$ranking_log_loss,
+    eligible$ranking_brier,
+    eligible$complexity_rank,
+    eligible$candidate_order,
+    method = "radix"
+  ), , drop = FALSE]
+}
+
+phase14_remediation_final_fit <- function(
+    panel, contract, protocol, fit_cache = new.env(parent = emptyenv())
+) {
+  editions <- phase14_remediation_panel_editions(panel)
+  outer_index <- length(editions) + 1L
+  inner_folds <- phase14_remediation_inner_folds(panel, outer_index, editions)
+  candidate_scores <- do.call(rbind, lapply(seq_len(nrow(contract$candidates)), function(i) {
+    phase14_remediation_candidate_score(
+      contract$candidates[i, , drop = FALSE], inner_folds, panel, editions,
+      outer_index, contract, fit_cache = fit_cache, protocol = protocol
+    )
+  }))
+  eligible <- phase14_remediation_rank_eligible(candidate_scores)
+  if (!nrow(eligible)) {
+    stop("Phase 14 remediation outer pass has no eligible final fitted recipe", call. = FALSE)
+  }
+  chosen <- eligible[1L, , drop = FALSE]
+  candidate <- contract$candidates[
+    match(chosen$candidate_id, contract$candidates$candidate_id), , drop = FALSE
+  ]
+  if (identical(as.character(candidate$family[[1L]]), "raw_identity")) {
+    stop("Phase 14 remediation outer pass cannot authorize an unfitted final identity", call. = FALSE)
+  }
+  seed <- phase14_remediation_seed(
+    outer_index = outer_index, inner_validation_index = 0L,
+    family = candidate$family[[1L]], warmup_rows = candidate$warmup_rows[[1L]],
+    scalar_shrinkage = candidate$scalar_shrinkage[[1L]],
+    vector_penalty = candidate$vector_penalty[[1L]], stage = "final_fit"
+  )
+  fit <- phase14_remediation_fit_candidate(panel, candidate, seed, contract)
+  if (!isTRUE(fit$valid) || !identical(as.integer(fit$optimizer_convergence_code), 0L)) {
+    stop("Phase 14 remediation final optimizer did not converge after the outer pass", call. = FALSE)
+  }
+  list(candidate = candidate, chosen = chosen, fit = fit, candidate_scores = candidate_scores)
+}
+
+phase14_remediation_calibrator <- function(
+    panel, decision, contract, protocol, fit_cache = new.env(parent = emptyenv())
+) {
+  common <- list(
+    schema_version = "phase14-calibration-remediation-calibrator-v2",
+    model_id = "open_nb_incumbent", track_id = "updating", panel_id = "open_core",
+    development_row_count = 630L, development_fixture_count = 630L,
+    score_support = 40L, distribution_unchanged = TRUE,
+    probability_view = "derived_1x2", outer_gate_passed = isTRUE(decision$calibration_promoted),
+    calibration_promoted = isTRUE(decision$calibration_promoted),
+    primary_probability_view = as.character(decision$primary_probability_view),
+    final_fit_performed = FALSE, candidate_authority = FALSE,
+    failed_result_immutable = !isTRUE(decision$calibration_promoted),
+    holdout_labels_used = FALSE, authority_mutated = FALSE,
+    source_panel_sha256 = phase14_remediation_panel_sha256(panel),
+    protocol_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/promotion_protocol.json"
+    ),
+    calibration_evidence_cutoff = as.character(max(panel$actual_completion_date)),
+    model_data_cutoff = "2026-06-10"
+  )
+  if (!isTRUE(decision$calibration_promoted)) {
+    return(c(common, list(
+      fit_status = "raw_fallback", fallback_reason = phase14_remediation_join_ids(decision$reason_codes),
+      selected_candidate_id = "raw_identity", selected_family = "raw_identity",
+      warmup_rows = 0L, scalar_shrinkage = NA_real_, vector_penalty = NA_real_,
+      optimizer_method = "not_run", optimizer_seed = NA_integer_,
+      optimizer_convergence_code = NA_integer_, optimizer_convergence_message = "not_run",
+      optimizer_objective_value = NA_real_, temperature = 1,
+      slope_home = 1, slope_draw = 1, slope_away = 1,
+      offset_home = 0, offset_draw = 0, offset_away = 0
+    )))
+  }
+  final <- phase14_remediation_final_fit(panel, contract, protocol, fit_cache)
+  candidate <- final$candidate
+  fit <- final$fit
+  common$final_fit_performed <- TRUE
+  common$failed_result_immutable <- FALSE
+  c(common, list(
+    fit_status = "fitted", fallback_reason = "",
+    selected_candidate_id = as.character(candidate$candidate_id[[1L]]),
+    selected_family = as.character(candidate$family[[1L]]),
+    warmup_rows = as.integer(candidate$warmup_rows[[1L]]),
+    scalar_shrinkage = as.numeric(candidate$scalar_shrinkage[[1L]]),
+    vector_penalty = as.numeric(candidate$vector_penalty[[1L]]),
+    optimizer_method = as.character(fit$optimizer_method),
+    optimizer_seed = as.integer(fit$optimizer_seed),
+    optimizer_convergence_code = as.integer(fit$optimizer_convergence_code),
+    optimizer_convergence_message = as.character(fit$optimizer_convergence_message),
+    optimizer_objective_value = as.numeric(fit$optimizer_objective_value),
+    temperature = as.numeric(fit$temperature),
+    slope_home = as.numeric(fit$slope_home), slope_draw = as.numeric(fit$slope_draw),
+    slope_away = as.numeric(fit$slope_away), offset_home = as.numeric(fit$offset_home),
+    offset_draw = as.numeric(fit$offset_draw), offset_away = as.numeric(fit$offset_away),
+    final_nested_candidate_scores_sha256 = phase14_calibration_revision_table_sha256(
+      final$candidate_scores, c("candidate_id")
+    )
+  ))
+}
+
+phase14_remediation_gate_row <- function(comparison, calibrator, protocol) {
+  gate <- phase14_calibration_revision_gate_row(
+    comparison, calibrator = calibrator, chronology_valid = TRUE, protocol = protocol
+  )
+  gate$schema_version <- "phase14-calibration-remediation-gate-v2"
+  gate$outer_gate_passed <- isTRUE(gate$calibration_promoted[[1L]])
+  gate$final_fit_performed <- isTRUE(calibrator$final_fit_performed)
+  gate$failed_result_immutable <- isTRUE(calibrator$failed_result_immutable)
+  gate$candidate_authority <- FALSE
+  gate$row_sha256 <- NULL
+  gate$row_sha256 <- phase14_calibration_revision_table_sha256(gate)
+  gate
+}
+
+phase14_remediation_manifest <- function(output_root, gate, calibrator) {
+  paths <- phase14_remediation_output_paths(output_root)
+  required <- paths[setdiff(names(paths), "revision_manifest")]
+  if (any(!file.exists(required))) {
+    stop("Phase 14 remediation manifest requires every candidate artifact", call. = FALSE)
+  }
+  panel <- phase14_remediation_prepare_panel(phase14_build_incumbent_development_panel())
+  manifest <- data.frame(
+    schema_version = "phase14-calibration-remediation-manifest-v2",
+    model_id = "open_nb_incumbent", track_id = "updating", panel_id = "open_core",
+    disposition = as.character(gate$disposition[[1L]]),
+    reason_codes = as.character(gate$reason_codes[[1L]]),
+    reason_count = as.integer(gate$reason_count[[1L]]),
+    development_row_count = 630L, unique_fixture_count = 630L,
+    outer_fold_count = 12L, fit_record_count = 12L,
+    outer_gate_passed = isTRUE(gate$outer_gate_passed[[1L]]),
+    final_fit_performed = isTRUE(calibrator$final_fit_performed),
+    calibration_promoted = isTRUE(gate$calibration_promoted[[1L]]),
+    primary_probability_view = as.character(gate$primary_probability_view[[1L]]),
+    fit_status = as.character(calibrator$fit_status),
+    holdout_labels_used = FALSE, authority_mutated = FALSE, candidate_authority = FALSE,
+    source_predictions_file_sha256 = phase14_calibration_revision_file_sha256(
+      "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/predictions/fixture_predictions.csv"
+    ),
+    source_predictions_slice_sha256 = phase14_remediation_panel_sha256(panel),
+    fixtures_file_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/fixtures.csv"
+    ),
+    freeze_manifest_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase12/freeze_manifest.csv"
+    ),
+    calibration_recipe_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase12/calibration_recipe.json"
+    ),
+    protocol_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/promotion_protocol.json"
+    ),
+    model_registry_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/model_registry.csv"
+    ),
+    seed_registry_sha256 = phase14_calibration_revision_file_sha256(
+      "data/benchmark/phase09/seed_registry.csv"
+    ),
+    phase12_selector_sha256 = phase14_calibration_revision_file_sha256(
+      "R/calibration/calibration_selection.R"
+    ),
+    original_revision_code_sha256 = phase14_calibration_revision_file_sha256(
+      "R/release/calibration_revision.R"
+    ),
+    original_gate_sha256 = phase14_calibration_revision_file_sha256(
+      "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision/calibration_gate.csv"
+    ),
+    original_manifest_sha256 = phase14_calibration_revision_file_sha256(
+      "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision/calibration_revision_manifest.csv"
+    ),
+    remediation_code_sha256 = phase14_calibration_revision_file_sha256(
+      "R/release/calibration_remediation.R"
+    ),
+    remediation_contract_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["remediation_contract"]]
+    ),
+    outer_fold_selection_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["outer_fold_selection"]]
+    ),
+    outer_fold_fits_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["outer_fold_fits"]]
+    ),
+    calibrator_sha256 = phase14_calibration_revision_file_sha256(paths[["calibrator"]]),
+    calibrated_predictions_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["calibrated_predictions"]]
+    ),
+    calibration_gate_sha256 = phase14_calibration_revision_file_sha256(
+      paths[["calibration_gate"]]
+    ),
+    code_commit = phase14_calibration_revision_git_commit(),
+    manifest_self_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  manifest$manifest_self_sha256 <- phase14_calibration_revision_manifest_self_hash(manifest)
+  manifest
+}
+
+phase14_remediation_read_csv <- function(path, name) {
+  if (!file.exists(path)) stop(name, " is missing", call. = FALSE)
+  utils::read.csv(
+    path, stringsAsFactors = FALSE, check.names = FALSE,
+    na.strings = c("NA")
+  )
+}
+
+phase14_remediation_compare_gate <- function(actual, expected) {
+  fields <- setdiff(names(expected), c("code_commit", "row_sha256"))
+  phase14_calibration_revision_require_columns(actual, fields, "Phase 14 remediation gate")
+  numeric_fields <- c(
+    "expected_row_count", "observed_row_count", "unique_fixture_count",
+    "raw_headline_rps", "calibrated_headline_rps", "rps_delta",
+    "raw_headline_brier", "calibrated_headline_brier", "brier_relative_change",
+    "raw_headline_log_loss", "calibrated_headline_log_loss", "log_loss_relative_change",
+    "fold_stability_max_regression", "raw_calibration_error",
+    "calibrated_calibration_error", "calibration_error_delta", "reason_count",
+    "score_support_g"
+  )
+  for (field in fields) {
+    matches <- if (field %in% numeric_fields) {
+      isTRUE(all.equal(as.numeric(actual[[field]]), as.numeric(expected[[field]]), tolerance = 1e-12))
+    } else {
+      identical(as.character(actual[[field]]), as.character(expected[[field]]))
+    }
+    if (!matches) stop("Phase 14 remediation gate decision drifted: ", field, call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Validate the complete immutable calibration-remediation candidate graph.
+#' @export
+phase14_validate_calibration_remediation <- function(
+    output_root = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-remediation-v2",
+    require_promoted = FALSE
+) {
+  paths <- phase14_remediation_output_paths(output_root)
+  if (any(!file.exists(paths))) {
+    stop("Phase 14 remediation artifact graph is incomplete", call. = FALSE)
+  }
+  panel <- phase14_remediation_prepare_panel(phase14_build_incumbent_development_panel())
+  editions <- phase14_remediation_panel_editions(panel)
+  contract <- phase14_remediation_read_csv(paths[["remediation_contract"]], "Phase 14 remediation contract")
+  selection <- phase14_remediation_read_csv(paths[["outer_fold_selection"]], "Phase 14 outer selection")
+  fits <- phase14_remediation_read_csv(paths[["outer_fold_fits"]], "Phase 14 outer fits")
+  predictions <- phase14_remediation_read_csv(
+    paths[["calibrated_predictions"]], "Phase 14 remediation predictions"
+  )
+  gate <- phase14_remediation_read_csv(paths[["calibration_gate"]], "Phase 14 remediation gate")
+  manifest <- phase14_remediation_read_csv(paths[["revision_manifest"]], "Phase 14 remediation manifest")
+  calibrator <- readRDS(paths[["calibrator"]])
+  if ("reason_codes" %in% names(gate)) gate$reason_codes[is.na(gate$reason_codes)] <- ""
+  if ("reason_codes" %in% names(manifest)) manifest$reason_codes[is.na(manifest$reason_codes)] <- ""
+
+  expected_contract <- phase14_remediation_contract_table()
+  if (nrow(contract) != 45L || anyDuplicated(contract$candidate_id) ||
+      !identical(as.character(contract$candidate_id), as.character(expected_contract$candidate_id))) {
+    stop("Phase 14 remediation frozen contract identity drifted", call. = FALSE)
+  }
+  for (i in seq_len(nrow(contract))) {
+    expected_hash <- phase14_calibration_revision_table_sha256(
+      contract[i, setdiff(names(contract), "contract_row_sha256"), drop = FALSE]
+    )
+    if (!identical(tolower(as.character(contract$contract_row_sha256[[i]])), tolower(expected_hash))) {
+      stop("Phase 14 remediation contract row hash mismatch", call. = FALSE)
+    }
+  }
+  if (nrow(selection) != 12L || nrow(fits) != 12L ||
+      !identical(as.character(selection$outer_edition_id), editions) ||
+      !identical(as.character(fits$outer_edition_id), editions)) {
+    stop("Phase 14 remediation requires one canonical selection and fit per outer tournament", call. = FALSE)
+  }
+  fit_link_fields <- c(
+    "outer_training_editions", "inner_validation_editions", "inner_training_map",
+    "selected_candidate_id", "selected_family", "warmup_rows", "scalar_shrinkage",
+    "vector_penalty", "fit_status", "fallback_reason", "optimizer_seed"
+  )
+  for (i in seq_len(12L)) {
+    fit <- fits[i, , drop = FALSE]
+    phase14_remediation_validate_fit_record(fit, panel)
+    selection_hash <- phase14_remediation_selection_sha256(selection[i, , drop = FALSE])
+    if (!identical(
+      tolower(as.character(selection$selection_row_sha256[[i]])), tolower(selection_hash)
+    )) {
+      stop("Phase 14 remediation selection row hash mismatch", call. = FALSE)
+    }
+    for (field in fit_link_fields) {
+      if (!identical(as.character(selection[[field]][[i]]), as.character(fit[[field]][[1L]]))) {
+        stop("Phase 14 remediation selection-to-fit lineage drifted: ", field, call. = FALSE)
+      }
+    }
+    if (!identical(
+      tolower(as.character(selection$fit_record_sha256[[i]])),
+      tolower(as.character(fit$fit_record_sha256[[1L]]))
+    )) {
+      stop("Phase 14 remediation selection-to-fit hash link drifted", call. = FALSE)
+    }
+    outer_open <- min(panel$scheduled_date[panel$edition_id == editions[[i]]])
+    expected_max <- if (i == 1L) "" else as.character(max(
+      panel$actual_completion_date[panel$edition_id %in% editions[seq_len(i - 1L)]]
+    ))
+    if (!identical(as.character(selection$outer_open_date[[i]]), as.character(outer_open)) ||
+        !identical(as.character(selection$outer_training_max_completion_date[[i]]), expected_max)) {
+      stop("Phase 14 remediation selection date cutoff drifted", call. = FALSE)
+    }
+  }
+  if (nrow(predictions) != 630L || anyDuplicated(as.character(predictions$fixture_id)) ||
+      !identical(as.character(predictions$fixture_id), as.character(panel$fixture_id)) ||
+      phase14_calibration_revision_has_holdout_identity(predictions)) {
+    stop("Phase 14 remediation prediction identity is invalid", call. = FALSE)
+  }
+  identity_columns <- c(
+    "run_id", "model_id", "panel_id", "edition_id", "track_id", "fixture_id",
+    "score_distribution_id", "p_over_2_5", "p_under_2_5", "p_btts", "prediction_status"
+  )
+  for (field in identity_columns) {
+    if (!identical(as.character(predictions[[field]]), as.character(panel[[field]]))) {
+      stop("Phase 14 remediation raw/distribution identity drifted: ", field, call. = FALSE)
+    }
+  }
+  for (field in c("p_home", "p_draw", "p_away")) {
+    if (!isTRUE(all.equal(as.numeric(predictions[[field]]), as.numeric(panel[[field]]), tolerance = 0))) {
+      stop("Phase 14 remediation raw probability identity drifted: ", field, call. = FALSE)
+    }
+  }
+  calibrated_columns <- c("p_home_calibrated", "p_draw_calibrated", "p_away_calibrated")
+  calibrated <- as.matrix(predictions[, calibrated_columns, drop = FALSE])
+  storage.mode(calibrated) <- "double"
+  if (any(!is.finite(calibrated)) || any(calibrated <= 0 | calibrated >= 1) ||
+      any(abs(rowSums(calibrated) - 1) > 1e-12)) {
+    stop("Phase 14 remediation calibrated probability simplex is invalid", call. = FALSE)
+  }
+  for (i in seq_len(12L)) {
+    rows <- panel[panel$edition_id == editions[[i]], , drop = FALSE]
+    replay <- phase14_remediation_apply_rows(fits[i, , drop = FALSE], rows)
+    persisted <- calibrated[match(rows$fixture_id, predictions$fixture_id), , drop = FALSE]
+    if (!isTRUE(all.equal(unname(replay), unname(persisted), tolerance = 1e-12))) {
+      stop("Phase 14 remediation outer fit replay mismatch", call. = FALSE)
+    }
+  }
+  if (!is.list(calibrator) || !identical(as.character(calibrator$model_id), "open_nb_incumbent") ||
+      !identical(as.character(calibrator$track_id), "updating") ||
+      !identical(as.character(calibrator$panel_id), "open_core") ||
+      !identical(as.integer(calibrator$development_row_count), 630L) ||
+      !identical(as.integer(calibrator$development_fixture_count), 630L) ||
+      !identical(as.integer(calibrator$score_support), 40L) ||
+      isTRUE(calibrator$holdout_labels_used) || isTRUE(calibrator$authority_mutated) ||
+      !identical(as.character(calibrator$source_panel_sha256), phase14_remediation_panel_sha256(panel))) {
+    stop("Phase 14 remediation calibrator identity is invalid", call. = FALSE)
+  }
+  protocol <- phase12_selection_protocol()
+  comparison <- phase14_remediation_comparison(panel, calibrated, protocol = protocol)
+  expected_gate <- phase14_remediation_gate_row(comparison$comparison, calibrator, protocol)
+  if (nrow(gate) != 1L) stop("Phase 14 remediation requires one gate row", call. = FALSE)
+  gate_hash <- phase14_calibration_revision_table_sha256(
+    gate[, setdiff(names(gate), "row_sha256"), drop = FALSE]
+  )
+  if (!identical(tolower(as.character(gate$row_sha256[[1L]])), tolower(gate_hash))) {
+    stop("Phase 14 remediation gate row hash mismatch", call. = FALSE)
+  }
+  phase14_remediation_compare_gate(gate, expected_gate)
+  promoted <- phase14_calibration_revision_as_logical(gate$calibration_promoted[[1L]])
+  if (promoted) {
+    if (!identical(as.character(calibrator$fit_status), "fitted") ||
+        !isTRUE(calibrator$final_fit_performed) || !isTRUE(calibrator$outer_gate_passed) ||
+        !identical(as.character(gate$primary_probability_view[[1L]]), "calibrated_1x2")) {
+      stop("Phase 14 remediation promoted final fit is invalid", call. = FALSE)
+    }
+  } else if (!identical(as.character(calibrator$fit_status), "raw_fallback") ||
+      isTRUE(calibrator$final_fit_performed) || isTRUE(calibrator$outer_gate_passed) ||
+      !isTRUE(calibrator$failed_result_immutable) ||
+      !identical(as.character(gate$primary_probability_view[[1L]]), "raw_1x2")) {
+    stop("Phase 14 remediation blocked result is not immutable raw fallback", call. = FALSE)
+  }
+  if (isTRUE(require_promoted) && !promoted) {
+    stop("Phase 14 remediation release is blocked and not promoted", call. = FALSE)
+  }
+
+  if (nrow(manifest) != 1L) stop("Phase 14 remediation requires one manifest row", call. = FALSE)
+  manifest_hash <- phase14_calibration_revision_manifest_self_hash(manifest)
+  if (!identical(
+    tolower(as.character(manifest$manifest_self_sha256[[1L]])), tolower(manifest_hash)
+  )) {
+    stop("Phase 14 remediation manifest self-hash mismatch", call. = FALSE)
+  }
+  expected_hashes <- c(
+    remediation_contract_sha256 = phase14_calibration_revision_file_sha256(paths[["remediation_contract"]]),
+    outer_fold_selection_sha256 = phase14_calibration_revision_file_sha256(paths[["outer_fold_selection"]]),
+    outer_fold_fits_sha256 = phase14_calibration_revision_file_sha256(paths[["outer_fold_fits"]]),
+    calibrator_sha256 = phase14_calibration_revision_file_sha256(paths[["calibrator"]]),
+    calibrated_predictions_sha256 = phase14_calibration_revision_file_sha256(paths[["calibrated_predictions"]]),
+    calibration_gate_sha256 = phase14_calibration_revision_file_sha256(paths[["calibration_gate"]]),
+    source_predictions_file_sha256 = phase14_calibration_revision_file_sha256("outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/predictions/fixture_predictions.csv"),
+    source_predictions_slice_sha256 = phase14_remediation_panel_sha256(panel),
+    fixtures_file_sha256 = phase14_calibration_revision_file_sha256("data/benchmark/phase09/fixtures.csv"),
+    freeze_manifest_sha256 = phase14_calibration_revision_file_sha256("data/benchmark/phase12/freeze_manifest.csv"),
+    calibration_recipe_sha256 = phase14_calibration_revision_file_sha256("data/benchmark/phase12/calibration_recipe.json"),
+    protocol_sha256 = phase14_calibration_revision_file_sha256("data/benchmark/phase09/promotion_protocol.json"),
+    model_registry_sha256 = phase14_calibration_revision_file_sha256("data/benchmark/phase09/model_registry.csv"),
+    seed_registry_sha256 = phase14_calibration_revision_file_sha256("data/benchmark/phase09/seed_registry.csv"),
+    phase12_selector_sha256 = phase14_calibration_revision_file_sha256("R/calibration/calibration_selection.R"),
+    original_revision_code_sha256 = phase14_calibration_revision_file_sha256("R/release/calibration_revision.R"),
+    original_gate_sha256 = phase14_calibration_revision_file_sha256("outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision/calibration_gate.csv"),
+    original_manifest_sha256 = phase14_calibration_revision_file_sha256("outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-revision/calibration_revision_manifest.csv"),
+    remediation_code_sha256 = phase14_calibration_revision_file_sha256("R/release/calibration_remediation.R")
+  )
+  phase14_calibration_revision_require_columns(
+    manifest, c(names(expected_hashes), "holdout_labels_used", "authority_mutated",
+                "candidate_authority", "outer_fold_count", "fit_record_count"),
+    "Phase 14 remediation manifest"
+  )
+  for (field in names(expected_hashes)) {
+    if (!identical(tolower(as.character(manifest[[field]][[1L]])),
+                   tolower(as.character(expected_hashes[[field]])))) {
+      stop("Phase 14 remediation artifact or authority hash mismatch: ", field, call. = FALSE)
+    }
+  }
+  if (phase14_calibration_revision_as_logical(manifest$holdout_labels_used[[1L]]) ||
+      phase14_calibration_revision_as_logical(manifest$authority_mutated[[1L]]) ||
+      phase14_calibration_revision_as_logical(manifest$candidate_authority[[1L]]) ||
+      as.integer(manifest$outer_fold_count[[1L]]) != 12L ||
+      as.integer(manifest$fit_record_count[[1L]]) != 12L) {
+    stop("Phase 14 remediation manifest claims forbidden authority or incomplete folds", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+#' Build the all-fold immutable calibration-remediation candidate graph once.
+#' @export
+phase14_build_calibration_remediation <- function(
+    output_root = "outputs/benchmarks/rolling_tournaments/phase14-incumbent-calibration-remediation-v2"
+) {
+  final_root <- phase14_remediation_resolve_path(output_root)
+  if (file.exists(final_root) || dir.exists(final_root)) {
+    stop("Phase 14 remediation output root already exists and is immutable", call. = FALSE)
+  }
+  parent <- dirname(final_root)
+  dir.create(parent, recursive = TRUE, showWarnings = FALSE)
+  staging_root <- file.path(parent, paste0(".", basename(final_root), "-staging-", Sys.getpid()))
+  if (file.exists(staging_root) || dir.exists(staging_root)) {
+    stop("Phase 14 remediation staging root already exists", call. = FALSE)
+  }
+  dir.create(staging_root, recursive = TRUE, showWarnings = FALSE)
+  keep_staging <- FALSE
+  on.exit({
+    if (!keep_staging && dir.exists(staging_root)) unlink(staging_root, recursive = TRUE, force = TRUE)
+  }, add = TRUE)
+
+  panel <- phase14_remediation_prepare_panel(phase14_build_incumbent_development_panel())
+  editions <- phase14_remediation_panel_editions(panel)
+  contract <- phase14_calibration_remediation_contract()
+  protocol <- phase12_selection_protocol()
+  fit_cache <- new.env(parent = emptyenv())
+  selections <- vector("list", length(editions))
+  fits <- vector("list", length(editions))
+  predictions <- vector("list", length(editions))
+  for (i in seq_along(editions)) {
+    result <- phase14_select_nested_calibrator(
+      panel, editions[[i]], contract = contract, fit_cache = fit_cache, protocol = protocol
+    )
+    selection <- result$selection
+    outer_rows <- panel[panel$edition_id == editions[[i]], , drop = FALSE]
+    prior <- if (i == 1L) character() else editions[seq_len(i - 1L)]
+    training <- panel[panel$edition_id %in% prior, , drop = FALSE]
+    selection$outer_open_date <- as.character(min(outer_rows$scheduled_date))
+    selection$outer_training_max_completion_date <- if (nrow(training)) {
+      as.character(max(training$actual_completion_date))
+    } else ""
+    selection$fit_record_sha256 <- result$fit$fit_record_sha256[[1L]]
+    selection$selection_row_sha256 <- ""
+    selection$selection_row_sha256 <- phase14_remediation_selection_sha256(selection)
+    selections[[i]] <- selection
+    fits[[i]] <- result$fit
+    predictions[[i]] <- result$predictions
+  }
+  selection_table <- do.call(rbind, selections)
+  fit_table <- do.call(rbind, fits)
+  prediction_table <- do.call(rbind, predictions)
+  prediction_table <- prediction_table[
+    match(as.character(panel$fixture_id), as.character(prediction_table$fixture_id)), , drop = FALSE
+  ]
+  rownames(selection_table) <- NULL
+  rownames(fit_table) <- NULL
+  rownames(prediction_table) <- NULL
+  calibrated <- as.matrix(prediction_table[, c(
+    "p_home_calibrated", "p_draw_calibrated", "p_away_calibrated"
+  )])
+  storage.mode(calibrated) <- "double"
+  comparison <- phase14_remediation_comparison(panel, calibrated, protocol = protocol)
+  decision <- comparison$decision
+  calibrator <- phase14_remediation_calibrator(
+    panel, decision, contract, protocol, fit_cache = fit_cache
+  )
+  gate <- phase14_remediation_gate_row(comparison$comparison, calibrator, protocol)
+
+  staging_paths <- phase14_remediation_output_paths(staging_root)
+  phase14_calibration_revision_write_csv(
+    phase14_remediation_contract_table(contract), staging_paths[["remediation_contract"]]
+  )
+  phase14_calibration_revision_write_csv(selection_table, staging_paths[["outer_fold_selection"]])
+  phase14_calibration_revision_write_csv(fit_table, staging_paths[["outer_fold_fits"]])
+  saveRDS(calibrator, staging_paths[["calibrator"]], version = 2)
+  phase14_calibration_revision_write_csv(
+    prediction_table, staging_paths[["calibrated_predictions"]]
+  )
+  phase14_calibration_revision_write_csv(gate, staging_paths[["calibration_gate"]])
+  manifest <- phase14_remediation_manifest(staging_root, gate, calibrator)
+  phase14_calibration_revision_write_csv(manifest, staging_paths[["revision_manifest"]])
+  phase14_validate_calibration_remediation(staging_root, require_promoted = FALSE)
+  if (!file.rename(staging_root, final_root)) {
+    stop("Phase 14 remediation atomic publish failed", call. = FALSE)
+  }
+  keep_staging <- TRUE
+  list(
+    output_root = final_root,
+    paths = phase14_remediation_output_paths(final_root),
+    decision = decision, gate = gate, calibrator = calibrator,
+    selected_families = stats::setNames(as.character(fit_table$selected_family), editions)
+  )
+}
