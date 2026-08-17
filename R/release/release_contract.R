@@ -107,6 +107,132 @@ phase12_release_contract_manifest_path <- function(trusted_root, release_manifes
   supplied
 }
 
+phase12_release_contract_assert_selected_topology <- function(trusted_root, manifest_path) {
+  trusted_root <- phase12_release_trusted_root(trusted_root)
+  manifest_path <- phase12_release_contract_assert_under_root(
+    manifest_path,
+    trusted_root,
+    "release manifest"
+  )
+  release_dir <- dirname(manifest_path)
+  if (!identical(basename(manifest_path), "release_manifest.csv") ||
+      !identical(dirname(release_dir), trusted_root)) {
+    stop(
+      "Phase 12 selected release manifest must use exact immediate-child topology",
+      call. = FALSE
+    )
+  }
+  if (phase12_release_contract_is_symlink(release_dir) ||
+      phase12_release_contract_is_symlink(manifest_path)) {
+    stop("Phase 12 selected release path must not be symlinked", call. = FALSE)
+  }
+  selected_paths <- list.files(
+    release_dir,
+    recursive = TRUE,
+    full.names = TRUE,
+    all.files = TRUE,
+    include.dirs = TRUE,
+    no.. = TRUE
+  )
+  if (length(selected_paths) &&
+      any(vapply(selected_paths, phase12_release_contract_is_symlink, logical(1)))) {
+    stop("Phase 12 selected release tree must not contain symlinks", call. = FALSE)
+  }
+  invisible(list(release_dir = release_dir, manifest_path = manifest_path))
+}
+
+phase14_release_selector_hash <- function(selector) {
+  projection <- selector
+  projection$row_sha256 <- ""
+  phase12_release_table_hash(projection)
+}
+
+phase14_release_read_selector <- function(selector_path, trusted_release_root) {
+  trusted_release_root <- phase12_release_trusted_root(trusted_release_root)
+  if (length(selector_path) != 1L || is.null(selector_path) ||
+      is.na(selector_path) || !nzchar(as.character(selector_path))) {
+    stop("Phase 14 approved release selector path is invalid", call. = FALSE)
+  }
+  expected_path <- file.path(trusted_release_root, "approved_release.csv")
+  if (!file.exists(selector_path)) {
+    stop("Phase 14 approved release selector is missing", call. = FALSE)
+  }
+  if (phase12_release_contract_is_symlink(selector_path)) {
+    stop("Phase 14 approved release selector must not be a symlink", call. = FALSE)
+  }
+  supplied_path <- normalizePath(selector_path, winslash = "/", mustWork = TRUE)
+  if (!identical(supplied_path, expected_path)) {
+    stop(
+      "Phase 14 approved release selector must be approved_release.csv inside the trusted root",
+      call. = FALSE
+    )
+  }
+  if (phase12_release_contract_is_symlink(supplied_path)) {
+    stop("Phase 14 approved release selector must not be a symlink", call. = FALSE)
+  }
+  selector <- utils::read.csv(
+    supplied_path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    colClasses = "character",
+    na.strings = character()
+  )
+  expected_columns <- c(
+    "release_id", "release_manifest_path", "manifest_sha256",
+    "approved_at_utc", "row_sha256"
+  )
+  if (nrow(selector) != 1L || !identical(names(selector), expected_columns)) {
+    stop("Phase 14 approved release selector must contain one exact row", call. = FALSE)
+  }
+  if (any(!nzchar(as.character(selector[1L, expected_columns, drop = TRUE])))) {
+    stop("Phase 14 approved release selector contains an empty identity", call. = FALSE)
+  }
+  expected_self_hash <- phase14_release_selector_hash(selector)
+  if (!identical(tolower(as.character(selector$row_sha256[[1L]])), expected_self_hash)) {
+    stop("Phase 14 approved release selector self-hash mismatch", call. = FALSE)
+  }
+  release_id <- as.character(selector$release_id[[1L]])
+  if (grepl("[/\\\\]", release_id) || grepl("(^|/)\\.\\.?(/|$)", release_id)) {
+    stop("Phase 14 approved release selector release identity is unsafe", call. = FALSE)
+  }
+  relative_manifest <- phase12_release_safe_relative_path(
+    as.character(selector$release_manifest_path[[1L]])
+  )
+  expected_manifest <- paste0(release_id, "/release_manifest.csv")
+  if (!identical(relative_manifest, expected_manifest)) {
+    stop("Phase 14 approved release selector topology disagrees with release identity", call. = FALSE)
+  }
+  if (!grepl("^[0-9a-fA-F]{64}$", as.character(selector$manifest_sha256[[1L]])) ||
+      !grepl("^[0-9a-fA-F]{64}$", as.character(selector$row_sha256[[1L]]))) {
+    stop("Phase 14 approved release selector hash identity is invalid", call. = FALSE)
+  }
+  manifest_path <- phase12_release_path_under_root(
+    trusted_release_root,
+    relative_manifest,
+    must_work = TRUE
+  )
+  topology <- phase12_release_contract_assert_selected_topology(
+    trusted_release_root,
+    manifest_path
+  )
+  manifest_sha256 <- phase12_release_file_sha256(manifest_path)
+  if (!identical(
+    manifest_sha256,
+    tolower(as.character(selector$manifest_sha256[[1L]]))
+  )) {
+    stop("Phase 14 approved release selector manifest hash mismatch", call. = FALSE)
+  }
+  list(
+    selector = selector,
+    selector_path = supplied_path,
+    selector_self_sha256 = expected_self_hash,
+    trusted_release_root = trusted_release_root,
+    release_dir = topology$release_dir,
+    release_manifest_path = topology$manifest_path,
+    manifest_sha256 = manifest_sha256
+  )
+}
+
 phase12_release_contract_read_benchmark_evidence <- function(release_root) {
   path <- phase12_release_contract_path(release_root, "reports/benchmark_report.md")
   lines <- readLines(path, warn = FALSE)
@@ -187,25 +313,89 @@ phase12_release_contract_validate_candidate_authority <- function(
   invisible(list(candidate_id = candidate_id, selected_model_id = selected_id, incumbent_id = incumbent_id, status = status, track_id = metadata$track_id, freeze_id = metadata$freeze_id, decision_sha256 = metadata$decision_sha256))
 }
 
+phase14_release_contract_validate_calibration_authority <- function(manifest, contract) {
+  required <- c(
+    "source_release_id", "model_sha256", "calibrator_id", "calibrator_sha256",
+    "calibrator_fit_status", "raw_probability_view", "model_data_cutoff",
+    "calibration_data_cutoff", "calibration_gate_id",
+    "calibration_gate_sha256", "calibration_gate_passed"
+  )
+  if (length(setdiff(required, names(contract)))) {
+    stop("Phase 14 calibrated release authority is incomplete", call. = FALSE)
+  }
+  metadata <- lapply(
+    manifest[1L, c(
+      "status", "selected_model_id", "candidate_id", "incumbent_id",
+      "track_id", "panel_id", "score_support_g", "primary_probability_view",
+      "freeze_id", "decision_sha256"
+    ), drop = FALSE],
+    phase12_release_scalar
+  )
+  hash_fields <- c(
+    as.character(contract$model_sha256),
+    as.character(contract$calibrator_sha256),
+    as.character(contract$calibration_gate_sha256)
+  )
+  model_cutoff <- suppressWarnings(as.Date(as.character(contract$model_data_cutoff)))
+  calibration_cutoff <- suppressWarnings(as.Date(as.character(contract$calibration_data_cutoff)))
+  if (!identical(metadata$status, "approved") ||
+      !identical(metadata$selected_model_id, "open_nb_incumbent") ||
+      !identical(metadata$candidate_id, metadata$selected_model_id) ||
+      !identical(metadata$incumbent_id, metadata$selected_model_id) ||
+      !identical(metadata$track_id, "updating") ||
+      !identical(metadata$panel_id, "open_core") ||
+      !identical(as.integer(metadata$score_support_g), 40L) ||
+      !identical(metadata$primary_probability_view, "calibrated_1x2") ||
+      !identical(as.character(contract$raw_probability_view), "raw_1x2") ||
+      !identical(as.character(contract$calibrator_fit_status), "fitted") ||
+      !isTRUE(contract$calibration_gate_passed) ||
+      any(!grepl("^[0-9a-fA-F]{64}$", hash_fields)) ||
+      is.na(model_cutoff) || is.na(calibration_cutoff) ||
+      calibration_cutoff > model_cutoff) {
+    stop("Phase 14 calibrated release authority identity is invalid", call. = FALSE)
+  }
+  invisible(list(
+    candidate_id = metadata$candidate_id,
+    selected_model_id = metadata$selected_model_id,
+    incumbent_id = metadata$incumbent_id,
+    status = metadata$status,
+    track_id = metadata$track_id,
+    freeze_id = metadata$freeze_id,
+    decision_sha256 = metadata$decision_sha256,
+    calibration_gate_id = as.character(contract$calibration_gate_id),
+    calibration_gate_sha256 = tolower(as.character(contract$calibration_gate_sha256))
+  ))
+}
+
 #' Validate a release's metadata and candidate authority without reading model RDS files.
 #' @export
 preflight_phase12_approved_release <- function(trusted_root = NULL, release_manifest_path = NULL) {
   phase12_release_contract_source_if_missing()
   if (is.null(trusted_root)) stop("Phase 12 dashboard release root is required", call. = FALSE)
   trusted_root <- phase12_release_trusted_root(trusted_root)
-  candidates <- phase12_release_contract_manifest_candidates(trusted_root)
-  if (length(candidates) != 1L) stop("Phase 12 release resolution is ambiguous or missing", call. = FALSE)
-  pinned <- phase12_release_contract_assert_under_root(candidates[[1L]], trusted_root, "release manifest")
-  if (!is.null(release_manifest_path) && !identical(phase12_release_contract_manifest_path(trusted_root, release_manifest_path), pinned)) stop("Phase 12 supplied release manifest is not the sole trusted candidate", call. = FALSE)
+  if (is.null(release_manifest_path)) {
+    candidates <- phase12_release_contract_manifest_candidates(trusted_root)
+    if (length(candidates) != 1L) stop("Phase 12 release resolution is ambiguous or missing", call. = FALSE)
+    pinned <- phase12_release_contract_assert_under_root(candidates[[1L]], trusted_root, "release manifest")
+  } else {
+    pinned <- phase12_release_contract_manifest_path(trusted_root, release_manifest_path)
+    phase12_release_contract_assert_selected_topology(trusted_root, pinned)
+  }
   release_root <- dirname(pinned)
   validated <- validate_phase12_complete_release_bundle(release_root, load_models = FALSE)
   manifest <- validated$release_manifest
   contract <- validated$model_contract
   provenance <- phase12_release_read_contract(phase12_release_contract_path(release_root, "manifests/provenance.json"))
   report <- phase12_release_contract_read_benchmark_evidence(release_root)
-  authority <- phase12_release_contract_validate_candidate_authority(
-    release_root, manifest, contract, validated$freeze_manifest, validated$final_evaluation_manifest, provenance, report
-  )
+  authority <- if (identical(as.character(contract$primary_probability_view), "calibrated_1x2") &&
+      !is.null(contract$calibration_gate_id)) {
+    phase14_release_contract_validate_calibration_authority(manifest, contract)
+  } else {
+    phase12_release_contract_validate_candidate_authority(
+      release_root, manifest, contract, validated$freeze_manifest,
+      validated$final_evaluation_manifest, provenance, report
+    )
+  }
   result <- list(
     trusted_root = trusted_root, release_root = release_root, release_manifest_path = pinned,
     release_manifest = manifest, model_contract = contract,
@@ -272,6 +462,144 @@ resolve_phase12_approved_release <- function(trusted_root = "outputs/releases", 
     metadata = phase12_release_metadata(list(
       release_root = release_root, release_manifest = manifest, model_contract = contract
     ))
+  )
+}
+
+#' Resolve the one calibrated release named by an explicit approved selector.
+#' @export
+phase14_resolve_approved_release <- function(selector_path, trusted_release_root) {
+  phase12_release_contract_source_if_missing()
+  selected <- phase14_release_read_selector(selector_path, trusted_release_root)
+  selected_metadata <- validate_phase12_complete_release_bundle(
+    selected$release_dir,
+    load_models = FALSE
+  )
+  if (!identical(
+    as.character(selected_metadata$model_contract$primary_probability_view),
+    "calibrated_1x2"
+  ) || !identical(
+    as.character(selected_metadata$model_contract$calibrator_fit_status),
+    "fitted"
+  ) || !isTRUE(selected_metadata$model_contract$calibration_gate_passed)) {
+    stop(
+      "Phase 14 runtime release requires fitted calibrated authority; raw fallback is audit-only",
+      call. = FALSE
+    )
+  }
+  preflight <- preflight_phase12_approved_release(
+    trusted_root = selected$trusted_release_root,
+    release_manifest_path = selected$release_manifest_path
+  )
+  release_id <- as.character(selected$selector$release_id[[1L]])
+  if (!identical(as.character(preflight$metadata$release_id), release_id) ||
+      !identical(basename(preflight$release_root), release_id)) {
+    stop("Phase 14 selector and release identity disagree", call. = FALSE)
+  }
+  resolved <- resolve_phase12_approved_release(
+    trusted_root = selected$trusted_release_root,
+    release_manifest_path = selected$release_manifest_path,
+    validated_preflight = preflight
+  )
+  selected_fresh <- phase14_release_read_selector(selector_path, trusted_release_root)
+  selector_identity <- c(
+    selected$selector_self_sha256,
+    selected$manifest_sha256,
+    selected$release_manifest_path
+  )
+  fresh_identity <- c(
+    selected_fresh$selector_self_sha256,
+    selected_fresh$manifest_sha256,
+    selected_fresh$release_manifest_path
+  )
+  if (!identical(selector_identity, fresh_identity)) {
+    stop("Phase 14 approved release selector changed during resolution", call. = FALSE)
+  }
+
+  contract <- resolved$model_contract
+  manifest <- resolved$release_manifest
+  model <- resolved$model
+  calibrator <- resolved$calibrator
+  required_contract <- c(
+    "model_sha256", "calibrator_id", "calibrator_sha256",
+    "calibrator_fit_status", "model_data_cutoff", "calibration_data_cutoff",
+    "calibration_gate_id", "calibration_gate_sha256", "calibration_gate_passed",
+    "labels_embedded"
+  )
+  if (length(setdiff(required_contract, names(contract)))) {
+    stop("Phase 14 calibrated release contract is incomplete", call. = FALSE)
+  }
+  if (!identical(as.character(contract$primary_probability_view), "calibrated_1x2") ||
+      !identical(as.character(contract$calibrator_fit_status), "fitted") ||
+      !isTRUE(contract$calibration_gate_passed) ||
+      !identical(contract$labels_embedded, FALSE) ||
+      !identical(as.integer(contract$score_support_g), 40L)) {
+    stop("Phase 14 runtime release requires fitted calibrated G=40 authority", call. = FALSE)
+  }
+  if (!identical(as.character(calibrator$fit_status), "fitted") ||
+      !isTRUE(calibrator$calibration_gate_passed) ||
+      !isTRUE(calibrator$distribution_unchanged) ||
+      !identical(calibrator$labels_embedded, FALSE) ||
+      !identical(as.character(calibrator$primary_probability_view), "calibrated_1x2")) {
+    stop("Phase 14 runtime release fitted calibrator identity is invalid", call. = FALSE)
+  }
+  model_path <- file.path(selected$release_dir, as.character(contract$model_artifact))
+  calibrator_path <- file.path(selected$release_dir, as.character(contract$calibrator_artifact))
+  actual_model_sha256 <- phase12_release_file_sha256(model_path)
+  actual_calibrator_sha256 <- phase12_release_file_sha256(calibrator_path)
+  if (!identical(actual_model_sha256, tolower(as.character(contract$model_sha256))) ||
+      !identical(actual_calibrator_sha256, tolower(as.character(contract$calibrator_sha256)))) {
+    stop("Phase 14 runtime release object hash identity drifted", call. = FALSE)
+  }
+  if (is.null(model$model_id) ||
+      !identical(as.character(model$model_id), as.character(contract$selected_model_id)) ||
+      is.null(calibrator$candidate_id) ||
+      !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id)) ||
+      is.null(calibrator$calibrator_id) ||
+      !identical(as.character(calibrator$calibrator_id), as.character(contract$calibrator_id))) {
+    stop("Phase 14 runtime release model or calibrator identity drifted", call. = FALSE)
+  }
+  model_cutoff <- if (!is.null(model$training_dates)) {
+    format(max(as.Date(model$training_dates)), "%Y-%m-%d")
+  } else {
+    ""
+  }
+  if (!identical(model_cutoff, as.character(contract$model_data_cutoff)) ||
+      !identical(as.character(calibrator$model_data_cutoff), as.character(contract$model_data_cutoff)) ||
+      !identical(as.character(calibrator$calibration_data_cutoff), as.character(contract$calibration_data_cutoff)) ||
+      !identical(as.character(calibrator$model_sha256), actual_model_sha256) ||
+      !identical(as.character(calibrator$calibration_gate_id), as.character(contract$calibration_gate_id)) ||
+      !identical(as.character(calibrator$calibration_gate_sha256), as.character(contract$calibration_gate_sha256))) {
+    stop("Phase 14 runtime release cutoff or calibration identity drifted", call. = FALSE)
+  }
+  self <- manifest[as.character(manifest$artifact) == "release_manifest.csv", , drop = FALSE]
+  if (nrow(self) != 1L) stop("Phase 14 release manifest self identity is invalid", call. = FALSE)
+  list(
+    release_dir = selected$release_dir,
+    release_manifest_path = selected$release_manifest_path,
+    release_identity = list(
+      release_id = release_id,
+      status = as.character(contract$status),
+      manifest_sha256 = selected$manifest_sha256,
+      manifest_self_sha256 = as.character(self$manifest_self_sha256[[1L]]),
+      selector_self_sha256 = selected$selector_self_sha256
+    ),
+    model_identity = list(
+      model_id = as.character(contract$selected_model_id),
+      sha256 = actual_model_sha256
+    ),
+    calibrator_identity = list(
+      calibrator_id = as.character(contract$calibrator_id),
+      sha256 = actual_calibrator_sha256,
+      fit_status = as.character(contract$calibrator_fit_status),
+      calibration_gate_id = as.character(contract$calibration_gate_id),
+      calibration_gate_sha256 = as.character(contract$calibration_gate_sha256)
+    ),
+    model_data_cutoff = as.character(contract$model_data_cutoff),
+    calibration_data_cutoff = as.character(contract$calibration_data_cutoff),
+    support_max = as.integer(contract$score_support_g),
+    primary_probability_view = as.character(contract$primary_probability_view),
+    model = model,
+    calibrator = calibrator
   )
 }
 

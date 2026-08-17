@@ -569,7 +569,7 @@ test_that("14-06 selector-aware preflight rejects forgery and ignores unselected
     fitted$release_id
   )
 
-  forged_selector <- tempfile("phase14-forged-selector-", fileext = ".csv")
+  selector_bytes <- phase14_release_test_read_bytes(fitted$selector_path)
   selector <- utils::read.csv(
     fitted$selector_path,
     stringsAsFactors = FALSE,
@@ -578,14 +578,15 @@ test_that("14-06 selector-aware preflight rejects forgery and ignores unselected
   )
   selector$manifest_sha256 <- strrep("f", 64L)
   selector$row_sha256 <- phase14_release_fixture_selector_hash(selector)
-  phase12_release_write_csv(selector, forged_selector)
+  phase12_release_write_csv(selector, fitted$selector_path)
   expect_error(
     resolver(
-      selector_path = forged_selector,
+      selector_path = fitted$selector_path,
       trusted_release_root = fitted$trusted_root
     ),
-    "manifest|hash|selector"
+    "selector manifest hash"
   )
+  phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
 })
 
 test_that("14-06 runtime resolution rejects raw fallback and direct-manifest authority", {
@@ -635,23 +636,23 @@ test_that("14-06 selector path, self-hash, traversal, and topology fail closed",
     "selector.*trusted root|approved_release"
   )
 
-  forged_selector <- tempfile("phase14-self-hash-selector-", fileext = ".csv")
+  selector_bytes <- phase14_release_test_read_bytes(fitted$selector_path)
   self_hash_forgery <- selector
   self_hash_forgery$release_id <- "forged-release"
-  phase12_release_write_csv(self_hash_forgery, forged_selector)
+  phase12_release_write_csv(self_hash_forgery, fitted$selector_path)
   expect_error(
-    resolver(forged_selector, fitted$trusted_root),
-    "selector.*trusted root|approved_release|self-hash"
+    resolver(fitted$selector_path, fitted$trusted_root),
+    "selector self-hash"
   )
+  phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
 
-  selector_bytes <- phase14_release_test_read_bytes(fitted$selector_path)
   traversal <- selector
   traversal$release_manifest_path <- "../outside/release_manifest.csv"
   traversal$row_sha256 <- phase14_release_fixture_selector_hash(traversal)
   phase12_release_write_csv(traversal, fitted$selector_path)
   expect_error(
     resolver(fitted$selector_path, fitted$trusted_root),
-    "relative path|traversal|trusted root"
+    "unsafe|relative path|traversal|trusted root"
   )
   phase14_release_test_write_bytes(fitted$selector_path, selector_bytes)
 
