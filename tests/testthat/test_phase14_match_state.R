@@ -374,7 +374,7 @@ phase14_match_state_test_copy_tree <- function(source, target) {
   invisible(target)
 }
 
-phase14_match_state_test_snapshot_tree <- function(root) {
+phase14_match_state_test_snapshot_tree <- function(root, include_bytes = TRUE) {
   if (!dir.exists(root)) return(setNames(list(), character()))
   files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE, no.. = TRUE)
   files <- files[!file.info(files)$isdir]
@@ -383,7 +383,7 @@ phase14_match_state_test_snapshot_tree <- function(root) {
   setNames(lapply(files, function(path) {
     bytes <- readBin(path, what = "raw", n = file.info(path)$size)
     list(
-      bytes = bytes,
+      bytes = if (isTRUE(include_bytes)) bytes else raw(0),
       byte_count = length(bytes),
       sha256 = digest::digest(bytes, algo = "sha256", serialize = FALSE)
     )
@@ -664,6 +664,95 @@ test_that("temporary schema-v2 publication graph is complete and loader-valid", 
   }
   expect_true(isTRUE(attr(publication$loaded, "phase13_complete_registry")))
 })
+
+phase14_match_state_test_snapshot_file <- function(path) {
+  if (!file.exists(path) || dir.exists(path)) {
+    return(list(exists = FALSE, bytes = raw(0), byte_count = 0L, sha256 = ""))
+  }
+  bytes <- readBin(path, what = "raw", n = file.info(path)$size)
+  list(
+    exists = TRUE,
+    bytes = bytes,
+    byte_count = length(bytes),
+    sha256 = digest::digest(bytes, algo = "sha256", serialize = FALSE)
+  )
+}
+
+phase14_match_state_test_run_v2_rollback_matrix <- function() {
+  acquire <- phase14_match_state_test_load_acquire()
+  sandbox <- phase14_match_state_test_copy_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  targets <- acquire$phase13_normalized_publication_targets(
+    sandbox$accepted_root,
+    sandbox$registry_root
+  )
+  snapshot_targets <- phase14_match_state_test_api(acquire, "phase13_snapshot_publication_targets")
+  restore_target_snapshot <- function(actual, expected) {
+    phase14_match_state_test_expect_snapshot_equal(actual, expected)
+  }
+  durable_targets <- acquire$phase13_normalized_publication_targets(
+    file.path(phase14_match_state_test_project_root, "data/competition/accepted"),
+    file.path(phase14_match_state_test_project_root, "data/competition/registries")
+  )
+  durable_before <- snapshot_targets(durable_targets)
+  handoff_root <- phase14_match_state_test_build_source_handoff(acquire, sandbox)
+  acquire$phase13_publish_normalized_editions(
+    output_root = sandbox$accepted_root,
+    registry_root = sandbox$registry_root,
+    registry_context_root = sandbox$registry_root,
+    handoff_root = handoff_root
+  )
+  baseline <- snapshot_targets(targets)
+  expect_identical(unname(baseline$exists), rep(TRUE, 14L))
+  competition_editions_before <- phase14_match_state_test_snapshot_file(
+    file.path(sandbox$registry_root, "competition_editions.csv")
+  )
+  refresh_before <- phase14_match_state_test_snapshot_tree(
+    file.path(sandbox$registry_root, "refresh_batches")
+  )
+  unrelated_before <- phase14_match_state_test_snapshot_file(sandbox$unrelated)
+  release_before <- phase14_match_state_test_snapshot_tree(
+    file.path(phase14_match_state_test_project_root, "outputs/releases"),
+    include_bytes = FALSE
+  )
+  publication_root <- dirname(sandbox$accepted_root)
+  for (failure_index in seq_along(targets)) {
+    expect_error(
+      acquire$phase13_publish_normalized_editions(
+        output_root = sandbox$accepted_root,
+        registry_root = sandbox$registry_root,
+        registry_context_root = sandbox$registry_root,
+        handoff_root = handoff_root,
+        failure_injector = function(index, target, transaction) index == failure_index
+      ),
+      "Injected|promotion|failure"
+    )
+    restore_target_snapshot(snapshot_targets(targets), baseline)
+    expect_identical(
+      phase14_match_state_test_snapshot_file(file.path(sandbox$registry_root, "competition_editions.csv")),
+      competition_editions_before
+    )
+    expect_identical(
+      phase14_match_state_test_snapshot_tree(file.path(sandbox$registry_root, "refresh_batches")),
+      refresh_before
+    )
+    expect_identical(phase14_match_state_test_snapshot_file(sandbox$unrelated), unrelated_before)
+    expect_false(file.exists(file.path(publication_root, ".phase13-publication.lock")))
+    expect_false(any(grepl("^\\.phase13-publication-(stage|backup)-", list.files(publication_root))))
+  }
+  expect_identical(
+    snapshot_targets(durable_targets)$sha256,
+    durable_before$sha256
+  )
+  expect_identical(
+    phase14_match_state_test_snapshot_tree(
+      file.path(phase14_match_state_test_project_root, "outputs/releases"),
+      include_bytes = FALSE
+    ),
+    release_before
+  )
+  list(passed = TRUE, failure_count = length(targets), target_count = length(targets))
+}
 
 test_that("every promotion index restores the complete graph and unrelated paths", {
   rollback <- phase14_match_state_test_run_v2_rollback_matrix()
