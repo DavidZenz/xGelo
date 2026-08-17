@@ -41,6 +41,8 @@ production_path <- file.path(
   "R/competition/match_state.R"
 )
 if (file.exists(production_path)) source(production_path, local = .GlobalEnv)
+source(file.path(phase14_match_state_test_project_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
+source(file.path(phase14_match_state_test_project_root, "R/competition/team_identity.R"), local = .GlobalEnv)
 
 test_that("lifecycle fixture freezes the complete D-02 state matrix", {
   cases <- phase14_match_state_cases()
@@ -162,4 +164,195 @@ test_that("canonical match API enforces the frozen lifecycle and score contract"
       info = invalid$case_id[[index]]
     )
   }
+})
+
+phase14_match_state_test_identity_map <- function() {
+  data.frame(
+    team_id = c("team-a", "team-b"),
+    fifa_code = c("AAA", "BBB"),
+    canonical_name = c("Team A", "Team B"),
+    aliases = c("", ""),
+    uefa_source_team_id = c("source-a", "source-b"),
+    uefa_display_name_current = c("Team A", "Team B"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+test_that("accepted match contracts expose explicit versioned v2 schemas", {
+  fixture_schema <- phase14_normalized_fixture_schema()
+  result_schema <- phase14_normalized_result_schema()
+
+  expect_identical(
+    phase14_source_compact_resource_schema()$fixtures,
+    c(
+      phase13_source_compact_resource_schema()$fixtures,
+      "source_group_id", "group_id", "source_status", "kickoff_confirmed",
+      "confirmed_kickoff_at_utc"
+    )
+  )
+  expect_true(all(c(
+    "source_group_id", "group_id", "source_status", "kickoff_confirmed",
+    "confirmed_kickoff_at_utc"
+  ) %in% fixture_schema))
+  expect_true(all(c(
+    "source_status", "match_status", "completion_method",
+    "regulation_home_goals", "regulation_away_goals", "final_home_goals",
+    "final_away_goals", "shootout_home_goals", "shootout_away_goals",
+    "winner_team_id", "evidence_completed_at_utc", "counts_for_standings",
+    "counts_for_form"
+  ) %in% result_schema))
+  expect_identical(
+    phase14_normalized_fixture_schema()[[1L]],
+    "schema_version"
+  )
+  expect_identical(
+    phase14_normalized_result_schema()[[1L]],
+    "schema_version"
+  )
+})
+
+test_that("fixture v2 preserves source wording and fails closed on optional evidence", {
+  identity_map <- phase14_match_state_test_identity_map()
+  source_fixture <- data.frame(
+    source_fixture_id = "fixture-v2",
+    source_group_id = "group-a",
+    group_id = "group-a",
+    home_uefa_source_team_id = "source-a",
+    away_uefa_source_team_id = "source-b",
+    home_display_name = "Team A",
+    away_display_name = "Team B",
+    scheduled_at_utc = "2026-06-10T18:00:00Z",
+    status = "scheduled",
+    kickoff_confirmed = TRUE,
+    confirmed_kickoff_at_utc = "2026-06-10T18:00:00Z",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  normalized <- phase13_normalize_fixture_rows(
+    source_fixture,
+    identity_map = identity_map,
+    edition_id = "edition-v2",
+    source_artifact_id = "artifact-fixtures-v2",
+    schema_version = "phase14-normalized-fixture-v2"
+  )
+
+  expect_named(normalized, phase14_normalized_fixture_schema())
+  expect_identical(normalized$schema_version, "phase14-normalized-fixture-v2")
+  expect_identical(normalized$fixture_id, "edition-v2-fixture-v2")
+  expect_identical(normalized$source_status, "scheduled")
+  expect_identical(normalized$group_id, "group-a")
+  expect_identical(normalized$source_group_id, "group-a")
+  expect_true(normalized$kickoff_confirmed)
+  expect_identical(normalized$confirmed_kickoff_at_utc, "2026-06-10T18:00:00Z")
+  expect_identical(normalized$source_artifact_id, "artifact-fixtures-v2")
+  expect_true(grepl("^[0-9a-f]{64}$", normalized$row_sha256))
+
+  absent <- source_fixture[, c(
+    "source_fixture_id", "home_uefa_source_team_id", "away_uefa_source_team_id",
+    "home_display_name", "away_display_name", "scheduled_at_utc", "status"
+  ), drop = FALSE]
+  absent <- phase13_normalize_fixture_rows(
+    absent,
+    identity_map = identity_map,
+    edition_id = "edition-v2",
+    source_artifact_id = "artifact-fixtures-v2",
+    schema_version = "phase14-normalized-fixture-v2"
+  )
+  expect_false(absent$kickoff_confirmed)
+  expect_true(is.na(absent$source_group_id))
+  expect_true(is.na(absent$group_id))
+  expect_true(is.na(absent$confirmed_kickoff_at_utc))
+})
+
+test_that("result v2 keeps lifecycle/completion and score axes independent", {
+  identity_map <- phase14_match_state_test_identity_map()
+  source_fixture <- data.frame(
+    source_fixture_id = "fixture-v2",
+    source_group_id = "group-a",
+    group_id = "group-a",
+    home_uefa_source_team_id = "source-a",
+    away_uefa_source_team_id = "source-b",
+    home_display_name = "Team A",
+    away_display_name = "Team B",
+    scheduled_at_utc = "2026-06-10T18:00:00Z",
+    status = "after_penalties",
+    kickoff_confirmed = TRUE,
+    confirmed_kickoff_at_utc = "2026-06-10T18:00:00Z",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  normalized_fixtures <- phase13_normalize_fixture_rows(
+    source_fixture,
+    identity_map = identity_map,
+    edition_id = "edition-v2",
+    source_artifact_id = "artifact-fixtures-v2",
+    schema_version = "phase14-normalized-fixture-v2"
+  )
+  source_result <- data.frame(
+    source_fixture_id = "fixture-v2",
+    status = "after_penalties",
+    home_goals = 1L,
+    away_goals = 1L,
+    match_status = "completed",
+    completion_method = "penalties",
+    regulation_home_goals = 1L,
+    regulation_away_goals = 1L,
+    final_home_goals = 1L,
+    final_away_goals = 1L,
+    shootout_home_goals = 4L,
+    shootout_away_goals = 3L,
+    winner_team_id = "team-a",
+    evidence_completed_at_utc = "2026-06-10T20:10:00Z",
+    counts_for_standings = TRUE,
+    counts_for_form = TRUE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+
+  normalized <- phase13_normalize_accepted_result_rows(
+    source_result,
+    normalized_fixtures = normalized_fixtures,
+    edition_id = "edition-v2",
+    source_artifact_id = "artifact-results-v2",
+    schema_version = "phase14-normalized-result-v2"
+  )
+
+  expect_named(normalized, phase14_normalized_result_schema())
+  expect_identical(normalized$schema_version, "phase14-normalized-result-v2")
+  expect_identical(normalized$source_status, "after_penalties")
+  expect_identical(normalized$match_status, "completed")
+  expect_identical(normalized$completion_method, "penalties")
+  expect_identical(normalized$home_goals, 1L)
+  expect_identical(normalized$final_home_goals, 1L)
+  expect_identical(normalized$shootout_home_goals, 4L)
+  expect_identical(normalized$winner_team_id, "team-a")
+  expect_identical(normalized$evidence_completed_at_utc, "2026-06-10T20:10:00Z")
+  expect_true(normalized$counts_for_standings)
+  expect_true(normalized$counts_for_form)
+  expect_identical(normalized$fixture_source_artifact_id, "artifact-fixtures-v2")
+  expect_true(grepl("^[0-9a-f]{64}$", normalized$row_sha256))
+
+  unresolved <- data.frame(
+    source_fixture_id = "fixture-v2",
+    status = "mystery_closed",
+    home_goals = 2L,
+    away_goals = 0L,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  unresolved <- phase13_normalize_accepted_result_rows(
+    unresolved,
+    normalized_fixtures = normalized_fixtures,
+    edition_id = "edition-v2",
+    source_artifact_id = "artifact-results-v2",
+    schema_version = "phase14-normalized-result-v2"
+  )
+  expect_true(is.na(unresolved$match_status))
+  expect_identical(unresolved$completion_method, "not_applicable")
+  expect_true(is.na(unresolved$final_home_goals))
+  expect_false(unresolved$counts_for_standings)
+  expect_false(unresolved$counts_for_form)
+  expect_true(is.na(unresolved$evidence_completed_at_utc))
 })
