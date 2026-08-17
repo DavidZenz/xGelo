@@ -1191,6 +1191,159 @@ test_that("14-07 candidate construction fails closed instead of overwriting", {
   expect_identical(phase14_release_test_read_bytes(sentinel), sentinel_before)
 })
 
+test_that("14-08 selector candidate binds the exact calibrated release without moving authority", {
+  required <- c(
+    "phase14_build_release_selector_row",
+    "phase14_validate_release_selector"
+  )
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) {
+    fail(paste0(
+      "Plan 14-08 selector API is missing: ",
+      paste(missing, collapse = ", ")
+    ))
+    return(invisible(NULL))
+  }
+
+  release_id <- "phase14-open-nb-incumbent-calibrated-v1"
+  trusted_root <- file.path(phase14_release_test_project_root, "outputs/releases")
+  manifest_path <- file.path(trusted_root, release_id, "release_manifest.csv")
+  durable_selector_path <- file.path(trusted_root, "approved_release.csv")
+  registry_path <- file.path(
+    phase14_release_test_project_root,
+    "data/competition/registries/competition_editions.csv"
+  )
+  selector_existed <- file.exists(durable_selector_path)
+  selector_before <- if (selector_existed) {
+    phase14_release_test_read_bytes(durable_selector_path)
+  } else {
+    raw()
+  }
+  registry_before <- phase14_release_test_read_bytes(registry_path)
+
+  selector <- phase14_build_release_selector_row(
+    release_id = release_id,
+    release_manifest_path = paste0(release_id, "/release_manifest.csv"),
+    approved_at_utc = "2026-08-17T11:29:20Z",
+    trusted_root = trusted_root
+  )
+
+  expect_identical(nrow(selector), 1L)
+  expect_identical(
+    names(selector),
+    c(
+      "release_id", "release_manifest_path", "manifest_sha256",
+      "approved_at_utc", "row_sha256"
+    )
+  )
+  expect_identical(as.character(selector$release_id), release_id)
+  expect_identical(
+    as.character(selector$release_manifest_path),
+    paste0(release_id, "/release_manifest.csv")
+  )
+  expect_identical(
+    as.character(selector$manifest_sha256),
+    phase12_release_file_sha256(manifest_path)
+  )
+  expect_identical(
+    as.character(selector$row_sha256),
+    phase14_release_selector_hash(selector)
+  )
+  expect_invisible(phase14_validate_release_selector(selector, trusted_root = trusted_root))
+
+  expect_identical(file.exists(durable_selector_path), selector_existed)
+  if (selector_existed) {
+    expect_identical(
+      phase14_release_test_read_bytes(durable_selector_path),
+      selector_before
+    )
+  }
+  expect_identical(phase14_release_test_read_bytes(registry_path), registry_before)
+})
+
+test_that("14-08 selector ambiguity and forgery fail before release object loading", {
+  required <- c(
+    "phase14_build_release_selector_row",
+    "phase14_validate_release_selector"
+  )
+  missing <- required[!vapply(required, exists, logical(1), mode = "function")]
+  if (length(missing)) {
+    fail(paste0(
+      "Plan 14-08 selector API is missing: ",
+      paste(missing, collapse = ", ")
+    ))
+    return(invisible(NULL))
+  }
+
+  release_id <- "phase14-open-nb-incumbent-calibrated-v1"
+  trusted_root <- file.path(phase14_release_test_project_root, "outputs/releases")
+  selector <- phase14_build_release_selector_row(
+    release_id = release_id,
+    release_manifest_path = paste0(release_id, "/release_manifest.csv"),
+    approved_at_utc = "2026-08-17T11:29:20Z",
+    trusted_root = trusted_root
+  )
+  rehash <- function(value) {
+    value$row_sha256 <- phase14_release_selector_hash(value)
+    value
+  }
+
+  expect_error(
+    phase14_validate_release_selector(rbind(selector, selector), trusted_root),
+    "one exact row|one row"
+  )
+
+  traversal <- selector
+  traversal$release_manifest_path <- paste0(
+    release_id, "/../", release_id, "/release_manifest.csv"
+  )
+  expect_error(
+    phase14_validate_release_selector(rehash(traversal), trusted_root),
+    "unsafe|relative path|traversal"
+  )
+
+  unknown <- selector
+  unknown$release_id <- "unknown-release"
+  unknown$release_manifest_path <- "unknown-release/release_manifest.csv"
+  expect_error(
+    phase14_validate_release_selector(rehash(unknown), trusted_root),
+    "allowlist|unknown release|release identity"
+  )
+
+  stale <- selector
+  stale$manifest_sha256 <- strrep("0", 64L)
+  expect_error(
+    phase14_validate_release_selector(rehash(stale), trusted_root),
+    "manifest hash"
+  )
+
+  forged <- selector
+  forged$row_sha256 <- strrep("f", 64L)
+  expect_error(
+    phase14_validate_release_selector(forged, trusted_root),
+    "self-hash"
+  )
+
+  invalid_timestamp <- selector
+  invalid_timestamp$approved_at_utc <- "2026-08-17 11:29:20"
+  expect_error(
+    phase14_validate_release_selector(rehash(invalid_timestamp), trusted_root),
+    "approved_at_utc|UTC"
+  )
+
+  symlink_root <- tempfile("phase14-selector-symlink-root-")
+  dir.create(symlink_root, recursive = TRUE)
+  on.exit(unlink(symlink_root, recursive = TRUE), add = TRUE)
+  expect_true(file.symlink(
+    file.path(trusted_root, release_id),
+    file.path(symlink_root, release_id)
+  ))
+  expect_error(
+    phase14_validate_release_selector(selector, symlink_root),
+    "symlink|escapes the trusted root|real directory"
+  )
+})
+
 test_that("14-09 dual repin contract rejects split pins and exposes injected rollback", {
   phase14_release_test_require_api(
     c(
