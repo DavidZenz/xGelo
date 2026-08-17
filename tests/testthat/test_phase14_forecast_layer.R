@@ -622,3 +622,112 @@ test_that("active xG release suppresses the same fixture while club form is reje
     "club rolling_form|national-team xG|stable national match_id"
   )
 })
+
+phase14_forecast_batch_fixture <- function() {
+  base <- phase14_forecast_tracer_match()
+  unconfirmed <- base
+  unconfirmed$fixture_id <- "uefa_nations_league_2026_27-nl-2026-0002"
+  unconfirmed$match_id <- unconfirmed$fixture_id
+  unconfirmed$kickoff_confirmed <- FALSE
+  unconfirmed$confirmed_kickoff_at_utc <- NA_character_
+  unconfirmed$kickoff_utc <- NA_character_
+  unconfirmed$feature_cutoff_utc <- NA_character_
+
+  unresolved <- base
+  unresolved$fixture_id <- "uefa_nations_league_2026_27-nl-2026-0003"
+  unresolved$match_id <- unresolved$fixture_id
+  unresolved$away_team_id <- NA_character_
+
+  ineligible <- base
+  ineligible$fixture_id <- "uefa_nations_league_2026_27-nl-2026-0004"
+  ineligible$match_id <- ineligible$fixture_id
+  ineligible$match_status <- "postponed"
+  ineligible$source_status <- "postponed"
+
+  rbind(base, unconfirmed, unresolved, ineligible)
+}
+
+test_that("production forecast batches retain every fixture and compact local outputs", {
+  inputs <- phase14_forecast_tracer_release_inputs()
+  result <- phase14_build_fixture_forecasts(
+    canonical_matches = phase14_forecast_batch_fixture(),
+    team_registry = phase14_forecast_tracer_registry(),
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$trusted_release_root,
+    elo_ratings = inputs$elo_ratings,
+    national_team_xg_registry = inputs$national_team_xg_registry,
+    model_manifest_path = inputs$model_manifest_path,
+    generated_at_utc = "2026-08-17T00:00:00Z"
+  )
+
+  expect_true(all(c(
+    "forecasts", "score_distributions", "forecast_top10", "fixture_status"
+  ) %in% names(result)))
+  expected_ids <- phase14_forecast_batch_fixture()$fixture_id
+  expect_identical(as.character(result$fixture_status$fixture_id), expected_ids)
+  expect_identical(
+    sort(unique(c(result$forecasts$fixture_id, result$fixture_status$fixture_id))),
+    sort(expected_ids)
+  )
+  expect_equal(nrow(result$forecasts), 1L)
+  expect_equal(nrow(result$score_distributions), 41L * 41L)
+  expect_equal(nrow(result$forecast_top10), 10L)
+  expect_identical(result$forecasts$score_support_max, 40L)
+  expect_identical(result$forecast_top10$rank, seq_len(10L))
+  expect_true(all(result$fixture_status$model_data_cutoff == "2026-06-10"))
+  expect_true(all(result$fixture_status$active_predictors == "elo_diff"))
+  expect_true(all(grepl("^form_index_diff|xg", result$fixture_status$dropped_predictors_with_reason)))
+  expect_true(all(result$fixture_status$generated_at_utc == "2026-08-17T00:00:00Z"))
+  expect_identical(
+    as.character(result$fixture_status$suppression_reason),
+    c("none", "kickoff_unconfirmed", "identity_unresolved", "status_ineligible")
+  )
+  expect_true(all(grepl("^[0-9a-f]{64}$", result$fixture_status$row_sha256)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", result$forecasts$row_sha256)))
+})
+
+test_that("batch forecast resolves release, features, and prediction exactly once", {
+  inputs <- phase14_forecast_tracer_release_inputs()
+  matches <- phase14_forecast_tracer_match()
+  second <- matches
+  second$fixture_id <- "uefa_nations_league_2026_27-nl-2026-0002"
+  second$match_id <- second$fixture_id
+  second$feature_cutoff_utc <- "2026-09-06T18:44:59Z"
+  calls <- new.env(parent = emptyenv())
+  calls$resolve <- 0L
+  calls$features <- 0L
+  calls$predict <- 0L
+
+  resolver <- function(selector_path, trusted_release_root) {
+    calls$resolve <- calls$resolve + 1L
+    phase14_resolve_approved_release(selector_path, trusted_release_root)
+  }
+  feature_builder <- function(...) {
+    calls$features <- calls$features + 1L
+    phase14_build_release_features(...)
+  }
+  predictor <- function(...) {
+    calls$predict <- calls$predict + 1L
+    predict_registered_baseline(...)
+  }
+
+  result <- phase14_build_fixture_forecasts(
+    canonical_matches = rbind(matches, second),
+    team_registry = phase14_forecast_tracer_registry(),
+    selector_path = inputs$selector_path,
+    trusted_release_root = inputs$trusted_release_root,
+    elo_ratings = inputs$elo_ratings,
+    national_team_xg_registry = inputs$national_team_xg_registry,
+    model_manifest_path = inputs$model_manifest_path,
+    resolve_release_fn = resolver,
+    build_features_fn = feature_builder,
+    predict_fn = predictor,
+    generated_at_utc = "2026-08-17T00:00:00Z"
+  )
+
+  expect_equal(calls$resolve, 1L)
+  expect_equal(calls$features, 1L)
+  expect_equal(calls$predict, 1L)
+  expect_equal(nrow(result$forecasts), 2L)
+  expect_equal(length(unique(result$forecasts$score_distribution_id)), 2L)
+})
