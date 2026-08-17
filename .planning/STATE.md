@@ -4,38 +4,38 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
-status: blocked
-stopped_at: "14-05 calibration gate: CALIBRATION_RELEASE_BLOCKED"
-last_updated: "2026-08-16T19:28:15Z"
-last_activity: 2026-08-16
-last_activity_desc: Phase 14 stopped at immutable calibration gate
+status: in_progress
+stopped_at: "14-21 ready: nested calibration remediation planned"
+last_updated: "2026-08-17T06:28:50Z"
+last_activity: 2026-08-17
+last_activity_desc: Phase 14 remediation branch planned behind completed fail-closed checkpoint
 progress:
   total_phases: 2
   completed_phases: 1
-  total_plans: 33
-  completed_plans: 17
+  total_plans: 35
+  completed_plans: 18
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 14 (shared-competition-state-and-forecast-layer) — BLOCKED
-Plan: 5 of 20
-Status: CALIBRATION_RELEASE_BLOCKED
-Last activity: 2026-08-16 — Fresh-process Plan 14-05 validation refused calibration promotion
+Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
+Plan: 5 of 22 complete; Plan 14-21 is next
+Status: Calibration remediation planned; release work remains gated
+Last activity: 2026-08-17 — Added nested remediation and independent acceptance plans after the immutable Plan 14-05 block
 
 ## Progress
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Blocked at Plan 14-05 (4/20 plans complete) | 0/7 |
+| 14 | Shared Competition State and Forecast Layer | Remediation ready after completed fail-closed Plan 14-05 (5/22 complete) | 0/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 is blocked at its empirical calibration checkpoint.
+**Overall:** 1 of 5 phases complete (20%); Phase 14 is active on its calibration-remediation branch while release-dependent work remains blocked.
 
 ## Project Reference
 
@@ -106,17 +106,17 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Revisit the calibration candidate or frozen release policy in a separately planned revision; do not weaken the existing empirical vetoes.
+- Execute the locked nested calibration remediation and independent acceptance branch without weakening the existing empirical vetoes.
 
 ## Next Action
 
-Do not execute Plans 14-06 through 14-20 under the current evidence. Resume only after a separately reviewed calibration revision passes the immutable Plan 14-05 gate.
+Execute Plan 14-21, then Plan 14-22. Do not execute Plans 14-06 through 14-20 unless Plan 14-22 independently passes the complete remediation graph and emits `calibration-v2-gate-passed`; any failed remediation remains blocking.
 
 ## Session Continuity
 
-**Last session:** 2026-08-16T19:28:15Z
-**Stopped at:** Plan 14-05 fresh-process gate returned `CALIBRATION_RELEASE_BLOCKED`
-**Resume file:** None
+**Last session:** 2026-08-17T06:28:50Z
+**Stopped at:** Phase 14 remediation planning complete; Plan 14-21 is the next executable plan
+**Resume file:** `.planning/phases/14-shared-competition-state-and-forecast-layer/14-21-PLAN.md`
 
 ## Performance Metrics
 

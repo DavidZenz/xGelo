@@ -70,13 +70,13 @@ simulations, and fail-closed hourly publication.
 4. Open fixtures show calibrated home, draw, and away probabilities, expected goals, a most likely score, a bounded score distribution, and uncertainty metadata from the approved release.
 5. Forecast audits prove point-in-time feature safety, and Nations League and EURO competition states remain independent while sharing canonical team identity and strength inputs.
 
-**Plans**: 4/20 plans executed
+**Plans**: 5/22 plans executed
 
 - [x] 14-01-PLAN.md
 - [x] 14-02-PLAN.md
 - [x] 14-03-PLAN.md
 - [x] 14-04-PLAN.md
-- [ ] 14-05-PLAN.md
+- [x] 14-05-PLAN.md
 - [ ] 14-06-PLAN.md
 - [ ] 14-07-PLAN.md
 - [ ] 14-08-PLAN.md
@@ -92,6 +92,8 @@ simulations, and fail-closed hourly publication.
 - [ ] 14-18-PLAN.md
 - [ ] 14-19-PLAN.md
 - [ ] 14-20-PLAN.md
+- [ ] 14-21-PLAN.md
+- [ ] 14-22-PLAN.md
 
 ### Phase 15: Nations League Rules and Outcomes
 
