@@ -664,3 +664,10 @@ test_that("temporary schema-v2 publication graph is complete and loader-valid", 
   }
   expect_true(isTRUE(attr(publication$loaded, "phase13_complete_registry")))
 })
+
+test_that("every promotion index restores the complete graph and unrelated paths", {
+  rollback <- phase14_match_state_test_run_v2_rollback_matrix()
+
+  expect_true(is.list(rollback))
+  expect_true(isTRUE(rollback$passed))
+})

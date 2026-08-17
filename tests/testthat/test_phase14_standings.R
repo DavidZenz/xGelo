@@ -535,3 +535,10 @@ test_that("temporary schema-v2 standings publication is loader-valid", {
   }
   expect_equal(nrow(snapshots[["uefa_euro_2028_qualifying"]]$standings), 0L)
 })
+
+test_that("every promotion index restores the v2 standings graph", {
+  rollback <- phase14_standings_test_run_v2_rollback_matrix()
+
+  expect_true(is.list(rollback))
+  expect_true(isTRUE(rollback$passed))
+})
