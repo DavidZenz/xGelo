@@ -104,7 +104,7 @@ Each task was committed atomically:
 
 1. **Task 1: Stage, validate, and promote truthful EURO pre_draw state** - `494ebe8` (`feat`)
 
-**Plan metadata:** Final GSD documentation commit records this summary and the sequential planning metadata.
+**Plan metadata:** Final GSD documentation commit and a follow-up summary-only correction record this summary and the sequential planning metadata.
 
 ## Files Created/Modified
 
@@ -138,7 +138,15 @@ Each task was committed atomically:
 - **Verification:** Staged validation, durable validation, and the focused state-bundle test all passed.
 - **Committed in:** `494ebe8` (published output artifacts)
 
-**Total deviations:** 1 auto-fixed (Rule 1).
+**2. [Rule 1 - Bug] Reconciled stale generated STATE.md body**
+- **Found during:** Final GSD state bookkeeping
+- **Issue:** The state handlers updated frontmatter counts but left the human-readable body at 32/35 and Plan 14-18 next.
+- **Fix:** Aligned `STATE.md` with its frontmatter and `ROADMAP.md`: 33/35 overall, 20/22 for Phase 14, Plan 14-20 next, and current Plan 14-19 activity.
+- **Files modified:** `.planning/STATE.md`
+- **Verification:** Read-only state/roadmap diff inspection and final scoped status check.
+- **Committed in:** `ab179f4` (final metadata commit)
+
+**Total deviations:** 2 auto-fixed (Rule 1).
 **Impact on plan:** Required for durable integrity; no architecture or scope change.
 
 ## Issues Encountered
