@@ -77,7 +77,34 @@ phase14_state_bundle_scalar_text <- function(row, field, default = NA_character_
   if (is.na(value) || !nzchar(trimws(value))) default else trimws(value)
 }
 
-phase14_state_bundle_edition_rows <- function(data, edition_id, name, allow_unscoped = TRUE) {
+phase14_state_bundle_order_rows <- function(data) {
+  if (!is.data.frame(data) || nrow(data) < 2L) return(data)
+  key_columns <- intersect(
+    c(
+      "edition_id", "fixture_id", "match_id", "source_match_id", "result_id",
+      "group_id", "team_id", "rank", "scheduled_at_utc", "kickoff_utc",
+      "confirmed_kickoff_at_utc", "date", "home_team_id", "away_team_id"
+    ),
+    names(data)
+  )
+  keys <- lapply(key_columns, function(column) {
+    values <- as.character(data[[column]])
+    values[is.na(values)] <- "<NA>"
+    values
+  })
+  row_hash <- vapply(seq_len(nrow(data)), function(index) {
+    phase14_forecast_hash_data(data[index, , drop = FALSE])
+  }, character(1))
+  index <- do.call(order, c(keys, list(row_hash, method = "radix")))
+  data[index, , drop = FALSE]
+}
+
+phase14_state_bundle_edition_rows <- function(
+    data,
+    edition_id,
+    name,
+    allow_unscoped = TRUE,
+    allow_foreign = FALSE) {
   if (is.null(data)) return(phase14_state_bundle_empty())
   if (!is.data.frame(data)) stop("Phase 14 ", name, " must be a data frame", call. = FALSE)
   if (!"edition_id" %in% names(data)) {
@@ -88,7 +115,7 @@ phase14_state_bundle_edition_rows <- function(data, edition_id, name, allow_unsc
   }
   values <- as.character(data$edition_id)
   foreign <- !is.na(values) & nzchar(values) & values != as.character(edition_id)
-  if (any(foreign)) {
+  if (any(foreign) && !isTRUE(allow_foreign)) {
     stop(
       "Phase 14 cross-edition join rejected for ", name,
       ": expected edition_id=", edition_id,
@@ -96,7 +123,7 @@ phase14_state_bundle_edition_rows <- function(data, edition_id, name, allow_unsc
       call. = FALSE
     )
   }
-  data[!foreign, , drop = FALSE]
+  phase14_state_bundle_order_rows(data[!foreign, , drop = FALSE])
 }
 
 phase14_state_bundle_match_rows <- function(canonical_matches, edition_id, edition_count) {
@@ -106,11 +133,11 @@ phase14_state_bundle_match_rows <- function(canonical_matches, edition_id, editi
     if (edition_count > 1L && nrow(canonical_matches)) {
       stop("Phase 14 canonical_matches must declare edition_id for shared orchestration", call. = FALSE)
     }
-    return(canonical_matches)
+    return(phase14_state_bundle_order_rows(canonical_matches))
   }
   values <- as.character(canonical_matches$edition_id)
   foreign <- !is.na(values) & nzchar(values) & values != as.character(edition_id)
-  canonical_matches[!foreign, , drop = FALSE]
+  phase14_state_bundle_order_rows(canonical_matches[!foreign, , drop = FALSE])
 }
 
 phase14_state_bundle_status_rows <- function(rows) {
@@ -269,22 +296,41 @@ phase14_state_bundle_empty_candidate <- function(
     reason,
     shared_input_audit,
     resolved_release = NULL,
-    edition_row = NULL) {
+    edition_row = NULL,
+    canonical_matches = NULL,
+    team_registry = NULL,
+    generated_at_utc = NULL) {
   empty_forecast <- phase14_forecast_empty_result(reason)
+  rows <- phase14_state_bundle_match_rows(canonical_matches, edition_id, 1L)
+  status <- if (nrow(rows) && !is.null(team_registry) && is.data.frame(edition_row)) {
+    phase14_state_bundle_failure_status(
+      rows = rows,
+      edition_id = edition_id,
+      reason = reason,
+      team_registry = team_registry,
+      edition_registry = edition_row,
+      resolved_release = resolved_release,
+      shared_input_audit = shared_input_audit,
+      generated_at_utc = generated_at_utc
+    )
+  } else {
+    phase14_state_bundle_status_template()[FALSE, , drop = FALSE]
+  }
+  empty_forecast$fixture_status <- status
   list(
     edition_id = as.character(edition_id),
     candidate_status = "invalid",
     failure_reason = as.character(reason),
     lifecycle_state = as.character(lifecycle_state),
     edition_registry = edition_row,
-    fixtures = phase14_state_bundle_empty(),
+    fixtures = rows,
     results = phase14_state_bundle_empty(),
     groups = phase14_state_bundle_empty(),
     standings = phase14_state_bundle_empty(),
     competition_form = phase14_state_bundle_empty(),
     all_senior_form = phase14_state_bundle_empty(),
     forecast = empty_forecast,
-    forecast_status = empty_forecast$fixture_status,
+    forecast_status = status,
     shared_input_audit = shared_input_audit,
     resolved_release = resolved_release,
     state_status = reason
@@ -649,6 +695,13 @@ phase14_state_bundle_normalize_edition_ids <- function(edition_id, edition_ids, 
   if (any(is.na(ids) | !nzchar(trimws(ids))) || anyDuplicated(ids)) {
     stop("Phase 14 state batch edition IDs must be non-empty and unique", call. = FALSE)
   }
+  if (length(ids) > 1L) {
+    preferred <- phase14_state_bundle_default_edition_ids(edition_registry)
+    ids <- c(
+      preferred[preferred %in% ids],
+      sort(setdiff(ids, preferred), method = "radix")
+    )
+  }
   ids
 }
 
@@ -659,6 +712,7 @@ phase14_state_bundle_validate_history <- function(historical_matches, edition_co
   if (!is.data.frame(historical_matches)) {
     stop("Phase 14 shared historical senior-international input must be a data frame", call. = FALSE)
   }
+  historical_matches <- phase14_state_bundle_order_rows(historical_matches)
   scope <- attr(historical_matches, "history_scope") %||% ""
   if ("history_scope" %in% names(historical_matches) && nrow(historical_matches)) {
     declared <- unique(as.character(historical_matches$history_scope))
@@ -839,6 +893,150 @@ phase14_state_bundle_status_table <- function(candidate) {
   )
 }
 
+phase14_state_bundle_status_columns <- function() {
+  if (exists("phase14_forecast_batch_status_columns", mode = "function")) {
+    return(phase14_forecast_batch_status_columns())
+  }
+  c(
+    "edition_id", "fixture_id", "match_id", "kickoff_utc", "feature_cutoff_utc",
+    "identity_status", "forecast_status", "suppression_reason", "feature_evidence_status",
+    "release_calibration_status", "active_predictors", "dropped_predictors_with_reason",
+    "model_manifest_sha256", "model_release_id", "release_manifest_sha256", "release_manifest_path",
+    "release_selector_sha256", "model_id", "model_sha256", "calibrator_id", "calibrator_sha256",
+    "calibration_data_cutoff", "calibration_gate_id", "calibration_gate_sha256", "model_data_cutoff",
+    "feature_evidence_source", "latest_evidence_at_utc", "national_team_xg_status",
+    "national_team_xg_source_id", "national_team_xg_sample_count", "national_team_xg_feature_cutoff_utc",
+    "national_team_xg_availability_reason", "source_bundle_id", "accepted_state_sha256",
+    "edition_registry_revision", "edition_registry_row_sha256", "ruleset_version",
+    "team_identity_registry_sha256", "contributing_form_sha256", "contributing_history_sha256",
+    "generated_at_utc", "row_sha256"
+  )
+}
+
+phase14_state_bundle_status_template <- function() {
+  columns <- phase14_state_bundle_status_columns()
+  as.data.frame(setNames(lapply(columns, function(column) {
+    if (column %in% c("edition_registry_revision", "national_team_xg_sample_count")) {
+      return(NA_integer_)
+    }
+    NA_character_
+  }), columns), stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+phase14_state_bundle_status_identity <- function(value, path, default = "") {
+  phase14_state_bundle_release_field(value, path, default)
+}
+
+phase14_state_bundle_pre_draw_status <- function(
+    edition_id,
+    edition_row,
+    resolved_release,
+    shared_input_audit,
+    generated_at_utc = NULL) {
+  status <- phase14_state_bundle_status_template()
+  status$edition_id <- as.character(edition_id)
+  status$identity_status <- "not_applicable"
+  status$forecast_status <- "pre_draw"
+  status$suppression_reason <- "pre_draw"
+  status$feature_evidence_status <- "not_evaluated"
+  status$release_calibration_status <- if (is.list(resolved_release) && length(resolved_release)) "fitted" else "unavailable"
+  status$active_predictors <- phase14_state_bundle_predictor_text(shared_input_audit$active_predictors %||% character())
+  status$dropped_predictors_with_reason <- phase14_state_bundle_predictor_text(shared_input_audit$dropped_predictors_with_reason %||% character())
+  status$model_manifest_sha256 <- phase14_state_bundle_text(shared_input_audit$model_manifest_sha256, "")
+  status$model_release_id <- phase14_state_bundle_status_identity(resolved_release, "release_identity.release_id")
+  status$release_manifest_sha256 <- phase14_state_bundle_status_identity(resolved_release, "release_identity.manifest_sha256")
+  status$release_manifest_path <- phase14_state_bundle_text(resolved_release$release_manifest_path, "")
+  status$release_selector_sha256 <- phase14_state_bundle_status_identity(resolved_release, "release_identity.selector_self_sha256")
+  status$model_id <- phase14_state_bundle_status_identity(resolved_release, "model_identity.model_id")
+  status$model_sha256 <- phase14_state_bundle_status_identity(resolved_release, "model_identity.sha256")
+  status$calibrator_id <- phase14_state_bundle_status_identity(resolved_release, "calibrator_identity.calibrator_id")
+  status$calibrator_sha256 <- phase14_state_bundle_status_identity(resolved_release, "calibrator_identity.sha256")
+  status$calibration_data_cutoff <- phase14_state_bundle_text(resolved_release$calibration_data_cutoff, "")
+  status$calibration_gate_id <- phase14_state_bundle_status_identity(resolved_release, "calibrator_identity.calibration_gate_id")
+  status$calibration_gate_sha256 <- phase14_state_bundle_status_identity(resolved_release, "calibrator_identity.calibration_gate_sha256")
+  status$model_data_cutoff <- phase14_state_bundle_text(resolved_release$model_data_cutoff, "")
+  status$national_team_xg_status <- phase14_state_bundle_text(shared_input_audit$xg_evidence_status, "inactive_optional_unavailable")
+  status$national_team_xg_source_id <- "national_team_xg_sources.csv"
+  status$national_team_xg_sample_count <- 0L
+  status$national_team_xg_availability_reason <- phase14_state_bundle_text(
+    shared_input_audit$xg_evidence_reason,
+    "inactive_predictors_registered_missingness"
+  )
+  if (is.data.frame(edition_row) && nrow(edition_row)) {
+    status$source_bundle_id <- phase14_state_bundle_scalar_text(edition_row, "source_bundle_id", "")
+    status$accepted_state_sha256 <- phase14_state_bundle_hash_value(edition_row)
+    status$edition_registry_revision <- suppressWarnings(as.integer(
+      phase14_state_bundle_scalar_text(edition_row, "registry_revision", NA_character_)
+    ))
+    status$edition_registry_row_sha256 <- phase14_state_bundle_scalar_text(edition_row, "row_sha256", "")
+    status$ruleset_version <- phase14_state_bundle_scalar_text(edition_row, "ruleset_version", "phase14-state-v1")
+  } else {
+    status$ruleset_version <- "phase14-state-v1"
+  }
+  status$generated_at_utc <- phase14_state_bundle_text(generated_at_utc, "")
+  status$row_sha256 <- ""
+  if (exists("phase14_forecast_batch_hash_row", mode = "function")) {
+    status <- phase14_forecast_batch_hash_row(status)
+  }
+  status
+}
+
+phase14_state_bundle_failure_status <- function(
+    rows,
+    edition_id,
+    reason,
+    team_registry,
+    edition_registry,
+    resolved_release,
+    shared_input_audit,
+    generated_at_utc = NULL) {
+  if (!is.data.frame(rows) || !nrow(rows)) {
+    return(phase14_state_bundle_status_template()[FALSE, , drop = FALSE])
+  }
+  registry <- if (exists("phase14_forecast_batch_registry", mode = "function")) {
+    phase14_forecast_batch_registry(team_registry)
+  } else {
+    phase14_forecast_team_registry(team_registry)
+  }
+  rows <- phase14_state_bundle_order_rows(rows)
+  status_rows <- lapply(seq_len(nrow(rows)), function(index) {
+    fallback <- phase14_forecast_batch_fallback_row(rows, index, edition_id, registry)
+    feature_result <- list(
+      feature_table = data.frame(match_id = as.character(fallback$match_id), stringsAsFactors = FALSE),
+      model_form = data.frame(team_id = character(), stringsAsFactors = FALSE),
+      active_predictors = shared_input_audit$active_predictors %||% character(),
+      dropped_predictors_with_reason = shared_input_audit$dropped_predictors_with_reason %||% character(),
+      model_manifest_sha256 = shared_input_audit$model_manifest_sha256 %||% "",
+      model_data_cutoff = phase14_state_bundle_text(resolved_release$model_data_cutoff, ""),
+      feature_evidence_status = "unavailable",
+      feature_evidence_source = character(),
+      latest_evidence_at_utc = NA_character_,
+      national_team_xg_status = phase14_state_bundle_text(shared_input_audit$xg_evidence_status, "unavailable"),
+      national_team_xg_source_id = "national_team_xg_sources.csv",
+      national_team_xg_sample_count = 0L,
+      national_team_xg_feature_cutoff_utc = NA_character_,
+      national_team_xg_availability_reason = phase14_state_bundle_text(shared_input_audit$xg_evidence_reason, reason)
+    )
+    lineage <- phase14_forecast_batch_lineage_row(
+      fallback,
+      feature_result,
+      resolved_release %||% list(),
+      registry,
+      edition_registry,
+      forecast_status = "suppressed",
+      suppression_reason = reason,
+      release_calibration_status = if (is.list(resolved_release) && length(resolved_release)) "fitted" else "unavailable",
+      identity_status = if (grepl("identity", reason, fixed = TRUE)) "unresolved" else "resolved",
+      generated_at_utc = generated_at_utc
+    )
+    lineage <- phase14_forecast_batch_hash_row(lineage)
+    lineage[, phase14_state_bundle_status_columns(), drop = FALSE]
+  })
+  output <- do.call(rbind, status_rows)
+  rownames(output) <- NULL
+  output
+}
+
 phase14_state_bundle_candidate_production <- function(
     edition_id,
     edition_row,
@@ -859,13 +1057,22 @@ phase14_state_bundle_candidate_production <- function(
     all_senior_form,
     historical_matches,
     shared_input_audit,
-    generated_at_utc = NULL) {
+    generated_at_utc = NULL,
+    edition_count = 1L) {
   lifecycle <- phase14_state_bundle_scalar_text(edition_row, "lifecycle_state", "scheduled")
   rows <- phase14_state_bundle_match_rows(canonical_matches, edition_id, 1L)
   if (identical(lifecycle, "pre_draw")) {
     forecast <- phase14_forecast_empty_result("pre_draw")
     forecast$forecast_top10 <- phase14_state_bundle_named_empty()
     forecast$local_score_distributions <- forecast$score_distributions
+    forecast_status_table <- phase14_state_bundle_pre_draw_status(
+      edition_id,
+      edition_row,
+      resolved_release,
+      shared_input_audit,
+      generated_at_utc
+    )
+    forecast$fixture_status <- forecast_status_table
     return(list(
       edition_id = as.character(edition_id),
       candidate_status = "valid",
@@ -882,11 +1089,7 @@ phase14_state_bundle_candidate_production <- function(
       model_form = phase14_state_bundle_named_empty(),
       forecast = forecast,
       forecast_status = "pre_draw",
-      forecast_status_table = data.frame(
-        edition_id = as.character(edition_id), lifecycle_state = lifecycle,
-        forecast_status = "pre_draw", suppression_reason = "pre_draw",
-        stringsAsFactors = FALSE, check.names = FALSE
-      ),
+      forecast_status_table = forecast_status_table,
       shared_input_audit = shared_input_audit,
       resolved_release = resolved_release,
       state_status = "pre_draw",
@@ -896,14 +1099,39 @@ phase14_state_bundle_candidate_production <- function(
 
   fixture_rows <- phase14_state_bundle_edition_rows(rows, edition_id, "fixtures")
   result_rows <- if (!is.null(results)) {
-    phase14_state_bundle_edition_rows(results, edition_id, "results")
+    phase14_state_bundle_edition_rows(
+      results,
+      edition_id,
+      "results",
+      allow_foreign = as.integer(edition_count) > 1L
+    )
   } else {
     phase14_state_bundle_status_rows(fixture_rows)
   }
-  group_rows <- phase14_state_bundle_edition_rows(groups, edition_id, "groups")
-  standing_rows <- phase14_state_bundle_edition_rows(standings, edition_id, "standings")
-  competition_form_rows <- phase14_state_bundle_edition_rows(competition_form, edition_id, "competition_form")
-  all_senior_form_rows <- phase14_state_bundle_edition_rows(all_senior_form, edition_id, "all_senior_form")
+  group_rows <- phase14_state_bundle_edition_rows(
+    groups,
+    edition_id,
+    "groups",
+    allow_foreign = as.integer(edition_count) > 1L
+  )
+  standing_rows <- phase14_state_bundle_edition_rows(
+    standings,
+    edition_id,
+    "standings",
+    allow_foreign = as.integer(edition_count) > 1L
+  )
+  competition_form_rows <- phase14_state_bundle_edition_rows(
+    competition_form,
+    edition_id,
+    "competition_form",
+    allow_foreign = as.integer(edition_count) > 1L
+  )
+  all_senior_form_rows <- phase14_state_bundle_edition_rows(
+    all_senior_form,
+    edition_id,
+    "all_senior_form",
+    allow_foreign = as.integer(edition_count) > 1L
+  )
   forecast <- phase14_build_fixture_forecasts(
     canonical_matches = fixture_rows,
     team_registry = team_registry,
@@ -961,14 +1189,20 @@ phase14_state_bundle_local_failure <- function(
     reason,
     message,
     shared_input_audit,
-    resolved_release) {
+    resolved_release,
+    canonical_matches = NULL,
+    team_registry = NULL,
+    generated_at_utc = NULL) {
   candidate <- phase14_state_bundle_empty_candidate(
     edition_id,
     lifecycle_state = phase14_state_bundle_scalar_text(edition_row, "lifecycle_state", "scheduled"),
     reason = reason,
     shared_input_audit = shared_input_audit,
     resolved_release = resolved_release,
-    edition_row = edition_row
+    edition_row = edition_row,
+    canonical_matches = canonical_matches,
+    team_registry = team_registry,
+    generated_at_utc = generated_at_utc
   )
   candidate$failure_scope <- "edition_local"
   candidate$local_failure_message <- as.character(message)
@@ -1119,6 +1353,85 @@ phase14_state_bundle_ids_from_status <- function(status) {
   ids[!is.na(ids) & nzchar(ids)]
 }
 
+phase14_state_bundle_fixture_ids <- function(rows, name = "fixture input") {
+  if (!is.data.frame(rows) || !nrow(rows)) return(character())
+  column <- c("fixture_id", "match_id")
+  column <- column[column %in% names(rows)]
+  if (!length(column)) stop("Phase 14 ", name, " requires fixture_id or match_id", call. = FALSE)
+  ids <- as.character(rows[[column[[1L]]]])
+  if (any(is.na(ids) | !nzchar(ids)) || anyDuplicated(ids)) {
+    stop("Phase 14 ", name, " contains missing or duplicate fixture identity", call. = FALSE)
+  }
+  ids
+}
+
+phase14_state_bundle_nonempty_values <- function(value) {
+  if (is.null(value)) return(character())
+  values <- as.character(value)
+  values[!is.na(values) & nzchar(trimws(values))]
+}
+
+phase14_state_bundle_validate_cutoff_lineage <- function(candidate, manifest, artifacts) {
+  valid_manifest <- is.data.frame(manifest) && nrow(manifest) &&
+    "validation_status" %in% names(manifest) &&
+    any(as.character(manifest$validation_status) == "valid")
+  if (!valid_manifest) return(invisible(TRUE))
+  expected <- unique(phase14_state_bundle_nonempty_values(manifest$model_data_cutoff))
+  if (length(expected) != 1L) stop("Phase 14 valid state manifest must carry one model_data_cutoff", call. = FALSE)
+  status <- artifacts[["state/forecast_status.csv"]]
+  forecasts <- artifacts[["state/forecasts.csv"]]
+  top10 <- artifacts[["state/forecast_top10.csv"]]
+  for (value in list(status, forecasts, top10)) {
+    if (is.data.frame(value) && nrow(value)) {
+      if (!"model_data_cutoff" %in% names(value)) {
+        stop("Phase 14 state cutoff lineage is missing model_data_cutoff", call. = FALSE)
+      }
+      values <- as.character(value$model_data_cutoff)
+      if (any(is.na(values) | !nzchar(trimws(values)))) {
+        stop("Phase 14 state cutoff lineage has an empty row", call. = FALSE)
+      }
+      observed <- unique(phase14_state_bundle_nonempty_values(values))
+      if (length(observed) && !setequal(observed, expected)) {
+        stop("Phase 14 state cutoff lineage disagrees with the resolver", call. = FALSE)
+      }
+    }
+  }
+  if (is.data.frame(status) && nrow(status) && "feature_cutoff_utc" %in% names(status)) {
+    available <- status[as.character(status$forecast_status) == "available", , drop = FALSE]
+    if (nrow(available)) {
+      if (!is.data.frame(forecasts) || !nrow(forecasts) ||
+          !all(as.character(available$fixture_id) %in% as.character(forecasts$fixture_id))) {
+        stop("Phase 14 available forecast cutoff coverage is incomplete", call. = FALSE)
+      }
+      for (fixture_id in as.character(available$fixture_id)) {
+        status_cutoff <- as.character(available$feature_cutoff_utc[available$fixture_id == fixture_id])
+        forecast_cutoff <- as.character(forecasts$feature_cutoff_utc[forecasts$fixture_id == fixture_id])
+        status_cutoff <- unique(phase14_state_bundle_nonempty_values(status_cutoff))
+        forecast_cutoff <- unique(phase14_state_bundle_nonempty_values(forecast_cutoff))
+        if (length(status_cutoff) != 1L || length(forecast_cutoff) != 1L ||
+            !identical(status_cutoff, forecast_cutoff)) {
+          stop("Phase 14 per-fixture feature cutoff lineage is incomplete: ", fixture_id, call. = FALSE)
+        }
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
+phase14_state_bundle_validate_source_coverage <- function(candidate) {
+  if (is.null(candidate$input_fixture_ids)) return(invisible(TRUE))
+  source_ids <- as.character(candidate$input_fixture_ids)
+  source_ids <- source_ids[!is.na(source_ids) & nzchar(source_ids)]
+  fixture_ids <- phase14_state_bundle_fixture_ids(candidate$fixtures, "candidate fixtures")
+  status_ids <- phase14_state_bundle_ids_from_status(
+    candidate$state_artifacts[["state/forecast_status.csv"]]
+  )
+  if (!setequal(source_ids, fixture_ids) || !setequal(source_ids, status_ids)) {
+    stop("Phase 14 state source fixture coverage was silently dropped", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 phase14_state_bundle_validate_in_memory_candidate <- function(candidate) {
   if (!is.list(candidate) || is.null(candidate$edition_id)) stop("Phase 14 state validator requires one candidate", call. = FALSE)
   manifest <- candidate$state_manifest
@@ -1161,7 +1474,8 @@ phase14_state_bundle_validate_in_memory_candidate <- function(candidate) {
   top10 <- artifacts[["state/forecast_top10.csv"]]
   lifecycle <- as.character(candidate$lifecycle_state %||% "scheduled")
   if (identical(lifecycle, "pre_draw")) {
-    if (any(vapply(list(fixtures, forecasts, grids, top10), function(value) is.data.frame(value) && nrow(value), logical(1)))) {
+    if (any(vapply(list(fixtures, forecasts, grids, top10), function(value) is.data.frame(value) && nrow(value), logical(1)) ) ||
+        length(phase14_state_bundle_ids_from_status(status))) {
       stop("Phase 14 pre_draw candidate must remain structurally empty", call. = FALSE)
     }
   } else {
@@ -1197,7 +1511,11 @@ phase14_state_bundle_validate_in_memory_candidate <- function(candidate) {
     "feature_evidence_unavailable", "release_not_calibrated", "status_ineligible",
     "approved_release_selector_unavailable", "approved_release_manifest_unavailable",
     "approved_release_model_unavailable", "approved_release_calibrator_unavailable",
-    "approved_release_unavailable", "cross_edition"
+    "approved_release_unavailable", "cross_edition", "shared_identity_validation_failed",
+    "shared_release_validation_failed", "shared_history_validation_failed",
+    "active_predictor_evidence_unavailable", "active_national_team_xg_unavailable",
+    "edition_local_build_failed", "edition_fixture_validation_failed",
+    "edition_status_validation_failed"
   )
   if (is.data.frame(status) && nrow(status) && "suppression_reason" %in% names(status)) {
     reasons <- unique(as.character(status$suppression_reason))
@@ -1205,13 +1523,22 @@ phase14_state_bundle_validate_in_memory_candidate <- function(candidate) {
   }
   required_manifest_fields <- c("model_data_cutoff", "feature_cutoff_utc", "active_predictors", "dropped_predictors_with_reason", "validation_status")
   if (any(!required_manifest_fields %in% names(manifest))) stop("Phase 14 state manifest lineage is incomplete", call. = FALSE)
+  if (any(as.character(manifest$validation_status) == "valid" & !nzchar(phase14_state_bundle_text(manifest$model_data_cutoff, "")))) {
+    stop("Phase 14 state manifest has missing model cutoff", call. = FALSE)
+  }
   if (any(as.character(manifest$validation_status) == "valid" & is.na(manifest$model_data_cutoff))) {
     stop("Phase 14 state manifest has missing model cutoff", call. = FALSE)
   }
+  phase14_state_bundle_validate_source_coverage(candidate)
+  phase14_state_bundle_validate_cutoff_lineage(candidate, manifest, artifacts)
   invisible(TRUE)
 }
 
-phase14_validate_competition_state_bundle <- function(bundle) {
+phase14_validate_competition_state_bundle <- function(
+    bundle,
+    resolved_release = NULL,
+    selector_path = NULL,
+    trusted_release_root = file.path(phase14_state_bundle_project_root(), "outputs/releases")) {
   if (is.character(bundle) && length(bundle) == 1L) {
     root <- normalizePath(bundle, winslash = "/", mustWork = TRUE)
     expected <- phase14_state_bundle_expected_inventory()
@@ -1230,14 +1557,36 @@ phase14_validate_competition_state_bundle <- function(bundle) {
     names(artifacts) <- expected
     manifest <- artifacts[["audit/state_manifest.csv"]]
     if (!is.data.frame(manifest) || !nrow(manifest)) stop("Phase 14 durable state bundle manifest is empty", call. = FALSE)
+    durable_release <- resolved_release
+    if (is.null(durable_release)) {
+      durable_release <- tryCatch(
+        phase14_state_bundle_resolved_release(resolved_release, selector_path, trusted_release_root),
+        error = function(error) NULL
+      )
+    }
+    if (any(as.character(manifest$validation_status) == "valid") && !is.null(durable_release)) {
+      expected_cutoff <- phase14_state_bundle_text(durable_release$model_data_cutoff, "")
+      observed_cutoffs <- unique(phase14_state_bundle_nonempty_values(manifest$model_data_cutoff))
+      if (!nzchar(expected_cutoff) || length(observed_cutoffs) != 1L ||
+          !identical(observed_cutoffs, expected_cutoff)) {
+        stop("Phase 14 durable state model_data_cutoff disagrees with the approved resolver", call. = FALSE)
+      }
+    }
+    status_artifact <- artifacts[["state/forecast_status.csv"]]
+    lifecycle <- if (is.data.frame(status_artifact) && nrow(status_artifact) &&
+                     "forecast_status" %in% names(status_artifact) &&
+                     any(as.character(status_artifact$forecast_status) == "pre_draw")) {
+      "pre_draw"
+    } else {
+      "scheduled"
+    }
     candidate <- list(
       edition_id = as.character(manifest$edition_id[[1L]]),
       candidate_status = if (all(as.character(manifest$validation_status) == "valid")) "valid" else "invalid",
-      lifecycle_state = if (nrow(artifacts[["state/forecast_status.csv"]]) && "lifecycle_state" %in% names(artifacts[["state/forecast_status.csv"]])) {
-        as.character(artifacts[["state/forecast_status.csv"]]$lifecycle_state[[1L]])
-      } else "scheduled",
+      lifecycle_state = lifecycle,
       state_manifest = manifest,
-      state_artifacts = artifacts
+      state_artifacts = artifacts,
+      resolved_release = durable_release
     )
     phase14_state_bundle_validate_in_memory_candidate(candidate)
     return(invisible(TRUE))
@@ -1248,6 +1597,19 @@ phase14_validate_competition_state_bundle <- function(bundle) {
       stop("Phase 14 state batch candidate identity is not deterministic", call. = FALSE)
     }
     for (candidate in bundle$candidates) phase14_state_bundle_validate_in_memory_candidate(candidate)
+    if (!is.null(bundle$input_fixture_ids)) {
+      if (!is.list(bundle$input_fixture_ids) ||
+          !identical(names(bundle$input_fixture_ids), bundle$edition_ids)) {
+        stop("Phase 14 state batch source fixture inventory is not edition-scoped", call. = FALSE)
+      }
+      for (edition_id in bundle$edition_ids) {
+        expected_ids <- as.character(bundle$input_fixture_ids[[edition_id]])
+        observed_ids <- as.character(bundle$candidates[[edition_id]]$input_fixture_ids %||% character())
+        if (!setequal(expected_ids, observed_ids)) {
+          stop("Phase 14 state batch source fixture inventory was silently changed: ", edition_id, call. = FALSE)
+        }
+      }
+    }
     if (!is.data.frame(bundle$batch_manifest) || nrow(bundle$batch_manifest) != length(bundle$edition_ids)) {
       stop("Phase 14 state batch manifest is incomplete", call. = FALSE)
     }
@@ -1295,6 +1657,21 @@ phase14_build_competition_state_batch <- function(
     "competition edition registry"
   )
   ids <- phase14_state_bundle_normalize_edition_ids(edition_id, edition_ids, registry)
+  order_input <- function(value) {
+    if (is.data.frame(value)) phase14_state_bundle_order_rows(value) else value
+  }
+  canonical_matches <- order_input(canonical_matches)
+  team_registry <- order_input(team_registry)
+  elo_ratings <- order_input(elo_ratings)
+  national_team_xg_registry <- order_input(national_team_xg_registry)
+  national_team_xg_history <- order_input(national_team_xg_history)
+  model_manifest <- order_input(model_manifest)
+  results <- order_input(results)
+  groups <- order_input(groups)
+  standings <- order_input(standings)
+  competition_form <- order_input(competition_form)
+  all_senior_form <- order_input(all_senior_form)
+  historical_matches <- order_input(historical_matches)
   if (length(ids) == 1L && is.data.frame(canonical_matches) && "edition_id" %in% names(canonical_matches)) {
     values <- as.character(canonical_matches$edition_id)
     if (any(!is.na(values) & nzchar(values) & values != ids[[1L]])) {
@@ -1324,6 +1701,7 @@ phase14_build_competition_state_batch <- function(
   candidates <- lapply(seq_along(ids), function(index) {
     id <- ids[[index]]
     edition_row <- edition_rows[[index]]
+    local_rows <- phase14_state_bundle_match_rows(canonical_matches, id, length(ids))
     if (!is.null(shared_failure)) {
       candidate <- phase14_state_bundle_empty_candidate(
         id,
@@ -1331,7 +1709,10 @@ phase14_build_competition_state_batch <- function(
         reason = shared_failure,
         shared_input_audit = shared_audit,
         resolved_release = preflight$resolved_release,
-        edition_row = edition_row
+        edition_row = edition_row,
+        canonical_matches = local_rows,
+        team_registry = team_registry,
+        generated_at_utc = generated_at_utc
       )
       candidate$failure_scope <- "shared"
       candidate$state_status <- "invalid"
@@ -1339,25 +1720,45 @@ phase14_build_competition_state_batch <- function(
       candidate$model_form <- phase14_state_bundle_named_empty()
       candidate$forecast$forecast_top10 <- phase14_state_bundle_named_empty()
       candidate$forecast$local_score_distributions <- candidate$forecast$score_distributions
-      return(phase14_state_bundle_attach_manifest(candidate, generated_at_utc))
+      candidate <- phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
+      candidate$input_fixture_ids <- phase14_state_bundle_fixture_ids(local_rows, "source fixtures")
+      return(candidate)
     }
     local_audit <- shared_audit
     local_audit$fan_out <- 0L
-    local_rows <- phase14_state_bundle_match_rows(canonical_matches, id, length(ids))
     candidate <- tryCatch(
       phase14_state_bundle_candidate_production(
         id, edition_row, local_rows, team_registry, preflight$resolved_release,
         selector_path, trusted_release_root, elo_ratings, national_team_xg_registry,
         national_team_xg_history, model_manifest, model_manifest_path, results,
         groups, standings, competition_form, all_senior_form, historical_matches,
-        local_audit, generated_at_utc
+        local_audit, generated_at_utc, edition_count = length(ids)
       ),
-      error = function(error) phase14_state_bundle_local_failure(
-        id, edition_row, "edition_local_build_failed", conditionMessage(error),
-        local_audit, preflight$resolved_release
-      )
+      error = function(error) {
+        message <- conditionMessage(error)
+        reason <- if (grepl("results|status", tolower(message))) {
+          "edition_status_validation_failed"
+        } else if (grepl("fixture|canonical|kickoff|identity|venue", tolower(message))) {
+          "edition_fixture_validation_failed"
+        } else {
+          "edition_local_build_failed"
+        }
+        phase14_state_bundle_local_failure(
+          id,
+          edition_row,
+          reason,
+          message,
+          local_audit,
+          preflight$resolved_release,
+          canonical_matches = local_rows,
+          team_registry = team_registry,
+          generated_at_utc = generated_at_utc
+        )
+      }
     )
-    phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
+    candidate <- phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
+    candidate$input_fixture_ids <- phase14_state_bundle_fixture_ids(local_rows, "source fixtures")
+    candidate
   })
   names(candidates) <- ids
   batch_manifest <- do.call(rbind, lapply(candidates, function(candidate) {
@@ -1389,6 +1790,12 @@ phase14_build_competition_state_batch <- function(
   batch <- list(
     edition_ids = ids,
     candidates = candidates,
+    input_fixture_ids = setNames(lapply(ids, function(id) {
+      phase14_state_bundle_fixture_ids(
+        phase14_state_bundle_match_rows(canonical_matches, id, length(ids)),
+        "source fixtures"
+      )
+    }), ids),
     shared_input_audit = shared_audit,
     resolved_release = preflight$resolved_release,
     batch_manifest = batch_manifest,
