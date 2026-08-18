@@ -103,7 +103,7 @@ Each task was committed atomically:
 
 The TDD RED contract for both tasks was committed first as `bd2c74e` (`test`).
 
-**Plan metadata:** pending final docs commit.
+**Plan metadata:** `1edfab7` (docs: complete plan); state-position sync `8ff2ddc`.
 
 ## Files Created/Modified
 
