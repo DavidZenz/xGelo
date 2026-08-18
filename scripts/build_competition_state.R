@@ -72,7 +72,7 @@ phase14_build_competition_state_source_if_missing(
 )
 
 phase14_build_competition_state_parse_args <- function(args) {
-  output <- list(edition_id = NULL, dry_run = FALSE, help = FALSE)
+  output <- list(edition_id = NULL, dry_run = FALSE, replay_check = FALSE, help = FALSE)
   index <- 1L
   while (index <= length(args)) {
     token <- as.character(args[[index]])
@@ -80,6 +80,12 @@ phase14_build_competition_state_parse_args <- function(args) {
     key <- sub("^--", "", token)
     key <- gsub("_", "-", key, fixed = TRUE)
     if (identical(key, "dry-run")) {
+      output$dry_run <- TRUE
+      index <- index + 1L
+      next
+    }
+    if (identical(key, "replay-check")) {
+      output$replay_check <- TRUE
       output$dry_run <- TRUE
       index <- index + 1L
       next
@@ -101,6 +107,77 @@ phase14_build_competition_state_parse_args <- function(args) {
     stop("Phase 14 state build requires --edition-id <edition_id|both>", call. = FALSE)
   }
   output
+}
+
+phase14_build_competition_state_reverse_inputs <- function(loaded) {
+  if (!is.list(loaded)) return(loaded)
+  reversed <- loaded
+  for (name in names(reversed)) {
+    value <- reversed[[name]]
+    if (is.data.frame(value) && nrow(value) > 1L) {
+      reversed[[name]] <- value[rev(seq_len(nrow(value))), , drop = FALSE]
+    }
+  }
+  reversed
+}
+
+phase14_build_competition_state_run <- function(
+    ids,
+    loaded,
+    registry,
+    build_batch_fn,
+    validate_fn) {
+  build_arguments <- loaded
+  build_arguments$edition_id <- ids
+  build_arguments$edition_registry <- build_arguments$edition_registry %||% registry
+  batch <- phase14_build_competition_state_call(build_batch_fn, build_arguments)
+  validation <- phase14_build_competition_state_call(validate_fn, list(bundle = batch))
+  if (!isTRUE(validation)) stop("Phase 14 state replay validation did not return TRUE", call. = FALSE)
+  list(batch = batch, validation = validation)
+}
+
+phase14_build_competition_state_replay_summary <- function(batch) {
+  candidates <- lapply(batch$edition_ids, function(edition_id) {
+    candidate <- batch$candidates[[edition_id]]
+    artifacts <- candidate$state_artifacts
+    list(
+      state_manifest_sha256 = as.character(candidate$state_manifest_sha256),
+      canonical_matches_sha256 = phase14_state_bundle_hash_value(artifacts[["state/canonical_matches.csv"]]),
+      forecast_status_sha256 = phase14_state_bundle_hash_value(artifacts[["state/forecast_status.csv"]]),
+      forecasts_sha256 = phase14_state_bundle_hash_value(artifacts[["state/forecasts.csv"]]),
+      score_distributions_sha256 = phase14_state_bundle_hash_value(artifacts[["local/score_distributions.rds"]]),
+      top10_sha256 = phase14_state_bundle_hash_value(artifacts[["state/forecast_top10.csv"]]),
+      artifact_inventory = as.character(candidate$state_manifest$artifact_path),
+      source_fixture_ids = as.character(candidate$input_fixture_ids %||% character()),
+      output_fixture_ids = as.character(phase14_state_bundle_fixture_ids(artifacts[["state/canonical_matches.csv"]], "replay output")),
+      status_fixture_ids = as.character(phase14_state_bundle_ids_from_status(artifacts[["state/forecast_status.csv"]]))
+    )
+  })
+  names(candidates) <- batch$edition_ids
+  list(
+    edition_ids = batch$edition_ids,
+    batch_sha256 = as.character(batch$batch_sha256),
+    batch_manifest = batch$batch_manifest,
+    candidates = candidates
+  )
+}
+
+phase14_build_competition_state_compare_replays <- function(first, second, label) {
+  first_summary <- phase14_build_competition_state_replay_summary(first)
+  second_summary <- phase14_build_competition_state_replay_summary(second)
+  if (!identical(first_summary$edition_ids, second_summary$edition_ids) ||
+      !identical(first_summary$batch_sha256, second_summary$batch_sha256) ||
+      !identical(first_summary$batch_manifest, second_summary$batch_manifest)) {
+    stop("Phase 14 ", label, " replay changed the batch manifest or hash", call. = FALSE)
+  }
+  for (edition_id in first_summary$edition_ids) {
+    left <- first_summary$candidates[[edition_id]]
+    right <- second_summary$candidates[[edition_id]]
+    if (!identical(left, right)) {
+      stop("Phase 14 ", label, " replay changed the edition artifact or fixture inventory: ", edition_id, call. = FALSE)
+    }
+  }
+  invisible(TRUE)
 }
 
 phase14_build_competition_state_read_csv <- function(path, required = FALSE) {
@@ -192,7 +269,7 @@ phase14_build_competition_state_main <- function(
   if (isTRUE(options$help)) {
     return(list(
       help = TRUE,
-      usage = "Rscript scripts/build_competition_state.R --edition-id <edition_id|both> [--dry-run]",
+      usage = "Rscript scripts/build_competition_state.R --edition-id <edition_id|both> [--dry-run|--replay-check]",
       seed = 14017L
     ))
   }
@@ -209,13 +286,40 @@ phase14_build_competition_state_main <- function(
     list(edition_ids = ids, project_root = project_root)
   )
   if (!is.list(loaded)) stop("Phase 14 state build input loader must return a list", call. = FALSE)
-  build_arguments <- loaded
-  build_arguments$edition_id <- ids
-  build_arguments$edition_registry <- build_arguments$edition_registry %||% registry
-  batch <- phase14_build_competition_state_call(build_batch_fn, build_arguments)
-  validation <- phase14_build_competition_state_call(validate_fn, list(bundle = batch))
+  normal <- phase14_build_competition_state_run(ids, loaded, registry, build_batch_fn, validate_fn)
+  if (isTRUE(options$replay_check)) {
+    reversed <- phase14_build_competition_state_run(
+      rev(ids),
+      phase14_build_competition_state_reverse_inputs(loaded),
+      registry,
+      build_batch_fn,
+      validate_fn
+    )
+    repeated <- phase14_build_competition_state_run(ids, loaded, registry, build_batch_fn, validate_fn)
+    phase14_build_competition_state_compare_replays(normal$batch, reversed$batch, "reversed-input")
+    phase14_build_competition_state_compare_replays(normal$batch, repeated$batch, "repeated")
+    return(list(
+      dry_run = TRUE,
+      replay_check = TRUE,
+      seed = 14017L,
+      edition_ids = normal$batch$edition_ids,
+      options = options,
+      batch = normal$batch,
+      validation = normal$validation,
+      replay = list(
+        verified = TRUE,
+        normal = phase14_build_competition_state_replay_summary(normal$batch),
+        reversed = phase14_build_competition_state_replay_summary(reversed$batch),
+        repeated = phase14_build_competition_state_replay_summary(repeated$batch)
+      ),
+      durable_mutation = FALSE
+    ))
+  }
+  batch <- normal$batch
+  validation <- normal$validation
   list(
     dry_run = isTRUE(options$dry_run),
+    replay_check = FALSE,
     seed = 14017L,
     edition_ids = ids,
     options = options,
