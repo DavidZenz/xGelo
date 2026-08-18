@@ -1,9 +1,9 @@
-# Phase 14 Plan 14-13 Deferred Items
+# Deferred Items
 
-## Resolved Phase 13 regression mismatch
+## Pre-existing full-suite fixture-seed failures
 
-- **Command:** `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase13_competition_registry.R", stop_on_failure=TRUE)'`
-- **Original result:** 4 failures, 151 passes, 0 warnings, 0 skips.
-- **Failure:** The production-loading assertions at lines 757, 758, 770, and 771 compare the loader output with the legacy `phase13_normalized_fixture_schema()` / `phase13_normalized_result_schema()`, while the accepted snapshots currently expose the Phase 14 v2 schema (`source_group_id`, `group_id`, `kickoff_confirmed`, `confirmed_kickoff_at_utc`, `source_status`, and related lifecycle fields).
-- **Resolution:** The four production integration assertions now verify `phase14_normalized_fixture_schema()` and `phase14_normalized_result_schema()`. Existing Phase 13 v1 normalization and replay tests remain unchanged.
-- **Verified result:** 226 passes, 0 failures, 0 warnings, 0 skips on 2026-08-17.
+- **Command:** `Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'`
+- **Contexts:** `test_phase13_publication_hashes.R`, `test_phase13_publication_manifests.R`
+- **Result:** 10 failures before the default testthat maximum stopped the run.
+- **Error:** Phase 13 fixture seed construction received 156 `uefa_source_fixture_id` values but zero-length normalized home/away/source columns, producing `arguments imply differing number of rows: 156, 0`.
+- **Scope:** Pre-existing Phase 13 fixture/data-shape issue. The failure occurs before Phase 14 state code is loaded and is outside Plan 14-20; the Phase 14 focused gate, Phase 13 refresh-failure regression, and publication rollback regression pass.

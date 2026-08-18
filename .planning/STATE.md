@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
 status: executing
-stopped_at: Completed 14-19-PLAN.md
-last_updated: "2026-08-18T06:45:52.064Z"
+stopped_at: Completed 14-20-PLAN.md
+last_updated: "2026-08-18T09:42:26.414Z"
 last_activity: 2026-08-18
 last_activity_desc: Completed Plan 14-19 truthful EURO pre_draw backend promotion
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 35
-  completed_plans: 33
+  completed_plans: 34
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 20 of 22 complete; Plan 14-20 is next
+Plan: 21 of 22 complete; Plan 14-20 is next
 Status: Ready to execute
 Last activity: 2026-08-18 — Completed Plan 14-19 truthful EURO pre_draw backend promotion
 
 ## Progress
 
-**Progress:** [█████████░] 94% (33/35 plans complete)
+**Progress:** [██████████] 97% (33/35 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -144,6 +144,9 @@ for Nations League and EURO qualifying.
 - [Phase ?]: The approved release resolver remains the sole release authority; EURO status and manifest retain model_data_cutoff 2026-06-10.
 - [Phase ?]: EURO remains pre_draw with schema-valid zero-row unavailable structures and edition-level forecast status only; no competition rows are fabricated.
 - [Phase ?]: Promote edition state through validated staging and same-filesystem rename with rollback, preserving unrelated working-tree changes.
+- [Phase ?]: Canonicalize every tabular state input before shared preflight or edition-local construction so replay hashes are caller-order independent.
+- [Phase ?]: Use complete hashed suppressed status rows to preserve source fixture coverage and no-silent-drop equality.
+- [Phase ?]: Keep --replay-check strictly dry-run and non-promoting; retain the existing Phase 13 transaction as the rollback boundary.
 
 ## Accumulated Context
 
@@ -161,8 +164,8 @@ Plan 14-20 is next. It builds on Plan 14-19's truthful EURO pre_draw bundle, exa
 
 ## Session Continuity
 
-**Last session:** 2026-08-18T06:45:52.054Z
-**Stopped at:** Completed 14-19-PLAN.md
+**Last session:** 2026-08-18T09:41:44.404Z
+**Stopped at:** Completed 14-20-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -206,7 +209,9 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P16 | 36min | 1 tasks | 4 files |
 | Phase 14 P17 | 47min | 2 tasks | 5 files |
 | Phase 14 P19 | approximately 80m | 1 tasks | 11 files |
+| Phase 14 P20 | 1h 15m | 2 tasks | 3 files |
 
 ### Blockers
 
-- None. Resolved 2026-08-17: the fictional `nl-2026-27-official-sample-v1` acceptance was replaced by `nl-2026-27-official-uefa-v2`, acquired from the official UEFA endpoint with 156 fixtures, 14 groups, and 54 teams (`raw_sha256=a8b9a1d9c4329a33ffa15a447cb84f2cf92c01caac9668f46d3f0f0abeaed4cd`). Every official fixture has a confirmed kickoff and no Austria/Germany production pair is present; Plan 14-18 is ready to resume. EURO qualifying remains `pre_draw` with the calibrated release authority unchanged.
+- Resolved 2026-08-17: the fictional `nl-2026-27-official-sample-v1` acceptance was replaced by `nl-2026-27-official-uefa-v2`, acquired from the official UEFA endpoint with 156 fixtures, 14 groups, and 54 teams (`raw_sha256=a8b9a1d9c4329a33ffa15a447cb84f2cf92c01caac9668f46d3f0f0abeaed4cd`). Every official fixture has a confirmed kickoff and no Austria/Germany production pair is present; Plan 14-18 is ready to resume. EURO qualifying remains `pre_draw` with the calibrated release authority unchanged.
+- Full tests/testthat is blocked by a pre-existing Phase 13 fixture-seed shape error: 156 fixture IDs paired with zero-length normalized source columns; focused Phase 14 and rollback gates pass.
