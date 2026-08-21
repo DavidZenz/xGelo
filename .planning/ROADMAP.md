@@ -14,7 +14,7 @@ simulations, and fail-closed hourly publication.
 ## Phases
 
 - [x] **Phase 13: Source Contracts and Competition Registry** - Freeze official snapshot, fallback, normalization, and edition-registry contracts for both competitions. (completed 2026-08-16)
-- [ ] **Phase 14: Shared Competition State and Forecast Layer** - Build the shared standings, status, form, and point-in-time forecast layer that both competitions consume.
+- [x] **Phase 14: Shared Competition State and Forecast Layer** - Build the shared standings, status, form, and point-in-time forecast layer that both competitions consume. (completed 2026-08-21)
 - [ ] **Phase 15: Nations League Rules and Outcomes** - Deliver the full 2026/27 Nations League state, forecasts, and projection logic.
 - [ ] **Phase 16: EURO Qualifying Activation and Play-off Rules** - Deliver truthful EURO 2028 qualifying pre-draw behavior and official post-draw qualification logic.
 - [ ] **Phase 17: Shared Dashboards and Atomic Refresh Operations** - Publish both dashboards from one renderer and harden the hourly batch refresh, validation, and release flow.
@@ -70,7 +70,7 @@ simulations, and fail-closed hourly publication.
 4. Open fixtures show calibrated home, draw, and away probabilities, expected goals, a most likely score, a bounded score distribution, and uncertainty metadata from the approved release.
 5. Forecast audits prove point-in-time feature safety, and Nations League and EURO competition states remain independent while sharing canonical team identity and strength inputs.
 
-**Plans**: 21/22 plans executed
+**Plans**: 22/22 plans executed
 **Wave 1**
 
 - [x] 14-01-PLAN.md
@@ -140,7 +140,7 @@ simulations, and fail-closed hourly publication.
 
 **Wave 17** *(blocked on Wave 16 completion)*
 
-- [ ] 14-18-PLAN.md
+- [x] 14-18-PLAN.md
 
 **Wave 18** *(blocked on Wave 17 completion)*
 
@@ -201,7 +201,7 @@ simulations, and fail-closed hourly publication.
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
-| 14. Shared Competition State and Forecast Layer | 21/22 | In Progress|  |
+| 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 0/TBD | Not started | - |
 | 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |
 | 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |

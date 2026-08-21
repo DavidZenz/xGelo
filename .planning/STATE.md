@@ -4,40 +4,40 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 14
 current_phase_name: shared-competition-state-and-forecast-layer
-status: executing
-stopped_at: Completed 14-20-PLAN.md
-last_updated: "2026-08-18T09:42:26.414Z"
-last_activity: 2026-08-18
-last_activity_desc: Completed Plan 14-20 shared state isolation and replay hardening
+status: ready_for_verification
+stopped_at: Completed 14-18-PLAN.md
+last_updated: "2026-08-21T13:52:20Z"
+last_activity: 2026-08-21
+last_activity_desc: Plan 14-18 durable Nations League gap closure completed
 progress:
-  total_phases: 2
-  completed_phases: 1
+  total_phases: 5
+  completed_phases: 2
   total_plans: 35
-  completed_plans: 34
+  completed_plans: 35
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 14-18 of 22; Plan 14-18 gap closure is ready to execute
-Status: Ready to execute
-Last activity: 2026-08-21 — Phase 14 planning complete for Plan 14-18 gap closure
+Phase: 14 (shared-competition-state-and-forecast-layer) — PLAN EXECUTION COMPLETE
+Plan: 22 of 22 (all plans complete)
+Status: Ready for phase-level verification
+Last activity: 2026-08-21 — Plan 14-18 durable Nations League gap closure completed
 
 ## Progress
 
-**Progress:** [██████████] 97% (34/35 plans complete)
+**Progress:** [██████████] 100% (35/35 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
-| 14 | Shared Competition State and Forecast Layer | Canonical state, cutoff-safe form, release-active forecast tracer, deterministic production batch state/forecast expansion, edition-isolated candidates, and truthful EURO pre_draw bundle delivered (21/22 tracked; 14-18 correction follow-up remains open) | 7/7 |
+| 14 | Shared Competition State and Forecast Layer | Complete: canonical state, cutoff-safe form, release-active forecasts, deterministic production batches, edition-isolated candidates, truthful EURO pre_draw bundle, and official durable Nations League bundle | 7/7 |
 | 15 | Nations League Rules and Outcomes | Not started | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
-**Overall:** 1 of 5 phases complete (20%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, honest form availability, deterministic production state-to-forecast batches, and a truthful EURO pre_draw backend bundle, with Plan 14-20 complete and Plan 14-18 correction follow-up still open.
+**Overall:** 2 of 5 phases complete (40%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, honest form availability, deterministic production state-to-forecast batches, a truthful EURO pre_draw backend bundle, and the official durable Nations League state/forecast bundle.
 
 ## Project Reference
 
@@ -47,8 +47,7 @@ milestone scope.
 **Core value:** Accurate, calibrated international-football forecasting without
 dependence on paid data feeds.
 
-**Current focus:** Phase 14 — shared-competition-state-and-forecast-layer
-for Nations League and EURO qualifying.
+**Current focus:** Phase-level verification for the completed Phase 14 shared state and forecast layer.
 
 ## Decisions
 
@@ -156,12 +155,12 @@ for Nations League and EURO qualifying.
 
 ## Pending Todos
 
-- Downstream dashboards still need to consume the durable calibrated authority and expose its model/cutoff lineage; the shared forecast engine and state candidate now provide that contract.
-- Planning override (2026-08-21): the user accepted the Phase 14 Plan 14-18 gap-closure plan after three checker iterations. During execution and verification, revisit the accepted blockers covering all 156 fixture forecasts, complete resolver lineage, and the explicit model_form xG unavailable/no-imputation audit.
+- Downstream dashboards still need to consume the durable calibrated authority and expose its model/cutoff lineage; the shared forecast engine and both durable competition bundles now provide that contract.
+- Phase 14 Plan 14-18 gap closure is complete; its accepted blockers are closed by the official 156-fixture output, complete resolver lineage, and explicit model_form xG unavailable/no-imputation audit.
 
 ## Next Action
 
-Execute Plan 14-18 with `/gsd-execute-phase 14 --gaps-only` to publish and verify the official Nations League durable bundle.
+Run phase-level verification for Phase 14, then transition to Phase 15 Nations League rules and outcomes.
 
 ## Session Continuity
 
