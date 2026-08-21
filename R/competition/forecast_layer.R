@@ -49,6 +49,10 @@ phase14_forecast_source_if_missing(
   c("build_forecast_feature_table", "validate_forecast_feature_evidence")
 )
 phase14_forecast_source_if_missing(
+  "R/evaluation/proper_scores.R",
+  c("validate_scoreline_distribution")
+)
+phase14_forecast_source_if_missing(
   "R/benchmark/contracts.R",
   c("derive_benchmark_markets", "validate_benchmark_score_distributions")
 )

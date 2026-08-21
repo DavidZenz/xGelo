@@ -607,11 +607,23 @@ phase14_state_bundle_named_empty <- function() {
   data.frame(stringsAsFactors = FALSE, check.names = FALSE)
 }
 
+phase14_state_bundle_is_score_grid <- function(value) {
+  is.data.frame(value) && all(c(
+    "score_distribution_id", "home_goals", "away_goals", "probability",
+    "support_max_home", "support_max_away", "raw_tail_mass", "normalized"
+  ) %in% names(value))
+}
+
 phase14_state_bundle_hash_value <- function(value) {
   if (!requireNamespace("digest", quietly = TRUE)) {
     stop("digest is required for Phase 14 state-bundle lineage", call. = FALSE)
   }
   if (is.data.frame(value)) {
+    # The local score grid is a binary artifact.  Hash its deterministic R
+    # serialization instead of materializing a large CSV representation.
+    if (phase14_state_bundle_is_score_grid(value)) {
+      return(digest::digest(value, algo = "sha256", serialize = TRUE))
+    }
     # phase14_forecast_hash_data orders columns before serialising; base::order
     # has no vector to order for a zero-column empty schema.  Empty artifacts
     # are valid (notably pre_draw), so hash their stable column-name schema.
@@ -1289,7 +1301,10 @@ phase14_state_bundle_manifest_rows <- function(
       artifact_type = if (identical(path, "local/score_distributions.rds")) "rds" else "csv",
       row_count = phase14_state_bundle_value_rows(value),
       content_sha256 = if (identical(path, "audit/state_manifest.csv")) "" else phase14_state_bundle_hash_value(value),
-      row_sha256 = if (identical(path, "audit/state_manifest.csv")) "" else paste(phase14_state_bundle_row_hashes(value), collapse = "|"),
+      # The binary score-grid artifact is authenticated by its content hash;
+      # row-wise hashes would serialize hundreds of thousands of cells again.
+      row_sha256 = if (identical(path, "audit/state_manifest.csv") ||
+                       identical(path, "local/score_distributions.rds")) "" else paste(phase14_state_bundle_row_hashes(value), collapse = "|"),
       parent_paths = paste(parent_paths, collapse = "|"),
       parent_sha256 = paste(parent_hashes, collapse = "|"),
       model_release_id = release_id,
