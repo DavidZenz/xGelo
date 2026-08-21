@@ -807,7 +807,7 @@ phase14_forecast_eligibility <- function(matches, row, edition_id) {
   away <- phase14_forecast_row_value(matches, row, c("away_team_id"), NA_character_)
   if (is.na(home) || is.na(away) || !nzchar(home) || !nzchar(away)) return("identity_unresolved")
   status <- tolower(phase14_forecast_status_token(matches, row))
-  if (!status %in% c("scheduled", "open", "pending")) return("status_ineligible")
+  if (!status %in% c("scheduled", "open", "pending", "upcoming")) return("status_ineligible")
   tryCatch({
     kickoff <- phase14_forecast_match_kickoff(matches, row)
     phase14_forecast_cutoff_for_row(matches, row, kickoff, NULL)

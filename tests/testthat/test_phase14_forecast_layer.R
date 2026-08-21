@@ -134,6 +134,24 @@ test_that("forecast lineage hashes empty data-frame schemas", {
   expect_identical(first_hash, phase14_forecast_hash_data(empty_schema))
 })
 
+test_that("official upcoming source status is forecast eligible", {
+  fixture <- data.frame(
+    edition_id = "uefa_nations_league_2026_27",
+    fixture_id = "nl-upcoming-regression",
+    home_team_id = "team-a",
+    away_team_id = "team-b",
+    source_status = "UPCOMING",
+    kickoff_confirmed = TRUE,
+    confirmed_kickoff_at_utc = "2026-11-12T19:45:00Z",
+    stringsAsFactors = FALSE
+  )
+
+  expect_identical(
+    phase14_forecast_eligibility(fixture, 1L, "uefa_nations_league_2026_27"),
+    "eligible"
+  )
+})
+
 test_that("forecast fixture freezes the complete eligibility and suppression enum", {
   cases <- phase14_forecast_cases()
   required <- c(
