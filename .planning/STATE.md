@@ -21,9 +21,9 @@ progress:
 ## Current Position
 
 Phase: 14 (shared-competition-state-and-forecast-layer) — IN PROGRESS
-Plan: 21 of 22; Plan 14-20 is complete and Plan 14-21 is next
+Plan: 14-18 of 22; Plan 14-18 gap closure is ready to execute
 Status: Ready to execute
-Last activity: 2026-08-18 — Completed Plan 14-20 shared state isolation and replay hardening
+Last activity: 2026-08-21 — Phase 14 planning complete for Plan 14-18 gap closure
 
 ## Progress
 
@@ -157,10 +157,11 @@ for Nations League and EURO qualifying.
 ## Pending Todos
 
 - Downstream dashboards still need to consume the durable calibrated authority and expose its model/cutoff lineage; the shared forecast engine and state candidate now provide that contract.
+- Planning override (2026-08-21): the user accepted the Phase 14 Plan 14-18 gap-closure plan after three checker iterations. During execution and verification, revisit the accepted blockers covering all 156 fixture forecasts, complete resolver lineage, and the explicit model_form xG unavailable/no-imputation audit.
 
 ## Next Action
 
-Plan 14-21 is next. Plan 14-20 builds on Plan 14-19's truthful EURO pre_draw bundle, exact artifact manifests, and scoped forecast/state failure semantics.
+Execute Plan 14-18 with `/gsd-execute-phase 14 --gaps-only` to publish and verify the official Nations League durable bundle.
 
 ## Session Continuity
 

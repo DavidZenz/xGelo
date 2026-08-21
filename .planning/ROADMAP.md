@@ -71,29 +71,84 @@ simulations, and fail-closed hourly publication.
 5. Forecast audits prove point-in-time feature safety, and Nations League and EURO competition states remain independent while sharing canonical team identity and strength inputs.
 
 **Plans**: 21/22 plans executed
+**Wave 1**
 
 - [x] 14-01-PLAN.md
 - [x] 14-02-PLAN.md
 - [x] 14-03-PLAN.md
 - [x] 14-04-PLAN.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] 14-05-PLAN.md
-- [x] 14-06-PLAN.md
-- [x] 14-07-PLAN.md
-- [x] 14-08-PLAN.md
-- [x] 14-09-PLAN.md
-- [x] 14-10-PLAN.md
-- [x] 14-11-PLAN.md
-- [x] 14-12-PLAN.md
-- [x] 14-13-PLAN.md
-- [x] 14-14-PLAN.md
-- [x] 14-15-PLAN.md
-- [x] 14-16-PLAN.md
-- [x] 14-17-PLAN.md
-- [ ] 14-18-PLAN.md
-- [x] 14-19-PLAN.md
-- [x] 14-20-PLAN.md
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [x] 14-21-PLAN.md
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [x] 14-22-PLAN.md
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 14-06-PLAN.md
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [x] 14-07-PLAN.md
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [x] 14-08-PLAN.md
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [x] 14-09-PLAN.md
+
+**Wave 9** *(blocked on Wave 8 completion)*
+
+- [x] 14-10-PLAN.md
+
+**Wave 10** *(blocked on Wave 9 completion)*
+
+- [x] 14-11-PLAN.md
+
+**Wave 11** *(blocked on Wave 10 completion)*
+
+- [x] 14-12-PLAN.md
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
+- [x] 14-13-PLAN.md
+
+**Wave 13** *(blocked on Wave 12 completion)*
+
+- [x] 14-14-PLAN.md
+
+**Wave 14** *(blocked on Wave 13 completion)*
+
+- [x] 14-15-PLAN.md
+
+**Wave 15** *(blocked on Wave 14 completion)*
+
+- [x] 14-16-PLAN.md
+
+**Wave 16** *(blocked on Wave 15 completion)*
+
+- [x] 14-17-PLAN.md
+
+**Wave 17** *(blocked on Wave 16 completion)*
+
+- [ ] 14-18-PLAN.md
+
+**Wave 18** *(blocked on Wave 17 completion)*
+
+- [x] 14-19-PLAN.md
+
+**Wave 19** *(blocked on Wave 18 completion)*
+
+- [x] 14-20-PLAN.md
 
 ### Phase 15: Nations League Rules and Outcomes
 
