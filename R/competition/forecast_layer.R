@@ -105,8 +105,13 @@ phase14_forecast_parse_set <- function(value) {
 phase14_forecast_hash_data <- function(data) {
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Phase 14 forecast lineage", call. = FALSE)
   if (is.data.frame(data)) {
-    data <- data[order(do.call(order, lapply(data, as.character))), , drop = FALSE]
-    bytes <- paste(capture.output(utils::write.csv(data, stdout(), row.names = FALSE, na = "", quote = TRUE)), collapse = "\n")
+    if (!ncol(data)) {
+      # Empty schemas are valid before national-team xG becomes available.
+      bytes <- paste(names(data), collapse = "|")
+    } else {
+      data <- data[order(do.call(order, lapply(data, as.character))), , drop = FALSE]
+      bytes <- paste(capture.output(utils::write.csv(data, stdout(), row.names = FALSE, na = "", quote = TRUE)), collapse = "\n")
+    }
   } else {
     values <- as.character(data)
     values[is.na(values)] <- ""

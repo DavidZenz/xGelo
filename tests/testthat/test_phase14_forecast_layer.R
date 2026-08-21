@@ -125,6 +125,15 @@ production_path <- file.path(
 )
 if (file.exists(production_path)) source(production_path, local = .GlobalEnv)
 
+test_that("forecast lineage hashes empty data-frame schemas", {
+  empty_schema <- data.frame(stringsAsFactors = FALSE)
+  first_hash <- phase14_forecast_hash_data(empty_schema)
+
+  expect_type(first_hash, "character")
+  expect_length(first_hash, 1L)
+  expect_identical(first_hash, phase14_forecast_hash_data(empty_schema))
+})
+
 test_that("forecast fixture freezes the complete eligibility and suppression enum", {
   cases <- phase14_forecast_cases()
   required <- c(
