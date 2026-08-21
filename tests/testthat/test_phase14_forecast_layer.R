@@ -152,6 +152,30 @@ test_that("official upcoming source status is forecast eligible", {
   )
 })
 
+test_that("inactive national-team xG lineage exposes unavailable reason", {
+  enriched <- phase14_forecast_batch_enrich_features(
+    feature_result = list(
+      model_form = data.frame(
+        availability_reason = "no_accepted_national_team_xg_source",
+        stringsAsFactors = FALSE
+      ),
+      xg_evidence_status = "inactive_optional_unavailable"
+    ),
+    manifest = list(
+      active_predictors = "elo_diff",
+      dropped_predictors_with_reason = "xg_missing",
+      manifest_sha256 = "manifest"
+    ),
+    resolved_release = list(model_data_cutoff = "2026-06-10"),
+    adapted_matches = data.frame(
+      feature_cutoff_utc = "2026-11-12T19:44:59Z",
+      stringsAsFactors = FALSE
+    )
+  )
+
+  expect_match(enriched$national_team_xg_availability_reason, "inactive_optional_unavailable")
+})
+
 test_that("forecast fixture freezes the complete eligibility and suppression enum", {
   cases <- phase14_forecast_cases()
   required <- c(

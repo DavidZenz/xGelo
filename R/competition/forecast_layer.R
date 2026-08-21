@@ -1129,6 +1129,13 @@ phase14_forecast_batch_enrich_features <- function(feature_result, manifest, res
   } else {
     "no_accepted_point_in_time_national_team_xg"
   }
+  if (identical(feature_result$xg_evidence_status, "inactive_optional_unavailable") &&
+      !grepl("unavailable|inactive", tolower(feature_result$national_team_xg_availability_reason))) {
+    feature_result$national_team_xg_availability_reason <- paste0(
+      "inactive_optional_unavailable:",
+      feature_result$national_team_xg_availability_reason
+    )
+  }
   if (is.data.frame(feature_result$model_form) && nrow(feature_result$model_form) && "sample_count" %in% names(feature_result$model_form)) {
     counts <- suppressWarnings(as.integer(feature_result$model_form$sample_count))
     counts <- counts[is.finite(counts)]
