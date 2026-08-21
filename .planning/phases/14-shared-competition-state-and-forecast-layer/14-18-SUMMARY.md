@@ -71,7 +71,7 @@ coverage:
 - Kept the official standings table pre-kickoff and schema-complete with zero rows; competition form and all-international form are schema-complete with zero rows; `state/model_form.csv` contains 54 team rows.
 - Retained calibrated primary view `calibrated_1x2`, approved release `phase14-open-nb-incumbent-calibrated-v1`, active predictor `elo_diff`, and dropped xG/form predictors in status, forecasts, top-10, and manifest lineage.
 - Propagated `model_data_cutoff 2026-06-10` and strict per-fixture feature cutoffs before each confirmed kickoff.
-- Audited national-team xG as explicitly unavailable/NA: source `national_team_xg_sources.csv`, sample count zero, reason `inactive_optional_unavailable:no_accepted_national_team_xg_source`, and no imputed values.
+- Audited national-team xG as explicitly unavailable/NA: source `national_team_xg_sources.csv`, sample count zero, model-form reason `unavailable:no_accepted_national_team_xg_source`, forecast/status reason `inactive_optional_unavailable:no_accepted_national_team_xg_source`, and no imputed values.
 - Confirmed that no production `Austria/Germany` fixture was used. Synthetic Austria/Germany xG-active suppression remains unit-test evidence only.
 
 ## Durable Artifacts
@@ -90,18 +90,33 @@ The promoted directory contains exactly these paths:
 - `outputs/competition/uefa_nations_league_2026_27/audit/state_manifest.csv`
 - `outputs/competition/uefa_nations_league_2026_27/local/score_distributions.rds`
 
-The manifest contains 11 rows, `validation_status = valid`, the self/manifest hash `47d1ece5a3287369233c738fa22a289ca8c6914429cdf273eb0eaf937e7a01b3`, parent hashes, release identity, predictor audit, and source-bundle lineage.
+The manifest contains 11 rows, `validation_status = valid`, the self/manifest hash `4b86dbbc37724690cc1bf53cfb36796c38daeec7ef3a5697bbe1ac90458a9038`, parent hashes, release identity, predictor audit, and source-bundle lineage.
+
+Machine-checkable acceptance evidence:
+
+```text
+source_bundle_id=nl-2026-27-official-uefa-v2
+source_fixture_count=156
+group_count=14
+team_count=54
+durable_artifact_count=11
+state_manifest_sha256=4b86dbbc37724690cc1bf53cfb36796c38daeec7ef3a5697bbe1ac90458a9038
+validator_result=TRUE
+rollback_probe_result=11/11 passed
+durable_readback_result=TRUE
+phase13_deferred_failure_boundary=outside Phase 14 acceptance gate
+```
 
 ## Verification
 
-- Focused Phase 14 forecast suite: **133 passed, 0 failed, 0 warnings, 0 skips**.
+- Focused Phase 14 forecast suite: **136 passed, 0 failed, 0 warnings, 0 skips**.
 - Focused Phase 14 state-bundle suite: **162 passed, 0 failed, 0 warnings, 0 skips**.
 - Candidate and durable state-bundle validator: **passed**.
-- Direct official acceptance assertions: **passed** for 156 fixtures, 14 groups, 54 teams, release/cutoff lineage, calibrated view, exact status/forecast/grid/top-10 coverage, no synthetic Austria/Germany fixture, and inactive/unavailable xG.
+- Direct official acceptance assertions: **passed** for the five-row source manifest, 156 fixtures, 14 groups, 54 teams, release/cutoff lineage, calibrated view, exact status/forecast/grid/top-10 coverage, no synthetic Austria/Germany fixture, and inactive/unavailable xG.
 - Replay check: **passed** with `--replay-check`; it remained dry-run and made no durable mutation.
 - Match-state and standings rollback matrices: **passed**; the `COVERAGE.md` hash was unchanged.
-- Atomic promotion: **passed** after staged validation; the injected-failure rollback probe restored the prior target sentinel and removed the replacement directory before the real promotion.
-- Durable read-back: **passed** against the final 11-file directory.
+- Atomic promotion: **passed** after staged validation; the eleven-target injected-failure rollback probe passed **11/11** failure indices, restored incumbent bytes, preserved siblings and selector/release files, and left no residue.
+- Durable read-back: **passed** against the final 11-file directory, including all eleven artifacts and their manifest-bound hashes.
 
 The repository-wide Phase 13 `fixture-seed` failure remains outside the Phase 14 acceptance gate. It is not claimed as full-suite green here.
 
@@ -113,7 +128,7 @@ The plan nominally prohibited new production behavior, but four Rule 1 execution
 2. Official UEFA `UPCOMING` source status is accepted as a forecast-eligible scheduled state.
 3. The standalone forecast loader sources the existing proper-score validator dependency required by the registered release model.
 4. The binary G=40 score grid uses deterministic R serialization for its content hash and omits discarded per-cell row-hash materialization, reducing the valid build from tens of minutes to minute-scale while retaining content and parent-hash validation.
-5. Inactive national-team xG lineage explicitly includes the `unavailable/inactive` audit vocabulary required by the acceptance gate.
+5. Inactive national-team xG lineage explicitly includes the `unavailable/inactive` audit vocabulary required by the acceptance gate, including the durable `model_form.csv` construction boundary.
 
 Commits:
 

@@ -725,6 +725,18 @@ test_that("production forecast batches retain every fixture and compact local ou
   expect_equal(nrow(result$forecast_top10), 10L)
   expect_identical(result$forecasts$score_support_max, 40L)
   expect_identical(result$forecast_top10$rank, seq_len(10L))
+  expect_true(all(c(
+    "release_selector_sha256", "model_id", "model_sha256",
+    "calibrator_id", "calibrator_sha256"
+  ) %in% names(result$forecast_top10)))
+  expect_identical(
+    as.character(result$forecast_top10$model_id),
+    rep(as.character(result$forecasts$model_id), 10L)
+  )
+  expect_identical(
+    as.character(result$forecast_top10$calibrator_id),
+    rep(as.character(result$forecasts$calibrator_id), 10L)
+  )
   expect_true(all(result$fixture_status$model_data_cutoff == "2026-06-10"))
   expect_true(all(result$fixture_status$active_predictors == "elo_diff"))
   expect_true(all(grepl("^form_index_diff|xg", result$fixture_status$dropped_predictors_with_reason)))

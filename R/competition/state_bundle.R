@@ -888,7 +888,22 @@ phase14_state_bundle_shared_preflight <- function(
 
 phase14_state_bundle_model_form <- function(forecast) {
   if (is.list(forecast) && is.list(forecast$features) && is.data.frame(forecast$features$model_form)) {
-    return(forecast$features$model_form)
+    model_form <- forecast$features$model_form
+    if (all(c("availability_status", "availability_reason") %in% names(model_form))) {
+      unavailable <- tolower(trimws(as.character(model_form$availability_status))) %in% c(
+        "unavailable", "inactive", "inactive_optional_unavailable"
+      )
+      has_marker <- grepl(
+        "unavailable|inactive",
+        tolower(trimws(as.character(model_form$availability_reason)))
+      )
+      needs_marker <- unavailable & !is.na(model_form$availability_reason) & !has_marker
+      model_form$availability_reason[needs_marker] <- paste0(
+        "unavailable:",
+        model_form$availability_reason[needs_marker]
+      )
+    }
+    return(model_form)
   }
   phase14_state_bundle_named_empty()
 }
@@ -1263,6 +1278,102 @@ phase14_state_bundle_parent_map <- function() {
   )
 }
 
+phase14_state_bundle_source_manifest_digest <- function(candidate) {
+  empty <- list(
+    source_bundle_id = "",
+    source_artifact_ids = "",
+    source_artifact_paths = "",
+    source_urls = "",
+    source_url_lineage = "",
+    source_bundle_sha256 = "",
+    artifact_manifest_sha256 = "",
+    raw_sha256 = ""
+  )
+  manifest <- candidate$source_bundle_manifest
+  if (is.null(manifest)) return(empty)
+  if (!is.data.frame(manifest)) {
+    stop("Phase 14 accepted source bundle manifest must be a data frame", call. = FALSE)
+  }
+  types <- c("fixtures", "groups", "results", "standings", "status")
+  required <- c(
+    "bundle_id", "edition_id", "bundle_status", "acceptance_state", "fallback_status",
+    "artifact_count", "required_resource_count", "artifact_type", "source_artifact_id",
+    "source_url", "source_url_lineage", "relative_local_raw_path", "raw_sha256",
+    "source_bundle_sha256", "artifact_manifest_sha256"
+  )
+  missing <- setdiff(required, names(manifest))
+  if (length(missing) || nrow(manifest) != length(types)) {
+    stop("Phase 14 accepted source bundle manifest must contain exactly five complete rows", call. = FALSE)
+  }
+  manifest <- manifest[match(types, as.character(manifest$artifact_type)), , drop = FALSE]
+  if (any(is.na(manifest$artifact_type))) {
+    stop("Phase 14 accepted source bundle manifest has an incomplete artifact-type map", call. = FALSE)
+  }
+  edition_id <- as.character(candidate$edition_id)
+  bundle_id <- paste0("nl-2026-27-official-uefa-v2")
+  expected_ids <- paste0(bundle_id, "-", types)
+  if (!all(as.character(manifest$edition_id) == edition_id) ||
+      !all(as.character(manifest$bundle_id) == bundle_id) ||
+      !all(as.character(manifest$bundle_status) == "accepted") ||
+      !all(as.character(manifest$acceptance_state) == "accepted") ||
+      !all(as.character(manifest$fallback_status) == "official") ||
+      !all(as.integer(manifest$artifact_count) == 5L) ||
+      !all(as.integer(manifest$required_resource_count) == 5L) ||
+      !identical(as.character(manifest$source_artifact_id), expected_ids)) {
+    stop("Phase 14 accepted source bundle manifest failed official lineage validation", call. = FALSE)
+  }
+  project_root <- phase14_state_bundle_project_root()
+  accepted_paths <- file.path("data/competition/accepted", edition_id, paste0(types, ".csv"))
+  raw_paths <- as.character(manifest$relative_local_raw_path)
+  raw_paths <- ifelse(grepl("^/", raw_paths), raw_paths, file.path(project_root, raw_paths))
+  if (!all(file.exists(file.path(project_root, accepted_paths))) || !all(file.exists(raw_paths)) ||
+      any(!nzchar(as.character(manifest$source_url))) ||
+      any(!nzchar(as.character(manifest$source_url_lineage))) ||
+      any(!grepl("^[0-9a-fA-F]{64}$", as.character(manifest$raw_sha256))) ||
+      any(!grepl("^[0-9a-fA-F]{64}$", as.character(manifest$source_bundle_sha256))) ||
+      any(!grepl("^[0-9a-fA-F]{64}$", as.character(manifest$artifact_manifest_sha256)))) {
+    stop("Phase 14 accepted source bundle manifest has missing paths, URLs, or hashes", call. = FALSE)
+  }
+  for (index in seq_along(types)) {
+    accepted <- utils::read.csv(
+      file.path(project_root, accepted_paths[[index]]),
+      stringsAsFactors = FALSE,
+      check.names = FALSE,
+      na.strings = ""
+    )
+    edition_column <- if ("edition_id" %in% names(accepted)) "edition_id" else "source_edition_id"
+    if (!edition_column %in% names(accepted) ||
+        any(as.character(accepted[[edition_column]]) != edition_id) ||
+        !"source_artifact_id" %in% names(accepted) ||
+        any(as.character(accepted$source_artifact_id) != expected_ids[[index]])) {
+      stop("Phase 14 accepted source artifact failed edition or artifact identity validation: ", types[[index]], call. = FALSE)
+    }
+    if ("bundle_id" %in% names(accepted) && any(as.character(accepted$bundle_id) != bundle_id)) {
+      stop("Phase 14 accepted source artifact has the wrong bundle_id: ", types[[index]], call. = FALSE)
+    }
+    if ("source_bundle_id" %in% names(accepted) && any(as.character(accepted$source_bundle_id) != bundle_id)) {
+      stop("Phase 14 accepted source artifact has the wrong source_bundle_id: ", types[[index]], call. = FALSE)
+    }
+    if (identical(types[[index]], "results") &&
+        (!"fixture_source_artifact_id" %in% names(accepted) ||
+         any(as.character(accepted$fixture_source_artifact_id) != expected_ids[[1L]]))) {
+      stop("Phase 14 accepted results are not bound to the fixtures artifact", call. = FALSE)
+    }
+  }
+  unique_bundle_hash <- unique(as.character(manifest$source_bundle_sha256))
+  unique_manifest_hash <- unique(as.character(manifest$artifact_manifest_sha256))
+  list(
+    source_bundle_id = bundle_id,
+    source_artifact_ids = paste(expected_ids, collapse = "|"),
+    source_artifact_paths = paste(accepted_paths, collapse = "|"),
+    source_urls = paste(as.character(manifest$source_url), collapse = "|"),
+    source_url_lineage = paste(as.character(manifest$source_url_lineage), collapse = "|"),
+    source_bundle_sha256 = paste(unique_bundle_hash, collapse = "|"),
+    artifact_manifest_sha256 = paste(unique_manifest_hash, collapse = "|"),
+    raw_sha256 = paste(as.character(manifest$raw_sha256), collapse = "|")
+  )
+}
+
 phase14_state_bundle_manifest_rows <- function(
     candidate,
     artifacts,
@@ -1287,6 +1398,7 @@ phase14_state_bundle_manifest_rows <- function(
   model_hash <- phase14_state_bundle_release_field(release, "model_identity.sha256")
   calibrator_id <- phase14_state_bundle_release_field(release, "calibrator_identity.calibrator_id")
   calibrator_hash <- phase14_state_bundle_release_field(release, "calibrator_identity.sha256")
+  provenance <- phase14_state_bundle_source_manifest_digest(candidate)
   parents <- phase14_state_bundle_parent_map()
   paths <- phase14_state_bundle_expected_inventory()
   rows <- lapply(paths, function(path) {
@@ -1323,6 +1435,14 @@ phase14_state_bundle_manifest_rows <- function(
       national_team_xg_sample_count = as.integer(candidate$forecast$features$national_team_xg_sample_count %||% 0L),
       national_team_xg_feature_cutoff_utc = phase14_state_bundle_text(candidate$forecast$features$national_team_xg_feature_cutoff_utc, ""),
       national_team_xg_availability_reason = phase14_state_bundle_text(candidate$forecast$features$national_team_xg_availability_reason, phase14_state_bundle_text(audit$xg_evidence_reason, "not_evaluated")),
+      source_bundle_id = provenance$source_bundle_id,
+      source_artifact_ids = provenance$source_artifact_ids,
+      source_artifact_paths = provenance$source_artifact_paths,
+      source_urls = provenance$source_urls,
+      source_url_lineage = provenance$source_url_lineage,
+      source_bundle_sha256 = provenance$source_bundle_sha256,
+      artifact_manifest_sha256 = provenance$artifact_manifest_sha256,
+      raw_sha256 = provenance$raw_sha256,
       failure_scope = phase14_state_bundle_text(candidate$failure_scope, ""),
       failure_reason = phase14_state_bundle_text(candidate$failure_reason, ""),
       warnings = if (identical(audit$xg_evidence_status, "inactive_optional_unavailable")) "national_team_xg_unavailable_inactive" else if (is.na(candidate$failure_reason)) "none" else as.character(candidate$failure_reason),
@@ -1658,6 +1778,7 @@ phase14_build_competition_state_batch <- function(
     national_team_xg_history = NULL,
     model_manifest = NULL,
     model_manifest_path = "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv",
+    source_bundle_manifest = NULL,
     results = NULL,
     groups = NULL,
     standings = NULL,
@@ -1681,6 +1802,13 @@ phase14_build_competition_state_batch <- function(
   national_team_xg_registry <- order_input(national_team_xg_registry)
   national_team_xg_history <- order_input(national_team_xg_history)
   model_manifest <- order_input(model_manifest)
+  if (!is.null(source_bundle_manifest)) {
+    source_bundle_manifest <- phase14_state_bundle_read_table(
+      source_bundle_manifest,
+      "data/competition/accepted/uefa_nations_league_2026_27/source_bundle_manifest.csv",
+      "accepted source bundle manifest"
+    )
+  }
   results <- order_input(results)
   groups <- order_input(groups)
   standings <- order_input(standings)
@@ -1735,6 +1863,7 @@ phase14_build_competition_state_batch <- function(
       candidate$model_form <- phase14_state_bundle_named_empty()
       candidate$forecast$forecast_top10 <- phase14_state_bundle_named_empty()
       candidate$forecast$local_score_distributions <- candidate$forecast$score_distributions
+      candidate$source_bundle_manifest <- source_bundle_manifest
       candidate <- phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
       candidate$input_fixture_ids <- phase14_state_bundle_fixture_ids(local_rows, "source fixtures")
       return(candidate)
@@ -1771,6 +1900,7 @@ phase14_build_competition_state_batch <- function(
         )
       }
     )
+    candidate$source_bundle_manifest <- source_bundle_manifest
     candidate <- phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
     candidate$input_fixture_ids <- phase14_state_bundle_fixture_ids(local_rows, "source fixtures")
     candidate
@@ -1837,6 +1967,7 @@ phase14_build_competition_state_candidate <- function(
     national_team_xg_history = NULL,
     model_manifest = NULL,
     model_manifest_path = "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv",
+    source_bundle_manifest = NULL,
     results = NULL,
     groups = NULL,
     standings = NULL,
@@ -1859,6 +1990,7 @@ phase14_build_competition_state_candidate <- function(
     national_team_xg_history = national_team_xg_history,
     model_manifest = model_manifest,
     model_manifest_path = model_manifest_path,
+    source_bundle_manifest = source_bundle_manifest,
     results = results,
     groups = groups,
     standings = standings,
