@@ -137,6 +137,7 @@ Commits:
 - `8a7ea8b` - make the state-bundle build self-contained and optimize score-grid lineage hashing.
 - `b81fb76` - label inactive xG lineage explicitly and add regression coverage.
 - `a6a2c51` - publish the official eleven-file Nations League state bundle.
+- `63fc990` - close durable bundle verification gaps, bind source provenance, and add the eleven-target rollback probe.
 
 ## Reconciliation Notes
 
