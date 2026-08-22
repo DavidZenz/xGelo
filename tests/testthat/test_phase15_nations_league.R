@@ -144,7 +144,7 @@ phase15_test_output_root <- local({
 })
 
 phase15_test_run_outcomes_cli <- function(args) {
-  script <- file.path(phase15_test_project_root, "scripts/build_nations_league_outcomes.R")
+  script <- file.path(phase15_test_project_root, "scripts/build_uefa_nations_league_outcomes.R")
   output <- suppressWarnings(system2(
     "Rscript",
     c("--vanilla", script, args),

@@ -152,9 +152,10 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
 }
 
 phase15_nl_cli_usage <- function() {
+  script_name <- file.path("scripts", basename(phase15_nl_script_path))
   paste(
     "Usage:",
-    "  Rscript --vanilla scripts/build_nations_league_outcomes.R",
+    paste0("  Rscript --vanilla ", script_name),
     "--edition-id uefa_nations_league_2026_27 [options]",
     "",
     "Options:",
