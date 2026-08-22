@@ -279,17 +279,27 @@ phase15_nl_stage_capture_lineage <- function(stage_capture) {
   if (nrow(registry_row) != 1L) {
     phase15_nl_fail(sprintf("Stage capture registry row is not unique for '%s'.", capture_id))
   }
-  list(
+  lineage_paths <- c(
+    registry_path = as.character(stage_capture$paths$registry_relative_path),
+    manifest_path = as.character(stage_capture$paths$manifest_relative_path),
+    accepted_path = as.character(stage_capture$paths$capture_relative_path)
+  )
+  if (any(is.na(lineage_paths) | !nzchar(trimws(lineage_paths))) ||
+      any(!file.exists(file.path(stage_capture$paths$project_root, lineage_paths)))) {
+    phase15_nl_fail("Stage capture lineage paths must be non-empty registered files.")
+  }
+  lineage <- list(
     capture_id = capture_id,
     capture_status = as.character(manifest$capture_status[[1L]]),
     raw_sha256 = as.character(manifest$raw_sha256[[1L]]),
     capture_content_sha256 = as.character(manifest$capture_content_sha256[[1L]]),
     manifest_sha256 = as.character(manifest$manifest_sha256[[1L]]),
     registry_row_sha256 = as.character(registry_row$row_sha256[[1L]]),
-    registry_path = as.character(stage_capture$paths$registry_relative_path),
-    manifest_path = as.character(stage_capture$paths$manifest_relative_path),
-    accepted_path = as.character(stage_capture$paths$accepted_relative_path)
+    registry_path = lineage_paths[["registry_path"]],
+    manifest_path = lineage_paths[["manifest_path"]],
+    accepted_path = lineage_paths[["accepted_path"]]
   )
+  lineage
 }
 
 phase15_nl_attach_stage_capture_lineage <- function(candidate, stage_capture) {

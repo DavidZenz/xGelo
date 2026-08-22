@@ -1342,6 +1342,22 @@ test_that("official stage capture validation rejects fabricated or incomplete ro
   )
 })
 
+test_that("published stage-capture lineage uses existing registered paths", {
+  environment <- new.env(parent = .GlobalEnv)
+  sys.source(
+    file.path(phase15_test_project_root, "scripts/build_nations_league_outcomes.R"),
+    envir = environment
+  )
+  capture <- phase15_uefa_nl_read_stage_capture(project_root = phase15_test_project_root)
+  lineage <- environment$phase15_nl_stage_capture_lineage(capture)
+  expect_identical(lineage$accepted_path, capture$paths$capture_relative_path)
+  for (field in c("registry_path", "manifest_path", "accepted_path")) {
+    value <- as.character(lineage[[field]])
+    expect_true(nzchar(value))
+    expect_true(file.exists(file.path(capture$paths$project_root, value)))
+  }
+})
+
 test_that("the existing scheduled adapter remains a five-resource, 156-fixture boundary", {
   raw_path <- file.path(
     phase15_test_project_root,
