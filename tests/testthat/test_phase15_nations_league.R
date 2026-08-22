@@ -112,10 +112,15 @@ phase15_test_source <- function(relative_path, envir = .GlobalEnv) {
 }
 
 phase15_test_source("R/competition/source_contracts.R")
+phase15_test_source("R/competition/publication_hashes.R")
+phase15_test_source("R/competition/forecast_layer.R")
+phase15_test_source("R/competition/form.R")
+phase15_test_source("R/competition/state_bundle.R")
 phase15_test_source("R/competition/uefa_nations_league_rules.R")
 phase15_test_source("R/competition/uefa_nations_league_simulation.R")
 phase15_test_source("R/competition/standings.R")
 phase15_test_source("R/competition/uefa_nations_league_adapter.R")
+phase15_test_source("R/competition/uefa_nations_league_outcomes.R")
 
 phase15_test_output_root <- local({
   registered <- new.env(parent = emptyenv())
@@ -1861,3 +1866,79 @@ test_that("official stage capture replay is stable and C/D branches stay explici
 # Plan 15-04 extension points: outcomes schema, stage-capture loading, and forecast/form pass-through.
 # Plan 15-05 extension points: the nine-file writer, dry-run, and replay entrypoint.
 # Plan 15-06 extension points: production acceptance, no-leakage, and registered-root checks.
+
+test_that("Phase 15 outcome inventory and fixture pass-through stay outside Phase 14 state", {
+  expected <- phase15_nl_outcomes_expected_inventory()
+  expect_length(expected, 9L)
+  expect_identical(expected[[7L]], "outcomes/fixture_forecast_form.csv")
+  expect_false(any(expected %in% phase14_state_bundle_expected_inventory()))
+  expect_identical(names(phase15_nl_outcomes_schema()), c(
+    "competition_topology", "stage_slots", "projected_standings", "projected_rankings",
+    "transition_outcomes", "team_path_probabilities", "fixture_forecast_form",
+    "simulation_metadata", "outcomes_manifest"
+  ))
+
+  state <- phase15_nl_read_phase14_state_bundle(phase15_test_project_root)
+  pass_through <- phase15_nl_build_fixture_forecast_form(
+    state$canonical_matches,
+    state$forecast_status,
+    state$forecasts,
+    state$competition_form,
+    state$all_international_form,
+    state$state_manifest,
+    state$score_distributions,
+    state$source
+  )
+  expect_equal(nrow(pass_through), nrow(state$canonical_matches))
+  expect_true(any(pass_through$forecast_status == "available"))
+  expect_true(all(pass_through$competition_form_status == "unavailable"))
+  expect_true(all(pass_through$competition_form_window_type == "no_eligible_form_history"))
+  expect_true(all(pass_through$all_international_form_status == "unavailable"))
+})
+
+test_that("Phase 15 candidate writer and loader preserve the hashed sibling contract", {
+  state <- phase15_nl_read_phase14_state_bundle(phase15_test_project_root)
+  source <- state$source
+  topology <- uefa_nl_build_topology(groups = source$groups, fixtures = source$fixtures)
+  empty <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  metadata <- data.frame(
+    edition_id = phase15_test_edition_id,
+    projection_run_id = "phase15-test-projection",
+    simulation_seed = 15017L,
+    simulation_count = 1L,
+    draw_policy_id = "phase15-test-draw-policy",
+    draw_policy_sha256 = phase15_test_hash_token("draw-policy"),
+    ruleset_version = uefa_nl_ruleset_version(),
+    ruleset_sha256 = uefa_nl_ruleset_sha256(uefa_nl_2026_27_rules()),
+    source_bundle_id = source$source_bundle_id,
+    source_bundle_sha256 = source$source_bundle_sha256,
+    model_release_id = state$model_release_id,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  simulation <- list(
+    projected_standings = empty,
+    projected_rankings = empty,
+    transition_outcomes = empty,
+    team_path_probabilities = empty,
+    stage_slots = empty,
+    simulation_metadata = metadata,
+    metadata = as.list(metadata[1L, , drop = FALSE]),
+    output_hashes = list()
+  )
+  candidate <- phase15_build_nl_outcomes_candidate(
+    simulation,
+    topology = topology,
+    source = source,
+    state_bundle = state,
+    project_root = phase15_test_project_root
+  )
+  expect_silent(phase15_validate_nl_outcomes_bundle(candidate))
+  output_root <- phase15_test_output_root()
+  written <- phase15_write_nl_outcomes_bundle(candidate, output_root = output_root)
+  expect_length(written$artifacts, 9L)
+  expect_identical(names(written$artifacts), phase15_nl_outcomes_expected_inventory())
+  expect_identical(names(written$fixture_forecast_form), names(candidate$artifacts[["outcomes/fixture_forecast_form.csv"]]))
+  loaded <- phase15_nl_read_outcomes_bundle(output_root)
+  expect_identical(loaded$fixture_forecast_form, written$fixture_forecast_form)
+})
