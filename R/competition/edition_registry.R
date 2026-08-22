@@ -1055,9 +1055,13 @@ phase13_validate_accepted_snapshot <- function(
   if (phase13_accepted_snapshot_has_symlink(accepted_dir, project_root)) stop("Phase 13 accepted snapshot directory contains a symlink", call. = FALSE)
   required <- phase13_accepted_snapshot_resource_types()
   expected_files <- paste0(c("source_bundle_manifest", required), ".csv")
+  optional_stage_capture_files <- c("stage_capture.csv", "stage_capture_manifest.csv")
   actual_files <- list.files(accepted_dir, all.files = FALSE, full.names = FALSE, no.. = TRUE)
-  if (!identical(sort(actual_files), sort(expected_files))) {
-    stop("Phase 13 accepted snapshot directory must contain exactly one manifest and five resource tables", call. = FALSE)
+  unexpected_files <- setdiff(actual_files, c(expected_files, optional_stage_capture_files))
+  present_optional_stage_capture_files <- intersect(actual_files, optional_stage_capture_files)
+  if (length(unexpected_files) || (length(present_optional_stage_capture_files) &&
+      !setequal(present_optional_stage_capture_files, optional_stage_capture_files))) {
+    stop("Phase 13 accepted snapshot directory must contain exactly one manifest and five resource tables, with an optional complete stage-capture pair", call. = FALSE)
   }
   read_table <- function(name) {
     path <- file.path(accepted_dir, name)
