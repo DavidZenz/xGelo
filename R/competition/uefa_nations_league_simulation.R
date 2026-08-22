@@ -812,25 +812,68 @@ uefa_nl_sim_admit_completed_results <- function(canonical_matches, completed_res
   canonical_ids <- trimws(as.character(canonical[[canonical_id_field[[1L]]]]))
   if (any(is.na(result_ids) | !nzchar(result_ids)) || anyDuplicated(result_ids)) stop("Nations League completed results have missing or duplicate fixture IDs", call. = FALSE)
   if (any(!result_ids %in% canonical_ids)) stop("Nations League completed results contain a foreign fixture", call. = FALSE)
+  immutable_fields <- c(
+    "edition_id", "fixture_id", "match_id", "source_fixture_id", "uefa_source_fixture_id",
+    "home_team_id", "away_team_id", "home_uefa_source_team_id", "away_uefa_source_team_id",
+    "group_id", "source_group_id", "stage_id", "league_id", "league"
+  )
+  admitted_fields <- c(
+    "home_goals", "away_goals", "regulation_home_goals", "regulation_away_goals",
+    "extra_time_home_goals", "extra_time_away_goals", "penalty_shootout_home_goals",
+    "penalty_shootout_away_goals", "shootout_home_goals", "shootout_away_goals",
+    "final_home_goals", "final_away_goals", "winner_team_id", "source_status",
+    "match_status", "stage_status", "completion_method", "completed_at_utc",
+    "evidence_completed_at_utc", "counts_for_standings", "counts_for_form"
+  )
+  compare_immutable_identity <- function(result, target, result_index) {
+    for (field in intersect(immutable_fields, names(result))) {
+      if (!field %in% names(canonical)) {
+        stop(sprintf("Nations League completed result contains immutable field %s absent from canonical fixture", field), call. = FALSE)
+      }
+      result_value <- result[[field]][[1L]]
+      canonical_value <- canonical[[field]][[target]]
+      result_text <- trimws(as.character(result_value))
+      canonical_text <- trimws(as.character(canonical_value))
+      if (is.na(result_value) || !nzchar(result_text) || is.na(canonical_value) || !nzchar(canonical_text) || !identical(result_text, canonical_text)) {
+        stop(sprintf("Nations League completed result %d mismatches immutable fixture identity in %s", result_index, field), call. = FALSE)
+      }
+    }
+    if ("fixture_source_artifact_id" %in% names(result)) {
+      if (!"source_artifact_id" %in% names(canonical)) {
+        stop("Nations League completed result fixture source identity is absent from canonical fixture", call. = FALSE)
+      }
+      result_text <- trimws(as.character(result$fixture_source_artifact_id[[1L]]))
+      canonical_text <- trimws(as.character(canonical$source_artifact_id[[target]]))
+      if (is.na(result$fixture_source_artifact_id[[1L]]) || !nzchar(result_text) || is.na(canonical$source_artifact_id[[target]]) || !nzchar(canonical_text) || !identical(result_text, canonical_text)) {
+        stop(sprintf("Nations League completed result %d mismatches immutable fixture source identity", result_index), call. = FALSE)
+      }
+    }
+    for (field in intersect(c("edition_id", "source_bundle_id"), names(result))) {
+      expected <- if (field == "edition_id") edition_id else source_bundle_id
+      value <- trimws(as.character(result[[field]][[1L]]))
+      if (is.na(result[[field]][[1L]]) || !nzchar(value) || !identical(value, as.character(expected))) {
+        stop(sprintf("Nations League completed result %d contains a foreign %s", result_index, field), call. = FALSE)
+      }
+    }
+    invisible(TRUE)
+  }
   for (result_index in seq_len(nrow(results))) {
     target <- match(result_ids[[result_index]], canonical_ids)
     result <- results[result_index, , drop = FALSE]
     completed <- uefa_nl_sim_status_is_completed(uefa_nl_sim_first_present(result, c("match_status", "source_status", "stage_status"), "completed"))
     admitted <- completed && uefa_nl_sim_score_present(result)
     if (!admitted) next
-    for (field in intersect(names(result), names(canonical))) canonical[[field]][target] <- result[[field]][[1L]]
-    new_fields <- setdiff(names(result), names(canonical))
-    for (field in new_fields) {
-      canonical[[field]] <- rep(NA, nrow(canonical))
+    compare_immutable_identity(result, target, result_index)
+    for (field in intersect(admitted_fields, names(result))) {
+      if (!field %in% names(canonical)) canonical[[field]] <- rep(NA, nrow(canonical))
       canonical[[field]][target] <- result[[field]][[1L]]
     }
-    if ("edition_id" %in% names(canonical)) canonical$edition_id[[target]] <- edition_id
+    if (!"edition_id" %in% names(canonical)) canonical$edition_id <- edition_id
     if (!"source_bundle_id" %in% names(canonical)) canonical$source_bundle_id <- source_bundle_id
-    canonical$source_bundle_id[[target]] <- source_bundle_id
     if (!"match_status" %in% names(canonical)) canonical$match_status <- "scheduled"
     canonical$match_status[[target]] <- "completed"
     if (!"counts_for_standings" %in% names(canonical)) canonical$counts_for_standings <- FALSE
-    canonical$counts_for_standings[[target]] <- TRUE
+    if (!"counts_for_standings" %in% names(result) || is.na(canonical$counts_for_standings[[target]])) canonical$counts_for_standings[[target]] <- TRUE
   }
   canonical
 }

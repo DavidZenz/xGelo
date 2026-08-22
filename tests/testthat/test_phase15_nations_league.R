@@ -1186,6 +1186,50 @@ test_that("stage-slot status contracts fail closed for fabricated official rows"
   expect_error(uefa_nl_validate_stage_slots(bad_final), "regulation plus extra-time")
 })
 
+test_that("completed result admission preserves canonical fixture identity", {
+  inputs <- phase15_test_simulation_inputs(simulation_count = 1L)
+  canonical <- uefa_nl_sim_normalize_matches(
+    inputs$canonical_matches,
+    completed_results = NULL,
+    rules = inputs$rules,
+    source_bundle_id = inputs$source_bundle_id
+  )
+  result <- canonical[1L, , drop = FALSE]
+  result$match_status <- "completed"
+  result$source_status <- "completed"
+  result$final_home_goals <- 2L
+  result$final_away_goals <- 1L
+  result$regulation_home_goals <- 2L
+  result$regulation_away_goals <- 1L
+  result$evidence_completed_at_utc <- "2026-09-05T20:40:00Z"
+  result$fixture_source_artifact_id <- result$source_artifact_id
+  result$source_artifact_id <- "artifact-results-v2"
+  admitted <- uefa_nl_sim_admit_completed_results(
+    canonical,
+    result,
+    edition_id = inputs$rules$edition_id,
+    source_bundle_id = inputs$source_bundle_id
+  )
+  target <- match(result$fixture_id[[1L]], admitted$fixture_id)
+  expect_identical(admitted$source_artifact_id[[target]], canonical$source_artifact_id[[target]])
+  expect_identical(admitted$home_team_id[[target]], canonical$home_team_id[[target]])
+  expect_identical(admitted$final_home_goals[[target]], 2L)
+  expect_identical(admitted$match_status[[target]], "completed")
+  expect_identical(admitted$evidence_completed_at_utc[[target]], "2026-09-05T20:40:00Z")
+
+  mismatched <- result
+  mismatched$away_team_id <- "team-foreign"
+  expect_error(
+    uefa_nl_sim_admit_completed_results(
+      canonical,
+      mismatched,
+      edition_id = inputs$rules$edition_id,
+      source_bundle_id = inputs$source_bundle_id
+    ),
+    "immutable fixture identity"
+  )
+})
+
 test_that("downstream stage capture is separately admitted and the empty registry replays", {
   schema <- phase15_uefa_nl_stage_capture_schema()
   paths <- phase15_uefa_nl_stage_capture_paths(project_root = phase15_test_project_root)
