@@ -915,6 +915,32 @@ uefa_nl_rank_completed_status <- function(values) {
   )
 }
 
+uefa_nl_rank_parse_boolean <- function(values) {
+  if (is.logical(values)) return(values)
+  text <- tolower(trimws(as.character(values)))
+  parsed <- rep(NA, length(text))
+  parsed[text %in% c("true", "t", "1", "yes", "y")] <- TRUE
+  parsed[text %in% c("false", "f", "0", "no", "n")] <- FALSE
+  parsed
+}
+
+uefa_nl_rank_parse_utc <- function(values) {
+  text <- trimws(as.character(values))
+  parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  invalid <- is.na(text) | !nzchar(text) | is.na(parsed) | !grepl("Z$", text)
+  parsed[invalid] <- as.POSIXct(NA, tz = "UTC")
+  parsed
+}
+
+uefa_nl_rank_valid_status <- function(values) {
+  tolower(trimws(as.character(values))) %in% c(
+    "completed", "complete", "finished", "full_time", "full-time",
+    "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded",
+    "scheduled", "upcoming", "pending", "not_started", "not-started", "official",
+    "projected", "unresolved", "suppressed", "postponed", "cancelled", "canceled", "abandoned"
+  )
+}
+
 uefa_nl_rank_prepare_matches <- function(match_rows, team_ids, standings) {
   if (is.null(match_rows)) match_rows <- data.frame(stringsAsFactors = FALSE)
   if (!is.data.frame(match_rows)) stop("Nations League ranking matches must be a data frame", call. = FALSE)
@@ -932,33 +958,57 @@ uefa_nl_rank_prepare_matches <- function(match_rows, team_ids, standings) {
   if (!"final_home_goals" %in% names(rows) && "home_goals" %in% names(rows)) rows$final_home_goals <- rows$home_goals
   if (!"final_away_goals" %in% names(rows) && "away_goals" %in% names(rows)) rows$final_away_goals <- rows$away_goals
   score_missing <- setdiff(c("final_home_goals", "final_away_goals"), names(rows))
-  if (length(score_missing)) return(list(rows = rows, eligible = rep(FALSE, nrow(rows)), missing = "completed_scores", match_id = rows$match_id))
-  home_goals <- suppressWarnings(as.numeric(as.character(rows$final_home_goals)))
-  away_goals <- suppressWarnings(as.numeric(as.character(rows$final_away_goals)))
+  home_goals <- if ("final_home_goals" %in% names(rows)) suppressWarnings(as.numeric(as.character(rows$final_home_goals))) else rep(NA_real_, nrow(rows))
+  away_goals <- if ("final_away_goals" %in% names(rows)) suppressWarnings(as.numeric(as.character(rows$final_away_goals))) else rep(NA_real_, nrow(rows))
   score_present <- !is.na(home_goals) & !is.na(away_goals)
   invalid_scores <- score_present & (!is.finite(home_goals) | !is.finite(away_goals) | home_goals < 0 | away_goals < 0 | home_goals != floor(home_goals) | away_goals != floor(away_goals))
   if (any(invalid_scores)) stop("Nations League ranking matches have invalid final scores", call. = FALSE)
   rows$final_home_goals <- as.integer(home_goals)
   rows$final_away_goals <- as.integer(away_goals)
-  counts <- if ("counts_for_standings" %in% names(rows)) {
-    values <- rows$counts_for_standings
-    if (!is.logical(values)) values <- tolower(trimws(as.character(values))) %in% c("true", "t", "1", "yes", "y")
-    as.logical(values)
-  } else rep(TRUE, nrow(rows))
-  status <- if ("match_status" %in% names(rows)) uefa_nl_rank_completed_status(rows$match_status) else rep(TRUE, nrow(rows))
-  eligible <- counts & status & score_present
   missing_inputs <- character()
-  if (any(counts & status & !score_present)) missing_inputs <- c(missing_inputs, "completed_scores")
+  if (!"counts_for_standings" %in% names(rows)) {
+    counts <- rep(NA, nrow(rows))
+    missing_inputs <- c(missing_inputs, "counts_for_standings")
+  } else {
+    counts <- uefa_nl_rank_parse_boolean(rows$counts_for_standings)
+    if (any(is.na(counts))) missing_inputs <- c(missing_inputs, "counts_for_standings")
+  }
+  if (!"match_status" %in% names(rows)) {
+    status_valid <- rep(FALSE, nrow(rows))
+    status <- rep(FALSE, nrow(rows))
+    missing_inputs <- c(missing_inputs, "match_status")
+  } else {
+    status_valid <- uefa_nl_rank_valid_status(rows$match_status)
+    status <- uefa_nl_rank_completed_status(rows$match_status)
+    if (any(!status_valid)) missing_inputs <- c(missing_inputs, "match_status")
+  }
+  contributing <- !is.na(counts) & counts & status_valid & status & score_present
+  if (any(!score_present & !is.na(counts) & counts & status_valid & status)) missing_inputs <- c(missing_inputs, "completed_scores")
   evidence_fields <- intersect(c("evidence_completed_at_utc", "completed_at_utc"), names(rows))
   evidence_field <- if (length(evidence_fields)) evidence_fields[[1L]] else NULL
-  if (!is.null(evidence_field)) {
-    evidence <- suppressWarnings(as.POSIXct(as.character(rows[[evidence_field]]), tz = "UTC"))
-    missing_evidence <- counts & status & score_present & is.na(evidence)
+  evidence <- rep(as.POSIXct(NA, tz = "UTC"), nrow(rows))
+  if (is.null(evidence_field)) {
+    if (any(contributing)) missing_inputs <- c(missing_inputs, "evidence_completed_at_utc")
+  } else {
+    evidence <- uefa_nl_rank_parse_utc(rows[[evidence_field]])
+    missing_evidence <- contributing & is.na(evidence)
     if (any(missing_evidence)) missing_inputs <- c(missing_inputs, "evidence_completed_at_utc")
-    eligible <- eligible & !is.na(evidence)
-    cutoff <- if ("state_cutoff_utc" %in% names(standings)) suppressWarnings(as.POSIXct(as.character(standings$state_cutoff_utc[[1L]]), tz = "UTC")) else as.POSIXct(NA, tz = "UTC")
-    if (!is.na(cutoff[[1L]])) eligible <- eligible & evidence <= cutoff[[1L]]
   }
+  cutoff <- as.POSIXct(NA, tz = "UTC")
+  if (any(contributing)) {
+    if (!"state_cutoff_utc" %in% names(standings)) {
+      missing_inputs <- c(missing_inputs, "state_cutoff_utc")
+    } else {
+      cutoff <- uefa_nl_rank_parse_utc(standings$state_cutoff_utc[[1L]])[[1L]]
+      if (is.na(cutoff)) {
+        missing_inputs <- c(missing_inputs, "state_cutoff_utc")
+      } else if (any(contributing & !is.na(evidence) & evidence > cutoff)) {
+        missing_inputs <- c(missing_inputs, "evidence_before_state_cutoff")
+      }
+    }
+  }
+  eligible <- contributing & !is.na(evidence)
+  if (!is.na(cutoff)) eligible <- eligible & evidence <= cutoff
   if ("group_id" %in% names(rows) && "group_id" %in% names(standings)) {
     group_id <- as.character(standings$group_id[[1L]])
     foreign_group <- !is.na(rows$group_id) & nzchar(as.character(rows$group_id)) & as.character(rows$group_id) != group_id

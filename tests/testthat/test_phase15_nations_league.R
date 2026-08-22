@@ -476,11 +476,15 @@ phase15_test_group_fixture <- function(league_id, group_number, team_count) {
 }
 
 phase15_test_three_team_group <- function() {
-  phase15_test_group_fixture("D", 1L, 3L)
+  fixture <- phase15_test_group_fixture("D", 1L, 3L)
+  fixture$matches$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  fixture
 }
 
 phase15_test_four_team_group <- function() {
-  phase15_test_group_fixture("A", 1L, 4L)
+  fixture <- phase15_test_group_fixture("A", 1L, 4L)
+  fixture$matches$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  fixture
 }
 
 phase15_test_two_leg_invariants <- function(rows, lower_league_team_id = NULL) {
@@ -1434,6 +1438,49 @@ test_that("Article 15 missing rule inputs block before Phase 14 receives ranks",
   expect_true(all(is.na(state$standings$computed_rank)))
   expect_true(all(state$standings$ordering_status == "blocked"))
   expect_true(all(state$universal_standings$ordering_status == "provisional"))
+})
+
+test_that("ranking admission fails closed for missing or invalid match evidence", {
+  fixture <- phase15_test_four_team_group()
+  matches <- fixture$matches
+  matches$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  rank_group <- function(rows) uefa_nl_rank_group(
+    fixture$standings,
+    rows,
+    fixture$discipline_points,
+    fixture$access_list
+  )
+
+  missing_counts <- matches
+  missing_counts$counts_for_standings <- NULL
+  blocked_counts <- rank_group(missing_counts)
+  expect_true(all(blocked_counts$ordering_status == "blocked"))
+  expect_true(all(grepl("counts_for_standings", blocked_counts$missing_rule_input)))
+
+  invalid_counts <- matches
+  invalid_counts$counts_for_standings[[1L]] <- "unknown"
+  blocked_invalid_counts <- rank_group(invalid_counts)
+  expect_true(all(grepl("counts_for_standings", blocked_invalid_counts$missing_rule_input)))
+
+  missing_status <- matches
+  missing_status$match_status <- NULL
+  blocked_status <- rank_group(missing_status)
+  expect_true(all(grepl("match_status", blocked_status$missing_rule_input)))
+
+  invalid_evidence <- matches
+  invalid_evidence$evidence_completed_at_utc[[1L]] <- "not-a-utc-timestamp"
+  blocked_evidence <- rank_group(invalid_evidence)
+  expect_true(all(grepl("evidence_completed_at_utc", blocked_evidence$missing_rule_input)))
+
+  missing_cutoff <- matches
+  missing_cutoff$state_cutoff_utc <- NULL
+  blocked_cutoff <- rank_group(missing_cutoff)
+  expect_true(all(grepl("state_cutoff_utc", blocked_cutoff$missing_rule_input)))
+
+  late_evidence <- matches
+  late_evidence$state_cutoff_utc <- "2026-01-01T00:00:00Z"
+  blocked_late <- rank_group(late_evidence)
+  expect_true(all(grepl("evidence_before_state_cutoff", blocked_late$missing_rule_input)))
 })
 
 test_that("the Article 15 adapter handles a three-team League D group without a fourth-place row", {
