@@ -162,7 +162,15 @@ simulations, and fail-closed hourly publication.
 3. Open Nations League fixtures show calibrated forecasts together with competition-specific form and all-international form from the shared engine.
 4. Projected outcomes report League A quarter-final and title paths, direct promotion and relegation, and applicable promotion or relegation play-off probabilities for every team.
 
-**Plans**: TBD
+**Plans**: 7 plans
+Plans:
+- [ ] 15-00-PLAN.md — Create the Wave 0 Phase 15 test harness and synthetic fixtures
+- [ ] 15-01-PLAN.md — Freeze Nations League topology and separately registered stage capture
+- [ ] 15-02-PLAN.md — Implement Article 15/19 rankings, blocked inputs, and transitions
+- [ ] 15-03-PLAN.md — Implement calibrated simulation and Article 14-18 stage resolution
+- [ ] 15-04-PLAN.md — Define and validate the sibling outcomes bundle contract
+- [ ] 15-05-PLAN.md — Build the Nations League CLI and durable outcome artifacts
+- [ ] 15-06-PLAN.md — Run production acceptance, replay, and no-leakage checks
 **UI hint**: yes
 
 ### Phase 16: EURO Qualifying Activation and Play-off Rules
