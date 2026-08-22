@@ -1356,6 +1356,207 @@ test_that("Article 19 interim rankings and transition selectors use exact dynami
   expect_true(all(is.na(blocked_b$higher_league_team_id)))
 })
 
+phase15_test_final_interim_rankings <- function(team_count = 54L) {
+  ranks <- seq_len(as.integer(team_count))
+  league <- ifelse(ranks <= 16L, "A", ifelse(ranks <= 32L, "B", ifelse(ranks <= 48L, "C", "D")))
+  league_start <- c(A = 1L, B = 17L, C = 33L, D = 49L)
+  position <- vapply(seq_along(ranks), function(index) {
+    rank <- ranks[[index]]
+    current_league <- league[[index]]
+    offset <- rank - league_start[[current_league]]
+    if (current_league == "D" && team_count < 55L) return((offset %% 3L) + 1L)
+    (offset %% 4L) + 1L
+  }, integer(1))
+  group_number <- vapply(seq_along(ranks), function(index) {
+    current_league <- league[[index]]
+    offset <- ranks[[index]] - league_start[[current_league]]
+    if (current_league == "D") return((offset %/% 3L) + 1L)
+    (offset %/% 4L) + 1L
+  }, integer(1))
+  data.frame(
+    edition_id = phase15_test_edition_id,
+    team_id = sprintf("team-final-%02d", ranks),
+    league = league,
+    league_id = league,
+    group_id = paste0(league, group_number),
+    group_position = as.integer(position),
+    individual_rank = as.integer(ranks - league_start[league] + 1L),
+    interim_rank = as.integer(ranks),
+    computed_rank = as.integer(ranks),
+    discipline_points = as.integer(ranks %% 4L),
+    access_list_position = as.integer(ranks),
+    ordering_status = "ready",
+    missing_rule_input = "",
+    block_status = "not_blocked",
+    blocked = FALSE,
+    suppression_reason = "none",
+    source_bundle_id = phase15_test_source_bundle_id,
+    source_artifact_id = "artifact-final-ranking-synthetic",
+    ruleset_version = phase15_test_ruleset_version,
+    ranking_stage = "interim_overall",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase15_test_final_stage_outcomes <- function(include_finals = TRUE) {
+  interim <- phase15_test_final_interim_rankings()
+  team <- function(rank) interim$team_id[interim$interim_rank == rank]
+  rows <- list(
+    data.frame(stage_id = "league_a_quarter_final", tie_id = "qf-1", stage_status = "completed", winner_team_id = team(1L), loser_team_id = team(5L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "league_a_quarter_final", tie_id = "qf-2", stage_status = "completed", winner_team_id = team(2L), loser_team_id = team(6L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "league_a_quarter_final", tie_id = "qf-3", stage_status = "completed", winner_team_id = team(3L), loser_team_id = team(7L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "league_a_quarter_final", tie_id = "qf-4", stage_status = "completed", winner_team_id = team(4L), loser_team_id = team(8L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "a_b_playoff", tie_id = "ab-1", stage_status = "completed", winner_team_id = team(9L), loser_team_id = team(21L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "a_b_playoff", tie_id = "ab-2", stage_status = "completed", winner_team_id = team(10L), loser_team_id = team(22L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "a_b_playoff", tie_id = "ab-3", stage_status = "completed", winner_team_id = team(11L), loser_team_id = team(23L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "a_b_playoff", tie_id = "ab-4", stage_status = "completed", winner_team_id = team(12L), loser_team_id = team(24L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "b_c_playoff", tie_id = "bc-1", stage_status = "completed", winner_team_id = team(25L), loser_team_id = team(37L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "b_c_playoff", tie_id = "bc-2", stage_status = "completed", winner_team_id = team(26L), loser_team_id = team(38L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "b_c_playoff", tie_id = "bc-3", stage_status = "completed", winner_team_id = team(27L), loser_team_id = team(39L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "b_c_playoff", tie_id = "bc-4", stage_status = "completed", winner_team_id = team(28L), loser_team_id = team(40L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "c_d_playoff", tie_id = "cd-1", stage_status = "completed", winner_team_id = team(45L), loser_team_id = team(51L), stringsAsFactors = FALSE, check.names = FALSE),
+    data.frame(stage_id = "c_d_playoff", tie_id = "cd-2", stage_status = "completed", winner_team_id = team(46L), loser_team_id = team(52L), stringsAsFactors = FALSE, check.names = FALSE)
+  )
+  if (isTRUE(include_finals)) {
+    rows <- c(rows, list(
+      data.frame(stage_id = "league_a_final", tie_id = "final", stage_status = "completed", winner_team_id = team(4L), loser_team_id = team(1L), stringsAsFactors = FALSE, check.names = FALSE),
+      data.frame(stage_id = "league_a_third_place", tie_id = "third", stage_status = "completed", winner_team_id = team(3L), loser_team_id = team(2L), stringsAsFactors = FALSE, check.names = FALSE)
+    ))
+  }
+  output <- do.call(rbind, rows)
+  row.names(output) <- NULL
+  output
+}
+
+test_that("Article 19.04 final overall ranking covers all ten bands and Article 19.05 overwrite", {
+  interim <- phase15_test_final_interim_rankings()
+  complete <- phase15_test_final_stage_outcomes()
+  ranked <- uefa_nl_rank_final_overall(interim, complete)
+  expected_sources <- c(
+    4L, 1L, 3L, 2L, 5L, 6L, 7L, 8L,
+    9L:12L, 17L:20L, 13L:16L, 21L:24L,
+    25L:28L, 33L:36L, 29L:32L, 37L:40L,
+    41L:44L, 45L:46L, 49L:50L, 47L:48L, 51L:52L, 53L:54L
+  )
+  expect_equal(ranked$final_overall_rank, seq_len(54L))
+  expect_identical(ranked$interim_rank, expected_sources)
+  expect_identical(ranked$ranking_stage, rep("final_overall", 54L))
+  expect_identical(ranked$final_stage_status, rep("completed", 54L))
+  expect_true(all(c("final_overall_rank", "ranking_stage", "interim_rank") %in% names(ranked)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", ranked$row_sha256)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", ranked$table_sha256)))
+  expect_equal(ranked$team_id[ranked$final_overall_rank == 1L], "team-final-04")
+  expect_equal(ranked$team_id[ranked$final_overall_rank == 2L], "team-final-01")
+  expect_equal(ranked$team_id[ranked$final_overall_rank == 3L], "team-final-03")
+  expect_equal(ranked$team_id[ranked$final_overall_rank == 4L], "team-final-02")
+
+  pre_finals <- uefa_nl_rank_final_overall(interim, phase15_test_final_stage_outcomes(include_finals = FALSE))
+  expected_pre_sources <- c(
+    1L:8L, 9L:12L, 17L:20L, 13L:16L, 21L:24L,
+    25L:28L, 33L:36L, 29L:32L, 37L:40L,
+    41L:44L, 45L:46L, 49L:50L, 47L:48L, 51L:52L, 53L:54L
+  )
+  expect_identical(pre_finals$ranking_stage, rep("final_overall_pre_finals", 54L))
+  expect_identical(pre_finals$final_overall_rank, seq_len(54L))
+  expect_identical(pre_finals$interim_rank, expected_pre_sources)
+})
+
+test_that("Article 19 final ranking is dynamic for 54 teams and hashes are reverse-order stable", {
+  interim <- phase15_test_final_interim_rankings(team_count = 54L)
+  ranked <- uefa_nl_rank_final_overall(interim)
+  reversed <- uefa_nl_rank_final_overall(interim[nrow(interim):1L, , drop = FALSE])
+  expect_equal(nrow(ranked), 54L)
+  expect_false(any(ranked$final_overall_rank == 55L))
+  expect_equal(max(ranked$final_overall_rank), 54L)
+  expect_identical(
+    ranked$row_sha256[match(sort(ranked$team_id), ranked$team_id)],
+    reversed$row_sha256[match(sort(reversed$team_id), reversed$team_id)]
+  )
+  expect_identical(unique(ranked$table_sha256), unique(reversed$table_sha256))
+})
+
+test_that("blocked Article 19 final inputs never fabricate final ranks", {
+  interim <- phase15_test_final_interim_rankings()
+  blocked_ranking <- interim
+  blocked_ranking$ordering_status[[1L]] <- "blocked"
+  blocked_ranking$computed_rank[[1L]] <- NA_integer_
+  ranked <- uefa_nl_rank_final_overall(blocked_ranking)
+  expect_true(all(is.na(ranked$final_overall_rank)))
+  expect_true(all(is.na(ranked$computed_rank)))
+  expect_identical(ranked$interim_rank, interim$interim_rank)
+  expect_true(all(ranked$ordering_status == "blocked"))
+  expect_true(all(ranked$missing_rule_input == "group_ordering"))
+  expect_true(all(ranked$ranking_stage == "blocked"))
+
+  blocked_stage <- data.frame(
+    stage_id = "league_a_final",
+    stage_status = "blocked",
+    winner_team_id = "team-final-01",
+    loser_team_id = "team-final-02",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  blocked_stage_result <- uefa_nl_rank_final_overall(interim, blocked_stage)
+  expect_true(all(is.na(blocked_stage_result$final_overall_rank)))
+  expect_true(all(blocked_stage_result$ordering_status == "blocked"))
+  expect_true(all(grepl("stage", blocked_stage_result$missing_rule_input)))
+})
+
+test_that("C/D cancellation retains exactly C46/C47 and D50/D51 without probabilities", {
+  interim <- phase15_test_final_interim_rankings()
+  candidate_ids <- interim$team_id[interim$interim_rank %in% c(45L, 46L, 51L, 52L)]
+  eligibility <- data.frame(
+    team_id = candidate_ids,
+    qualifies_for_euro_playoff = c(TRUE, FALSE, FALSE, FALSE),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  retained <- uefa_nl_resolve_cd_playoff_cancellation(interim, eligibility)
+  expect_equal(nrow(retained), 4L)
+  expect_identical(retained$cd_playoff_status, rep("cancelled", 4L))
+  expect_identical(retained$selection_status, rep("retained", 4L))
+  expect_identical(retained$stage_status, rep("suppressed", 4L))
+  expect_identical(
+    retained[, c("retained_next_edition_league", "retained_next_edition_rank")],
+    data.frame(
+      retained_next_edition_league = c("C", "C", "D", "D"),
+      retained_next_edition_rank = c(46L, 47L, 50L, 51L),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  )
+  expect_true(all(nzchar(retained$cancellation_reason)))
+  expect_true(all(is.na(retained$playoff_eligibility_probability)))
+  expect_true(all(is.na(retained$playoff_win_probability)))
+  expect_true(all(is.na(retained$playoff_loss_probability)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", retained$row_sha256)))
+
+  selected <- uefa_nl_select_transition_slots(interim, eligibility)
+  cancelled <- selected[selected$cd_playoff_status == "cancelled", , drop = FALSE]
+  expect_equal(nrow(cancelled), 4L)
+  expect_setequal(cancelled$retained_next_edition_rank, c(46L, 47L, 50L, 51L))
+})
+
+test_that("absent and incomplete C/D eligibility remain unresolved with no retention claims", {
+  interim <- phase15_test_final_interim_rankings()
+  absent <- uefa_nl_resolve_cd_playoff_cancellation(interim, NULL)
+  incomplete <- uefa_nl_resolve_cd_playoff_cancellation(
+    interim,
+    data.frame(team_id = "team-final-45", qualifies_for_euro_playoff = FALSE, stringsAsFactors = FALSE, check.names = FALSE)
+  )
+  for (result in list(absent, incomplete)) {
+    expect_true(all(result$eligibility_status == "unresolved_external_eligibility"))
+    expect_true(all(result$cd_playoff_status == "unresolved"))
+    expect_true(all(is.na(result$retained_next_edition_league)))
+    expect_true(all(is.na(result$retained_next_edition_rank)))
+    expect_true(all(result$cancellation_reason == ""))
+    expect_true(all(is.na(result$playoff_eligibility_probability)))
+    expect_true(all(is.na(result$playoff_win_probability)))
+    expect_true(all(is.na(result$playoff_loss_probability)))
+  }
+})
+
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.
 # Plan 15-02 extension points: Article 15 group ranking, Article 19 rankings, and transitions.
 # Plan 15-03 extension points: calibrated sampling, stage resolution, draw policies, and simulation.
