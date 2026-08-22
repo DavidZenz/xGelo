@@ -144,7 +144,16 @@ phase15_test_output_root <- local({
 })
 
 phase15_test_run_outcomes_cli <- function(args) {
-  script <- file.path(phase15_test_project_root, "scripts/build_uefa_nations_league_outcomes.R")
+  phase15_test_run_entrypoint(
+    args,
+    script_relative_path = "scripts/build_uefa_nations_league_outcomes.R"
+  )
+}
+
+phase15_test_run_entrypoint <- function(
+    args,
+    script_relative_path = "scripts/build_nations_league_outcomes.R") {
+  script <- file.path(phase15_test_project_root, script_relative_path)
   output <- suppressWarnings(system2(
     "Rscript",
     c("--vanilla", script, args),
@@ -169,6 +178,93 @@ phase15_test_state_inventory_hashes <- function() {
   }, character(1L))
   names(hashes) <- inventory
   hashes
+}
+
+phase15_test_production_inputs <- function(project_root = phase15_test_project_root) {
+  project_root <- normalizePath(project_root, winslash = "/", mustWork = TRUE)
+  edition_id <- phase15_test_edition_id
+  source <- phase15_nl_read_source_bundle(project_root, edition_id)
+  state_bundle <- phase15_nl_read_phase14_state_bundle(project_root, edition_id = edition_id)
+  stage_capture <- phase15_uefa_nl_read_stage_capture(project_root = project_root)
+  topology <- uefa_nl_build_topology(
+    groups = source$groups,
+    fixtures = source$fixtures,
+    project_root = project_root
+  )
+
+  phase14_root <- file.path(project_root, "outputs/competition", edition_id)
+  phase14_inventory <- phase14_state_bundle_expected_inventory()
+  phase14_hashes <- vapply(phase14_inventory, function(relative_path) {
+    path <- file.path(phase14_root, relative_path)
+    phase15_test_sha256(readBin(path, what = "raw", n = file.info(path)$size))
+  }, character(1L))
+  names(phase14_hashes) <- phase14_inventory
+
+  stage_paths <- phase15_uefa_nl_stage_capture_paths(project_root = project_root)
+  stage_names <- c(
+    raw = "raw_relative_path",
+    accepted = "capture_relative_path",
+    manifest = "manifest_relative_path",
+    registry = "registry_relative_path"
+  )
+  stage_hashes <- vapply(stage_names, function(path_name) {
+    relative_path <- unname(stage_paths[[path_name]])
+    path <- file.path(project_root, relative_path)
+    phase15_test_sha256(readBin(path, what = "raw", n = file.info(path)$size))
+  }, character(1L))
+
+  list(
+    project_root = project_root,
+    edition_id = edition_id,
+    source = source,
+    state_bundle = state_bundle,
+    stage_capture = stage_capture,
+    topology = topology,
+    rules = uefa_nl_2026_27_rules(),
+    phase13_resources = as.character(phase13_source_required_resource_types()),
+    phase14_inventory = phase14_inventory,
+    phase14_hashes = phase14_hashes,
+    phase14_tree = phase15_test_tree_snapshot(phase14_root),
+    stage_paths = stage_paths,
+    stage_hashes = stage_hashes,
+    accepted_tree = phase15_test_tree_snapshot(file.path(
+      project_root, "data/competition/accepted", edition_id
+    )),
+    registry_tree = phase15_test_tree_snapshot(file.path(
+      project_root, "data/competition/registries"
+    ))
+  )
+}
+
+phase15_test_assert_phase14_immutable <- function(
+    before,
+    after = phase15_test_production_inputs(before$project_root)) {
+  if (!identical(before$phase14_inventory, after$phase14_inventory)) {
+    stop("Phase 14 state inventory changed during Phase 15 acceptance", call. = FALSE)
+  }
+  if (!identical(before$phase14_hashes, after$phase14_hashes)) {
+    stop("Phase 14 state artifact bytes changed during Phase 15 acceptance", call. = FALSE)
+  }
+  if (!identical(before$phase14_tree, after$phase14_tree)) {
+    stop("Phase 14 state tree changed during Phase 15 acceptance", call. = FALSE)
+  }
+  if (!identical(before$stage_hashes, after$stage_hashes)) {
+    stop("Separate stage-capture bytes changed during Phase 15 acceptance", call. = FALSE)
+  }
+  if (!identical(before$phase13_resources, after$phase13_resources)) {
+    stop("Phase 13 resource contract changed during Phase 15 acceptance", call. = FALSE)
+  }
+  for (relative_path in before$phase14_inventory) {
+    before_value <- before$state_bundle$state_artifacts[[relative_path]]
+    after_value <- after$state_bundle$state_artifacts[[relative_path]]
+    if (!identical(before_value, after_value)) {
+      stop(
+        sprintf("Phase 14 artifact values changed during Phase 15 acceptance: %s", relative_path),
+        call. = FALSE
+      )
+    }
+  }
+  invisible(TRUE)
 }
 
 phase15_test_hash_token <- function(label) {
@@ -1971,24 +2067,7 @@ test_that("Phase 15 candidate writer and loader preserve the hashed sibling cont
   expect_identical(loaded$fixture_forecast_form, written$fixture_forecast_form)
 })
 
-test_that("registered Nations League entrypoint covers every mode without parent mutation", {
-  output_root <- file.path(
-    phase15_test_project_root,
-    "outputs/competition/uefa_nations_league_2026_27/outcomes"
-  )
-  accepted_root <- file.path(
-    phase15_test_project_root,
-    "data/competition/accepted/uefa_nations_league_2026_27"
-  )
-  registry_root <- file.path(phase15_test_project_root, "data/competition/registries")
-  outcomes_before <- phase15_test_tree_snapshot(output_root)
-  accepted_before <- phase15_test_tree_snapshot(accepted_root)
-  registry_before <- phase15_test_tree_snapshot(registry_root)
-  state_before <- phase15_test_state_inventory_hashes()
-  resources_before <- phase13_source_required_resource_types()
-  expected_resources <- c("fixtures", "groups", "standings", "results", "status")
-  expected_inventory <- phase15_nl_outcomes_expected_inventory()
-
+test_that("registered Nations League compatibility entrypoint rejects foreign and conflicting modes", {
   help <- phase15_test_run_outcomes_cli("--help")
   expect_identical(help$status, 0L)
   expect_true(grepl("Usage:", help$output, fixed = TRUE))
@@ -2005,18 +2084,205 @@ test_that("registered Nations League entrypoint covers every mode without parent
   ))
   expect_false(identical(conflicting$status, 0L))
   expect_true(grepl("cannot be combined", conflicting$output, fixed = TRUE))
+})
 
-  dry_run <- phase15_test_run_outcomes_cli(c(
+test_that("Phase 15 production acceptance proves current truth, replay identity, and no leakage", {
+  expected_resources <- c("fixtures", "groups", "standings", "results", "status")
+  expected_inventory <- phase15_nl_outcomes_expected_inventory()
+  durable_root <- file.path(
+    phase15_test_project_root,
+    "outputs/competition/uefa_nations_league_2026_27/outcomes"
+  )
+  before <- phase15_test_production_inputs()
+  outcomes_before <- phase15_test_tree_snapshot(durable_root)
+
+  source <- before$source
+  fixtures <- source$fixtures
+  groups <- source$groups
+  results <- source$results
+  expect_identical(before$phase13_resources, expected_resources)
+  expect_equal(nrow(fixtures), 156L)
+  expect_equal(nrow(groups), 14L)
+  expect_equal(nrow(source$standings), 0L)
+  expect_equal(
+    length(unique(c(as.character(fixtures$home_team_id), as.character(fixtures$away_team_id)))),
+    54L
+  )
+  expect_identical(as.character(source$status$competition_status), "scheduled")
+  expect_true(all(toupper(as.character(fixtures$source_status)) == "UPCOMING"))
+  expect_true(all(as.logical(fixtures$kickoff_confirmed)))
+  expect_identical(
+    as.character(results$uefa_source_fixture_id),
+    as.character(fixtures$uefa_source_fixture_id)
+  )
+  expect_true(all(as.character(results$match_status) == "scheduled"))
+  expect_true(all(is.na(results$home_goals) & is.na(results$away_goals)))
+  expect_true(all(!as.logical(results$counts_for_standings) & !as.logical(results$counts_for_form)))
+
+  topology <- before$topology
+  expect_identical(topology$official_counts, c(groups = 14L, fixtures = 156L, teams = 54L))
+  expect_identical(topology$group_formation_status, "unresolved_access_list")
+  expect_identical(topology$missing_rule_input, "access_list")
+  expect_true(all(is.na(topology$teams$access_list_position)))
+  expect_true(all(is.na(topology$teams$draw_pot)))
+  expect_true(all(nzchar(as.character(topology$teams$source_artifact_id))))
+  expect_setequal(
+    as.character(topology$stage_topology$stage_id),
+    c(
+      "league_phase", "league_a_quarter_final", "league_a_semi_final",
+      "league_a_third_place", "league_a_final", "a_b_playoff",
+      "b_c_playoff", "c_d_playoff"
+    )
+  )
+
+  capture <- before$stage_capture
+  expect_identical(capture$capture_status, "empty")
+  expect_equal(nrow(capture$stage_capture), 0L)
+  expect_identical(names(capture$stage_capture), phase15_uefa_nl_stage_capture_schema())
+  expect_identical(as.character(capture$manifest$capture_status[[1L]]), "empty")
+  expect_identical(
+    as.character(capture$registry$manifest_sha256[[1L]]),
+    as.character(capture$manifest$manifest_sha256[[1L]])
+  )
+
+  admitted_inputs <- phase15_test_admitted_topology_inputs()
+  admitted_access <- uefa_nl_validate_access_list(admitted_inputs$access)
+  admitted_formation <- uefa_nl_validate_group_formation(
+    admitted_access,
+    admitted_inputs$group_rows,
+    group_formation_seed = 15013L
+  )
+  expect_identical(admitted_access$status, "validated")
+  expect_identical(admitted_formation$group_formation_status, "validated")
+  expect_equal(nrow(admitted_formation$rows), 54L)
+  expect_true(all(!is.na(admitted_formation$rows$access_list_position)))
+  expect_true(all(nzchar(admitted_formation$rows$draw_pot)))
+  current_access <- uefa_nl_validate_access_list(NULL, topology$teams, phase15_test_edition_id)
+  current_formation <- uefa_nl_validate_group_formation(
+    current_access,
+    topology$teams,
+    group_formation_seed = 15013L,
+    edition_id = phase15_test_edition_id
+  )
+  expect_identical(current_access$status, "unresolved_access_list")
+  expect_identical(current_formation$group_formation_status, "unresolved_access_list")
+  expect_true(all(is.na(current_access$rows$access_list_position)))
+  expect_true(all(is.na(current_access$rows$draw_pot)))
+  expect_true(all(current_access$rows$status == "unresolved_access_list"))
+
+  interim <- phase15_test_final_interim_rankings()
+  post_final <- uefa_nl_rank_final_overall(interim, phase15_test_final_stage_outcomes())
+  pre_final <- uefa_nl_rank_final_overall(
+    interim,
+    phase15_test_final_stage_outcomes(include_finals = FALSE)
+  )
+  expect_identical(post_final$final_overall_rank, seq_len(54L))
+  expect_identical(post_final$ranking_stage, rep("final_overall", 54L))
+  expect_identical(pre_final$final_overall_rank, seq_len(54L))
+  expect_identical(pre_final$ranking_stage, rep("final_overall_pre_finals", 54L))
+  expect_identical(
+    post_final$team_id[match(1:4, post_final$final_overall_rank)],
+    c("team-final-04", "team-final-01", "team-final-03", "team-final-02")
+  )
+
+  blocked_group <- phase15_test_four_team_group()
+  blocked_group$matches$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  blocked <- uefa_nl_rank_group(
+    blocked_group$standings,
+    blocked_group$matches,
+    discipline_points = NULL,
+    access_list = blocked_group$access_list
+  )
+  expect_true(all(is.na(blocked$computed_rank)))
+  expect_true(all(blocked$ordering_status == "blocked"))
+  expect_true(all(grepl("discipline_points", blocked$missing_rule_input)))
+  expect_true(all(blocked$suppression_reason == "missing_rule_input"))
+
+  cancellation_eligibility <- data.frame(
+    team_id = interim$team_id,
+    qualifies_for_euro_playoff = FALSE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  cancellation_eligibility$qualifies_for_euro_playoff[
+    match(interim$team_id[interim$interim_rank %in% c(45L, 46L, 51L, 52L)], cancellation_eligibility$team_id)
+  ] <- TRUE
+  cancelled <- uefa_nl_resolve_cd_playoff_cancellation(interim, cancellation_eligibility)
+  expect_identical(cancelled$cd_playoff_status, rep("cancelled", 4L))
+  expect_identical(cancelled$stage_status, rep("suppressed", 4L))
+  expect_identical(
+    cancelled[, c("retained_next_edition_league", "retained_next_edition_rank")],
+    data.frame(
+      retained_next_edition_league = c("C", "C", "D", "D"),
+      retained_next_edition_rank = c(46L, 47L, 50L, 51L),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  )
+  expect_true(all(nzchar(cancelled$cancellation_reason)))
+  expect_true(all(is.na(cancelled$playoff_eligibility_probability)))
+  unresolved_cd <- uefa_nl_resolve_cd_playoff_cancellation(interim, NULL)
+  expect_true(all(unresolved_cd$eligibility_status == "unresolved_external_eligibility"))
+  expect_true(all(unresolved_cd$cd_playoff_status == "unresolved"))
+  expect_true(all(is.na(unresolved_cd$retained_next_edition_rank)))
+  expect_true(all(is.na(unresolved_cd$playoff_win_probability)))
+
+  host <- phase15_test_host_association()
+  host_draw <- uefa_nl_draw_semi_finals(
+    data.frame(
+      team_id = c("team-a-host", "team-a-s2", "team-a-s3", "team-a-s4"),
+      association_id = c("association-host", "association-2", "association-3", "association-4"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    host_association_id = host$association_id,
+    seed = 15017L,
+    projection_run_id = "phase15-production-acceptance"
+  )
+  expect_identical(host_draw$semi_finals$team_a[[1L]], host$host_team_id)
+  expect_identical(host_draw$final_team_a_source, "semi-final-1-winner")
+  expect_identical(host_draw$third_place_team_a_source, "semi-final-1-loser")
+
+  completed_capture <- phase15_test_completed_stage_capture()
+  completed_score_fields <- c(
+    "regulation_home_goals", "regulation_away_goals", "extra_time_home_goals",
+    "extra_time_away_goals", "penalty_shootout_home_goals",
+    "penalty_shootout_away_goals", "final_home_goals", "final_away_goals",
+    "completed_at_utc"
+  )
+  expect_true(all(completed_score_fields %in% names(completed_capture)))
+  expect_setequal(
+    unique(completed_capture$stage_id),
+    c(
+      "league_a_quarter_final", "league_a_semi_final", "league_a_final",
+      "a_b_playoff", "b_c_playoff", "c_d_playoff"
+    )
+  )
+  expect_true(all(nzchar(completed_capture$source_fixture_id)))
+  expect_true(all(nzchar(completed_capture$source_artifact_id)))
+  expect_true(all(nzchar(completed_capture$completed_at_utc)))
+  expect_silent(phase15_uefa_nl_validate_stage_capture(phase15_test_adapter_stage_capture()))
+
+  dry_run <- phase15_test_run_entrypoint(c(
     "--edition-id", phase15_test_edition_id,
     "--simulations", "1", "--seed", "15017", "--dry-run"
   ))
   expect_identical(dry_run$status, 0L)
+  expect_true(grepl("artifact_count=9", dry_run$output, fixed = TRUE))
   expect_true(grepl("validation=TRUE", dry_run$output, fixed = TRUE))
   expect_true(grepl("durable_mutation=FALSE", dry_run$output, fixed = TRUE))
   expect_true(grepl("stage_capture_id=nl-2026-27-stage-capture-v1", dry_run$output, fixed = TRUE))
-  expect_identical(phase15_test_tree_snapshot(output_root), outcomes_before)
+  for (value in c(
+    capture$manifest$raw_sha256[[1L]],
+    capture$manifest$capture_content_sha256[[1L]],
+    capture$manifest$manifest_sha256[[1L]],
+    capture$registry$row_sha256[[1L]]
+  )) {
+    expect_true(grepl(as.character(value), dry_run$output, fixed = TRUE))
+  }
+  expect_identical(phase15_test_tree_snapshot(durable_root), outcomes_before)
 
-  replay <- phase15_test_run_outcomes_cli(c(
+  replay <- phase15_test_run_entrypoint(c(
     "--edition-id", phase15_test_edition_id,
     "--simulations", "1", "--seed", "15017", "--replay-check"
   ))
@@ -2024,46 +2290,142 @@ test_that("registered Nations League entrypoint covers every mode without parent
   expect_true(grepl("replay_verified=TRUE", replay$output, fixed = TRUE))
   expect_true(grepl("durable_mutation=FALSE", replay$output, fixed = TRUE))
   expect_true(grepl("stage_capture_registry_row_sha256=", replay$output, fixed = TRUE))
-  expect_identical(phase15_test_tree_snapshot(output_root), outcomes_before)
+  expect_identical(phase15_test_tree_snapshot(durable_root), outcomes_before)
 
-  write_run <- phase15_test_run_outcomes_cli(c(
-    "--edition-id", phase15_test_edition_id,
-    "--simulations", "1", "--seed", "15017", "--write"
-  ))
-  expect_identical(write_run$status, 0L)
-  expect_true(grepl("durable_mutation=TRUE", write_run$output, fixed = TRUE))
-  written_snapshot <- phase15_test_tree_snapshot(output_root)
-  expect_setequal(names(written_snapshot), sub("^outcomes/", "", expected_inventory))
+  after <- phase15_test_production_inputs()
+  expect_silent(phase15_test_assert_phase14_immutable(before, after))
+  expect_identical(before$accepted_tree, after$accepted_tree)
+  expect_identical(before$registry_tree, after$registry_tree)
 
-  bundle <- phase15_nl_read_outcomes_bundle(output_root)
+  bundle <- phase15_nl_read_outcomes_bundle(durable_root)
   expect_identical(names(bundle$artifacts), expected_inventory)
+  manifest <- bundle$manifest
+  expect_identical(as.character(manifest$artifact_path), expected_inventory)
+  for (path in expected_inventory) {
+    row <- manifest[manifest$artifact_path == path, , drop = FALSE]
+    expect_equal(nrow(row), 1L)
+    artifact <- bundle$artifacts[[path]]
+    expect_identical(as.integer(row$row_count[[1L]]), as.integer(nrow(artifact)))
+    if (!identical(path, "outcomes/outcomes_manifest.csv")) {
+      expect_identical(
+        tolower(as.character(row$content_sha256[[1L]])),
+        tolower(phase15_nl_table_content_hash(artifact))
+      )
+    }
+  }
+  expect_true(all(as.integer(manifest$simulation_seed) == 15017L))
+  expect_true(all(as.integer(manifest$simulation_count) == 1L))
+  expect_true(all(as.character(manifest$validation_status) == "valid"))
+
   stage_slots <- bundle$artifacts[["outcomes/stage_slots.csv"]]
-  expect_true(all(c(
-    "source_fixture_id", "stage_status", "regulation_home_goals",
-    "regulation_away_goals", "extra_time_home_goals", "extra_time_away_goals",
-    "penalty_shootout_home_goals", "penalty_shootout_away_goals",
-    "final_home_goals", "final_away_goals", "completed_at_utc"
-  ) %in% names(stage_slots)))
+  blank <- function(value) is.na(value) | !nzchar(trimws(as.character(value)))
+  expect_true(all(stage_slots$stage_id %in% topology$stage_topology$stage_id))
+  projected <- stage_slots[stage_slots$stage_status %in% c("projected", "unresolved", "suppressed"), , drop = FALSE]
+  expect_true(nrow(projected) > 0L)
+  expect_true(all(blank(projected$source_fixture_id)))
+  expect_true(all(blank(projected$source_artifact_id)))
   expect_true(all(stage_slots$stage_status %in% c("projected", "unresolved", "suppressed", "official", "completed")))
 
-  manifest <- bundle$manifest
+  metadata <- bundle$simulation_metadata
+  expect_identical(as.integer(metadata$simulation_seed[[1L]]), 15017L)
+  expect_identical(as.integer(metadata$simulation_count[[1L]]), 1L)
+  expect_identical(as.character(metadata$source_bundle_id[[1L]]), source$source_bundle_id)
+  expect_identical(as.character(metadata$source_bundle_sha256[[1L]]), source$source_bundle_sha256)
+  expect_identical(as.character(metadata$state_manifest_sha256[[1L]]), before$state_bundle$state_manifest_sha256)
+  expect_identical(as.character(metadata$ruleset_version[[1L]]), before$rules$ruleset_version)
+  expect_identical(as.character(metadata$ruleset_sha256[[1L]]), uefa_nl_ruleset_sha256(before$rules))
+  expect_true(nzchar(as.character(metadata$draw_policy_id[[1L]])))
+  expect_true(grepl("calibrated_1x2", as.character(metadata$probability_sampling_policy[[1L]]), fixed = TRUE))
+
+  fixture_form <- bundle$fixture_forecast_form
+  expect_equal(nrow(fixture_form), 156L)
+  expect_setequal(as.character(fixture_form$fixture_id), as.character(before$state_bundle$canonical_matches$fixture_id))
+  expect_true(all(as.character(fixture_form$forecast_status) == "available"))
+  expect_identical(unique(as.character(fixture_form$primary_probability_view)), "calibrated_1x2")
+  expect_true(all(is.finite(as.numeric(fixture_form$p_home))))
+  expect_true(all(abs(rowSums(fixture_form[, c("p_home", "p_draw", "p_away")]) - 1) < 1e-12))
+  expect_true(all(is.finite(as.numeric(fixture_form$expected_home_goals))))
+  expect_true(all(is.finite(as.numeric(fixture_form$expected_away_goals))))
+  expect_identical(unique(as.character(fixture_form$competition_form_status)), "unavailable")
+  expect_identical(unique(as.character(fixture_form$competition_form_window_type)), "no_eligible_form_history")
+  expect_identical(unique(as.character(fixture_form$all_international_form_status)), "unavailable")
+  expect_identical(unique(as.character(fixture_form$all_international_form_window_type)), "no_eligible_form_history")
+  expect_identical(unique(as.character(fixture_form$source_bundle_id)), source$source_bundle_id)
+  expect_identical(unique(as.character(fixture_form$source_bundle_sha256)), source$source_bundle_sha256)
+  expect_identical(unique(as.character(fixture_form$parent_state_manifest_sha256)), before$state_bundle$state_manifest_sha256)
+  parent_hash <- setNames(
+    as.character(before$state_bundle$state_manifest$content_sha256),
+    as.character(before$state_bundle$state_manifest$artifact_path)
+  )
+  expect_identical(unique(as.character(fixture_form$parent_canonical_matches_sha256)), parent_hash[["state/canonical_matches.csv"]])
+  expect_identical(unique(as.character(fixture_form$parent_forecast_status_sha256)), parent_hash[["state/forecast_status.csv"]])
+  expect_identical(unique(as.character(fixture_form$parent_forecasts_sha256)), parent_hash[["state/forecasts.csv"]])
+  expect_identical(unique(as.character(fixture_form$parent_score_distributions_sha256)), parent_hash[["local/score_distributions.rds"]])
+  expect_true(all(nzchar(as.character(fixture_form$model_release_id))))
+  expect_true(all(nzchar(as.character(fixture_form$model_sha256))))
+  expect_true(all(nzchar(as.character(fixture_form$release_manifest_sha256))))
+  expect_true(all(nzchar(as.character(fixture_form$release_selector_sha256))))
+  expect_true(all(nzchar(as.character(fixture_form$model_data_cutoff))))
+  expect_true(all(nzchar(as.character(fixture_form$feature_cutoff_utc))))
+  expect_true(all(grepl("^[0-9a-f]{64}$", as.character(fixture_form$feature_cutoff_sha256))))
+
   stage_manifest_row <- manifest[manifest$artifact_path == "outcomes/stage_slots.csv", , drop = FALSE]
-  expect_equal(nrow(stage_manifest_row), 1L)
-  expect_true(grepl("stage_capture_manifest", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
+  expect_true(grepl("stage_capture_manifest.csv", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
   expect_true(grepl("stage_capture.json", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
   expect_true(grepl("stage_capture.csv", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
-  capture <- phase15_uefa_nl_read_stage_capture(phase15_test_project_root)
-  expect_true(grepl(capture$manifest$manifest_sha256[[1L]], stage_manifest_row$parent_sha256[[1L]], fixed = TRUE))
-  expect_true(grepl("stage_capture_manifest_sha256=", write_run$output, fixed = TRUE))
+  for (value in c(
+    capture$manifest$raw_sha256[[1L]],
+    capture$manifest$capture_content_sha256[[1L]],
+    capture$manifest$manifest_sha256[[1L]]
+  )) {
+    expect_true(grepl(as.character(value), stage_manifest_row$parent_sha256[[1L]], fixed = TRUE))
+  }
 
-  expect_identical(resources_before, expected_resources)
-  expect_identical(phase13_source_required_resource_types(), expected_resources)
-  expect_identical(state_before, phase15_test_state_inventory_hashes())
-  expect_identical(accepted_before, phase15_test_tree_snapshot(accepted_root))
-  expect_identical(registry_before, phase15_test_tree_snapshot(registry_root))
-  expect_identical(names(phase15_nl_outcomes_schema()), c(
-    "competition_topology", "stage_slots", "projected_standings", "projected_rankings",
-    "transition_outcomes", "team_path_probabilities", "fixture_forecast_form",
-    "simulation_metadata", "outcomes_manifest"
-  ))
+  cd_output <- bundle$artifacts[["outcomes/transition_outcomes.csv"]]
+  cd_output <- cd_output[cd_output$stage_id == "c_d_playoff", , drop = FALSE]
+  expect_equal(nrow(cd_output), 4L)
+  expect_true(all(cd_output$eligibility_status == "unresolved_external_eligibility"))
+  expect_true(all(cd_output$stage_status == "unresolved"))
+  expect_true(all(cd_output$cd_playoff_status == "unresolved"))
+  expect_true(all(is.na(cd_output$playoff_win_probability)))
+  expect_true(all(is.na(cd_output$playoff_loss_probability)))
+
+  synthetic <- do.call(
+    uefa_nl_run_simulation,
+    phase15_test_simulation_inputs(simulation_count = 1L, seed = 15017L)
+  )
+  path_fields <- intersect(
+    c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion"),
+    names(synthetic$team_path_probabilities)
+  )
+  expect_true(length(path_fields) > 0L)
+  expect_true(any(as.matrix(synthetic$team_path_probabilities[, path_fields, drop = FALSE]) > 0, na.rm = TRUE))
+  expect_true(any(synthetic$fixture_forecast_form$primary_probability_view == "calibrated_1x2"))
+
+  expect_identical(
+    phase15_nl_validate_output_root(
+      phase15_nl_registered_outcomes_root(phase15_test_project_root),
+      phase15_test_project_root
+    ),
+    normalizePath(durable_root, winslash = "/", mustWork = TRUE)
+  )
+  expect_error(
+    phase15_nl_validate_output_root(file.path(tempdir(), "phase15-unregistered"), phase15_test_project_root),
+    "registered Nations League outcomes root"
+  )
+  test_output_root <- phase15_test_output_root()
+  on.exit(unlink(test_output_root, recursive = TRUE, force = TRUE), add = TRUE)
+  written <- phase15_write_nl_outcomes_bundle(bundle, output_root = test_output_root)
+  expect_silent(phase15_validate_nl_outcomes_bundle(written))
+  read_back <- phase15_nl_read_outcomes_bundle(test_output_root)
+  expect_identical(read_back$manifest$content_sha256, bundle$manifest$content_sha256)
+  expect_identical(read_back$manifest$manifest_sha256, bundle$manifest$manifest_sha256)
+  for (path in expected_inventory) {
+    expect_identical(
+      phase15_nl_table_content_hash(read_back$artifacts[[path]]),
+      phase15_nl_table_content_hash(bundle$artifacts[[path]])
+    )
+  }
+
+  expect_identical(phase15_test_tree_snapshot(durable_root), outcomes_before)
 })
