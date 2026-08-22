@@ -1771,6 +1771,8 @@ test_that("simulation replay preserves RNG, hashes, and probability mass", {
   expect_true(all(c("final_overall_rank", "ranking_stage") %in% names(first$projected_rankings)))
   expect_true(grepl("(^|;)final_overall_pre_finals(;|$)", first$simulation_metadata$ranking_stages[[1L]]))
   expect_true(nzchar(first$simulation_metadata$ranking_stages_sha256[[1L]]))
+  expect_identical(first$simulation_metadata$final_ranking_stages[[1L]], "final_overall_pre_finals")
+  expect_true(nzchar(first$simulation_metadata$final_ranking_stages_sha256[[1L]]))
 
   reversed <- inputs
   reversed$canonical_matches <- reversed$canonical_matches[nrow(reversed$canonical_matches):1L, , drop = FALSE]

@@ -1924,6 +1924,7 @@ uefa_nl_sim_aggregate_fixtures <- function(matches, forecast_status, forecasts, 
 
 uefa_nl_sim_metadata_row <- function(metadata, input_hashes, canonical_input_hashes, output_hashes) {
   ranking_stages <- metadata$ranking_stages %||% character()
+  final_ranking_stages <- metadata$final_ranking_stages %||% character()
   fields <- list(
     edition_id = metadata$edition_id, projection_run_id = metadata$projection_run_id,
     simulation_seed = as.integer(metadata$simulation_seed), simulation_count = as.integer(metadata$simulation_count),
@@ -1937,6 +1938,8 @@ uefa_nl_sim_metadata_row <- function(metadata, input_hashes, canonical_input_has
     model_lineage_sha256 = uefa_nl_sim_hash_data(metadata$model_lineage),
     ranking_stages = paste(as.character(ranking_stages), collapse = ";"),
     ranking_stages_sha256 = uefa_nl_sim_hash_data(ranking_stages),
+    final_ranking_stages = paste(as.character(final_ranking_stages), collapse = ";"),
+    final_ranking_stages_sha256 = uefa_nl_sim_hash_data(final_ranking_stages),
     forecast_status_sha256 = canonical_input_hashes$forecast_status,
     forecasts_sha256 = canonical_input_hashes$forecasts,
     score_distributions_sha256 = canonical_input_hashes$score_distributions,
@@ -2016,6 +2019,8 @@ uefa_nl_run_simulation <- function(
     ranking_captures <- uefa_nl_sim_bind_rows(lapply(iterations, uefa_nl_sim_rank_capture))
     projected_rankings <- uefa_nl_sim_aggregate_rankings(ranking_captures, count, metadata)
     metadata$ranking_stages <- sort(unique(as.character(projected_rankings$ranking_stage)), method = "radix")
+    final_ranking_rows <- projected_rankings[as.character(projected_rankings$ranking_scope) == "final_overall", , drop = FALSE]
+    metadata$final_ranking_stages <- sort(unique(as.character(final_ranking_rows$ranking_stage)), method = "radix")
     transition_outcomes <- uefa_nl_sim_aggregate_transitions(iterations, count, metadata)
     team_paths <- uefa_nl_sim_aggregate_paths(iterations, normalized_groups, count, metadata)
     fixture_outcomes <- uefa_nl_sim_aggregate_fixtures(normalized_matches, normalized_status, normalized_forecasts, fixture_captures, count, metadata, source_bundle_sha256, state_manifest_sha256)
