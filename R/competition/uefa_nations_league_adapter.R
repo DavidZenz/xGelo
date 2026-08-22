@@ -690,14 +690,15 @@ phase15_uefa_nl_validate_stage_capture <- function(
   if (any(tolower(as.character(values$row_sha256)) != tolower(expected_hashes))) stop("Phase 15 stage capture row hash mismatch", call. = FALSE)
   score_fields <- c("regulation_home_goals", "regulation_away_goals", "extra_time_home_goals", "extra_time_away_goals", "final_home_goals", "final_away_goals")
   completed <- status == "completed"
-  score_values <- lapply(score_fields, function(field) phase15_uefa_nl_capture_score(values[[field]], field, allow_missing = !any(completed)))
+  score_values <- lapply(score_fields, function(field) phase15_uefa_nl_capture_score(values[[field]], field, allow_missing = TRUE))
   names(score_values) <- score_fields
   if (any(completed)) {
     if (any(phase15_uefa_nl_capture_missing(values$completed_at_utc[completed]))) stop("Completed Phase 15 stage capture rows require completed_at_utc", call. = FALSE)
+    for (field in score_fields) if (any(is.na(score_values[[field]][completed]))) stop("Completed Phase 15 stage capture rows require ", field, call. = FALSE)
     if (any(score_values$final_home_goals[completed] != score_values$regulation_home_goals[completed] + score_values$extra_time_home_goals[completed]) || any(score_values$final_away_goals[completed] != score_values$regulation_away_goals[completed] + score_values$extra_time_away_goals[completed])) stop("Phase 15 stage capture final goals must equal regulation plus extra-time goals", call. = FALSE)
-  } else if (any(!phase15_uefa_nl_capture_missing(values$completed_at_utc))) {
-    stop("Official Phase 15 stage capture rows must not carry completed_at_utc", call. = FALSE)
   }
+  if (any(!completed & !phase15_uefa_nl_capture_missing(values$completed_at_utc))) stop("Official Phase 15 stage capture rows must not carry completed_at_utc", call. = FALSE)
+  for (field in score_fields) if (any(!completed & !phase15_uefa_nl_capture_missing(values[[field]]))) stop("Official Phase 15 stage capture rows must not carry ", field, call. = FALSE)
   shootout_home <- phase15_uefa_nl_capture_score(values$penalty_shootout_home_goals, "penalty_shootout_home_goals")
   shootout_away <- phase15_uefa_nl_capture_score(values$penalty_shootout_away_goals, "penalty_shootout_away_goals")
   if (any(xor(is.na(shootout_home), is.na(shootout_away)))) stop("Phase 15 shootout tallies must be supplied as a pair", call. = FALSE)
