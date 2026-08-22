@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 15
 current_phase_name: Nations League Rules and Outcomes
 status: executing
-stopped_at: Completed 15-04-PLAN.md
-last_updated: "2026-08-22T11:17:03.415Z"
+stopped_at: Completed 15-05-PLAN.md
+last_updated: "2026-08-22T11:47:30.254Z"
 last_activity: 2026-08-22
 last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 42
-  completed_plans: 40
+  completed_plans: 41
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 15 (Nations League Rules and Outcomes) — EXECUTING
-Plan: 6 of 7
+Plan: 7 of 7
 Status: Ready to execute
 Last activity: 2026-08-22 — Phase 15 execution started
 
 ## Progress
 
-**Progress:** [██████████] 95% (35/42 plans complete)
+**Progress:** [██████████] 98% (35/42 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -162,6 +162,8 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 15 Plan 04 retains official source identity only for official/completed stage slots; projected, unresolved, and suppressed rows keep explicit status lineage.
 - [Phase ?]: Phase 15 Plan 04 exposes fixture_forecast_form as immutable Phase 14 calibrated forecast/form pass-through with explicit no_eligible_form_history availability.
 - [Phase ?]: Phase 15 Plan 04 uses normalized scalar CSV serialization for deterministic row/table hashes across R type inference on durable read-back.
+- [Phase ?]: Phase 15 Plan 05: keep the plan-owned build_nations_league_outcomes.R implementation and expose a thin UEFA-prefixed compatibility entrypoint.
+- [Phase ?]: Phase 15 Plan 05: keep absent EURO eligibility explicit so C/D transitions remain unresolved rather than inferred.
 
 ## Accumulated Context
 
@@ -180,8 +182,8 @@ Plan Phase 15 Nations League rules and outcomes, then execute its implementation
 
 ## Session Continuity
 
-**Last session:** 2026-08-22T11:17:03.402Z
-**Stopped at:** Completed 15-04-PLAN.md
+**Last session:** 2026-08-22T11:47:30.241Z
+**Stopped at:** Completed 15-05-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -231,6 +233,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 15 P02 | 25min | 3 tasks | 2 files |
 | Phase 15 P03 | bounded | 3 tasks | 2 files |
 | Phase 15 P04 | 27 min | 3 tasks | 2 files |
+| Phase 15 P05 | 55min | 1 tasks | 14 files |
 
 ### Blockers
 
