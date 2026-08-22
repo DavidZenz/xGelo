@@ -2681,3 +2681,67 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
 
   expect_identical(phase15_test_tree_snapshot(durable_root), outcomes_before)
 })
+
+test_that("aggregate team paths hide unresolved and suppressed probabilities", {
+  path_fields <- c(
+    "p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion",
+    "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility",
+    "p_playoff_win", "p_playoff_loss"
+  )
+  teams <- c("team-unresolved", "team-suppressed", "team-projected")
+  captures <- do.call(rbind, lapply(seq_len(2L), function(iteration) {
+    values <- c(1, 1, if (iteration == 1L) 0.25 else 0.75)
+    path_values <- as.data.frame(
+      setNames(rep(list(values), length(path_fields)), path_fields),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+    cbind(
+      data.frame(
+        iteration = iteration,
+        team_id = teams,
+        league = c("A", "B", "C"),
+        status = c("unresolved", "suppressed", "projected"),
+        suppression_reason = c("", "c_d_playoff_cancelled", ""),
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      ),
+      path_values
+    )
+  }))
+  iterations <- lapply(seq_len(2L), function(iteration) {
+    list(paths = captures[captures$iteration == iteration, , drop = FALSE])
+  })
+  metadata <- list(
+    edition_id = phase15_test_edition_id,
+    projection_run_id = "phase15-path-regression",
+    simulation_seed = 15017L,
+    rules = uefa_nl_2026_27_rules(),
+    source_bundle_id = phase15_test_source_bundle_id,
+    source_bundle_sha256 = phase15_test_hash_token("path-regression-source"),
+    model_release_id = "phase15-path-regression-model"
+  )
+
+  aggregated <- uefa_nl_sim_aggregate_paths(
+    iterations = iterations,
+    groups = data.frame(team_id = teams, stringsAsFactors = FALSE, check.names = FALSE),
+    simulation_count = 2L,
+    metadata = metadata
+  )
+  unresolved_or_suppressed <- aggregated$status %in% c("unresolved", "suppressed")
+
+  expect_identical(
+    as.character(aggregated$status[match(teams, aggregated$team_id)]),
+    c("unresolved", "suppressed", "projected")
+  )
+  expect_true(any(unresolved_or_suppressed))
+  expect_true(all(is.na(as.matrix(aggregated[unresolved_or_suppressed, path_fields, drop = FALSE]))))
+  expect_identical(
+    as.character(aggregated$suppression_reason[aggregated$status == "suppressed"]),
+    "c_d_playoff_cancelled"
+  )
+  expect_identical(
+    as.numeric(as.matrix(aggregated[aggregated$status == "projected", path_fields, drop = FALSE])),
+    rep(0.5, length(path_fields))
+  )
+})

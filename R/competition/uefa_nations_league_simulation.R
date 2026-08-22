@@ -1912,11 +1912,31 @@ uefa_nl_sim_aggregate_paths <- function(iterations, groups, simulation_count, me
   rows <- lapply(teams, function(team) {
     team_rows <- captures[as.character(captures$team_id) == team, , drop = FALSE]
     if (!nrow(team_rows)) return(data.frame(team_id = team, stringsAsFactors = FALSE, check.names = FALSE))
+    statuses <- tolower(trimws(as.character(team_rows$status)))
+    statuses[is.na(statuses) | !nzchar(statuses)] <- "projected"
+    aggregate_status <- if (any(statuses == "suppressed", na.rm = TRUE)) {
+      "suppressed"
+    } else if (any(statuses == "unresolved", na.rm = TRUE)) {
+      "unresolved"
+    } else {
+      "projected"
+    }
     row <- team_rows[1L, setdiff(names(team_rows), c("iteration", path_fields, "status", "suppression_reason")), drop = FALSE]
-    for (field in path_fields) row[[field]] <- uefa_nl_sim_mean_path(team_rows[[field]])
-    statuses <- as.character(team_rows$status)
-    row$status <- if (any(statuses == "suppressed")) "suppressed" else if (any(statuses == "unresolved")) "unresolved" else "projected"
-    row$suppression_reason <- if (row$status[[1L]] == "suppressed") paste(unique(as.character(team_rows$suppression_reason[statuses == "suppressed"])), collapse = ";") else ""
+    for (field in path_fields) {
+      row[[field]] <- if (aggregate_status %in% c("unresolved", "suppressed")) {
+        NA_real_
+      } else {
+        uefa_nl_sim_mean_path(team_rows[[field]])
+      }
+    }
+    row$status <- aggregate_status
+    if (identical(aggregate_status, "suppressed")) {
+      reasons <- as.character(team_rows$suppression_reason[statuses == "suppressed"])
+      reasons <- unique(reasons[!is.na(reasons) & nzchar(trimws(reasons))])
+      row$suppression_reason <- paste(reasons, collapse = ";")
+    } else {
+      row$suppression_reason <- ""
+    }
     row$simulation_count <- as.integer(simulation_count)
     row
   })

@@ -39,3 +39,18 @@ The focused test file passed with 3 tests and 0 failures. Its cases cover the ex
 _Reviewed: 2026-08-22T14:18:26Z_  
 _Reviewer: the agent (gsd-code-reviewer)_  
 _Depth: standard_
+
+## Current Gap-Closure Review
+
+The later SIM-01 gap closure was reviewed against the current working tree on
+2026-08-22. The changed simulation seam computes the aggregate status before
+path aggregation, suppresses all ten path-probability fields for unresolved or
+suppressed rows, and preserves means for projected rows. The regression test
+covers unresolved, suppressed, and projected inputs, including suppression
+reason preservation. The regenerated durable bundle contains the exact nine
+registered files, validates its manifest hashes, and has no determinate path
+probabilities for unresolved rows. Focused Phase 15, Phase 13 source-contract,
+and Phase 14 sibling-boundary checks all pass with zero failures, warnings, or
+skips. No additional findings were identified.
+
+**Current gap-closure status:** clean

@@ -53,6 +53,12 @@ unresolved status when no completed play-off capture is available. No
 production files were changed. The repository-wide `tests/testthat` suite was
 not used as this phase gate and remains outside this focused validation result.
 
+The post-verification gap-closure rerun completed on 2026-08-22 with **607
+expectations, 0 failures, 0 errors, 0 warnings, and 0 skips**. It added the
+status-aware unresolved/suppressed path aggregation regression and regenerated
+the durable nine-file outcomes bundle; the adjacent Phase 13 and Phase 14
+bounded gates remained green.
+
 ---
 
 ## Per-Task Verification Map
