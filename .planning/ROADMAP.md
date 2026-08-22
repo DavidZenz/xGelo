@@ -162,7 +162,7 @@ simulations, and fail-closed hourly publication.
 3. Open Nations League fixtures show calibrated forecasts together with competition-specific form and all-international form from the shared engine.
 4. Projected outcomes report League A quarter-final and title paths, direct promotion and relegation, and applicable promotion or relegation play-off probabilities for every team.
 
-**Plans**: 4/7 plans executed
+**Plans**: 5/7 plans executed
 Plans:
 **Wave 1**
 
@@ -179,7 +179,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 15-04-PLAN.md — Define and validate the nine-file sibling outcomes bundle with fixture forecast/form pass-through
+- [x] 15-04-PLAN.md — Define and validate the nine-file sibling outcomes bundle with fixture forecast/form pass-through
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
@@ -228,7 +228,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
-| 15. Nations League Rules and Outcomes | 4/7 | In Progress|  |
+| 15. Nations League Rules and Outcomes | 5/7 | In Progress|  |
 | 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |
 | 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |
 

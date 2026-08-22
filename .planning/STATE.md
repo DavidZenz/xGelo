@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 15
 current_phase_name: Nations League Rules and Outcomes
 status: executing
-stopped_at: Completed 15-03-PLAN.md
-last_updated: "2026-08-22T10:48:40.168Z"
+stopped_at: Completed 15-04-PLAN.md
+last_updated: "2026-08-22T11:17:03.415Z"
 last_activity: 2026-08-22
 last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 42
-  completed_plans: 39
+  completed_plans: 40
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 15 (Nations League Rules and Outcomes) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
 Last activity: 2026-08-22 — Phase 15 execution started
 
 ## Progress
 
-**Progress:** [█████████░] 93% (35/42 plans complete)
+**Progress:** [██████████] 95% (35/42 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -158,6 +158,10 @@ dependence on paid data feeds.
 - [Phase ?]: Plan 15-03: canonicalize and hash immutable Phase 14 inputs before sampling, derive stable seeds, and restore caller RNG state.
 - [Phase ?]: Plan 15-03: absent C/D eligibility stays unresolved; explicit cancellation retains C46/C47 and D50/D51 with NA play-off probabilities.
 - [Phase ?]: Plan 15-03: final ranking stages are carried per row and in final-only simulation metadata lineage.
+- [Phase ?]: Phase 15 Plan 04 keeps outcomes as an exact nine-file sibling and leaves Phase 14's eleven-artifact state inventory unchanged.
+- [Phase ?]: Phase 15 Plan 04 retains official source identity only for official/completed stage slots; projected, unresolved, and suppressed rows keep explicit status lineage.
+- [Phase ?]: Phase 15 Plan 04 exposes fixture_forecast_form as immutable Phase 14 calibrated forecast/form pass-through with explicit no_eligible_form_history availability.
+- [Phase ?]: Phase 15 Plan 04 uses normalized scalar CSV serialization for deterministic row/table hashes across R type inference on durable read-back.
 
 ## Accumulated Context
 
@@ -176,8 +180,8 @@ Plan Phase 15 Nations League rules and outcomes, then execute its implementation
 
 ## Session Continuity
 
-**Last session:** 2026-08-22T10:48:40.156Z
-**Stopped at:** Completed 15-03-PLAN.md
+**Last session:** 2026-08-22T11:17:03.402Z
+**Stopped at:** Completed 15-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -226,6 +230,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 15 P01 | 24 | 3 tasks | 8 files |
 | Phase 15 P02 | 25min | 3 tasks | 2 files |
 | Phase 15 P03 | bounded | 3 tasks | 2 files |
+| Phase 15 P04 | 27 min | 3 tasks | 2 files |
 
 ### Blockers
 
