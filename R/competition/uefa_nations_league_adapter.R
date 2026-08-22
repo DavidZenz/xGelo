@@ -541,6 +541,14 @@ phase15_uefa_nl_capture_missing <- function(values) {
   is.na(values) | !nzchar(trimws(values))
 }
 
+phase15_uefa_nl_parse_utc_timestamp <- function(values, field) {
+  text <- trimws(as.character(values))
+  parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  invalid <- is.na(text) | !nzchar(text) | is.na(parsed) | !grepl("Z$", text)
+  if (any(invalid)) stop("Phase 15 stage capture has an invalid ", field, " UTC timestamp", call. = FALSE)
+  parsed
+}
+
 phase15_uefa_nl_capture_hash <- function(value) {
   if (exists("phase13_source_sha256", mode = "function", inherits = TRUE)) return(phase13_source_sha256(value))
   if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Phase 15 capture hashes", call. = FALSE)
@@ -632,6 +640,7 @@ phase15_uefa_nl_validate_stage_capture_manifest <- function(
   if (phase15_uefa_nl_capture_missing(row$source_bundle_id) || phase15_uefa_nl_capture_missing(row$source_url) || phase15_uefa_nl_capture_missing(row$retrieved_at_utc) || phase15_uefa_nl_capture_missing(row$parser_commit_sha)) {
     stop("Phase 15 stage capture manifest is missing source lineage", call. = FALSE)
   }
+  phase15_uefa_nl_parse_utc_timestamp(row$retrieved_at_utc, "retrieved_at_utc")
   if (!grepl("^https://", as.character(row$source_url[[1L]]))) stop("Phase 15 stage capture source_url must be HTTPS", call. = FALSE)
   if (!grepl("^[0-9a-fA-F]{7,64}$", as.character(row$parser_commit_sha[[1L]]))) stop("Phase 15 stage capture parser identity is invalid", call. = FALSE)
   if (!identical(tolower(as.character(row$manifest_sha256[[1L]])), tolower(phase15_uefa_nl_manifest_self_sha256(row)))) stop("Phase 15 stage capture manifest self-hash mismatch", call. = FALSE)
@@ -681,8 +690,8 @@ phase15_uefa_nl_validate_stage_capture <- function(
   }
   if (any(!grepl("^https://", as.character(values$source_url)))) stop("Phase 15 stage capture source_url must be HTTPS", call. = FALSE)
   if (any(!grepl("^[0-9a-fA-F]{64}$", as.character(values$raw_sha256)))) stop("Phase 15 stage capture raw_sha256 is invalid", call. = FALSE)
-  if (any(suppressWarnings(is.na(as.POSIXct(as.character(values$scheduled_at_utc), tz = "UTC"))))) stop("Phase 15 stage capture has an invalid scheduled_at_utc", call. = FALSE)
-  if (any(suppressWarnings(is.na(as.POSIXct(as.character(values$retrieved_at_utc), tz = "UTC"))))) stop("Phase 15 stage capture has an invalid retrieved_at_utc", call. = FALSE)
+  phase15_uefa_nl_parse_utc_timestamp(values$scheduled_at_utc, "scheduled_at_utc")
+  phase15_uefa_nl_parse_utc_timestamp(values$retrieved_at_utc, "retrieved_at_utc")
   status <- tolower(trimws(as.character(values$stage_status)))
   if (any(is.na(status) | !status %in% c("official", "completed"))) stop("Phase 15 stage capture may contain only official or completed source rows", call. = FALSE)
   if (any(!grepl("^[0-9a-fA-F]{64}$", as.character(values$row_sha256)))) stop("Phase 15 stage capture requires canonical row hashes", call. = FALSE)
@@ -694,6 +703,7 @@ phase15_uefa_nl_validate_stage_capture <- function(
   names(score_values) <- score_fields
   if (any(completed)) {
     if (any(phase15_uefa_nl_capture_missing(values$completed_at_utc[completed]))) stop("Completed Phase 15 stage capture rows require completed_at_utc", call. = FALSE)
+    phase15_uefa_nl_parse_utc_timestamp(values$completed_at_utc[completed], "completed_at_utc")
     for (field in score_fields) if (any(is.na(score_values[[field]][completed]))) stop("Completed Phase 15 stage capture rows require ", field, call. = FALSE)
     if (any(score_values$final_home_goals[completed] != score_values$regulation_home_goals[completed] + score_values$extra_time_home_goals[completed]) || any(score_values$final_away_goals[completed] != score_values$regulation_away_goals[completed] + score_values$extra_time_away_goals[completed])) stop("Phase 15 stage capture final goals must equal regulation plus extra-time goals", call. = FALSE)
   }

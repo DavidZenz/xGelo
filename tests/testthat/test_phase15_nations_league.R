@@ -1303,6 +1303,14 @@ test_that("official stage capture validation rejects fabricated or incomplete ro
   incomplete$row_sha256 <- phase13_row_sha256(incomplete)
   expect_error(phase15_uefa_nl_validate_stage_capture(incomplete), "final_home_goals")
 
+  invalid_completed_timestamp <- capture
+  invalid_completed_timestamp$completed_at_utc[[1L]] <- "not-a-utc-timestamp"
+  invalid_completed_timestamp$row_sha256 <- phase13_row_sha256(invalid_completed_timestamp)
+  expect_error(
+    phase15_uefa_nl_validate_stage_capture(invalid_completed_timestamp),
+    "completed_at_utc"
+  )
+
   fabricated <- capture[1L, , drop = FALSE]
   fabricated$stage_status <- "official"
   fabricated$source_fixture_id <- ""
