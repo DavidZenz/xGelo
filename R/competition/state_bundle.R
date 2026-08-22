@@ -1679,8 +1679,9 @@ phase14_validate_competition_state_bundle <- function(
     expected <- phase14_state_bundle_expected_inventory()
     present <- file.path(root, expected)
     if (!all(file.exists(present))) stop("Phase 14 durable state bundle is missing an inventory artifact", call. = FALSE)
-    relative <- list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE)
-    if (!setequal(relative, expected)) stop("Phase 14 durable state bundle contains an unexpected inventory artifact", call. = FALSE)
+    relative <- gsub("\\\\", "/", list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE))
+    unexpected <- relative[!relative %in% expected & !startsWith(relative, "outcomes/")]
+    if (length(unexpected)) stop("Phase 14 durable state bundle contains an unexpected inventory artifact", call. = FALSE)
     artifacts <- lapply(expected, function(path) {
       full_path <- file.path(root, path)
       if (identical(path, "local/score_distributions.rds")) {

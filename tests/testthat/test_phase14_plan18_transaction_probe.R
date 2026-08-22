@@ -186,3 +186,19 @@ test_that("Plan 14-18 eleven-target transaction probe restores exact bytes", {
     successful_readback = TRUE
   )))
 })
+
+test_that("Phase 14 state validation allows only the registered outcomes sibling", {
+  output_root <- file.path(
+    phase14_plan18_test_root,
+    "outputs/competition/uefa_nations_league_2026_27"
+  )
+  expect_true(isTRUE(phase14_validate_competition_state_bundle(output_root)))
+
+  extra <- tempfile("phase14-plan18-unexpected-", tmpdir = output_root)
+  writeLines("unexpected state-bundle extra", extra, useBytes = TRUE)
+  on.exit(unlink(extra, force = TRUE), add = TRUE)
+  expect_error(
+    phase14_validate_competition_state_bundle(output_root),
+    "unexpected inventory artifact"
+  )
+})
