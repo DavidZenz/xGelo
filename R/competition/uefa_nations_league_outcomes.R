@@ -413,6 +413,16 @@ phase15_nl_state_manifest_seed_hash <- function(manifest, artifacts, expected) {
   phase15_nl_phase14_hash_value(base)
 }
 
+phase15_nl_state_manifest_row_hashes <- function(manifest) {
+  if (!is.data.frame(manifest) || !nrow(manifest)) return(character())
+  if (!"row_sha256" %in% names(manifest)) stop("Phase 14 state manifest is missing row_sha256", call. = FALSE)
+  vapply(seq_len(nrow(manifest)), function(index) {
+    row <- manifest[index, , drop = FALSE]
+    row$row_sha256 <- ""
+    phase15_nl_phase14_hash_value(row)
+  }, character(1))
+}
+
 phase15_nl_read_phase14_state_bundle <- function(
     project_root = ".",
     state_root = NULL,
@@ -450,7 +460,7 @@ phase15_nl_read_phase14_state_bundle <- function(
   names(artifacts) <- expected
   manifest <- artifacts[["audit/state_manifest.csv"]]
   manifest_required <- c(
-    "edition_id", "artifact_path", "row_count", "content_sha256", "row_sha256",
+    "edition_id", "artifact_path", "artifact_type", "row_count", "content_sha256", "row_sha256",
     "parent_paths", "parent_sha256", "source_bundle_id", "source_bundle_sha256",
     "model_release_id", "release_manifest_sha256", "release_selector_sha256",
     "model_id", "model_sha256", "calibrator_id", "calibrator_sha256",
@@ -464,6 +474,14 @@ phase15_nl_read_phase14_state_bundle <- function(
       !identical(as.character(manifest$edition_id[[1L]]), edition_id)) {
     stop("Phase 14 state parent has a foreign edition", call. = FALSE)
   }
+  expected_types <- ifelse(expected == "local/score_distributions.rds", "rds", "csv")
+  if (!identical(as.character(manifest$artifact_type), expected_types)) {
+    stop("Phase 14 state manifest artifact types do not match the registered inventory", call. = FALSE)
+  }
+  row_counts <- suppressWarnings(as.integer(as.character(manifest$row_count)))
+  if (any(is.na(row_counts) | row_counts < 0L)) stop("Phase 14 state manifest row counts are invalid", call. = FALSE)
+  phase15_nl_assert_hash(manifest$content_sha256, "Phase 14 state artifact content hashes")
+  phase15_nl_assert_hash(manifest$row_sha256, "Phase 14 state manifest row hashes")
   manifest_hashes <- unique(as.character(manifest$manifest_sha256))
   manifest_hashes <- manifest_hashes[!is.na(manifest_hashes) & nzchar(manifest_hashes)]
   if (length(manifest_hashes) != 1L) stop("Phase 14 state manifest self identity is not unique", call. = FALSE)
@@ -472,6 +490,14 @@ phase15_nl_read_phase14_state_bundle <- function(
   if (!identical(as.character(manifest$content_sha256[[self_index]]), manifest_hashes[[1L]]) ||
       !identical(as.integer(manifest$row_count[[self_index]]), as.integer(nrow(manifest)))) {
     stop("Phase 14 state manifest self row is inconsistent", call. = FALSE)
+  }
+  recomputed_manifest_hash <- phase15_nl_state_manifest_seed_hash(manifest, artifacts, expected)
+  if (!identical(tolower(recomputed_manifest_hash), tolower(manifest_hashes[[1L]]))) {
+    stop("Phase 14 state manifest self-hash mismatch", call. = FALSE)
+  }
+  expected_manifest_row_hashes <- phase15_nl_state_manifest_row_hashes(manifest)
+  if (any(tolower(as.character(manifest$row_sha256)) != tolower(expected_manifest_row_hashes))) {
+    stop("Phase 14 state manifest row hash mismatch", call. = FALSE)
   }
   for (index in seq_along(expected)) {
     path <- expected[[index]]

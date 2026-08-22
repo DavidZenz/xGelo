@@ -2169,6 +2169,56 @@ test_that("registered Nations League compatibility entrypoint rejects foreign an
   expect_true(grepl("cannot be combined", conflicting$output, fixed = TRUE))
 })
 
+test_that("Phase 14 state manifest authenticates its seed and row hashes", {
+  state_root <- file.path(
+    phase15_test_project_root,
+    "outputs/competition/uefa_nations_league_2026_27"
+  )
+  manifest <- utils::read.csv(
+    file.path(state_root, "audit/state_manifest.csv"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = ""
+  )
+  inventory <- phase14_state_bundle_expected_inventory()
+  artifacts <- setNames(lapply(inventory, function(path) {
+    full <- file.path(state_root, path)
+    if (identical(path, "local/score_distributions.rds")) readRDS(full) else phase15_nl_read_csv(full, path)
+  }), inventory)
+  expect_identical(
+    tolower(phase15_nl_state_manifest_seed_hash(
+      manifest,
+      artifacts,
+      inventory
+    )),
+    tolower(as.character(manifest$manifest_sha256[[1L]]))
+  )
+  expect_identical(
+    tolower(phase15_nl_state_manifest_row_hashes(manifest)),
+    tolower(as.character(manifest$row_sha256))
+  )
+
+  tampered <- manifest
+  tampered$row_sha256[[1L]] <- phase15_test_hash_token("tampered-state-manifest-row")
+  temp_root <- phase15_test_output_root()
+  temp_state_root <- file.path(temp_root, "uefa_nations_league_2026_27")
+  dir.create(temp_state_root, recursive = TRUE, showWarnings = FALSE)
+  file.copy(state_root, temp_root, recursive = TRUE, overwrite = TRUE)
+  utils::write.csv(
+    tampered,
+    file.path(temp_state_root, "audit/state_manifest.csv"),
+    row.names = FALSE,
+    na = ""
+  )
+  expect_error(
+    phase15_nl_read_phase14_state_bundle(
+      project_root = phase15_test_project_root,
+      state_root = temp_state_root
+    ),
+    "manifest row hash mismatch"
+  )
+})
+
 test_that("Phase 15 production acceptance proves current truth, replay identity, and no leakage", {
   expected_resources <- c("fixtures", "groups", "standings", "results", "status")
   expected_inventory <- phase15_nl_outcomes_expected_inventory()
