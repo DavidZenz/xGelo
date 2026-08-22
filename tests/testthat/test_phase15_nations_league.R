@@ -113,6 +113,7 @@ phase15_test_source <- function(relative_path, envir = .GlobalEnv) {
 
 phase15_test_source("R/competition/source_contracts.R")
 phase15_test_source("R/competition/uefa_nations_league_rules.R")
+phase15_test_source("R/competition/uefa_nations_league_simulation.R")
 phase15_test_source("R/competition/standings.R")
 phase15_test_source("R/competition/uefa_nations_league_adapter.R")
 
@@ -1555,6 +1556,148 @@ test_that("absent and incomplete C/D eligibility remain unresolved with no reten
     expect_true(all(is.na(result$playoff_win_probability)))
     expect_true(all(is.na(result$playoff_loss_probability)))
   }
+})
+
+test_that("calibrated outcome sampling conditions scorelines without changing W/D/L mass", {
+  fixture <- phase15_test_calibrated_forecast()
+  conditioned <- uefa_nl_condition_score_distribution(
+    fixture$score_distributions,
+    outcome_class = "home",
+    calibrated_probabilities = fixture$probabilities
+  )
+  expect_equal(sum(conditioned$probability), fixture$probabilities[["home"]], tolerance = 1e-12)
+  expect_equal(sum(conditioned$probability[conditioned$outcome_class != "home"]), 0, tolerance = 1e-12)
+  all_conditioned <- uefa_nl_condition_score_distribution(
+    fixture$score_distributions,
+    calibrated_probabilities = fixture$probabilities
+  )
+  expect_equal(sum(all_conditioned$probability), 1, tolerance = 1e-12)
+  expect_equal(
+    unname(vapply(c("home", "draw", "away"), function(value) sum(all_conditioned$probability[all_conditioned$outcome_class == value]), numeric(1))),
+    unname(fixture$probabilities),
+    tolerance = 1e-12
+  )
+
+  samples <- uefa_nl_sample_calibrated_outcome(fixture$probabilities, n = 100000L, seed = 15017L)
+  empirical <- prop.table(table(factor(samples, levels = c("home", "draw", "away"))))
+  expect_lte(max(abs(as.numeric(empirical) - unname(fixture$probabilities))), 0.01)
+  expect_error(
+    uefa_nl_sample_calibrated_outcome(c(home = 0.5, draw = 0.3, away = 0.3)),
+    "sum to one"
+  )
+  invalid_grid <- fixture$score_distributions
+  invalid_grid$probability[[1L]] <- invalid_grid$probability[[1L]] + 0.1
+  expect_error(
+    uefa_nl_condition_score_distribution(invalid_grid, "home", fixture$probabilities),
+    "normalized"
+  )
+  missing_category <- fixture$score_distributions[fixture$score_distributions$home_goals <= fixture$score_distributions$away_goals, , drop = FALSE]
+  missing_category$probability <- missing_category$probability / sum(missing_category$probability)
+  expect_error(
+    uefa_nl_condition_score_distribution(missing_category, "home", fixture$probabilities),
+    "category is empty"
+  )
+  sampled <- uefa_nl_sample_stage_match(fixture$forecasts, fixture$score_distributions, seed = 15017L)
+  expect_identical(sampled$stage_status, "projected")
+  expect_true(sampled$home_goals[[1L]] >= 0L)
+  expect_true(sampled$away_goals[[1L]] >= 0L)
+  expect_identical(sampled$probability_sampling_policy, "calibrated_1x2_conditional_score_grid")
+})
+
+test_that("Article 14-18 resolution preserves reciprocal legs, aggregate ties, extra time, and penalties", {
+  pair <- phase15_test_two_leg_pair()
+  expect_silent(uefa_nl_validate_two_leg_pair(pair$valid, lower_league_team_id = pair$lower_league_team_id))
+  invalid <- pair$valid
+  invalid$home_team_id <- c(pair$lower_league_team_id, pair$lower_league_team_id)
+  expect_error(uefa_nl_validate_two_leg_pair(invalid), "invalid same-side row|host each participant exactly once|same unordered participants")
+
+  aggregate_pair <- pair$valid
+  aggregate_pair$stage_id <- "a_b_playoff"
+  aggregate_pair$regulation_home_goals <- c(0L, 2L)
+  aggregate_pair$regulation_away_goals <- c(1L, 0L)
+  aggregate_pair$final_home_goals <- aggregate_pair$regulation_home_goals
+  aggregate_pair$final_away_goals <- aggregate_pair$regulation_away_goals
+  aggregate <- uefa_nl_resolve_two_leg_tie(aggregate_pair, lower_league_team_id = pair$lower_league_team_id, seed = 15017L)
+  expect_identical(aggregate$winner_team_id, pair$higher_league_team_id)
+  expect_identical(aggregate$resolution, "aggregate")
+
+  extra_time_pair <- pair$valid
+  extra_time_pair$stage_id <- "a_b_playoff"
+  extra_time_pair$regulation_home_goals <- c(1L, 1L)
+  extra_time_pair$regulation_away_goals <- c(0L, 0L)
+  extra_time_pair$extra_time_home_goals <- c(0L, 1L)
+  extra_time_pair$extra_time_away_goals <- c(0L, 0L)
+  extra_time_pair$final_home_goals <- extra_time_pair$regulation_home_goals + extra_time_pair$extra_time_home_goals
+  extra_time_pair$final_away_goals <- extra_time_pair$regulation_away_goals + extra_time_pair$extra_time_away_goals
+  extra_time <- uefa_nl_resolve_two_leg_tie(extra_time_pair, lower_league_team_id = pair$lower_league_team_id, seed = 15017L)
+  expect_identical(extra_time$winner_team_id, pair$higher_league_team_id)
+  expect_identical(extra_time$resolution, "extra_time")
+  expect_true(extra_time$extra_time_used)
+
+  penalty_pair <- pair$valid
+  penalty_pair$stage_id <- "a_b_playoff"
+  penalty_pair$regulation_home_goals <- c(1L, 1L)
+  penalty_pair$regulation_away_goals <- c(0L, 0L)
+  penalty_pair$extra_time_home_goals <- c(0L, 0L)
+  penalty_pair$extra_time_away_goals <- c(0L, 0L)
+  penalty_pair$final_home_goals <- penalty_pair$regulation_home_goals
+  penalty_pair$final_away_goals <- penalty_pair$regulation_away_goals
+  penalty_pair$penalty_shootout_home_goals <- c(NA_integer_, 5L)
+  penalty_pair$penalty_shootout_away_goals <- c(NA_integer_, 4L)
+  penalty <- uefa_nl_resolve_two_leg_tie(penalty_pair, lower_league_team_id = pair$lower_league_team_id, seed = 15017L)
+  expect_identical(penalty$winner_team_id, pair$higher_league_team_id)
+  expect_identical(penalty$resolution, "penalties")
+  expect_true(penalty$penalty_used)
+
+  final <- data.frame(home_team_id = "final-home", away_team_id = "final-away", regulation_home_goals = 1L, regulation_away_goals = 1L, extra_time_home_goals = 1L, extra_time_away_goals = 0L, final_home_goals = 2L, final_away_goals = 1L, stringsAsFactors = FALSE)
+  final_result <- uefa_nl_resolve_single_leg(final, mode = "final", seed = 15017L)
+  expect_identical(final_result$winner_team_id, "final-home")
+  expect_identical(final_result$resolution, "extra_time")
+  third <- final
+  third$extra_time_home_goals <- 0L
+  third$extra_time_away_goals <- 0L
+  third$final_home_goals <- 1L
+  third$final_away_goals <- 1L
+  third$penalty_shootout_home_goals <- 4L
+  third$penalty_shootout_away_goals <- 3L
+  third_result <- uefa_nl_resolve_single_leg(third, mode = "direct_penalty", seed = 15017L)
+  expect_identical(third_result$winner_team_id, "final-home")
+  expect_identical(third_result$resolution, "penalties")
+})
+
+test_that("Article 17 draw policies enforce different groups and host-driven Team A ordering", {
+  winners <- data.frame(team_id = paste0("team-a-w", 1:4), group_id = paste0("A", 1:4), league = "A", group_position = 1L, stringsAsFactors = FALSE)
+  runners <- data.frame(team_id = paste0("team-a-r", 1:4), group_id = paste0("A", 1:4), league = "A", group_position = 2L, stringsAsFactors = FALSE)
+  qf <- uefa_nl_draw_quarter_finals(winners, runners, seed = 15017L, projection_run_id = "projection-test")
+  expect_equal(nrow(qf$stage_slots), 8L)
+  expect_true(all(qf$stage_slots$stage_status == "projected"))
+  expect_true(all(qf$stage_slots$source_fixture_id == ""))
+  expect_true(all(nzchar(qf$stage_slots$projection_run_id)))
+  expect_true(all(nzchar(qf$stage_slots$draw_policy_id)))
+  expect_equal(sum(qf$pairings$group_a == qf$pairings$group_b), 0L)
+  expect_equal(length(unique(c(qf$pairings$team_a, qf$pairings$team_b))), 8L)
+  illegal_winners <- winners
+  illegal_runners <- runners
+  illegal_runners$group_id <- rep("A1", 4L)
+  expect_error(uefa_nl_draw_quarter_finals(illegal_winners, illegal_runners), "no legal different-group pairing")
+  duplicate_winners <- winners
+  duplicate_winners$team_id[[2L]] <- duplicate_winners$team_id[[1L]]
+  expect_error(uefa_nl_draw_quarter_finals(duplicate_winners, runners), "duplicate teams")
+
+  semi_input <- data.frame(
+    team_id = c("team-a-host", "team-a-s2", "team-a-s3", "team-a-s4"),
+    association_id = c("association-host", "association-2", "association-3", "association-4"),
+    stringsAsFactors = FALSE
+  )
+  semis <- uefa_nl_draw_semi_finals(semi_input, host_association_id = "association-host", seed = 15017L, projection_run_id = "projection-test")
+  expect_identical(semis$semi_finals$team_a[[1L]], "team-a-host")
+  expect_identical(semis$final_team_a_source, "semi-final-1-winner")
+  expect_identical(semis$third_place_team_a_source, "semi-final-1-loser")
+  expect_identical(semis$final_slot$participant_slot_home[[1L]], "semi-final-1-winner")
+  expect_identical(semis$third_place_slot$participant_slot_home[[1L]], "semi-final-1-loser")
+  expect_equal(sum(semis$stage_slots$stage_id == "league_a_semi_final"), 2L)
+  expect_equal(sum(semis$stage_slots$stage_id == "league_a_final"), 1L)
+  expect_equal(sum(semis$stage_slots$stage_id == "league_a_third_place"), 1L)
 })
 
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.
