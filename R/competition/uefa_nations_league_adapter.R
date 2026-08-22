@@ -652,6 +652,49 @@ phase15_uefa_nl_validate_stage_capture_manifest <- function(
   invisible(TRUE)
 }
 
+phase15_uefa_nl_validate_stage_capture_registry_contract <- function(
+    registry_row,
+    manifest,
+    paths = NULL) {
+  required <- phase15_uefa_nl_stage_capture_manifest_schema()
+  if (!is.data.frame(registry_row) || nrow(registry_row) != 1L || any(!required %in% names(registry_row))) {
+    stop("Phase 15 stage capture registry contract is incomplete", call. = FALSE)
+  }
+  if (!is.data.frame(manifest) || nrow(manifest) != 1L || any(!required %in% names(manifest))) {
+    stop("Phase 15 stage capture manifest contract is incomplete", call. = FALSE)
+  }
+  registry <- registry_row[1L, required, drop = FALSE]
+  companion <- manifest[1L, required, drop = FALSE]
+  normalize_contract_value <- function(value, field) {
+    text <- as.character(value[[1L]])
+    if (grepl("sha256$", field) || field %in% c("manifest_sha256", "row_sha256")) tolower(text) else text
+  }
+  mismatches <- required[vapply(required, function(field) {
+    !identical(
+      normalize_contract_value(registry[[field]], field),
+      normalize_contract_value(companion[[field]], field)
+    )
+  }, logical(1))]
+  if (length(mismatches)) {
+    stop("Phase 15 stage capture registry does not match its companion manifest: ", paste(mismatches, collapse = ", "), call. = FALSE)
+  }
+  expected_registry_hash <- phase15_uefa_nl_capture_row_hash(registry)[[1L]]
+  if (!identical(tolower(as.character(registry$row_sha256[[1L]])), tolower(expected_registry_hash))) {
+    stop("Phase 15 stage capture registry row hash mismatch", call. = FALSE)
+  }
+  if (!is.null(paths)) {
+    for (field in c("capture_relative_path", "raw_relative_path")) {
+      value <- as.character(registry[[field]][[1L]])
+      if (phase15_uefa_nl_capture_missing(value) ||
+          !identical(value, as.character(paths[[field]])) ||
+          !file.exists(file.path(paths$project_root, value))) {
+        stop("Phase 15 stage capture registry has an invalid registered ", field, call. = FALSE)
+      }
+    }
+  }
+  invisible(TRUE)
+}
+
 phase15_uefa_nl_load_rules <- function(project_root = ".") {
   if (exists("uefa_nl_stage_topology", mode = "function", inherits = TRUE)) return(invisible(TRUE))
   root <- phase15_uefa_nl_adapter_project_root(project_root)
@@ -806,7 +849,7 @@ phase15_uefa_nl_read_stage_capture <- function(
   manifest <- utils::read.csv(paths$manifest_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   phase15_uefa_nl_validate_stage_capture_manifest(manifest, paths = paths, project_root = project_root)
   registry_row <- registry_rows[1L, required, drop = FALSE]
-  if (!identical(as.character(registry_row$manifest_sha256), as.character(manifest$manifest_sha256)) || !identical(as.character(registry_row$row_sha256), as.character(manifest$row_sha256))) stop("Phase 15 stage capture registry does not match its companion manifest", call. = FALSE)
+  phase15_uefa_nl_validate_stage_capture_registry_contract(registry_row, manifest, paths = paths)
   raw_bytes <- readBin(paths$raw_path, what = "raw", n = file.info(paths$raw_path)$size)
   raw_hash <- phase15_uefa_nl_capture_hash(raw_bytes)
   if (!identical(tolower(raw_hash), tolower(as.character(manifest$raw_sha256[[1L]])))) stop("Phase 15 stage capture raw hash mismatch", call. = FALSE)

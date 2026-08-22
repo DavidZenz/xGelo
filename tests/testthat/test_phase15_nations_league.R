@@ -1263,6 +1263,18 @@ test_that("downstream stage capture is separately admitted and the empty registr
   expect_equal(nrow(empty$stage_capture), 0L)
   expect_identical(empty$manifest$capture_status, "empty")
   expect_identical(empty$registry$manifest_sha256, empty$manifest$manifest_sha256)
+
+  tampered_registry <- empty$registry
+  tampered_registry$validation_status[[1L]] <- "tampered"
+  tampered_registry$row_sha256 <- phase15_uefa_nl_capture_row_hash(tampered_registry)
+  expect_error(
+    phase15_uefa_nl_validate_stage_capture_registry_contract(
+      tampered_registry,
+      empty$manifest,
+      paths = paths
+    ),
+    "validation_status"
+  )
 })
 
 test_that("official stage capture validation rejects fabricated or incomplete rows", {
