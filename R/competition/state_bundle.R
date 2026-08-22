@@ -603,6 +603,20 @@ phase14_state_bundle_expected_inventory <- function() {
   )
 }
 
+phase14_state_bundle_registered_outcomes_inventory <- function() {
+  c(
+    "outcomes/competition_topology.csv",
+    "outcomes/stage_slots.csv",
+    "outcomes/projected_standings.csv",
+    "outcomes/projected_rankings.csv",
+    "outcomes/transition_outcomes.csv",
+    "outcomes/team_path_probabilities.csv",
+    "outcomes/fixture_forecast_form.csv",
+    "outcomes/simulation_metadata.csv",
+    "outcomes/outcomes_manifest.csv"
+  )
+}
+
 phase14_state_bundle_named_empty <- function() {
   data.frame(stringsAsFactors = FALSE, check.names = FALSE)
 }
@@ -1680,7 +1694,8 @@ phase14_validate_competition_state_bundle <- function(
     present <- file.path(root, expected)
     if (!all(file.exists(present))) stop("Phase 14 durable state bundle is missing an inventory artifact", call. = FALSE)
     relative <- gsub("\\\\", "/", list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE))
-    unexpected <- relative[!relative %in% expected & !startsWith(relative, "outcomes/")]
+    allowed <- c(expected, phase14_state_bundle_registered_outcomes_inventory())
+    unexpected <- relative[!relative %in% allowed]
     if (length(unexpected)) stop("Phase 14 durable state bundle contains an unexpected inventory artifact", call. = FALSE)
     artifacts <- lapply(expected, function(path) {
       full_path <- file.path(root, path)

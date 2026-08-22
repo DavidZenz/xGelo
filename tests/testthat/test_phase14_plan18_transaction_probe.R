@@ -202,3 +202,31 @@ test_that("Phase 14 state validation allows only the registered outcomes sibling
     "unexpected inventory artifact"
   )
 })
+
+test_that("Phase 14 state validation rejects unregistered outcomes descendants", {
+  output_root <- file.path(
+    phase14_plan18_test_root,
+    "outputs/competition/uefa_nations_league_2026_27"
+  )
+  expect_true(isTRUE(phase14_validate_competition_state_bundle(output_root)))
+
+  direct_extra <- file.path(output_root, "outcomes", "unregistered-extra.csv")
+  nested_dir <- file.path(output_root, "outcomes", "unregistered-nested")
+  nested_extra <- file.path(nested_dir, "nested-extra.csv")
+  on.exit(unlink(direct_extra, force = TRUE), add = TRUE)
+  on.exit(unlink(nested_dir, recursive = TRUE, force = TRUE), add = TRUE)
+
+  writeLines("unregistered outcomes artifact", direct_extra, useBytes = TRUE)
+  expect_error(
+    phase14_validate_competition_state_bundle(output_root),
+    "unexpected inventory artifact"
+  )
+  unlink(direct_extra, force = TRUE)
+
+  dir.create(nested_dir, recursive = TRUE, showWarnings = FALSE)
+  writeLines("nested unregistered outcomes artifact", nested_extra, useBytes = TRUE)
+  expect_error(
+    phase14_validate_competition_state_bundle(output_root),
+    "unexpected inventory artifact"
+  )
+})
