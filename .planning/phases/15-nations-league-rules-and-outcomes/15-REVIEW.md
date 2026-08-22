@@ -1,51 +1,41 @@
 ---
 phase: 15-nations-league-rules-and-outcomes
-reviewed: 2026-08-22T13:59:42Z
+reviewed: 2026-08-22T14:18:26Z
 depth: standard
 files_reviewed: 2
 files_reviewed_list:
   - R/competition/state_bundle.R
   - tests/testthat/test_phase14_plan18_transaction_probe.R
 findings:
-  critical: 1
+  critical: 0
   warning: 0
   info: 0
-  total: 1
-status: issues_found
+  total: 0
+status: clean
 ---
 
 # Phase 15: Code Review Report
 
-**Reviewed:** 2026-08-22T13:59:42Z  
+**Reviewed:** 2026-08-22T14:18:26Z  
 **Depth:** standard  
 **Files Reviewed:** 2  
-**Commit:** `ad4e24c1c508f2405b59c61c790f05265371e53b`  
-**Status:** issues_found
+**Commit:** `02bcacb85a8db314dd01e5fb935c4f09a7e044e2`  
+**Status:** clean
 
 ## Summary
 
-The commit preserves the exact 11-artifact Phase 14 inventory for in-memory candidates and leaves the existing artifact hash, parent-hash, manifest, and lineage checks in place. The focused Phase 14 transaction probe passes. However, the durable validator broadens the file allowlist to every descendant under `outcomes/`, rather than the registered Phase 15 nine-file outcomes inventory, so an arbitrary unvalidated file can be admitted to the bundle.
+The post-`02bcacb` validator requires the exact 11 Phase 14 state paths, permits only the exact nine registered `outcomes/` paths, and rejects both direct and nested unregistered files. Existing manifest, content-hash, parent-hash, cutoff, and lineage validation remains intact after the inventory gate. No critical, warning, or informational findings were identified.
 
 ## Narrative Findings (AI reviewer)
 
-## Critical Issues
-
-### CR-01: Arbitrary files under `outcomes/` bypass the registered inventory boundary
-
-**File:** `R/competition/state_bundle.R:1682-1684`
-
-**Classification:** BLOCKER
-
-**Issue:** `unexpected` excludes every path beginning with `outcomes/`, without comparing those paths against the registered Phase 15 outcomes inventory. Consequently, `outcomes/arbitrary-extra.csv` or an arbitrary nested descendant is accepted by `phase14_validate_competition_state_bundle()` even though it is not registered and is never read, hashed, or covered by a manifest. A temporary-copy reproduction with that extra file returned `TRUE`. The new regression test only places an extra at the state-bundle root (`tests/testthat/test_phase14_plan18_transaction_probe.R:197-203`), so it does not catch this compatibility-boundary regression.
-
-**Fix:** Obtain the registered outcomes inventory from the Phase 15 registration contract and reject any `outcomes/` path outside it, for example by comparing `sort(relative[startsWith(relative, "outcomes/")])` with the registered nine-file paths using `setequal()` (or by calling the Phase 15 registered-root/inventory validator). Add a test that creates `outcomes/arbitrary-extra.csv` and an arbitrary nested descendant and expects the durable Phase 14 validator to error, while the exact registered nine-file sibling continues to pass.
+No findings.
 
 ## Verification
 
-The focused test file `tests/testthat/test_phase14_plan18_transaction_probe.R` completed successfully with 2 passing tests and 0 failures. The expected Phase 14 inventory contains exactly 11 paths. Existing validation still recomputes the 11-artifact content hashes and parent hashes before accepting a durable bundle.
+The focused test file passed with 3 tests and 0 failures. Its cases cover the exact 11-target transaction/readback, root-level sibling rejection, and rejection of both direct and nested unregistered outcomes files. The nine allowlisted outcomes paths match Phase 15's canonical inventory, while the durable validator continues into `phase14_state_bundle_validate_in_memory_candidate()` for manifest row-count, content-hash, parent-hash, and lineage checks.
 
 ---
 
-_Reviewed: 2026-08-22T13:59:42Z_  
+_Reviewed: 2026-08-22T14:18:26Z_  
 _Reviewer: the agent (gsd-code-reviewer)_  
 _Depth: standard_
