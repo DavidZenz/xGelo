@@ -364,9 +364,8 @@ phase15_nl_compare_replays <- function(first, second, label = "replay") {
     phase15_nl_fail(sprintf("%s changed the artifact inventory.", label))
   }
   for (artifact in expected) {
-    artifact_name <- sub("^outcomes/", "", artifact)
-    first_bytes <- phase15_nl_csv_bytes(first_candidate$artifacts[[artifact_name]])
-    second_bytes <- phase15_nl_csv_bytes(second_candidate$artifacts[[artifact_name]])
+    first_bytes <- phase15_nl_csv_bytes(first_candidate$artifacts[[artifact]])
+    second_bytes <- phase15_nl_csv_bytes(second_candidate$artifacts[[artifact]])
     if (!identical(first_bytes, second_bytes)) {
       phase15_nl_fail(sprintf("%s changed artifact bytes for %s.", label, artifact))
     }

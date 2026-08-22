@@ -1921,6 +1921,28 @@ test_that("simulation replay preserves RNG, hashes, and probability mass", {
   expect_true(all(abs(mass$probability - 1) <= 1e-12))
 })
 
+test_that("replay verification compares every registered artifact key exactly", {
+  replay_environment <- new.env(parent = .GlobalEnv)
+  sys.source(
+    file.path(phase15_test_project_root, "scripts/build_nations_league_outcomes.R"),
+    envir = replay_environment
+  )
+  compare_replays <- replay_environment$phase15_nl_compare_replays
+  expected <- replay_environment$phase15_nl_outcomes_expected_inventory()
+  artifacts <- setNames(
+    lapply(expected, function(path) {
+      data.frame(non_explicit_artifact_column = "before", stringsAsFactors = FALSE)
+    }),
+    expected
+  )
+  first <- list(artifacts = artifacts, parent_graph = list())
+  second <- first
+  second$artifacts[[expected[[1L]]]]$non_explicit_artifact_column <- "after"
+
+  expect_silent(compare_replays(first, first))
+  expect_error(compare_replays(first, second), "artifact bytes")
+})
+
 test_that("official stage capture replay is stable and C/D branches stay explicit", {
   inputs <- phase15_test_simulation_inputs(simulation_count = 1L)
   base <- do.call(uefa_nl_run_simulation, inputs)
