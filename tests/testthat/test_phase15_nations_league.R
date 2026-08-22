@@ -2339,6 +2339,14 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   expect_true(all(as.integer(manifest$simulation_count) == 1L))
   expect_true(all(as.character(manifest$validation_status) == "valid"))
 
+  topology_output <- bundle$artifacts[["outcomes/competition_topology.csv"]]
+  topology_groups <- topology_output[topology_output$topology_type == "group", , drop = FALSE]
+  expect_equal(nrow(topology_groups), 14L)
+  expect_true(all(
+      as.integer(topology_groups$team_count) ==
+      ifelse(toupper(as.character(topology_groups$league)) == "D", 3L, 4L)
+  ))
+
   stage_slots <- bundle$artifacts[["outcomes/stage_slots.csv"]]
   blank <- function(value) is.na(value) | !nzchar(trimws(as.character(value)))
   expect_true(all(stage_slots$stage_id %in% topology$stage_topology$stage_id))

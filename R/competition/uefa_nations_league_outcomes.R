@@ -574,24 +574,38 @@ phase15_nl_topology_table <- function(topology, source, rules_lineage) {
   schema <- phase15_nl_outcomes_schema()$competition_topology
   rows <- phase15_nl_empty_table(schema)
   groups <- if (is.list(topology)) topology$groups else topology
+  teams <- if (is.list(topology)) topology$teams else NULL
   fixtures <- if (is.list(topology)) topology$fixtures else NULL
   if (is.null(groups) || !is.data.frame(groups)) groups <- source$groups %||% data.frame(stringsAsFactors = FALSE)
+  if (is.null(teams) || !is.data.frame(teams) || !nrow(teams)) {
+    stop("Nations League topology requires a non-empty team table", call. = FALSE)
+  }
   if (is.null(fixtures) || !is.data.frame(fixtures)) fixtures <- source$fixtures %||% data.frame(stringsAsFactors = FALSE)
   if (nrow(groups)) {
     group_field <- if ("group_id" %in% names(groups)) "group_id" else if ("source_group_id" %in% names(groups)) "source_group_id" else NULL
     if (is.null(group_field)) stop("Nations League topology groups require group_id", call. = FALSE)
+    team_group_field <- if ("group_id" %in% names(teams)) "group_id" else if ("source_group_id" %in% names(teams)) "source_group_id" else NULL
+    if (is.null(team_group_field)) stop("Nations League topology teams require group_id", call. = FALSE)
     group_ids <- unique(as.character(groups[[group_field]]))
     group_ids <- group_ids[!is.na(group_ids) & nzchar(group_ids)]
     group_rows <- lapply(group_ids, function(group_id) {
       group <- groups[as.character(groups[[group_field]]) == group_id, , drop = FALSE]
       league <- toupper(phase15_nl_scalar(group, "league"))
+      team_count <- sum(as.character(teams[[team_group_field]]) == group_id, na.rm = TRUE)
+      expected_team_count <- if (identical(league, "D")) 3L else if (league %in% c("A", "B", "C")) 4L else NA_integer_
+      if (is.na(expected_team_count) || team_count != expected_team_count) {
+        stop(sprintf(
+          "Nations League topology group %s has %d teams; expected %d for league %s",
+          group_id, team_count, expected_team_count, league
+        ), call. = FALSE)
+      }
       fixture_group_field <- if ("group_id" %in% names(fixtures)) "group_id" else if ("source_group_id" %in% names(fixtures)) "source_group_id" else NULL
       fixture_count <- if (!is.null(fixture_group_field)) sum(as.character(fixtures[[fixture_group_field]]) == group_id, na.rm = TRUE) else 0L
       row <- phase15_nl_empty_table(schema)
       row[1L, ] <- list(
         phase15_nl_edition_id(), "group", league, group_id,
         phase15_nl_scalar(group, "display_name", aliases = "name"),
-        nrow(group), fixture_count, "", "", "", "", "", "", "", "", "",
+        team_count, fixture_count, "", "", "", "", "", "", "", "", "",
         source$source_bundle_id %||% "",
         paste(unique(as.character(phase15_nl_field(group, "source_artifact_id"))), collapse = "|"),
         rules_lineage$ruleset_version, rules_lineage$ruleset_sha256, ""
