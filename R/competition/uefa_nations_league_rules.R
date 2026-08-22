@@ -377,6 +377,9 @@ uefa_nl_validate_access_list <- function(
       stringsAsFactors = FALSE,
       check.names = FALSE
     )
+    if (nrow(output) && (any(!uefa_nl_team_id_valid(output$team_id)) || anyDuplicated(output$team_id))) {
+      stop("Nations League unresolved access-list teams have invalid or duplicate stable team IDs", call. = FALSE)
+    }
     output <- output[order(output$team_id, method = "radix"), , drop = FALSE]
     row.names(output) <- NULL
     return(list(
@@ -395,7 +398,7 @@ uefa_nl_validate_access_list <- function(
   missing <- setdiff(required, names(access_list))
   if (length(missing)) stop("Nations League access list is missing columns: ", paste(missing, collapse = ", "), call. = FALSE)
   output <- as.data.frame(access_list, stringsAsFactors = FALSE, check.names = FALSE)
-  if (any(as.character(output$edition_id) != as.character(edition_id))) stop("Nations League access list has a foreign edition", call. = FALSE)
+  if (any(is.na(output$edition_id) | as.character(output$edition_id) != as.character(edition_id))) stop("Nations League access list has a foreign edition", call. = FALSE)
   if (!nrow(output)) stop("Nations League admitted access list must not be empty", call. = FALSE)
   output$team_id <- trimws(as.character(output$team_id))
   if (any(!uefa_nl_team_id_valid(output$team_id)) || anyDuplicated(output$team_id)) stop("Nations League access list has invalid or duplicate stable team IDs", call. = FALSE)
@@ -443,10 +446,13 @@ uefa_nl_group_key <- function(value, groups) {
     source_group_id = if ("source_group_id" %in% names(groups)) as.character(groups$source_group_id) else character(),
     display_name = if ("display_name" %in% names(groups)) as.character(groups$display_name) else character()
   )
-  hits <- lapply(candidates, function(candidate) which(candidate == value))
-  positions <- unique(unlist(hits, use.names = FALSE))
-  if (length(positions) != 1L) return(NA_character_)
-  as.character(groups$group_id[[positions[[1L]]]])
+  for (candidate in candidates) {
+    positions <- which(candidate == value)
+    if (!length(positions)) next
+    keys <- unique(as.character(groups$group_id[positions]))
+    if (length(keys) == 1L) return(keys[[1L]])
+  }
+  NA_character_
 }
 
 uefa_nl_validate_group_formation <- function(
@@ -462,6 +468,14 @@ uefa_nl_validate_group_formation <- function(
   group_rows <- as.data.frame(groups, stringsAsFactors = FALSE, check.names = FALSE)
   if (anyDuplicated(as.character(group_rows$team_id))) stop("Nations League published groups contain duplicate teams", call. = FALSE)
   if (any(!uefa_nl_team_id_valid(group_rows$team_id))) stop("Nations League published groups contain non-canonical team IDs", call. = FALSE)
+  if ("edition_id" %in% names(group_rows) && any(is.na(group_rows$edition_id) | as.character(group_rows$edition_id) != as.character(edition_id))) {
+    stop("Nations League published groups have a foreign edition", call. = FALSE)
+  }
+  for (field in c("league_id", "group_id", "source_artifact_id")) {
+    values <- trimws(as.character(group_rows[[field]]))
+    if (any(is.na(values) | !nzchar(values))) stop("Nations League published groups have missing ", field, call. = FALSE)
+    group_rows[[field]] <- values
+  }
   if (is.null(access_list) || identical(access_list$status, "unresolved_access_list")) {
     rows <- if (is.null(access_list)) {
       uefa_nl_validate_access_list(NULL, group_rows, edition_id)$rows
@@ -493,6 +507,7 @@ uefa_nl_validate_group_formation <- function(
   if (any(is.na(access_rows$group_key))) stop("Nations League access list contains a foreign group assignment", call. = FALSE)
   group_by_team <- group_rows[match(access_rows$team_id, group_rows$team_id), , drop = FALSE]
   if (any(as.character(access_rows$league_id) != as.character(group_by_team$league_id))) stop("Nations League access list league assignment disagrees with published groups", call. = FALSE)
+  if (any(as.character(access_rows$group_key) != as.character(group_by_team$group_id))) stop("Nations League access list group assignment disagrees with published groups", call. = FALSE)
   expected_band <- vapply(access_rows$access_list_position, uefa_nl_access_band, character(1))
   if (any(expected_band != access_rows$league_id)) stop("Nations League group formation has a wrong league band", call. = FALSE)
   if (anyDuplicated(paste(access_rows$group_key, access_rows$draw_pot, sep = "::"))) {
@@ -582,6 +597,8 @@ uefa_nl_validate_stage_slots <- function(slots, edition_id = uefa_nl_edition_id(
   if (any(is.na(values$ruleset_version) | as.character(values$ruleset_version) != uefa_nl_ruleset_version())) stop("Nations League stage slots have a ruleset version mismatch", call. = FALSE)
   if (any(is.na(values$ruleset_sha256) | tolower(as.character(values$ruleset_sha256)) != tolower(as.character(ruleset_sha256)))) stop("Nations League stage slots have a ruleset hash mismatch", call. = FALSE)
   if (any(is.na(values$row_sha256) | !grepl("^[0-9a-fA-F]{64}$", as.character(values$row_sha256)))) stop("Nations League stage slots require canonical row hashes", call. = FALSE)
+  expected_row_hashes <- uefa_nl_rules_row_sha256(values)
+  if (any(tolower(as.character(values$row_sha256)) != tolower(expected_row_hashes))) stop("Nations League stage slot row hash mismatch", call. = FALSE)
   source_status <- status %in% c("official", "completed")
   if (any(source_status & (uefa_nl_stage_slot_value_missing(values$source_fixture_id) | uefa_nl_stage_slot_value_missing(values$source_artifact_id)))) {
     stop("Official or completed Nations League stage slots require source fixture and artifact lineage", call. = FALSE)
@@ -602,7 +619,7 @@ uefa_nl_validate_stage_slots <- function(slots, edition_id = uefa_nl_edition_id(
     "regulation_home_goals", "regulation_away_goals", "extra_time_home_goals", "extra_time_away_goals",
     "final_home_goals", "final_away_goals"
   )
-  scores <- lapply(score_fields, function(field) uefa_nl_stage_slot_score(values[[field]], field, allow_missing = !any(completed)))
+  scores <- lapply(score_fields, function(field) uefa_nl_stage_slot_score(values[[field]], field, allow_missing = TRUE))
   names(scores) <- score_fields
   if (any(completed)) {
     if (any(uefa_nl_stage_slot_value_missing(values$completed_at_utc[completed]))) stop("Completed Nations League stage slots require completed_at_utc", call. = FALSE)
@@ -612,6 +629,8 @@ uefa_nl_validate_stage_slots <- function(slots, edition_id = uefa_nl_edition_id(
       stop("Nations League final goals must equal regulation plus extra-time goals", call. = FALSE)
     }
   }
+  if (any(!completed & !uefa_nl_stage_slot_value_missing(values$completed_at_utc))) stop("Non-completed Nations League stage slots must not carry completed_at_utc", call. = FALSE)
+  for (field in score_fields) if (any(!completed & !uefa_nl_stage_slot_value_missing(values[[field]]))) stop("Non-completed Nations League stage slots must not carry ", field, call. = FALSE)
   shootout_home <- uefa_nl_stage_slot_score(values$penalty_shootout_home_goals, "penalty_shootout_home_goals")
   shootout_away <- uefa_nl_stage_slot_score(values$penalty_shootout_away_goals, "penalty_shootout_away_goals")
   shootout_present <- !is.na(shootout_home) | !is.na(shootout_away)

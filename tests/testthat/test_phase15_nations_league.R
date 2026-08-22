@@ -199,6 +199,34 @@ phase15_test_group_formation <- function() {
   )
 }
 
+phase15_test_admitted_topology_inputs <- function() {
+  access <- phase15_test_access_list()$admitted
+  groups <- unique(access[, c("edition_id", "group_id", "league_id", "source_artifact_id"), drop = FALSE])
+  groups$source_group_id <- groups$group_id
+  groups$league <- groups$league_id
+  groups$display_name <- paste("Group", groups$group_id)
+  groups$source_bundle_id <- phase15_test_source_bundle_id
+  groups <- groups[, c(
+    "edition_id", "source_group_id", "league", "display_name", "source_bundle_id", "source_artifact_id"
+  ), drop = FALSE]
+  fixture_rows <- lapply(seq_len(nrow(groups)), function(index) {
+    group_id <- as.character(groups$source_group_id[[index]])
+    league_id <- as.character(groups$league[[index]])
+    team_ids <- access$team_id[access$group_id == group_id]
+    rows <- phase15_test_group_matches(team_ids, league_id, group_id, start_day = index)
+    rows$source_bundle_id <- phase15_test_source_bundle_id
+    rows
+  })
+  fixtures <- do.call(rbind, fixture_rows)
+  row.names(fixtures) <- NULL
+  list(
+    access = access,
+    groups = groups,
+    group_rows = access[, c("team_id", "league_id", "group_id", "source_artifact_id"), drop = FALSE],
+    fixtures = fixtures
+  )
+}
+
 phase15_test_group_matches <- function(team_ids, league_id, group_id, start_day = 1L) {
   pairs <- utils::combn(team_ids, 2L)
   rows <- vector("list", ncol(pairs) * 2L)
@@ -807,6 +835,103 @@ test_that("canonical Nations League topology freezes the scheduled 2026/27 sourc
   expect_identical(uefa_nl_ruleset_sha256(), uefa_nl_ruleset_sha256(uefa_nl_2026_27_rules()))
 })
 
+test_that("Article 13 keeps the current source explicitly unresolved", {
+  topology <- uefa_nl_build_topology(project_root = phase15_test_project_root)
+  access <- uefa_nl_validate_access_list(NULL, topology$teams, phase15_test_edition_id)
+  formation <- uefa_nl_validate_group_formation(
+    access,
+    topology$teams,
+    group_formation_seed = 15013L,
+    edition_id = phase15_test_edition_id
+  )
+  expect_identical(access$status, "unresolved_access_list")
+  expect_identical(access$missing_rule_input, "access_list")
+  expect_identical(formation$group_formation_status, "unresolved_access_list")
+  expect_identical(formation$missing_rule_input, "access_list")
+  expect_true(all(is.na(access$rows$access_list_position)))
+  expect_true(all(is.na(access$rows$draw_pot)))
+  expect_true(all(access$rows$group_formation_status == "unresolved_access_list"))
+  expect_true(all(access$rows$source_artifact_id == topology$teams$source_artifact_id[match(access$rows$team_id, topology$teams$team_id)]))
+})
+
+test_that("admitted Article 13 group formation is seeded, complete, and order-independent", {
+  inputs <- phase15_test_admitted_topology_inputs()
+  admitted <- inputs$access
+  access <- uefa_nl_validate_access_list(admitted)
+  formation <- uefa_nl_validate_group_formation(
+    access,
+    inputs$group_rows,
+    group_formation_seed = 15013L
+  )
+  reversed_access <- uefa_nl_validate_access_list(admitted[nrow(admitted):1L, , drop = FALSE])
+  reversed_formation <- uefa_nl_validate_group_formation(
+    reversed_access,
+    inputs$group_rows[nrow(inputs$group_rows):1L, , drop = FALSE],
+    group_formation_seed = 15013L
+  )
+  topology <- uefa_nl_build_topology(
+    groups = inputs$groups,
+    fixtures = inputs$fixtures,
+    access_list = admitted,
+    group_formation_seed = 15013L,
+    project_root = phase15_test_project_root
+  )
+  reversed_topology <- uefa_nl_build_topology(
+    groups = inputs$groups[nrow(inputs$groups):1L, , drop = FALSE],
+    fixtures = inputs$fixtures[nrow(inputs$fixtures):1L, , drop = FALSE],
+    access_list = admitted[nrow(admitted):1L, , drop = FALSE],
+    group_formation_seed = 15013L,
+    project_root = phase15_test_project_root
+  )
+  expect_identical(access$status, "validated")
+  expect_identical(formation$group_formation_status, "validated")
+  expect_identical(formation$group_formation_seed, 15013L)
+  expect_equal(nrow(formation$rows), 54L)
+  expect_true(all(!is.na(formation$rows$access_list_position)))
+  expect_true(all(!is.na(formation$rows$draw_pot)))
+  expect_identical(access$table_sha256, reversed_access$table_sha256)
+  expect_identical(formation$table_sha256, reversed_formation$table_sha256)
+  expect_identical(topology$access_list_status, "validated")
+  expect_identical(topology$group_formation_status, "validated")
+  expect_true(all(topology$teams$group_formation_seed == 15013L))
+  expect_true(all(!is.na(topology$teams$access_list_position)))
+  expect_identical(topology$topology_sha256, reversed_topology$topology_sha256)
+  expect_identical(topology$stage_topology_sha256, reversed_topology$stage_topology_sha256)
+
+  duplicate_position <- admitted
+  duplicate_position$access_list_position[[2L]] <- duplicate_position$access_list_position[[1L]]
+  expect_error(uefa_nl_validate_access_list(duplicate_position), "unique positive integers")
+
+  missing_lineage <- admitted
+  missing_lineage$source_artifact_id[[1L]] <- ""
+  expect_error(uefa_nl_validate_access_list(missing_lineage), "missing source_artifact_id")
+
+  wrong_band <- admitted
+  wrong_band$league_id[[1L]] <- "B"
+  expect_error(uefa_nl_validate_access_list(wrong_band), "outside its Article 13 league band")
+
+  wrong_group <- admitted
+  wrong_group$group_id[[1L]] <- "A2"
+  expect_error(
+    uefa_nl_validate_group_formation(wrong_group, inputs$group_rows),
+    "group assignment disagrees"
+  )
+
+  wrong_draw_pot <- admitted
+  wrong_draw_pot$draw_pot[[1L]] <- wrong_draw_pot$draw_pot[[2L]]
+  expect_error(
+    uefa_nl_validate_group_formation(wrong_draw_pot, inputs$group_rows),
+    "draw pot more than once"
+  )
+
+  published_group_mismatch <- inputs$group_rows
+  published_group_mismatch$group_id[[1L]] <- "A9"
+  expect_error(
+    uefa_nl_validate_group_formation(admitted, published_group_mismatch),
+    "group assignment disagrees"
+  )
+})
+
 test_that("stage-slot status contracts fail closed for fabricated official rows", {
   schema <- uefa_nl_stage_slot_schema()
   empty <- uefa_nl_stage_slot_empty()
@@ -925,6 +1050,16 @@ test_that("official stage capture validation rejects fabricated or incomplete ro
   expect_identical(adapted$capture_status, "accepted")
   expect_equal(nrow(adapted$stage_capture), nrow(capture))
   expect_identical(names(adapted$stage_capture), names(capture))
+
+  mixed <- capture
+  mixed$stage_status[[1L]] <- "official"
+  mixed[c(
+    "regulation_home_goals", "regulation_away_goals", "extra_time_home_goals",
+    "extra_time_away_goals", "final_home_goals", "final_away_goals"
+  )][1L, ] <- NA_integer_
+  mixed$completed_at_utc[[1L]] <- ""
+  mixed$row_sha256 <- phase13_row_sha256(mixed)
+  expect_silent(phase15_uefa_nl_validate_stage_capture(mixed))
 
   foreign <- capture
   foreign$edition_id[[1L]] <- "foreign_edition"
