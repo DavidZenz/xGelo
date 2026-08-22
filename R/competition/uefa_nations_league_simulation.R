@@ -1579,7 +1579,7 @@ uefa_nl_sim_iteration_paths <- function(
     values <- numeric(nrow(selected))
     for (index in seq_len(nrow(selected))) {
       result <- if (is.data.frame(resolutions) && nrow(resolutions)) resolutions[resolutions$tie_id == selected$tie_id[[index]], , drop = FALSE] else data.frame(stringsAsFactors = FALSE, check.names = FALSE)
-      if (nrow(result) != 1L || result$stage_status[[1L]] != "completed") values[[index]] <- NA_real_ else values[[index]] <- as.numeric(identical(team, if (role == "winner") result$winner_team_id[[1L]] else result$loser_team_id[[1L]]))
+      if (nrow(result) != 1L || is.na(result$stage_status[[1L]]) || result$stage_status[[1L]] != "completed") values[[index]] <- NA_real_ else values[[index]] <- as.numeric(identical(team, if (role == "winner") result$winner_team_id[[1L]] else result$loser_team_id[[1L]]))
     }
     if (any(is.na(values))) NA_real_ else max(values)
   }
@@ -1587,7 +1587,7 @@ uefa_nl_sim_iteration_paths <- function(
     if (!is.data.frame(transitions) || !nrow(transitions)) return(0)
     rows <- transitions[as.character(transitions$team_id) == team & as.character(transitions$transition_type) == transition_type, , drop = FALSE]
     if (!nrow(rows)) return(0)
-    if (any(as.character(rows$stage_status) == "unresolved")) return(NA_real_)
+    if (any(as.character(rows$stage_status) == "unresolved", na.rm = TRUE)) return(NA_real_)
     1
   }
   qf <- setNames(vapply(teams, function(team) if (!is.na(rank[[team]]) && leagues[[team]] == "A" && rank[[team]] <= 8L) 1 else 0, numeric(1)), teams)
@@ -1624,12 +1624,18 @@ uefa_nl_sim_iteration_paths <- function(
   unresolved_cd <- if (is.data.frame(transitions) && nrow(transitions)) as.character(transitions$eligibility_status) == "unresolved_external_eligibility" else logical()
   output <- lapply(teams, function(team) {
     team_transition <- if (is.data.frame(transitions) && nrow(transitions)) transitions[as.character(transitions$team_id) == team, , drop = FALSE] else data.frame(stringsAsFactors = FALSE, check.names = FALSE)
-    cd_cancelled <- nrow(team_transition) && any(as.character(team_transition$cd_playoff_status) == "cancelled")
-    cd_unresolved <- nrow(team_transition) && any(as.character(team_transition$eligibility_status) == "unresolved_external_eligibility")
+    cd_cancelled <- nrow(team_transition) > 0L && any(
+      as.character(team_transition$cd_playoff_status) == "cancelled",
+      na.rm = TRUE
+    )
+    cd_unresolved <- nrow(team_transition) > 0L && any(
+      as.character(team_transition$eligibility_status) == "unresolved_external_eligibility",
+      na.rm = TRUE
+    )
     playoff_rows <- team_transition[as.character(team_transition$stage_id) %in% c("a_b_playoff", "b_c_playoff", "c_d_playoff"), , drop = FALSE]
     eligibility <- if (cd_cancelled || cd_unresolved) NA_real_ else if (nrow(playoff_rows)) 1 else 0
-    playoff_win <- if (nrow(playoff_rows) && any(as.character(playoff_rows$outcome_type) == "playoff_win")) 1 else if (nrow(playoff_rows) && any(as.character(playoff_rows$stage_status) == "unresolved")) NA_real_ else 0
-    playoff_loss <- if (nrow(playoff_rows) && any(as.character(playoff_rows$outcome_type) == "playoff_loss")) 1 else if (nrow(playoff_rows) && any(as.character(playoff_rows$stage_status) == "unresolved")) NA_real_ else 0
+    playoff_win <- if (nrow(playoff_rows) && any(as.character(playoff_rows$outcome_type) == "playoff_win", na.rm = TRUE)) 1 else if (nrow(playoff_rows) && any(as.character(playoff_rows$stage_status) == "unresolved", na.rm = TRUE)) NA_real_ else 0
+    playoff_loss <- if (nrow(playoff_rows) && any(as.character(playoff_rows$outcome_type) == "playoff_loss", na.rm = TRUE)) 1 else if (nrow(playoff_rows) && any(as.character(playoff_rows$stage_status) == "unresolved", na.rm = TRUE)) NA_real_ else 0
     data.frame(
       iteration = as.integer(iteration), team_id = team, league = leagues[[team]],
       p_quarter_final = qf[[team]], p_semi_final = semi[[team]], p_third_place = third_place[[team]],

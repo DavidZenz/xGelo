@@ -431,7 +431,16 @@ phase15_nl_read_phase14_state_bundle <- function(
       "audit/state_manifest.csv", "local/score_distributions.rds"
     )
   }
-  present <- list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE)
+  # The Phase 14 bundle is a sibling of later outputs under the edition root.
+  # Scope the exact-inventory check to its registered state/audit/local
+  # namespaces so a valid Phase 15 outcomes sibling is not misclassified as
+  # an extra Phase 14 artifact.
+  present <- unlist(lapply(unique(dirname(expected)), function(namespace) {
+    namespace_root <- file.path(root, namespace)
+    if (!dir.exists(namespace_root)) return(character())
+    files <- list.files(namespace_root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE)
+    file.path(namespace, files)
+  }), use.names = FALSE)
   present <- gsub("\\\\", "/", present)
   if (!setequal(present, expected)) stop("Phase 15 Phase 14 parent must contain exactly eleven state artifacts", call. = FALSE)
   artifacts <- lapply(expected, function(path) {

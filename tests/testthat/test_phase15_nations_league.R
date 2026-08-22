@@ -143,6 +143,34 @@ phase15_test_output_root <- local({
   }
 })
 
+phase15_test_run_outcomes_cli <- function(args) {
+  script <- file.path(phase15_test_project_root, "scripts/build_nations_league_outcomes.R")
+  output <- suppressWarnings(system2(
+    "Rscript",
+    c("--vanilla", script, args),
+    stdout = TRUE,
+    stderr = TRUE
+  ))
+  status <- attr(output, "status")
+  if (is.null(status)) status <- 0L
+  list(status = as.integer(status), output = paste(output, collapse = "\n"))
+}
+
+phase15_test_state_inventory_hashes <- function() {
+  state_root <- file.path(
+    phase15_test_project_root,
+    "outputs/competition/uefa_nations_league_2026_27"
+  )
+  inventory <- phase14_state_bundle_expected_inventory()
+  hashes <- vapply(inventory, function(relative_path) {
+    path <- file.path(state_root, relative_path)
+    if (!file.exists(path)) stop(sprintf("missing Phase 14 state artifact: %s", relative_path), call. = FALSE)
+    phase15_test_sha256(readBin(path, what = "raw", n = file.info(path)$size))
+  }, character(1L))
+  names(hashes) <- inventory
+  hashes
+}
+
 phase15_test_hash_token <- function(label) {
   phase15_test_sha256(paste0("phase15-test|", label))
 }
@@ -1941,4 +1969,101 @@ test_that("Phase 15 candidate writer and loader preserve the hashed sibling cont
   expect_identical(names(written$fixture_forecast_form), names(candidate$artifacts[["outcomes/fixture_forecast_form.csv"]]))
   loaded <- phase15_nl_read_outcomes_bundle(output_root)
   expect_identical(loaded$fixture_forecast_form, written$fixture_forecast_form)
+})
+
+test_that("registered Nations League entrypoint covers every mode without parent mutation", {
+  output_root <- file.path(
+    phase15_test_project_root,
+    "outputs/competition/uefa_nations_league_2026_27/outcomes"
+  )
+  accepted_root <- file.path(
+    phase15_test_project_root,
+    "data/competition/accepted/uefa_nations_league_2026_27"
+  )
+  registry_root <- file.path(phase15_test_project_root, "data/competition/registries")
+  outcomes_before <- phase15_test_tree_snapshot(output_root)
+  accepted_before <- phase15_test_tree_snapshot(accepted_root)
+  registry_before <- phase15_test_tree_snapshot(registry_root)
+  state_before <- phase15_test_state_inventory_hashes()
+  resources_before <- phase13_source_required_resource_types()
+  expected_resources <- c("fixtures", "groups", "standings", "results", "status")
+  expected_inventory <- phase15_nl_outcomes_expected_inventory()
+
+  help <- phase15_test_run_outcomes_cli("--help")
+  expect_identical(help$status, 0L)
+  expect_true(grepl("Usage:", help$output, fixed = TRUE))
+  expect_true(grepl("--replay-check", help$output, fixed = TRUE))
+
+  foreign <- phase15_test_run_outcomes_cli(c(
+    "--edition-id", "uefa_euro_2028", "--dry-run"
+  ))
+  expect_false(identical(foreign$status, 0L))
+  expect_true(grepl("Unsupported edition-id", foreign$output, fixed = TRUE))
+
+  conflicting <- phase15_test_run_outcomes_cli(c(
+    "--edition-id", phase15_test_edition_id, "--write", "--dry-run"
+  ))
+  expect_false(identical(conflicting$status, 0L))
+  expect_true(grepl("cannot be combined", conflicting$output, fixed = TRUE))
+
+  dry_run <- phase15_test_run_outcomes_cli(c(
+    "--edition-id", phase15_test_edition_id,
+    "--simulations", "1", "--seed", "15017", "--dry-run"
+  ))
+  expect_identical(dry_run$status, 0L)
+  expect_true(grepl("validation=TRUE", dry_run$output, fixed = TRUE))
+  expect_true(grepl("durable_mutation=FALSE", dry_run$output, fixed = TRUE))
+  expect_true(grepl("stage_capture_id=nl-2026-27-stage-capture-v1", dry_run$output, fixed = TRUE))
+  expect_identical(phase15_test_tree_snapshot(output_root), outcomes_before)
+
+  replay <- phase15_test_run_outcomes_cli(c(
+    "--edition-id", phase15_test_edition_id,
+    "--simulations", "1", "--seed", "15017", "--replay-check"
+  ))
+  expect_identical(replay$status, 0L)
+  expect_true(grepl("replay_verified=TRUE", replay$output, fixed = TRUE))
+  expect_true(grepl("durable_mutation=FALSE", replay$output, fixed = TRUE))
+  expect_true(grepl("stage_capture_registry_row_sha256=", replay$output, fixed = TRUE))
+  expect_identical(phase15_test_tree_snapshot(output_root), outcomes_before)
+
+  write_run <- phase15_test_run_outcomes_cli(c(
+    "--edition-id", phase15_test_edition_id,
+    "--simulations", "1", "--seed", "15017", "--write"
+  ))
+  expect_identical(write_run$status, 0L)
+  expect_true(grepl("durable_mutation=TRUE", write_run$output, fixed = TRUE))
+  written_snapshot <- phase15_test_tree_snapshot(output_root)
+  expect_setequal(names(written_snapshot), sub("^outcomes/", "", expected_inventory))
+
+  bundle <- phase15_nl_read_outcomes_bundle(output_root)
+  expect_identical(names(bundle$artifacts), expected_inventory)
+  stage_slots <- bundle$artifacts[["outcomes/stage_slots.csv"]]
+  expect_true(all(c(
+    "source_fixture_id", "stage_status", "regulation_home_goals",
+    "regulation_away_goals", "extra_time_home_goals", "extra_time_away_goals",
+    "penalty_shootout_home_goals", "penalty_shootout_away_goals",
+    "final_home_goals", "final_away_goals", "completed_at_utc"
+  ) %in% names(stage_slots)))
+  expect_true(all(stage_slots$stage_status %in% c("projected", "unresolved", "suppressed", "official", "completed")))
+
+  manifest <- bundle$manifest
+  stage_manifest_row <- manifest[manifest$artifact_path == "outcomes/stage_slots.csv", , drop = FALSE]
+  expect_equal(nrow(stage_manifest_row), 1L)
+  expect_true(grepl("stage_capture_manifest", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
+  expect_true(grepl("stage_capture.json", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
+  expect_true(grepl("stage_capture.csv", stage_manifest_row$parent_paths[[1L]], fixed = TRUE))
+  capture <- phase15_uefa_nl_read_stage_capture(phase15_test_project_root)
+  expect_true(grepl(capture$manifest$manifest_sha256[[1L]], stage_manifest_row$parent_sha256[[1L]], fixed = TRUE))
+  expect_true(grepl("stage_capture_manifest_sha256=", write_run$output, fixed = TRUE))
+
+  expect_identical(resources_before, expected_resources)
+  expect_identical(phase13_source_required_resource_types(), expected_resources)
+  expect_identical(state_before, phase15_test_state_inventory_hashes())
+  expect_identical(accepted_before, phase15_test_tree_snapshot(accepted_root))
+  expect_identical(registry_before, phase15_test_tree_snapshot(registry_root))
+  expect_identical(names(phase15_nl_outcomes_schema()), c(
+    "competition_topology", "stage_slots", "projected_standings", "projected_rankings",
+    "transition_outcomes", "team_path_probabilities", "fixture_forecast_form",
+    "simulation_metadata", "outcomes_manifest"
+  ))
 })
