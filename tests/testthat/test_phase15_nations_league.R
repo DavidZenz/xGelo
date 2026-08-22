@@ -111,6 +111,9 @@ phase15_test_source <- function(relative_path, envir = .GlobalEnv) {
   invisible(path)
 }
 
+phase15_test_source("R/competition/source_contracts.R")
+phase15_test_source("R/competition/uefa_nations_league_rules.R")
+
 phase15_test_output_root <- local({
   registered <- new.env(parent = emptyenv())
 
@@ -742,6 +745,137 @@ test_that("group formation and stage hashes are identical after input reordering
   )
   expect_true(grepl("^[0-9a-f]{64}$", formation$table_sha256))
   expect_true(grepl("^[0-9a-f]{64}$", phase15_test_table_sha256(capture)))
+})
+
+test_that("canonical Nations League topology freezes the scheduled 2026/27 source", {
+  topology <- uefa_nl_build_topology(project_root = phase15_test_project_root)
+  groups <- utils::read.csv(
+    file.path(phase15_test_project_root, "data/competition/accepted/uefa_nations_league_2026_27/groups.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  fixtures <- utils::read.csv(
+    file.path(phase15_test_project_root, "data/competition/accepted/uefa_nations_league_2026_27/fixtures.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  reversed <- uefa_nl_build_topology(
+    groups = groups[nrow(groups):1L, , drop = FALSE],
+    fixtures = fixtures[nrow(fixtures):1L, , drop = FALSE],
+    project_root = phase15_test_project_root
+  )
+  expect_identical(topology$official_counts, c(groups = 14L, fixtures = 156L, teams = 54L))
+  expect_identical(topology$group_formation_status, "unresolved_access_list")
+  expect_identical(topology$missing_rule_input, "access_list")
+  expect_true(all(is.na(topology$teams$access_list_position)))
+  expect_true(all(is.na(topology$teams$draw_pot)))
+  expect_true(all(nzchar(topology$teams$source_artifact_id)))
+  expect_identical(as.integer(table(topology$groups$league_id)), c(4L, 4L, 4L, 2L))
+  expect_identical(as.integer(table(topology$teams$league_id)), c(16L, 16L, 16L, 6L))
+  expect_setequal(
+    topology$stage_topology$stage_id,
+    c("league_phase", "league_a_quarter_final", "league_a_semi_final", "league_a_third_place", "league_a_final", "a_b_playoff", "b_c_playoff", "c_d_playoff")
+  )
+  expect_length(uefa_nl_stage_status_values(), 5L)
+  expect_identical(
+    uefa_nl_2026_27_rules()$group_tiebreak,
+    c("head_to_head_points", "head_to_head_goal_difference", "head_to_head_goals", "recursive_tied_subset", "overall_goal_difference", "overall_goals", "overall_away_goals", "wins", "away_wins", "discipline_points", "access_list_position")
+  )
+  expect_true(uefa_nl_2026_27_rules()$cross_group$exclude_fourth_position_aware)
+  expect_identical(uefa_nl_2026_27_rules()$match_resolution$article_17$team_a_ordering, "host_association_first_in_semi_final_1")
+  expect_true(uefa_nl_2026_27_rules()$match_resolution$article_17$runner_up_first_leg_home %||% FALSE)
+  pair_keys <- paste(
+    topology$fixtures$group_id,
+    pmin(topology$fixtures$home_team_id, topology$fixtures$away_team_id),
+    pmax(topology$fixtures$home_team_id, topology$fixtures$away_team_id),
+    sep = "::"
+  )
+  expect_true(all(table(pair_keys) == 2L))
+  expect_true(all(vapply(split(topology$fixtures, pair_keys), function(rows) {
+    length(unique(rows$home_team_id)) == 2L && length(unique(rows$away_team_id)) == 2L
+  }, logical(1))))
+  expect_identical(topology$ruleset_sha256, reversed$ruleset_sha256)
+  expect_identical(topology$stage_topology_sha256, reversed$stage_topology_sha256)
+  expect_identical(topology$topology_sha256, reversed$topology_sha256)
+  expect_identical(uefa_nl_ruleset_sha256(), uefa_nl_ruleset_sha256(uefa_nl_2026_27_rules()))
+})
+
+test_that("stage-slot status contracts fail closed for fabricated official rows", {
+  schema <- uefa_nl_stage_slot_schema()
+  empty <- uefa_nl_stage_slot_empty()
+  expect_identical(names(empty), schema)
+  base <- data.frame(
+    edition_id = phase15_test_edition_id,
+    stage_id = "league_a_quarter_final",
+    stage_type = "quarter_final",
+    stage_status = "official",
+    leg_number = 1L,
+    participant_slot_home = "A-winner-A1",
+    participant_slot_away = "A-runner-up-A2",
+    home_team_id = "team-a-1-1",
+    away_team_id = "team-a-1-2",
+    source_fixture_id = "source-qf-1",
+    source_artifact_id = "artifact-stage-capture-v1",
+    projection_run_id = "",
+    draw_policy_id = "",
+    scheduled_at_utc = "2027-03-10T19:45:00Z",
+    unresolved_reason = "",
+    suppression_reason = "",
+    ruleset_version = uefa_nl_ruleset_version(),
+    ruleset_sha256 = uefa_nl_ruleset_sha256(),
+    row_sha256 = "",
+    regulation_home_goals = NA_integer_,
+    regulation_away_goals = NA_integer_,
+    extra_time_home_goals = NA_integer_,
+    extra_time_away_goals = NA_integer_,
+    penalty_shootout_home_goals = NA_integer_,
+    penalty_shootout_away_goals = NA_integer_,
+    final_home_goals = NA_integer_,
+    final_away_goals = NA_integer_,
+    completed_at_utc = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  base$row_sha256 <- phase13_row_sha256(base)
+  expect_silent(uefa_nl_validate_stage_slots(base))
+
+  projected <- base
+  projected$stage_id <- "league_a_semi_final"
+  projected$stage_type <- "semi_final"
+  projected$stage_status <- "projected"
+  projected$source_fixture_id <- ""
+  projected$source_artifact_id <- ""
+  projected$projection_run_id <- "projection-15013"
+  projected$draw_policy_id <- "nl-qf-draw-v1"
+  projected$row_sha256 <- phase13_row_sha256(projected)
+  expect_silent(uefa_nl_validate_stage_slots(projected))
+
+  unresolved <- projected
+  unresolved$stage_status <- "unresolved"
+  unresolved$projection_run_id <- ""
+  unresolved$draw_policy_id <- ""
+  unresolved$unresolved_reason <- "awaiting_official_pairing"
+  unresolved$row_sha256 <- phase13_row_sha256(unresolved)
+  expect_silent(uefa_nl_validate_stage_slots(unresolved))
+
+  fabricated <- base
+  fabricated$source_fixture_id <- ""
+  fabricated$row_sha256 <- phase13_row_sha256(fabricated)
+  expect_error(uefa_nl_validate_stage_slots(fabricated), "source fixture and artifact lineage")
+
+  completed <- base
+  completed$stage_status <- "completed"
+  completed$regulation_home_goals <- 1L
+  completed$regulation_away_goals <- 1L
+  completed$extra_time_home_goals <- 1L
+  completed$extra_time_away_goals <- 0L
+  completed$final_home_goals <- 2L
+  completed$final_away_goals <- 1L
+  completed$completed_at_utc <- "2027-03-10T22:30:00Z"
+  completed$row_sha256 <- phase13_row_sha256(completed)
+  expect_silent(uefa_nl_validate_stage_slots(completed))
+  bad_final <- completed
+  bad_final$final_home_goals <- 1L
+  bad_final$row_sha256 <- phase13_row_sha256(bad_final)
+  expect_error(uefa_nl_validate_stage_slots(bad_final), "regulation plus extra-time")
 })
 
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.
