@@ -113,6 +113,7 @@ phase15_test_source <- function(relative_path, envir = .GlobalEnv) {
 
 phase15_test_source("R/competition/source_contracts.R")
 phase15_test_source("R/competition/uefa_nations_league_rules.R")
+phase15_test_source("R/competition/standings.R")
 phase15_test_source("R/competition/uefa_nations_league_adapter.R")
 
 phase15_test_output_root <- local({
@@ -1116,6 +1117,120 @@ test_that("the existing scheduled adapter remains a five-resource, 156-fixture b
   expect_true(all(is.na(adapted$resources$results$home_goals)))
   expect_true(all(is.na(adapted$resources$results$away_goals)))
   expect_identical(adapted$resources$status$competition_status, "scheduled")
+})
+
+test_that("Article 15 ordering is recursive, auditable, and uses the Phase 14 adapter seam", {
+  fixture <- phase15_test_four_team_group()
+  matches <- fixture$matches
+  matches$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  matches$final_home_goals[matches$home_team_id == fixture$team_ids[[1L]] & matches$away_team_id == fixture$team_ids[[2L]]] <- 2L
+  matches$final_away_goals[matches$home_team_id == fixture$team_ids[[1L]] & matches$away_team_id == fixture$team_ids[[2L]]] <- 0L
+  matches$final_home_goals[matches$home_team_id == fixture$team_ids[[2L]] & matches$away_team_id == fixture$team_ids[[1L]]] <- 0L
+  matches$final_away_goals[matches$home_team_id == fixture$team_ids[[2L]] & matches$away_team_id == fixture$team_ids[[1L]]] <- 1L
+  discipline <- fixture$discipline_points
+  discipline$discipline_points <- 1L
+  standings <- fixture$standings
+  standings$points <- 7L
+  standings$goal_difference <- 0L
+  standings$goals_for <- 5L
+  standings$wins <- 0L
+  ranked <- uefa_nl_rank_group(
+    standings = standings,
+    match_rows = matches,
+    discipline_points = discipline,
+    access_list = fixture$access_list
+  )
+  expect_identical(ranked$computed_rank, 1:4)
+  expect_setequal(ranked$team_id, fixture$team_ids)
+  expect_true(all(ranked$ordering_status == "ready"))
+  expect_true(all(ranked$group_position == ranked$computed_rank))
+  trace <- attr(ranked, "tiebreak_trace", exact = TRUE)
+  expect_true(is.data.frame(trace))
+  expect_true(all(c("criterion", "tied_subset", "counted_match_ids", "decision", "ruleset_sha256") %in% names(trace)))
+  expect_true(all(c(
+    "head_to_head_points", "head_to_head_goal_difference", "head_to_head_goals",
+    "overall_goal_difference", "overall_goals", "overall_away_goals", "wins",
+    "away_wins", "discipline_points", "access_list_position"
+  ) %in% trace$criterion))
+  expect_true(any(trace$criterion == "recursive_tied_subset" | trace$recursion_depth > 0L))
+  expect_true(all(grepl("^[0-9a-f]{64}$", ranked$row_sha256)))
+  expect_true(all(grepl("^[0-9a-f]{64}$", ranked$table_sha256)))
+
+  adapter <- uefa_nl_make_standings_adapter(
+    matches,
+    discipline,
+    fixture$access_list,
+    fixture$group_id
+  )
+  expect_identical(attr(adapter, "adapter_id", exact = TRUE), "uefa_nl_article15_v2")
+  phase14_input <- standings[, c("team_id", "points", "goal_difference", "goals_for", "wins"), drop = FALSE]
+  phase14_input$edition_id <- phase15_test_edition_id
+  phase14_input$group_id <- fixture$group_id
+  phase14_input$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  phase14_input$source_bundle_id <- phase15_test_source_bundle_id
+  phase14_input <- phase14_input[, c("edition_id", "group_id", "state_cutoff_utc", "source_bundle_id", "team_id", "points", "goal_difference", "goals_for", "wins"), drop = FALSE]
+  expect_identical(adapter(phase14_input)$computed_rank, 1:4)
+})
+
+test_that("Article 15 missing rule inputs block before Phase 14 receives ranks", {
+  fixture <- phase15_test_four_team_group()
+  matches <- fixture$matches
+  matches$state_cutoff_utc <- "2026-12-31T00:00:00Z"
+  missing_discipline <- uefa_nl_rank_group(
+    fixture$standings,
+    matches,
+    discipline_points = NULL,
+    access_list = fixture$access_list
+  )
+  expect_true(all(is.na(missing_discipline$computed_rank)))
+  expect_true(all(missing_discipline$ordering_status == "blocked"))
+  expect_true(all(missing_discipline$block_status == "blocked"))
+  expect_true(all(grepl("discipline_points", missing_discipline$missing_rule_input)))
+  expect_true(all(missing_discipline$suppression_reason == "missing_rule_input"))
+
+  missing_access <- fixture$access_list
+  missing_access$access_list_position[[1L]] <- NA_integer_
+  missing_access_result <- uefa_nl_rank_group(
+    fixture$standings,
+    matches,
+    discipline_points = fixture$discipline_points,
+    access_list = missing_access
+  )
+  expect_true(all(is.na(missing_access_result$computed_rank)))
+  expect_true(all(grepl("access_list_position", missing_access_result$missing_rule_input)))
+
+  adapter <- uefa_nl_make_standings_adapter(matches, NULL, fixture$access_list, fixture$group_id)
+  condition <- tryCatch(adapter(fixture$standings), error = identity)
+  expect_s3_class(condition, "phase15_nl_missing_rule_input")
+  expect_setequal(condition$missing_rule_input, "discipline_points")
+
+  state <- uefa_nl_build_group_standings_state(
+    match_rows = matches,
+    discipline_points = NULL,
+    access_list = fixture$access_list,
+    group_id = fixture$group_id,
+    edition_id = phase15_test_edition_id,
+    state_cutoff_utc = "2026-12-31T00:00:00Z",
+    source_bundle_id = phase15_test_source_bundle_id
+  )
+  expect_identical(state$ordering_status, "blocked")
+  expect_true(all(is.na(state$standings$computed_rank)))
+  expect_true(all(state$standings$ordering_status == "blocked"))
+  expect_true(all(state$universal_standings$ordering_status == "provisional"))
+})
+
+test_that("the Article 15 adapter handles a three-team League D group without a fourth-place row", {
+  fixture <- phase15_test_three_team_group()
+  ranked <- uefa_nl_rank_group(
+    fixture$standings,
+    fixture$matches,
+    fixture$discipline_points,
+    fixture$access_list
+  )
+  expect_equal(nrow(ranked), 3L)
+  expect_identical(ranked$group_position, 1:3)
+  expect_false(any(is.na(ranked$computed_rank)))
+  expect_true(all(ranked$excluded_match_ids == ""))
 })
 
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.

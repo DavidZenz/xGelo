@@ -832,3 +832,428 @@ uefa_nl_ruleset_sha256 <- function(rules = uefa_nl_2026_27_rules(), topology = N
 }
 
 `%||%` <- function(left, right) if (is.null(left) || !length(left)) right else left
+
+uefa_nl_rank_rules <- function(rules = NULL) {
+  rules <- rules %||% uefa_nl_2026_27_rules()
+  if (!is.list(rules) || is.null(rules$ruleset_version)) {
+    stop("Nations League ranking rules must be a validated ruleset", call. = FALSE)
+  }
+  rules
+}
+
+# Article 15/19 ranking lives behind the Phase 14 universal standings seam.
+# These helpers deliberately keep score arithmetic local to the criteria that
+# UEFA defines beyond the universal snapshot (head-to-head and away metrics).
+
+uefa_nl_rank_table_scalar <- function(value) {
+  if (!length(value) || is.na(value[[1L]])) return(NA_character_)
+  trimws(as.character(value[[1L]]))
+}
+
+uefa_nl_rank_input_table <- function(value, team_ids, value_field, context) {
+  if (is.list(value) && !is.null(value$rows)) value <- value$rows
+  if (is.null(value)) {
+    return(list(values = setNames(rep(NA_real_, length(team_ids)), team_ids), missing = value_field, rows = NULL))
+  }
+  if (is.data.frame(value)) {
+    team_candidates <- intersect(c("team_id", "canonical_team_id", "id"), names(value))
+    if (!length(team_candidates) || !value_field %in% names(value)) {
+      return(list(values = setNames(rep(NA_real_, length(team_ids)), team_ids), missing = value_field, rows = value))
+    }
+    input_team_ids <- trimws(as.character(value[[team_candidates[[1L]]]]))
+    if (any(is.na(input_team_ids) | !nzchar(input_team_ids)) || anyDuplicated(input_team_ids)) {
+      stop("Nations League ", context, " has missing or duplicate team IDs", call. = FALSE)
+    }
+    numeric_values <- suppressWarnings(as.numeric(as.character(value[[value_field]])))
+    present <- !is.na(value[[value_field]]) & nzchar(trimws(as.character(value[[value_field]])))
+    invalid <- present & (is.na(numeric_values) | !is.finite(numeric_values) | numeric_values != floor(numeric_values) | numeric_values < 0)
+    if (any(invalid)) stop("Nations League ", context, " has invalid ", value_field, call. = FALSE)
+    output <- setNames(rep(NA_real_, length(team_ids)), team_ids)
+    positions <- match(input_team_ids, team_ids)
+    output[positions[!is.na(positions)]] <- numeric_values[!is.na(positions)]
+    missing_teams <- team_ids[is.na(output)]
+    return(list(values = output, missing = if (length(missing_teams)) value_field else character(), rows = value))
+  }
+  if (is.atomic(value) && !is.null(names(value))) {
+    numeric_values <- suppressWarnings(as.numeric(as.character(value)))
+    present <- !is.na(value) & nzchar(trimws(as.character(value)))
+    invalid <- present & (is.na(numeric_values) | !is.finite(numeric_values) | numeric_values != floor(numeric_values) | numeric_values < 0)
+    if (any(invalid)) stop("Nations League ", context, " has invalid ", value_field, call. = FALSE)
+    output <- setNames(rep(NA_real_, length(team_ids)), team_ids)
+    positions <- match(names(value), team_ids)
+    output[positions[!is.na(positions)]] <- numeric_values[!is.na(positions)]
+    return(list(values = output, missing = if (anyNA(output)) value_field else character(), rows = NULL))
+  }
+  stop("Nations League ", context, " must be a keyed data frame or named vector", call. = FALSE)
+}
+
+uefa_nl_rank_match_ids <- function(rows) {
+  if (!is.data.frame(rows) || !nrow(rows)) return(character())
+  fields <- intersect(c("match_id", "fixture_id", "source_fixture_id", "source_match_id"), names(rows))
+  if (!length(fields)) return(character())
+  field <- fields[[1L]]
+  values <- trimws(as.character(rows[[field]]))
+  sort(unique(values[!is.na(values) & nzchar(values)]), method = "radix")
+}
+
+uefa_nl_rank_match_id <- function(rows) {
+  fields <- intersect(c("match_id", "fixture_id", "source_fixture_id", "source_match_id"), names(rows))
+  if (!length(fields)) stop("Nations League ranking matches require a canonical match ID", call. = FALSE)
+  field <- fields[[1L]]
+  values <- trimws(as.character(rows[[field]]))
+  if (any(is.na(values) | !nzchar(values)) || anyDuplicated(values)) {
+    stop("Nations League ranking matches require unique canonical match IDs", call. = FALSE)
+  }
+  values
+}
+
+uefa_nl_rank_completed_status <- function(values) {
+  if (is.null(values)) return(rep(TRUE, 0L))
+  tolower(trimws(as.character(values))) %in% c(
+    "completed", "complete", "finished", "full_time", "full-time",
+    "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded"
+  )
+}
+
+uefa_nl_rank_prepare_matches <- function(match_rows, team_ids, standings) {
+  if (is.null(match_rows)) match_rows <- data.frame(stringsAsFactors = FALSE)
+  if (!is.data.frame(match_rows)) stop("Nations League ranking matches must be a data frame", call. = FALSE)
+  if (!nrow(match_rows)) return(list(rows = match_rows, eligible = logical(), missing = character(), match_id = character()))
+  required <- c("home_team_id", "away_team_id")
+  missing_columns <- setdiff(required, names(match_rows))
+  if (length(missing_columns)) stop("Nations League ranking matches are missing columns: ", paste(missing_columns, collapse = ", "), call. = FALSE)
+  rows <- as.data.frame(match_rows, stringsAsFactors = FALSE, check.names = FALSE)
+  rows$home_team_id <- trimws(as.character(rows$home_team_id))
+  rows$away_team_id <- trimws(as.character(rows$away_team_id))
+  if (any(is.na(rows$home_team_id) | is.na(rows$away_team_id) | rows$home_team_id == rows$away_team_id)) {
+    stop("Nations League ranking matches contain invalid team pairs", call. = FALSE)
+  }
+  rows$match_id <- uefa_nl_rank_match_id(rows)
+  if (!"final_home_goals" %in% names(rows) && "home_goals" %in% names(rows)) rows$final_home_goals <- rows$home_goals
+  if (!"final_away_goals" %in% names(rows) && "away_goals" %in% names(rows)) rows$final_away_goals <- rows$away_goals
+  score_missing <- setdiff(c("final_home_goals", "final_away_goals"), names(rows))
+  if (length(score_missing)) return(list(rows = rows, eligible = rep(FALSE, nrow(rows)), missing = "completed_scores", match_id = rows$match_id))
+  home_goals <- suppressWarnings(as.numeric(as.character(rows$final_home_goals)))
+  away_goals <- suppressWarnings(as.numeric(as.character(rows$final_away_goals)))
+  score_present <- !is.na(home_goals) & !is.na(away_goals)
+  invalid_scores <- score_present & (!is.finite(home_goals) | !is.finite(away_goals) | home_goals < 0 | away_goals < 0 | home_goals != floor(home_goals) | away_goals != floor(away_goals))
+  if (any(invalid_scores)) stop("Nations League ranking matches have invalid final scores", call. = FALSE)
+  rows$final_home_goals <- as.integer(home_goals)
+  rows$final_away_goals <- as.integer(away_goals)
+  counts <- if ("counts_for_standings" %in% names(rows)) {
+    values <- rows$counts_for_standings
+    if (!is.logical(values)) values <- tolower(trimws(as.character(values))) %in% c("true", "t", "1", "yes", "y")
+    as.logical(values)
+  } else rep(TRUE, nrow(rows))
+  status <- if ("match_status" %in% names(rows)) uefa_nl_rank_completed_status(rows$match_status) else rep(TRUE, nrow(rows))
+  eligible <- counts & status & score_present
+  missing_inputs <- character()
+  if (any(counts & status & !score_present)) missing_inputs <- c(missing_inputs, "completed_scores")
+  evidence_fields <- intersect(c("evidence_completed_at_utc", "completed_at_utc"), names(rows))
+  evidence_field <- if (length(evidence_fields)) evidence_fields[[1L]] else NULL
+  if (!is.null(evidence_field)) {
+    evidence <- suppressWarnings(as.POSIXct(as.character(rows[[evidence_field]]), tz = "UTC"))
+    missing_evidence <- counts & status & score_present & is.na(evidence)
+    if (any(missing_evidence)) missing_inputs <- c(missing_inputs, "evidence_completed_at_utc")
+    eligible <- eligible & !is.na(evidence)
+    cutoff <- if ("state_cutoff_utc" %in% names(standings)) suppressWarnings(as.POSIXct(as.character(standings$state_cutoff_utc[[1L]]), tz = "UTC")) else as.POSIXct(NA, tz = "UTC")
+    if (!is.na(cutoff[[1L]])) eligible <- eligible & evidence <= cutoff[[1L]]
+  }
+  if ("group_id" %in% names(rows) && "group_id" %in% names(standings)) {
+    group_id <- as.character(standings$group_id[[1L]])
+    foreign_group <- !is.na(rows$group_id) & nzchar(as.character(rows$group_id)) & as.character(rows$group_id) != group_id
+    eligible[foreign_group] <- FALSE
+  }
+  foreign_team <- !rows$home_team_id %in% team_ids | !rows$away_team_id %in% team_ids
+  eligible[foreign_team] <- FALSE
+  list(rows = rows, eligible = eligible, missing = unique(missing_inputs), match_id = rows$match_id)
+}
+
+uefa_nl_rank_metrics_from_matches <- function(rows, eligible, team_ids) {
+  if (!is.data.frame(rows) || !nrow(rows)) {
+    return(data.frame(team_id = as.character(team_ids), points = 0, goal_difference = 0, goals_for = 0, away_goals = 0, wins = 0, away_wins = 0, stringsAsFactors = FALSE, check.names = FALSE))
+  }
+  rows <- rows[as.logical(eligible), , drop = FALSE]
+  result <- lapply(as.character(team_ids), function(team_id) {
+    home <- rows$home_team_id == team_id
+    away <- rows$away_team_id == team_id
+    gf <- c(rows$final_home_goals[home], rows$final_away_goals[away])
+    ga <- c(rows$final_away_goals[home], rows$final_home_goals[away])
+    data.frame(
+      team_id = team_id,
+      points = as.integer(3L * sum(gf > ga) + sum(gf == ga)),
+      goal_difference = as.integer(sum(gf) - sum(ga)),
+      goals_for = as.integer(sum(gf)),
+      away_goals = as.integer(sum(rows$final_away_goals[away])),
+      wins = as.integer(sum(gf > ga)),
+      away_wins = as.integer(sum(rows$final_away_goals[away] > rows$final_home_goals[away])),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  })
+  do.call(rbind, result)
+}
+
+uefa_nl_rank_group_metric_groups <- function(ids, values, decreasing = TRUE) {
+  values <- as.numeric(values)
+  unique_values <- sort(unique(values[!is.na(values)]), decreasing = decreasing, method = "radix")
+  lapply(unique_values, function(value) ids[values == value])
+}
+
+uefa_nl_group_tiebreak_trace <- function(
+    group_id = NA_character_, league = NA_character_, criterion = character(),
+    tied_subset = character(), counted_match_ids = character(), decision = character(),
+    recursion_depth = 0L, remaining_tied_subset = character(), rules = uefa_nl_2026_27_rules()) {
+  n <- max(length(criterion), length(tied_subset), length(counted_match_ids), length(decision), 1L)
+  collapse_ids <- function(value) {
+    if (is.list(value)) value <- value[[1L]]
+    value <- sort(unique(as.character(value)[!is.na(value) & nzchar(as.character(value))]), method = "radix")
+    paste(value, collapse = ";")
+  }
+  data.frame(
+    ranking_scope = rep("group", n),
+    league = rep(uefa_nl_rank_table_scalar(league), n),
+    group_id = rep(uefa_nl_rank_table_scalar(group_id), n),
+    criterion = rep(as.character(criterion), length.out = n),
+    tied_subset = vapply(seq_len(n), function(index) collapse_ids(if (length(tied_subset)) tied_subset[[min(index, length(tied_subset))]] else character()), character(1)),
+    counted_match_ids = vapply(seq_len(n), function(index) collapse_ids(if (length(counted_match_ids)) counted_match_ids[[min(index, length(counted_match_ids))]] else character()), character(1)),
+    decision = rep(as.character(decision), length.out = n),
+    recursion_depth = as.integer(rep(recursion_depth, length.out = n)),
+    remaining_tied_subset = vapply(seq_len(n), function(index) collapse_ids(if (length(remaining_tied_subset)) remaining_tied_subset[[min(index, length(remaining_tied_subset))]] else character()), character(1)),
+    ruleset_version = rep(as.character(rules$ruleset_version), n),
+    ruleset_sha256 = rep(uefa_nl_ruleset_sha256(rules), n),
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+uefa_nl_rank_finalize <- function(data, rules) {
+  data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
+  data$row_sha256 <- NULL
+  data$table_sha256 <- NULL
+  data$row_sha256 <- uefa_nl_rules_row_sha256(data)
+  key <- intersect(c("ranking_scope", "league", "group_id", "interim_rank", "computed_rank", "team_id"), names(data))
+  if (!length(key)) key <- names(data)[[1L]]
+  data$table_sha256 <- rep(uefa_nl_rules_canonical_sha256(data, key = key), nrow(data))
+  row.names(data) <- NULL
+  data
+}
+
+uefa_nl_rank_add_columns <- function(data, rules, ranking_scope = "group") {
+  data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!"league_id" %in% names(data) && "league" %in% names(data)) data$league_id <- as.character(data$league)
+  if (!"league" %in% names(data) && "league_id" %in% names(data)) data$league <- as.character(data$league_id)
+  if (!"group_id" %in% names(data)) data$group_id <- NA_character_
+  if (!"team_id" %in% names(data)) data$team_id <- character(nrow(data))
+  data$ranking_scope <- ranking_scope
+  if (!"group_position" %in% names(data)) data$group_position <- NA_integer_
+  if (!"computed_rank" %in% names(data)) data$computed_rank <- NA_integer_
+  if (!"interim_rank" %in% names(data)) data$interim_rank <- NA_integer_
+  if (!"counted_match_ids" %in% names(data)) data$counted_match_ids <- ""
+  if (!"excluded_match_ids" %in% names(data)) data$excluded_match_ids <- ""
+  if (!"discipline_points" %in% names(data)) data$discipline_points <- NA_integer_
+  if (!"access_list_position" %in% names(data)) data$access_list_position <- NA_integer_
+  if (!"ordering_status" %in% names(data)) data$ordering_status <- "ready"
+  if (!"missing_rule_input" %in% names(data)) data$missing_rule_input <- ""
+  if (!"suppression_reason" %in% names(data)) data$suppression_reason <- "none"
+  if (!"block_status" %in% names(data)) data$block_status <- "not_blocked"
+  if (!"blocked" %in% names(data)) data$blocked <- FALSE
+  if (!"source_artifact_id" %in% names(data)) data$source_artifact_id <- ""
+  if (!"source_bundle_id" %in% names(data)) data$source_bundle_id <- uefa_nl_source_bundle_id()
+  if (!"ruleset_version" %in% names(data)) data$ruleset_version <- rules$ruleset_version
+  if (!"ruleset_sha256" %in% names(data)) data$ruleset_sha256 <- uefa_nl_ruleset_sha256(rules)
+  data$computed_rank <- as.integer(data$computed_rank)
+  data$interim_rank <- as.integer(data$interim_rank)
+  data$group_position <- as.integer(data$group_position)
+  data$discipline_points <- suppressWarnings(as.integer(data$discipline_points))
+  data$access_list_position <- suppressWarnings(as.integer(data$access_list_position))
+  data
+}
+
+uefa_nl_rank_preflight <- function(standings, match_rows, discipline_points, access_list, group_id, rules) {
+  if (!is.data.frame(standings)) stop("Nations League group standings must be a data frame", call. = FALSE)
+  if (!"team_id" %in% names(standings)) stop("Nations League group standings require team_id", call. = FALSE)
+  team_ids <- trimws(as.character(standings$team_id))
+  if (!length(team_ids) || any(is.na(team_ids) | !nzchar(team_ids)) || anyDuplicated(team_ids)) stop("Nations League group standings have missing or duplicate team IDs", call. = FALSE)
+  if (is.null(group_id) && "group_id" %in% names(standings)) group_id <- standings$group_id[[1L]]
+  group_id <- uefa_nl_rank_table_scalar(group_id)
+  if (is.na(group_id)) stop("Nations League group ranking requires group_id", call. = FALSE)
+  rules <- uefa_nl_rank_rules(rules)
+  discipline <- uefa_nl_rank_input_table(discipline_points, team_ids, "discipline_points", "discipline points")
+  access <- uefa_nl_rank_input_table(access_list, team_ids, "access_list_position", "access list")
+  missing <- unique(c(discipline$missing, access$missing))
+  required_standing_fields <- c("points", "goal_difference", "goals_for", "wins")
+  if (!all(required_standing_fields %in% names(standings))) missing <- c(missing, "universal_standings")
+  if (all("points" %in% names(standings))) {
+    points <- suppressWarnings(as.numeric(as.character(standings$points)))
+    if (any(is.na(points) | !is.finite(points))) missing <- c(missing, "points")
+  }
+  prepared_matches <- uefa_nl_rank_prepare_matches(match_rows, team_ids, standings)
+  missing <- unique(c(missing, prepared_matches$missing))
+  league <- if ("league" %in% names(standings)) standings$league[[1L]] else if ("league_id" %in% names(standings)) standings$league_id[[1L]] else NA_character_
+  list(standings = standings, team_ids = team_ids, group_id = group_id, league = uefa_nl_rank_table_scalar(league), rules = rules, discipline = discipline, access = access, matches = prepared_matches, missing = unique(missing))
+}
+
+uefa_nl_missing_rule_input_condition <- function(missing_rule_input, result = NULL) {
+  missing_rule_input <- unique(as.character(missing_rule_input))
+  missing_rule_input <- missing_rule_input[!is.na(missing_rule_input) & nzchar(missing_rule_input)]
+  structure(list(message = paste0("Nations League ordering blocked: missing rule input: ", paste(missing_rule_input, collapse = ", ")), missing_rule_input = missing_rule_input, result = result), class = c("phase15_nl_missing_rule_input", "error", "condition"))
+}
+
+uefa_nl_blocked_ordering_result <- function(standings, missing_rule_input, rules = uefa_nl_2026_27_rules(), group_id = NULL) {
+  rules <- uefa_nl_rank_rules(rules)
+  output <- uefa_nl_rank_add_columns(standings, rules, ranking_scope = "group")
+  if (!is.null(group_id)) output$group_id <- as.character(group_id)
+  missing_rule_input <- unique(as.character(missing_rule_input))
+  missing_rule_input <- missing_rule_input[!is.na(missing_rule_input) & nzchar(missing_rule_input)]
+  output$computed_rank <- rep(NA_integer_, nrow(output))
+  output$interim_rank <- rep(NA_integer_, nrow(output))
+  output$ordering_status <- "blocked"
+  output$missing_rule_input <- paste(missing_rule_input, collapse = ";")
+  output$block_status <- "blocked"
+  output$blocked <- TRUE
+  output$suppression_reason <- "missing_rule_input"
+  output <- uefa_nl_rank_finalize(output, rules)
+  attr(output, "tiebreak_trace") <- uefa_nl_group_tiebreak_trace(group_id = if (nrow(output)) output$group_id[[1L]] else group_id, league = if (nrow(output)) output$league[[1L]] else NA_character_, criterion = "blocked", tied_subset = list(if (nrow(output)) output$team_id else character()), counted_match_ids = "", decision = paste(missing_rule_input, collapse = ";"), rules = rules)
+  output
+}
+
+uefa_nl_rank_group <- function(standings, match_rows = NULL, discipline_points = NULL, access_list = NULL, rules = uefa_nl_2026_27_rules(), group_id = NULL) {
+  rules <- uefa_nl_rank_rules(rules)
+  preflight <- uefa_nl_rank_preflight(standings, match_rows, discipline_points, access_list, group_id, rules)
+  if (length(preflight$missing)) return(uefa_nl_blocked_ordering_result(preflight$standings, preflight$missing, rules, preflight$group_id))
+  standings <- preflight$standings
+  team_ids <- preflight$team_ids
+  matches <- preflight$matches$rows
+  eligible <- preflight$matches$eligible
+  match_metrics <- uefa_nl_rank_metrics_from_matches(matches, eligible, team_ids)
+  overall <- match_metrics
+  for (field in c("goal_difference", "goals_for", "wins")) if (field %in% names(standings)) overall[[field]] <- as.numeric(standings[[field]][match(team_ids, standings$team_id)])
+  overall$discipline_points <- as.integer(preflight$discipline$values[overall$team_id])
+  overall$access_list_position <- as.integer(preflight$access$values[overall$team_id])
+  trace_parts <- list()
+  trace_index <- 0L
+  add_trace <- function(criterion, subset, counted_ids, decision, depth = 0L, remaining = character()) {
+    trace_index <<- trace_index + 1L
+    trace_parts[[trace_index]] <<- uefa_nl_group_tiebreak_trace(group_id = preflight$group_id, league = preflight$league, criterion = criterion, tied_subset = list(subset), counted_match_ids = list(counted_ids), decision = decision, recursion_depth = depth, remaining_tied_subset = list(remaining), rules = rules)
+  }
+  h2h_values <- function(ids, criterion) {
+    subset_rows <- matches[eligible & matches$home_team_id %in% ids & matches$away_team_id %in% ids, , drop = FALSE]
+    metrics <- uefa_nl_rank_metrics_from_matches(subset_rows, rep(TRUE, nrow(subset_rows)), ids)
+    field <- switch(criterion, head_to_head_points = "points", head_to_head_goal_difference = "goal_difference", head_to_head_goals = "goals_for")
+    list(values = metrics[[field]], counted_ids = uefa_nl_rank_match_ids(subset_rows))
+  }
+  overall_values <- function(ids, criterion) {
+    rows <- overall[match(ids, overall$team_id), , drop = FALSE]
+    values <- switch(criterion, overall_goal_difference = rows$goal_difference, overall_goals = rows$goals_for, overall_away_goals = rows$away_goals, wins = rows$wins, away_wins = rows$away_wins, discipline_points = rows$discipline_points, access_list_position = rows$access_list_position)
+    list(values = values, counted_ids = uefa_nl_rank_match_ids(matches[eligible, , drop = FALSE]))
+  }
+  h2h_criteria <- c("head_to_head_points", "head_to_head_goal_difference", "head_to_head_goals")
+  overall_criteria <- c("overall_goal_difference", "overall_goals", "overall_away_goals", "wins", "away_wins", "discipline_points", "access_list_position")
+  order_overall <- function(ids, criterion_index, depth) {
+    if (length(ids) <= 1L) return(ids)
+    for (index in seq.int(criterion_index, length(overall_criteria))) {
+      criterion <- overall_criteria[[index]]
+      evaluated <- overall_values(ids, criterion)
+      groups <- uefa_nl_rank_group_metric_groups(ids, evaluated$values, criterion != "discipline_points")
+      decision <- paste(vapply(groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > ")
+      add_trace(criterion, ids, evaluated$counted_ids, decision, depth, ids)
+      if (length(groups) > 1L) return(unlist(lapply(groups, function(group) if (length(group) <= 1L) group else order_overall(group, index + 1L, depth)), use.names = FALSE))
+    }
+    sort(ids, method = "radix")
+  }
+  order_tied_subset <- function(ids, depth = 0L) {
+    if (length(ids) <= 1L) return(ids)
+    for (criterion in h2h_criteria) {
+      evaluated <- h2h_values(ids, criterion)
+      groups <- uefa_nl_rank_group_metric_groups(ids, evaluated$values, TRUE)
+      decision <- paste(vapply(groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > ")
+      add_trace(criterion, ids, evaluated$counted_ids, decision, depth, ids)
+      if (length(groups) > 1L) {
+        return(unlist(lapply(groups, function(group) {
+          if (length(group) <= 1L) return(group)
+          add_trace("recursive_tied_subset", group, evaluated$counted_ids, "reapply_head_to_head", depth + 1L, group)
+          order_tied_subset(group, depth + 1L)
+        }), use.names = FALSE))
+      }
+    }
+    order_overall(ids, 1L, depth)
+  }
+  points <- as.numeric(standings$points[match(team_ids, standings$team_id)])
+  initial_groups <- uefa_nl_rank_group_metric_groups(team_ids, points, TRUE)
+  add_trace("points", team_ids, uefa_nl_rank_match_ids(matches[eligible, , drop = FALSE]), paste(vapply(initial_groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > "), 0L, team_ids)
+  ordered_ids <- unlist(lapply(initial_groups, function(group) if (length(group) <= 1L) group else order_tied_subset(group, 0L)), use.names = FALSE)
+  if (length(ordered_ids) != length(team_ids) || anyDuplicated(ordered_ids) || !setequal(ordered_ids, team_ids)) stop("Nations League Article 15 ordering did not return the complete team set", call. = FALSE)
+  output <- standings[match(ordered_ids, standings$team_id), , drop = FALSE]
+  output <- uefa_nl_rank_add_columns(output, rules, ranking_scope = "group")
+  output$league <- preflight$league
+  output$league_id <- preflight$league
+  output$group_id <- preflight$group_id
+  output$team_id <- ordered_ids
+  output$computed_rank <- as.integer(seq_len(nrow(output)))
+  output$group_position <- output$computed_rank
+  output$discipline_points <- as.integer(preflight$discipline$values[ordered_ids])
+  output$access_list_position <- as.integer(preflight$access$values[ordered_ids])
+  output$counted_match_ids <- vapply(ordered_ids, function(team_id) paste(uefa_nl_rank_match_ids(matches[eligible & (matches$home_team_id == team_id | matches$away_team_id == team_id), , drop = FALSE]), collapse = ";"), character(1))
+  output$excluded_match_ids <- ""
+  output$ordering_status <- "ready"
+  output$missing_rule_input <- ""
+  output$block_status <- "not_blocked"
+  output$blocked <- FALSE
+  output$suppression_reason <- "none"
+  output$ruleset_version <- rules$ruleset_version
+  output$ruleset_sha256 <- uefa_nl_ruleset_sha256(rules)
+  output <- uefa_nl_rank_finalize(output, rules)
+  trace <- if (length(trace_parts)) do.call(rbind, trace_parts) else uefa_nl_group_tiebreak_trace(rules = rules)
+  row.names(trace) <- NULL
+  attr(output, "tiebreak_trace") <- trace
+  attr(output, "trace") <- trace
+  output
+}
+
+uefa_nl_make_standings_adapter <- function(match_rows, discipline_points, access_list, group_id, rules = uefa_nl_2026_27_rules()) {
+  rules <- uefa_nl_rank_rules(rules)
+  adapter <- function(snapshot) {
+    ranked <- uefa_nl_rank_group(snapshot, match_rows, discipline_points, access_list, rules, group_id)
+    if (any(ranked$ordering_status == "blocked") || any(is.na(ranked$computed_rank))) {
+      missing <- unique(unlist(strsplit(ranked$missing_rule_input, ";", fixed = TRUE)))
+      missing <- missing[nzchar(missing)]
+      stop(uefa_nl_missing_rule_input_condition(missing, ranked))
+    }
+    ranked[, c("team_id", "computed_rank"), drop = FALSE]
+  }
+  attr(adapter, "adapter_id") <- "uefa_nl_article15_v2"
+  attr(adapter, "ruleset_version") <- rules$ruleset_version
+  attr(adapter, "ruleset_sha256") <- uefa_nl_ruleset_sha256(rules)
+  attr(adapter, "group_id") <- as.character(group_id)
+  adapter
+}
+
+uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = NULL, access_list = NULL, group_id = NULL, rules = uefa_nl_2026_27_rules(), edition_id = NULL, state_cutoff_utc = NULL, source_bundle_id = NULL, team_ids = NULL) {
+  rules <- uefa_nl_rank_rules(rules)
+  if (!exists("phase14_compute_standings", mode = "function", inherits = TRUE)) stop("Phase 14 standings reducer must be loaded before building Nations League state", call. = FALSE)
+  if (!is.data.frame(match_rows)) stop("Nations League state matches must be a data frame", call. = FALSE)
+  rows <- as.data.frame(match_rows, stringsAsFactors = FALSE, check.names = FALSE)
+  edition_id <- edition_id %||% rules$edition_id
+  if (is.null(group_id) && "group_id" %in% names(rows) && nrow(rows)) group_id <- rows$group_id[[1L]]
+  if (is.null(source_bundle_id) && "source_bundle_id" %in% names(rows) && nrow(rows)) source_bundle_id <- rows$source_bundle_id[[1L]]
+  source_bundle_id <- source_bundle_id %||% uefa_nl_source_bundle_id()
+  if (is.null(state_cutoff_utc)) {
+    evidence_fields <- intersect(c("evidence_completed_at_utc", "completed_at_utc"), names(rows))
+    evidence_field <- if (length(evidence_fields)) evidence_fields[[1L]] else NULL
+    if (!is.null(evidence_field) && nrow(rows)) {
+      evidence <- suppressWarnings(as.POSIXct(as.character(rows[[evidence_field]]), tz = "UTC"))
+      evidence <- evidence[!is.na(evidence)]
+      if (length(evidence)) state_cutoff_utc <- format(max(evidence), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    }
+  }
+  state_cutoff_utc <- state_cutoff_utc %||% "2099-12-31T23:59:59Z"
+  universal <- phase14_compute_standings(matches = rows, edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, ruleset_adapter = NULL, team_ids = team_ids)
+  preflight <- uefa_nl_rank_preflight(universal, rows, discipline_points, access_list, group_id, rules)
+  if (length(preflight$missing)) {
+    blocked <- uefa_nl_blocked_ordering_result(universal, preflight$missing, rules, group_id)
+    return(list(edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, universal_standings = universal, standings = blocked, ranking = blocked, ordering_status = "blocked", block_status = "blocked", missing_rule_input = paste(preflight$missing, collapse = ";"), tiebreak_trace = attr(blocked, "tiebreak_trace", exact = TRUE), ruleset_version = rules$ruleset_version, ruleset_sha256 = uefa_nl_ruleset_sha256(rules)))
+  }
+  adapter <- uefa_nl_make_standings_adapter(rows, discipline_points, access_list, group_id, rules)
+  phase14_standings <- phase14_compute_standings(matches = rows, edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, ruleset_adapter = adapter, team_ids = team_ids)
+  ranking <- uefa_nl_rank_group(phase14_standings, rows, discipline_points, access_list, rules, group_id)
+  list(edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, universal_standings = universal, phase14_standings = phase14_standings, standings = ranking, ranking = ranking, ordering_status = "ready", block_status = "not_blocked", missing_rule_input = "", tiebreak_trace = attr(ranking, "tiebreak_trace", exact = TRUE), ruleset_version = rules$ruleset_version, ruleset_sha256 = uefa_nl_ruleset_sha256(rules))
+}
