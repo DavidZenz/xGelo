@@ -2623,12 +2623,36 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
     phase15_test_simulation_inputs(simulation_count = 1L, seed = 15017L)
   )
   path_fields <- intersect(
-    c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion"),
+    c(
+      "p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion",
+      "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility",
+      "p_playoff_win", "p_playoff_loss"
+    ),
     names(synthetic$team_path_probabilities)
   )
   expect_true(length(path_fields) > 0L)
   expect_true(any(as.matrix(synthetic$team_path_probabilities[, path_fields, drop = FALSE]) > 0, na.rm = TRUE))
   expect_true(any(synthetic$fixture_forecast_form$primary_probability_view == "calibrated_1x2"))
+
+  expect_true(all(c(
+    "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility",
+    "p_playoff_win", "p_playoff_loss"
+  ) %in% names(synthetic$team_path_probabilities)))
+  expect_true(any(synthetic$team_path_probabilities$p_direct_promotion > 0, na.rm = TRUE))
+  expect_true(any(synthetic$team_path_probabilities$p_direct_relegation > 0, na.rm = TRUE))
+  expect_true(any(synthetic$team_path_probabilities$p_playoff_eligibility > 0, na.rm = TRUE))
+  expect_setequal(
+    unique(synthetic$transition_outcomes$transition_type),
+    c("a_b_playoff", "b_c_playoff", "c_d_playoff_cancellation", "direct_promotion", "direct_relegation")
+  )
+  applicable_playoffs <- synthetic$transition_outcomes[
+    synthetic$transition_outcomes$transition_type %in% c("a_b_playoff", "b_c_playoff"),
+    ,
+    drop = FALSE
+  ]
+  expect_true(nrow(applicable_playoffs) > 0L)
+  expect_true(all(applicable_playoffs$eligibility_status == "eligible"))
+  expect_true(all(applicable_playoffs$stage_status == "unresolved"))
 
   expect_identical(
     phase15_nl_validate_output_root(
