@@ -164,13 +164,31 @@ simulations, and fail-closed hourly publication.
 
 **Plans**: 7 plans
 Plans:
+**Wave 1**
+
 - [ ] 15-00-PLAN.md — Create the Wave 0 Phase 15 test harness and synthetic fixtures
 - [ ] 15-01-PLAN.md — Freeze topology, Article 13 access-list/group formation, and separately registered stage capture
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 15-02-PLAN.md — Implement Article 15/19 rankings, final overall rank, blocked inputs, transitions, and C/D retention
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 15-03-PLAN.md — Implement calibrated simulation and Article 14-18 stage resolution
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 15-04-PLAN.md — Define and validate the nine-file sibling outcomes bundle with fixture forecast/form pass-through
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 15-05-PLAN.md — Build the Nations League CLI, registered output root, and durable nine-file outcome artifacts
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
 - [ ] 15-06-PLAN.md — Run production acceptance, replay, and no-leakage checks
+
 **UI hint**: yes
 
 ### Phase 16: EURO Qualifying Activation and Play-off Rules
