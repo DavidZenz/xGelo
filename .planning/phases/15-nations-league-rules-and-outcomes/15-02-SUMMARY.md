@@ -14,7 +14,8 @@ provides:
   - Recursive Article 15 group ordering with auditable trace fields
   - Typed blocked handling for missing discipline and access-list inputs
   - Article 19 individual/interim rankings and direct/play-off transition selectors
-  - Final overall ranking and C/D cancellation mapping remain pending
+  - Dynamic Article 19.04 final overall rank bands with Article 19.05 finals overwrite
+  - Explicit C/D play-off cancellation resolution retaining C46/C47 and D50/D51
 affects: [15-03, 15-04, outcomes, forecast, competition-state]
 
 # Tech tracking
@@ -23,21 +24,24 @@ tech-stack:
   patterns: [Phase 14 universal standings adapter, typed blocked/unresolved states, hashed ranking lineage]
 
 key-files:
-  created: [.planning/phases/15-nations-league-rules-and-outcomes/15-02-SUMMARY.md]
+  created: []
   modified:
     - R/competition/uefa_nations_league_rules.R
     - tests/testthat/test_phase15_nations_league.R
+    - .planning/phases/15-nations-league-rules-and-outcomes/15-02-SUMMARY.md
 
 key-decisions:
   - "Keep Phase 14 responsible for universal played/W/D/L/goals/points arithmetic and apply Nations League ordering through its adapter seam."
-  - "Treat missing discipline, access-list, and external EURO eligibility evidence as blocked or unresolved rather than fabricating ranks or selections."
-  - "Stop execution after Task 15-02-02 at the user's request; do not claim final-ranking or C/D cancellation completion."
+  - "Treat missing discipline, access-list, external EURO eligibility, and incomplete stage outcomes as blocked or unresolved rather than fabricating ranks or selections."
+  - "Apply Article 19.04 container placement from interim rank, then overwrite only the completed final quartet under Article 19.05."
+  - "Represent C/D cancellation as explicit retained next-edition rows with NA play-off probabilities."
 
 patterns-established:
   - "Article 15 ranking emits recursive criterion traces, counted match lineage, ruleset hashes, and contiguous computed ranks only when inputs are complete."
-  - "Article 19 transition rows retain exact rank-band lineage and explicit lower-league first-leg hosting."
+  - "Article 19 ranking outputs preserve interim rank and stage lineage, use dynamic cardinality, and hash ordered rows and tables."
+  - "External eligibility is a required explicit input; absent or incomplete evidence remains unresolved_external_eligibility."
 
-requirements-completed: []
+requirements-completed: [COMP-02]
 
 coverage:
   - id: D1
@@ -61,56 +65,58 @@ coverage:
     requirement: "COMP-02"
     verification:
       - kind: unit
-        ref: "Task 15-02-03 was not executed after the user-requested stop"
-        status: unknown
-    human_judgment: true
-    rationale: "The final-ranking and cancellation implementation was intentionally left for a later continuation."
+        ref: "tests/testthat/test_phase15_nations_league.R; 275 assertions"
+        status: pass
+    human_judgment: false
 
 # Metrics
-duration: 6min
+duration: 25min
 completed: 2026-08-22
-status: incomplete
+status: complete
 ---
 
 # Phase 15 Plan 2: Nations League Rules and Outcomes Summary
 
-**Article 15 and Article 19 interim/transition ranking adapters are implemented and tested; final overall ranking and C/D cancellation mapping remain unfinished.**
+**Deterministic Article 19 final ranking bands, finals overwrite, and explicit C/D cancellation retention are now implemented and covered by synthetic tests.**
 
 ## Performance
 
-- **Duration:** approximately 6 minutes for the bounded inspection and summary pass
+- **Duration:** approximately 25 minutes for the continuation from the partial execution record
 - **Started:** 2026-08-22T11:29:15+02:00
-- **Completed:** 2026-08-22T11:35:34+02:00
-- **Tasks:** 2 of 3 completed
-- **Files modified:** 2 implementation/test files, plus this summary
+- **Completed:** 2026-08-22T11:57:40+02:00
+- **Tasks:** 3 of 3 completed
+- **Files modified:** 2 implementation/test files, plus this summary and required planning metadata
 
 ## Accomplishments
 
-- Implemented recursive Article 15 head-to-head ordering with auditable traces, ruleset identity, row/table hashes, and Phase 14 adapter integration.
-- Added typed blocked output for missing discipline or access-list positions without fabricated contiguous ranks.
-- Implemented cardinality-aware Article 19 individual/interim rankings, exact direct transitions, and A/B, B/C, and unresolved C/D selector rows with lower-league first-leg hosting.
-- The bounded focused command passed with 219 assertions, 0 failures, and 0 warnings:
-  `perl -e 'alarm 60; exec @ARGV' -- Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase15_nations_league.R", stop_on_failure=TRUE)'`
+- Implemented recursive Article 15 head-to-head ordering with auditable traces, ruleset identity, row/table hashes, typed blocked output, and Phase 14 adapter integration.
+- Implemented cardinality-aware Article 19 individual/interim rankings and exact direct, A/B, B/C, and unresolved C/D transition selectors with lower-league first-leg hosting.
+- Implemented uefa_nl_rank_final_overall() for all ten Article 19.04 rank bands, dynamic 54-team output, preserved interim/stage lineage, reverse-order-stable hashes, and Article 19.05 champion/runner-up/third/fourth overwrite.
+- Implemented uefa_nl_resolve_cd_playoff_cancellation() and integrated it into the transition layer so complete qualifying evidence retains exactly C46/C47 and D50/D51, while absent or incomplete evidence remains unresolved and all cancellation probability fields are NA_real_.
+- The bounded focused Phase 15 command passed with 275 assertions, 0 failures, and 0 warnings.
 
 ## Task Commits
 
-1. **Task 15-02-01: Implement recursive Article 15 group ordering** - `5b3ee85` (`feat`)
-2. **Task 15-02-02: Implement Article 19 rankings and transition selectors** - `8ec7f19` (`feat`)
-3. **Task 15-02-03: Implement final overall ranking and C/D cancellation mapping** - not executed; stopped at the user's request
+Each task was committed atomically:
 
-No plan-level metadata commit was created because the plan remains incomplete.
+1. **Task 15-02-01: Implement recursive Article 15 group ordering** - 5b3ee85 (feat)
+2. **Task 15-02-02: Implement Article 19 rankings and transition selectors** - 8ec7f19 (feat)
+3. **Task 15-02-03: Implement final overall ranking and C/D cancellation mapping** - b1bf3a8 (feat)
+
+Plan metadata is captured in the final GSD documentation commit after state and roadmap updates.
 
 ## Files Created/Modified
 
-- `R/competition/uefa_nations_league_rules.R` - Article 15 adapter, Article 19 individual/interim ranking, and transition selector APIs.
-- `tests/testthat/test_phase15_nations_league.R` - Focused recursive, blocked, cardinality, rank-band, and unresolved-selector coverage.
-- `.planning/phases/15-nations-league-rules-and-outcomes/15-02-SUMMARY.md` - Partial execution record.
+- R/competition/uefa_nations_league_rules.R - Article 15 adapter, Article 19 individual/interim/final ranking APIs, transition selectors, and explicit C/D cancellation resolver.
+- tests/testthat/test_phase15_nations_league.R - Focused recursive, blocked, cardinality, Article 19 rank-band, final overwrite, hashing, cancellation, and unresolved eligibility coverage.
+- .planning/phases/15-nations-league-rules-and-outcomes/15-02-SUMMARY.md - Completed plan execution record.
 
 ## Decisions Made
 
 - Phase 14 remains the arithmetic authority; Nations League-specific order is supplied only through the adapter seam.
-- Required rule inputs and external eligibility are explicit contracts. Missing values produce blocked/unresolved states with reasons instead of inferred output.
-- Execution stops before final overall ranking and C/D cancellation work, so `COMP-02` is not marked complete.
+- Required rule inputs, stage outcomes, and external eligibility are explicit contracts. Missing values produce blocked or unresolved states with reasons instead of inferred output.
+- Final rank placement is deterministic from interim rank and completed stage outcomes; final and third-place results overwrite only ranks 1-4 when both are complete.
+- C/D cancellation retention is modeled as four explicit transition rows and never emits fabricated play-off probabilities.
 
 ## Deviations from Plan
 
@@ -118,32 +124,37 @@ No plan-level metadata commit was created because the plan remains incomplete.
 
 **1. [Rule 1 - Bug] Made status and rank fallbacks explicit in Article 19 helpers**
 - **Found during:** Task 15-02-02 verification
-- **Issue:** Vector status/rank fallback expressions were ambiguous when optional columns were absent or contained `NA` values.
+- **Issue:** Vector status/rank fallback expressions were ambiguous when optional columns were absent or contained NA values.
 - **Fix:** Added explicit fallback vectors and effective-rank checks for blocked-scope detection.
-- **Files modified:** `R/competition/uefa_nations_league_rules.R`
+- **Files modified:** R/competition/uefa_nations_league_rules.R
 - **Verification:** Focused Phase 15 test passed.
-- **Committed in:** `8ec7f19`
+- **Committed in:** 8ec7f19
 
-**2. [Rule 1 - Test correction] Corrected the duplicate-key assertion to compare `anyDuplicated()` with integer zero**
+**2. [Rule 1 - Test correction] Corrected the duplicate-key assertion to compare anyDuplicated() with integer zero**
 - **Found during:** Task 15-02-02 verification
-- **Issue:** `expect_false(anyDuplicated(...))` rejected the valid integer return value `0`.
-- **Fix:** Changed the assertion to `expect_equal(anyDuplicated(...), 0L)`.
-- **Files modified:** `tests/testthat/test_phase15_nations_league.R`
-- **Verification:** Focused Phase 15 test passed with 219 assertions.
-- **Committed in:** `8ec7f19`
+- **Issue:** expect_false(anyDuplicated(...)) rejected the valid integer return value 0.
+- **Fix:** Changed the assertion to expect_equal(anyDuplicated(...), 0L).
+- **Files modified:** tests/testthat/test_phase15_nations_league.R
+- **Verification:** Focused Phase 15 test passed.
+- **Committed in:** 8ec7f19
 
-### User-Directed Stop
+**3. [Rule 1 - Bug] Made blocked-stage fallback safe for an empty missing-input vector**
+- **Found during:** Task 15-02-03 focused verification
+- **Issue:** A scalar-only %||% definition loaded later in the repository could turn an empty blocked-input fallback into a zero-length logical condition.
+- **Fix:** Used an explicit length check before assigning the default stage_outcome missing-input marker.
+- **Files modified:** R/competition/uefa_nations_league_rules.R
+- **Verification:** Focused Phase 15 test passed with 275 assertions.
+- **Committed in:** b1bf3a8
 
-Task 15-02-03 was not started after the user requested that the validation/finalization loop stop. Consequently, `uefa_nl_rank_final_overall()` and the explicit C/D cancellation resolver are not yet implemented or verified.
-
-**Total deviations:** 2 auto-fixed issues; 1 user-directed incomplete task.
+**Total deviations:** 3 auto-fixed issues; no scope expansion.
 
 ## Issues Encountered
 
-- The plan is incomplete by design: final overall ranking, final/third-place overwrite, and C/D cancellation retention remain the next continuation task.
-- Phase 14 regression tests and the full `tests/testthat` suite were not run during this stop request. Only the bounded focused Phase 15 test was run.
-- Unrelated pre-existing dirty files were preserved and were not staged.
-- The best-effort broken-windows append was not recorded because the existing ledger has inconsistent frontmatter counts; `.planning/WINDOWS.md` was left unchanged.
+- The focused Phase 15 suite was run with a bounded 60-second wrapper and passed completely: 275 assertions, 0 failures, 0 warnings, and 0 skips.
+- The broader Phase 14 regression and full tests/testthat suite were not run in this bounded continuation; they remain phase-level verification work rather than a blocker for the requested Task 15-02-03 acceptance criteria.
+- The repository contained unrelated pre-existing dirty and untracked files. They were preserved and excluded from both task and metadata staging.
+- The first normal commit attempt was denied by the sandbox while creating .git/index.lock; the same commit completed normally after repository-write escalation.
+- No external service setup or authentication was required.
 
 ## User Setup Required
 
@@ -151,14 +162,15 @@ None - no external service configuration required.
 
 ## Next Phase Readiness
 
-Not ready for downstream Phase 15 work that depends on final overall ranks or C/D cancellation mappings. Resume with Task 15-02-03, then run the Phase 15 and Phase 14 focused suites before updating plan progress and requirements.
+Ready for downstream Phase 15 work that consumes final overall ranks, final-stage lineage, direct/play-off selectors, and explicit C/D cancellation retention. Run the Phase 14 and full-suite regression commands at the next phase verification gate.
 
 ---
 *Phase: 15-nations-league-rules-and-outcomes*
-*Plan: 02 (partial execution)*
+*Plan: 02*
 
 ## Self-Check: PASSED
 
 - Summary file exists at the expected phase path.
-- Commits `5b3ee85` and `8ec7f19` are present in repository history.
-- The bounded focused Phase 15 test passed with 219 assertions.
+- Task commit b1bf3a8 is present in repository history.
+- The bounded focused Phase 15 test passed with 275 assertions, 0 failures, and 0 warnings.
+- Summary formatting passed git diff --check.

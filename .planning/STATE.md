@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 15
 current_phase_name: Nations League Rules and Outcomes
 status: executing
-stopped_at: Completed 15-01-PLAN.md
-last_updated: "2026-08-22T09:13:50.147Z"
+stopped_at: Completed 15-02-PLAN.md
+last_updated: "2026-08-22T09:57:08.686Z"
 last_activity: 2026-08-22
 last_activity_desc: Phase 15 execution started
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 42
-  completed_plans: 37
+  completed_plans: 38
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 15 (Nations League Rules and Outcomes) — EXECUTING
-Plan: 3 of 7
+Plan: 4 of 7
 Status: Ready to execute
 Last activity: 2026-08-22 — Phase 15 execution started
 
 ## Progress
 
-**Progress:** [█████████░] 88% (35/42 plans complete)
+**Progress:** [█████████░] 90% (35/42 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -152,6 +152,8 @@ dependence on paid data feeds.
 - [Phase ?]: Keep the Phase 13 five-resource enum and Phase 14 state inventory stable; admit later-stage source facts through a separate validated stage-capture pair.
 - [Phase ?]: Represent the current scheduled source as unresolved_access_list with missing access positions and draw pots instead of inventing standings or access metadata.
 - [Phase ?]: Allow a complete named optional stage-capture pair beside accepted Phase 13 tables while rejecting arbitrary extras or partial pairs.
+- [Phase 15]: Article 19 final overall ranks use explicit dynamic rank bands, preserve interim lineage, and apply the completed final quartet overwrite only when final and third-place outcomes are available.
+- [Phase 15]: C/D play-off cancellation consumes explicit complete EURO eligibility, retains C46/C47 and D50/D51, and leaves cancellation probabilities as NA rather than zero.
 
 ## Accumulated Context
 
@@ -170,8 +172,8 @@ Plan Phase 15 Nations League rules and outcomes, then execute its implementation
 
 ## Session Continuity
 
-**Last session:** 2026-08-22T09:13:50.134Z
-**Stopped at:** Completed 15-01-PLAN.md
+**Last session:** 2026-08-22T09:57:08.674Z
+**Stopped at:** Completed 15-02-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -218,6 +220,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 14 P20 | 1h 15m | 2 tasks | 3 files |
 | Phase 15-nations-league-rules-and-outcomes P00 | 8min | 1 tasks | 1 files |
 | Phase 15 P01 | 24 | 3 tasks | 8 files |
+| Phase 15 P02 | 25min | 3 tasks | 2 files |
 
 ### Blockers
 
