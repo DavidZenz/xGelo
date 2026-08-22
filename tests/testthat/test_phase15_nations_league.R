@@ -588,6 +588,49 @@ phase15_test_calibrated_forecast <- function() {
   )
 }
 
+phase15_test_simulation_inputs <- function(simulation_count = 2L, seed = 15017L) {
+  topology <- phase15_test_admitted_topology_inputs()
+  access <- topology$access
+  access$discipline_points <- seq_len(nrow(access))
+  forecast <- phase15_test_calibrated_forecast()
+  open <- topology$fixtures[1L, , drop = FALSE]
+  forecast$forecasts$fixture_id <- open$fixture_id
+  forecast$forecasts$match_id <- open$fixture_id
+  forecast$forecasts$home_team_id <- open$home_team_id
+  forecast$forecasts$away_team_id <- open$away_team_id
+  forecast$forecast_status$fixture_id <- open$fixture_id
+  forecast$score_distributions$fixture_id <- open$fixture_id
+
+  matches <- topology$fixtures
+  matches$match_status[[1L]] <- "scheduled"
+  matches$source_status[[1L]] <- "scheduled"
+  matches$counts_for_standings[[1L]] <- FALSE
+  matches$final_home_goals[[1L]] <- NA_integer_
+  matches$final_away_goals[[1L]] <- NA_integer_
+  matches$regulation_home_goals[[1L]] <- NA_integer_
+  matches$regulation_away_goals[[1L]] <- NA_integer_
+  matches$evidence_completed_at_utc[[1L]] <- NA_character_
+
+  list(
+    canonical_matches = matches,
+    completed_results = NULL,
+    forecast_status = forecast$forecast_status,
+    forecasts = forecast$forecasts,
+    score_distributions = forecast$score_distributions,
+    groups = list(groups = topology$groups, group_rows = access),
+    rules = uefa_nl_2026_27_rules(),
+    simulation_count = as.integer(simulation_count),
+    seed = as.integer(seed),
+    source_bundle_id = phase15_test_source_bundle_id,
+    source_bundle_sha256 = phase15_test_hash_token("simulation-source-bundle"),
+    model_release_id = "phase15-synthetic-model",
+    model_lineage = list(model_id = "phase15-synthetic-model", model_sha256 = phase15_test_hash_token("simulation-model")),
+    state_manifest_sha256 = phase15_test_hash_token("simulation-state-manifest"),
+    euro_playoff_eligibility = NULL,
+    official_stage_slots = NULL
+  )
+}
+
 phase15_test_contract_sections <- list(
   `15-01` = c("topology", "stage_slots", "source_admission", "group_formation"),
   `15-02` = c("group_ranking", "interim_ranking", "final_ranking", "transitions"),
@@ -1698,6 +1741,116 @@ test_that("Article 17 draw policies enforce different groups and host-driven Tea
   expect_equal(sum(semis$stage_slots$stage_id == "league_a_semi_final"), 2L)
   expect_equal(sum(semis$stage_slots$stage_id == "league_a_final"), 1L)
   expect_equal(sum(semis$stage_slots$stage_id == "league_a_third_place"), 1L)
+})
+
+test_that("simulation replay preserves RNG, hashes, and probability mass", {
+  inputs <- phase15_test_simulation_inputs(simulation_count = 2L)
+  before_inputs <- list(
+    canonical_matches = phase15_test_table_sha256(inputs$canonical_matches),
+    forecast_status = phase15_test_table_sha256(inputs$forecast_status),
+    forecasts = phase15_test_table_sha256(inputs$forecasts),
+    score_distributions = phase15_test_table_sha256(inputs$score_distributions)
+  )
+
+  set.seed(90210L)
+  rng_before <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  first <- do.call(uefa_nl_run_simulation, inputs)
+  rng_after <- get(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
+  second <- do.call(uefa_nl_run_simulation, inputs)
+
+  expect_identical(rng_after, rng_before)
+  expect_identical(first$output_hashes, second$output_hashes)
+  expect_identical(first$projected_standings, second$projected_standings)
+  expect_identical(first$projected_rankings, second$projected_rankings)
+  expect_identical(first$transition_outcomes, second$transition_outcomes)
+  expect_identical(first$canonical_input_hashes, second$canonical_input_hashes)
+  expect_identical(before_inputs$canonical_matches, phase15_test_table_sha256(inputs$canonical_matches))
+  expect_identical(before_inputs$forecast_status, phase15_test_table_sha256(inputs$forecast_status))
+  expect_identical(before_inputs$forecasts, phase15_test_table_sha256(inputs$forecasts))
+  expect_identical(before_inputs$score_distributions, phase15_test_table_sha256(inputs$score_distributions))
+  expect_true(all(c("final_overall_rank", "ranking_stage") %in% names(first$projected_rankings)))
+  expect_true(grepl("(^|;)final_overall_pre_finals(;|$)", first$simulation_metadata$ranking_stages[[1L]]))
+  expect_true(nzchar(first$simulation_metadata$ranking_stages_sha256[[1L]]))
+
+  reversed <- inputs
+  reversed$canonical_matches <- reversed$canonical_matches[nrow(reversed$canonical_matches):1L, , drop = FALSE]
+  reversed$forecast_status <- reversed$forecast_status[nrow(reversed$forecast_status):1L, , drop = FALSE]
+  reversed$forecasts <- reversed$forecasts[nrow(reversed$forecasts):1L, , drop = FALSE]
+  reversed$score_distributions <- reversed$score_distributions[nrow(reversed$score_distributions):1L, , drop = FALSE]
+  reversed$groups$groups <- reversed$groups$groups[nrow(reversed$groups$groups):1L, , drop = FALSE]
+  reversed$groups$group_rows <- reversed$groups$group_rows[nrow(reversed$groups$group_rows):1L, , drop = FALSE]
+  reversed_result <- do.call(uefa_nl_run_simulation, reversed)
+  expect_identical(first$output_hashes, reversed_result$output_hashes)
+
+  open_id <- inputs$canonical_matches$fixture_id[[1L]]
+  open_outcome <- first$outcome_probabilities[first$outcome_probabilities$fixture_id == open_id, , drop = FALSE]
+  expect_equal(nrow(open_outcome), 1L)
+  expect_equal(sum(as.numeric(open_outcome[1L, c("p_home", "p_draw", "p_away")])), 1, tolerance = 1e-12)
+  mass <- aggregate(probability ~ league + group_id + rank, first$projected_standings, sum, na.action = na.omit)
+  expect_true(all(abs(mass$probability - 1) <= 1e-12))
+})
+
+test_that("official stage capture replay is stable and C/D branches stay explicit", {
+  inputs <- phase15_test_simulation_inputs(simulation_count = 1L)
+  base <- do.call(uefa_nl_run_simulation, inputs)
+  interim <- base$projected_rankings[base$projected_rankings$ranking_scope == "interim_overall", , drop = FALSE]
+  candidate <- function(rank) as.character(interim$team_id[interim$interim_overall_rank == rank][[1L]])
+  all_teams <- unique(inputs$groups$group_rows$team_id)
+
+  unresolved <- base$transition_outcomes[base$transition_outcomes$stage_id == "c_d_playoff", , drop = FALSE]
+  expect_equal(nrow(unresolved), 4L)
+  expect_setequal(unresolved$lower_league_rank[unresolved$league == "D"], c(50L, 51L))
+  expect_true(all(unresolved$eligibility_status == "unresolved_external_eligibility"))
+  expect_true(all(unresolved$stage_status == "unresolved"))
+  expect_true(all(is.na(unresolved$retained_next_edition_league)))
+
+  cancellation <- inputs
+  cancellation$euro_playoff_eligibility <- data.frame(
+    team_id = all_teams,
+    qualifies_for_euro_playoff = FALSE,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  cancellation$euro_playoff_eligibility$qualifies_for_euro_playoff[
+    match(vapply(c(45L, 46L, 51L, 52L), candidate, character(1)), cancellation$euro_playoff_eligibility$team_id)
+  ] <- TRUE
+  cancelled <- do.call(uefa_nl_run_simulation, cancellation)
+  retained <- cancelled$transition_outcomes[
+    cancelled$transition_outcomes$stage_id == "c_d_playoff" & cancelled$transition_outcomes$cd_playoff_status == "cancelled",
+    , drop = FALSE
+  ]
+  expect_equal(nrow(retained), 4L)
+  expect_setequal(retained$interim_rank, c(46L, 47L, 50L, 51L))
+  expect_identical(retained$stage_status, rep("suppressed", 4L))
+  expect_identical(retained$retained_next_edition_league, c("C", "C", "D", "D"))
+  expect_setequal(retained$retained_next_edition_rank, c(46L, 47L, 50L, 51L))
+  expect_true(all(nzchar(retained$cancellation_reason)))
+  expect_true(all(is.na(retained$playoff_eligibility_probability)))
+  expect_true(all(is.na(retained$playoff_win_probability)))
+  expect_true(all(is.na(retained$playoff_loss_probability)))
+  expect_identical(cancelled$output_hashes, do.call(uefa_nl_run_simulation, cancellation)$output_hashes)
+
+  contest <- inputs
+  contest$euro_playoff_eligibility <- data.frame(
+    team_id = all_teams,
+    qualifies_for_euro_playoff = FALSE,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  contested <- do.call(uefa_nl_run_simulation, contest)$transition_outcomes
+  contested <- contested[contested$stage_id == "c_d_playoff" & contested$cd_playoff_status == "contested", , drop = FALSE]
+  expect_equal(nrow(contested), 4L)
+  expect_true(all(contested$eligibility_status == "eligible"))
+  expect_true(all(contested$stage_status == "unresolved"))
+  expect_true(all(is.na(contested$playoff_win_probability)))
+  expect_true(all(is.na(contested$playoff_loss_probability)))
+
+  captured <- inputs
+  captured$official_stage_slots <- phase15_test_completed_stage_capture()
+  captured_reversed <- captured
+  captured_reversed$official_stage_slots <- captured_reversed$official_stage_slots[nrow(captured_reversed$official_stage_slots):1L, , drop = FALSE]
+  capture_a <- do.call(uefa_nl_run_simulation, captured)
+  capture_b <- do.call(uefa_nl_run_simulation, captured_reversed)
+  expect_identical(capture_a$output_hashes, capture_b$output_hashes)
+  expect_true(any(capture_a$stage_slots$source_fixture_id == "source-qf-1"))
 })
 
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.
