@@ -2026,6 +2026,23 @@ test_that("official stage capture replay is stable and C/D branches stay explici
   expect_true(all(is.na(retained$playoff_loss_probability)))
   expect_identical(cancelled$output_hashes, do.call(uefa_nl_run_simulation, cancellation)$output_hashes)
 
+  partial <- inputs
+  partial$euro_playoff_eligibility <- data.frame(
+    team_id = all_teams,
+    qualifies_for_euro_playoff = FALSE,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  partial$euro_playoff_eligibility$qualifies_for_euro_playoff[
+    match(candidate(45L), partial$euro_playoff_eligibility$team_id)
+  ] <- TRUE
+  partial_result <- do.call(uefa_nl_run_simulation, partial)$transition_outcomes
+  partial_cd <- partial_result[partial_result$stage_id == "c_d_playoff", , drop = FALSE]
+  expect_equal(nrow(partial_cd), 4L)
+  expect_identical(partial_cd$cd_playoff_status, rep("cancelled", 4L))
+  expect_identical(partial_cd$selection_status, rep("retained", 4L))
+  expect_setequal(partial_cd$interim_rank, c(46L, 47L, 50L, 51L))
+  expect_false(any(partial_cd$selection_status == "contested"))
+
   contest <- inputs
   contest$euro_playoff_eligibility <- data.frame(
     team_id = all_teams,

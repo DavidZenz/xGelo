@@ -2114,7 +2114,7 @@ uefa_nl_select_transition_slots <- function(
   output <- do.call(rbind, rows)
   cancellation <- uefa_nl_resolve_cd_playoff_cancellation(rankings, euro_playoff_eligibility, rules)
   if (nrow(cancellation) && any(cancellation$cd_playoff_status == "cancelled")) {
-    output <- output[!(output$stage_id == "c_d_playoff" & output$cd_playoff_status == "cancelled"), , drop = FALSE]
+    output <- output[output$stage_id != "c_d_playoff", , drop = FALSE]
     for (field in setdiff(names(cancellation), names(output))) output[[field]] <- NA
     for (field in setdiff(names(output), names(cancellation))) cancellation[[field]] <- NA
     cancellation <- cancellation[, names(output), drop = FALSE]
