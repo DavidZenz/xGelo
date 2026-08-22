@@ -1233,6 +1233,129 @@ test_that("the Article 15 adapter handles a three-team League D group without a 
   expect_true(all(ranked$excluded_match_ids == ""))
 })
 
+test_that("Article 19 individual rankings preserve cardinality-aware match lineage", {
+  four_team <- phase15_test_four_team_group()
+  three_team <- phase15_test_three_team_group()
+  four_standings <- four_team$standings
+  four_standings$league <- "A"
+  four_standings$league_id <- "A"
+  three_standings <- three_team$standings
+  three_standings$league <- "D"
+  three_standings$league_id <- "D"
+  individual <- uefa_nl_rank_individual_league(
+    group_standings = list(A1 = four_standings, D1 = three_standings),
+    match_rows = rbind(four_team$matches, three_team$matches)
+  )
+
+  expect_identical(individual$individual_rank[individual$league == "A"], 1:4)
+  expect_identical(individual$individual_rank[individual$league == "D"], 1:3)
+  a_top <- individual[individual$league == "A" & individual$group_position == 1L, , drop = FALSE]
+  a_fourth <- individual[individual$league == "A" & individual$group_position == 4L, , drop = FALSE]
+  d_rows <- individual[individual$league == "D", , drop = FALSE]
+  expect_length(strsplit(a_top$excluded_match_ids[[1L]], ";", fixed = TRUE)[[1L]], 2L)
+  expect_length(strsplit(a_top$counted_match_ids[[1L]], ";", fixed = TRUE)[[1L]], 4L)
+  expect_identical(a_fourth$excluded_match_ids[[1L]], "")
+  expect_true(all(d_rows$excluded_match_ids == ""))
+  expect_true(all(d_rows$comparison_status == "ready"))
+  expect_true(all(grepl("^[0-9a-f]{64}$", individual$row_sha256)))
+
+  missing_discipline <- four_standings
+  missing_discipline$discipline_points[[1L]] <- NA_integer_
+  blocked <- uefa_nl_rank_individual_league(
+    group_standings = list(A1 = missing_discipline),
+    match_rows = four_team$matches
+  )
+  expect_true(all(is.na(blocked$individual_rank)))
+  expect_true(all(blocked$ordering_status == "blocked"))
+  expect_true(all(grepl("discipline_points", blocked$missing_rule_input)))
+})
+
+test_that("Article 19 interim rankings and transition selectors use exact dynamic rank bands", {
+  groups <- list()
+  index <- 1L
+  for (league in c("A", "B", "C")) {
+    for (group_number in 1:4) {
+      for (group_position in 1:4) {
+        groups[[index]] <- data.frame(
+          edition_id = phase15_test_edition_id,
+          team_id = phase15_test_team_id(league, group_number, group_position),
+          league = league,
+          league_id = league,
+          group_id = paste0(league, group_number),
+          group_position = group_position,
+          individual_rank = (group_position - 1L) * 4L + group_number,
+          discipline_points = group_number,
+          access_list_position = index,
+          ordering_status = "ready",
+          stringsAsFactors = FALSE,
+          check.names = FALSE
+        )
+        index <- index + 1L
+      }
+    }
+  }
+  for (group_number in 1:2) {
+    for (group_position in 1:3) {
+      groups[[index]] <- data.frame(
+        edition_id = phase15_test_edition_id,
+        team_id = phase15_test_team_id("D", group_number, group_position),
+        league = "D",
+        league_id = "D",
+        group_id = paste0("D", group_number),
+        group_position = group_position,
+        individual_rank = (group_position - 1L) * 2L + group_number,
+        discipline_points = group_number,
+        access_list_position = index,
+        ordering_status = "ready",
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      )
+      index <- index + 1L
+    }
+  }
+  individual <- do.call(rbind, groups)
+  interim <- uefa_nl_rank_interim_overall(individual)
+  expect_identical(interim$interim_rank[interim$league == "A"], 1:16)
+  expect_identical(interim$interim_rank[interim$league == "B"], 17:32)
+  expect_identical(interim$interim_rank[interim$league == "C"], 33:48)
+  expect_identical(interim$interim_rank[interim$league == "D"], 49:54)
+  expect_false(any(interim$interim_rank == 55L))
+
+  selectors <- uefa_nl_select_transition_slots(interim)
+  expect_equal(nrow(selectors), 30L)
+  expect_equal(sum(selectors$transition_type == "direct_promotion"), 10L)
+  expect_equal(sum(selectors$transition_type == "direct_relegation"), 10L)
+  expect_equal(sum(selectors$stage_id == "a_b_playoff"), 4L)
+  expect_equal(sum(selectors$stage_id == "b_c_playoff"), 4L)
+  expect_equal(sum(selectors$stage_id == "c_d_playoff"), 2L)
+  expect_equal(anyDuplicated(selectors$transition_key), 0L)
+
+  ab <- selectors[selectors$stage_id == "a_b_playoff", , drop = FALSE]
+  bc <- selectors[selectors$stage_id == "b_c_playoff", , drop = FALSE]
+  cd <- selectors[selectors$stage_id == "c_d_playoff", , drop = FALSE]
+  expect_identical(ab$higher_league_rank, 9:12)
+  expect_identical(ab$lower_league_rank, 21:24)
+  expect_identical(bc$higher_league_rank, 25:28)
+  expect_identical(bc$lower_league_rank, 37:40)
+  expect_identical(cd$higher_league_rank, 45:46)
+  expect_identical(cd$lower_league_rank, 51:52)
+  expect_true(all(ab$first_leg_home_team_id == ab$lower_league_team_id))
+  expect_true(all(bc$first_leg_home_team_id == bc$lower_league_team_id))
+  expect_true(all(cd$first_leg_home_team_id == cd$lower_league_team_id))
+  expect_true(all(cd$selection_status == "unresolved"))
+  expect_true(all(cd$eligibility_status == "unresolved_external_eligibility"))
+  expect_true(all(cd$unresolved_reason == "euro_playoff_eligibility_missing"))
+
+  blocked <- interim
+  blocked$ordering_status[blocked$league == "B"] <- "blocked"
+  blocked$computed_rank[blocked$league == "B"] <- NA_integer_
+  blocked_selectors <- uefa_nl_select_transition_slots(blocked)
+  blocked_b <- blocked_selectors[blocked_selectors$stage_id == "b_c_playoff", , drop = FALSE]
+  expect_true(all(blocked_b$selection_status == "unresolved"))
+  expect_true(all(blocked_b$unresolved_reason == "missing_rule_input"))
+  expect_true(all(is.na(blocked_b$higher_league_team_id)))
+})
+
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.
 # Plan 15-02 extension points: Article 15 group ranking, Article 19 rankings, and transitions.
 # Plan 15-03 extension points: calibrated sampling, stage resolution, draw policies, and simulation.
