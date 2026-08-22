@@ -770,8 +770,9 @@ uefa_nl_sim_first_present <- function(row, fields, default = NA_character_) {
 
 uefa_nl_sim_parse_timestamp <- function(value) {
   if (is.null(value) || !length(value) || is.na(value[[1L]]) || !nzchar(trimws(as.character(value[[1L]])))) return(as.POSIXct(NA, tz = "UTC"))
-  parsed <- suppressWarnings(as.POSIXct(as.character(value[[1L]]), tz = "UTC"))
-  if (is.na(parsed)) stop("Nations League simulation timestamp is invalid", call. = FALSE)
+  text <- trimws(as.character(value[[1L]]))
+  parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  if (is.na(parsed) || !grepl("Z$", text)) stop("Nations League simulation timestamp is invalid", call. = FALSE)
   parsed
 }
 

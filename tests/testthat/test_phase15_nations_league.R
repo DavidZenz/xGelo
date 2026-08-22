@@ -1344,6 +1344,8 @@ test_that("official stage capture validation rejects fabricated or incomplete ro
 
 test_that("published stage-capture lineage uses existing registered paths", {
   environment <- new.env(parent = .GlobalEnv)
+  old_wd <- setwd(phase15_test_project_root)
+  on.exit(setwd(old_wd), add = TRUE)
   sys.source(
     file.path(phase15_test_project_root, "scripts/build_nations_league_outcomes.R"),
     envir = environment
@@ -2050,12 +2052,14 @@ test_that("simulation replay preserves RNG, hashes, and probability mass", {
 
 test_that("replay verification compares every registered artifact key exactly", {
   replay_environment <- new.env(parent = .GlobalEnv)
+  old_wd <- setwd(phase15_test_project_root)
+  on.exit(setwd(old_wd), add = TRUE)
   sys.source(
     file.path(phase15_test_project_root, "scripts/build_nations_league_outcomes.R"),
     envir = replay_environment
   )
   compare_replays <- replay_environment$phase15_nl_compare_replays
-  expected <- replay_environment$phase15_nl_outcomes_expected_inventory()
+  expected <- phase15_nl_outcomes_expected_inventory()
   artifacts <- setNames(
     lapply(expected, function(path) {
       data.frame(non_explicit_artifact_column = "before", stringsAsFactors = FALSE)
@@ -2534,7 +2538,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   expect_true(all(as.character(manifest$validation_status) == "valid"))
 
   topology_output <- bundle$artifacts[["outcomes/competition_topology.csv"]]
-  topology_groups <- topology_output[topology_output$topology_type == "group", , drop = FALSE]
+  topology_groups <- topology_output[topology_output$record_type == "group", , drop = FALSE]
   expect_equal(nrow(topology_groups), 14L)
   expect_true(all(
       as.integer(topology_groups$team_count) ==

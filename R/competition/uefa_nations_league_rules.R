@@ -957,7 +957,6 @@ uefa_nl_rank_prepare_matches <- function(match_rows, team_ids, standings) {
   rows$match_id <- uefa_nl_rank_match_id(rows)
   if (!"final_home_goals" %in% names(rows) && "home_goals" %in% names(rows)) rows$final_home_goals <- rows$home_goals
   if (!"final_away_goals" %in% names(rows) && "away_goals" %in% names(rows)) rows$final_away_goals <- rows$away_goals
-  score_missing <- setdiff(c("final_home_goals", "final_away_goals"), names(rows))
   home_goals <- if ("final_home_goals" %in% names(rows)) suppressWarnings(as.numeric(as.character(rows$final_home_goals))) else rep(NA_real_, nrow(rows))
   away_goals <- if ("final_away_goals" %in% names(rows)) suppressWarnings(as.numeric(as.character(rows$final_away_goals))) else rep(NA_real_, nrow(rows))
   score_present <- !is.na(home_goals) & !is.na(away_goals)
@@ -996,11 +995,21 @@ uefa_nl_rank_prepare_matches <- function(match_rows, team_ids, standings) {
   }
   cutoff <- as.POSIXct(NA, tz = "UTC")
   if (any(contributing)) {
-    if (!"state_cutoff_utc" %in% names(standings)) {
+    cutoff_values <- if ("state_cutoff_utc" %in% names(standings)) {
+      as.character(standings$state_cutoff_utc)
+    } else if ("state_cutoff_utc" %in% names(rows)) {
+      as.character(rows$state_cutoff_utc)
+    } else {
+      character()
+    }
+    if (!length(cutoff_values)) {
       missing_inputs <- c(missing_inputs, "state_cutoff_utc")
     } else {
-      cutoff <- uefa_nl_rank_parse_utc(standings$state_cutoff_utc[[1L]])[[1L]]
-      if (is.na(cutoff)) {
+      parsed_cutoffs <- uefa_nl_rank_parse_utc(cutoff_values)
+      cutoff <- parsed_cutoffs[[1L]]
+      if (any(is.na(parsed_cutoffs)) || is.na(cutoff)) {
+        missing_inputs <- c(missing_inputs, "state_cutoff_utc")
+      } else if (any(parsed_cutoffs != cutoff)) {
         missing_inputs <- c(missing_inputs, "state_cutoff_utc")
       } else if (any(contributing & !is.na(evidence) & evidence > cutoff)) {
         missing_inputs <- c(missing_inputs, "evidence_before_state_cutoff")
