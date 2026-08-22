@@ -113,6 +113,7 @@ phase15_test_source <- function(relative_path, envir = .GlobalEnv) {
 
 phase15_test_source("R/competition/source_contracts.R")
 phase15_test_source("R/competition/uefa_nations_league_rules.R")
+phase15_test_source("R/competition/uefa_nations_league_adapter.R")
 
 phase15_test_output_root <- local({
   registered <- new.env(parent = emptyenv())
@@ -466,6 +467,14 @@ phase15_test_completed_stage_capture <- function() {
   capture <- do.call(rbind, rows)
   rownames(capture) <- NULL
   phase15_test_add_row_hashes(capture)
+}
+
+phase15_test_adapter_stage_capture <- function() {
+  capture <- phase15_test_completed_stage_capture()
+  schema <- phase15_uefa_nl_stage_capture_schema()
+  capture <- capture[, schema, drop = FALSE]
+  capture$row_sha256 <- phase13_row_sha256(capture)
+  capture
 }
 
 phase15_test_calibrated_forecast <- function() {
@@ -876,6 +885,102 @@ test_that("stage-slot status contracts fail closed for fabricated official rows"
   bad_final$final_home_goals <- 1L
   bad_final$row_sha256 <- phase13_row_sha256(bad_final)
   expect_error(uefa_nl_validate_stage_slots(bad_final), "regulation plus extra-time")
+})
+
+test_that("downstream stage capture is separately admitted and the empty registry replays", {
+  schema <- phase15_uefa_nl_stage_capture_schema()
+  paths <- phase15_uefa_nl_stage_capture_paths(project_root = phase15_test_project_root)
+  expected_paths <- c(
+    raw_relative_path = "data/competition/local_raw/uefa_nations_league_2026_27/nl-2026-27-stage-capture-v1/stage_capture.json",
+    capture_relative_path = "data/competition/accepted/uefa_nations_league_2026_27/stage_capture.csv",
+    manifest_relative_path = "data/competition/accepted/uefa_nations_league_2026_27/stage_capture_manifest.csv",
+    registry_relative_path = "data/competition/registries/stage_captures.csv"
+  )
+  expect_identical(unname(unlist(paths[names(expected_paths)])), unname(expected_paths))
+  expect_identical(
+    schema,
+    c(
+      "edition_id", "stage_id", "round_id", "leg_number", "source_fixture_id",
+      "home_team_id", "away_team_id", "participant_slot_home", "participant_slot_away",
+      "scheduled_at_utc", "source_status", "stage_status", "source_artifact_id",
+      "source_url", "retrieved_at_utc", "raw_sha256", "regulation_home_goals",
+      "regulation_away_goals", "extra_time_home_goals", "extra_time_away_goals",
+      "penalty_shootout_home_goals", "penalty_shootout_away_goals", "final_home_goals",
+      "final_away_goals", "completed_at_utc", "row_sha256"
+    )
+  )
+  expect_false("stage_capture" %in% phase13_source_required_resource_types())
+  empty <- phase15_uefa_nl_read_stage_capture(project_root = phase15_test_project_root)
+  expect_identical(empty$capture_status, "empty")
+  expect_identical(names(empty$stage_capture), schema)
+  expect_equal(nrow(empty$stage_capture), 0L)
+  expect_identical(empty$manifest$capture_status, "empty")
+  expect_identical(empty$registry$manifest_sha256, empty$manifest$manifest_sha256)
+})
+
+test_that("official stage capture validation rejects fabricated or incomplete rows", {
+  capture <- phase15_test_adapter_stage_capture()
+  expect_silent(phase15_uefa_nl_validate_stage_capture(capture))
+  adapted <- phase15_uefa_nl_adapt_stage_capture(capture)
+  expect_identical(adapted$capture_status, "accepted")
+  expect_equal(nrow(adapted$stage_capture), nrow(capture))
+  expect_identical(names(adapted$stage_capture), names(capture))
+
+  foreign <- capture
+  foreign$edition_id[[1L]] <- "foreign_edition"
+  foreign$row_sha256 <- phase13_row_sha256(foreign)
+  expect_error(phase15_uefa_nl_validate_stage_capture(foreign), "foreign edition")
+
+  missing_lineage <- capture
+  missing_lineage$source_artifact_id[[1L]] <- ""
+  missing_lineage$row_sha256 <- phase13_row_sha256(missing_lineage)
+  expect_error(phase15_uefa_nl_validate_stage_capture(missing_lineage), "source_artifact_id")
+
+  duplicate_id <- capture
+  duplicate_id$source_fixture_id[[2L]] <- duplicate_id$source_fixture_id[[1L]]
+  duplicate_id$row_sha256 <- phase13_row_sha256(duplicate_id)
+  expect_error(phase15_uefa_nl_validate_stage_capture(duplicate_id), "unique source fixture IDs")
+
+  incomplete <- capture
+  incomplete$final_home_goals[[1L]] <- NA_integer_
+  incomplete$row_sha256 <- phase13_row_sha256(incomplete)
+  expect_error(phase15_uefa_nl_validate_stage_capture(incomplete), "final_home_goals")
+
+  fabricated <- capture[1L, , drop = FALSE]
+  fabricated$stage_status <- "official"
+  fabricated$source_fixture_id <- ""
+  fabricated$regulation_home_goals <- NA_integer_
+  fabricated$regulation_away_goals <- NA_integer_
+  fabricated$extra_time_home_goals <- NA_integer_
+  fabricated$extra_time_away_goals <- NA_integer_
+  fabricated$final_home_goals <- NA_integer_
+  fabricated$final_away_goals <- NA_integer_
+  fabricated$completed_at_utc <- ""
+  fabricated$row_sha256 <- phase13_row_sha256(fabricated)
+  expect_error(phase15_uefa_nl_validate_stage_capture(fabricated), "unique source fixture IDs")
+
+  expect_error(
+    phase13_validate_structured_resource_names(c(phase13_source_required_resource_types(), "stage_capture")),
+    "unknown resource"
+  )
+})
+
+test_that("the existing scheduled adapter remains a five-resource, 156-fixture boundary", {
+  raw_path <- file.path(
+    phase15_test_project_root,
+    "data/competition/local_raw/uefa_nations_league_2026_27/nl-2026-27-official-uefa-v2/fixtures.json"
+  )
+  payload <- jsonlite::fromJSON(
+    rawToChar(readBin(raw_path, what = "raw", n = file.info(raw_path)$size)),
+    simplifyVector = FALSE
+  )
+  expect_silent(phase14_uefa_nl_validate_response(payload))
+  adapted <- phase14_uefa_nl_adapt_response(payload)
+  expect_identical(names(adapted$resources), phase13_source_required_resource_types())
+  expect_identical(adapted$official_counts, c(fixtures = 156L, groups = 14L, teams = 54L))
+  expect_true(all(is.na(adapted$resources$results$home_goals)))
+  expect_true(all(is.na(adapted$resources$results$away_goals)))
+  expect_identical(adapted$resources$status$competition_status, "scheduled")
 })
 
 # Plan 15-01 extension points: topology, stage-slot, source-admission, and group-formation APIs.
