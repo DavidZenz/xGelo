@@ -8,7 +8,7 @@ status: executing
 stopped_at: Completed 15-05-PLAN.md
 last_updated: "2026-08-22T11:47:30.254Z"
 last_activity: 2026-08-22
-last_activity_desc: Phase 15 execution started
+last_activity_desc: Phase 15 Plan 15-05 completed; ready for Plan 15-06
 progress:
   total_phases: 3
   completed_phases: 2
@@ -23,17 +23,17 @@ progress:
 Phase: 15 (Nations League Rules and Outcomes) — EXECUTING
 Plan: 7 of 7
 Status: Ready to execute
-Last activity: 2026-08-22 — Phase 15 execution started
+Last activity: 2026-08-22 — Phase 15 Plan 15-05 completed; ready for Plan 15-06
 
 ## Progress
 
-**Progress:** [██████████] 98% (35/42 plans complete)
+**Progress:** [██████████] 98% (41/42 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
 | 14 | Shared Competition State and Forecast Layer | Complete: canonical state, cutoff-safe form, release-active forecasts, deterministic production batches, edition-isolated candidates, truthful EURO pre_draw bundle, and official durable Nations League bundle | 7/7 |
-| 15 | Nations League Rules and Outcomes | Not started | 2/2 |
+| 15 | Nations League Rules and Outcomes | In Progress: 6/7 plans executed | 2/2 |
 | 16 | EURO Qualifying Activation and Play-off Rules | Not started | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
@@ -178,7 +178,7 @@ dependence on paid data feeds.
 
 ## Next Action
 
-Plan Phase 15 Nations League rules and outcomes, then execute its implementation plans.
+Execute Plan 15-06 production acceptance, replay, and no-leakage checks for the Nations League bundle.
 
 ## Session Continuity
 
