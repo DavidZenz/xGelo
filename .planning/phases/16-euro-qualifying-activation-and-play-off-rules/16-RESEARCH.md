@@ -488,8 +488,8 @@ The five planning questions below are resolved at the contract level on 2026-08-
    - Planned proof: Phase 16 handoff tests read the registered Phase 15 output and manifest, accept only a complete Phase 15-native interim projection after normalization, and reject `final_overall`, `final_overall_pre_finals`, group-stage, missing, duplicate, and unresolved handoffs.
 
 5. **How is the EURO lifecycle activated after the official bundle is accepted?**
-   - Resolution: Keep `data/competition/registries/competition_editions.csv:3` at `pre_draw` through draw-date passage. Validate the complete official status/groups/fixtures bundle first, then use the sole authority `phase13_transition_competition_edition()` in `R/competition/edition_registry.R:435-459` to persist the canonical `pre_draw -> scheduled` transition and pass that transitioned row into the accepted-refresh path in `scripts/acquire_uefa_snapshot.R:2863-2921`. The pre-draw structural guard at `scripts/acquire_uefa_snapshot.R:2082-2087` remains active until acceptance; date alone never activates state.
-   - Planned proof: Lifecycle tests exercise date-only, incomplete, missing-kickoff, complete accepted, and next-Phase-14-build cases through temporary registry/state roots and assert lifecycle, revision, row-hash, bundle, and state-path lineage.
+   - Resolution: Keep `data/competition/registries/competition_editions.csv:3` at `pre_draw` through draw-date passage. Validate the complete official status/groups/fixtures bundle first, then use the sole authority `phase13_transition_competition_edition()` in `R/competition/edition_registry.R:435-459` to persist the canonical `pre_draw -> scheduled` transition. The normal fallback branch of `phase13_acquire_publish_refresh()` at `scripts/acquire_uefa_snapshot.R:3105-3115` and the normal normalized branch at `scripts/acquire_uefa_snapshot.R:3148-3172` must both perform the post-publication transition/update; blocked recovery is not the only lifecycle path. The pre-draw structural guard at `scripts/acquire_uefa_snapshot.R:2082-2087` remains active until acceptance. The registry rule at `R/competition/edition_registry.R:386-395` keeps the official date mandatory but does not infer `scheduled`; loader validation around `R/competition/edition_registry.R:1207-1215` admits a scheduled row only after the complete accepted snapshot, status, and hash graph passes. Date-only and incomplete candidates remain `pre_draw`, and failure injection proves no scheduled registry exists without an accepted bundle.
+   - Planned proof: Lifecycle tests exercise both normal publication branches, failure-injected publication, date-only, incomplete, missing-kickoff, complete accepted, scheduled registry loading, and next-Phase-14-build cases through temporary registry/state roots and assert lifecycle, revision, row-hash, bundle, and state-path lineage.
 
 ## Environment Availability
 
@@ -516,6 +516,7 @@ The five planning questions below are resolved at the contract level on 2026-08-
 | Config file | Existing project testthat setup; new focused file is a Wave 0 gap [VERIFIED: codebase grep] |
 | Quick run command | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase16_euro_qualifying.R")'` |
 | Full suite command | `Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'` |
+| Baseline capture/compare | `.planning/phases/16-euro-qualifying-activation-and-play-off-rules/16-baseline-check.R` runs the full-suite command in a child process. Capture writes exit status, sorted normalized failure identities, combined-output SHA-256, and known-baseline disposition even when the child is nonzero, returns zero only after its record is persisted, and compare returns nonzero only for a new or unparseable failure; a persistent recorded baseline remains explicitly non-green. |
 
 ### Phase Requirements -> Test Map
 
@@ -529,7 +530,7 @@ The five planning questions below are resolved at the contract level on 2026-08-
 ### Sampling Rate
 
 - **Per task commit:** `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase16_euro_qualifying.R")'`
-- **Per wave merge:** `Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'`
+- **Per wave merge:** `.planning/phases/16-euro-qualifying-activation-and-play-off-rules/16-baseline-check.R --compare --baseline .planning/phases/16-euro-qualifying-activation-and-play-off-rules/16-BASELINE.md`; the known child exit is compared, not mistaken for a green full-suite result.
 - **Phase gate:** Focused and relevant regressions pass, and the full suite has no failures beyond the Wave 0 baseline fingerprint before `$gsd-verify-work`; any persistent known failure is reported separately.
 
 ### Wave 0 Gaps
@@ -538,6 +539,7 @@ The five planning questions below are resolved at the contract level on 2026-08-
 - [ ] Small synthetic fixtures for 12-group mixed-size ranking, four host associations, duplicate/unknown team IDs, missing kickoff, and all three topology branches.
 - [ ] A synthetic Phase 15 eligibility handoff with valid, incomplete, duplicate, wrong-ranking-stage, and unresolved rows.
 - [ ] A candidate-publication test proving the last accepted EURO bundle remains byte/hash unchanged when a post-draw correction fails.
+- [ ] A baseline capture/compare helper proving nonzero child exit persistence, normalized failure identity capture, output hashing, known-baseline disposition, and new/unparseable-failure rejection.
 
 ## Security Domain
 
