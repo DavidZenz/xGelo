@@ -469,7 +469,7 @@ euro_pre_draw_output <- function(edition_row, source_bundle) {
 
 ## Open Questions (RESOLVED)
 
-The four planning questions below are resolved at the contract level on 2026-08-23. Future UEFA content can revise an accepted bundle only through the existing manifest, hash, and candidate-validation boundary; it does not change these implementation obligations.
+The five planning questions below are resolved at the contract level on 2026-08-23. Future UEFA content can revise an accepted bundle only through the existing manifest, hash, and candidate-validation boundary; it does not change these implementation obligations.
 
 1. **What exact UEFA artifacts will contain the full draw-and-schedule bundle after 2026-12-06?**
    - Resolution: Keep acquisition manifest/config-driven and retain the URL or resource locator discovered by the registered adapter. Do not hardcode an unknown future endpoint. The accepted source bundle must retain raw snapshot metadata and validate all five required resource classes, matching provenance/hashes, stable identities, complete official groups and fixtures, and confirmed kickoff timestamps before activation.
@@ -484,8 +484,12 @@ The four planning questions below are resolved at the contract level on 2026-08-
    - Planned proof: Tests cover an active bundle with real groups/confirmed kickoffs and zero completed results, zero/one/two used host slots, and a four-host synthetic case with deterministic top-two selection after completed results.
 
 4. **What exact Phase 15 artifact is the accepted EURO eligibility input?**
-   - Resolution: Use a registered, validated Phase 15 outcomes adapter keyed by stable `team_id`. The handoff must include the canonical interim ranking projection with `ranking_scope = "interim_overall"` and `ranking_stage = "interim_overall"`, plus the accepted manifest/source/rules lineage required by the Phase 15 contract. Final-only, wrong-stage, duplicate, missing, or unresolved rows produce `unresolved_external_eligibility` and suppress probabilities.
-   - Planned proof: Phase 16 handoff tests accept complete interim-stage rows and reject `final_overall`, `final_overall_pre_finals`, group-stage, missing, duplicate, and unresolved handoffs.
+   - Resolution: Use a registered, validated Phase 15 outcomes adapter keyed by stable `team_id`. The handoff must include the canonical interim ranking projection with `ranking_scope = "interim_overall"` and `ranking_stage = "interim_overall"`, plus the accepted manifest/source/rules lineage required by the Phase 15 contract. The production anchors are `uefa_nl_rank_interim_overall()` at `R/competition/uefa_nations_league_rules.R:1467-1498` and `uefa_nl_sim_rank_capture()` at `R/competition/uefa_nations_league_simulation.R:1829-1857`; because the latter currently overwrites interim rows from final-ranking stages, Phase 16 must preserve or derive the canonical interim fields in its adapter rather than trusting a copied `ranking_stage`. The registered `outputs/competition/uefa_nations_league_2026_27/outcomes/projected_rankings.csv` is currently final-only/blocked and is a required rejection fixture, not a synthetic positive input. Final-only, wrong-stage, duplicate, missing, or unresolved rows produce `unresolved_external_eligibility` and suppress probabilities.
+   - Planned proof: Phase 16 handoff tests read the registered Phase 15 output and manifest, accept only a complete Phase 15-native interim projection after normalization, and reject `final_overall`, `final_overall_pre_finals`, group-stage, missing, duplicate, and unresolved handoffs.
+
+5. **How is the EURO lifecycle activated after the official bundle is accepted?**
+   - Resolution: Keep `data/competition/registries/competition_editions.csv:3` at `pre_draw` through draw-date passage. Validate the complete official status/groups/fixtures bundle first, then use the sole authority `phase13_transition_competition_edition()` in `R/competition/edition_registry.R:435-459` to persist the canonical `pre_draw -> scheduled` transition and pass that transitioned row into the accepted-refresh path in `scripts/acquire_uefa_snapshot.R:2863-2921`. The pre-draw structural guard at `scripts/acquire_uefa_snapshot.R:2082-2087` remains active until acceptance; date alone never activates state.
+   - Planned proof: Lifecycle tests exercise date-only, incomplete, missing-kickoff, complete accepted, and next-Phase-14-build cases through temporary registry/state roots and assert lifecycle, revision, row-hash, bundle, and state-path lineage.
 
 ## Environment Availability
 

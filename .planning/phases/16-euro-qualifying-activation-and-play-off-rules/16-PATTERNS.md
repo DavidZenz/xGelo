@@ -111,7 +111,7 @@ allocate_euro_places <- function(group_rankings, host_ids, nl_eligibility, rules
 
 **Host ledger:** Keep host slots separate from direct qualification. The allocation output should include explicit host association, slot status (`occupied`, `unused`, `unresolved`), direct-qualification consumption, remaining capacity, source/rules lineage, and a suppression reason when host guarantees are unresolved.
 
-**Phase 15 handoff:** Consume the accepted transition table by stable `team_id`. The existing helper rejects missing/duplicate IDs and incomplete candidate coverage with `unresolved_external_eligibility` (`R/competition/uefa_nations_league_rules.R:1972-1989`). Do not reconstruct Nations League rankings from EURO rows or join on display names.
+**Phase 15 handoff:** Consume the registered, accepted transition output by stable `team_id`, with source/rules/manifest lineage carried through the adapter. `uefa_nl_rank_interim_overall()` creates the required `ranking_scope = "interim_overall"` and `ranking_stage = "interim_overall"` at `R/competition/uefa_nations_league_rules.R:1467-1498`, but `uefa_nl_sim_rank_capture()` at `R/competition/uefa_nations_league_simulation.R:1829-1857` currently overwrites interim rows from final-ranking stages. Therefore the Phase 16 `uefa_euro_normalize_nl_interim_projection()` adapter must preserve or derive a canonical interim projection from registered Phase 15-native fields before simulation. The current registered `outputs/competition/uefa_nations_league_2026_27/outcomes/projected_rankings.csv` is final-only/blocked and must be used as a rejection fixture; do not accept it as a positive handoff. The existing helper rejects missing/duplicate IDs and incomplete candidate coverage with `unresolved_external_eligibility` (`R/competition/uefa_nations_league_rules.R:1972-1989`). Do not reconstruct Nations League rankings from EURO rows or join on display names.
 
 ---
 
@@ -396,6 +396,10 @@ phase13_validate_source_bundle <- function(bundle, artifacts) {
 ```
 
 Activation is a bundle-validation result, not a date toggle. Preserve the existing `pre_draw` structural guard: when EURO status contains `pre_draw`, every non-status structure table must have zero rows (`publication_hashes.R:326-339`).
+
+### Phase 14 production state and lifecycle seams
+
+The Phase 16 state integration must use the real production path, not the older pure helper: `phase14_state_bundle_candidate_production()` in `R/competition/state_bundle.R:1081-1225`, its invocation from `phase14_build_competition_state_batch()` near `:1890`, and `phase14_build_competition_state_main()` in `scripts/build_competition_state.R:266-345` through the existing run/invocation path near `:133`. The accepted-manifest logic around `state_bundle.R:1308-1360` must derive bundle/status/artifact lineage per edition rather than assuming Nations League, and the reason contract around `:1658-1672` must retain the Phase 16 reasons `pre_draw`, `unavailable`, `revision_blocked`, `host_place_unresolved`, `unresolved_external_eligibility`, and `unsupported_topology` without fabricating active state. The fresh-process loader around `build_competition_state.R:52-72` explicitly sources `R/competition/uefa_euro_rules.R` before the state bundle. Lifecycle persistence remains owned by `phase13_transition_competition_edition()` at `R/competition/edition_registry.R:435-459`; accepted refresh must pass the transitioned row rather than copy a stale `pre_draw` base row.
 
 ### Pre-draw state and forecast suppression
 
