@@ -203,7 +203,12 @@ Plans:
 3. Qualification outputs apply the official edition rules for direct qualification, host-reserved places, best runners-up, Nations League-linked play-off eligibility, and every valid play-off topology.
 4. Unresolved, blocked, or insufficient-source states stay explicit and suppress fabricated groups, fixtures, standings, and probabilities.
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 16-01-PLAN.md — Accepted-bundle activation and pre-draw state contract (Wave 1)
+- [ ] 16-02-PLAN.md — Official ranking, host allocation, and play-off topology (Wave 2)
+- [ ] 16-03-PLAN.md — Nations League eligibility and seeded qualification simulation (Wave 3)
+- [ ] 16-04-PLAN.md — Fail-closed outcomes bundle, CLI, and revision-safe publication (Wave 4)
 **UI hint**: yes
 
 ### Phase 17: Shared Dashboards and Atomic Refresh Operations
