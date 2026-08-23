@@ -467,27 +467,25 @@ euro_pre_draw_output <- function(edition_row, source_bundle) {
 | A3 | [ASSUMED] Phase 15's accepted transition outcome handoff will be the durable cross-competition source at execution time, subject to its own validation status. | Nations League-linked input | If the handoff is absent or incomplete, EURO play-off eligibility must stay unresolved and probability outputs must be suppressed. |
 | A4 | [ASSUMED] The exact compact EURO outcome filenames and enum spellings are still discretionary because this phase has no implementation yet. | Architecture Patterns | Planner must lock names consistently across R, tests, manifests, and Phase 17 payload consumers. |
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+The four planning questions below are resolved at the contract level on 2026-08-23. Future UEFA content can revise an accepted bundle only through the existing manifest, hash, and candidate-validation boundary; it does not change these implementation obligations.
 
 1. **What exact UEFA artifacts will contain the full draw-and-schedule bundle after 2026-12-06?**
-   - What we know: [CITED: https://www.uefa.com/euro2028/news/029f-1f2ff991e87b-345fffcd69c3-1000--uefa-euro-2028-qualifying-draw-to-take-place-in-belfast/] UEFA has confirmed the draw date and [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-24-Match-dates-and-fixtures-Online] says UEFA compiles the fixture list after the draw.
-   - What's unclear: [ASSUMED] The stable page/export path, revision identifier, and whether kickoff confirmation arrives in one response or staged updates.
-   - Recommendation: Keep the source URL/config discovered by the acquisition adapter, retain raw snapshot metadata, and require all five resources plus kickoff confirmation before promotion.
+   - Resolution: Keep acquisition manifest/config-driven and retain the URL or resource locator discovered by the registered adapter. Do not hardcode an unknown future endpoint. The accepted source bundle must retain raw snapshot metadata and validate all five required resource classes, matching provenance/hashes, stable identities, complete official groups and fixtures, and confirmed kickoff timestamps before activation.
+   - Planned proof: Phase 16 source-bundle tests exercise missing resources, incomplete kickoff metadata, invalid hashes, and a valid complete post-draw candidate without making a network call.
 
 2. **Will UEFA publish additional play-off draw conditions before the paths are drawn?**
-   - What we know: [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-16-Path-formation-play-offs-Online] Article 16 explicitly allows additional principles and conditions subject to Executive Committee approval.
-   - What's unclear: [ASSUMED] The final draw-procedure artifact and whether any condition changes the currently known pot/path constraints.
-   - Recommendation: Model constraints as a versioned input and fail closed with `unresolved_draw_conditions` if the accepted rules bundle does not cover them.
+   - Resolution: Treat any additional condition as an accepted, versioned rules input with its own source artifact identity and canonical hash. A missing, partial, or unrecognised condition set returns `unresolved_draw_conditions` and `unsupported_topology`; the rules adapter and simulator suppress probabilities rather than selecting a familiar bracket.
+   - Planned proof: Topology and simulation tests reject absent/incomplete draw-condition inputs and preserve the accepted prior rules revision during candidate validation.
 
 3. **When should actual host-slot usage become deterministic?**
-   - What we know: [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-14-Match-system-qualifying-group-stage-Online] Host reserved places are evaluated after the qualifying group stage, and [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-16-Path-formation-play-offs-Online] topology depends on how many are used.
-   - What's unclear: Whether the product should show only scenario probabilities before the group stage or an additional deterministic "current qualification status" table; D-05 through D-08 require the ledger either way.
-   - Recommendation: Use scenario-keyed simulation rows after activation, and show actual slot status only when accepted completed results resolve it; never collapse scenario branches into one bracket.
+   - Resolution: Pre-draw and active-after-draw scenario status may be visible, including scenario-keyed host/topology rows, but actual host usage is deterministic only after the required completed standings/results resolve the covered host associations. The allocation ledger must never collapse unresolved scenario branches into one host count or bracket. Once resolved, select the two highest-ranked covered hosts when more than two host associations are present, consume only those two reserved places, and preserve all remaining/unused slots explicitly.
+   - Planned proof: Tests cover an active bundle with real groups/confirmed kickoffs and zero completed results, zero/one/two used host slots, and a four-host synthetic case with deterministic top-two selection after completed results.
 
 4. **What exact Phase 15 artifact is the accepted EURO eligibility input?**
-   - What we know: [VERIFIED: codebase grep] Phase 15 has a durable outcomes manifest and `transition_outcomes` fields for eligibility, cancellation, source identity, and rules lineage.
-   - What's unclear: [ASSUMED] Whether Phase 15 will expose a dedicated compact EURO eligibility projection or whether Phase 16 should derive it from the validated outcomes table.
-   - Recommendation: Plan a narrow adapter that validates the registered Phase 15 manifest, filters by stable `team_id` and interim-ranking stage, and produces an explicit unresolved result for missing/invalid input.
+   - Resolution: Use a registered, validated Phase 15 outcomes adapter keyed by stable `team_id`. The handoff must include the canonical interim ranking projection with `ranking_scope = "interim_overall"` and `ranking_stage = "interim_overall"`, plus the accepted manifest/source/rules lineage required by the Phase 15 contract. Final-only, wrong-stage, duplicate, missing, or unresolved rows produce `unresolved_external_eligibility` and suppress probabilities.
+   - Planned proof: Phase 16 handoff tests accept complete interim-stage rows and reject `final_overall`, `final_overall_pre_finals`, group-stage, missing, duplicate, and unresolved handoffs.
 
 ## Environment Availability
 
@@ -528,7 +526,7 @@ euro_pre_draw_output <- function(edition_row, source_bundle) {
 
 - **Per task commit:** `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase16_euro_qualifying.R")'`
 - **Per wave merge:** `Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'`
-- **Phase gate:** Full suite green before `$gsd-verify-work`.
+- **Phase gate:** Focused and relevant regressions pass, and the full suite has no failures beyond the Wave 0 baseline fingerprint before `$gsd-verify-work`; any persistent known failure is reported separately.
 
 ### Wave 0 Gaps
 

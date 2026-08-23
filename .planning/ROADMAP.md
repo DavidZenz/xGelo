@@ -203,12 +203,14 @@ Plans:
 3. Qualification outputs apply the official edition rules for direct qualification, host-reserved places, best runners-up, Nations League-linked play-off eligibility, and every valid play-off topology.
 4. Unresolved, blocked, or insufficient-source states stay explicit and suppress fabricated groups, fixtures, standings, and probabilities.
 
-**Plans**: 4 plans
+**Plans**: 6 plans
 Plans:
-- [ ] 16-01-PLAN.md — Accepted-bundle activation and pre-draw state contract (Wave 1)
-- [ ] 16-02-PLAN.md — Official ranking, host allocation, and play-off topology (Wave 2)
-- [ ] 16-03-PLAN.md — Nations League eligibility and seeded qualification simulation (Wave 3)
-- [ ] 16-04-PLAN.md — Fail-closed outcomes bundle, CLI, and revision-safe publication (Wave 4)
+- [ ] 16-00-PLAN.md — Wave 0 focused harness, deterministic fixtures, and baseline fingerprint (execution Wave 1)
+- [ ] 16-01-PLAN.md — Accepted-bundle activation, active-after-draw, and pre-draw state contract (execution Wave 2)
+- [ ] 16-02-PLAN.md — Official ranking, four-host allocation, draw conditions, and play-off topology (execution Wave 3)
+- [ ] 16-03-PLAN.md — Interim-stage Nations League handoff and seeded qualification simulation (execution Wave 4)
+- [ ] 16-04-PLAN.md — EURO outcomes schema and Phase 14 activation/state gate (execution Wave 5)
+- [ ] 16-05-PLAN.md — Registered CLI, exact outputs, revision-safe publication, and replay (execution Wave 6)
 **UI hint**: yes
 
 ### Phase 17: Shared Dashboards and Atomic Refresh Operations
@@ -234,7 +236,7 @@ Plans:
 | 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
-| 16. EURO Qualifying Activation and Play-off Rules | 0/TBD | Not started | - |
+| 16. EURO Qualifying Activation and Play-off Rules | 0/6 | Planned | - |
 | 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |
 
 ## Requirement Coverage
