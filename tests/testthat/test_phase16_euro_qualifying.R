@@ -1297,3 +1297,172 @@ test_that("failure_injection and no_scheduled_without_accepted are explicit API 
   expect_match(activation_body, "phase16_validate_euro_source_bundle")
   expect_match(update_body, "phase13_transition_competition_edition")
 })
+
+phase16_test_simulation_hash <- function(value) {
+  if (exists("uefa_euro_sim_hash_data", mode = "function", inherits = TRUE)) {
+    return(uefa_euro_sim_hash_data(value))
+  }
+  digest::digest(value, algo = "sha256", serialize = TRUE)
+}
+
+phase16_test_simulation_manifest <- function(rows, registered = TRUE) {
+  content_hash <- if (exists("uefa_euro_nl_table_content_hash", mode = "function", inherits = TRUE)) {
+    uefa_euro_nl_table_content_hash(rows)
+  } else {
+    paste(rep("a", 64L), collapse = "")
+  }
+  list(
+    edition_id = "uefa_nations_league_2026_27",
+    artifact_path = "outcomes/projected_rankings.csv",
+    artifact_type = "projected_rankings",
+    row_count = nrow(rows),
+    content_sha256 = content_hash,
+    source_bundle_id = "nl-2026-27-official-uefa-v2",
+    source_bundle_sha256 = paste(rep("b", 64L), collapse = ""),
+    source_artifact_ids = "nl-projected-rankings-v1",
+    ruleset_version = "uefa-nations-league-2026-27-v2",
+    ruleset_sha256 = paste(rep("c", 64L), collapse = ""),
+    manifest_sha256 = paste(rep("d", 64L), collapse = ""),
+    validation_status = if (isTRUE(registered)) "valid" else "blocked",
+    registered = isTRUE(registered)
+  )
+}
+
+phase16_test_simulation_forecast <- function(home = "team-nl-a01", away = "team-nl-b01", fixture_id = "euro-playoff-fixture-001") {
+  score_id <- paste0(fixture_id, "-score")
+  grid <- expand.grid(home_goals = 0:2, away_goals = 0:2)
+  grid$probability <- c(0.20, 0.10, 0.05, 0.12, 0.16, 0.07, 0.08, 0.10, 0.12)
+  grid$score_distribution_id <- score_id
+  grid$fixture_id <- fixture_id
+  grid$normalized <- TRUE
+  forecast <- data.frame(
+    edition_id = phase16_test_edition_id,
+    fixture_id = fixture_id,
+    match_id = fixture_id,
+    home_team_id = home,
+    away_team_id = away,
+    forecast_status = "available",
+    suppression_reason = "none",
+    primary_probability_view = "calibrated_1x2",
+    raw_probability_view = "raw_1x2",
+    p_home = 0.52,
+    p_draw = 0.28,
+    p_away = 0.20,
+    score_distribution_id = score_id,
+    model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+    model_id = "open_nb_incumbent",
+    model_sha256 = paste(rep("e", 64L), collapse = ""),
+    release_manifest_sha256 = paste(rep("f", 64L), collapse = ""),
+    release_selector_sha256 = paste(rep("1", 64L), collapse = ""),
+    calibrator_id = "vector_w400_p0p010",
+    calibrator_sha256 = paste(rep("2", 64L), collapse = ""),
+    model_data_cutoff = "2026-06-10",
+    feature_cutoff_utc = "2027-03-01T00:00:00Z",
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_bundle_sha256 = paste(rep("3", 64L), collapse = ""),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(forecast = forecast, score_distribution = grid)
+}
+
+test_that("simulation|handoff|interim_adapter|registered_phase15|ranking_stage|rng|suppression", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_simulation.R")
+
+  registered <- uefa_euro_read_registered_nl_handoff(project_root = phase16_test_project_root)
+  expect_true(isTRUE(registered$registered))
+  expect_true(file.exists(registered$projected_rankings_path))
+  expect_true(file.exists(registered$manifest_path))
+  rejected <- uefa_euro_normalize_nl_interim_projection(registered)
+  expect_identical(rejected$status, "unresolved_external_eligibility")
+  expect_equal(nrow(rejected$projection), 0L)
+
+  variants <- phase16_test_phase15_handoff_variants()
+  valid_manifest <- phase16_test_simulation_manifest(variants$valid)
+  normalized <- uefa_euro_normalize_nl_interim_projection(
+    projected_rankings = variants$valid,
+    manifest = valid_manifest
+  )
+  expect_true(is.data.frame(normalized))
+  expect_true(all(normalized$ranking_scope == "interim_overall"))
+  expect_true(all(normalized$ranking_stage == "interim_overall"))
+  expect_true(all(nzchar(normalized$team_id)))
+  expect_true(all(nzchar(normalized$source_bundle_id)))
+  expect_true(all(nzchar(normalized$source_manifest_sha256)))
+  expect_silent(uefa_euro_validate_nl_eligibility_handoff(normalized))
+
+  for (variant_name in c("final_only", "wrong_stage", "duplicate", "missing", "unresolved")) {
+    invalid <- uefa_euro_normalize_nl_interim_projection(
+      projected_rankings = variants[[variant_name]],
+      manifest = valid_manifest
+    )
+    expect_identical(invalid$status, "unresolved_external_eligibility", info = variant_name)
+    expect_equal(nrow(invalid$projection), 0L, info = variant_name)
+  }
+
+  fixture <- phase16_test_simulation_forecast()
+  single <- uefa_euro_resolve_single_leg(
+    match = data.frame(
+      fixture_id = "euro-playoff-fixture-001",
+      home_team_id = "team-nl-a01",
+      away_team_id = "team-nl-b01",
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    forecast = fixture$forecast,
+    score_distribution = fixture$score_distribution,
+    seed = 16017L
+  )
+  expect_identical(single$status, "completed")
+  expect_true(single$winner_team_id %in% c("team-nl-a01", "team-nl-b01"))
+  expect_identical(single$primary_probability_view, "calibrated_1x2")
+  expect_identical(single$model_release_id, "phase14-open-nb-incumbent-calibrated-v1")
+
+  active <- phase16_test_active_after_draw_bundle()
+  completed <- phase16_test_complete_groups()
+  simulation_args <- list(
+    activation = active,
+    fixtures = active$fixtures,
+    standings = completed$groups,
+    hosts = phase16_test_resolved_hosts(0L),
+    nl_eligibility = normalized,
+    forecast_status = fixture$forecast,
+    forecasts = fixture$forecast,
+    score_distributions = fixture$score_distribution,
+    draw_conditions = phase16_test_draw_conditions(),
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_bundle_sha256 = paste(rep("4", 64L), collapse = ""),
+    model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+    model_lineage = list(model_id = "open_nb_incumbent"),
+    state_manifest_sha256 = paste(rep("5", 64L), collapse = ""),
+    simulation_count = 2L,
+    seed = 16017L
+  )
+  set.seed(16099L)
+  rng_before <- .Random.seed
+  first <- do.call(uefa_euro_simulate_qualification, simulation_args)
+  rng_after <- .Random.seed
+  expect_identical(rng_before, rng_after)
+  second <- do.call(uefa_euro_simulate_qualification, simulation_args)
+  expect_identical(first$output_hashes, second$output_hashes)
+  expect_true(is.data.frame(first$probabilities))
+  expect_true(nrow(first$probabilities) > 0L)
+  expect_true(all(first$probabilities$probability >= 0))
+
+  zero_results <- phase16_test_active_zero_results_bundle()
+  scenario <- do.call(uefa_euro_simulate_qualification, modifyList(simulation_args, list(
+    activation = zero_results,
+    fixtures = zero_results$fixtures,
+    standings = zero_results$standings
+  )))
+  expect_true(scenario$status %in% c("scenario_preserved", "suppressed", "unavailable"))
+  expect_true(nrow(scenario$probabilities) == 0L)
+
+  unconfirmed <- active$fixtures
+  unconfirmed$kickoff_confirmed <- FALSE
+  unconfirmed$confirmed_kickoff_at_utc <- ""
+  blocked <- do.call(uefa_euro_simulate_qualification, modifyList(simulation_args, list(fixtures = unconfirmed)))
+  expect_true(blocked$status %in% c("suppressed", "unavailable"))
+  expect_equal(nrow(blocked$probabilities), 0L)
+})
