@@ -133,6 +133,209 @@ test_that("phase16_smoke", {
   ), "D-14 fixtures")
 })
 
+phase16_test_activation_candidate <- function(
+    active = TRUE,
+    kickoff_confirmed = TRUE,
+    complete_bundle = TRUE) {
+  active_bundle <- list(
+    teams = data.frame(
+      team_id = c("team-euro-a01", "team-euro-a02"),
+      display_name = c("Austria", "Belgium"),
+      association_id = c("assoc-aut", "assoc-bel"),
+      group_id = "euro-group-a",
+      source_bundle_id = phase16_test_source_bundle_id,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    groups = data.frame(
+      edition_id = phase16_test_edition_id,
+      group_id = "euro-group-a",
+      team_count = 2L,
+      source_bundle_id = phase16_test_source_bundle_id,
+      ruleset_version = phase16_test_ruleset_version,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    fixtures = data.frame(
+      edition_id = phase16_test_edition_id,
+      group_id = c("euro-group-a", "euro-group-a"),
+      fixture_id = c("euro-2028-qualifying-fixture-0001", "euro-2028-qualifying-fixture-0002"),
+      home_team_id = c("team-euro-a01", "team-euro-a02"),
+      away_team_id = c("team-euro-a02", "team-euro-a01"),
+      scheduled_at_utc = c("2027-03-24T19:45:00Z", "2027-03-28T19:45:00Z"),
+      kickoff_confirmed = TRUE,
+      confirmed_kickoff_at_utc = c("2027-03-24T19:45:00Z", "2027-03-28T19:45:00Z"),
+      source_bundle_id = phase16_test_source_bundle_id,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    standings = phase16_test_empty_table(c("edition_id", "group_id", "team_id", "rank")),
+    results = phase16_test_empty_table(c("edition_id", "fixture_id", "home_goals", "away_goals"))
+  )
+  status <- data.frame(
+    source_edition_id = phase16_test_edition_id,
+    edition_id = phase16_test_edition_id,
+    competition_status = if (isTRUE(active)) "active" else "pre_draw",
+    lifecycle_state = if (isTRUE(active)) "scheduled" else "pre_draw",
+    source_bundle_id = phase16_test_source_bundle_id,
+    ruleset_version = phase16_test_ruleset_version,
+    retrieved_at_utc = "2027-03-01T12:00:00Z",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  resources <- if (isTRUE(active)) {
+    list(
+      teams = active_bundle$teams,
+      groups = active_bundle$groups,
+      fixtures = active_bundle$fixtures,
+      standings = active_bundle$standings,
+      results = active_bundle$results,
+      status = status
+    )
+  } else {
+    pre_draw <- phase16_test_pre_draw_bundle()
+    list(
+      teams = pre_draw$teams,
+      groups = pre_draw$groups,
+      fixtures = pre_draw$fixtures,
+      standings = pre_draw$standings,
+      results = pre_draw$results,
+      status = status
+    )
+  }
+  if (!isTRUE(kickoff_confirmed) && nrow(resources$fixtures)) {
+    resources$fixtures$kickoff_confirmed <- FALSE
+    resources$fixtures$confirmed_kickoff_at_utc <- ""
+  }
+  if (!isTRUE(complete_bundle)) resources$results <- NULL
+  artifact_types <- c("fixtures", "groups", "standings", "results", "status")
+  artifacts <- data.frame(
+    artifact_type = artifact_types,
+    artifact_id = paste0("artifact-euro-", artifact_types, "-v1"),
+    source_artifact_id = paste0("source-artifact-euro-", artifact_types, "-v1"),
+    edition_id = phase16_test_edition_id,
+    bundle_id = phase16_test_source_bundle_id,
+    source_url = "https://registered.phase16.test/euro-qualifying",
+    retrieved_at_utc = "2027-03-01T12:00:00Z",
+    parser_version = "phase16-test-parser-v1",
+    raw_sha256 = paste(rep("a", 64L), collapse = ""),
+    canonical_content_sha256 = paste(rep("b", 64L), collapse = ""),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  source_bundle <- list(
+    bundle_id = phase16_test_source_bundle_id,
+    source_bundle_id = phase16_test_source_bundle_id,
+    edition_id = phase16_test_edition_id,
+    ruleset_version = phase16_test_ruleset_version,
+    bundle_status = "accepted",
+    source_confidence = "official",
+    retrieved_at_utc = "2027-03-01T12:00:00Z",
+    source_url = "https://registered.phase16.test/euro-qualifying",
+    artifacts = artifacts
+  )
+  list(
+    edition_id = phase16_test_edition_id,
+    source_bundle_id = phase16_test_source_bundle_id,
+    ruleset_version = phase16_test_ruleset_version,
+    source_confidence = if (isTRUE(active)) "official" else "official_registry_pending",
+    source_bundle = source_bundle,
+    resources = resources,
+    manifest = list(
+      bundle_id = phase16_test_source_bundle_id,
+      source_bundle_id = phase16_test_source_bundle_id,
+      edition_id = phase16_test_edition_id,
+      ruleset_version = phase16_test_ruleset_version,
+      bundle_status = "accepted",
+      raw_sha256 = paste(rep("a", 64L), collapse = ""),
+      retrieved_at_utc = "2027-03-01T12:00:00Z"
+    ),
+    raw_snapshot = list(
+      bundle_id = phase16_test_source_bundle_id,
+      edition_id = phase16_test_edition_id,
+      retrieved_at_utc = "2027-03-01T12:00:00Z",
+      raw_sha256 = paste(rep("a", 64L), collapse = "")
+    )
+  )
+}
+
+test_that("activation active_after_draw accepts a complete bundle", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  candidate <- phase16_test_activation_candidate(active = TRUE)
+
+  validation <- validate_euro_activation(candidate)
+  expect_true(validation$valid)
+  expect_identical(validation$activation_status, "active")
+  expect_identical(validation$fixture_gate, "confirmed_kickoff")
+
+  envelope <- phase16_euro_activation_envelope(validation)
+  expect_identical(envelope$lifecycle_state, "scheduled")
+  expect_identical(envelope$forecast_status, "available")
+  expect_identical(envelope$source_bundle_id, phase16_test_source_bundle_id)
+  expect_equal(nrow(envelope$results), 0L)
+  expect_equal(nrow(envelope$standings), 0L)
+  expect_true(all(envelope$fixtures$forecast_eligible))
+  expect_identical(
+    envelope$fixtures$fixture_id,
+    candidate$resources$fixtures$fixture_id
+  )
+  expect_identical(
+    phase16_euro_fixture_eligibility(candidate$resources$fixtures)$fixture_id,
+    candidate$resources$fixtures$fixture_id
+  )
+})
+
+test_that("pre_draw activation exposes the exact D-16 payload and typed empties", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  candidate <- phase16_test_activation_candidate(active = FALSE)
+
+  validation <- validate_euro_activation(candidate)
+  expect_true(validation$valid)
+  expect_identical(validation$activation_status, "pre_draw")
+  envelope <- phase16_euro_activation_envelope(validation)
+
+  expect_identical(envelope$lifecycle_state, "pre_draw")
+  expect_identical(envelope$forecast_status, "pre_draw")
+  expect_identical(envelope$message_heading, "EURO qualifying is awaiting the official draw")
+  expect_identical(
+    envelope$message_body,
+    paste(
+      "Official groups and the schedule are not available yet.",
+      "The draw is expected on 6 December 2026.",
+      "Forecasts will appear after a complete official draw-and-schedule bundle is accepted."
+    )
+  )
+  expect_identical(envelope$official_draw_date, phase16_test_draw_date)
+  expect_true(nzchar(envelope$last_refresh_at_utc))
+  expect_identical(envelope$source_bundle_id, phase16_test_source_bundle_id)
+  expect_identical(envelope$forecast_reason, "awaiting_official_draw_and_schedule")
+  expect_true(nzchar(envelope$forecast_unavailability_reason))
+  empty_collections <- c(
+    "teams", "groups", "fixtures", "standings", "results",
+    "qualification_ledger", "host_slots", "topology", "probabilities"
+  )
+  expect_true(all(vapply(envelope[empty_collections], function(value) {
+    is.data.frame(value) && nrow(value) == 0L && ncol(value) > 0L
+  }, logical(1))))
+})
+
+test_that("activation rejects incomplete source and missing confirmed kickoff", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+
+  incomplete <- phase16_test_activation_candidate(active = TRUE, complete_bundle = FALSE)
+  incomplete_validation <- validate_euro_activation(incomplete)
+  expect_false(incomplete_validation$valid)
+  expect_identical(incomplete_validation$activation_status, "unavailable")
+  expect_match(incomplete_validation$reason, "resource|complete", ignore.case = TRUE)
+
+  unconfirmed <- phase16_test_activation_candidate(active = TRUE, kickoff_confirmed = FALSE)
+  unconfirmed_validation <- validate_euro_activation(unconfirmed)
+  expect_false(unconfirmed_validation$valid)
+  expect_identical(unconfirmed_validation$activation_status, "unavailable")
+  expect_match(unconfirmed_validation$reason, "kickoff", ignore.case = TRUE)
+  expect_false(any(phase16_euro_fixture_eligibility(unconfirmed$resources$fixtures)$forecast_eligible))
+})
+
 phase16_test_active_teams <- function() {
   data.frame(
     team_id = c("team-euro-a01", "team-euro-a02", "team-euro-b01", "team-euro-b02"),
