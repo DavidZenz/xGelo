@@ -749,6 +749,7 @@ phase16_test_registered_revision_candidate <- function() {
   candidate$manifest$ruleset_version <- candidate$ruleset_version
   candidate$manifest$raw_sha256 <- paste(rep("c", 64L), collapse = "")
   candidate$raw_snapshot$raw_sha256 <- paste(rep("c", 64L), collapse = "")
+  candidate$raw_snapshot$bundle_id <- candidate$source_bundle_id
   candidate$activation_config <- list(
     registered_source_bundle_ids = candidate$source_bundle_id,
     registered_ruleset_versions = candidate$ruleset_version
@@ -935,6 +936,8 @@ test_that("failure_injection and no_scheduled_without_accepted are explicit API 
   refresh_formals <- names(formals(acquire_environment$phase13_acquire_publish_refresh))
   expect_true("publish_accepted_fn" %in% refresh_formals)
   update_body <- paste(deparse(acquire_environment$phase13_acquire_update_edition_after_acceptance), collapse = "\n")
-  expect_match(update_body, "phase16_validate_euro_source_bundle")
+  expect_match(update_body, "phase13_acquire_validate_euro_candidate")
+  activation_body <- paste(deparse(acquire_environment$phase13_acquire_validate_euro_candidate), collapse = "\n")
+  expect_match(activation_body, "phase16_validate_euro_source_bundle")
   expect_match(update_body, "phase13_transition_competition_edition")
 })

@@ -288,13 +288,20 @@ phase16_euro_validate_artifacts <- function(candidate, edition_id, bundle_id) {
       return("source artifact ruleset revision does not match the accepted bundle")
     }
   }
-  for (column in c("source_url", "retrieved_at_utc", "parser_version")) {
-    if (column %in% names(artifacts) && any(vapply(artifacts[[column]], phase16_euro_blank, logical(1)))) {
+  for (column in c("source_url", "retrieved_at_utc")) {
+    if (!column %in% names(artifacts) || any(vapply(artifacts[[column]], phase16_euro_blank, logical(1)))) {
       return(paste("source artifact provenance is incomplete:", column))
     }
   }
+  if (!any(c("parser_version", "parser_commit_sha") %in% names(artifacts))) {
+    return("source artifact provenance is missing parser identity")
+  }
+  parser_column <- if ("parser_version" %in% names(artifacts)) "parser_version" else "parser_commit_sha"
+  if (any(vapply(artifacts[[parser_column]], phase16_euro_blank, logical(1)))) {
+    return("source artifact provenance is incomplete: parser identity")
+  }
   for (column in c("raw_sha256", "canonical_content_sha256")) {
-    if (column %in% names(artifacts) && any(!vapply(artifacts[[column]], phase16_euro_hash_is_valid, logical(1)))) {
+    if (!column %in% names(artifacts) || any(!vapply(artifacts[[column]], phase16_euro_hash_is_valid, logical(1)))) {
       return(paste("source artifact", column, "must contain SHA-256 values"))
     }
   }
@@ -399,6 +406,14 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL, incumbent 
   raw_snapshot <- candidate$raw_snapshot
   raw_hash <- phase16_euro_metadata_value(raw_snapshot, c("raw_sha256", "snapshot_sha256", "bundle_raw_sha256"))
   raw_time <- phase16_euro_metadata_value(raw_snapshot, c("retrieved_at_utc", "retrieved_at", "last_refresh_at_utc"))
+  raw_bundle_id <- phase16_euro_metadata_value(raw_snapshot, c("source_bundle_id", "bundle_id"))
+  raw_edition_id <- phase16_euro_metadata_value(raw_snapshot, c("edition_id", "source_edition_id"))
+  if (is.null(failure) && nzchar(raw_bundle_id) && !identical(raw_bundle_id, bundle_id)) {
+    failure <- "raw snapshot bundle ID does not match the accepted bundle"
+  }
+  if (is.null(failure) && nzchar(raw_edition_id) && !identical(raw_edition_id, edition_id)) {
+    failure <- "raw snapshot edition ID does not match EURO qualifying"
+  }
   if (is.null(failure) && is.null(raw_snapshot)) {
     raw_hash <- phase16_euro_metadata_value(candidate$manifest, c("raw_sha256", "snapshot_sha256"))
     raw_time <- phase16_euro_metadata_value(source_bundle, c("retrieved_at_utc", "accepted_at_utc"))

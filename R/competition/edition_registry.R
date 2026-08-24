@@ -134,6 +134,9 @@ phase13_edition_source_contracts <- function(project_root = ".") {
   if (!exists("phase13_normalized_fixture_schema", mode = "function")) {
     source(file.path(root, "R/competition/team_identity.R"), local = .GlobalEnv)
   }
+  if (!exists("uefa_euro_edition_id", mode = "function")) {
+    source(file.path(root, "R/competition/uefa_euro_rules.R"), local = .GlobalEnv)
+  }
   if (!exists("preflight_phase12_approved_release", mode = "function")) {
     source(file.path(root, "R/release/release_contract.R"), local = .GlobalEnv)
   }
@@ -390,8 +393,8 @@ phase13_validate_competition_edition_registries <- function(
     }
     euro <- registries[registries$edition_id == "uefa_euro_2028_qualifying", , drop = FALSE]
     nl <- registries[registries$edition_id == "uefa_nations_league_2026_27", , drop = FALSE]
-    if (nrow(euro) != 1L || euro$lifecycle_state[[1L]] != "pre_draw" || euro$official_draw_date[[1L]] != "2026-12-06") {
-      stop("Phase 13 EURO qualifying registry must remain an explicit 2026-12-06 pre-draw edition", call. = FALSE)
+    if (nrow(euro) != 1L || !as.character(euro$official_draw_date[[1L]]) %in% "2026-12-06") {
+      stop("Phase 13 EURO qualifying registry must retain the official 2026-12-06 draw date", call. = FALSE)
     }
     if (nrow(nl) != 1L) stop("Phase 13 Nations League edition is missing", call. = FALSE)
   }
@@ -409,6 +412,85 @@ phase13_validate_competition_edition_registries <- function(
     stop("Phase 13 competition edition registry row SHA-256 mismatch", call. = FALSE)
   }
   invisible(registries)
+}
+
+phase13_build_euro_activation_candidate <- function(
+    edition_row,
+    snapshot,
+    identity_registry = NULL) {
+  artifacts <- snapshot$source_artifacts
+  raw_hash <- if (is.data.frame(artifacts) && "raw_sha256" %in% names(artifacts) && nrow(artifacts)) {
+    as.character(artifacts$raw_sha256[[1L]])
+  } else {
+    ""
+  }
+  retrieved_at <- if (is.data.frame(artifacts) && "retrieved_at_utc" %in% names(artifacts) && nrow(artifacts)) {
+    as.character(artifacts$retrieved_at_utc[[1L]])
+  } else {
+    ""
+  }
+  list(
+    edition_id = as.character(edition_row$edition_id[[1L]]),
+    lifecycle_state = as.character(edition_row$lifecycle_state[[1L]]),
+    source_bundle_id = as.character(edition_row$source_bundle_id[[1L]]),
+    ruleset_version = as.character(edition_row$ruleset_version[[1L]]),
+    source_confidence = if (identical(as.character(edition_row$lifecycle_state[[1L]]), "pre_draw")) {
+      "official_registry_pending"
+    } else {
+      "official"
+    },
+    source_bundle = snapshot$source_bundle,
+    artifacts = artifacts,
+    manifest = snapshot$manifest,
+    resources = list(
+      fixtures = snapshot$fixtures,
+      groups = snapshot$groups,
+      standings = snapshot$standings,
+      results = snapshot$results,
+      status = snapshot$status
+    ),
+    teams = identity_registry,
+    raw_snapshot = list(
+      bundle_id = as.character(edition_row$source_bundle_id[[1L]]),
+      edition_id = as.character(edition_row$edition_id[[1L]]),
+      retrieved_at_utc = retrieved_at,
+      raw_sha256 = raw_hash
+    )
+  )
+}
+
+phase13_validate_euro_accepted_activation <- function(
+    edition_row,
+    snapshot,
+    identity_registry = NULL) {
+  if (!identical(as.character(edition_row$edition_id[[1L]]), uefa_euro_edition_id())) {
+    return(invisible(NULL))
+  }
+  if (!exists("phase16_validate_euro_source_bundle", mode = "function")) {
+    stop("Phase 16 EURO activation validator is unavailable", call. = FALSE)
+  }
+  candidate <- phase13_build_euro_activation_candidate(
+    edition_row,
+    snapshot,
+    identity_registry = identity_registry
+  )
+  validation <- phase16_validate_euro_source_bundle(candidate)
+  if (!isTRUE(validation$valid)) {
+    stop(
+      "Phase 16 EURO accepted snapshot activation failed: ",
+      as.character(validation$failure_reason),
+      call. = FALSE
+    )
+  }
+  expected_status <- if (identical(as.character(edition_row$lifecycle_state[[1L]]), "pre_draw")) {
+    "pre_draw"
+  } else {
+    "active"
+  }
+  if (!identical(as.character(validation$activation_status), expected_status)) {
+    stop("Phase 16 EURO accepted snapshot lifecycle and activation status disagree", call. = FALSE)
+  }
+  invisible(validation)
 }
 
 phase13_validate_competition_edition_row <- function(
@@ -1143,7 +1225,7 @@ phase13_validate_accepted_snapshot <- function(
     stop("Phase 13 EURO pre_draw accepted snapshot must keep all structures empty", call. = FALSE)
   }
 
-  list(
+  validated_snapshot <- list(
     edition_id = edition_id,
     bundle_id = bundle_id,
     source_bundle = bundle,
@@ -1156,6 +1238,12 @@ phase13_validate_accepted_snapshot <- function(
     results = tables$results,
     status = tables$status
   )
+  phase13_validate_euro_accepted_activation(
+    edition_row,
+    validated_snapshot,
+    identity_registry = identity_registry
+  )
+  validated_snapshot
 }
 
 load_competition_edition_registries <- function(

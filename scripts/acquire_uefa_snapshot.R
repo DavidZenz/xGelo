@@ -34,6 +34,7 @@ phase13_acquire_project_root <- normalizePath(
 )
 source(file.path(phase13_acquire_project_root, "R/competition/source_contracts.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/team_identity.R"))
+source(file.path(phase13_acquire_project_root, "R/competition/uefa_euro_rules.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/uefa_nations_league_adapter.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/edition_registry.R"))
 source(file.path(phase13_acquire_project_root, "R/competition/publication_hashes.R"))
@@ -1499,7 +1500,8 @@ phase13_acquire_publish_accepted <- function(
     edition_id,
     raw_root,
     registry_root = NULL,
-    registry_context_root = NULL) {
+    registry_context_root = NULL,
+    failure_injector = NULL) {
   edition_id <- phase13_source_safe_relative_path(edition_id)
   if (!is.data.frame(candidate$bundle) || !is.data.frame(candidate$artifacts) ||
       !is.data.frame(candidate$manifest) || !is.list(candidate$resources)) {
@@ -2860,6 +2862,89 @@ phase13_acquire_prepare_refresh_acceptance <- function(
   )
 }
 
+phase13_acquire_invoke_failure_injector <- function(failure_injector, stage) {
+  if (is.null(failure_injector)) return(invisible(FALSE))
+  if (!is.function(failure_injector)) stop("Phase 13 failure injector must be a function", call. = FALSE)
+  formal_count <- length(formals(failure_injector))
+  injected <- if (formal_count >= 3L || "index" %in% names(formals(failure_injector))) {
+    failure_injector(1L, stage, NULL)
+  } else {
+    failure_injector(stage)
+  }
+  if (isTRUE(injected)) stop("Phase 13 injected failure: ", stage, call. = FALSE)
+  invisible(FALSE)
+}
+
+phase13_acquire_validate_euro_candidate <- function(
+    candidate,
+    edition_id,
+    registry_root,
+    project_root = phase13_acquire_project_root,
+    accepted_tables = NULL) {
+  if (!identical(as.character(edition_id), uefa_euro_edition_id())) return(NULL)
+  context <- phase13_acquire_load_edition_context(
+    edition_id,
+    registry_root = registry_root,
+    project_root = project_root
+  )
+  if (is.null(accepted_tables)) {
+    normalization_context <- context
+    status_resource <- candidate$resources$status
+    candidate_state <- if (is.data.frame(status_resource)) {
+      phase13_acquire_value(
+        status_resource$competition_status %||% status_resource$lifecycle_state,
+        "candidate lifecycle state",
+        context$lifecycle_state
+      )
+    } else if (is.list(status_resource)) {
+      phase13_acquire_value(
+        status_resource$competition_status %||% status_resource$lifecycle_state,
+        "candidate lifecycle state",
+        context$lifecycle_state
+      )
+    } else {
+      context$lifecycle_state
+    }
+    if (identical(tolower(candidate_state), "active")) candidate_state <- "scheduled"
+    normalization_context$lifecycle_state <- candidate_state
+    accepted_tables <- phase13_acquire_accepted_tables(candidate, normalization_context)
+  }
+  artifacts <- candidate$artifacts
+  raw_hash <- if (is.data.frame(artifacts) && "raw_sha256" %in% names(artifacts) && nrow(artifacts)) {
+    as.character(artifacts$raw_sha256[[1L]])
+  } else {
+    ""
+  }
+  retrieved_at <- if (is.data.frame(artifacts) && "retrieved_at_utc" %in% names(artifacts) && nrow(artifacts)) {
+    as.character(artifacts$retrieved_at_utc[[1L]])
+  } else {
+    ""
+  }
+  activation_candidate <- candidate
+  activation_candidate$edition_id <- edition_id
+  activation_candidate$lifecycle_state <- as.character(accepted_tables$status$competition_status[[1L]])
+  activation_candidate$source_bundle_id <- as.character(candidate$bundle$bundle_id[[1L]])
+  activation_candidate$ruleset_version <- as.character(context$edition_registry$ruleset_version[[1L]])
+  activation_candidate$source_bundle <- candidate$bundle
+  activation_candidate$resources <- accepted_tables
+  activation_candidate$raw_snapshot <- list(
+    bundle_id = activation_candidate$source_bundle_id,
+    edition_id = edition_id,
+    retrieved_at_utc = retrieved_at,
+    raw_sha256 = raw_hash
+  )
+  activation_candidate$teams <- context$identity_registry
+  validation <- phase16_validate_euro_source_bundle(activation_candidate)
+  if (!isTRUE(validation$valid)) {
+    stop(
+      "Phase 16 EURO source bundle activation failed: ",
+      as.character(validation$failure_reason),
+      call. = FALSE
+    )
+  }
+  validation
+}
+
 phase13_acquire_update_edition_after_acceptance <- function(
     candidate,
     edition_id,
@@ -2898,6 +2983,12 @@ phase13_acquire_update_edition_after_acceptance <- function(
   if (was_blocked && phase13_registry_blank(operator_action)) {
     stop("Phase 13 blocked lifecycle recovery requires explicit operator action and validation", call. = FALSE)
   }
+  euro_activation <- phase13_acquire_validate_euro_candidate(
+    candidate = candidate,
+    edition_id = edition_id,
+    registry_root = registry_root,
+    project_root = project_root
+  )
   existing_history_path <- file.path(registry_root, "refresh_batches", edition_id, "status_history.csv")
   existing_history <- phase13_acquire_read_refresh_history(existing_history_path)
   phase13_acquire_validate_refresh_history_table(
@@ -2909,14 +3000,30 @@ phase13_acquire_update_edition_after_acceptance <- function(
     stop("Phase 13 refresh batch ID already exists: ", refresh_batch_id, call. = FALSE)
   }
   accepted_row <- recovered_row
+  transition_applied <- FALSE
+  if (!is.null(euro_activation) && identical(euro_activation$activation_status, "active")) {
+    accepted_row <- phase13_transition_competition_edition(
+      accepted_row,
+      "scheduled",
+      operator_action = if (phase13_registry_blank(operator_action)) {
+        "accepted complete official EURO draw-and-schedule bundle"
+      } else {
+        operator_action
+      },
+      validation_passed = TRUE,
+      operator = operator,
+      audit_at_utc = accepted_at_utc
+    )
+    transition_applied <- TRUE
+  }
   accepted_row$source_bundle_id <- candidate_bundle_id
   accepted_row$active_output_bundle_id <- candidate_bundle_id
   accepted_row$last_accepted_output_bundle_id <- candidate_bundle_id
   accepted_row$blocked <- FALSE
-  accepted_row$audit_event <- "refresh_accepted"
+  if (!transition_applied) accepted_row$audit_event <- "refresh_accepted"
   accepted_row$audit_at_utc <- accepted_at_utc
   accepted_row$operator <- operator
-  accepted_row$registry_revision <- as.integer(accepted_row$registry_revision[[1L]]) + 1L
+  if (!transition_applied) accepted_row$registry_revision <- as.integer(accepted_row$registry_revision[[1L]]) + 1L
   accepted_row$row_sha256 <- phase13_registry_row_hash(accepted_row)
   current_editions[edition_index, names(accepted_row)] <- accepted_row
   current_editions$row_sha256 <- phase13_row_sha256(current_editions)
@@ -3052,7 +3159,8 @@ phase13_acquire_publish_refresh <- function(
     operator_action = "",
     validation_passed = FALSE,
     failure_injector = NULL,
-    publish_normalized_fn = phase13_publish_normalized_editions) {
+    publish_normalized_fn = phase13_publish_normalized_editions,
+    publish_accepted_fn = phase13_acquire_publish_accepted) {
   edition_id <- phase13_source_safe_relative_path(edition_id)
   refresh_batch_id <- phase13_acquire_resolve_refresh_batch_id(refresh_batch_id, edition_id)
   registry_context_root <- if (is.null(registry_context_root)) {
@@ -3083,6 +3191,12 @@ phase13_acquire_publish_refresh <- function(
     candidate$bundle$bundle_id[[1L]]
   )
   phase13_acquire_validate_raw_store(candidate, resolved_raw_root, edition_id)
+  phase13_acquire_validate_euro_candidate(
+    candidate = candidate,
+    edition_id = edition_id,
+    registry_root = resolved_registry_root,
+    project_root = project_root
+  )
   source_registry_files <- file.path(
     resolved_registry_root,
     c("source_bundles.csv", "source_artifacts.csv")
@@ -3103,15 +3217,32 @@ phase13_acquire_publish_refresh <- function(
       any(as.character(source_bundles$edition_id) == companion_edition[[1L]])
   }
   if (!all(file.exists(source_registry_files)) || !has_companion_source_registry) {
-    candidate <- phase13_acquire_publish_accepted(
+    if (!is.function(publish_accepted_fn)) {
+      stop("Phase 13 accepted publication callback must be a function", call. = FALSE)
+    }
+    phase13_acquire_invoke_failure_injector(failure_injector, "before_accepted_publication")
+    candidate <- publish_accepted_fn(
       candidate = candidate,
       output_root = resolved_output_root,
       edition_id = edition_id,
       raw_root = resolved_raw_root,
       registry_root = resolved_registry_root,
-      registry_context_root = registry_context_root
+      registry_context_root = registry_context_root,
+      failure_injector = failure_injector
     )
     phase13_acquire_update_registries(candidate, resolved_registry_root)
+    candidate$edition_registry <- phase13_acquire_update_edition_after_acceptance(
+      candidate = candidate,
+      edition_id = edition_id,
+      output_root = resolved_output_root,
+      registry_root = resolved_registry_root,
+      refresh_batch_id = refresh_batch_id,
+      project_root = project_root,
+      operator = operator,
+      operator_action = operator_action,
+      validation_passed = TRUE,
+      raw_root = resolved_raw_root
+    )
     return(candidate)
   }
   if (!is.null(recovery_context) && isTRUE(recovery_context$was_blocked)) {
@@ -3169,6 +3300,18 @@ phase13_acquire_publish_refresh <- function(
     failure_injector = failure_injector
   )
   candidate$publication <- publication
+  candidate$edition_registry <- phase13_acquire_update_edition_after_acceptance(
+    candidate = candidate,
+    edition_id = edition_id,
+    output_root = resolved_output_root,
+    registry_root = resolved_registry_root,
+    refresh_batch_id = refresh_batch_id,
+    project_root = project_root,
+    operator = operator,
+    operator_action = operator_action,
+    validation_passed = TRUE,
+    raw_root = resolved_raw_root
+  )
   candidate
 }
 
