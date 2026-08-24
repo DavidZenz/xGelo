@@ -2053,3 +2053,121 @@ test_that("Phase 14 keeps edition-neutral Phase 16 reason mappings and rejects u
     "activation gate"
   )
 })
+
+phase16_test_cli_environment <- function() {
+  environment <- new.env(parent = globalenv())
+  sys.source(
+    file.path(phase16_test_project_root, "scripts/build_euro_qualifying_outcomes.R"),
+    envir = environment
+  )
+  environment
+}
+
+phase16_test_cli_loaded <- function(activation, simulation = NULL) {
+  list(
+    project_root = phase16_test_project_root,
+    edition_id = phase16_test_edition_id,
+    activation = activation,
+    source_lineage = phase16_test_outcomes_lineage(),
+    model_lineage = phase16_test_outcomes_model_lineage(),
+    simulation = simulation,
+    state_bundle = list(
+      edition_id = phase16_test_edition_id,
+      state_manifest = data.frame(stringsAsFactors = FALSE),
+      state_manifest_sha256 = phase16_test_outcomes_sha("2"),
+      model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+      canonical_matches = activation$resources$fixtures,
+      forecast_status = data.frame(stringsAsFactors = FALSE),
+      forecasts = data.frame(stringsAsFactors = FALSE),
+      competition_form = data.frame(stringsAsFactors = FALSE),
+      all_international_form = data.frame(stringsAsFactors = FALSE),
+      score_distributions = data.frame(stringsAsFactors = FALSE)
+    ),
+    rules = uefa_euro_2026_28_rules(),
+    config = list(
+      registered_source_bundle_ids = phase16_test_source_bundle_id,
+      registered_ruleset_versions = phase16_test_ruleset_version
+    )
+  )
+}
+
+test_that("cli|inventory|dry_run|payload_copy|active_after_draw", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  cli <- phase16_test_cli_environment()
+
+  expected <- phase16_euro_outcomes_expected_inventory()
+  pre_draw_loaded <- phase16_test_cli_loaded(phase16_test_pre_draw_bundle())
+  pre_draw <- cli$phase16_build_euro_qualifying_outcomes_main(
+    args = c("--edition-id", phase16_test_edition_id, "--dry-run"),
+    project_root = phase16_test_project_root,
+    input_loader_fn = function(edition_id, project_root) pre_draw_loaded
+  )
+  expect_true(isTRUE(pre_draw$validation), info = pre_draw$validation_failure_reason)
+  expect_false(isTRUE(pre_draw$durable_mutation))
+  expect_identical(names(pre_draw$candidate$artifacts), expected)
+  expect_identical(pre_draw$candidate$candidate_status, "pre_draw")
+  expect_identical(pre_draw$candidate$payload$message_heading, "EURO qualifying is awaiting the official draw")
+  expect_identical(
+    pre_draw$candidate$payload$message_body,
+    paste(
+      "Official groups and the schedule are not available yet.",
+      "The draw is expected on 6 December 2026.",
+      "Forecasts will appear after a complete official draw-and-schedule bundle is accepted."
+    )
+  )
+  expect_identical(pre_draw$candidate$payload$official_draw_date, phase16_test_draw_date)
+  expect_identical(pre_draw$candidate$payload$source_bundle_id, phase16_test_source_bundle_id)
+  expect_identical(pre_draw$candidate$payload$forecast_reason, "awaiting_official_draw_and_schedule")
+  expect_true(all(vapply(
+    pre_draw$candidate$artifacts[setdiff(expected, c("outcomes/simulation_metadata.csv", "outcomes/outcomes_manifest.csv"))],
+    function(value) nrow(value) == 0L,
+    logical(1)
+  )))
+
+  active_loaded <- phase16_test_cli_loaded(
+    phase16_test_active_after_draw_bundle(),
+    phase16_test_outcomes_simulation()
+  )
+  active <- cli$phase16_build_euro_qualifying_outcomes_main(
+    args = c("--edition-id", phase16_test_edition_id, "--dry-run"),
+    project_root = phase16_test_project_root,
+    input_loader_fn = function(edition_id, project_root) active_loaded
+  )
+  expect_true(isTRUE(active$validation), info = active$validation_failure_reason)
+  expect_identical(active$candidate$candidate_status, "active")
+  expect_true(nrow(active$candidate$artifacts[["outcomes/competition_topology.csv"]]) > 0L)
+  expect_true(nrow(active$candidate$artifacts[["outcomes/stage_slots.csv"]]) > 0L)
+  expect_equal(nrow(active$candidate$artifacts[["outcomes/projected_standings.csv"]]), 0L)
+  expect_equal(nrow(active$candidate$artifacts[["outcomes/projected_rankings.csv"]]), 0L)
+  expect_true(all(active$candidate$artifacts[["outcomes/stage_slots.csv"]]$scheduled_at_utc != ""))
+  expect_true(all(active$candidate$artifacts[["outcomes/stage_slots.csv"]]$source_artifact_id != ""))
+  expect_true(all(active$candidate$artifacts[["outcomes/fixture_forecast_form.csv"]]$model_release_id != ""))
+})
+
+test_that("cli|wrapper|edition_id requires explicit registered EURO ID", {
+  cli <- phase16_test_cli_environment()
+  loaded <- phase16_test_cli_loaded(phase16_test_pre_draw_bundle())
+  loader <- function(edition_id, project_root) loaded
+  expect_error(
+    cli$phase16_build_euro_qualifying_outcomes_main(
+      args = "--dry-run", project_root = phase16_test_project_root,
+      input_loader_fn = loader
+    ),
+    "--edition-id"
+  )
+  expect_error(
+    cli$phase16_build_euro_qualifying_outcomes_main(
+      args = c("--edition-id", "uefa_euro_unknown", "--replay-check"),
+      project_root = phase16_test_project_root,
+      input_loader_fn = loader
+    ),
+    "Unsupported edition-id"
+  )
+  wrapper <- readLines(
+    file.path(phase16_test_project_root, "scripts/build_uefa_euro_qualifying_outcomes.R"),
+    warn = FALSE
+  )
+  expect_true(any(grepl("build_euro_qualifying_outcomes.R", wrapper, fixed = TRUE)))
+  expect_true(any(grepl("phase16_euro", wrapper, fixed = TRUE)))
+})
