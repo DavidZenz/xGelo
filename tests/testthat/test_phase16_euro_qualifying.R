@@ -1611,3 +1611,303 @@ test_that("topology|four_host|fallback|draw_conditions|fresh_process|replay", {
   replayed <- do.call(uefa_euro_simulate_qualification, reversed_args)
   expect_identical(normal$output_hashes, replayed$output_hashes)
 })
+
+phase16_test_outcomes_sha <- function(letter) {
+  paste(rep(letter, 64L), collapse = "")
+}
+
+phase16_test_outcomes_lineage <- function() {
+  list(
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_bundle_sha256 = phase16_test_outcomes_sha("a"),
+    source_artifact_ids = paste(
+      paste0("source-artifact-euro-", c("fixtures", "groups", "results", "standings", "status"), "-v1"),
+      collapse = "|"
+    ),
+    source_artifact_paths = paste(
+      paste0("accepted/", c("fixtures", "groups", "results", "standings", "status"), ".csv"),
+      collapse = "|"
+    ),
+    artifact_manifest_sha256 = phase16_test_outcomes_sha("b"),
+    ruleset_version = phase16_test_ruleset_version,
+    ruleset_sha256 = phase16_test_outcomes_sha("c"),
+    model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+    model_id = "open_nb_incumbent",
+    model_sha256 = phase16_test_outcomes_sha("d"),
+    release_manifest_sha256 = phase16_test_outcomes_sha("e"),
+    release_selector_sha256 = phase16_test_outcomes_sha("f"),
+    calibrator_id = "vector_w400_p0p010",
+    calibrator_sha256 = phase16_test_outcomes_sha("1"),
+    model_data_cutoff = "2026-06-10",
+    state_manifest_sha256 = phase16_test_outcomes_sha("2"),
+    forecast_status_sha256 = phase16_test_outcomes_sha("3"),
+    forecasts_sha256 = phase16_test_outcomes_sha("4"),
+    score_distributions_sha256 = phase16_test_outcomes_sha("5"),
+    feature_cutoff_sha256 = phase16_test_outcomes_sha("6")
+  )
+}
+
+phase16_test_outcomes_simulation <- function(status = "available", reason = "none") {
+  active <- phase16_test_active_after_draw_bundle()
+  teams <- active$teams$team_id
+  probabilities <- data.frame(
+    edition_id = phase16_test_edition_id,
+    team_id = teams,
+    probability = c(0.62, 0.38, 0.57, 0.43),
+    qualification_status = "projected",
+    status = status,
+    reason = reason,
+    scenario_id = "scenario-euro-2028-base",
+    path_id = paste0("path-", seq_along(teams)),
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_bundle_sha256 = phase16_test_outcomes_sha("a"),
+    ruleset_version = phase16_test_ruleset_version,
+    ruleset_sha256 = phase16_test_outcomes_sha("c"),
+    model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+    model_data_cutoff = "2026-06-10",
+    state_manifest_sha256 = phase16_test_outcomes_sha("2"),
+    simulation_seed = 16017L,
+    simulation_count = 100L,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  ledger <- data.frame(
+    allocation_id = paste0("allocation-", seq_along(teams)),
+    scenario_id = "scenario-euro-2028-base",
+    edition_id = phase16_test_edition_id,
+    team_id = teams,
+    group_id = c("euro-group-a", "euro-group-a", "euro-group-b", "euro-group-b"),
+    association_id = active$teams$association_id,
+    host_slot_id = "",
+    stage = "group",
+    place_type = "direct",
+    qualification_status = "projected",
+    consumes_capacity = FALSE,
+    qualification_eligibility_status = "eligible",
+    probability = probabilities$probability,
+    reason = reason,
+    counted_match_ids = "",
+    excluded_match_ids = "",
+    tiebreak_evidence_ids = "",
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_artifact_id = "source-artifact-euro-groups-v1",
+    ruleset_version = phase16_test_ruleset_version,
+    ruleset_sha256 = phase16_test_outcomes_sha("c"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  topology <- data.frame(
+    edition_id = phase16_test_edition_id,
+    record_type = "group_stage",
+    league = "",
+    group_id = c("euro-group-a", "euro-group-b"),
+    display_name = c("Group A", "Group B"),
+    team_count = 2L,
+    fixture_count = 2L,
+    stage_id = "group-stage",
+    stage_type = "group",
+    legs = 2L,
+    seed_policy = "official_draw",
+    different_group = "",
+    first_leg_home_policy = "official_schedule",
+    tie_break_policy = "uefa_rules",
+    cancellation_condition = "none",
+    topology_status = status,
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_artifact_ids = "source-artifact-euro-groups-v1",
+    ruleset_version = phase16_test_ruleset_version,
+    ruleset_sha256 = phase16_test_outcomes_sha("c"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  stage_slots <- data.frame(
+    edition_id = phase16_test_edition_id,
+    slot_id = paste0("group-slot-", seq_along(teams)),
+    stage_id = "group-stage",
+    stage_type = "group",
+    group_id = active$teams$group_id,
+    slot_order = c(1L, 2L, 1L, 2L),
+    entrant_type = "official_group_team",
+    entrant_team_id = teams,
+    entrant_source = "official_draw",
+    slot_status = status,
+    resolution_status = "resolved",
+    resolution_reason = reason,
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_artifact_ids = "source-artifact-euro-groups-v1",
+    ruleset_version = phase16_test_ruleset_version,
+    ruleset_sha256 = phase16_test_outcomes_sha("c"),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(
+    status = status,
+    valid = identical(status, "available"),
+    reason = reason,
+    suppression_reason = reason,
+    scenario_id = "scenario-euro-2028-base",
+    scenario_status = if (identical(status, "available")) "resolved" else status,
+    probabilities = probabilities,
+    qualification_probabilities = probabilities,
+    qualification_ledger = ledger,
+    topology = topology,
+    stage_slots = stage_slots,
+    simulation_metadata = data.frame(
+      edition_id = phase16_test_edition_id,
+      status = status,
+      reason = reason,
+      simulation_seed = 16017L,
+      simulation_count = 100L,
+      source_bundle_id = phase16_test_source_bundle_id,
+      source_bundle_sha256 = phase16_test_outcomes_sha("a"),
+      ruleset_version = phase16_test_ruleset_version,
+      ruleset_sha256 = phase16_test_outcomes_sha("c"),
+      model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+      model_data_cutoff = "2026-06-10",
+      state_manifest_sha256 = phase16_test_outcomes_sha("2"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    output_hashes = list(
+      probabilities = phase16_test_outcomes_sha("7"),
+      qualification_ledger = phase16_test_outcomes_sha("8"),
+      topology = phase16_test_outcomes_sha("9")
+    )
+  )
+}
+
+phase16_test_outcomes_model_lineage <- function() {
+  phase16_test_outcomes_lineage()[c(
+    "model_release_id", "model_id", "model_sha256", "release_manifest_sha256",
+    "release_selector_sha256", "calibrator_id", "calibrator_sha256",
+    "model_data_cutoff", "state_manifest_sha256", "forecast_status_sha256",
+    "forecasts_sha256", "score_distributions_sha256", "feature_cutoff_sha256"
+  )]
+}
+
+test_that("exact EURO outcomes contract supports active, active-after-draw, and pre_draw", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+
+  expected <- file.path("outcomes", c(
+    "competition_topology.csv", "stage_slots.csv", "projected_standings.csv",
+    "projected_rankings.csv", "qualification_ledger.csv", "team_path_probabilities.csv",
+    "fixture_forecast_form.csv", "simulation_metadata.csv", "outcomes_manifest.csv"
+  ))
+  expect_identical(phase16_euro_outcomes_expected_inventory(), expected)
+  expect_identical(names(phase16_euro_outcomes_schema()), sub("^outcomes/", "", expected))
+
+  active <- phase16_test_active_after_draw_bundle()
+  active_candidate <- phase16_build_euro_outcomes_candidate(
+    activation = active,
+    simulation = phase16_test_outcomes_simulation(),
+    source_lineage = phase16_test_outcomes_lineage(),
+    model_lineage = phase16_test_outcomes_model_lineage(),
+    generated_at_utc = "2027-03-01T12:30:00Z"
+  )
+  active_validation <- phase16_validate_euro_outcomes_bundle(active_candidate)
+  expect_true(active_validation$valid, info = active_validation$failure_reason)
+  expect_identical(active_candidate$candidate_status, "active")
+  expect_true(nrow(active_candidate$competition_topology) > 0L)
+  expect_true(nrow(active_candidate$stage_slots) > 0L)
+  expect_true(nrow(active_candidate$qualification_ledger) > 0L)
+  expect_true(nrow(active_candidate$team_path_probabilities) > 0L)
+  expect_true(all(active_candidate$team_path_probabilities$probability >= 0))
+
+  pre_draw <- phase16_test_pre_draw_bundle()
+  pre_draw_candidate <- phase16_build_euro_outcomes_candidate(
+    activation = pre_draw,
+    source_lineage = phase16_test_outcomes_lineage(),
+    model_lineage = phase16_test_outcomes_model_lineage(),
+    generated_at_utc = "2026-08-23T12:30:00Z"
+  )
+  pre_draw_validation <- phase16_validate_euro_outcomes_bundle(pre_draw_candidate)
+  expect_true(pre_draw_validation$valid, info = pre_draw_validation$failure_reason)
+  expect_identical(pre_draw_candidate$candidate_status, "pre_draw")
+  expect_true(all(vapply(pre_draw_candidate[setdiff(names(pre_draw_candidate), c(
+    "candidate_status", "activation_status", "reason", "lineage", "manifest",
+    "generated_at_utc", "edition_id"
+  ))], function(value) is.data.frame(value) && nrow(value) == 0L, logical(1))))
+  expect_identical(pre_draw_candidate$forecast_status, "pre_draw")
+})
+
+test_that("EURO outcomes writer and reader enforce the registered-root boundary and replay lineage", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  candidate <- phase16_build_euro_outcomes_candidate(
+    activation = phase16_test_active_after_draw_bundle(),
+    simulation = phase16_test_outcomes_simulation(),
+    source_lineage = phase16_test_outcomes_lineage(),
+    model_lineage = phase16_test_outcomes_model_lineage(),
+    generated_at_utc = "2027-03-01T12:30:00Z"
+  )
+  output_root <- file.path(tempdir(), paste0("phase16-euro-outcomes-", as.integer(Sys.time())))
+  written <- phase16_write_euro_outcomes_bundle(candidate, output_root = output_root)
+  expect_true(isTRUE(written$registered))
+  expect_true(all(file.exists(file.path(output_root, phase16_euro_outcomes_expected_inventory()))))
+  readback <- phase16_read_euro_outcomes_bundle(output_root = output_root)
+  expect_true(phase16_compare_euro_outcomes_replays(candidate, readback)$identical)
+
+  invalid <- candidate
+  invalid$team_path_probabilities$probability[1L] <- 2
+  expect_false(phase16_validate_euro_outcomes_bundle(invalid)$valid)
+  expect_error(
+    phase16_write_euro_outcomes_bundle(invalid, output_root = file.path(tempdir(), "phase16-invalid")),
+    "validated|invalid|probability"
+  )
+})
+
+test_that("EURO outcomes retain typed blocked states and never emit blocked probabilities", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  lineage <- phase16_test_outcomes_lineage()
+  model_lineage <- phase16_test_outcomes_model_lineage()
+
+  blocked_cases <- list(
+    unavailable = {
+      activation <- phase16_test_active_after_draw_bundle()
+      activation$activation_status <- "unavailable"
+      activation$reason <- "source_bundle_missing"
+      activation
+    },
+    unresolved = {
+      activation <- phase16_test_active_after_draw_bundle()
+      activation$activation_status <- "active"
+      activation
+    },
+    unsupported_topology = {
+      activation <- phase16_test_active_after_draw_bundle()
+      activation$activation_status <- "active"
+      activation
+    },
+    revision_blocked = {
+      activation <- phase16_test_active_after_draw_bundle()
+      activation$activation_status <- "revision_blocked"
+      activation$reason <- "incumbent_revision_blocked"
+      activation
+    }
+  )
+  simulations <- list(
+    unavailable = NULL,
+    unresolved = phase16_test_outcomes_simulation("unresolved", "external_eligibility_unresolved"),
+    unsupported_topology = phase16_test_outcomes_simulation("unsupported_topology", "unsupported_topology"),
+    revision_blocked = NULL
+  )
+  expected_status <- c(
+    unavailable = "unavailable", unresolved = "unresolved",
+    unsupported_topology = "unsupported_topology", revision_blocked = "revision_blocked"
+  )
+  for (case_name in names(blocked_cases)) {
+    candidate <- phase16_build_euro_outcomes_candidate(
+      activation = blocked_cases[[case_name]],
+      simulation = simulations[[case_name]],
+      source_lineage = lineage,
+      model_lineage = model_lineage,
+      generated_at_utc = "2027-03-01T12:30:00Z"
+    )
+    expect_identical(candidate$candidate_status, unname(expected_status[[case_name]]), info = case_name)
+    expect_true(phase16_validate_euro_outcomes_bundle(candidate)$valid, info = case_name)
+    expect_equal(nrow(candidate$team_path_probabilities), 0L, info = case_name)
+    expect_equal(nrow(candidate$qualification_ledger), 0L, info = case_name)
+  }
+})
