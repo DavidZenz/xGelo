@@ -25,7 +25,7 @@ uefa_euro_2026_28_rules <- function(config = NULL) {
     source_bundle_id = uefa_euro_source_bundle_id(),
     official_draw_date = uefa_euro_official_draw_date(),
     required_resource_types = phase16_euro_required_resource_types(),
-    lifecycle_states = c("pre_draw", "scheduled"),
+    lifecycle_states = c("pre_draw", "scheduled", "in_progress", "complete"),
     forecast_statuses = c("pre_draw", "available", "unavailable"),
     source_confidence_active = "official",
     registered_ruleset_versions = phase16_euro_registered_ruleset_versions(config),
@@ -35,7 +35,24 @@ uefa_euro_2026_28_rules <- function(config = NULL) {
       "The draw is expected on 6 December 2026.",
       "Forecasts will appear after a complete official draw-and-schedule bundle is accepted."
     ),
-    registered_source_bundle_ids = phase16_euro_registered_bundle_ids(config)
+    registered_source_bundle_ids = phase16_euro_registered_bundle_ids(config),
+    group_tiebreak = c(
+      "head_to_head_points", "head_to_head_goal_difference", "head_to_head_goals",
+      "recursive_tied_subset", "overall_goal_difference", "overall_goals",
+      "overall_away_goals", "wins", "away_wins", "discipline_points",
+      "interim_overall_rank"
+    ),
+    overall_tiebreak = c(
+      "group_position", "points", "goal_difference", "goals_for",
+      "away_goals", "wins", "away_wins", "discipline_points",
+      "interim_overall_rank"
+    ),
+    host_reserved_capacity = 2L,
+    best_runner_up_places = 8L,
+    qualifying_group_count = 12L,
+    playoff_places = 4L,
+    host_selection_rule = "highest_ranked_two_covered_hosts",
+    registered_draw_conditions_versions = c("uefa-euro-2028-playoff-draw-conditions-v1")
   )
 }
 
@@ -674,3 +691,1242 @@ phase16_euro_revision_overlay <- function(validation, incumbent) {
 }
 
 phase16_euro_rules <- uefa_euro_2026_28_rules
+
+# EURO qualification rules stay pure and return lineage-bearing tables. These
+# helpers deliberately mirror the Phase 15 rules adapter without taking over
+# Phase 14's universal standings arithmetic.
+phase16_euro_rules_text <- function(value, default = "") {
+  if (is.null(value) || !length(value) || is.na(value[[1L]])) return(default)
+  value <- trimws(as.character(value[[1L]]))
+  if (!nzchar(value)) default else value
+}
+
+phase16_euro_rules_hash <- function(value) {
+  if (!requireNamespace("digest", quietly = TRUE)) {
+    stop("digest is required for EURO qualification hashes", call. = FALSE)
+  }
+  digest::digest(enc2utf8(as.character(value)), algo = "sha256", serialize = FALSE)
+}
+
+phase16_euro_rules_canonical <- function(value) {
+  if (is.data.frame(value)) {
+    data <- value[, sort(names(value)), drop = FALSE]
+    if (nrow(data)) {
+      ordering <- lapply(data, function(column) {
+        text <- as.character(column)
+        text[is.na(text)] <- ""
+        text
+      })
+      data <- data[do.call(order, c(ordering, list(na.last = TRUE, method = "radix"))), , drop = FALSE]
+    }
+    rows <- if (!nrow(data)) character() else vapply(seq_len(nrow(data)), function(index) {
+      values <- vapply(data[index, , drop = FALSE], function(column) {
+        if (is.na(column[[1L]])) "" else as.character(column[[1L]])
+      }, character(1))
+      paste(values, collapse = "\x1f")
+    }, character(1))
+    return(paste(c(paste(names(data), collapse = "\x1f"), rows), collapse = "\x1e"))
+  }
+  if (is.list(value)) {
+    values <- value
+    if (!is.null(names(values))) values <- values[sort(names(values))]
+    return(paste(vapply(values, phase16_euro_rules_canonical, character(1)), collapse = "\x1c"))
+  }
+  values <- as.character(value)
+  values[is.na(values)] <- ""
+  paste(values, collapse = "\x1f")
+}
+
+uefa_euro_ruleset_sha256 <- function(rules = uefa_euro_2026_28_rules()) {
+  phase16_euro_rules_hash(phase16_euro_rules_canonical(rules))
+}
+
+phase16_euro_default_draw_conditions <- function() {
+  conditions <- c("host_association_separation", "northern_ireland_separation")
+  payload <- paste(
+    "uefa-euro-2028-playoff-draw-conditions-v1",
+    "artifact-euro-draw-conditions-v1",
+    paste(conditions, collapse = "|"),
+    sep = "\x1f"
+  )
+  list(
+    draw_conditions_version = "uefa-euro-2028-playoff-draw-conditions-v1",
+    draw_conditions_sha256 = phase16_euro_rules_hash(payload),
+    source_artifact_id = "artifact-euro-draw-conditions-v1",
+    source_bundle_id = uefa_euro_source_bundle_id(),
+    accepted = TRUE,
+    complete = TRUE,
+    conditions = conditions
+  )
+}
+
+phase16_euro_draw_conditions_record <- function(draw_conditions) {
+  if (is.data.frame(draw_conditions)) {
+    if (!nrow(draw_conditions)) return(NULL)
+    return(as.list(draw_conditions[1L, , drop = FALSE]))
+  }
+  if (is.list(draw_conditions) && !is.null(draw_conditions$draw_conditions)) {
+    draw_conditions <- draw_conditions$draw_conditions
+  }
+  if (is.list(draw_conditions)) return(draw_conditions)
+  NULL
+}
+
+validate_euro_draw_conditions <- function(draw_conditions = NULL, rules = uefa_euro_2026_28_rules()) {
+  if (missing(draw_conditions)) draw_conditions <- phase16_euro_default_draw_conditions()
+  record <- phase16_euro_draw_conditions_record(draw_conditions)
+  if (is.null(record)) {
+    return(list(
+      valid = FALSE,
+      status = "unresolved_draw_conditions",
+      topology_status = "unsupported_topology",
+      reasons = c("unresolved_draw_conditions", "unsupported_topology"),
+      reason = "draw_conditions_missing",
+      draw_conditions = NULL
+    ))
+  }
+  version <- phase16_euro_rules_text(record$draw_conditions_version %||% record$version)
+  hash <- phase16_euro_rules_text(record$draw_conditions_sha256 %||% record$canonical_hash %||% record$sha256)
+  artifact <- phase16_euro_rules_text(record$source_artifact_id %||% record$draw_conditions_source_artifact_id %||% record$artifact_id)
+  source_bundle <- phase16_euro_rules_text(record$source_bundle_id %||% record$bundle_id, uefa_euro_source_bundle_id())
+  accepted <- if (is.null(record$accepted)) TRUE else phase16_euro_bool(record$accepted)
+  complete <- if (is.null(record$complete)) NA else phase16_euro_bool(record$complete)
+  conditions <- record$conditions %||% record$draw_constraints %||% record$additional_conditions %||% record$constraints
+  reasons <- character()
+  if (!nzchar(version)) reasons <- c(reasons, "draw_conditions_version_missing")
+  if (!phase16_euro_hash_is_valid(hash)) reasons <- c(reasons, "draw_conditions_sha256_missing_or_invalid")
+  if (!nzchar(artifact)) reasons <- c(reasons, "draw_conditions_source_artifact_missing")
+  if (!accepted) reasons <- c(reasons, "draw_conditions_not_accepted")
+  if (identical(complete, FALSE) || is.null(conditions) || !length(conditions)) {
+    reasons <- c(reasons, "draw_conditions_incomplete")
+  }
+  registered <- unique(c(
+    "uefa-euro-2028-playoff-draw-conditions-v1",
+    as.character(rules$registered_draw_conditions_versions %||% character())
+  ))
+  if (nzchar(version) && !version %in% registered) reasons <- c(reasons, "draw_conditions_version_unrecognised")
+  reasons <- unique(reasons)
+  list(
+    valid = !length(reasons),
+    status = if (length(reasons)) "unresolved_draw_conditions" else "accepted",
+    topology_status = if (length(reasons)) "unsupported_topology" else "available",
+    reasons = if (length(reasons)) c("unresolved_draw_conditions", reasons, "unsupported_topology") else character(),
+    reason = if (length(reasons)) paste(reasons, collapse = ";") else "",
+    draw_conditions = record,
+    draw_conditions_version = version,
+    draw_conditions_sha256 = hash,
+    draw_conditions_source_artifact_id = artifact,
+    source_bundle_id = source_bundle
+  )
+}
+
+phase16_euro_topology_rows <- function(rules = uefa_euro_2026_28_rules()) {
+  data.frame(
+    topology_id = c("euro-playoff-host-0", "euro-playoff-host-1", "euro-playoff-host-2"),
+    reserved_slots_used = c(0L, 1L, 2L),
+    entrant_count = c(8L, 12L, 8L),
+    structure = c(
+      "4 seeded-versus-unseeded home-and-away ties",
+      "3 single-leg paths of 4",
+      "2 single-leg paths of 4"
+    ),
+    places = c(4L, 3L, 2L),
+    stage_format = c("home_and_away_tie", "single_leg_path", "single_leg_path"),
+    seed_policy = c("seeded_home_second_leg", "pot_1_pot_2_paths", "pot_1_pot_2_paths"),
+    match_resolution = c("aggregate_goals_then_article_22", "extra_time_then_penalties", "extra_time_then_penalties"),
+    source = "uefa-official-playoff-rules",
+    source_artifact_id = "artifact-euro-topology-v1",
+    source_bundle_id = uefa_euro_source_bundle_id(),
+    ruleset_version = rules$ruleset_version,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+uefa_euro_playoff_topologies <- function(rules = uefa_euro_2026_28_rules(), draw_conditions = NULL) {
+  if (is.list(rules) && !is.null(rules$draw_conditions_version) && is.null(rules$ruleset_version) && missing(draw_conditions)) {
+    draw_conditions <- rules
+    rules <- uefa_euro_2026_28_rules()
+  }
+  validation <- if (missing(draw_conditions)) {
+    validate_euro_draw_conditions(rules = rules)
+  } else {
+    validate_euro_draw_conditions(draw_conditions, rules = rules)
+  }
+  output <- phase16_euro_topology_rows(rules)
+  output$ruleset_sha256 <- uefa_euro_ruleset_sha256(rules)
+  output$draw_conditions_version <- phase16_euro_rules_text(validation$draw_conditions_version)
+  output$draw_conditions_sha256 <- phase16_euro_rules_text(validation$draw_conditions_sha256)
+  output$draw_conditions_source_artifact_id <- phase16_euro_rules_text(validation$draw_conditions_source_artifact_id)
+  output$draw_conditions_status <- validation$status
+  output$status <- if (isTRUE(validation$valid)) "available" else "unsupported_topology"
+  output$reason <- if (isTRUE(validation$valid)) "" else paste(validation$reasons, collapse = ";")
+  output$current_topology <- FALSE
+  output$scenario_status <- "unresolved"
+  output <- output[order(output$reserved_slots_used, method = "radix"), , drop = FALSE]
+  row.names(output) <- NULL
+  output
+}
+
+phase16_euro_coalesce <- function(left, right) {
+  if (is.null(left) || !length(left)) return(right)
+  if (length(left) == 1L && (is.na(left) || !nzchar(trimws(as.character(left))))) return(right)
+  left
+}
+
+`%||%` <- function(left, right) phase16_euro_coalesce(left, right)
+
+phase16_euro_bind_data_frames <- function(values) {
+  values <- Filter(function(value) is.data.frame(value), values)
+  if (!length(values)) return(data.frame(stringsAsFactors = FALSE, check.names = FALSE))
+  columns <- unique(unlist(lapply(values, names), use.names = FALSE))
+  values <- lapply(values, function(value) {
+    missing <- setdiff(columns, names(value))
+    for (field in missing) value[[field]] <- NA
+    value[, columns, drop = FALSE]
+  })
+  output <- do.call(rbind, values)
+  row.names(output) <- NULL
+  output
+}
+
+phase16_euro_rank_input <- function(value) {
+  if (is.data.frame(value)) return(value)
+  if (is.list(value)) {
+    for (field in c("rankings", "group_rankings", "rows", "standings")) {
+      if (!is.null(value[[field]])) {
+        nested <- phase16_euro_rank_input(value[[field]])
+        if (nrow(nested) || length(value[[field]]) == 0L) return(nested)
+      }
+    }
+    return(phase16_euro_bind_data_frames(value))
+  }
+  data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+phase16_euro_field <- function(data, fields, default = "") {
+  candidates <- intersect(fields, names(data))
+  if (!length(candidates)) return(rep(default, nrow(data)))
+  field <- candidates[[1L]]
+  data[[field]]
+}
+
+phase16_euro_first_field <- function(data, fields, default = "") {
+  values <- phase16_euro_field(data, fields, default)
+  present <- !is.na(values) & nzchar(trimws(as.character(values)))
+  if (any(present)) as.character(values[[which(present)[[1L]]]]) else default
+}
+
+phase16_euro_numeric <- function(values, default = NA_real_) {
+  output <- suppressWarnings(as.numeric(as.character(values)))
+  output[is.na(output) & !is.na(default)] <- default
+  output
+}
+
+phase16_euro_integer <- function(values, default = NA_integer_) {
+  output <- suppressWarnings(as.integer(as.character(values)))
+  output[is.na(output) & !is.na(default)] <- default
+  output
+}
+
+phase16_euro_attach_lineage <- function(data, rules, source_bundle_id = NULL, source_artifact_id = NULL) {
+  data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
+  defaults <- list(
+    source_bundle_id = phase16_euro_first_field(data, "source_bundle_id", phase16_euro_rules_text(source_bundle_id, uefa_euro_source_bundle_id())),
+    source_artifact_id = phase16_euro_first_field(data, c("source_artifact_id", "artifact_id"), phase16_euro_rules_text(source_artifact_id)),
+    ruleset_version = phase16_euro_first_field(data, "ruleset_version", phase16_euro_rules_text(rules$ruleset_version, uefa_euro_ruleset_version())),
+    ruleset_sha256 = phase16_euro_first_field(data, "ruleset_sha256", uefa_euro_ruleset_sha256(rules)),
+    source_bundle_sha256 = phase16_euro_first_field(data, "source_bundle_sha256", "")
+  )
+  for (field in names(defaults)) {
+    if (!field %in% names(data)) data[[field]] <- rep(defaults[[field]], nrow(data))
+    values <- as.character(data[[field]])
+    missing <- is.na(values) | !nzchar(trimws(values))
+    values[missing] <- defaults[[field]]
+    data[[field]] <- values
+  }
+  data$source_lineage <- paste(data$source_bundle_id, data$source_artifact_id, sep = "::")
+  data$rules_lineage <- paste(data$ruleset_version, data$ruleset_sha256, sep = "::")
+  data
+}
+
+phase16_euro_match_id <- function(data) {
+  fields <- intersect(c("fixture_id", "match_id", "source_fixture_id", "source_match_id"), names(data))
+  if (!length(fields)) return(rep("", nrow(data)))
+  as.character(data[[fields[[1L]]]])
+}
+
+phase16_euro_completion_status <- function(values) {
+  tolower(trimws(as.character(values))) %in% c(
+    "completed", "complete", "finished", "full_time", "full-time",
+    "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded"
+  )
+}
+
+phase16_euro_prepare_matches <- function(fixtures, team_ids, group_id = NULL) {
+  if (is.null(fixtures)) fixtures <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  if (!is.data.frame(fixtures)) stop("EURO ranking fixtures must be a data frame", call. = FALSE)
+  if (!nrow(fixtures)) return(list(rows = fixtures, eligible = logical(), missing = character()))
+  required <- c("home_team_id", "away_team_id")
+  missing_columns <- setdiff(required, names(fixtures))
+  if (length(missing_columns)) stop("EURO ranking fixtures are missing columns: ", paste(missing_columns, collapse = ", "), call. = FALSE)
+  rows <- as.data.frame(fixtures, stringsAsFactors = FALSE, check.names = FALSE)
+  rows$home_team_id <- trimws(as.character(rows$home_team_id))
+  rows$away_team_id <- trimws(as.character(rows$away_team_id))
+  rows$match_id <- phase16_euro_match_id(rows)
+  missing <- character()
+  if (any(is.na(rows$match_id) | !nzchar(rows$match_id))) missing <- c(missing, "fixture_id")
+  if (anyDuplicated(rows$match_id[nzchar(rows$match_id)])) stop("EURO ranking fixtures require unique stable IDs", call. = FALSE)
+  home_fields <- intersect(c("final_home_goals", "home_goals", "regulation_home_goals"), names(rows))
+  away_fields <- intersect(c("final_away_goals", "away_goals", "regulation_away_goals"), names(rows))
+  home_field <- if (length(home_fields)) home_fields[[1L]] else NULL
+  away_field <- if (length(away_fields)) away_fields[[1L]] else NULL
+  home_goals <- if (is.null(home_field) || is.na(home_field)) rep(NA_real_, nrow(rows)) else phase16_euro_numeric(rows[[home_field]])
+  away_goals <- if (is.null(away_field) || is.na(away_field)) rep(NA_real_, nrow(rows)) else phase16_euro_numeric(rows[[away_field]])
+  rows$final_home_goals <- home_goals
+  rows$final_away_goals <- away_goals
+  score_present <- !is.na(home_goals) & !is.na(away_goals) & home_goals >= 0 & away_goals >= 0
+  status_fields <- intersect(c("match_status", "source_status", "fixture_status", "status"), names(rows))
+  status_field <- if (length(status_fields)) status_fields[[1L]] else NULL
+  status_present <- if (is.null(status_field)) rep(TRUE, nrow(rows)) else phase16_euro_completion_status(rows[[status_field]])
+  count_present <- if ("counts_for_standings" %in% names(rows)) phase16_euro_bool(rows$counts_for_standings) else rep(TRUE, nrow(rows))
+  if (any(status_present & count_present & !score_present)) missing <- c(missing, "completed_scores")
+  foreign_team <- !rows$home_team_id %in% team_ids | !rows$away_team_id %in% team_ids
+  if (any(foreign_team)) missing <- c(missing, "stable_team_id")
+  if (!is.null(group_id) && "group_id" %in% names(rows)) {
+    foreign_group <- !is.na(rows$group_id) & nzchar(as.character(rows$group_id)) & as.character(rows$group_id) != group_id
+    if (any(foreign_group)) missing <- c(missing, "group_id")
+  }
+  eligible <- score_present & status_present & count_present & !foreign_team & nzchar(rows$match_id)
+  evidence_fields <- intersect(c("evidence_completed_at_utc", "completed_at_utc"), names(rows))
+  evidence_field <- if (length(evidence_fields)) evidence_fields[[1L]] else NULL
+  if (is.null(evidence_field) && any(eligible)) {
+    missing <- c(missing, "evidence_completed_at_utc")
+  } else if (!is.null(evidence_field) && any(eligible & !nzchar(as.character(rows[[evidence_field]])))) {
+    missing <- c(missing, "evidence_completed_at_utc")
+  }
+  list(rows = rows, eligible = eligible, missing = unique(missing))
+}
+
+phase16_euro_match_metrics <- function(rows, eligible, team_ids) {
+  if (!is.data.frame(rows) || !nrow(rows) || !any(eligible)) {
+    return(data.frame(
+      team_id = as.character(team_ids), points = 0, goal_difference = 0,
+      goals_for = 0, away_goals = 0, wins = 0, away_wins = 0,
+      stringsAsFactors = FALSE, check.names = FALSE
+    ))
+  }
+  rows <- rows[eligible, , drop = FALSE]
+  output <- lapply(as.character(team_ids), function(team_id) {
+    home <- rows$home_team_id == team_id
+    away <- rows$away_team_id == team_id
+    gf <- c(rows$final_home_goals[home], rows$final_away_goals[away])
+    ga <- c(rows$final_away_goals[home], rows$final_home_goals[away])
+    data.frame(
+      team_id = team_id,
+      points = as.integer(3L * sum(gf > ga) + sum(gf == ga)),
+      goal_difference = as.integer(sum(gf) - sum(ga)),
+      goals_for = as.integer(sum(gf)),
+      away_goals = as.integer(sum(rows$final_away_goals[away])),
+      wins = as.integer(sum(gf > ga)),
+      away_wins = as.integer(sum(rows$final_away_goals[away] > rows$final_home_goals[away])),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  })
+  do.call(rbind, output)
+}
+
+phase16_euro_prepare_standings <- function(standings, rules, group_id = NULL) {
+  if (!is.data.frame(standings)) stop("EURO group standings must be a data frame", call. = FALSE)
+  output <- as.data.frame(standings, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!nrow(output)) return(output)
+  if (!"team_id" %in% names(output)) stop("EURO group standings require stable team_id", call. = FALSE)
+  output$team_id <- trimws(as.character(output$team_id))
+  if (any(is.na(output$team_id) | !nzchar(output$team_id)) || anyDuplicated(output$team_id)) {
+    stop("EURO group standings require unique stable team_id values", call. = FALSE)
+  }
+  if (!"group_id" %in% names(output)) output$group_id <- phase16_euro_rules_text(group_id)
+  if (is.null(group_id)) group_id <- phase16_euro_first_field(output, "group_id")
+  output$group_id <- phase16_euro_rules_text(group_id)
+  if (!nzchar(output$group_id[[1L]])) stop("EURO group ranking requires group_id", call. = FALSE)
+  if (!"edition_id" %in% names(output)) output$edition_id <- uefa_euro_edition_id()
+  output$edition_id <- as.character(output$edition_id)
+  aliases <- list(
+    points = c("points"),
+    goal_difference = c("goal_difference", "goal_diff"),
+    goals_for = c("goals_for", "goals_scored", "goals"),
+    away_goals = c("away_goals", "goals_for_away"),
+    wins = c("wins"),
+    away_wins = c("away_wins"),
+    discipline_points = c("discipline_points", "disciplinary_points"),
+    interim_overall_rank = c("interim_overall_rank", "interim_rank", "nations_league_rank")
+  )
+  for (field in names(aliases)) {
+    candidates <- intersect(aliases[[field]], names(output))
+    source <- if (length(candidates)) candidates[[1L]] else NULL
+    if (is.null(source)) output[[field]] <- NA_integer_ else output[[field]] <- phase16_euro_integer(output[[source]])
+  }
+  if (!"group_position" %in% names(output)) {
+    output$group_position <- if ("rank" %in% names(output)) phase16_euro_integer(output$rank) else NA_integer_
+  } else {
+    output$group_position <- phase16_euro_integer(output$group_position)
+  }
+  if (!"group_size" %in% names(output)) output$group_size <- as.integer(nrow(output))
+  output$group_size <- phase16_euro_integer(output$group_size, nrow(output))
+  output
+}
+
+phase16_euro_rank_metric_groups <- function(ids, values, decreasing = TRUE) {
+  values <- suppressWarnings(as.numeric(values))
+  if (anyNA(values)) {
+    finite <- sort(unique(values[!is.na(values)]), decreasing = decreasing, method = "radix")
+    groups <- lapply(finite, function(value) ids[values == value])
+    if (anyNA(values)) groups[[length(groups) + 1L]] <- ids[is.na(values)]
+    return(groups)
+  }
+  unique_values <- sort(unique(values), decreasing = decreasing, method = "radix")
+  lapply(unique_values, function(value) ids[values == value])
+}
+
+phase16_euro_tiebreak_trace <- function(
+    group_id, criterion, tied_subset, counted_match_ids, decision,
+    recursion_depth, remaining_tied_subset, rules, source_bundle_id, source_artifact_id,
+    ranking_scope = "group") {
+  evidence_id <- paste(
+    if (identical(as.character(ranking_scope), "overall")) "article23" else "article15",
+    group_id, criterion, as.integer(recursion_depth),
+    phase16_euro_rules_hash(paste(sort(tied_subset), collapse = "|")), sep = "::"
+  )
+  data.frame(
+    evidence_id = evidence_id,
+    ranking_scope = as.character(ranking_scope),
+    group_id = as.character(group_id),
+    criterion = as.character(criterion),
+    tied_subset = paste(sort(unique(as.character(tied_subset))), collapse = ";"),
+    counted_match_ids = paste(sort(unique(as.character(counted_match_ids))), collapse = ";"),
+    decision = as.character(decision),
+    recursion_depth = as.integer(recursion_depth),
+    remaining_tied_subset = paste(sort(unique(as.character(remaining_tied_subset))), collapse = ";"),
+    source_bundle_id = as.character(source_bundle_id),
+    source_artifact_id = as.character(source_artifact_id),
+    ruleset_version = as.character(rules$ruleset_version),
+    ruleset_sha256 = uefa_euro_ruleset_sha256(rules),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase16_euro_apply_rank_hashes <- function(data) {
+  data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
+  data$row_sha256 <- vapply(seq_len(nrow(data)), function(index) {
+    phase16_euro_rules_hash(phase16_euro_rules_canonical(data[index, setdiff(names(data), "row_sha256"), drop = FALSE]))
+  }, character(1))
+  table_hash <- phase16_euro_rules_hash(phase16_euro_rules_canonical(data[, setdiff(names(data), "table_sha256"), drop = FALSE]))
+  data$table_sha256 <- rep(table_hash, nrow(data))
+  data
+}
+
+phase16_euro_blocked_ranking <- function(data, missing_rule_input, rules, ranking_scope = "group", trace = NULL) {
+  data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!"team_id" %in% names(data)) data$team_id <- character(nrow(data))
+  if (!"group_id" %in% names(data)) data$group_id <- NA_character_
+  if (!"edition_id" %in% names(data)) data$edition_id <- uefa_euro_edition_id()
+  data$ranking_scope <- ranking_scope
+  data$ranking_stage <- if (ranking_scope == "group") "article15_group" else "article23_overall"
+  data$rank <- NA_integer_
+  data$group_position <- if ("group_position" %in% names(data)) phase16_euro_integer(data$group_position) else NA_integer_
+  data$overall_rank <- NA_integer_
+  data$article23_rank <- NA_integer_
+  data$counted_match_ids <- if ("counted_match_ids" %in% names(data)) as.character(data$counted_match_ids) else ""
+  data$excluded_match_ids <- if ("excluded_match_ids" %in% names(data)) as.character(data$excluded_match_ids) else ""
+  data$ordering_status <- "blocked"
+  data$missing_rule_input <- paste(unique(as.character(missing_rule_input)), collapse = ";")
+  data$suppression_reason <- "missing_rule_input"
+  data$qualification_eligibility_status <- "suppressed"
+  data$probability <- NA_real_
+  data <- phase16_euro_attach_lineage(data, rules)
+  data <- phase16_euro_apply_rank_hashes(data)
+  if (is.null(trace)) {
+    missing_text <- if (nrow(data)) data$missing_rule_input[[1L]] else "missing_rule_input"
+    trace <- phase16_euro_tiebreak_trace(
+      if (nrow(data)) data$group_id[[1L]] else "",
+      "blocked", if (nrow(data)) data$team_id else character(), character(),
+      missing_text, 0L,
+      if (nrow(data)) data$team_id else character(), rules,
+      phase16_euro_first_field(data, "source_bundle_id"),
+      phase16_euro_first_field(data, "source_artifact_id")
+    )
+  }
+  attr(data, "tiebreak_trace") <- trace
+  data
+}
+
+rank_euro_group <- function(standings, fixtures = NULL, rules = uefa_euro_2026_28_rules(), group_id = NULL) {
+  rules <- if (is.null(rules)) uefa_euro_2026_28_rules() else rules
+  prepared <- phase16_euro_prepare_standings(standings, rules, group_id)
+  if (!nrow(prepared)) {
+    return(phase16_euro_blocked_ranking(prepared, "completed_standings", rules, "group"))
+  }
+  group_id <- prepared$group_id[[1L]]
+  team_ids <- as.character(prepared$team_id)
+  matches <- phase16_euro_prepare_matches(fixtures, team_ids, group_id)
+  match_metrics <- phase16_euro_match_metrics(matches$rows, matches$eligible, team_ids)
+  missing <- unique(matches$missing)
+  required <- c("points", "goal_difference", "goals_for", "away_goals", "wins", "away_wins", "discipline_points", "interim_overall_rank")
+  for (field in required) {
+    values <- phase16_euro_numeric(prepared[[field]])
+    derived <- match_metrics[[field]]
+    fill <- is.na(values) & !is.na(derived)
+    values[fill] <- derived[fill]
+    if (anyNA(values)) missing <- c(missing, field)
+    prepared[[field]] <- as.integer(values)
+  }
+  source_artifact <- phase16_euro_first_field(prepared, c("source_artifact_id", "artifact_id"))
+  if (!nzchar(source_artifact)) missing <- c(missing, "source_artifact_id")
+  if (any(is.na(prepared$group_id) | !nzchar(prepared$group_id))) missing <- c(missing, "group_id")
+  if (length(missing)) return(phase16_euro_blocked_ranking(prepared, unique(missing), rules, "group"))
+
+  overall <- prepared
+  trace_parts <- list()
+  trace_index <- 0L
+  add_trace <- function(criterion, subset, counted_ids, decision, depth, remaining) {
+    trace_index <<- trace_index + 1L
+    trace_parts[[trace_index]] <<- phase16_euro_tiebreak_trace(
+      group_id, criterion, subset, counted_ids, decision, depth, remaining,
+      rules, phase16_euro_first_field(prepared, "source_bundle_id"), source_artifact
+    )
+  }
+  h2h_values <- function(ids, criterion) {
+    subset_rows <- matches$rows[
+      matches$eligible & matches$rows$home_team_id %in% ids & matches$rows$away_team_id %in% ids,
+      , drop = FALSE
+    ]
+    metrics <- phase16_euro_match_metrics(subset_rows, rep(TRUE, nrow(subset_rows)), ids)
+    field <- switch(
+      criterion,
+      head_to_head_points = "points",
+      head_to_head_goal_difference = "goal_difference",
+      head_to_head_goals = "goals_for"
+    )
+    list(values = metrics[[field]], counted_ids = phase16_euro_match_id(subset_rows), rows = subset_rows)
+  }
+  overall_values <- function(ids, criterion) {
+    rows <- overall[match(ids, overall$team_id), , drop = FALSE]
+    field <- switch(
+      criterion,
+      overall_goal_difference = "goal_difference",
+      overall_goals = "goals_for",
+      overall_away_goals = "away_goals",
+      wins = "wins",
+      away_wins = "away_wins",
+      discipline_points = "discipline_points",
+      interim_overall_rank = "interim_overall_rank"
+    )
+    list(values = rows[[field]], counted_ids = phase16_euro_match_id(matches$rows[matches$eligible, , drop = FALSE]))
+  }
+  h2h_criteria <- c("head_to_head_points", "head_to_head_goal_difference", "head_to_head_goals")
+  overall_criteria <- c("overall_goal_difference", "overall_goals", "overall_away_goals", "wins", "away_wins", "discipline_points", "interim_overall_rank")
+  order_overall <- function(ids, criterion_index, depth) {
+    if (length(ids) <= 1L) return(ids)
+    for (index in seq.int(criterion_index, length(overall_criteria))) {
+      criterion <- overall_criteria[[index]]
+      evaluated <- overall_values(ids, criterion)
+      groups <- phase16_euro_rank_metric_groups(ids, evaluated$values, criterion != "discipline_points" && criterion != "interim_overall_rank")
+      decision <- paste(vapply(groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > ")
+      add_trace(criterion, ids, evaluated$counted_ids, decision, depth, ids)
+      if (length(groups) > 1L) {
+        return(unlist(lapply(groups, function(group) if (length(group) <= 1L) group else order_overall(group, index + 1L, depth)), use.names = FALSE))
+      }
+    }
+    sort(ids, method = "radix")
+  }
+  order_tied <- function(ids, depth = 0L) {
+    if (length(ids) <= 1L) return(ids)
+    for (criterion in h2h_criteria) {
+      evaluated <- h2h_values(ids, criterion)
+      if (!nrow(evaluated$rows)) missing <<- unique(c(missing, "head_to_head_evidence"))
+      groups <- phase16_euro_rank_metric_groups(ids, evaluated$values, TRUE)
+      decision <- paste(vapply(groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > ")
+      add_trace(criterion, ids, evaluated$counted_ids, decision, depth, ids)
+      if (length(groups) > 1L) {
+        return(unlist(lapply(groups, function(group) {
+          if (length(group) <= 1L) return(group)
+          add_trace("recursive_tied_subset", group, evaluated$counted_ids, "reapply_head_to_head", depth + 1L, group)
+          order_tied(group, depth + 1L)
+        }), use.names = FALSE))
+      }
+    }
+    order_overall(ids, 1L, depth)
+  }
+  points <- prepared$points
+  initial_groups <- phase16_euro_rank_metric_groups(team_ids, points, TRUE)
+  add_trace("points", team_ids, phase16_euro_match_id(matches$rows[matches$eligible, , drop = FALSE]), paste(vapply(initial_groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > "), 0L, team_ids)
+  ordered_ids <- unlist(lapply(initial_groups, function(group) if (length(group) <= 1L) group else order_tied(group, 0L)), use.names = FALSE)
+  if (length(missing)) return(phase16_euro_blocked_ranking(prepared, unique(missing), rules, "group", do.call(rbind, trace_parts)))
+  if (length(ordered_ids) != length(team_ids) || anyDuplicated(ordered_ids) || !setequal(ordered_ids, team_ids)) {
+    return(phase16_euro_blocked_ranking(prepared, "team_id", rules, "group", do.call(rbind, trace_parts)))
+  }
+  output <- prepared[match(ordered_ids, prepared$team_id), , drop = FALSE]
+  output$ranking_scope <- "group"
+  output$ranking_stage <- "article15_group"
+  output$rank <- as.integer(seq_len(nrow(output)))
+  output$group_position <- output$rank
+  output$overall_rank <- NA_integer_
+  output$article23_rank <- NA_integer_
+  output$counted_match_ids <- vapply(ordered_ids, function(team_id) {
+    paste(sort(unique(phase16_euro_match_id(matches$rows[matches$eligible & (matches$rows$home_team_id == team_id | matches$rows$away_team_id == team_id), , drop = FALSE]))), collapse = ";")
+  }, character(1))
+  output$excluded_match_ids <- ""
+  output$ordering_status <- "ready"
+  output$missing_rule_input <- ""
+  output$suppression_reason <- "none"
+  output$qualification_eligibility_status <- "available"
+  output$probability <- NA_real_
+  output <- phase16_euro_attach_lineage(output, rules)
+  trace <- if (length(trace_parts)) do.call(rbind, trace_parts) else data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  trace$evidence_id <- as.character(trace$evidence_id)
+  evidence_ids <- paste(unique(trace$evidence_id), collapse = ";")
+  output$tiebreak_evidence_ids <- evidence_ids
+  output$tie_break_evidence_id <- paste0("article15::", output$group_id, "::", output$team_id, "::", output$rank)
+  output <- phase16_euro_apply_rank_hashes(output)
+  row.names(trace) <- NULL
+  attr(output, "tiebreak_trace") <- trace
+  attr(output, "trace") <- trace
+  output
+}
+
+phase16_euro_article23_metrics <- function(group_rows, group_matches, candidate_id) {
+  team_ids <- as.character(group_rows$team_id)
+  prepared <- phase16_euro_prepare_matches(group_matches, team_ids, group_rows$group_id[[1L]])
+  if (length(prepared$missing)) {
+    return(list(
+      missing = prepared$missing,
+      counted_match_ids = character(),
+      excluded_match_ids = character(),
+      metrics = NULL
+    ))
+  }
+  group_size <- phase16_euro_integer(group_rows$group_size, nrow(group_rows))[[1L]]
+  fifth_ids <- if (identical(as.integer(group_size), 5L)) {
+    as.character(group_rows$team_id[group_rows$group_position == 5L])
+  } else {
+    character()
+  }
+  if (identical(as.integer(group_size), 5L) && length(fifth_ids) != 1L) {
+    return(list(
+      missing = "fifth_place_identification",
+      counted_match_ids = character(),
+      excluded_match_ids = character(),
+      metrics = NULL
+    ))
+  }
+  fifth_match <- if (length(fifth_ids)) {
+    prepared$rows$home_team_id %in% fifth_ids | prepared$rows$away_team_id %in% fifth_ids
+  } else {
+    rep(FALSE, nrow(prepared$rows))
+  }
+  excluded_match_ids <- phase16_euro_match_id(prepared$rows[fifth_match, , drop = FALSE])
+  eligible <- prepared$eligible & !fifth_match
+  counted_match_ids <- phase16_euro_match_id(prepared$rows[eligible, , drop = FALSE])
+  if (!length(counted_match_ids)) {
+    return(list(
+      missing = "article23_comparison_match_evidence",
+      counted_match_ids = counted_match_ids,
+      excluded_match_ids = excluded_match_ids,
+      metrics = NULL
+    ))
+  }
+  metrics <- phase16_euro_match_metrics(prepared$rows, eligible, team_ids)
+  candidate <- metrics[match(candidate_id, metrics$team_id), , drop = FALSE]
+  if (!nrow(candidate) || anyNA(candidate[1L, c("points", "goal_difference", "goals_for", "away_goals", "wins", "away_wins"), drop = FALSE])) {
+    return(list(
+      missing = "article23_comparison_metrics",
+      counted_match_ids = counted_match_ids,
+      excluded_match_ids = excluded_match_ids,
+      metrics = NULL
+    ))
+  }
+  list(
+    missing = character(),
+    counted_match_ids = counted_match_ids,
+    excluded_match_ids = excluded_match_ids,
+    metrics = candidate
+  )
+}
+
+rank_euro_overall <- function(group_rankings, fixtures = NULL, rules = uefa_euro_2026_28_rules()) {
+  rules <- if (is.null(rules)) uefa_euro_2026_28_rules() else rules
+  data <- phase16_euro_rank_input(group_rankings)
+  if (!nrow(data)) return(phase16_euro_blocked_ranking(data, "completed_group_rankings", rules, "overall"))
+  if (!"team_id" %in% names(data)) return(phase16_euro_blocked_ranking(data, "team_id", rules, "overall"))
+  data$team_id <- trimws(as.character(data$team_id))
+  if (any(is.na(data$team_id) | !nzchar(data$team_id)) || anyDuplicated(data$team_id)) {
+    stop("EURO overall ranking requires unique stable team_id values", call. = FALSE)
+  }
+  if (!"group_id" %in% names(data)) data$group_id <- ""
+  data$group_id <- trimws(as.character(data$group_id))
+  if (any(is.na(data$group_id) | !nzchar(data$group_id))) {
+    return(phase16_euro_blocked_ranking(data, "group_id", rules, "overall"))
+  }
+  if (!"group_position" %in% names(data)) {
+    data$group_position <- if ("rank" %in% names(data)) phase16_euro_integer(data$rank) else NA_integer_
+  }
+  data$group_position <- phase16_euro_integer(data$group_position)
+  if (!"group_size" %in% names(data)) {
+    data$group_size <- as.integer(table(data$group_id)[data$group_id])
+  }
+  data$group_size <- phase16_euro_integer(data$group_size)
+  candidates <- data[data$group_position == 2L, , drop = FALSE]
+  if (!nrow(candidates)) {
+    return(phase16_euro_blocked_ranking(data, "runner_up_group_position", rules, "overall"))
+  }
+  missing <- character()
+  trace_parts <- list()
+  trace_index <- 0L
+  add_trace <- function(criterion, subset, counted_ids, decision, depth = 0L, remaining = subset) {
+    trace_index <<- trace_index + 1L
+    trace_parts[[trace_index]] <<- phase16_euro_tiebreak_trace(
+      "overall", criterion, subset, counted_ids, decision, depth, remaining,
+      rules, phase16_euro_first_field(candidates, "source_bundle_id"),
+      phase16_euro_first_field(candidates, "source_artifact_id"), "overall"
+    )
+  }
+  comparison_rows <- vector("list", nrow(candidates))
+  for (index in seq_len(nrow(candidates))) {
+    candidate <- candidates[index, , drop = FALSE]
+    group_id <- as.character(candidate$group_id[[1L]])
+    group_rows <- data[data$group_id == group_id, , drop = FALSE]
+    group_status <- if ("ordering_status" %in% names(group_rows)) as.character(group_rows$ordering_status) else rep("ready", nrow(group_rows))
+    if (any(is.na(group_rows$group_position)) || any(is.na(group_status) | group_status != "ready")) {
+      missing <- c(missing, "group_ordering")
+    }
+    group_matches <- if (is.data.frame(fixtures) && nrow(fixtures) && "group_id" %in% names(fixtures)) {
+      fixtures[as.character(fixtures$group_id) == group_id, , drop = FALSE]
+    } else if (is.data.frame(fixtures)) {
+      fixtures
+    } else {
+      data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+    }
+    comparison <- phase16_euro_article23_metrics(group_rows, group_matches, candidate$team_id[[1L]])
+    missing <- c(missing, comparison$missing)
+    if (is.null(comparison$metrics)) {
+      comparison_rows[[index]] <- candidate
+      next
+    }
+    for (field in c("points", "goal_difference", "goals_for", "away_goals", "wins", "away_wins")) {
+      candidate[[field]] <- as.integer(comparison$metrics[[field]][[1L]])
+    }
+    candidate$comparison_counted_match_ids <- paste(sort(unique(comparison$counted_match_ids)), collapse = ";")
+    candidate$counted_match_ids <- candidate$comparison_counted_match_ids
+    candidate$excluded_match_ids <- paste(sort(unique(comparison$excluded_match_ids)), collapse = ";")
+    candidate$comparison_scope <- "article23_comparable_runner_up"
+    candidate$comparison_status <- "ready"
+    comparison_rows[[index]] <- candidate
+  }
+  candidates <- do.call(rbind, comparison_rows)
+  row.names(candidates) <- NULL
+  required <- c("discipline_points", "interim_overall_rank", "source_artifact_id")
+  for (field in required) {
+    if (!field %in% names(candidates)) {
+      missing <- c(missing, field)
+    } else if (any(is.na(candidates[[field]]) | !nzchar(as.character(candidates[[field]])))) {
+      missing <- c(missing, field)
+    }
+  }
+  if (any(is.na(candidates$group_position)) || any(is.na(candidates$group_size))) missing <- c(missing, "group_position")
+  missing <- unique(missing[nzchar(missing)])
+  initial_ids <- as.character(candidates$team_id)
+  if (length(missing)) {
+    trace <- phase16_euro_tiebreak_trace(
+      "overall", "blocked", initial_ids, character(), paste(missing, collapse = ";"), 0L,
+      initial_ids, rules, phase16_euro_first_field(candidates, "source_bundle_id"),
+      phase16_euro_first_field(candidates, "source_artifact_id"), "overall"
+    )
+    blocked <- phase16_euro_blocked_ranking(candidates, missing, rules, "overall", trace)
+    blocked$ranking_stage <- "article23_best_runners_up"
+    blocked$comparison_scope <- "article23_comparable_runner_up"
+    blocked$comparison_status <- "blocked"
+    return(blocked)
+  }
+  criteria <- c(
+    "group_position", "points", "goal_difference", "goals_for", "away_goals",
+    "wins", "away_wins", "discipline_points", "interim_overall_rank"
+  )
+  criterion_decreasing <- function(criterion) !criterion %in% c("group_position", "discipline_points", "interim_overall_rank")
+  candidate_values <- function(ids, criterion) {
+    rows <- candidates[match(ids, candidates$team_id), , drop = FALSE]
+    values <- rows[[criterion]]
+    list(values = values, counted_ids = unique(unlist(strsplit(paste(rows$counted_match_ids, collapse = ";"), ";", fixed = TRUE))))
+  }
+  order_tied <- function(ids, criterion_index = 1L, depth = 0L) {
+    if (length(ids) <= 1L) return(ids)
+    for (index in seq.int(criterion_index, length(criteria))) {
+      criterion <- criteria[[index]]
+      evaluated <- candidate_values(ids, criterion)
+      groups <- phase16_euro_rank_metric_groups(ids, evaluated$values, criterion_decreasing(criterion))
+      decision <- paste(vapply(groups, function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > ")
+      add_trace(criterion, ids, evaluated$counted_ids, decision, depth, ids)
+      if (length(groups) > 1L) {
+        return(unlist(lapply(groups, function(group) {
+          if (length(group) <= 1L) group else order_tied(group, index + 1L, depth)
+        }), use.names = FALSE))
+      }
+    }
+    missing <<- unique(c(missing, "article23_final_tie_break"))
+    sort(ids, method = "radix")
+  }
+  add_trace(
+    "group_position", initial_ids, unique(candidates$counted_match_ids),
+    paste(vapply(phase16_euro_rank_metric_groups(initial_ids, candidates$group_position, FALSE), function(group) paste(sort(group), collapse = "+"), character(1)), collapse = " > "),
+    0L, initial_ids
+  )
+  ordered_ids <- order_tied(initial_ids)
+  if ("article23_final_tie_break" %in% missing) {
+    trace <- if (length(trace_parts)) do.call(rbind, trace_parts) else NULL
+    blocked <- phase16_euro_blocked_ranking(candidates, unique(missing), rules, "overall", trace)
+    blocked$ranking_stage <- "article23_best_runners_up"
+    blocked$comparison_scope <- "article23_comparable_runner_up"
+    blocked$comparison_status <- "blocked"
+    return(blocked)
+  }
+  output <- candidates[match(ordered_ids, candidates$team_id), , drop = FALSE]
+  output$ranking_scope <- "overall"
+  output$ranking_stage <- "article23_best_runners_up"
+  output$rank <- as.integer(seq_len(nrow(output)))
+  output$overall_rank <- output$rank
+  output$article23_rank <- output$rank
+  output$ordering_status <- "ready"
+  output$missing_rule_input <- ""
+  output$suppression_reason <- "none"
+  output$qualification_eligibility_status <- "available"
+  output$probability <- NA_real_
+  output$comparison_scope <- "article23_comparable_runner_up"
+  output$comparison_status <- "ready"
+  output <- phase16_euro_attach_lineage(output, rules)
+  trace <- if (length(trace_parts)) do.call(rbind, trace_parts) else data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  row.names(trace) <- NULL
+  output$tiebreak_evidence_ids <- paste(unique(trace$evidence_id), collapse = ";")
+  output$tie_break_evidence_id <- paste0("article23::", output$group_id, "::", output$team_id, "::", output$article23_rank)
+  output <- phase16_euro_apply_rank_hashes(output)
+  attr(output, "tiebreak_trace") <- trace
+  attr(output, "trace") <- trace
+  output
+}
+
+phase16_euro_host_input <- function(hosts, rules) {
+  if (is.null(hosts)) {
+    return(data.frame(
+      host_slot_id = character(), slot_number = integer(), association_id = character(),
+      host_association_id = character(), team_id = character(), covered = logical(),
+      host_rank_evidence = numeric(), host_guarantee_status = character(),
+      slot_status = character(), consumes_capacity = logical(),
+      source_bundle_id = character(), source_artifact_id = character(),
+      ruleset_version = character(), ruleset_sha256 = character(),
+      stringsAsFactors = FALSE, check.names = FALSE
+    ))
+  }
+  if (is.list(hosts) && !is.data.frame(hosts)) {
+    for (field in c("host_slots", "covered_hosts", "hosts", "rows")) {
+      if (!is.null(hosts[[field]])) return(phase16_euro_host_input(hosts[[field]], rules))
+    }
+  }
+  if (is.atomic(hosts) && !is.data.frame(hosts)) {
+    hosts <- data.frame(team_id = as.character(hosts), stringsAsFactors = FALSE, check.names = FALSE)
+  }
+  if (!is.data.frame(hosts)) stop("EURO host associations must be a data frame or keyed list", call. = FALSE)
+  if (!nrow(hosts)) return(phase16_euro_host_input(NULL, rules))
+  rows <- as.data.frame(hosts, stringsAsFactors = FALSE, check.names = FALSE)
+  n <- nrow(rows)
+  host_slot <- phase16_euro_field(rows, c("host_slot_id", "slot_id", "slot"), "")
+  host_slot <- trimws(as.character(host_slot))
+  blank_slot <- is.na(host_slot) | !nzchar(host_slot)
+  host_slot[blank_slot] <- sprintf("euro-host-slot-%02d", which(blank_slot))
+  if (anyDuplicated(host_slot)) stop("EURO host associations require unique host_slot_id values", call. = FALSE)
+  slot_number <- phase16_euro_integer(phase16_euro_field(rows, c("slot_number", "host_slot_number"), seq_len(n)), seq_len(n))
+  association <- trimws(as.character(phase16_euro_field(rows, c("association_id", "host_association_id", "association", "host_id"), "")))
+  team_id <- trimws(as.character(phase16_euro_field(rows, c("team_id", "host_team_id"), "")))
+  covered_field <- intersect(c("covered", "host_covered", "is_host"), names(rows))
+  covered <- if (length(covered_field)) phase16_euro_bool(rows[[covered_field[[1L]]]]) else rep(TRUE, n)
+  guarantee_field <- intersect(c("host_guarantee_status", "guarantee_status", "host_place_status"), names(rows))
+  guarantee_raw <- if (length(guarantee_field)) tolower(trimws(as.character(rows[[guarantee_field[[1L]]]]))) else rep("", n)
+  guarantee <- rep("unresolved", n)
+  guarantee[!covered] <- "not_covered"
+  guarantee[covered & guarantee_raw %in% c("resolved", "confirmed", "guaranteed", "accepted", "true", "yes")] <- "resolved"
+  rank_field <- intersect(c("rank_evidence", "host_rank_evidence", "host_rank", "rank", "overall_rank"), names(rows))
+  host_rank <- if (length(rank_field)) suppressWarnings(as.numeric(as.character(rows[[rank_field[[1L]]]]))) else rep(NA_real_, n)
+  source_bundle <- as.character(phase16_euro_field(rows, "source_bundle_id", uefa_euro_source_bundle_id()))
+  source_bundle[is.na(source_bundle) | !nzchar(trimws(source_bundle))] <- uefa_euro_source_bundle_id()
+  source_artifact <- as.character(phase16_euro_field(rows, c("source_artifact_id", "artifact_id"), ""))
+  ruleset_version <- as.character(phase16_euro_field(rows, "ruleset_version", rules$ruleset_version))
+  ruleset_sha256 <- as.character(phase16_euro_field(rows, "ruleset_sha256", uefa_euro_ruleset_sha256(rules)))
+  status <- ifelse(covered, "conditional", "not_covered")
+  output <- data.frame(
+    host_slot_id = host_slot,
+    slot_number = as.integer(slot_number),
+    association_id = association,
+    host_association_id = association,
+    team_id = team_id,
+    covered = as.logical(covered),
+    host_rank_evidence = host_rank,
+    host_guarantee_status = guarantee,
+    slot_status = status,
+    consumes_capacity = rep(NA, n),
+    source_bundle_id = source_bundle,
+    source_artifact_id = source_artifact,
+    ruleset_version = ruleset_version,
+    ruleset_sha256 = ruleset_sha256,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  output$host_selection_status <- ifelse(output$covered, "pending", "not_covered")
+  output$host_selection_reason <- ifelse(output$covered, "host_place_conditional", "association_not_covered")
+  output
+}
+
+phase16_euro_host_placeholder <- function(slot_number, rules, source_bundle_id = uefa_euro_source_bundle_id(), source_artifact_id = "") {
+  data.frame(
+    host_slot_id = sprintf("euro-host-reserved-slot-%02d", as.integer(slot_number)),
+    slot_number = as.integer(slot_number),
+    association_id = "",
+    host_association_id = "",
+    team_id = "",
+    covered = FALSE,
+    host_rank_evidence = NA_real_,
+    host_guarantee_status = "not_covered",
+    slot_status = "host_reserved_unused",
+    consumes_capacity = FALSE,
+    source_bundle_id = source_bundle_id,
+    source_artifact_id = source_artifact_id,
+    ruleset_version = rules$ruleset_version,
+    ruleset_sha256 = uefa_euro_ruleset_sha256(rules),
+    host_selection_status = "unassigned",
+    host_selection_reason = "reserved_capacity_remaining",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase16_euro_select_host_slots <- function(hosts, direct_team_ids, results_ready, rules) {
+  rows <- phase16_euro_host_input(hosts, rules)
+  covered <- rows$covered %in% TRUE
+  covered_rows <- rows[covered, , drop = FALSE]
+  source_bundle_id <- phase16_euro_first_field(rows, "source_bundle_id", uefa_euro_source_bundle_id())
+  source_artifact_id <- phase16_euro_first_field(rows, "source_artifact_id")
+  deterministic <- isTRUE(results_ready)
+  unresolved_reasons <- character()
+  if (!deterministic && nrow(covered_rows)) unresolved_reasons <- c(unresolved_reasons, "completed_standings_required")
+  if (nrow(covered_rows) && any(covered_rows$host_guarantee_status != "resolved")) {
+    unresolved_reasons <- c(unresolved_reasons, "host_guarantee_unresolved")
+  }
+  if (nrow(covered_rows) && any(is.na(covered_rows$association_id) | !nzchar(covered_rows$association_id))) {
+    unresolved_reasons <- c(unresolved_reasons, "host_association_id")
+  }
+  if (nrow(covered_rows) && any(is.na(covered_rows$source_artifact_id) | !nzchar(covered_rows$source_artifact_id))) {
+    unresolved_reasons <- c(unresolved_reasons, "host_source_artifact")
+  }
+  if (nrow(covered_rows) && any(is.na(covered_rows$host_rank_evidence))) {
+    unresolved_reasons <- c(unresolved_reasons, "host_rank_evidence")
+  }
+  if (length(unresolved_reasons)) {
+    rows$slot_status[covered] <- "host_place_unresolved"
+    rows$consumes_capacity[covered] <- NA
+    rows$host_selection_status[covered] <- "unresolved"
+    rows$host_selection_reason[covered] <- paste(unique(unresolved_reasons), collapse = ";")
+    if (nrow(covered_rows)) {
+      placeholders <- lapply(seq_len(max(0L, 2L - nrow(covered_rows))), phase16_euro_host_placeholder,
+        rules = rules, source_bundle_id = source_bundle_id, source_artifact_id = source_artifact_id)
+      if (length(placeholders)) rows <- phase16_euro_bind_data_frames(c(list(rows, placeholders)))
+      rows$slot_status[rows$slot_status == "host_reserved_unused"] <- "host_place_unresolved"
+      rows$consumes_capacity[rows$slot_status == "host_place_unresolved"] <- NA
+      rows$host_selection_status[rows$slot_status == "host_place_unresolved"] <- "unresolved"
+      rows$host_selection_reason[rows$slot_status == "host_place_unresolved"] <- paste(unique(unresolved_reasons), collapse = ";")
+    }
+    return(list(rows = rows, deterministic = FALSE, reserved_slots_used = NA_integer_, reasons = unique(unresolved_reasons)))
+  }
+  if (!nrow(covered_rows)) {
+    placeholders <- lapply(seq_len(2L), phase16_euro_host_placeholder,
+      rules = rules, source_bundle_id = source_bundle_id, source_artifact_id = source_artifact_id)
+    if (length(placeholders)) rows <- phase16_euro_bind_data_frames(c(list(rows, placeholders)))
+    rows$slot_status[rows$slot_status == "host_reserved_unused"] <- "host_reserved_unused"
+    rows$consumes_capacity[rows$slot_status == "host_reserved_unused"] <- FALSE
+    rows$host_selection_status[rows$slot_status == "host_reserved_unused"] <- "unused"
+    return(list(rows = rows, deterministic = deterministic, reserved_slots_used = 0L, reasons = character()))
+  }
+  ordering <- order(covered_rows$host_rank_evidence, covered_rows$association_id, method = "radix")
+  covered_rows <- covered_rows[ordering, , drop = FALSE]
+  if (nrow(covered_rows) > rules$host_reserved_capacity && anyDuplicated(covered_rows$host_rank_evidence[seq_len(rules$host_reserved_capacity + 1L)])) {
+    rows$slot_status[covered] <- "host_place_unresolved"
+    rows$consumes_capacity[covered] <- NA
+    rows$host_selection_status[covered] <- "unresolved"
+    rows$host_selection_reason[covered] <- "host_rank_tie_at_capacity_boundary"
+    return(list(rows = rows, deterministic = FALSE, reserved_slots_used = NA_integer_, reasons = "host_rank_tie_at_capacity_boundary"))
+  }
+  selected_associations <- covered_rows$association_id[seq_len(min(nrow(covered_rows), rules$host_reserved_capacity))]
+  selected <- covered & rows$association_id %in% selected_associations
+  rows$slot_status[covered & selected] <- "occupied"
+  rows$consumes_capacity[covered & selected] <- TRUE
+  rows$host_selection_status[covered & selected] <- "selected"
+  rows$host_selection_reason[covered & selected] <- ifelse(rows$team_id[covered & selected] %in% direct_team_ids, "direct_host_precedence", "host_reserved_place")
+  rows$slot_status[covered & !selected] <- "host_reserved_unused"
+  rows$consumes_capacity[covered & !selected] <- FALSE
+  rows$host_selection_status[covered & !selected] <- "unselected"
+  rows$host_selection_reason[covered & !selected] <- "host_rank_outside_reserved_capacity"
+  if (nrow(covered_rows) < rules$host_reserved_capacity) {
+    placeholders <- lapply(seq_len(rules$host_reserved_capacity - nrow(covered_rows)), function(index) {
+      phase16_euro_host_placeholder(
+        max(rows$slot_number, 0L) + index, rules, source_bundle_id, source_artifact_id
+      )
+    })
+    rows <- phase16_euro_bind_data_frames(c(list(rows, placeholders)))
+  }
+  list(
+    rows = rows,
+    deterministic = deterministic,
+    reserved_slots_used = as.integer(sum(rows$consumes_capacity %in% TRUE)),
+    reasons = character()
+  )
+}
+
+phase16_euro_ledger_row <- function(
+    allocation_id, scenario_id, ranked_row = NULL, team_id = "", group_id = "", association_id = "",
+    host_slot_id = "", stage = "qualifying", qualification_status = "unavailable",
+    place_type = "", consumes_capacity = FALSE, eligibility = "available", reason = "",
+    counted_match_ids = "", excluded_match_ids = "", evidence_ids = "", source_bundle_id = "",
+    source_artifact_id = "", rules = uefa_euro_2026_28_rules()) {
+  if (!is.null(ranked_row) && is.data.frame(ranked_row) && nrow(ranked_row)) {
+    team_id <- phase16_euro_rules_text(ranked_row$team_id, team_id)
+    group_id <- phase16_euro_rules_text(ranked_row$group_id, group_id)
+    association_id <- phase16_euro_rules_text(phase16_euro_field(ranked_row, "association_id", association_id), association_id)
+    counted_match_ids <- phase16_euro_rules_text(phase16_euro_field(ranked_row, "counted_match_ids", counted_match_ids), counted_match_ids)
+    excluded_match_ids <- phase16_euro_rules_text(phase16_euro_field(ranked_row, "excluded_match_ids", excluded_match_ids), excluded_match_ids)
+    evidence_ids <- phase16_euro_rules_text(phase16_euro_field(ranked_row, "tiebreak_evidence_ids", evidence_ids), evidence_ids)
+    source_bundle_id <- phase16_euro_rules_text(phase16_euro_field(ranked_row, "source_bundle_id", source_bundle_id), source_bundle_id)
+    source_artifact_id <- phase16_euro_rules_text(phase16_euro_field(ranked_row, "source_artifact_id", source_artifact_id), source_artifact_id)
+  }
+  data.frame(
+    allocation_id = allocation_id,
+    scenario_id = scenario_id,
+    edition_id = rules$edition_id,
+    team_id = team_id,
+    group_id = group_id,
+    association_id = association_id,
+    host_slot_id = host_slot_id,
+    stage = stage,
+    place_type = place_type,
+    qualification_status = qualification_status,
+    consumes_capacity = as.logical(consumes_capacity),
+    qualification_eligibility_status = eligibility,
+    probability = NA_real_,
+    reason = reason,
+    counted_match_ids = counted_match_ids,
+    excluded_match_ids = excluded_match_ids,
+    tiebreak_evidence_ids = evidence_ids,
+    source_bundle_id = source_bundle_id,
+    source_artifact_id = source_artifact_id,
+    ruleset_version = rules$ruleset_version,
+    ruleset_sha256 = uefa_euro_ruleset_sha256(rules),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase16_euro_empty_ledger <- function() {
+  data.frame(
+    allocation_id = character(), scenario_id = character(), edition_id = character(), team_id = character(),
+    group_id = character(), association_id = character(), host_slot_id = character(), stage = character(),
+    place_type = character(), qualification_status = character(), consumes_capacity = logical(),
+    qualification_eligibility_status = character(), probability = numeric(), reason = character(),
+    counted_match_ids = character(), excluded_match_ids = character(), tiebreak_evidence_ids = character(),
+    source_bundle_id = character(), source_artifact_id = character(), ruleset_version = character(),
+    ruleset_sha256 = character(), stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+allocate_euro_places <- function(
+    ranked = NULL, host_ids = NULL, draw_conditions = NULL, rules = uefa_euro_2026_28_rules(),
+    runner_ups = NULL, fixtures = NULL, group_rankings = NULL, rankings = NULL, ranked_groups = NULL,
+    hosts = NULL, host_associations = NULL, scenario_id = NULL) {
+  rules <- if (is.null(rules)) uefa_euro_2026_28_rules() else rules
+  if (!is.null(group_rankings)) ranked <- group_rankings
+  if (!is.null(rankings)) ranked <- rankings
+  if (!is.null(ranked_groups)) ranked <- ranked_groups
+  ranked <- phase16_euro_rank_input(ranked)
+  if (is.null(host_ids)) host_ids <- hosts
+  if (is.null(host_ids)) host_ids <- host_associations
+  results_ready <- nrow(ranked) > 0L &&
+    "team_id" %in% names(ranked) &&
+    (!"ordering_status" %in% names(ranked) || all(as.character(ranked$ordering_status) == "ready")) &&
+    ((!"rank" %in% names(ranked) && "group_position" %in% names(ranked)) ||
+      ("rank" %in% names(ranked) && all(!is.na(phase16_euro_integer(ranked$rank)))))
+  direct_rank <- if ("rank" %in% names(ranked)) phase16_euro_integer(ranked$rank) else phase16_euro_integer(ranked$group_position)
+  direct_rows <- if (results_ready) ranked[direct_rank == 1L, , drop = FALSE] else ranked[FALSE, , drop = FALSE]
+  direct_team_ids <- if (nrow(direct_rows)) as.character(direct_rows$team_id) else character()
+  host_selection <- phase16_euro_select_host_slots(host_ids, direct_team_ids, results_ready, rules)
+  host_slots <- host_selection$rows
+  host_slots <- phase16_euro_attach_lineage(host_slots, rules)
+  host_slots <- phase16_euro_apply_rank_hashes(host_slots)
+  status_input <- if (results_ready) "completed_results" else "active_scenario"
+  scenario_status <- if (results_ready && host_selection$deterministic) "resolved" else "preserved"
+  source_bundle_id <- phase16_euro_first_field(ranked, "source_bundle_id", phase16_euro_first_field(host_slots, "source_bundle_id", uefa_euro_source_bundle_id()))
+  source_artifact_id <- phase16_euro_first_field(ranked, "source_artifact_id", phase16_euro_first_field(host_slots, "source_artifact_id"))
+  if (is.null(scenario_id) || !nzchar(as.character(scenario_id))) {
+    scenario_id <- paste0(
+      "euro-allocation-scenario-",
+      phase16_euro_rules_hash(paste(
+        rules$edition_id, status_input, paste(sort(unique(as.character(ranked$team_id))), collapse = ";"),
+        paste(sort(unique(as.character(host_slots$host_slot_id))), collapse = ";"), sep = "::"
+      ))
+    )
+  }
+  allocation_id <- paste0("euro-allocation-", phase16_euro_rules_hash(paste(scenario_id, rules$ruleset_version, sep = "::")))
+  ledger_parts <- list()
+  if (nrow(direct_rows)) {
+    ledger_parts[[length(ledger_parts) + 1L]] <- do.call(rbind, lapply(seq_len(nrow(direct_rows)), function(index) {
+      phase16_euro_ledger_row(
+        allocation_id, scenario_id, direct_rows[index, , drop = FALSE],
+        stage = "group_winner", qualification_status = "direct", place_type = "group_winner",
+        eligibility = if (results_ready) "available" else "unresolved",
+        reason = "article15_group_winner", rules = rules
+      )
+    }))
+  }
+  if (nrow(host_slots)) {
+    ledger_parts[[length(ledger_parts) + 1L]] <- do.call(rbind, lapply(seq_len(nrow(host_slots)), function(index) {
+      row <- host_slots[index, , drop = FALSE]
+      slot_status <- as.character(row$slot_status[[1L]])
+      if (identical(slot_status, "occupied")) {
+        status <- "host_reserved_occupied"
+        eligibility <- if (results_ready) "available" else "unresolved"
+        reason <- as.character(row$host_selection_reason[[1L]])
+      } else if (identical(slot_status, "host_place_unresolved")) {
+        status <- "host_place_unresolved"
+        eligibility <- "suppressed"
+        reason <- paste("host place unresolved:", as.character(row$host_selection_reason[[1L]]))
+      } else if (identical(slot_status, "host_reserved_unused")) {
+        status <- "host_reserved_unused"
+        eligibility <- "available"
+        reason <- as.character(row$host_selection_reason[[1L]])
+      } else {
+        status <- "unavailable"
+        eligibility <- "unresolved"
+        reason <- "host_slot_not_covered"
+      }
+      phase16_euro_ledger_row(
+        allocation_id, scenario_id,
+        team_id = as.character(row$team_id[[1L]]), association_id = as.character(row$association_id[[1L]]),
+        host_slot_id = as.character(row$host_slot_id[[1L]]), stage = "host_reservation",
+        qualification_status = status, place_type = "host_reserved",
+        consumes_capacity = row$consumes_capacity[[1L]], eligibility = eligibility, reason = reason,
+        source_bundle_id = as.character(row$source_bundle_id[[1L]]), source_artifact_id = as.character(row$source_artifact_id[[1L]]),
+        rules = rules
+      )
+    }))
+  }
+  overall <- NULL
+  best_runner_up_status <- "unavailable"
+  selected_runner_ups <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  remaining_runner_ups <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  group_count <- if (nrow(ranked) && "group_id" %in% names(ranked)) length(unique(as.character(ranked$group_id))) else 0L
+  if (results_ready && (is.null(runner_ups) || is.data.frame(runner_ups) || is.list(runner_ups))) {
+    overall <- if (is.null(runner_ups)) rank_euro_overall(ranked, fixtures, rules) else {
+      candidate <- phase16_euro_rank_input(runner_ups)
+      if ("ranking_scope" %in% names(candidate) && any(as.character(candidate$ranking_scope) == "overall")) candidate else rank_euro_overall(candidate, fixtures, rules)
+    }
+    required_groups <- as.integer(rules$qualifying_group_count %||% 12L)
+    if (nrow(overall) && all(as.character(overall$ordering_status) == "ready") && group_count >= required_groups) {
+      selected_runner_ups <- overall[seq_len(min(nrow(overall), as.integer(rules$best_runner_up_places))), , drop = FALSE]
+      remaining_runner_ups <- if (nrow(overall) > nrow(selected_runner_ups)) overall[-seq_len(nrow(selected_runner_ups)), , drop = FALSE] else overall[FALSE, , drop = FALSE]
+      best_runner_up_status <- "ready"
+      if (nrow(selected_runner_ups)) {
+        ledger_parts[[length(ledger_parts) + 1L]] <- do.call(rbind, lapply(seq_len(nrow(selected_runner_ups)), function(index) {
+          phase16_euro_ledger_row(
+            allocation_id, scenario_id, selected_runner_ups[index, , drop = FALSE],
+            stage = "best_runner_up", qualification_status = "direct", place_type = "best_runner_up",
+            eligibility = "available", reason = "article23_best_runner_up", rules = rules
+          )
+        }))
+      }
+      if (nrow(remaining_runner_ups)) {
+        ledger_parts[[length(ledger_parts) + 1L]] <- do.call(rbind, lapply(seq_len(nrow(remaining_runner_ups)), function(index) {
+          phase16_euro_ledger_row(
+            allocation_id, scenario_id, remaining_runner_ups[index, , drop = FALSE],
+            stage = "playoff_entry", qualification_status = "playoff_eligible", place_type = "runner_up_playoff",
+            eligibility = "available", reason = "remaining_runner_up_after_article23", rules = rules
+          )
+        }))
+      }
+    } else if (nrow(overall) && any(as.character(overall$ordering_status) == "blocked")) {
+      best_runner_up_status <- "blocked"
+    } else {
+      best_runner_up_status <- "unavailable_until_all_groups_complete"
+    }
+  }
+  ledger <- if (length(ledger_parts)) do.call(rbind, ledger_parts) else phase16_euro_empty_ledger()
+  ledger$scenario_status <- scenario_status
+  ledger$allocation_status <- if (scenario_status == "resolved") "resolved" else "scenario_preserved"
+  ledger <- phase16_euro_attach_lineage(ledger, rules, source_bundle_id, source_artifact_id)
+  draw_validation <- if (missing(draw_conditions)) validate_euro_draw_conditions(rules = rules) else validate_euro_draw_conditions(draw_conditions, rules = rules)
+  topology <- if (missing(draw_conditions)) uefa_euro_playoff_topologies(rules = rules) else uefa_euro_playoff_topologies(rules = rules, draw_conditions = draw_conditions)
+  topology$scenario_id <- scenario_id
+  topology$allocation_id <- allocation_id
+  topology$scenario_status <- scenario_status
+  topology$current_topology <- FALSE
+  host_count_known <- isTRUE(host_selection$deterministic) && !is.na(host_selection$reserved_slots_used)
+  topology_reason <- character()
+  if (!host_count_known) topology_reason <- c(topology_reason, "host_place_unresolved")
+  if (!isTRUE(draw_validation$valid)) topology_reason <- c(topology_reason, draw_validation$reasons)
+  if (host_count_known && isTRUE(draw_validation$valid)) {
+    topology$current_topology <- topology$reserved_slots_used == as.integer(host_selection$reserved_slots_used)
+    topology$scenario_status <- "resolved"
+    topology$status <- "available"
+    topology$reason <- ""
+  } else {
+    topology$status <- "unsupported_topology"
+    topology$scenario_status <- if (scenario_status == "preserved") "preserved" else "unresolved"
+    topology$reason <- paste(unique(c(topology$reason, topology_reason)), collapse = ";")
+    ledger$probability <- NA_real_
+    if (nrow(ledger)) {
+      ledger$qualification_eligibility_status[ledger$qualification_status %in% c("direct", "playoff_eligible")] <- "unresolved"
+      if (!isTRUE(draw_validation$valid)) {
+        ledger$qualification_eligibility_status <- "suppressed"
+        ledger$reason <- paste(ledger$reason, "unresolved_draw_conditions", sep = ";")
+      }
+    }
+  }
+  if (nrow(ledger)) ledger <- phase16_euro_apply_rank_hashes(ledger)
+  topology <- phase16_euro_apply_rank_hashes(topology)
+  host_slots <- phase16_euro_apply_rank_hashes(host_slots)
+  reserved_used <- if (host_count_known) as.integer(host_selection$reserved_slots_used) else NA_integer_
+  capacity <- list(
+    reserved_slots_total = as.integer(rules$host_reserved_capacity),
+    reserved_slots_used = reserved_used,
+    reserved_slots_remaining = if (is.na(reserved_used)) NA_integer_ else as.integer(rules$host_reserved_capacity) - reserved_used,
+    playoff_places_total = as.integer(rules$playoff_places),
+    remaining_playoff_places = if (is.na(reserved_used)) NA_integer_ else as.integer(rules$playoff_places) - reserved_used,
+    direct_group_winners = as.integer(nrow(direct_rows)),
+    best_runner_ups = as.integer(nrow(selected_runner_ups)),
+    remaining_runner_ups = as.integer(nrow(remaining_runner_ups)),
+    best_runner_up_status = best_runner_up_status,
+    conservation_status = if (host_count_known && reserved_used <= rules$host_reserved_capacity) "conserved" else "unresolved",
+    double_counting_status = if (host_count_known && sum(host_slots$consumes_capacity %in% TRUE) == reserved_used) "none" else "unresolved"
+  )
+  list(
+    allocation_id = allocation_id,
+    scenario_id = scenario_id,
+    scenario_status = scenario_status,
+    status = if (scenario_status == "resolved" && isTRUE(draw_validation$valid)) "resolved" else "scenario_preserved",
+    source_bundle_id = source_bundle_id,
+    source_artifact_id = source_artifact_id,
+    ruleset_version = rules$ruleset_version,
+    ruleset_sha256 = uefa_euro_ruleset_sha256(rules),
+    qualification_ledger = ledger,
+    host_slots = host_slots,
+    topology = topology,
+    capacity = capacity,
+    direct_qualifiers = direct_rows,
+    best_runner_ups = selected_runner_ups,
+    remaining_playoff_entries = remaining_runner_ups,
+    draw_conditions = draw_validation,
+    host_selection = host_selection
+  )
+}
