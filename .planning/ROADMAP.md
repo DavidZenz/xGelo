@@ -203,14 +203,14 @@ Plans:
 3. Qualification outputs apply the official edition rules for direct qualification, host-reserved places, best runners-up, Nations League-linked play-off eligibility, and every valid play-off topology.
 4. Unresolved, blocked, or insufficient-source states stay explicit and suppress fabricated groups, fixtures, standings, and probabilities.
 
-**Plans**: 4/6 plans executed
+**Plans**: 5/6 plans executed
 Plans:
 
 - [x] 16-00-PLAN.md — Wave 0 focused harness, deterministic fixtures, and baseline fingerprint (execution Wave 1)
 - [x] 16-01-PLAN.md — Accepted-bundle activation, active-after-draw, and pre-draw state contract (execution Wave 2)
 - [x] 16-02-PLAN.md — Official ranking, four-host allocation, draw conditions, and play-off topology (execution Wave 3)
 - [x] 16-03-PLAN.md — Interim-stage Nations League handoff and seeded qualification simulation (execution Wave 4)
-- [ ] 16-04-PLAN.md — EURO outcomes schema and Phase 14 activation/state gate (execution Wave 5)
+- [x] 16-04-PLAN.md — EURO outcomes schema and Phase 14 activation/state gate (execution Wave 5)
 - [ ] 16-05-PLAN.md — Registered CLI, exact outputs, revision-safe publication, and replay (execution Wave 6)
 
 **UI hint**: yes
@@ -238,7 +238,7 @@ Plans:
 | 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
-| 16. EURO Qualifying Activation and Play-off Rules | 4/6 | In Progress|  |
+| 16. EURO Qualifying Activation and Play-off Rules | 5/6 | In Progress|  |
 | 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |
 
 ## Requirement Coverage

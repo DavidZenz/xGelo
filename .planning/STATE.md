@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 16
 current_phase_name: EURO Qualifying Activation and Play-off Rules
 status: executing
-stopped_at: Completed 16-03-PLAN.md
-last_updated: "2026-08-24T11:58:26.103Z"
+stopped_at: Completed 16-04-PLAN.md
+last_updated: "2026-08-24T13:41:11.380Z"
 last_activity: 2026-08-24
-last_activity_desc: Phase 16 Plan 03 complete
+last_activity_desc: Phase 16 Plan 04 complete
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 48
-  completed_plans: 46
+  completed_plans: 47
 ---
 
 # xGelo Project State
@@ -21,20 +21,20 @@ progress:
 ## Current Position
 
 Phase: 16 — EURO Qualifying Activation and Play-off Rules
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
-Last activity: 2026-08-24 — Phase 16 Plan 03 complete
+Last activity: 2026-08-24 — Phase 16 Plan 04 complete
 
 ## Progress
 
-**Progress:** [██████████] 96% (46/48 plans complete)
+**Progress:** [██████████] 98% (47/48 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
 | 13 | Source Contracts and Competition Registry | Complete | 5/5 |
 | 14 | Shared Competition State and Forecast Layer | Complete: canonical state, cutoff-safe form, release-active forecasts, deterministic production batches, edition-isolated candidates, truthful EURO pre_draw bundle, and official durable Nations League bundle | 7/7 |
 | 15 | Nations League Rules and Outcomes | Complete | 2/2 |
-| 16 | EURO Qualifying Activation and Play-off Rules | In Progress: 4/6 plans executed | 4/4 |
+| 16 | EURO Qualifying Activation and Play-off Rules | In Progress: 5/6 plans executed | 4/4 |
 | 17 | Shared Dashboards and Atomic Refresh Operations | Not started | 10/10 |
 
 **Overall:** 3 of 5 phases complete (60%); Phase 14 now has a durable calibrated selector, dual-edition revision-2 authority, isolated schema-v2 transaction proof, canonical match identity/lifecycle semantics, cutoff-safe universal standings with fail-closed official reconciliation, honest form availability, deterministic production state-to-forecast batches, a truthful EURO pre_draw backend bundle, and the official durable Nations League state/forecast bundle.
@@ -179,6 +179,9 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 16 Plan 03 admits Nations League eligibility only from registered, lineage-validated interim_overall rows with exact ranking_stage interim_overall.
 - [Phase ?]: EURO qualifying simulation consumes Phase 14 calibrated_1x2 and score-grid authority with deterministic per-stage seeds and caller RNG restoration.
 - [Phase ?]: Host capacity, fallback pots, versioned draw conditions, typed suppression, and complete replay hashes are simulation boundary contracts.
+- [Phase ?]: Keep Phase 14 as the sole state authority; Phase 16 only gates EURO activation inputs before the existing production branch.
+- [Phase ?]: Derive accepted source bundle IDs, artifact IDs, paths, and hashes from each edition's registered manifest rather than Nations League constants.
+- [Phase ?]: Represent pre_draw and blocked states with schema-valid empty collections, while active-after-draw admits confirmed fixtures with zero completed results and standings.
 
 ## Accumulated Context
 
@@ -193,12 +196,12 @@ dependence on paid data feeds.
 
 ## Next Action
 
-Execute Plan 16-04 EURO outcomes schema and Phase 14 activation/state gate.
+Execute Plan 16-05 registered CLI, exact outputs, revision-safe publication, and replay.
 
 ## Session Continuity
 
-**Last session:** 2026-08-24T11:58:26.090Z
-**Stopped at:** Completed 16-03-PLAN.md
+**Last session:** 2026-08-24T13:41:11.367Z
+**Stopped at:** Completed 16-04-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -254,6 +257,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 16 P01 | 1h 06m | 3 tasks | 4 files |
 | Phase 16 P02 | 48m | 2 tasks | 3 files |
 | Phase 16 P03 | 54 min | 2 tasks | 2 files |
+| Phase 16 P04 | 88min | 2 tasks | 4 files |
 
 ### Blockers
 
