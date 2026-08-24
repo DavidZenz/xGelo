@@ -265,7 +265,7 @@ test_that("activation active_after_draw accepts a complete bundle", {
   candidate <- phase16_test_activation_candidate(active = TRUE)
 
   validation <- validate_euro_activation(candidate)
-  expect_true(validation$valid)
+  expect_true(validation$valid, info = validation$failure_reason)
   expect_identical(validation$activation_status, "active")
   expect_identical(validation$fixture_gate, "confirmed_kickoff")
 
@@ -748,6 +748,7 @@ phase16_test_registered_revision_candidate <- function() {
   candidate$manifest$source_bundle_id <- candidate$source_bundle_id
   candidate$manifest$ruleset_version <- candidate$ruleset_version
   candidate$manifest$raw_sha256 <- paste(rep("c", 64L), collapse = "")
+  candidate$raw_snapshot$raw_sha256 <- paste(rep("c", 64L), collapse = "")
   candidate$activation_config <- list(
     registered_source_bundle_ids = candidate$source_bundle_id,
     registered_ruleset_versions = candidate$ruleset_version
@@ -769,7 +770,7 @@ test_that("source_bundle revision validates independently with new identity hash
     candidate,
     incumbent = incumbent_validation
   )
-  expect_true(validation$valid)
+  expect_true(validation$valid, info = validation$failure_reason)
   expect_identical(validation$activation_status, "active")
   expect_identical(validation$source_bundle_id, candidate$source_bundle_id)
   expect_identical(validation$ruleset_version, candidate$ruleset_version)

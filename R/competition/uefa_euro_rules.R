@@ -28,6 +28,7 @@ uefa_euro_2026_28_rules <- function(config = NULL) {
     lifecycle_states = c("pre_draw", "scheduled"),
     forecast_statuses = c("pre_draw", "available", "unavailable"),
     source_confidence_active = "official",
+    registered_ruleset_versions = phase16_euro_registered_ruleset_versions(config),
     message_heading = "EURO qualifying is awaiting the official draw",
     message_body = paste(
       "Official groups and the schedule are not available yet.",
@@ -70,6 +71,15 @@ phase16_euro_registered_bundle_ids <- function(config = NULL, manifest = NULL) {
     as.character(configured),
     if (nzchar(manifest_id)) manifest_id else character()
   ))
+}
+
+phase16_euro_registered_ruleset_versions <- function(config = NULL) {
+  configured <- phase16_euro_config_value(
+    config,
+    c("registered_ruleset_versions", "ruleset_versions", "accepted_ruleset_versions"),
+    character()
+  )
+  unique(c(uefa_euro_ruleset_version(), as.character(configured)))
 }
 
 phase16_euro_metadata_value <- function(metadata, fields, default = "") {
@@ -269,6 +279,15 @@ phase16_euro_validate_artifacts <- function(candidate, edition_id, bundle_id) {
   if ("bundle_id" %in% names(artifacts) && any(as.character(artifacts$bundle_id) != bundle_id)) {
     return("source artifact bundle_id does not match the accepted bundle")
   }
+  if ("ruleset_version" %in% names(artifacts)) {
+    ruleset_version <- phase16_euro_scalar(c(
+      candidate$ruleset_version,
+      phase16_euro_metadata_value(candidate$source_bundle, c("ruleset_version", "ruleset"))
+    ))
+    if (any(as.character(artifacts$ruleset_version) != ruleset_version)) {
+      return("source artifact ruleset revision does not match the accepted bundle")
+    }
+  }
   for (column in c("source_url", "retrieved_at_utc", "parser_version")) {
     if (column %in% names(artifacts) && any(vapply(artifacts[[column]], phase16_euro_blank, logical(1)))) {
       return(paste("source artifact provenance is incomplete:", column))
@@ -282,7 +301,33 @@ phase16_euro_validate_artifacts <- function(candidate, edition_id, bundle_id) {
   NULL
 }
 
-phase16_euro_validate_candidate <- function(candidate, config = NULL) {
+phase16_euro_artifact_canonical_hashes <- function(candidate) {
+  artifacts <- phase16_euro_artifacts(candidate)
+  if (is.null(artifacts) || !"artifact_type" %in% names(artifacts) ||
+      !"canonical_content_sha256" %in% names(artifacts)) return(character())
+  hashes <- as.character(artifacts$canonical_content_sha256)
+  names(hashes) <- as.character(artifacts$artifact_type)
+  hashes
+}
+
+phase16_euro_candidate_canonical_hashes <- function(candidate) {
+  hashes <- candidate$canonical_hashes
+  if (is.null(hashes)) return(phase16_euro_artifact_canonical_hashes(candidate))
+  if (is.data.frame(hashes) && all(c("artifact_type", "canonical_content_sha256") %in% names(hashes))) {
+    values <- as.character(hashes$canonical_content_sha256)
+    names(values) <- as.character(hashes$artifact_type)
+    return(values)
+  }
+  if (is.list(hashes) && !is.null(names(hashes))) {
+    values <- vapply(hashes, phase16_euro_scalar, character(1))
+    return(values)
+  }
+  values <- as.character(hashes)
+  if (!is.null(names(hashes))) names(values) <- names(hashes)
+  values
+}
+
+phase16_euro_validate_candidate <- function(candidate, config = NULL, incumbent = NULL) {
   if (!is.list(candidate)) return(list(valid = FALSE, activation_status = "unavailable", reason = "candidate must be a list"))
   if (is.null(config) && is.list(candidate$activation_config)) config <- candidate$activation_config
   rules <- uefa_euro_2026_28_rules(config)
@@ -294,6 +339,10 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL) {
   rules$registered_source_bundle_ids <- unique(c(
     phase16_euro_registered_bundle_ids(config),
     if (manifest_registered) phase16_euro_metadata_value(candidate$manifest, c("source_bundle_id", "bundle_id")) else character()
+  ))
+  rules$registered_ruleset_versions <- unique(c(
+    phase16_euro_registered_ruleset_versions(config),
+    if (manifest_registered) phase16_euro_metadata_value(candidate$manifest, c("ruleset_version", "ruleset")) else character()
   ))
   resources <- phase16_euro_resource_list(candidate)
   source_bundle <- candidate$source_bundle
@@ -322,7 +371,7 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL) {
   if (identical(lifecycle_state, "active") || identical(lifecycle_state, "in_progress")) lifecycle_state <- "scheduled"
   failure <- NULL
   if (!identical(edition_id, rules$edition_id)) failure <- "unknown EURO qualifying edition"
-  if (is.null(failure) && !identical(ruleset_version, rules$ruleset_version)) failure <- "unknown EURO qualifying ruleset revision"
+  if (is.null(failure) && !ruleset_version %in% rules$registered_ruleset_versions) failure <- "unknown EURO qualifying ruleset revision"
   if (is.null(failure) && !nzchar(bundle_id)) failure <- "accepted source bundle ID is missing"
   if (is.null(failure) && !bundle_id %in% rules$registered_source_bundle_ids) failure <- "source bundle is not registered for EURO qualifying"
   manifest_id <- phase16_euro_metadata_value(candidate$manifest, c("source_bundle_id", "bundle_id"))
@@ -334,6 +383,14 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL) {
   bundle_status <- tolower(phase16_euro_metadata_value(source_bundle, c("bundle_status", "status", "acceptance_status"), "accepted"))
   if (is.null(failure) && !identical(bundle_status, "accepted")) failure <- "source bundle is not accepted"
   if (is.null(failure)) failure <- phase16_euro_validate_artifacts(candidate, edition_id, bundle_id)
+  artifact_hashes <- phase16_euro_artifact_canonical_hashes(candidate)
+  candidate_hashes <- phase16_euro_candidate_canonical_hashes(candidate)
+  if (is.null(failure) && length(candidate_hashes)) {
+    common_hashes <- intersect(names(candidate_hashes), names(artifact_hashes))
+    if (length(common_hashes) && any(tolower(candidate_hashes[common_hashes]) != tolower(artifact_hashes[common_hashes]))) {
+      failure <- "candidate canonical content hash does not match the source artifact manifest"
+    }
+  }
 
   required_missing <- names(resources)[vapply(resources, is.null, logical(1))]
   if (is.null(failure) && length(required_missing)) {
@@ -405,6 +462,19 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL) {
       }
     }
   }
+  if (is.null(failure) && !is.null(incumbent)) {
+    incumbent_raw <- phase16_euro_scalar(incumbent$raw_sha256)
+    if (nzchar(incumbent_raw) && identical(tolower(incumbent_raw), tolower(raw_hash))) {
+      failure <- "revision cannot reuse the incumbent raw snapshot hash"
+    }
+    incumbent_hashes <- phase16_euro_candidate_canonical_hashes(incumbent)
+    common_hashes <- intersect(names(candidate_hashes), names(incumbent_hashes))
+    if (is.null(failure) && length(common_hashes) && any(
+      tolower(candidate_hashes[common_hashes]) == tolower(incumbent_hashes[common_hashes])
+    )) {
+      failure <- "revision cannot reuse the incumbent canonical content hash"
+    }
+  }
   valid <- is.null(failure)
   activation_status <- if (!valid) "unavailable" else if (lifecycle_state == "pre_draw") "pre_draw" else "active"
   list(
@@ -420,6 +490,9 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL) {
     edition_id = edition_id,
     ruleset_version = ruleset_version,
     source_bundle_id = bundle_id,
+    revision_status = if (is.null(incumbent)) "accepted" else "candidate",
+    raw_sha256 = raw_hash,
+    canonical_hashes = candidate_hashes,
     official_draw_date = rules$official_draw_date,
     last_refresh_at_utc = raw_time,
     source_confidence = phase16_euro_scalar(c(
@@ -434,9 +507,9 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL) {
   )
 }
 
-phase16_validate_euro_source_bundle <- function(candidate = NULL, config = NULL, ...) {
+phase16_validate_euro_source_bundle <- function(candidate = NULL, config = NULL, incumbent = NULL, ...) {
   if (is.null(candidate)) candidate <- list(...)
-  phase16_euro_validate_candidate(candidate, config = config)
+  phase16_euro_validate_candidate(candidate, config = config, incumbent = incumbent)
 }
 
 validate_euro_activation <- function(
@@ -450,6 +523,7 @@ validate_euro_activation <- function(
     raw_snapshot = NULL,
     registered_manifest = NULL,
     config = NULL,
+    incumbent = NULL,
     ...) {
   if (is.null(candidate)) {
     candidate <- list(
@@ -473,7 +547,7 @@ validate_euro_activation <- function(
     if (!is.null(source_bundle) && is.null(candidate$source_bundle)) candidate$source_bundle <- source_bundle
     if (!is.null(team_registry) && is.null(candidate$teams)) candidate$teams <- team_registry
   }
-  phase16_validate_euro_source_bundle(candidate, config = config)
+  phase16_validate_euro_source_bundle(candidate, config = config, incumbent = incumbent)
 }
 
 phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
@@ -495,6 +569,8 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
         source_bundle_id = phase16_euro_scalar(validation$source_bundle_id),
         ruleset_version = phase16_euro_scalar(validation$ruleset_version, uefa_euro_ruleset_version()),
         source_confidence = phase16_euro_scalar(validation$source_confidence, "official_registry_pending"),
+        raw_sha256 = phase16_euro_scalar(validation$raw_sha256),
+        canonical_hashes = validation$canonical_hashes,
         message_heading = uefa_euro_2026_28_rules()$message_heading,
         message_body = uefa_euro_2026_28_rules()$message_body,
         candidate_isolated = TRUE,
@@ -520,6 +596,8 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
         source_bundle_id = validation$source_bundle_id,
         ruleset_version = validation$ruleset_version,
         source_confidence = validation$source_confidence,
+        raw_sha256 = validation$raw_sha256,
+        canonical_hashes = validation$canonical_hashes,
         message_heading = uefa_euro_2026_28_rules()$message_heading,
         message_body = uefa_euro_2026_28_rules()$message_body,
         candidate_isolated = FALSE
@@ -544,6 +622,8 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
       source_bundle_id = validation$source_bundle_id,
       ruleset_version = validation$ruleset_version,
       source_confidence = validation$source_confidence,
+      raw_sha256 = validation$raw_sha256,
+      canonical_hashes = validation$canonical_hashes,
       fixture_gate = validation$fixture_gate,
       candidate_isolated = FALSE,
       teams = phase16_euro_or(resources$teams, empty$teams),
