@@ -35,7 +35,7 @@
 ### Competition Simulation
 
 - [x] **SIM-01**: The Nations League simulator reports projected standings, League A quarter-final and title paths, direct promotion/relegation, and applicable promotion/relegation play-offs.
-- [ ] **SIM-02**: The EURO simulator reports direct qualification, host-reserved places, Nations League-linked play-off eligibility, and every valid play-off topology.
+- [x] **SIM-02**: The EURO simulator reports direct qualification, host-reserved places, Nations League-linked play-off eligibility, and every valid play-off topology.
 - [ ] **SIM-03**: Every simulation records deterministic seeds, ruleset hashes, source bundle identity, model release identity, and replayable run metadata.
 - [x] **SIM-04**: Pre-draw, unresolved, and insufficient-source states are shown explicitly without fabricated groups, fixtures, standings, or probabilities.
 
@@ -96,7 +96,7 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | FORECAST-02 | Phase 14 | Complete |
 | FORECAST-03 | Phase 14 | Complete |
 | SIM-01 | Phase 15 | Complete |
-| SIM-02 | Phase 16 | Pending |
+| SIM-02 | Phase 16 | Complete |
 | SIM-03 | Phase 17 | Pending |
 | SIM-04 | Phase 16 | Complete |
 | DASH-01 | Phase 17 | Pending |
