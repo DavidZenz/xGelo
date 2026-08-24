@@ -1466,3 +1466,148 @@ test_that("simulation|handoff|interim_adapter|registered_phase15|ranking_stage|r
   expect_true(blocked$status %in% c("suppressed", "unavailable"))
   expect_equal(nrow(blocked$probabilities), 0L)
 })
+
+test_that("topology|four_host|fallback|draw_conditions|fresh_process|replay", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_simulation.R")
+
+  complete <- phase16_test_complete_groups()
+  branch_expectations <- data.frame(
+    host_count = c(0L, 1L, 2L), reserved_slots_used = c(0L, 1L, 2L),
+    entrant_count = c(8L, 12L, 8L), places = c(4L, 3L, 2L),
+    stringsAsFactors = FALSE
+  )
+  branch_results <- lapply(seq_len(nrow(branch_expectations)), function(index) {
+    uefa_euro_allocate_playoff_pool(
+      group_rankings = complete$groups,
+      hosts = phase16_test_resolved_hosts(branch_expectations$host_count[[index]]),
+      draw_conditions = phase16_test_draw_conditions()
+    )
+  })
+  for (index in seq_along(branch_results)) {
+    branch <- branch_results[[index]]
+    current <- branch$topology
+    expect_true(isTRUE(branch$valid))
+    expect_identical(as.integer(current$reserved_slots_used[[1L]]), branch_expectations$reserved_slots_used[[index]])
+    expect_identical(as.integer(current$entrant_count[[1L]]), branch_expectations$entrant_count[[index]])
+    expect_identical(as.integer(current$places[[1L]]), branch_expectations$places[[index]])
+  }
+
+  four_hosts <- uefa_euro_allocate_playoff_pool(
+    group_rankings = complete$groups,
+    hosts = phase16_test_resolved_hosts(4L),
+    draw_conditions = phase16_test_draw_conditions()
+  )
+  expect_setequal(
+    four_hosts$allocation$host_slots$association_id[four_hosts$allocation$host_slots$consumes_capacity %in% TRUE],
+    phase16_test_four_host_fixture()$expected_selected_association_ids
+  )
+  expect_equal(sum(four_hosts$allocation$host_slots$consumes_capacity %in% TRUE), 2L)
+  expect_equal(four_hosts$allocation$capacity$remaining_playoff_places, 2L)
+
+  variants <- phase16_test_phase15_handoff_variants()
+  valid_with_position <- variants$valid
+  valid_with_position$group_position <- 1L
+  extra <- valid_with_position[rep(seq_len(nrow(valid_with_position)), 1L), , drop = FALSE]
+  extra$team_id <- paste0("team-nl-extra-", seq_len(nrow(extra)))
+  extra$group_id <- paste0("extra-", seq_len(nrow(extra)))
+  extra$interim_overall_rank <- 100L + seq_len(nrow(extra))
+  extra$rank <- extra$interim_overall_rank
+  extra$league <- c("A", "B", "B", "B")
+  extra$group_position <- c(1L, 2L, 2L, 2L)
+  expanded <- rbind(valid_with_position, extra)
+  expanded_manifest <- phase16_test_simulation_manifest(expanded)
+  normalized <- uefa_euro_normalize_nl_interim_projection(
+    projected_rankings = expanded,
+    manifest = expanded_manifest
+  )
+  pots <- uefa_euro_build_playoff_pots(
+    pool = branch_results[[1L]],
+    nl_eligibility = normalized,
+    qualified_team_ids = c("team-nl-a01"),
+    host_team_ids = c("team-nl-b01"),
+    draw_conditions = phase16_test_draw_conditions()
+  )
+  expect_true(isTRUE(pots$valid))
+  expect_setequal(
+    unique(pots$pool$eligibility_source),
+    c("runner_up", "nations_league_a_c_group_winner", "nations_league_d_group_winner", "nations_league_overall_fallback")
+  )
+  expect_false(any(pots$pool$team_id %in% c("team-nl-a01", "team-nl-b01")))
+  expect_equal(sum(pots$pool$eligibility_source == "runner_up"), 4L)
+
+  invalid_draw <- uefa_euro_simulate_qualification(
+    activation = phase16_test_active_after_draw_bundle(),
+    fixtures = phase16_test_active_after_draw_bundle()$fixtures,
+    standings = complete$groups,
+    hosts = phase16_test_resolved_hosts(0L),
+    nl_eligibility = normalized,
+    forecasts = phase16_test_simulation_forecast()$forecast,
+    score_distributions = phase16_test_simulation_forecast()$score_distribution,
+    draw_conditions = NULL,
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_bundle_sha256 = paste(rep("4", 64L), collapse = ""),
+    model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+    state_manifest_sha256 = paste(rep("5", 64L), collapse = ""),
+    simulation_count = 2L,
+    seed = 16017L
+  )
+  expect_identical(invalid_draw$status, "suppressed")
+  expect_equal(nrow(invalid_draw$probabilities), 0L)
+  expect_true(grepl("unresolved_draw_conditions", invalid_draw$reason, fixed = TRUE))
+  expect_true(grepl("unsupported_topology", invalid_draw$reason, fixed = TRUE))
+
+  two_leg <- data.frame(
+    leg_number = c(1L, 2L),
+    fixture_id = c("replay-leg-1", "replay-leg-2"),
+    home_team_id = c("team-replay-a", "team-replay-b"),
+    away_team_id = c("team-replay-b", "team-replay-a"),
+    regulation_home_goals = c(1L, 0L),
+    regulation_away_goals = c(0L, 0L),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  resolved <- uefa_euro_resolve_two_leg_tie(two_leg, seed = 16017L)
+  reversed <- uefa_euro_resolve_two_leg_tie(two_leg[2:1, , drop = FALSE], seed = 16017L)
+  repeated <- uefa_euro_resolve_two_leg_tie(two_leg, seed = 16017L)
+  expect_identical(resolved$status, "completed")
+  expect_identical(resolved$winner_team_id, "team-replay-a")
+  expect_identical(phase16_test_simulation_hash(resolved), phase16_test_simulation_hash(reversed))
+  expect_identical(phase16_test_simulation_hash(resolved), phase16_test_simulation_hash(repeated))
+
+  child_code <- paste0(
+    "setwd(\"", phase16_test_project_root, "\");",
+    "source(\"", file.path(phase16_test_project_root, "R/competition/uefa_euro_simulation.R"), "\");",
+    "pair <- data.frame(leg_number=c(1L,2L), fixture_id=c(\"replay-leg-1\",\"replay-leg-2\"), home_team_id=c(\"team-replay-a\",\"team-replay-b\"), away_team_id=c(\"team-replay-b\",\"team-replay-a\"), regulation_home_goals=c(1L,0L), regulation_away_goals=c(0L,0L), stringsAsFactors=FALSE);",
+    "result <- uefa_euro_resolve_two_leg_tie(pair, seed=16017L);",
+    "cat(uefa_euro_sim_hash_data(result));"
+  )
+  child_output <- system2(file.path(R.home("bin"), "Rscript"), c("--vanilla", "-e", shQuote(child_code)), stdout = TRUE, stderr = TRUE)
+  expect_true(length(child_output) > 0L)
+  expect_identical(tail(child_output, 1L), phase16_test_simulation_hash(resolved))
+
+  active <- phase16_test_active_after_draw_bundle()
+  fixture <- phase16_test_simulation_forecast()
+  base_args <- list(
+    activation = active,
+    fixtures = active$fixtures,
+    standings = complete$groups,
+    hosts = phase16_test_resolved_hosts(0L),
+    nl_eligibility = normalized,
+    forecasts = fixture$forecast,
+    score_distributions = fixture$score_distribution,
+    draw_conditions = phase16_test_draw_conditions(),
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_bundle_sha256 = paste(rep("4", 64L), collapse = ""),
+    model_release_id = "phase14-open-nb-incumbent-calibrated-v1",
+    state_manifest_sha256 = paste(rep("5", 64L), collapse = ""),
+    simulation_count = 2L,
+    seed = 16017L
+  )
+  normal <- do.call(uefa_euro_simulate_qualification, base_args)
+  reversed_args <- base_args
+  reversed_args$standings <- complete$groups[nrow(complete$groups):1L, , drop = FALSE]
+  reversed_args$nl_eligibility <- normalized[nrow(normalized):1L, , drop = FALSE]
+  replayed <- do.call(uefa_euro_simulate_qualification, reversed_args)
+  expect_identical(normal$output_hashes, replayed$output_hashes)
+})
