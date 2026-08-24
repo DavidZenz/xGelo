@@ -246,6 +246,7 @@ phase16_test_activation_candidate <- function(
       source_bundle_id = phase16_test_source_bundle_id,
       edition_id = phase16_test_edition_id,
       ruleset_version = phase16_test_ruleset_version,
+      registered = TRUE,
       bundle_status = "accepted",
       raw_sha256 = paste(rep("a", 64L), collapse = ""),
       retrieved_at_utc = "2027-03-01T12:00:00Z"
@@ -334,6 +335,40 @@ test_that("activation rejects incomplete source and missing confirmed kickoff", 
   expect_identical(unconfirmed_validation$activation_status, "unavailable")
   expect_match(unconfirmed_validation$reason, "kickoff", ignore.case = TRUE)
   expect_false(any(phase16_euro_fixture_eligibility(unconfirmed$resources$fixtures)$forecast_eligible))
+})
+
+test_that("activation exposes the registered contract and rejects unknown lifecycle inputs", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  candidate <- phase16_test_activation_candidate(active = TRUE)
+  expect_identical(uefa_euro_edition_id(), phase16_test_edition_id)
+  expect_identical(uefa_euro_ruleset_version(), phase16_test_ruleset_version)
+  expect_true(all(c("fixtures", "groups", "standings", "results", "status") %in% phase16_euro_required_resource_types()))
+  expect_setequal(
+    uefa_euro_activation_status_values(),
+    c("pre_draw", "active", "unavailable", "revision_blocked")
+  )
+
+  unknown_edition <- candidate
+  unknown_edition$edition_id <- "uefa_euro_unknown"
+  expect_false(validate_euro_activation(unknown_edition)$valid)
+
+  unknown_source <- candidate
+  unknown_source$source_bundle_id <- "euro-unknown-source-v1"
+  unknown_source$source_bundle$source_bundle_id <- "euro-unknown-source-v1"
+  unknown_source$source_bundle$bundle_id <- "euro-unknown-source-v1"
+  unknown_source$manifest$source_bundle_id <- "euro-unknown-source-v1"
+  unknown_source$manifest$bundle_id <- "euro-unknown-source-v1"
+  unknown_source$manifest$registered <- FALSE
+  expect_false(validate_euro_activation(unknown_source)$valid)
+
+  invalid_lifecycle <- candidate
+  invalid_lifecycle$resources$status$competition_status <- "complete"
+  invalid_lifecycle$resources$status$lifecycle_state <- "complete"
+  expect_false(validate_euro_activation(invalid_lifecycle)$valid)
+
+  incomplete_schedule <- candidate
+  incomplete_schedule$resources$groups$team_count <- 3L
+  expect_false(validate_euro_activation(incomplete_schedule)$valid)
 })
 
 phase16_test_active_teams <- function() {
