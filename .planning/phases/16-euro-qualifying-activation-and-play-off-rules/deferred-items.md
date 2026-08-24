@@ -7,3 +7,15 @@
 - **Issue:** `tests/testthat/test_phase14_state_bundle.R` test `state candidate keeps NL forecastable and EURO pre_draw structurally empty` cannot find `phase14_build_competition_state_candidate` in the current test environment.
 - **Evidence:** The targeted test exited nonzero after reporting the missing function; the broad Phase 14 file was interrupted after a long dot-only run (`exit 130`) to avoid leaving a stalled process.
 - **Next action:** Reconcile the Phase 14 test loader/entrypoint in its owning phase before relying on the broad regression as a green gate.
+
+- **Discovered during:** Plan 16-02 focused regression verification.
+- **Scope:** Out of scope for Plan 16-02; no Phase 14 production code is involved.
+- **Issue:** `tests/testthat/test_phase14_standings.R:686` has a temporary schema-v2 snapshot failure caused by row-name attributes.
+- **Evidence:** The focused Phase 14 standings test exited nonzero at the cited assertion.
+- **Next action:** Reconcile the Phase 14 temporary schema-v2 snapshot comparison in its owning phase.
+
+- **Discovered during:** Plan 16-02 focused regression verification.
+- **Scope:** Verification gap only; no Plan 16-02 production code is implicated.
+- **Issue:** `tests/testthat/test_phase14_state_bundle.R` was started but did not complete within the bounded verification window.
+- **Evidence:** The process continued producing progress with no failure output and was stopped with `exit 130` to avoid leaving a stalled process.
+- **Next action:** Rerun the focused Phase 14 state-bundle regression from its owning phase.

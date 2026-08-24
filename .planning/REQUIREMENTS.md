@@ -17,7 +17,7 @@
 - [x] **COMP-01**: Each competition edition is registered with lifecycle state, ruleset version, source bundle, model release, and output bundle.
 - [x] **COMP-02**: The 2026/27 Nations League registry represents Leagues A-D, published groups, league-phase fixtures, and downstream knockout or play-off stages.
 - [x] **COMP-03**: The EURO 2028 qualifying registry represents the pre-draw state and activates groups, fixtures, and simulations only after an official draw snapshot exists.
-- [ ] **COMP-04**: Competition state applies the official tie-breakers, cross-group rankings, host-place rules, play-off topology, and regulation-version checks for the selected edition.
+- [x] **COMP-04**: Competition state applies the official tie-breakers, cross-group rankings, host-place rules, play-off topology, and regulation-version checks for the selected edition.
 
 ### Competition State and Form
 
@@ -87,7 +87,7 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | COMP-01 | Phase 13 | Complete |
 | COMP-02 | Phase 15 | Complete |
 | COMP-03 | Phase 16 | Complete |
-| COMP-04 | Phase 16 | Pending |
+| COMP-04 | Phase 16 | Complete |
 | STATE-01 | Phase 14 | Complete |
 | STATE-02 | Phase 14 | Complete |
 | STATE-03 | Phase 14 | Complete |

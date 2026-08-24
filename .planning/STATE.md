@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 16
 current_phase_name: EURO Qualifying Activation and Play-off Rules
 status: executing
-stopped_at: Completed 16-01-PLAN.md
-last_updated: "2026-08-24T09:52:00.347Z"
+stopped_at: Completed 16-02-PLAN.md
+last_updated: "2026-08-24T10:48:33.808Z"
 last_activity: 2026-08-22
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 48
-  completed_plans: 44
+  completed_plans: 45
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 16 — EURO Qualifying Activation and Play-off Rules
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-08-22 — Phase 15 complete, transitioned to Phase 16
 
 ## Progress
 
-**Progress:** [█████████░] 92% (41/42 plans complete)
+**Progress:** [█████████░] 94% (41/42 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -173,6 +173,9 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 16-01: Register EURO source and rules revisions through configuration or an explicitly registered manifest; candidates cannot self-authorize unknown IDs.
 - [Phase ?]: Phase 16-01: Use Phase 13 transition authority only after Phase 16 validates the complete accepted draw-and-schedule bundle.
 - [Phase ?]: Phase 16-01: Preserve typed empty state for pre_draw and active-after-draw results/standings instead of fabricating rows or probabilities.
+- [Phase 16]: Host slots are conditional ledger entries; direct host qualification consumes the host reservation exactly once and remaining capacity remains explicit.
+- [Phase 16]: More than two covered host associations select only the two highest-ranked covered hosts using accepted rank evidence.
+- [Phase 16]: Topology selection requires versioned accepted draw conditions and fails closed with unresolved_draw_conditions plus unsupported_topology.
 
 ## Accumulated Context
 
@@ -191,8 +194,8 @@ Execute Plan 15-06 production acceptance, replay, and no-leakage checks for the 
 
 ## Session Continuity
 
-**Last session:** 2026-08-24T09:52:00.334Z
-**Stopped at:** Completed 16-01-PLAN.md
+**Last session:** 2026-08-24T10:48:33.796Z
+**Stopped at:** Completed 16-02-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -246,6 +249,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 15 P06 | 60m | 1 tasks | 1 files |
 | Phase 16 P00 | 27 min | 2 tasks | 5 files |
 | Phase 16 P01 | 1h 06m | 3 tasks | 4 files |
+| Phase 16 P02 | 48m | 2 tasks | 3 files |
 
 ### Blockers
 
