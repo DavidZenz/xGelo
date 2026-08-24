@@ -1454,7 +1454,7 @@ test_that("simulation|handoff|interim_adapter|registered_phase15|ranking_stage|r
   scenario <- do.call(uefa_euro_simulate_qualification, modifyList(simulation_args, list(
     activation = zero_results,
     fixtures = zero_results$fixtures,
-    standings = zero_results$standings
+    standings = NULL
   )))
   expect_true(scenario$status %in% c("scenario_preserved", "suppressed", "unavailable"))
   expect_true(nrow(scenario$probabilities) == 0L)
