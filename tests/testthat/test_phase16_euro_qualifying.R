@@ -1912,3 +1912,144 @@ test_that("EURO outcomes retain typed blocked states and never emit blocked prob
     expect_equal(nrow(candidate$qualification_ledger), 0L, info = case_name)
   }
 })
+
+phase16_test_state_script_environment <- function() {
+  environment <- new.env(parent = globalenv())
+  sys.source(file.path(phase16_test_project_root, "scripts/build_competition_state.R"), envir = environment)
+  environment
+}
+
+test_that("Phase 14 fresh-process loading is edition-scoped and sources EURO rules before state authority", {
+  script_path <- file.path(phase16_test_project_root, "scripts/build_competition_state.R")
+  script_lines <- readLines(script_path, warn = FALSE)
+  rules_line <- grep("R/competition/uefa_euro_rules\\.R", script_lines, fixed = FALSE)[1L]
+  state_line <- grep("R/competition/state_bundle\\.R", script_lines, fixed = FALSE)[1L]
+  expect_true(is.finite(rules_line) && is.finite(state_line) && rules_line < state_line)
+
+  script_environment <- phase16_test_state_script_environment()
+  loaded <- script_environment$phase14_build_competition_state_default_inputs(
+    c("uefa_euro_2028_qualifying", "uefa_nations_league_2026_27"),
+    phase16_test_project_root
+  )
+  expect_true(is.data.frame(loaded$source_bundle_manifest))
+  expect_setequal(
+    unique(as.character(loaded$source_bundle_manifest$edition_id)),
+    c("uefa_euro_2028_qualifying", "uefa_nations_league_2026_27")
+  )
+  expect_true(is.data.frame(loaded$source_status))
+  expect_setequal(
+    unique(as.character(loaded$source_status$edition_id)),
+    c("uefa_euro_2028_qualifying", "uefa_nations_league_2026_27")
+  )
+  expect_true(exists("validate_euro_activation", envir = script_environment, inherits = FALSE))
+})
+
+test_that("actual Phase 14 main accepts truthful EURO pre_draw and carries its activation gate", {
+  script_environment <- phase16_test_state_script_environment()
+  result <- script_environment$phase14_build_competition_state_main(
+    args = c("--edition-id", phase16_test_edition_id, "--dry-run"),
+    project_root = phase16_test_project_root,
+    input_loader_fn = script_environment$phase14_build_competition_state_default_inputs,
+    build_batch_fn = script_environment$phase14_build_competition_state_batch,
+    validate_fn = script_environment$phase14_validate_competition_state_bundle
+  )
+  candidate <- result$batch$candidates[[phase16_test_edition_id]]
+  expect_true(isTRUE(result$validation))
+  expect_identical(candidate$candidate_status, "valid")
+  expect_identical(candidate$lifecycle_state, "pre_draw")
+  expect_identical(candidate$forecast_status, "pre_draw")
+  expect_true(isTRUE(candidate$euro_activation_validation$valid))
+  expect_identical(candidate$euro_activation_validation$activation_status, "pre_draw")
+  expect_equal(nrow(candidate$state_artifacts[["state/canonical_matches.csv"]]), 0L)
+  expect_equal(nrow(candidate$state_artifacts[["state/forecasts.csv"]]), 0L)
+})
+
+test_that("Phase 14 EURO activation gate accepts active-after-draw zero-result inputs and blocks incomplete inputs", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/state_bundle.R")
+  active <- phase16_test_activation_candidate(active = TRUE)
+  gate <- phase14_state_bundle_euro_activation_gate(
+    edition_id = phase16_test_edition_id,
+    edition_row = data.frame(
+      edition_id = phase16_test_edition_id,
+      lifecycle_state = "scheduled",
+      source_bundle_id = phase16_test_source_bundle_id,
+      ruleset_version = phase16_test_ruleset_version,
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    ),
+    fixtures = active$resources$fixtures,
+    groups = active$resources$groups,
+    standings = active$resources$standings,
+    results = active$resources$results,
+    source_status = active$resources$status,
+    source_bundle_manifest = NULL,
+    team_registry = active$resources$teams,
+    activation = active
+  )
+  expect_true(isTRUE(gate$valid), info = gate$phase16_reason_original)
+  expect_identical(gate$activation_status, "active")
+  expect_identical(gate$phase16_reason, "none")
+  expect_equal(nrow(gate$candidate$resources$results), 0L)
+  expect_equal(nrow(gate$candidate$resources$standings), 0L)
+
+  missing_kickoff <- active
+  missing_kickoff$resources$fixtures$kickoff_confirmed <- FALSE
+  missing_kickoff$resources$fixtures$confirmed_kickoff_at_utc <- ""
+  blocked_kickoff <- phase14_state_bundle_euro_activation_gate(
+    edition_id = phase16_test_edition_id,
+    edition_row = data.frame(edition_id = phase16_test_edition_id, lifecycle_state = "scheduled", stringsAsFactors = FALSE),
+    fixtures = missing_kickoff$resources$fixtures,
+    groups = missing_kickoff$resources$groups,
+    standings = missing_kickoff$resources$standings,
+    results = missing_kickoff$resources$results,
+    source_status = missing_kickoff$resources$status,
+    team_registry = missing_kickoff$resources$teams,
+    activation = missing_kickoff
+  )
+  expect_false(isTRUE(blocked_kickoff$valid))
+  expect_identical(blocked_kickoff$phase16_reason, "unavailable")
+  expect_match(blocked_kickoff$phase16_reason_original, "kickoff", ignore.case = TRUE)
+
+  incomplete <- active
+  incomplete$resources$results <- NULL
+  blocked_incomplete <- phase14_state_bundle_euro_activation_gate(
+    edition_id = phase16_test_edition_id,
+    edition_row = data.frame(edition_id = phase16_test_edition_id, lifecycle_state = "scheduled", stringsAsFactors = FALSE),
+    fixtures = incomplete$resources$fixtures,
+    groups = incomplete$resources$groups,
+    standings = incomplete$resources$standings,
+    results = incomplete$resources$results,
+    source_status = incomplete$resources$status,
+    team_registry = incomplete$resources$teams,
+    activation = incomplete
+  )
+  expect_false(isTRUE(blocked_incomplete$valid))
+  expect_identical(blocked_incomplete$phase16_reason, "unavailable")
+  expect_match(blocked_incomplete$phase16_reason_original, "resource|complete", ignore.case = TRUE)
+})
+
+test_that("Phase 14 keeps edition-neutral Phase 16 reason mappings and rejects ungated active EURO state", {
+  phase16_test_source("R/competition/state_bundle.R")
+  values <- c(
+    pre_draw = "awaiting_official_draw_and_schedule",
+    unavailable = "source bundle is unavailable",
+    revision_blocked = "incumbent_revision_blocked",
+    host_place_unresolved = "host_place_unresolved",
+    unresolved_external_eligibility = "external_eligibility_unresolved",
+    unsupported_topology = "unsupported_topology"
+  )
+  mapped <- vapply(values, function(value) phase14_state_bundle_phase16_reason(value)$mapped, character(1))
+  expect_identical(unname(mapped), names(values))
+
+  ungated <- list(
+    edition_id = phase16_test_edition_id,
+    candidate_status = "valid",
+    lifecycle_state = "scheduled",
+    state_manifest = data.frame(artifact_path = character(), stringsAsFactors = FALSE)
+  )
+  expect_error(
+    phase14_state_bundle_validate_in_memory_candidate(ungated),
+    "activation gate"
+  )
+})
