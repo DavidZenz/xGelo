@@ -837,3 +837,104 @@ test_that("source_bundle validation rejects missing raw metadata and canonical h
   expect_false(mismatch_validation$valid)
   expect_match(mismatch_validation$failure_reason, "canonical|hash", ignore.case = TRUE)
 })
+
+phase16_test_copy_tree <- function(source, target) {
+  dir.create(target, recursive = TRUE, showWarnings = FALSE)
+  for (path in list.files(source, full.names = TRUE, all.files = FALSE)) {
+    destination <- file.path(target, basename(path))
+    if (dir.exists(path)) {
+      phase16_test_copy_tree(path, destination)
+    } else {
+      stopifnot(file.copy(path, destination, overwrite = TRUE))
+    }
+  }
+  invisible(target)
+}
+
+phase16_test_registry_sandbox <- function() {
+  root <- tempfile("phase16-registry-lifecycle-", tmpdir = phase16_test_project_root)
+  registry_root <- file.path(root, "registries")
+  accepted_root <- file.path(root, "accepted")
+  phase16_test_copy_tree(
+    file.path(phase16_test_project_root, "data/competition/registries"),
+    registry_root
+  )
+  phase16_test_copy_tree(
+    file.path(phase16_test_project_root, "data/competition/accepted"),
+    accepted_root
+  )
+  list(root = root, registry_root = registry_root, accepted_root = accepted_root)
+}
+
+test_that("registry_path accepts the real Phase 14 pre_draw snapshot and rejects forged scheduled state", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/edition_registry.R")
+  registries <- load_competition_edition_registries(
+    file.path(phase16_test_project_root, "data/competition/registries"),
+    project_root = phase16_test_project_root
+  )
+  euro <- registries[registries$edition_id == phase16_test_edition_id, , drop = FALSE]
+  snapshot <- registries$accepted_snapshots[[phase16_test_edition_id]]
+  expect_identical(as.character(euro$lifecycle_state), "pre_draw")
+  expect_identical(as.character(snapshot$status$competition_status), "pre_draw")
+  expect_equal(nrow(snapshot$groups), 0L)
+  expect_equal(nrow(snapshot$fixtures), 0L)
+  expect_equal(nrow(snapshot$standings), 0L)
+  expect_equal(nrow(snapshot$results), 0L)
+
+  sandbox <- phase16_test_registry_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  edition_path <- file.path(sandbox$registry_root, "competition_editions.csv")
+  editions <- utils::read.csv(edition_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  euro_index <- match(phase16_test_edition_id, as.character(editions$edition_id))
+  editions$lifecycle_state[[euro_index]] <- "scheduled"
+  editions$row_sha256 <- phase13_row_sha256(editions)
+  utils::write.csv(editions, edition_path, row.names = FALSE, na = "", quote = TRUE)
+  expect_error(
+    load_competition_edition_registries(
+      sandbox$registry_root,
+      project_root = phase16_test_project_root,
+      accepted_root = sandbox$accepted_root
+    ),
+    "accepted status|activation|lifecycle state does not match|complete",
+    ignore.case = TRUE
+  )
+})
+
+test_that("date_only does not activate EURO and pre_draw_guard remains fail closed", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/edition_registry.R")
+  registries <- load_competition_edition_registries(
+    file.path(phase16_test_project_root, "data/competition/registries"),
+    project_root = phase16_test_project_root
+  )
+  euro <- registries[registries$edition_id == phase16_test_edition_id, , drop = FALSE]
+  expect_identical(as.character(euro$official_draw_date), phase16_test_draw_date)
+  expect_identical(as.character(euro$lifecycle_state), "pre_draw")
+  script <- paste(readLines(file.path(phase16_test_project_root, "scripts/acquire_uefa_snapshot.R")), collapse = "\n")
+  expect_match(script, "lifecycle_state.*pre_draw")
+  expect_match(script, "phase13_acquire_empty_resource")
+})
+
+test_that("normal_fallback and normal_normalized branches require accepted lifecycle handoff", {
+  script <- paste(readLines(file.path(phase16_test_project_root, "scripts/acquire_uefa_snapshot.R")), collapse = "\n")
+  expect_match(script, "publish_accepted_fn")
+  expect_match(script, "phase13_acquire_update_edition_after_acceptance")
+  expect_true(length(gregexpr("phase13_acquire_update_edition_after_acceptance", script, fixed = TRUE)[[1L]]) >= 3L)
+  expect_match(script, "failure_injector")
+})
+
+test_that("failure_injection and no_scheduled_without_accepted are explicit API gates", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/edition_registry.R")
+  acquire_environment <- new.env(parent = globalenv())
+  previous_directory <- getwd()
+  setwd(phase16_test_project_root)
+  on.exit(setwd(previous_directory), add = TRUE)
+  sys.source(file.path(phase16_test_project_root, "scripts/acquire_uefa_snapshot.R"), envir = acquire_environment)
+  refresh_formals <- names(formals(acquire_environment$phase13_acquire_publish_refresh))
+  expect_true("publish_accepted_fn" %in% refresh_formals)
+  update_body <- paste(deparse(acquire_environment$phase13_acquire_update_edition_after_acceptance), collapse = "\n")
+  expect_match(update_body, "phase16_validate_euro_source_bundle")
+  expect_match(update_body, "phase13_transition_competition_edition")
+})
