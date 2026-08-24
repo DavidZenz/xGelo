@@ -1795,7 +1795,7 @@ test_that("exact EURO outcomes contract supports active, active-after-draw, and 
     "fixture_forecast_form.csv", "simulation_metadata.csv", "outcomes_manifest.csv"
   ))
   expect_identical(phase16_euro_outcomes_expected_inventory(), expected)
-  expect_identical(names(phase16_euro_outcomes_schema()), sub("^outcomes/", "", expected))
+  expect_identical(names(phase16_euro_outcomes_schema()), sub("\\.csv$", "", sub("^outcomes/", "", expected)))
 
   active <- phase16_test_active_after_draw_bundle()
   active_candidate <- phase16_build_euro_outcomes_candidate(
@@ -1824,10 +1824,11 @@ test_that("exact EURO outcomes contract supports active, active-after-draw, and 
   pre_draw_validation <- phase16_validate_euro_outcomes_bundle(pre_draw_candidate)
   expect_true(pre_draw_validation$valid, info = pre_draw_validation$failure_reason)
   expect_identical(pre_draw_candidate$candidate_status, "pre_draw")
-  expect_true(all(vapply(pre_draw_candidate[setdiff(names(pre_draw_candidate), c(
-    "candidate_status", "activation_status", "reason", "lineage", "manifest",
-    "generated_at_utc", "edition_id"
-  ))], function(value) is.data.frame(value) && nrow(value) == 0L, logical(1))))
+  pre_draw_tables <- pre_draw_candidate$artifacts[setdiff(names(pre_draw_candidate$artifacts), c(
+    "outcomes/simulation_metadata.csv", "outcomes/outcomes_manifest.csv"
+  ))]
+  expect_true(all(vapply(pre_draw_tables, function(value) is.data.frame(value) && nrow(value) == 0L, logical(1))))
+  expect_equal(nrow(pre_draw_candidate$artifacts[["outcomes/simulation_metadata.csv"]]), 1L)
   expect_identical(pre_draw_candidate$forecast_status, "pre_draw")
 })
 
@@ -1844,12 +1845,12 @@ test_that("EURO outcomes writer and reader enforce the registered-root boundary 
   output_root <- file.path(tempdir(), paste0("phase16-euro-outcomes-", as.integer(Sys.time())))
   written <- phase16_write_euro_outcomes_bundle(candidate, output_root = output_root)
   expect_true(isTRUE(written$registered))
-  expect_true(all(file.exists(file.path(output_root, phase16_euro_outcomes_expected_inventory()))))
+  expect_true(all(file.exists(file.path(output_root, sub("^outcomes/", "", phase16_euro_outcomes_expected_inventory())))))
   readback <- phase16_read_euro_outcomes_bundle(output_root = output_root)
   expect_true(phase16_compare_euro_outcomes_replays(candidate, readback)$identical)
 
   invalid <- candidate
-  invalid$team_path_probabilities$probability[1L] <- 2
+  invalid$artifacts[["outcomes/team_path_probabilities.csv"]]$probability[1L] <- 2
   expect_false(phase16_validate_euro_outcomes_bundle(invalid)$valid)
   expect_error(
     phase16_write_euro_outcomes_bundle(invalid, output_root = file.path(tempdir(), "phase16-invalid")),
