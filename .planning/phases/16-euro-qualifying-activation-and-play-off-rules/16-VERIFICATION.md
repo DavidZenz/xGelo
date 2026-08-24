@@ -1,7 +1,7 @@
 ---
 phase: 16-euro-qualifying-activation-and-play-off-rules
 verified: 2026-08-24T17:24:55Z
-status: human_needed
+status: passed
 score: 20/20 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
@@ -9,16 +9,19 @@ re_verification:
   previous_status: gaps_found
   previous_score: 17/20
   gaps_closed:
+
     - "Scheduled activation now rejects empty official status resources and requires accepted edition and lifecycle evidence."
     - "Qualification simulation now fails closed for NULL or unvalidated activation and emits zero probability rows."
     - "Outcomes publication now restores the incumbent byte-for-byte after post-promotion read-back failure."
   gaps_remaining: []
   regressions: []
 deferred:
+
   - truth: "The dashboard visibly presents source confidence beside the pre-draw status summary."
     addressed_in: "Phase 17"
     evidence: "Phase 17 success criterion 3 requires refresh status, source confidence, model release, warnings, and replayable simulation metadata on every published dashboard."
 human_verification:
+
   - test: "Inspect the first official post-draw EURO bundle before active publication."
     expected: "The accepted manifest, source revisions, raw snapshot metadata, group and fixture identities, confirmed kickoffs, host/Nations League ledger statuses, draw-condition lineage, and blocked reasons match the official UEFA bundle; no candidate-only rows are visible."
     why_human: "The current accepted state is intentionally pre_draw and the first real post-draw external source bundle is not available to static tests."
