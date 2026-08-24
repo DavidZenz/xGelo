@@ -734,6 +734,158 @@ test_that("fixture", {
   expect_true(all(nzchar(handoffs$valid$source_artifact_id)))
 })
 
+phase16_test_draw_conditions <- function() {
+  list(
+    draw_conditions_version = "uefa-euro-2028-playoff-draw-conditions-v1",
+    draw_conditions_sha256 = paste(rep("e", 64L), collapse = ""),
+    source_artifact_id = "artifact-euro-draw-conditions-v1",
+    source_bundle_id = phase16_test_source_bundle_id,
+    accepted = TRUE,
+    complete = TRUE,
+    conditions = c("host_association_separation", "northern_ireland_separation")
+  )
+}
+
+phase16_test_completed_group <- function() {
+  standings <- data.frame(
+    edition_id = phase16_test_edition_id,
+    group_id = "euro-group-completed",
+    team_id = c("team-euro-g01", "team-euro-g02", "team-euro-g03", "team-euro-g04"),
+    association_id = c("assoc-host-a", "assoc-euro-b", "assoc-euro-c", "assoc-euro-d"),
+    played = c(2L, 2L, 2L, 2L),
+    wins = c(2L, 1L, 1L, 0L),
+    draws = c(0L, 0L, 0L, 0L),
+    losses = c(0L, 1L, 1L, 2L),
+    goals_for = c(5L, 3L, 2L, 1L),
+    goals_against = c(1L, 3L, 4L, 3L),
+    goal_difference = c(4L, 0L, -2L, -2L),
+    points = c(6L, 3L, 3L, 0L),
+    away_goals = c(2L, 1L, 0L, 1L),
+    away_wins = c(1L, 0L, 0L, 0L),
+    discipline_points = c(1L, 2L, 3L, 4L),
+    interim_overall_rank = c(12L, 24L, 36L, 48L),
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_artifact_id = "artifact-euro-standings-completed-v1",
+    ruleset_version = phase16_test_ruleset_version,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  fixtures <- data.frame(
+    edition_id = phase16_test_edition_id,
+    group_id = "euro-group-completed",
+    fixture_id = c("euro-completed-001", "euro-completed-002", "euro-completed-003", "euro-completed-004"),
+    home_team_id = c("team-euro-g01", "team-euro-g02", "team-euro-g03", "team-euro-g04"),
+    away_team_id = c("team-euro-g02", "team-euro-g03", "team-euro-g04", "team-euro-g01"),
+    home_goals = c(2L, 1L, 1L, 0L),
+    away_goals = c(0L, 0L, 0L, 2L),
+    match_status = "completed",
+    counts_for_standings = TRUE,
+    evidence_completed_at_utc = c(
+      "2027-03-01T18:00:00Z", "2027-03-02T18:00:00Z",
+      "2027-03-03T18:00:00Z", "2027-03-04T18:00:00Z"
+    ),
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_artifact_id = "artifact-euro-fixtures-completed-v1",
+    ruleset_version = phase16_test_ruleset_version,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  hosts <- data.frame(
+    host_slot_id = "euro-host-slot-01",
+    slot_number = 1L,
+    association_id = "assoc-host-a",
+    team_id = "team-euro-g01",
+    display_name = "Host Association A",
+    covered = TRUE,
+    rank_evidence = 1L,
+    host_guarantee_status = "resolved",
+    source_bundle_id = phase16_test_source_bundle_id,
+    source_artifact_id = "artifact-euro-hosts-v1",
+    ruleset_version = phase16_test_ruleset_version,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(standings = standings, fixtures = fixtures, hosts = hosts)
+}
+
+test_that("ranking|host|allocation|phase16_smoke", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  inputs <- phase16_test_completed_group()
+  ranked <- rank_euro_group(inputs$standings, inputs$fixtures)
+
+  expect_identical(ranked$team_id[[1L]], "team-euro-g01")
+  expect_identical(as.integer(ranked$rank), 1:4)
+  expect_identical(as.integer(ranked$points), inputs$standings$points)
+  expect_identical(as.integer(ranked$goal_difference), inputs$standings$goal_difference)
+  expect_true(all(nzchar(ranked$counted_match_ids)))
+  expect_true(all(ranked$excluded_match_ids == ""))
+  expect_true(all(ranked$ordering_status == "ready"))
+  expect_true(all(c("source_artifact_id", "source_bundle_id", "ruleset_version", "ruleset_sha256") %in% names(ranked)))
+  expect_true("evidence_id" %in% names(attr(ranked, "tiebreak_trace")))
+
+  topologies <- uefa_euro_playoff_topologies()
+  expect_setequal(topologies$reserved_slots_used, c(0L, 1L, 2L))
+  expect_identical(topologies$entrant_count[order(topologies$reserved_slots_used)], c(8L, 12L, 8L))
+  expect_identical(topologies$places[order(topologies$reserved_slots_used)], c(4L, 3L, 2L))
+  expect_true(all(nzchar(topologies$source_artifact_id)))
+
+  allocation <- allocate_euro_places(
+    ranked,
+    host_ids = inputs$hosts,
+    draw_conditions = phase16_test_draw_conditions()
+  )
+  occupied <- allocation$host_slots[allocation$host_slots$slot_status == "occupied", , drop = FALSE]
+  expect_equal(nrow(occupied), 1L)
+  expect_identical(occupied$association_id[[1L]], "assoc-host-a")
+  expect_true(isTRUE(occupied$consumes_capacity[[1L]]))
+  expect_equal(sum(allocation$host_slots$consumes_capacity %in% TRUE), 1L)
+  expect_identical(allocation$capacity$reserved_slots_used, 1L)
+  expect_identical(allocation$capacity$remaining_playoff_places, 3L)
+  expect_true(any(allocation$qualification_ledger$qualification_status == "direct"))
+  expect_true(any(allocation$qualification_ledger$qualification_status == "host_reserved_occupied"))
+  expect_true(all(c("source_bundle_id", "source_artifact_id", "ruleset_version", "ruleset_sha256") %in% names(allocation$qualification_ledger)))
+  expect_true(any(allocation$topology$current_topology))
+  expect_identical(allocation$topology$reserved_slots_used[allocation$topology$current_topology], 1L)
+})
+
+test_that("scenario|host|allocation", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  active <- phase16_test_active_zero_results_bundle()
+  hosts <- phase16_test_four_host_fixture()$covered_hosts[1:2, , drop = FALSE]
+  hosts$host_guarantee_status <- "unresolved"
+  scenario <- allocate_euro_places(
+    active$standings,
+    host_ids = hosts,
+    draw_conditions = phase16_test_draw_conditions()
+  )
+
+  expect_true(isTRUE(scenario$scenario_status == "preserved"))
+  expect_true(all(scenario$topology$scenario_status == "preserved"))
+  expect_false(any(scenario$topology$current_topology))
+  expect_true(any(scenario$qualification_ledger$qualification_status == "host_place_unresolved"))
+  expect_true(all(is.na(scenario$qualification_ledger$probability)))
+  expect_true(all(nzchar(scenario$scenario_id)))
+})
+
+test_that("host_place_unresolved suppresses affected qualification eligibility", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  inputs <- phase16_test_completed_group()
+  inputs$hosts$host_guarantee_status <- "unresolved"
+  allocation <- allocate_euro_places(
+    rank_euro_group(inputs$standings, inputs$fixtures),
+    host_ids = inputs$hosts,
+    draw_conditions = phase16_test_draw_conditions()
+  )
+  unresolved <- allocation$qualification_ledger[
+    allocation$qualification_ledger$qualification_status == "host_place_unresolved",
+    , drop = FALSE
+  ]
+  expect_equal(nrow(unresolved), 1L)
+  expect_true(all(is.na(unresolved$probability)))
+  expect_true(all(unresolved$qualification_eligibility_status == "suppressed"))
+  expect_true(all(grepl("host", unresolved$reason, ignore.case = TRUE)))
+})
+
 phase16_test_registered_revision_candidate <- function() {
   candidate <- phase16_test_activation_candidate(active = TRUE)
   candidate$source_bundle_id <- "euro-2028-qualifying-official-draw-v2"
