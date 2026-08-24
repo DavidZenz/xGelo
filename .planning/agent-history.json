@@ -41,6 +41,116 @@
       "timestamp": "2026-07-22T19:58:57Z",
       "status": "completed",
       "completion_timestamp": "2026-07-23T04:55:57.956Z"
+    },
+    {
+      "agent_id": "01a02fe2-ae01-7e01-ab9d-dff0bb238a99",
+      "task_description": "Execute Phase 16 Plan 16-00 Wave 1",
+      "phase": "16",
+      "plan": "16-00",
+      "segment": null,
+      "timestamp": "2026-08-23T18:29:46.519Z",
+      "status": "spawned",
+      "completion_timestamp": null
+    },
+    {
+      "agent_id": "01a03036-f22b-7602-825f-b4a7f903c48f",
+      "task_description": "Resume and finish Phase 16 Plan 16-00 Wave 1",
+      "phase": "16",
+      "plan": "16-00",
+      "segment": null,
+      "timestamp": "2026-08-23T20:01:49.261Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-23T21:00:26.356Z"
+    },
+    {
+      "agent_id": "01a032d0-84f0-7e01-9e98-caacacb4161b",
+      "task_description": "Finish Phase 16 Plan 16-00 closeout after baseline capture",
+      "phase": "16",
+      "plan": "16-00",
+      "segment": null,
+      "timestamp": "2026-08-24T08:08:48.713Z",
+      "status": "spawned",
+      "completion_timestamp": null
+    },
+    {
+      "agent_id": "01a032f0-ffaf-72e2-aa01-3b41cddb2796",
+      "task_description": "Execute Phase 16 Plan 16-01 Wave 2",
+      "phase": "16",
+      "plan": "16-01",
+      "segment": null,
+      "timestamp": "2026-08-24T08:44:17.455Z",
+      "status": "spawned",
+      "completion_timestamp": null
+    },
+    {
+      "agent_id": "01a03330-a9d2-76a2-9a7d-d9c56e441b20",
+      "task_description": "Execute Phase 16 Plan 16-02 Wave 3",
+      "phase": "16",
+      "plan": "16-02",
+      "segment": null,
+      "timestamp": "2026-08-24T09:53:49.573Z",
+      "status": "spawned",
+      "completion_timestamp": null
+    },
+    {
+      "agent_id": "01a03366-d012-73c2-80e7-c36b510eef66",
+      "task_description": "Execute Phase 16 Plan 16-03 Wave 4",
+      "phase": "16",
+      "plan": "16-03",
+      "segment": null,
+      "timestamp": "2026-08-24T13:00:00Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-24T13:54:00Z"
+    },
+    {
+      "agent_id": "01a033a4-e628-7f20-9c1e-e355edbf4151",
+      "task_description": "Execute Phase 16 Plan 16-04 Wave 5",
+      "phase": "16",
+      "plan": "16-04",
+      "segment": null,
+      "timestamp": "2026-08-24T14:00:43Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-24T13:44:00Z"
+    },
+    {
+      "agent_id": "01a03403-7f03-73f2-9fa4-2a441a1c559e",
+      "task_description": "Execute Phase 16 Plan 16-05 Wave 6",
+      "phase": "16",
+      "plan": "16-05",
+      "segment": null,
+      "timestamp": "2026-08-24T13:44:16Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-24T15:55:00Z"
+    },
+    {
+      "agent_id": "01a03481-075c-75a0-a852-0464cc77d5b4",
+      "task_description": "Verify Phase 16 goal achievement",
+      "phase": "16",
+      "plan": null,
+      "segment": "verification",
+      "timestamp": "2026-08-24T16:01:13Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-24T16:23:00Z"
+    },
+    {
+      "agent_id": "01a03499-7dfa-7490-b7c0-b8004df67bc4",
+      "task_description": "Fix Phase 16 verification gaps",
+      "phase": "16",
+      "plan": "16-06",
+      "segment": "gaps",
+      "timestamp": "2026-08-24T16:27:57Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-24T17:13:00Z"
+    },
+    {
+      "agent_id": "01a034c3-b05b-7c91-ac6a-941d94c59ba1",
+      "task_description": "Re-verify Phase 16 after gap remediation",
+      "phase": "16",
+      "plan": null,
+      "segment": "verification",
+      "timestamp": "2026-08-24T17:15:00Z",
+      "status": "completed",
+      "completion_timestamp": "2026-08-24T17:25:00Z"
     }
   ]
 }
