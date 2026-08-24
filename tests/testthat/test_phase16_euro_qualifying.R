@@ -311,6 +311,8 @@ phase16_test_host_usage_cases <- function() {
     }
     data.frame(
       case_id = case_id,
+      scenario_id = paste0("euro-host-usage-", case_id),
+      scenario_status = "preserved",
       observed_host_association_ids = paste(sort(observed), collapse = "|"),
       consumed_host_association_ids = paste(sort(selected$association_id), collapse = "|"),
       reserved_slots_used = as.integer(nrow(selected)),
@@ -463,6 +465,8 @@ test_that("fixture", {
     )
   )
   expect_true(all(usage$remaining_capacity >= 0L))
+  expect_identical(anyDuplicated(usage$scenario_id), 0L)
+  expect_true(all(usage$scenario_status == "preserved"))
   expect_true(all(nzchar(usage$source_bundle_id)))
   expect_true(all(usage$ruleset_version == phase16_test_ruleset_version))
   expect_identical(phase16_test_fixture_signature(usage), phase16_test_fixture_signature(usage[nrow(usage):1L, , drop = FALSE]))
