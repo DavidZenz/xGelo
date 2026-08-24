@@ -809,6 +809,20 @@ phase16_euro_cli_prepare_activation <- function(activation, loaded) {
   activation
 }
 
+phase16_euro_cli_suppress_candidate_rows <- function(candidate) {
+  blocked_statuses <- c("unavailable", "unresolved", "unsupported_topology", "revision_blocked")
+  if (!phase16_euro_cli_scalar(candidate$candidate_status) %in% blocked_statuses) return(candidate)
+  schemas <- phase16_euro_outcomes_schema()
+  expected <- phase16_euro_outcomes_expected_inventory()
+  for (path in setdiff(expected, c("outcomes/simulation_metadata.csv", "outcomes/outcomes_manifest.csv"))) {
+    key <- sub("\\.csv$", "", sub("^outcomes/", "", path))
+    candidate$artifacts[[path]] <- phase16_euro_empty_table(schemas[[key]])
+    candidate[[key]] <- candidate$artifacts[[path]]
+  }
+  candidate$outcomes_artifacts <- candidate$artifacts
+  candidate
+}
+
 phase16_euro_cli_refresh_manifest <- function(candidate, payload) {
   manifest <- candidate$manifest %||% candidate$artifacts[["outcomes/outcomes_manifest.csv"]]
   if (!is.data.frame(manifest) || !nrow(manifest)) return(candidate)
@@ -908,6 +922,10 @@ phase16_euro_cli_build_candidate <- function(loaded, options, source_override = 
     "unavailable"
   } else {
     "revision_blocked"
+  }
+  candidate <- phase16_euro_cli_suppress_candidate_rows(candidate)
+  if (phase16_euro_cli_scalar(candidate$candidate_status) %in% c("unavailable", "unresolved", "unsupported_topology", "revision_blocked")) {
+    candidate <- phase16_euro_attach_manifest(candidate)
   }
   candidate <- phase16_euro_cli_refresh_manifest(candidate, candidate$payload)
   validation <- phase16_validate_euro_outcomes_bundle(candidate)
@@ -1110,6 +1128,8 @@ phase16_build_euro_qualifying_outcomes_main <- function(
   if (identical(options$mode, "write")) {
     if (!isTRUE(normal$activation_validation$valid) && !is.null(incumbent)) {
       result <- c(result, phase16_euro_cli_incumbent_overlay(incumbent, normal$activation_validation, normal$candidate))
+      result$candidate <- NULL
+      result$simulation <- NULL
       result$payload <- normal$candidate$payload
     } else {
       if (!isTRUE(normal$validation$valid)) {
