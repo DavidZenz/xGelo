@@ -2171,3 +2171,155 @@ test_that("cli|wrapper|edition_id requires explicit registered EURO ID", {
   expect_true(any(grepl("build_euro_qualifying_outcomes.R", wrapper, fixed = TRUE)))
   expect_true(any(grepl("phase16_euro", wrapper, fixed = TRUE)))
 })
+
+phase16_test_cli_options <- function() {
+  list(simulations = 100L, seed = 16017L)
+}
+
+phase16_test_cli_build <- function(cli, activation, simulation = NULL, incumbent = NULL) {
+  loaded <- phase16_test_cli_loaded(activation, simulation)
+  loaded$project_root <- phase16_test_project_root
+  loaded$edition_id <- phase16_test_edition_id
+  loaded$incumbent <- incumbent
+  cli$phase16_euro_cli_build_candidate(loaded, phase16_test_cli_options())
+}
+
+phase16_test_cli_sandbox <- function() {
+  root <- tempfile("phase16-cli-publication-", tmpdir = phase16_test_project_root)
+  dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  root
+}
+
+phase16_test_cli_write_candidate <- function(root, candidate) {
+  phase16_write_euro_outcomes_bundle(
+    candidate,
+    output_root = phase16_euro_registered_outcomes_root(root),
+    project_root = root
+  )
+}
+
+test_that("cli|publication|unavailable|no_incumbent|revision", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  cli <- phase16_test_cli_environment()
+  invalid <- phase16_test_active_after_draw_bundle()
+  invalid$fixtures$kickoff_confirmed <- FALSE
+  invalid$fixtures$confirmed_kickoff_at_utc <- ""
+
+  built <- phase16_test_cli_build(cli, invalid)
+  expect_false(isTRUE(built$activation_validation$valid))
+  expect_identical(built$candidate$candidate_status, "unavailable")
+  expect_true(isTRUE(built$validation$valid), info = built$validation$failure_reason)
+  structural <- setdiff(
+    names(built$candidate$artifacts),
+    c("outcomes/simulation_metadata.csv", "outcomes/outcomes_manifest.csv")
+  )
+  expect_true(all(vapply(
+    built$candidate$artifacts[structural],
+    function(value) nrow(value) == 0L,
+    logical(1)
+  )))
+  expect_match(
+    built$candidate$manifest$warnings[[1L]],
+    built$activation_validation$failure_reason,
+    fixed = TRUE
+  )
+})
+
+test_that("cli|publication|continuity|Refresh blocked|incumbent bytes", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  cli <- phase16_test_cli_environment()
+  sandbox <- phase16_test_cli_sandbox()
+  on.exit(unlink(sandbox, recursive = TRUE, force = TRUE), add = TRUE)
+
+  incumbent <- phase16_test_cli_build(cli, phase16_test_pre_draw_bundle())
+  phase16_test_cli_write_candidate(sandbox, incumbent$candidate)
+  manifest_path <- file.path(
+    phase16_euro_registered_outcomes_root(sandbox),
+    "outcomes_manifest.csv"
+  )
+  before <- readBin(manifest_path, what = "raw", n = file.info(manifest_path)$size)
+
+  invalid <- phase16_test_active_after_draw_bundle()
+  invalid$fixtures$kickoff_confirmed <- FALSE
+  invalid$fixtures$confirmed_kickoff_at_utc <- ""
+  loader <- function(edition_id, project_root) phase16_test_cli_loaded(invalid)
+  blocked <- cli$phase16_build_euro_qualifying_outcomes_main(
+    args = c("--edition-id", phase16_test_edition_id, "--write"),
+    project_root = sandbox,
+    input_loader_fn = loader
+  )
+  after <- readBin(manifest_path, what = "raw", n = file.info(manifest_path)$size)
+
+  expect_false(isTRUE(blocked$durable_mutation))
+  expect_true(isTRUE(blocked$candidate_isolated))
+  expect_null(blocked$candidate)
+  expect_identical(blocked$revision_warning, "Refresh blocked — showing the last accepted EURO snapshot")
+  expect_match(blocked$revision_failure_reason, "kickoff", ignore.case = TRUE)
+  expect_identical(before, after)
+  expect_identical(
+    blocked$accepted_bundle$manifest$manifest_sha256,
+    incumbent$candidate$manifest$manifest_sha256
+  )
+})
+
+test_that("cli|publication|continuity|valid revision replaces after validation", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  cli <- phase16_test_cli_environment()
+  sandbox <- phase16_test_cli_sandbox()
+  on.exit(unlink(sandbox, recursive = TRUE, force = TRUE), add = TRUE)
+  incumbent <- phase16_test_cli_build(cli, phase16_test_pre_draw_bundle())
+  phase16_test_cli_write_candidate(sandbox, incumbent$candidate)
+
+  loader <- function(edition_id, project_root) phase16_test_cli_loaded(
+    phase16_test_active_after_draw_bundle(),
+    phase16_test_outcomes_simulation()
+  )
+  result <- cli$phase16_build_euro_qualifying_outcomes_main(
+    args = c("--edition-id", phase16_test_edition_id, "--write"),
+    project_root = sandbox,
+    input_loader_fn = loader
+  )
+  accepted <- phase16_read_euro_outcomes_bundle(
+    output_root = phase16_euro_registered_outcomes_root(sandbox),
+    project_root = sandbox
+  )
+  expect_true(isTRUE(result$durable_mutation))
+  expect_identical(accepted$candidate_status, "active")
+  expect_true(nrow(accepted$artifacts[["outcomes/competition_topology.csv"]]) > 0L)
+  expect_true(nrow(accepted$artifacts[["outcomes/stage_slots.csv"]]) > 0L)
+  expect_identical(
+    accepted$manifest$source_bundle_id[[1L]],
+    phase16_test_source_bundle_id
+  )
+})
+
+test_that("cli|replay|lineage|fresh_process|typed_mismatch", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  cli <- phase16_test_cli_environment()
+  active <- phase16_test_active_after_draw_bundle()
+  simulation <- phase16_test_outcomes_simulation()
+  loaded <- phase16_test_cli_loaded(active, simulation)
+  normal <- cli$phase16_euro_cli_build_candidate(loaded, phase16_test_cli_options())
+  reversed_loaded <- cli$phase16_euro_cli_reverse_value(loaded)
+  reversed <- cli$phase16_euro_cli_build_candidate(reversed_loaded, phase16_test_cli_options())
+  repeated <- cli$phase16_euro_cli_build_candidate(loaded, phase16_test_cli_options())
+  expect_true(isTRUE(cli$phase16_euro_compare_replays(normal, reversed)$identical))
+  expect_true(isTRUE(cli$phase16_euro_compare_replays(normal, repeated)$identical))
+
+  changed <- loaded
+  changed$model_lineage$model_sha256 <- phase16_test_outcomes_sha("z")
+  changed_candidate <- cli$phase16_euro_cli_build_candidate(changed, phase16_test_cli_options())
+  expect_error(
+    cli$phase16_euro_compare_replays(normal, changed_candidate),
+    class = "phase16_euro_replay_mismatch"
+  )
+  expect_error(
+    cli$phase16_euro_compare_replays(normal, changed_candidate),
+    "lineage|artifact",
+    class = "phase16_euro_replay_mismatch"
+  )
+})
