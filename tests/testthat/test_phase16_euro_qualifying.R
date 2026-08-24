@@ -733,3 +733,106 @@ test_that("fixture", {
   expect_true(all(nzchar(handoffs$valid$source_bundle_id)))
   expect_true(all(nzchar(handoffs$valid$source_artifact_id)))
 })
+
+phase16_test_registered_revision_candidate <- function() {
+  candidate <- phase16_test_activation_candidate(active = TRUE)
+  candidate$source_bundle_id <- "euro-2028-qualifying-official-draw-v2"
+  candidate$ruleset_version <- "uefa-euro-2028-qualifying-v2"
+  candidate$source_bundle$bundle_id <- candidate$source_bundle_id
+  candidate$source_bundle$source_bundle_id <- candidate$source_bundle_id
+  candidate$source_bundle$ruleset_version <- candidate$ruleset_version
+  candidate$source_bundle$artifacts$bundle_id <- candidate$source_bundle_id
+  candidate$source_bundle$artifacts$raw_sha256 <- paste(rep("c", 64L), collapse = "")
+  candidate$source_bundle$artifacts$canonical_content_sha256 <- paste(rep("d", 64L), collapse = "")
+  candidate$manifest$bundle_id <- candidate$source_bundle_id
+  candidate$manifest$source_bundle_id <- candidate$source_bundle_id
+  candidate$manifest$ruleset_version <- candidate$ruleset_version
+  candidate$manifest$raw_sha256 <- paste(rep("c", 64L), collapse = "")
+  candidate$activation_config <- list(
+    registered_source_bundle_ids = candidate$source_bundle_id,
+    registered_ruleset_versions = candidate$ruleset_version
+  )
+  candidate$canonical_hashes <- setNames(
+    rep(paste(rep("d", 64L), collapse = ""), 5L),
+    c("fixtures", "groups", "standings", "results", "status")
+  )
+  candidate
+}
+
+test_that("source_bundle revision validates independently with new identity hashes", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  incumbent_candidate <- phase16_test_activation_candidate(active = TRUE)
+  incumbent_validation <- phase16_validate_euro_source_bundle(incumbent_candidate)
+  candidate <- phase16_test_registered_revision_candidate()
+
+  validation <- phase16_validate_euro_source_bundle(
+    candidate,
+    incumbent = incumbent_validation
+  )
+  expect_true(validation$valid)
+  expect_identical(validation$activation_status, "active")
+  expect_identical(validation$source_bundle_id, candidate$source_bundle_id)
+  expect_identical(validation$ruleset_version, candidate$ruleset_version)
+  expect_identical(validation$revision_status, "candidate")
+
+  reused_hashes <- candidate
+  reused_hashes$raw_snapshot$raw_sha256 <- paste(rep("a", 64L), collapse = "")
+  reused_hashes$source_bundle$artifacts$raw_sha256 <- paste(rep("a", 64L), collapse = "")
+  reused_hashes$source_bundle$artifacts$canonical_content_sha256 <- paste(rep("b", 64L), collapse = "")
+  reused_hashes$canonical_hashes <- setNames(
+    rep(paste(rep("b", 64L), collapse = ""), 5L),
+    c("fixtures", "groups", "standings", "results", "status")
+  )
+  reused <- phase16_validate_euro_source_bundle(
+    reused_hashes,
+    incumbent = incumbent_validation
+  )
+  expect_false(reused$valid)
+  expect_match(reused$failure_reason, "hash|revision", ignore.case = TRUE)
+})
+
+test_that("revision continuity retains the incumbent and isolates an invalid candidate", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  incumbent_validation <- phase16_validate_euro_source_bundle(
+    phase16_test_activation_candidate(active = TRUE)
+  )
+  incumbent <- phase16_euro_activation_envelope(incumbent_validation)
+  candidate <- phase16_test_activation_candidate(active = TRUE, kickoff_confirmed = FALSE)
+  candidate_validation <- phase16_validate_euro_source_bundle(candidate, incumbent = incumbent_validation)
+
+  expect_false(candidate_validation$valid)
+  unavailable <- phase16_euro_activation_envelope(candidate_validation)
+  expect_identical(unavailable$activation_status, "unavailable")
+  expect_equal(nrow(unavailable$fixtures), 0L)
+  expect_true(isTRUE(unavailable$candidate_isolated))
+  expect_null(unavailable$candidate_rows)
+
+  overlay <- phase16_euro_revision_overlay(candidate_validation, incumbent)
+  expect_identical(overlay$lifecycle_state, "scheduled")
+  expect_identical(overlay$forecast_status, "available")
+  expect_identical(overlay$fixtures$fixture_id, incumbent$fixtures$fixture_id)
+  expect_identical(overlay$source_bundle_id, incumbent$source_bundle_id)
+  expect_identical(overlay$revision_status, "revision_blocked")
+  expect_true(isTRUE(overlay$candidate_isolated))
+  expect_true(nzchar(overlay$revision_warning))
+  expect_null(overlay$candidate_rows)
+})
+
+test_that("source_bundle validation rejects missing raw metadata and canonical hash mismatch", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  candidate <- phase16_test_activation_candidate(active = TRUE)
+  missing_raw <- candidate
+  missing_raw$raw_snapshot$raw_sha256 <- ""
+  missing_validation <- phase16_validate_euro_source_bundle(missing_raw)
+  expect_false(missing_validation$valid)
+  expect_match(missing_validation$failure_reason, "raw|provenance", ignore.case = TRUE)
+
+  mismatch <- candidate
+  mismatch$canonical_hashes <- setNames(
+    rep(paste(rep("c", 64L), collapse = ""), 5L),
+    c("fixtures", "groups", "standings", "results", "status")
+  )
+  mismatch_validation <- phase16_validate_euro_source_bundle(mismatch)
+  expect_false(mismatch_validation$valid)
+  expect_match(mismatch_validation$failure_reason, "canonical|hash", ignore.case = TRUE)
+})
