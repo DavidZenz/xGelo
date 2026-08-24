@@ -361,7 +361,7 @@ phase14_state_bundle_candidate <- function(
   rows <- phase14_state_bundle_match_rows(canonical_matches, edition_id, 1L)
   if (identical(lifecycle, "pre_draw")) {
     forecast <- phase14_forecast_empty_result("pre_draw")
-    return(list(
+    candidate <- list(
       edition_id = as.character(edition_id),
       candidate_status = "valid",
       failure_reason = NA_character_,
@@ -378,7 +378,8 @@ phase14_state_bundle_candidate <- function(
       shared_input_audit = shared_input_audit,
       resolved_release = resolved_release,
       state_status = "pre_draw"
-    ))
+    )
+    return(candidate)
   }
 
   fixture_rows <- phase14_state_bundle_edition_rows(rows, edition_id, "fixtures")
@@ -1078,6 +1079,189 @@ phase14_state_bundle_failure_status <- function(
   output
 }
 
+phase14_state_bundle_is_euro_edition <- function(edition_id) {
+  identical(as.character(edition_id), "uefa_euro_2028_qualifying")
+}
+
+phase14_state_bundle_phase16_reason <- function(validation = NULL, fallback = "unavailable") {
+  original <- if (is.list(validation)) {
+    phase14_state_bundle_text(validation$failure_reason %||% validation$reason, fallback)
+  } else {
+    phase14_state_bundle_text(validation, fallback)
+  }
+  normalized <- tolower(gsub("[^a-z0-9_]+", "_", original))
+  if (grepl("revision_blocked|incumbent_revision", normalized)) return(list(mapped = "revision_blocked", original = original))
+  if (grepl("host.*unresolved|unresolved_host", normalized)) return(list(mapped = "host_place_unresolved", original = original))
+  if (grepl("external.*eligib|eligib.*external|nations_league.*unresolved", normalized)) return(list(mapped = "unresolved_external_eligibility", original = original))
+  if (grepl("unsupported.*topology|topology.*unsupported", normalized)) return(list(mapped = "unsupported_topology", original = original))
+  if (grepl("pre_draw|awaiting.*draw", normalized)) return(list(mapped = "pre_draw", original = original))
+  list(mapped = fallback, original = original)
+}
+
+phase14_state_bundle_edition_input <- function(value, edition_id) {
+  if (is.null(value)) return(NULL)
+  if (is.list(value) && !is.data.frame(value) && !is.null(names(value)) && edition_id %in% names(value)) {
+    return(value[[edition_id]])
+  }
+  if (is.data.frame(value) && "edition_id" %in% names(value)) {
+    return(value[as.character(value$edition_id) == as.character(edition_id), , drop = FALSE])
+  }
+  value
+}
+
+phase14_state_bundle_euro_activation_candidate <- function(
+    edition_id,
+    edition_row,
+    fixtures,
+    groups,
+    standings,
+    results,
+    source_status = NULL,
+    source_bundle_manifest = NULL,
+    team_registry = NULL,
+    activation = NULL) {
+  if (is.list(activation)) {
+    candidate <- activation
+    if (is.null(candidate$resources)) {
+      candidate$resources <- list(
+        teams = candidate$teams,
+        groups = candidate$groups %||% groups,
+        fixtures = candidate$fixtures %||% fixtures,
+        standings = candidate$standings %||% standings,
+        results = candidate$results %||% results,
+        status = candidate$status %||% source_status
+      )
+    }
+    candidate$edition_id <- candidate$edition_id %||% edition_id
+    candidate$teams <- candidate$teams %||% team_registry
+    return(candidate)
+  }
+  manifest <- source_bundle_manifest
+  if (!is.data.frame(manifest) || !nrow(manifest)) {
+    manifest <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  }
+  bundle_id <- phase14_state_bundle_scalar_text(edition_row, "source_bundle_id", "")
+  if (!nzchar(bundle_id) && "bundle_id" %in% names(manifest)) bundle_id <- unique(as.character(manifest$bundle_id))[[1L]]
+  ruleset_version <- phase14_state_bundle_scalar_text(edition_row, "ruleset_version", "uefa-euro-2028-qualifying-v1")
+  raw_hash <- if ("raw_sha256" %in% names(manifest)) as.character(manifest$raw_sha256[[1L]]) else ""
+  retrieved_at <- if ("retrieved_at_utc" %in% names(manifest)) as.character(manifest$retrieved_at_utc[[1L]]) else ""
+  status <- source_status
+  if (is.null(status)) {
+    status <- data.frame(
+      edition_id = as.character(edition_id),
+      competition_status = phase14_state_bundle_scalar_text(edition_row, "lifecycle_state", "scheduled"),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
+  }
+  list(
+    edition_id = as.character(edition_id),
+    source_bundle_id = bundle_id,
+    ruleset_version = ruleset_version,
+    source_bundle = list(
+      bundle_id = bundle_id,
+      source_bundle_id = bundle_id,
+      edition_id = as.character(edition_id),
+      bundle_status = "accepted",
+      ruleset_version = ruleset_version,
+      artifacts = manifest
+    ),
+    resources = list(
+      teams = team_registry,
+      groups = groups,
+      fixtures = fixtures,
+      standings = standings,
+      results = results,
+      status = status
+    ),
+    raw_snapshot = list(
+      edition_id = as.character(edition_id),
+      source_bundle_id = bundle_id,
+      raw_sha256 = raw_hash,
+      retrieved_at_utc = retrieved_at
+    ),
+    manifest = manifest
+  )
+}
+
+phase14_state_bundle_euro_activation_gate <- function(
+    edition_id,
+    edition_row,
+    fixtures,
+    groups,
+    standings,
+    results,
+    source_status = NULL,
+    source_bundle_manifest = NULL,
+    team_registry = NULL,
+    activation = NULL) {
+  if (!phase14_state_bundle_is_euro_edition(edition_id)) {
+    return(list(valid = TRUE, activation_status = "not_applicable", phase16_reason = "none", candidate = activation))
+  }
+  candidate <- phase14_state_bundle_euro_activation_candidate(
+    edition_id = edition_id,
+    edition_row = edition_row,
+    fixtures = fixtures,
+    groups = groups,
+    standings = standings,
+    results = results,
+    source_status = source_status,
+    source_bundle_manifest = source_bundle_manifest,
+    team_registry = team_registry,
+    activation = activation
+  )
+  registry_lifecycle <- tolower(phase14_state_bundle_scalar_text(edition_row, "lifecycle_state", "scheduled"))
+  if (identical(registry_lifecycle, "pre_draw") && is.null(activation) &&
+      (is.null(source_bundle_manifest) || !is.data.frame(source_bundle_manifest) || !nrow(source_bundle_manifest))) {
+    return(list(
+      valid = TRUE,
+      activation_status = "pre_draw",
+      phase16_reason = "pre_draw",
+      phase16_reason_original = "pre_draw",
+      candidate = candidate,
+      validation = list(
+        valid = TRUE,
+        activation_status = "pre_draw",
+        lifecycle_state = "pre_draw",
+        reason = "pre_draw"
+      )
+    ))
+  }
+  if (!exists("validate_euro_activation", mode = "function", inherits = TRUE)) {
+    rules_path <- file.path(phase14_state_bundle_project_root(), "R/competition/uefa_euro_rules.R")
+    if (file.exists(rules_path)) sys.source(rules_path, envir = environment())
+  }
+  if (!exists("validate_euro_activation", mode = "function", inherits = TRUE)) {
+    reason <- phase14_state_bundle_phase16_reason("EURO activation validator is not loaded")
+    return(list(valid = FALSE, activation_status = "unavailable", phase16_reason = reason$mapped, phase16_reason_original = reason$original, candidate = candidate))
+  }
+  validation <- tryCatch(
+    validate_euro_activation(candidate),
+    error = function(error) list(valid = FALSE, activation_status = "unavailable", failure_reason = conditionMessage(error), reason = conditionMessage(error))
+  )
+  if (isTRUE(validation$valid)) {
+    activation_status <- tolower(phase14_state_bundle_text(validation$activation_status, "active"))
+    mapped <- if (identical(activation_status, "pre_draw")) "pre_draw" else "none"
+    return(list(
+      valid = TRUE,
+      activation_status = activation_status,
+      phase16_reason = mapped,
+      phase16_reason_original = phase14_state_bundle_text(validation$reason, mapped),
+      candidate = candidate,
+      validation = validation
+    ))
+  }
+  reason <- phase14_state_bundle_phase16_reason(validation)
+  list(
+    valid = FALSE,
+    activation_status = phase14_state_bundle_text(validation$activation_status, "unavailable"),
+    phase16_reason = reason$mapped,
+    phase16_reason_original = reason$original,
+    candidate = candidate,
+    validation = validation
+  )
+}
+
 phase14_state_bundle_candidate_production <- function(
     edition_id,
     edition_row,
@@ -1099,9 +1283,44 @@ phase14_state_bundle_candidate_production <- function(
     historical_matches,
     shared_input_audit,
     generated_at_utc = NULL,
-    edition_count = 1L) {
+    edition_count = 1L,
+    source_bundle_manifest = NULL,
+    source_status = NULL,
+    euro_activation = NULL) {
   lifecycle <- phase14_state_bundle_scalar_text(edition_row, "lifecycle_state", "scheduled")
   rows <- phase14_state_bundle_match_rows(canonical_matches, edition_id, 1L)
+  euro_gate <- phase14_state_bundle_euro_activation_gate(
+    edition_id = edition_id,
+    edition_row = edition_row,
+    fixtures = rows,
+    groups = phase14_state_bundle_edition_rows(groups, edition_id, "groups", allow_foreign = as.integer(edition_count) > 1L),
+    standings = phase14_state_bundle_edition_rows(standings, edition_id, "standings", allow_foreign = as.integer(edition_count) > 1L),
+    results = if (is.null(results)) NULL else phase14_state_bundle_edition_rows(results, edition_id, "results", allow_foreign = as.integer(edition_count) > 1L),
+    source_status = phase14_state_bundle_edition_input(source_status, edition_id),
+    source_bundle_manifest = phase14_state_bundle_edition_input(source_bundle_manifest, edition_id),
+    team_registry = team_registry,
+    activation = phase14_state_bundle_edition_input(euro_activation, edition_id)
+  )
+  if (phase14_state_bundle_is_euro_edition(edition_id) && !isTRUE(euro_gate$valid)) {
+    candidate <- phase14_state_bundle_local_failure(
+      edition_id,
+      edition_row,
+      euro_gate$phase16_reason,
+      euro_gate$phase16_reason_original,
+      shared_input_audit,
+      resolved_release,
+      canonical_matches = rows,
+      team_registry = team_registry,
+      generated_at_utc = generated_at_utc
+    )
+    candidate$source_bundle_manifest <- phase14_state_bundle_edition_input(source_bundle_manifest, edition_id)
+    candidate$phase16_reason <- euro_gate$phase16_reason
+    candidate$phase16_reason_original <- euro_gate$phase16_reason_original
+    candidate$euro_activation_validation <- euro_gate$validation
+    candidate$euro_activation_candidate <- euro_gate$candidate
+    return(candidate)
+  }
+  if (phase14_state_bundle_is_euro_edition(edition_id) && identical(euro_gate$activation_status, "pre_draw")) lifecycle <- "pre_draw"
   if (identical(lifecycle, "pre_draw")) {
     forecast <- phase14_forecast_empty_result("pre_draw")
     forecast$forecast_top10 <- phase14_state_bundle_named_empty()
@@ -1114,7 +1333,7 @@ phase14_state_bundle_candidate_production <- function(
       generated_at_utc
     )
     forecast$fixture_status <- forecast_status_table
-    return(list(
+    candidate <- list(
       edition_id = as.character(edition_id),
       candidate_status = "valid",
       failure_reason = NA_character_,
@@ -1135,7 +1354,14 @@ phase14_state_bundle_candidate_production <- function(
       resolved_release = resolved_release,
       state_status = "pre_draw",
       historical_matches = historical_matches
-    ))
+    )
+    if (phase14_state_bundle_is_euro_edition(edition_id)) {
+      candidate$phase16_reason <- euro_gate$phase16_reason
+      candidate$phase16_reason_original <- euro_gate$phase16_reason_original
+      candidate$euro_activation_validation <- euro_gate$validation
+      candidate$euro_activation_candidate <- euro_gate$candidate
+    }
+    return(candidate)
   }
 
   fixture_rows <- phase14_state_bundle_edition_rows(rows, edition_id, "fixtures")
@@ -1200,7 +1426,7 @@ phase14_state_bundle_candidate_production <- function(
       as.character(unique(forecast_status$suppression_reason)[[1L]])
     }
   }
-  list(
+  candidate <- list(
     edition_id = as.character(edition_id),
     candidate_status = if (valid) "valid" else "invalid",
     failure_reason = failure_reason,
@@ -1222,6 +1448,13 @@ phase14_state_bundle_candidate_production <- function(
     state_status = if (valid) "scheduled" else "suppressed",
     historical_matches = historical_matches
   )
+  if (phase14_state_bundle_is_euro_edition(edition_id)) {
+    candidate$phase16_reason <- euro_gate$phase16_reason
+    candidate$phase16_reason_original <- euro_gate$phase16_reason_original
+    candidate$euro_activation_validation <- euro_gate$validation
+    candidate$euro_activation_candidate <- euro_gate$candidate
+  }
+  candidate
 }
 
 phase14_state_bundle_local_failure <- function(
@@ -1324,10 +1557,13 @@ phase14_state_bundle_source_manifest_digest <- function(candidate) {
     stop("Phase 14 accepted source bundle manifest has an incomplete artifact-type map", call. = FALSE)
   }
   edition_id <- as.character(candidate$edition_id)
-  bundle_id <- paste0("nl-2026-27-official-uefa-v2")
-  expected_ids <- paste0(bundle_id, "-", types)
+  registered_bundle_id <- phase14_state_bundle_scalar_text(candidate$edition_registry, "source_bundle_id", "")
+  manifest_bundle_ids <- unique(as.character(manifest$bundle_id))
+  manifest_bundle_ids <- manifest_bundle_ids[!is.na(manifest_bundle_ids) & nzchar(manifest_bundle_ids)]
+  bundle_id <- if (nzchar(registered_bundle_id)) registered_bundle_id else if (length(manifest_bundle_ids) == 1L) manifest_bundle_ids[[1L]] else ""
+  expected_ids <- as.character(manifest$source_artifact_id)
   if (!all(as.character(manifest$edition_id) == edition_id) ||
-      !all(as.character(manifest$bundle_id) == bundle_id) ||
+      !nzchar(bundle_id) || !length(manifest_bundle_ids) || !all(manifest_bundle_ids == bundle_id) ||
       !all(as.character(manifest$bundle_status) == "accepted") ||
       !all(as.character(manifest$acceptance_state) == "accepted") ||
       !all(as.character(manifest$fallback_status) == "official") ||
@@ -1583,6 +1819,20 @@ phase14_state_bundle_validate_source_coverage <- function(candidate) {
 
 phase14_state_bundle_validate_in_memory_candidate <- function(candidate) {
   if (!is.list(candidate) || is.null(candidate$edition_id)) stop("Phase 14 state validator requires one candidate", call. = FALSE)
+  if (phase14_state_bundle_is_euro_edition(candidate$edition_id) && identical(as.character(candidate$candidate_status), "valid")) {
+    activation_validation <- candidate$euro_activation_validation
+    if (!is.list(activation_validation) || !isTRUE(activation_validation$valid)) {
+      stop("Phase 14 active EURO candidate is missing a valid activation gate", call. = FALSE)
+    }
+    activation_status <- tolower(phase14_state_bundle_text(activation_validation$activation_status, ""))
+    lifecycle_state <- tolower(phase14_state_bundle_text(candidate$lifecycle_state, "scheduled"))
+    if (identical(lifecycle_state, "pre_draw") && !identical(activation_status, "pre_draw")) {
+      stop("Phase 14 EURO pre_draw candidate has a mismatched activation gate", call. = FALSE)
+    }
+    if (!identical(lifecycle_state, "pre_draw") && !identical(activation_status, "active")) {
+      stop("Phase 14 active EURO candidate requires active activation", call. = FALSE)
+    }
+  }
   manifest <- candidate$state_manifest
   expected <- phase14_state_bundle_expected_inventory()
   if (!is.data.frame(manifest) || !identical(as.character(manifest$artifact_path), expected)) {
@@ -1664,7 +1914,8 @@ phase14_state_bundle_validate_in_memory_candidate <- function(candidate) {
     "shared_release_validation_failed", "shared_history_validation_failed",
     "active_predictor_evidence_unavailable", "active_national_team_xg_unavailable",
     "edition_local_build_failed", "edition_fixture_validation_failed",
-    "edition_status_validation_failed"
+    "edition_status_validation_failed", "unavailable", "revision_blocked",
+    "host_place_unresolved", "unresolved_external_eligibility", "unsupported_topology"
   )
   if (is.data.frame(status) && nrow(status) && "suppression_reason" %in% names(status)) {
     reasons <- unique(as.character(status$suppression_reason))
@@ -1795,6 +2046,8 @@ phase14_build_competition_state_batch <- function(
     model_manifest = NULL,
     model_manifest_path = "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv",
     source_bundle_manifest = NULL,
+    source_status = NULL,
+    euro_activation = NULL,
     results = NULL,
     groups = NULL,
     standings = NULL,
@@ -1821,8 +2074,15 @@ phase14_build_competition_state_batch <- function(
   if (!is.null(source_bundle_manifest)) {
     source_bundle_manifest <- phase14_state_bundle_read_table(
       source_bundle_manifest,
-      "data/competition/accepted/uefa_nations_league_2026_27/source_bundle_manifest.csv",
+      file.path("data/competition/accepted", ids[[1L]], "source_bundle_manifest.csv"),
       "accepted source bundle manifest"
+    )
+  }
+  if (!is.null(source_status)) {
+    source_status <- phase14_state_bundle_read_table(
+      source_status,
+      file.path("data/competition/accepted", ids[[1L]], "status.csv"),
+      "accepted competition status"
     )
   }
   results <- order_input(results)
@@ -1861,6 +2121,9 @@ phase14_build_competition_state_batch <- function(
     id <- ids[[index]]
     edition_row <- edition_rows[[index]]
     local_rows <- phase14_state_bundle_match_rows(canonical_matches, id, length(ids))
+    local_source_bundle_manifest <- phase14_state_bundle_edition_input(source_bundle_manifest, id)
+    local_source_status <- phase14_state_bundle_edition_input(source_status, id)
+    local_euro_activation <- phase14_state_bundle_edition_input(euro_activation, id)
     if (!is.null(shared_failure)) {
       candidate <- phase14_state_bundle_empty_candidate(
         id,
@@ -1879,7 +2142,9 @@ phase14_build_competition_state_batch <- function(
       candidate$model_form <- phase14_state_bundle_named_empty()
       candidate$forecast$forecast_top10 <- phase14_state_bundle_named_empty()
       candidate$forecast$local_score_distributions <- candidate$forecast$score_distributions
-      candidate$source_bundle_manifest <- source_bundle_manifest
+      candidate$source_bundle_manifest <- local_source_bundle_manifest
+      candidate$source_status <- local_source_status
+      candidate$euro_activation_candidate <- local_euro_activation
       candidate <- phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
       candidate$input_fixture_ids <- phase14_state_bundle_fixture_ids(local_rows, "source fixtures")
       return(candidate)
@@ -1892,7 +2157,10 @@ phase14_build_competition_state_batch <- function(
         selector_path, trusted_release_root, elo_ratings, national_team_xg_registry,
         national_team_xg_history, model_manifest, model_manifest_path, results,
         groups, standings, competition_form, all_senior_form, historical_matches,
-        local_audit, generated_at_utc, edition_count = length(ids)
+        local_audit, generated_at_utc, edition_count = length(ids),
+        source_bundle_manifest = local_source_bundle_manifest,
+        source_status = local_source_status,
+        euro_activation = local_euro_activation
       ),
       error = function(error) {
         message <- conditionMessage(error)
@@ -1916,7 +2184,8 @@ phase14_build_competition_state_batch <- function(
         )
       }
     )
-    candidate$source_bundle_manifest <- source_bundle_manifest
+    candidate$source_bundle_manifest <- local_source_bundle_manifest
+    candidate$source_status <- local_source_status
     candidate <- phase14_state_bundle_attach_manifest(candidate, generated_at_utc)
     candidate$input_fixture_ids <- phase14_state_bundle_fixture_ids(local_rows, "source fixtures")
     candidate
@@ -1984,6 +2253,8 @@ phase14_build_competition_state_candidate <- function(
     model_manifest = NULL,
     model_manifest_path = "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv",
     source_bundle_manifest = NULL,
+    source_status = NULL,
+    euro_activation = NULL,
     results = NULL,
     groups = NULL,
     standings = NULL,
@@ -2007,6 +2278,8 @@ phase14_build_competition_state_candidate <- function(
     model_manifest = model_manifest,
     model_manifest_path = model_manifest_path,
     source_bundle_manifest = source_bundle_manifest,
+    source_status = source_status,
+    euro_activation = euro_activation,
     results = results,
     groups = groups,
     standings = standings,

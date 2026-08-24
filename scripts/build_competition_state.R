@@ -50,13 +50,13 @@ phase14_build_competition_state_project_root <- normalizePath(
 phase14_build_competition_state_script_environment <- environment()
 
 phase14_build_competition_state_source_if_missing <- function(path, symbol) {
-  if (exists(symbol, envir = phase14_build_competition_state_script_environment, inherits = TRUE)) {
+  if (exists(symbol, envir = phase14_build_competition_state_script_environment, inherits = FALSE)) {
     return(invisible(TRUE))
   }
   dependency <- file.path(phase14_build_competition_state_project_root, path)
   if (!file.exists(dependency)) stop("Phase 14 state build dependency is missing: ", path, call. = FALSE)
   sys.source(dependency, envir = phase14_build_competition_state_script_environment)
-  if (!exists(symbol, envir = phase14_build_competition_state_script_environment, inherits = TRUE)) {
+  if (!exists(symbol, envir = phase14_build_competition_state_script_environment, inherits = FALSE)) {
     stop("Phase 14 state build dependency did not define: ", symbol, call. = FALSE)
   }
   invisible(TRUE)
@@ -65,6 +65,10 @@ phase14_build_competition_state_source_if_missing <- function(path, symbol) {
 phase14_build_competition_state_source_if_missing(
   "R/competition/forecast_layer.R",
   "phase14_build_fixture_forecasts"
+)
+phase14_build_competition_state_source_if_missing(
+  "R/competition/uefa_euro_rules.R",
+  "validate_euro_activation"
 )
 phase14_build_competition_state_source_if_missing(
   "R/competition/state_bundle.R",
@@ -219,6 +223,18 @@ phase14_build_competition_state_default_inputs <- function(edition_ids, project_
     value
   }))
   if (is.null(canonical_matches)) canonical_matches <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  source_bundle_manifest <- do.call(rbind, lapply(edition_ids, function(id) {
+    value <- phase14_build_competition_state_read_csv(
+      file.path(project_root, "data/competition/accepted", id, "source_bundle_manifest.csv")
+    )
+    if (is.null(value)) data.frame(stringsAsFactors = FALSE, check.names = FALSE) else value
+  }))
+  if (is.null(source_bundle_manifest)) source_bundle_manifest <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+  source_status <- do.call(rbind, lapply(edition_ids, function(id) {
+    value <- phase14_build_competition_state_load_resource(project_root, id, "status")
+    if (is.null(value)) data.frame(stringsAsFactors = FALSE, check.names = FALSE) else value
+  }))
+  if (is.null(source_status)) source_status <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
   list(
     edition_registry = edition_registry,
     canonical_matches = canonical_matches,
@@ -233,6 +249,8 @@ phase14_build_competition_state_default_inputs <- function(edition_ids, project_
       file.path(project_root, "data/processed/elo_ratings.csv"), required = TRUE
     ),
     national_team_xg_registry = file.path(registry_root, "national_team_xg_sources.csv"),
+    source_bundle_manifest = source_bundle_manifest,
+    source_status = source_status,
     model_manifest_path = file.path(
       project_root,
       "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv"
