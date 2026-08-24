@@ -912,6 +912,7 @@ uefa_euro_allocate_playoff_pool <- function(
     rankings <- group_rankings %||% standings
     if (is.list(rankings) && !is.data.frame(rankings)) rankings <- rankings$groups %||% rankings$standings %||% rankings$rows
     if (is.null(rankings)) rankings <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
+    if (is.data.frame(rankings) && nrow(rankings)) rankings <- uefa_euro_sim_canonical_table(rankings, key = c("group_id", "group_position", "rank", "team_id"))
     if (is.null(runner_ups) && is.data.frame(rankings) && nrow(rankings)) {
       rank_field <- intersect(c("group_position", "rank"), names(rankings))
       if (length(rank_field)) {
@@ -926,6 +927,7 @@ uefa_euro_allocate_playoff_pool <- function(
         }
       }
     }
+    if (is.data.frame(runner_ups) && nrow(runner_ups)) runner_ups <- uefa_euro_sim_canonical_table(runner_ups, key = c("article23_rank", "group_id", "team_id"))
     allocation <- allocate_euro_places(
       group_rankings = rankings,
       host_ids = hosts %||% host_ids,
