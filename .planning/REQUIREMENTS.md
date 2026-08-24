@@ -16,7 +16,7 @@
 
 - [x] **COMP-01**: Each competition edition is registered with lifecycle state, ruleset version, source bundle, model release, and output bundle.
 - [x] **COMP-02**: The 2026/27 Nations League registry represents Leagues A-D, published groups, league-phase fixtures, and downstream knockout or play-off stages.
-- [ ] **COMP-03**: The EURO 2028 qualifying registry represents the pre-draw state and activates groups, fixtures, and simulations only after an official draw snapshot exists.
+- [x] **COMP-03**: The EURO 2028 qualifying registry represents the pre-draw state and activates groups, fixtures, and simulations only after an official draw snapshot exists.
 - [ ] **COMP-04**: Competition state applies the official tie-breakers, cross-group rankings, host-place rules, play-off topology, and regulation-version checks for the selected edition.
 
 ### Competition State and Form
@@ -37,7 +37,7 @@
 - [x] **SIM-01**: The Nations League simulator reports projected standings, League A quarter-final and title paths, direct promotion/relegation, and applicable promotion/relegation play-offs.
 - [ ] **SIM-02**: The EURO simulator reports direct qualification, host-reserved places, Nations League-linked play-off eligibility, and every valid play-off topology.
 - [ ] **SIM-03**: Every simulation records deterministic seeds, ruleset hashes, source bundle identity, model release identity, and replayable run metadata.
-- [ ] **SIM-04**: Pre-draw, unresolved, and insufficient-source states are shown explicitly without fabricated groups, fixtures, standings, or probabilities.
+- [x] **SIM-04**: Pre-draw, unresolved, and insufficient-source states are shown explicitly without fabricated groups, fixtures, standings, or probabilities.
 
 ### Dashboard Experience
 
@@ -86,7 +86,7 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | DATA-04 | Phase 13 | Complete |
 | COMP-01 | Phase 13 | Complete |
 | COMP-02 | Phase 15 | Complete |
-| COMP-03 | Phase 16 | Pending |
+| COMP-03 | Phase 16 | Complete |
 | COMP-04 | Phase 16 | Pending |
 | STATE-01 | Phase 14 | Complete |
 | STATE-02 | Phase 14 | Complete |
@@ -98,7 +98,7 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | SIM-01 | Phase 15 | Complete |
 | SIM-02 | Phase 16 | Pending |
 | SIM-03 | Phase 17 | Pending |
-| SIM-04 | Phase 16 | Pending |
+| SIM-04 | Phase 16 | Complete |
 | DASH-01 | Phase 17 | Pending |
 | DASH-02 | Phase 17 | Pending |
 | DASH-03 | Phase 17 | Pending |

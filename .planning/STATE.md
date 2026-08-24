@@ -4,16 +4,16 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 16
 current_phase_name: EURO Qualifying Activation and Play-off Rules
-status: planning
-stopped_at: Phase 16 context gathered
-last_updated: "2026-08-23T13:49:40.257Z"
+status: executing
+stopped_at: Completed 16-01-PLAN.md
+last_updated: "2026-08-24T09:52:00.347Z"
 last_activity: 2026-08-22
 last_activity_desc: Phase 15 complete, transitioned to Phase 16
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 42
-  completed_plans: 42
+  total_plans: 48
+  completed_plans: 44
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 16 — EURO Qualifying Activation and Play-off Rules
-Plan: Not started
-Status: Ready to plan
+Plan: 2 of 6
+Status: Ready to execute
 Last activity: 2026-08-22 — Phase 15 complete, transitioned to Phase 16
 
 ## Progress
 
-**Progress:** [██████████] 100% (41/42 plans complete)
+**Progress:** [█████████░] 92% (41/42 plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -167,6 +167,12 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 15 production acceptance uses bounded simulation_count=1 against the existing deterministic bundle; no 1000-simulation refresh was run in the final gate.
 - [Phase ?]: Fresh-process replay and byte/hash snapshots protect the durable outcome bundle and Phase 14 no-leakage contract.
 - [Phase ?]: Absent EURO eligibility remains explicitly unresolved; C/D play-off probabilities are never inferred from missing external data.
+- [Phase ?]: Preserve the exact Phase 13 full-suite capture as the Wave 0 authority; a persistent known baseline remains explicitly non-green.
+- [Phase ?]: Use testthat 3.3.2 desc= selection for named Phase 16 smoke and fixture tests, with the child command exact and quoted.
+- [Phase ?]: Keep Phase 16 fixtures local, stable-ID keyed, lineage-bearing, and schema-valid when collections are intentionally empty.
+- [Phase ?]: Phase 16-01: Register EURO source and rules revisions through configuration or an explicitly registered manifest; candidates cannot self-authorize unknown IDs.
+- [Phase ?]: Phase 16-01: Use Phase 13 transition authority only after Phase 16 validates the complete accepted draw-and-schedule bundle.
+- [Phase ?]: Phase 16-01: Preserve typed empty state for pre_draw and active-after-draw results/standings instead of fabricating rows or probabilities.
 
 ## Accumulated Context
 
@@ -185,9 +191,9 @@ Execute Plan 15-06 production acceptance, replay, and no-leakage checks for the 
 
 ## Session Continuity
 
-**Last session:** 2026-08-23T13:49:40.237Z
-**Stopped at:** Phase 16 context gathered
-**Resume file:** .planning/phases/16-euro-qualifying-activation-and-play-off-rules/16-CONTEXT.md
+**Last session:** 2026-08-24T09:52:00.334Z
+**Stopped at:** Completed 16-01-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -238,8 +244,11 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 15 P04 | 27 min | 3 tasks | 2 files |
 | Phase 15 P05 | 55min | 1 tasks | 14 files |
 | Phase 15 P06 | 60m | 1 tasks | 1 files |
+| Phase 16 P00 | 27 min | 2 tasks | 5 files |
+| Phase 16 P01 | 1h 06m | 3 tasks | 4 files |
 
 ### Blockers
 
 - Resolved 2026-08-17: the fictional `nl-2026-27-official-sample-v1` acceptance was replaced by `nl-2026-27-official-uefa-v2`, acquired from the official UEFA endpoint with 156 fixtures, 14 groups, and 54 teams (`raw_sha256=a8b9a1d9c4329a33ffa15a447cb84f2cf92c01caac9668f46d3f0f0abeaed4cd`). Every official fixture has a confirmed kickoff and no Austria/Germany production pair is present; Plan 14-18 is ready to resume. EURO qualifying remains `pre_draw` with the calibrated release authority unchanged.
 - Full tests/testthat is blocked by a pre-existing Phase 13 fixture-seed shape error: 156 fixture IDs paired with zero-length normalized source columns; focused Phase 14 and rollback gates pass.
+- Phase 14 state-candidate regression remains deferred: phase14_build_competition_state_candidate is unavailable in the current test environment; Plan 16-00 did not modify Phase 14 code.
