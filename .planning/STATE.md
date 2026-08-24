@@ -4,9 +4,9 @@ milestone: v3.0
 milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 16
 current_phase_name: EURO Qualifying Activation and Play-off Rules
-status: executing
-stopped_at: Completed 16-05-PLAN.md
-last_updated: "2026-08-24T15:55:33.001Z"
+status: verifying
+stopped_at: Completed 16-06-PLAN.md
+last_updated: "2026-08-24T17:10:40.628Z"
 last_activity: 2026-08-24
 last_activity_desc: Phase 16 Plan 05 complete
 progress:
@@ -22,8 +22,8 @@ progress:
 
 Phase: 16 — EURO Qualifying Activation and Play-off Rules
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-08-24 — Phase 16 Plan 05 complete
+Status: Phase complete — ready for verification
+Last activity: 2026-08-24 — Phase 16 Plan 06 complete
 
 ## Progress
 
@@ -185,6 +185,9 @@ dependence on paid data feeds.
 - [Phase ?]: Require explicit --edition-id uefa_euro_2028_qualifying and resolve all inputs from registered manifests/configuration.
 - [Phase ?]: Reuse the Phase 16 validator and atomic writer; suppress blocked candidate rows and retain incumbent bytes across failed revisions.
 - [Phase ?]: Treat the recorded Phase 13 baseline as non-green evidence and gate only on new or unparseable failures.
+- [Phase ?]: Scheduled EURO activation requires a non-empty accepted official status resource with edition and lifecycle evidence; candidate lifecycle text cannot substitute.
+- [Phase ?]: Qualification simulation requires validated active registered activation/source proof before emitting probabilities.
+- [Phase ?]: Outcomes publication retains the incumbent backup until promoted read-back validation succeeds and restores it on failure.
 
 ## Accumulated Context
 
@@ -203,8 +206,8 @@ Transition Phase 16 and plan the Phase 17 shared dashboard and atomic refresh wo
 
 ## Session Continuity
 
-**Last session:** 2026-08-24T15:55:32.986Z
-**Stopped at:** Completed 16-05-PLAN.md
+**Last session:** 2026-08-24T17:07:56.222Z
+**Stopped at:** Completed 16-06-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -262,6 +265,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 16 P03 | 54 min | 2 tasks | 2 files |
 | Phase 16 P04 | 88min | 2 tasks | 4 files |
 | Phase 16 P05 | 2h 8m | 2 tasks | 12 files |
+| Phase 16 P06 | 1h35m | 1 tasks | 4 files |
 
 ### Blockers
 
