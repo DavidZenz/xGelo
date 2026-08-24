@@ -16,7 +16,7 @@ simulations, and fail-closed hourly publication.
 - [x] **Phase 13: Source Contracts and Competition Registry** - Freeze official snapshot, fallback, normalization, and edition-registry contracts for both competitions. (completed 2026-08-16)
 - [x] **Phase 14: Shared Competition State and Forecast Layer** - Build the shared standings, status, form, and point-in-time forecast layer that both competitions consume. (completed 2026-08-21)
 - [x] **Phase 15: Nations League Rules and Outcomes** - Deliver the full 2026/27 Nations League state, forecasts, and projection logic. (completed 2026-08-22)
-- [ ] **Phase 16: EURO Qualifying Activation and Play-off Rules** - Deliver truthful EURO 2028 qualifying pre-draw behavior and official post-draw qualification logic.
+- [x] **Phase 16: EURO Qualifying Activation and Play-off Rules** - Deliver truthful EURO 2028 qualifying pre-draw behavior and official post-draw qualification logic. (completed 2026-08-24)
 - [ ] **Phase 17: Shared Dashboards and Atomic Refresh Operations** - Publish both dashboards from one renderer and harden the hourly batch refresh, validation, and release flow.
 
 ## Phase Details
@@ -213,6 +213,8 @@ Plans:
 - [x] 16-04-PLAN.md — EURO outcomes schema and Phase 14 activation/state gate (execution Wave 5)
 - [x] 16-05-PLAN.md — Registered CLI, exact outputs, revision-safe publication, and replay (execution Wave 6)
 
+Post-execution remediation is recorded in `16-06-SUMMARY.md` and included in the Phase 16 verification gate; it has no separate formal plan.
+
 **UI hint**: yes
 
 ### Phase 17: Shared Dashboards and Atomic Refresh Operations
@@ -238,7 +240,7 @@ Plans:
 | 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
-| 16. EURO Qualifying Activation and Play-off Rules | 6/6 | In Progress|  |
+| 16. EURO Qualifying Activation and Play-off Rules | 6/6 | Complete    | 2026-08-24 |
 | 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |
 
 ## Requirement Coverage
@@ -269,4 +271,4 @@ Phases 8 through 12 completed the benchmark, challenger, calibration, promotion,
 and release work that v3.0 reuses as its approved forecast engine.
 
 ---
-*Last updated: 2026-08-13 for milestone v3.0 roadmap creation*
+*Last updated: 2026-08-24 after Phase 16 completion*

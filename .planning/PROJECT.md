@@ -93,6 +93,9 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 | **Poisson goal model** | Standard for football forecasting; supports Monte Carlo simulation | Confirmed |
 | **UEFA source contract** | Structured, edition-scoped source bundles with ignored raw bytes, explicit provenance, and reviewed fallback keep public capture auditable | Confirmed in Phase 13 |
 | **Dual-edition publication boundary** | Both competition editions share one locked fourteen-target normalized publication transaction while blocked refresh history remains separate | Confirmed in Phase 13 |
+| **EURO activation gate** | EURO qualifying remains explicitly `pre_draw` until a complete accepted official draw-and-schedule bundle proves activation; date-only or candidate-level lifecycle text cannot activate it | Confirmed in Phase 16 |
+| **EURO qualification topology** | Host capacity, best runners-up, Nations League eligibility, and play-off topology are derived from validated lineage and fail closed on unresolved rules or inputs | Confirmed in Phase 16 |
+| **Outcome publication rollback** | Retain the incumbent EURO outcomes backup through promoted read-back validation and restore it byte-for-byte after a promotion or read-back failure | Confirmed in Phase 16 |
 | **FotMob as optional layer** | Most practical WCQ shot source but ToS-restricted; manual cache only | Pending validation |
 | **Three operating modes** | Open (no WCQ shots), Hybrid (cached FotMob), Experimental (full archive) — allows progressive enhancement | Pending |
 
@@ -108,6 +111,9 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 - ✓ Trustworthy pre-kickoff 2026 forecast ledger and retrospective scorecard — validated in Phase 8
 - ✓ Leakage-safe rolling multi-tournament benchmark infrastructure and frozen promotion gates — validated in Phase 9
 - ✓ UEFA source, identity, and competition-registry contracts for Nations League and EURO qualifying — validated in Phase 13
+- ✓ Shared competition state and calibrated forecast authority for Nations League and EURO qualifying — validated in Phase 14
+- ✓ Nations League rules, outcomes, and durable forecast bundle — validated in Phase 15
+- ✓ EURO qualifying activation, official play-off rules, truthful pre-draw outcomes, and revision-safe publication — validated in Phase 16
 
 ### Active
 
@@ -208,7 +214,7 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-**v3.0:** Phase 13 (source contracts and competition registry) is complete; Phase 14 is ready to plan.
+**v3.0:** Phases 13 through 16 are complete; Phase 17 is ready to plan the shared dashboards and atomic refresh operations.
 
 **v1.0 MVP (Open Mode)**: ✅ **SHIPPED** - 2026-06-05
 
@@ -253,4 +259,4 @@ frozen contract.
 - Dashboard behavior remains stable while model evaluation and replacement happen behind explicit versioned contracts.
 
 ---
-*Last updated: 2026-08-16 after Phase 13 completion*
+*Last updated: 2026-08-24 after Phase 16 completion*
