@@ -805,9 +805,22 @@ phase16_write_euro_outcomes_bundle <- function(candidate, output_root = NULL, pr
   }
   backup <- tempfile(".euro-outcomes-backup-", tmpdir = dirname(root)); had_existing <- dir.exists(root)
   if (had_existing && !file.rename(root, backup)) stop("Could not stage the existing EURO outcomes root", call. = FALSE)
-  if (!file.rename(staging, root)) { if (had_existing) file.rename(backup, root); stop("Could not promote the EURO outcomes root", call. = FALSE) }
-  if (had_existing && dir.exists(backup)) unlink(backup, recursive = TRUE)
-  output <- phase16_read_euro_outcomes_bundle(output_root = root, validate = TRUE); output$written_root <- root; output$registered <- TRUE; output
+  output <- tryCatch({
+    if (!file.rename(staging, root)) stop("Could not promote the EURO outcomes root", call. = FALSE)
+    phase16_read_euro_outcomes_bundle(output_root = root, validate = TRUE)
+  }, error = function(error) {
+    if (dir.exists(root)) unlink(root, recursive = TRUE, force = TRUE)
+    if (had_existing && dir.exists(backup)) {
+      restored <- file.rename(backup, root)
+      if (!restored) stop(
+        paste(conditionMessage(error), "and could not restore the incumbent EURO outcomes root", sep = "; "),
+        call. = FALSE
+      )
+    }
+    stop(conditionMessage(error), call. = FALSE)
+  })
+  if (had_existing && dir.exists(backup)) unlink(backup, recursive = TRUE, force = TRUE)
+  output$written_root <- root; output$registered <- TRUE; output
 }
 
 phase16_read_euro_outcomes_bundle <- function(root = NULL, project_root = ".", validate = TRUE, output_root = NULL) {

@@ -20,7 +20,7 @@ uefa_euro_sim_source_if_missing(
   "R/competition/uefa_euro_rules.R",
   c(
     "uefa_euro_2026_28_rules", "uefa_euro_ruleset_sha256", "uefa_euro_source_bundle_id",
-    "validate_euro_draw_conditions", "uefa_euro_playoff_topologies", "allocate_euro_places"
+    "validate_euro_activation", "validate_euro_draw_conditions", "uefa_euro_playoff_topologies", "allocate_euro_places"
   )
 )
 
@@ -1086,9 +1086,60 @@ uefa_euro_build_playoff_pots <- function(
 }
 
 uefa_euro_sim_activation_gate <- function(activation, fixtures = NULL) {
-  if (!is.null(activation) && !is.list(activation)) return(list(valid = FALSE, status = "suppressed", reason = "invalid_activation_state"))
-  state <- uefa_euro_sim_scalar(activation$lifecycle_state %||% activation$activation_status %||% "", "")
-  competition_status <- tolower(uefa_euro_sim_scalar(activation$competition_status %||% activation$status %||% "", ""))
+  if (is.null(activation)) return(list(valid = FALSE, status = "suppressed", reason = "activation_missing"))
+  if (!is.list(activation)) return(list(valid = FALSE, status = "suppressed", reason = "invalid_activation_state"))
+  if (!isTRUE(activation$valid)) return(list(valid = FALSE, status = "suppressed", reason = "activation_unvalidated"))
+  if (!is.null(activation$validation) && !isTRUE(activation$validation$valid)) {
+    return(list(valid = FALSE, status = "suppressed", reason = "activation_unvalidated"))
+  }
+  activation_status <- tolower(uefa_euro_sim_scalar(activation$activation_status, ""))
+  if (!identical(activation_status, "active")) return(list(valid = FALSE, status = "suppressed", reason = "activation_not_active"))
+  state <- tolower(uefa_euro_sim_scalar(activation$lifecycle_state, ""))
+  competition_status <- tolower(uefa_euro_sim_scalar(activation$competition_status, ""))
+  status_resource <- activation$status_resource
+  if (is.null(status_resource) && is.list(activation$resources)) status_resource <- activation$resources$status
+  if (is.null(status_resource) && is.data.frame(activation$status)) status_resource <- activation$status
+  if (!nzchar(competition_status) && is.data.frame(status_resource) && nrow(status_resource)) {
+    competition_status <- tolower(uefa_euro_sim_field(status_resource, c("competition_status", "lifecycle_state"), ""))
+  }
+  if (!nzchar(state)) state <- competition_status
+  source_bundle_id <- uefa_euro_sim_scalar(activation$source_bundle_id, "")
+  registered_ids <- activation$registered_source_bundle_ids
+  if (is.null(registered_ids)) registered_ids <- character()
+  registered_ids <- unique(c(as.character(registered_ids), uefa_euro_source_bundle_id()))
+  if (!isTRUE(activation$registered) || !nzchar(source_bundle_id) || !source_bundle_id %in% registered_ids) {
+    return(list(valid = FALSE, status = "suppressed", reason = "activation_source_unregistered"))
+  }
+  source_bundle_status <- tolower(uefa_euro_sim_scalar(activation$source_bundle_status, ""))
+  if (!nzchar(source_bundle_status) && is.list(activation$source_bundle)) {
+    source_bundle_status <- tolower(uefa_euro_sim_field(activation$source_bundle, c("bundle_status", "acceptance_status", "acceptance_state"), ""))
+  }
+  if (!source_bundle_status %in% c("accepted", "valid")) {
+    return(list(valid = FALSE, status = "suppressed", reason = "activation_source_unaccepted"))
+  }
+  raw_sha256 <- uefa_euro_sim_scalar(activation$raw_sha256, "")
+  if (!nzchar(raw_sha256) && is.list(activation$raw_snapshot)) raw_sha256 <- uefa_euro_sim_scalar(activation$raw_snapshot$raw_sha256, "")
+  canonical_hashes <- activation$canonical_hashes
+  canonical_values <- if (is.data.frame(canonical_hashes) && "canonical_content_sha256" %in% names(canonical_hashes)) {
+    canonical_hashes$canonical_content_sha256
+  } else {
+    unlist(canonical_hashes, use.names = FALSE)
+  }
+  if (!uefa_euro_sim_hash_valid(raw_sha256) || !length(canonical_values) || any(!vapply(canonical_values, uefa_euro_sim_hash_valid, logical(1)))) {
+    return(list(valid = FALSE, status = "suppressed", reason = "activation_source_proof_missing"))
+  }
+  if (!is.data.frame(status_resource) || !nrow(status_resource)) {
+    return(list(valid = FALSE, status = "suppressed", reason = "activation_status_resource_missing"))
+  }
+  edition_id <- uefa_euro_sim_scalar(activation$edition_id, "")
+  edition_fields <- intersect(c("edition_id", "source_edition_id"), names(status_resource))
+  if (!identical(edition_id, "uefa_euro_2028_qualifying") || !length(edition_fields) || any(vapply(
+    edition_fields,
+    function(field) any(is.na(status_resource[[field]]) | as.character(status_resource[[field]]) != edition_id),
+    logical(1)
+  ))) {
+    return(list(valid = FALSE, status = "suppressed", reason = "activation_edition_mismatch"))
+  }
   if (identical(state, "pre_draw") || identical(competition_status, "pre_draw")) return(list(valid = FALSE, status = "suppressed", reason = "pre_draw"))
   if (nzchar(state) && !state %in% c("scheduled", "active", "in_progress", "complete")) return(list(valid = FALSE, status = "suppressed", reason = "invalid_activation_state"))
   if (nzchar(competition_status) && !competition_status %in% c("active", "scheduled", "in_progress", "complete", "available")) return(list(valid = FALSE, status = "suppressed", reason = "invalid_activation_state"))

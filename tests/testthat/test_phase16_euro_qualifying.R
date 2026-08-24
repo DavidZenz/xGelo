@@ -320,6 +320,19 @@ test_that("pre_draw activation exposes the exact D-16 payload and typed empties"
   }, logical(1))))
 })
 
+test_that("activation|status_resource|empty|scheduled|direct_validator", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  candidate <- phase16_test_activation_candidate(active = TRUE)
+  candidate$lifecycle_state <- "scheduled"
+  candidate$resources$status <- candidate$resources$status[FALSE, , drop = FALSE]
+
+  validation <- phase16_euro_validate_candidate(candidate)
+  expect_false(validation$valid)
+  expect_identical(validation$activation_status, "unavailable")
+  expect_match(validation$failure_reason, "status resource|at least one row", ignore.case = TRUE)
+  expect_false(validate_euro_activation(candidate)$valid)
+})
+
 test_that("activation rejects incomplete source and missing confirmed kickoff", {
   phase16_test_source("R/competition/uefa_euro_rules.R")
 
@@ -454,7 +467,21 @@ phase16_test_empty_active_standings <- function() {
 }
 
 phase16_test_active_after_draw_bundle <- function() {
+  status <- data.frame(
+    source_edition_id = phase16_test_edition_id,
+    edition_id = phase16_test_edition_id,
+    competition_status = "active",
+    lifecycle_state = "scheduled",
+    source_bundle_id = phase16_test_source_bundle_id,
+    ruleset_version = phase16_test_ruleset_version,
+    acceptance_status = "accepted",
+    retrieved_at_utc = "2027-03-01T12:00:00Z",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
   list(
+    valid = TRUE,
+    activation_status = "active",
     edition_id = phase16_test_edition_id,
     lifecycle_state = "scheduled",
     competition_status = "active",
@@ -463,6 +490,16 @@ phase16_test_active_after_draw_bundle <- function() {
     official_draw_date = phase16_test_draw_date,
     last_refresh_at_utc = "2027-03-01T12:00:00Z",
     source_bundle_id = phase16_test_source_bundle_id,
+    registered = TRUE,
+    source_bundle_status = "accepted",
+    registered_source_bundle_ids = phase16_test_source_bundle_id,
+    raw_sha256 = paste(rep("a", 64L), collapse = ""),
+    canonical_hashes = setNames(
+      rep(paste(rep("b", 64L), collapse = ""), 5L),
+      c("fixtures", "groups", "standings", "results", "status")
+    ),
+    status_resource = status,
+    status = status,
     source_confidence = "official",
     ruleset_version = phase16_test_ruleset_version,
     teams = phase16_test_active_teams(),
@@ -1106,6 +1143,8 @@ phase16_test_registered_revision_candidate <- function() {
   candidate$manifest$raw_sha256 <- paste(rep("c", 64L), collapse = "")
   candidate$raw_snapshot$raw_sha256 <- paste(rep("c", 64L), collapse = "")
   candidate$raw_snapshot$bundle_id <- candidate$source_bundle_id
+  candidate$resources$status$source_bundle_id <- candidate$source_bundle_id
+  candidate$resources$status$ruleset_version <- candidate$ruleset_version
   candidate$activation_config <- list(
     registered_source_bundle_ids = candidate$source_bundle_id,
     registered_ruleset_versions = candidate$ruleset_version
@@ -1365,6 +1404,31 @@ phase16_test_simulation_forecast <- function(home = "team-nl-a01", away = "team-
   )
   list(forecast = forecast, score_distribution = grid)
 }
+
+test_that("simulation|activation_gate|null_and_ungated|fail_closed", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_simulation.R")
+  active <- phase16_test_active_after_draw_bundle()
+
+  null_gate <- uefa_euro_sim_activation_gate(NULL, active$fixtures)
+  expect_false(null_gate$valid)
+  expect_identical(null_gate$reason, "activation_missing")
+
+  ungated <- active
+  ungated$valid <- FALSE
+  ungated_gate <- uefa_euro_sim_activation_gate(ungated, active$fixtures)
+  expect_false(ungated_gate$valid)
+  expect_identical(ungated_gate$reason, "activation_unvalidated")
+
+  result <- uefa_euro_simulate_qualification(
+    activation = NULL,
+    fixtures = active$fixtures,
+    simulation_count = 2L,
+    seed = 16017L
+  )
+  expect_identical(result$status, "suppressed")
+  expect_equal(nrow(result$probabilities), 0L)
+})
 
 test_that("simulation|handoff|interim_adapter|registered_phase15|ranking_stage|rng|suppression", {
   phase16_test_source("R/competition/uefa_euro_rules.R")
@@ -1856,6 +1920,45 @@ test_that("EURO outcomes writer and reader enforce the registered-root boundary 
     phase16_write_euro_outcomes_bundle(invalid, output_root = file.path(tempdir(), "phase16-invalid")),
     "validated|invalid|probability"
   )
+})
+
+test_that("EURO outcomes writer restores incumbent after post-promotion read-back failure", {
+  phase16_test_source("R/competition/uefa_euro_rules.R")
+  phase16_test_source("R/competition/uefa_euro_outcomes.R")
+  candidate <- phase16_build_euro_outcomes_candidate(
+    activation = phase16_test_active_after_draw_bundle(),
+    simulation = phase16_test_outcomes_simulation(),
+    source_lineage = phase16_test_outcomes_lineage(),
+    model_lineage = phase16_test_outcomes_model_lineage(),
+    generated_at_utc = "2027-03-01T12:30:00Z"
+  )
+  output_root <- tempfile("phase16-euro-outcomes-fault-", tmpdir = tempdir())
+  on.exit(unlink(output_root, recursive = TRUE, force = TRUE), add = TRUE)
+
+  writer_environment <- new.env(parent = globalenv())
+  sys.source(
+    file.path(phase16_test_project_root, "R/competition/uefa_euro_outcomes.R"),
+    envir = writer_environment
+  )
+  readback <- writer_environment$phase16_read_euro_outcomes_bundle
+  writer_environment$phase16_write_euro_outcomes_bundle(candidate, output_root = output_root)
+  expected <- phase16_euro_outcomes_expected_inventory()
+  paths <- file.path(output_root, sub("^outcomes/", "", expected))
+  incumbent_bytes <- lapply(paths, function(path) readBin(path, what = "raw", n = file.info(path)$size))
+
+  writer_environment$phase16_read_euro_outcomes_bundle <- function(...) {
+    stop("injected post-promotion read-back failure", call. = FALSE)
+  }
+  expect_error(
+    writer_environment$phase16_write_euro_outcomes_bundle(candidate, output_root = output_root),
+    "injected post-promotion read-back failure"
+  )
+
+  restored_bytes <- lapply(paths, function(path) readBin(path, what = "raw", n = file.info(path)$size))
+  expect_identical(restored_bytes, incumbent_bytes)
+  writer_environment$phase16_read_euro_outcomes_bundle <- readback
+  restored <- writer_environment$phase16_read_euro_outcomes_bundle(output_root = output_root, validate = TRUE)
+  expect_identical(restored$candidate_status, "active")
 })
 
 test_that("EURO outcomes retain typed blocked states and never emit blocked probabilities", {

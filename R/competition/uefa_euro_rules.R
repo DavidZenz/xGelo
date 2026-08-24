@@ -232,6 +232,61 @@ phase16_euro_nonempty <- function(data, columns, label) {
   NULL
 }
 
+phase16_euro_status_lifecycle_values <- function(status) {
+  if (!is.data.frame(status) || !nrow(status)) return(character())
+  fields <- intersect(
+    c("lifecycle_state", "competition_status", "competition_state", "edition_status", "source_snapshot_state"),
+    names(status)
+  )
+  if (!length(fields)) return(rep("", nrow(status)))
+  values <- rep("", nrow(status))
+  for (field in fields) {
+    candidate <- trimws(as.character(status[[field]]))
+    use <- !nzchar(values) & !is.na(candidate) & nzchar(candidate)
+    values[use] <- candidate[use]
+  }
+  tolower(values)
+}
+
+phase16_euro_validate_status_resource <- function(status, edition_id, bundle_id, lifecycle_state, bundle_status) {
+  if (!is.data.frame(status) || !nrow(status)) {
+    return("official status resource must contain at least one row")
+  }
+  edition_fields <- intersect(c("edition_id", "source_edition_id"), names(status))
+  if (!length(edition_fields)) return("official status resource is missing edition identity")
+  for (field in edition_fields) {
+    values <- trimws(as.character(status[[field]]))
+    if (any(is.na(values) | !nzchar(values))) return("official status resource has blank edition identity")
+    if (any(values != edition_id)) return("official status resource edition does not match EURO qualifying")
+  }
+  if ("source_bundle_id" %in% names(status)) {
+    values <- trimws(as.character(status$source_bundle_id))
+    if (any(is.na(values) | !nzchar(values)) || any(values != bundle_id)) {
+      return("official status resource source bundle does not match the accepted bundle")
+    }
+  }
+  if (!tolower(trimws(bundle_status)) %in% c("accepted", "valid")) {
+    return("official status resource is not accepted")
+  }
+  acceptance_fields <- intersect(c("acceptance_status", "acceptance_state", "validation_status"), names(status))
+  for (field in acceptance_fields) {
+    values <- tolower(trimws(as.character(status[[field]])))
+    if (any(is.na(values) | !values %in% c("accepted", "valid", "true", "1", "yes"))) {
+      return("official status resource is not accepted")
+    }
+  }
+  lifecycle_values <- phase16_euro_status_lifecycle_values(status)
+  if (!length(lifecycle_values) || any(is.na(lifecycle_values) | !nzchar(lifecycle_values))) {
+    return("official status resource is missing lifecycle evidence")
+  }
+  normalized <- lifecycle_values
+  normalized[normalized %in% c("active", "in_progress")] <- "scheduled"
+  if (identical(lifecycle_state, "scheduled") && any(normalized != "scheduled")) {
+    return("official status resource lifecycle does not match scheduled activation")
+  }
+  NULL
+}
+
 phase16_euro_bool <- function(value) {
   if (is.logical(value)) return(!is.na(value) & value)
   tolower(trimws(as.character(value))) %in% c("true", "1", "yes", "confirmed")
@@ -449,6 +504,16 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL, incumbent 
   }
   fixture_gate <- "not_applicable"
   if (is.null(failure) && lifecycle_state == "scheduled") {
+    status_failure <- phase16_euro_validate_status_resource(
+      resources$status,
+      edition_id = edition_id,
+      bundle_id = bundle_id,
+      lifecycle_state = lifecycle_state,
+      bundle_status = bundle_status
+    )
+    if (!is.null(status_failure)) failure <- status_failure
+  }
+  if (is.null(failure) && lifecycle_state == "scheduled") {
     group_failure <- phase16_euro_nonempty(resources$groups, c("group_id"), "groups")
     if (!is.null(group_failure)) failure <- group_failure
     fixture_failure <- phase16_euro_nonempty(
@@ -522,6 +587,10 @@ phase16_euro_validate_candidate <- function(candidate, config = NULL, incumbent 
     edition_id = edition_id,
     ruleset_version = ruleset_version,
     source_bundle_id = bundle_id,
+    registered = isTRUE(bundle_id %in% rules$registered_source_bundle_ids) && tolower(bundle_status) %in% c("accepted", "valid"),
+    source_bundle_status = bundle_status,
+    registered_source_bundle_ids = rules$registered_source_bundle_ids,
+    status_resource = resources$status,
     revision_status = if (is.null(incumbent)) "accepted" else "candidate",
     raw_sha256 = raw_hash,
     canonical_hashes = candidate_hashes,
@@ -614,6 +683,8 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
   resources <- validation$resources
   empty <- phase16_euro_empty_collections(resources)
   if (identical(validation$activation_status, "pre_draw")) {
+    registered_ids <- validation$registered_source_bundle_ids
+    if (is.null(registered_ids)) registered_ids <- character()
     return(c(
       list(
         valid = TRUE,
@@ -626,10 +697,15 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
         official_draw_date = validation$official_draw_date,
         last_refresh_at_utc = validation$last_refresh_at_utc,
         source_bundle_id = validation$source_bundle_id,
+        registered = isTRUE(validation$registered),
+        source_bundle_status = phase16_euro_scalar(validation$source_bundle_status),
+        registered_source_bundle_ids = registered_ids,
+        status_resource = resources$status,
         ruleset_version = validation$ruleset_version,
         source_confidence = validation$source_confidence,
         raw_sha256 = validation$raw_sha256,
         canonical_hashes = validation$canonical_hashes,
+        validation = validation,
         message_heading = uefa_euro_2026_28_rules()$message_heading,
         message_body = uefa_euro_2026_28_rules()$message_body,
         candidate_isolated = FALSE
@@ -640,6 +716,8 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
   fixtures <- resources$fixtures
   eligibility <- phase16_euro_fixture_eligibility(fixtures)
   fixtures$forecast_eligible <- eligibility$forecast_eligible
+  registered_ids <- validation$registered_source_bundle_ids
+  if (is.null(registered_ids)) registered_ids <- character()
   c(
     list(
       valid = TRUE,
@@ -652,10 +730,15 @@ phase16_euro_activation_envelope <- function(validation, incumbent = NULL) {
       official_draw_date = validation$official_draw_date,
       last_refresh_at_utc = validation$last_refresh_at_utc,
       source_bundle_id = validation$source_bundle_id,
+      registered = isTRUE(validation$registered),
+      source_bundle_status = phase16_euro_scalar(validation$source_bundle_status),
+      registered_source_bundle_ids = registered_ids,
+      status_resource = resources$status,
       ruleset_version = validation$ruleset_version,
       source_confidence = validation$source_confidence,
       raw_sha256 = validation$raw_sha256,
       canonical_hashes = validation$canonical_hashes,
+      validation = validation,
       fixture_gate = validation$fixture_gate,
       candidate_isolated = FALSE,
       teams = phase16_euro_or(resources$teams, empty$teams),
