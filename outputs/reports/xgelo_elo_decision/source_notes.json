@@ -1,0 +1,26 @@
+{
+  "generated_at": "2026-06-18T09:42:42.721060+00:00",
+  "delivery_mode": "html",
+  "audience": "product stakeholders",
+  "sources": [
+    "data/raw/eloratings/latest.tsv",
+    "data/raw/eloratings/en.teams.tsv",
+    "data/processed/elo_ratings.csv",
+    "R/elo/runner_optimized.R",
+    "R/forecast/monte_carlo.R"
+  ],
+  "chart_map": [
+    {
+      "section": "eloratings.net is the stronger rating-only signal in the recent sample",
+      "question": "Which rating signal has lower expected-result error?",
+      "type": "ranked horizontal bar",
+      "metric": "RMSE",
+      "artifact": "rating_rmse_comparison.svg"
+    }
+  ],
+  "caveats": [
+    "Recent latest-feed smoke test, not full rolling-origin benchmark",
+    "Home-advantage reconstruction simplified",
+    "Rating-only result must be retested inside the hybrid forecast model"
+  ]
+}

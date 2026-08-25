@@ -1,0 +1,16 @@
+{
+  "schema_version": "phase12-release-provenance-v1",
+  "release_id": "phase12-wc2026-incumbent-retained-v1",
+  "status": "incumbent retained",
+  "selected_model_id": "open_nb_incumbent",
+  "track_id": "updating",
+  "panel_id": "open_core",
+  "score_support_g": 40,
+  "decision_sha256": "ae4307aa6ca4c392997d09246f4c65ff9e1e301fa80d3362ef9e0cb5778dce16",
+  "freeze_manifest_sha256": "07bd01933565561312848a54edd41b04d78bd36194284eb77bd7b6c5e0f6b5e2",
+  "final_evaluation_manifest_sha256": "87395b90afaca3e93323cc10062e27092d02091762116220f35b6a2873ca1ed3",
+  "decision_evidence_sha256": "ff40501c3ca7818e1707dc5d3f9c912b1d4b4515b120df218530a7efbb9c2bfb",
+  "source_boundary": "final decision evidence only; holdout labels are not copied into the release",
+  "generated_at_utc": "2026-08-11 14:28:21 UTC",
+  "labels_embedded": false
+}

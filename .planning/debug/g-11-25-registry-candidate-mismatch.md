@@ -1,8 +1,8 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "Find the root cause of UAT gap G-11-25 in /Users/davidzenz/R/xGelo. Diagnose only; do not edit files or commit.\n\nSymptom: The focused hybrid/Transfermarkt test run has exactly two failures at tests/testthat/test_hybrid_context_features.R:77-78. The canonical registry now has nine candidates, adding phase11_rf_dynamic_elo_context_xg_gated_open and phase11_structural_sparse_prior_open, while the test still expects the older seven-candidate list. Confirm the exact mismatch, whether production registry/target contracts are otherwise consistent, and the smallest fix direction. Write a debug session under .planning/debug/ if possible, but do not modify production code or planning files.\n\nFiles to read: .planning/phases/11-hybrid-ml-and-contextual-priors/11-UAT.md; .planning/STATE.md; tests/testthat/test_hybrid_context_features.R; R/benchmark/hybrid_protocol.R; tests/testthat/test_hybrid_targets.R; data/benchmark/phase11/model_registry.csv"
 created: 2026-08-09T00:00:00+02:00
-updated: 2026-08-09T22:59:46+02:00
+updated: 2026-08-11T21:36:55+02:00
 ---
 
 ## Current Focus
@@ -11,7 +11,7 @@ bug_class: bohrbug
 hypothesis: "CONFIRMED: the two UAT failures are caused by a stale test expectation; test_hybrid_context_features.R still asserts the historical seven-candidate registry while the canonical production registry intentionally contains nine candidates."
 test: "Compare the failing expected_ids vector with the protocol and adapter outputs, validate the committed protocol, run the target-contract suite, search all Phase 11 references, and compare canonical registry construction with the committed CSV."
 expecting: "The test expectation omits exactly the xG-gated and structural IDs; protocol, adapter, canonical constructor, committed registry, and target DAG agree on nine candidates."
-next_action: "Return the diagnose-only ROOT CAUSE FOUND report; do not revert or modify unrelated existing worktree changes."
+next_action: "Archive the resolved session and report that the nine-ID test expectation is already present; no production fix is required."
 candidate_causes:
   - "code: test_hybrid_context_features.R retains a pre-merge seven-ID expected_ids vector"
   - "data: the canonical Phase 11 registry expanded to nine rows with two valid candidates"
@@ -70,6 +70,16 @@ started: "After the canonical registry added phase11_rf_dynamic_elo_context_xg_g
   found: "The worktree contains existing output and untracked artifacts, including the phase11 bundle outputs, but no modified R/ or tests/ paths. The only new diagnostic artifact from this session is .planning/debug/g-11-25-registry-candidate-mismatch.md."
   implication: "No production code or test file was edited by this diagnosis. Unrelated worktree changes were preserved and not reverted."
 
+- timestamp: 2026-08-11T21:36:55+02:00
+  checked: "Current test expectation and focused hybrid/Transfermarkt suite"
+  found: "tests/testthat/test_hybrid_context_features.R currently lists all nine canonical candidate IDs, including phase11_rf_dynamic_elo_context_xg_gated_open and phase11_structural_sparse_prior_open. The focused hybrid|transfermarkt test_dir run completed with exit status 0 and no failures."
+  implication: "The smallest test-only correction is already present in the current tree; no additional edit is needed to resolve the reported mismatch."
+
+- timestamp: 2026-08-11T21:36:55+02:00
+  checked: "Current Phase 11 target-contract suite"
+  found: "tests/testthat/test_hybrid_targets.R completed with exit status 0."
+  implication: "The production target contract remains green after the registry expectation correction."
+
 ## Eliminated
 
 - hypothesis: "The canonical Phase 11 registry or its committed CSV is missing, malformed, or out of sync with the production constructor"
@@ -87,6 +97,11 @@ started: "After the canonical registry added phase11_rf_dynamic_elo_context_xg_g
 ## Resolution
 
 root_cause: "tests/testthat/test_hybrid_context_features.R:68-78 defines expected_ids with only the historical seven Phase 11 candidate IDs, but both the canonical constructor and committed data/benchmark/phase11/model_registry.csv now contain nine IDs; the omitted IDs are phase11_rf_dynamic_elo_context_xg_gated_open and phase11_structural_sparse_prior_open."
-fix: "Smallest fix direction: update the test-only expected registry set to include the two added IDs, while keeping the ablation assertion scoped to the six context IDs (do not blindly retain expected_ids[-1L] after expanding the registry set). No production registry, adapter, target, or planning-file fix is indicated."
-verification: "Original focused run reproduced exactly two failures at test_hybrid_context_features.R:77-78; protocol validation passed; canonical and committed registry IDs matched at nine; hybrid_phase11_candidate_ids matched the registry; standalone test_hybrid_targets.R passed with 35 expectations; no production or target-contract failures were observed."
+fix: "The test-only expected registry set now includes the two added IDs while the ablation assertion remains scoped to the six context IDs. This correction was already present in the current tree, so this continuation made no source-file edit; no production registry, adapter, target, or planning-file fix is indicated."
+verification: "The original focused run reproduced exactly two failures at test_hybrid_context_features.R:77-78; protocol validation passed; canonical and committed registry IDs matched at nine; hybrid_phase11_candidate_ids matched the registry; the current focused hybrid|transfermarkt suite passed with exit status 0; and standalone test_hybrid_targets.R passed with exit status 0."
 files_changed: []
+
+## Postmortem
+
+why_not_caught: "The canonical Phase 11 registry expanded without updating the corresponding test allow-list in the same change."
+guard: "Keep the nine-ID registry assertion synchronized with canonical_phase11_model_registry_rows() and run the focused hybrid|transfermarkt suite after registry changes."

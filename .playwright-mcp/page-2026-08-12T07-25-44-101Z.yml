@@ -1,0 +1,905 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - heading "xGelo 2026 World Cup Forecast" [level=1] [ref=e3]
+    - generic [ref=e4]:
+      - text: Built from 10 match simulations and 10 full tournament simulations using the baseline Elo model. 72 completed group matches fixed at actual scores; remaining probabilities are forecasts, while final scores are tournament state. Created by
+      - link "David Zenz" [ref=e5] [cursor=pointer]:
+        - /url: https://github.com/DavidZenz
+      - text: .
+    - generic [ref=e6]: "Generated 2026-08-11 22:02:55.060166 | Feature cutoff 2026-08-10 | Actual results through 2026-08-11 | 10 match sims | 10 full tournament sims | In-tournament forecast: completed group matches are fixed at actual scores through 2026-08-11. Remaining fixtures are simulated from pre-match features; no injuries, lineups, or live state."
+  - main [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Winner
+        - generic [ref=e11]: Spain
+        - generic [ref=e12]: Tournament champion
+      - generic [ref=e13]:
+        - generic [ref=e14]: Final fixed
+        - generic [ref=e15]: Spain vs Argentina
+        - generic [ref=e16]: Finalists confirmed
+      - generic [ref=e17]:
+        - generic [ref=e18]: Locked group winners
+        - generic [ref=e19]: Mexico (A), Switzerland (B), Brazil (C) +9
+        - generic [ref=e20]: 12 at 100.0%
+      - generic [ref=e21]:
+        - generic [ref=e22]: Best group-stage record
+        - generic [ref=e23]: France (I)
+        - generic [ref=e24]: 9 pts · +8 GD
+      - generic [ref=e25]:
+        - generic [ref=e26]: Closest group finish
+        - generic [ref=e27]: Group G
+        - generic [ref=e28]: Decided on goal difference
+    - status [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]: "Incumbent retained: phase12-wc2026-incumbent-retained-v1"
+          - generic [ref=e33]: Model open_nb_incumbent | updating | G=40 | Primary view raw_1x2
+        - link "Open approved release" [ref=e34] [cursor=pointer]:
+          - /url: "#release-provenance"
+      - group [ref=e35]:
+        - generic "Release provenance" [ref=e36] [cursor=pointer]
+    - generic [ref=e37]:
+      - button "Groups" [ref=e38] [cursor=pointer]
+      - button "Matches" [ref=e39] [cursor=pointer]
+      - button "Bracket" [ref=e40] [cursor=pointer]
+      - button "Teams" [ref=e41] [cursor=pointer]
+      - button "Elo Ratings" [ref=e42] [cursor=pointer]
+    - generic [ref=e45]:
+      - generic [ref=e46]: Round of 32
+      - generic [ref=e47]: Round of 16
+      - generic [ref=e48]: Quarter-finals
+      - generic [ref=e49]: Semi-finals
+      - generic [ref=e50]: Final
+      - generic [ref=e51]: Champion
+      - 'button "Click for forecast: M73 Round of 32" [ref=e52] [cursor=pointer]':
+        - generic [ref=e53]:
+          - generic [ref=e54]: M73
+          - generic [ref=e55]: Round of 32
+        - generic [ref=e56]:
+          - generic "Hover to highlight South Africa path" [ref=e57]:
+            - generic [ref=e58]:
+              - generic [ref=e59]: 🇿🇦
+              - generic [ref=e60]: South Africa
+          - generic [ref=e61]: 0.0%
+        - generic [ref=e62]:
+          - generic "Hover to highlight Canada path" [ref=e63]:
+            - generic [ref=e64]:
+              - generic [ref=e65]: 🇨🇦
+              - generic [ref=e66]: Canada
+          - generic [ref=e67]: 100.0%
+        - generic [ref=e68]:
+          - text: "Final 0-1:"
+          - generic [ref=e69]:
+            - generic [ref=e70]: 🇨🇦
+            - generic [ref=e71]: Canada
+      - 'button "Click for forecast: M74 Round of 32" [ref=e72] [cursor=pointer]':
+        - generic [ref=e73]:
+          - generic [ref=e74]: M74
+          - generic [ref=e75]: Round of 32
+        - generic [ref=e76]:
+          - generic "Hover to highlight Germany path" [ref=e77]:
+            - generic [ref=e78]:
+              - generic [ref=e79]: 🇩🇪
+              - generic [ref=e80]: Germany
+          - generic [ref=e81]: 0.0%
+        - generic [ref=e82]:
+          - generic "Hover to highlight Paraguay path" [ref=e83]:
+            - generic [ref=e84]:
+              - generic [ref=e85]: 🇵🇾
+              - generic [ref=e86]: Paraguay
+          - generic [ref=e87]: 100.0%
+        - generic [ref=e88]:
+          - text: "Final 1-1:"
+          - generic [ref=e89]:
+            - generic [ref=e90]: 🇵🇾
+            - generic [ref=e91]: Paraguay
+      - 'button "Click for forecast: M75 Round of 32" [ref=e92] [cursor=pointer]':
+        - generic [ref=e93]:
+          - generic [ref=e94]: M75
+          - generic [ref=e95]: Round of 32
+        - generic [ref=e96]:
+          - generic "Hover to highlight Netherlands path" [ref=e97]:
+            - generic [ref=e98]:
+              - generic [ref=e99]: 🇳🇱
+              - generic [ref=e100]: Netherlands
+          - generic [ref=e101]: 0.0%
+        - generic [ref=e102]:
+          - generic "Hover to highlight Morocco path" [ref=e103]:
+            - generic [ref=e104]:
+              - generic [ref=e105]: 🇲🇦
+              - generic [ref=e106]: Morocco
+          - generic [ref=e107]: 100.0%
+        - generic [ref=e108]:
+          - text: "Final 1-1:"
+          - generic [ref=e109]:
+            - generic [ref=e110]: 🇲🇦
+            - generic [ref=e111]: Morocco
+      - 'button "Click for forecast: M76 Round of 32" [ref=e112] [cursor=pointer]':
+        - generic [ref=e113]:
+          - generic [ref=e114]: M76
+          - generic [ref=e115]: Round of 32
+        - generic [ref=e116]:
+          - generic "Hover to highlight Brazil path" [ref=e117]:
+            - generic [ref=e118]:
+              - generic [ref=e119]: 🇧🇷
+              - generic [ref=e120]: Brazil
+          - generic [ref=e121]: 100.0%
+        - generic [ref=e122]:
+          - generic "Hover to highlight Japan path" [ref=e123]:
+            - generic [ref=e124]:
+              - generic [ref=e125]: 🇯🇵
+              - generic [ref=e126]: Japan
+          - generic [ref=e127]: 0.0%
+        - generic [ref=e128]:
+          - text: "Final 2-1:"
+          - generic [ref=e129]:
+            - generic [ref=e130]: 🇧🇷
+            - generic [ref=e131]: Brazil
+      - 'button "Click for forecast: M77 Round of 32" [ref=e132] [cursor=pointer]':
+        - generic [ref=e133]:
+          - generic [ref=e134]: M77
+          - generic [ref=e135]: Round of 32
+        - generic [ref=e136]:
+          - generic "Hover to highlight France path" [ref=e137]:
+            - generic [ref=e138]:
+              - generic [ref=e139]: 🇫🇷
+              - generic [ref=e140]: France
+          - generic [ref=e141]: 100.0%
+        - generic [ref=e142]:
+          - generic "Hover to highlight Sweden path" [ref=e143]:
+            - generic [ref=e144]:
+              - generic [ref=e145]: 🇸🇪
+              - generic [ref=e146]: Sweden
+          - generic [ref=e147]: 0.0%
+        - generic [ref=e148]:
+          - text: "Final 3-0:"
+          - generic [ref=e149]:
+            - generic [ref=e150]: 🇫🇷
+            - generic [ref=e151]: France
+      - 'button "Click for forecast: M78 Round of 32" [ref=e152] [cursor=pointer]':
+        - generic [ref=e153]:
+          - generic [ref=e154]: M78
+          - generic [ref=e155]: Round of 32
+        - generic [ref=e156]:
+          - generic "Hover to highlight Cote d'Ivoire path" [ref=e157]:
+            - generic [ref=e158]:
+              - generic [ref=e159]: 🇨🇮
+              - generic [ref=e160]: Cote d'Ivoire
+          - generic [ref=e161]: 0.0%
+        - generic [ref=e162]:
+          - generic "Hover to highlight Norway path" [ref=e163]:
+            - generic [ref=e164]:
+              - generic [ref=e165]: 🇳🇴
+              - generic [ref=e166]: Norway
+          - generic [ref=e167]: 100.0%
+        - generic [ref=e168]:
+          - text: "Final 1-2:"
+          - generic [ref=e169]:
+            - generic [ref=e170]: 🇳🇴
+            - generic [ref=e171]: Norway
+      - 'button "Click for forecast: M79 Round of 32" [ref=e172] [cursor=pointer]':
+        - generic [ref=e173]:
+          - generic [ref=e174]: M79
+          - generic [ref=e175]: Round of 32
+        - generic [ref=e176]:
+          - generic "Hover to highlight Mexico path" [ref=e177]:
+            - generic [ref=e178]:
+              - generic [ref=e179]: 🇲🇽
+              - generic [ref=e180]: Mexico
+          - generic [ref=e181]: 100.0%
+        - generic [ref=e182]:
+          - generic "Hover to highlight Ecuador path" [ref=e183]:
+            - generic [ref=e184]:
+              - generic [ref=e185]: 🇪🇨
+              - generic [ref=e186]: Ecuador
+          - generic [ref=e187]: 0.0%
+        - generic [ref=e188]:
+          - text: "Final 2-0:"
+          - generic [ref=e189]:
+            - generic [ref=e190]: 🇲🇽
+            - generic [ref=e191]: Mexico
+      - 'button "Click for forecast: M80 Round of 32" [ref=e192] [cursor=pointer]':
+        - generic [ref=e193]:
+          - generic [ref=e194]: M80
+          - generic [ref=e195]: Round of 32
+        - generic [ref=e196]:
+          - generic "Hover to highlight England path" [ref=e197]:
+            - generic [ref=e198]:
+              - generic [ref=e199]: 🇬🇧
+              - generic [ref=e200]: England
+          - generic [ref=e201]: 100.0%
+        - generic [ref=e202]:
+          - generic "Hover to highlight DR Congo path" [ref=e203]:
+            - generic [ref=e204]:
+              - generic [ref=e205]: 🇨🇩
+              - generic [ref=e206]: DR Congo
+          - generic [ref=e207]: 0.0%
+        - generic [ref=e208]:
+          - text: "Final 2-1:"
+          - generic [ref=e209]:
+            - generic [ref=e210]: 🇬🇧
+            - generic [ref=e211]: England
+      - 'button "Click for forecast: M81 Round of 32" [ref=e212] [cursor=pointer]':
+        - generic [ref=e213]:
+          - generic [ref=e214]: M81
+          - generic [ref=e215]: Round of 32
+        - generic [ref=e216]:
+          - generic "Hover to highlight United States path" [ref=e217]:
+            - generic [ref=e218]:
+              - generic [ref=e219]: 🇺🇸
+              - generic [ref=e220]: United States
+          - generic [ref=e221]: 100.0%
+        - generic [ref=e222]:
+          - generic "Hover to highlight Bosnia and Herzegovina path" [ref=e223]:
+            - generic [ref=e224]:
+              - generic [ref=e225]: 🇧🇦
+              - generic [ref=e226]: Bosnia and Herzegovina
+          - generic [ref=e227]: 0.0%
+        - generic [ref=e228]:
+          - text: "Final 2-0:"
+          - generic [ref=e229]:
+            - generic [ref=e230]: 🇺🇸
+            - generic [ref=e231]: United States
+      - 'button "Click for forecast: M82 Round of 32" [ref=e232] [cursor=pointer]':
+        - generic [ref=e233]:
+          - generic [ref=e234]: M82
+          - generic [ref=e235]: Round of 32
+        - generic [ref=e236]:
+          - generic "Hover to highlight Belgium path" [ref=e237]:
+            - generic [ref=e238]:
+              - generic [ref=e239]: 🇧🇪
+              - generic [ref=e240]: Belgium
+          - generic [ref=e241]: 100.0%
+        - generic [ref=e242]:
+          - generic "Hover to highlight Senegal path" [ref=e243]:
+            - generic [ref=e244]:
+              - generic [ref=e245]: 🇸🇳
+              - generic [ref=e246]: Senegal
+          - generic [ref=e247]: 0.0%
+        - generic [ref=e248]:
+          - text: "Final 3-2:"
+          - generic [ref=e249]:
+            - generic [ref=e250]: 🇧🇪
+            - generic [ref=e251]: Belgium
+      - 'button "Click for forecast: M83 Round of 32" [ref=e252] [cursor=pointer]':
+        - generic [ref=e253]:
+          - generic [ref=e254]: M83
+          - generic [ref=e255]: Round of 32
+        - generic [ref=e256]:
+          - generic "Hover to highlight Portugal path" [ref=e257]:
+            - generic [ref=e258]:
+              - generic [ref=e259]: 🇵🇹
+              - generic [ref=e260]: Portugal
+          - generic [ref=e261]: 100.0%
+        - generic [ref=e262]:
+          - generic "Hover to highlight Croatia path" [ref=e263]:
+            - generic [ref=e264]:
+              - generic [ref=e265]: 🇭🇷
+              - generic [ref=e266]: Croatia
+          - generic [ref=e267]: 0.0%
+        - generic [ref=e268]:
+          - text: "Final 2-1:"
+          - generic [ref=e269]:
+            - generic [ref=e270]: 🇵🇹
+            - generic [ref=e271]: Portugal
+      - 'button "Click for forecast: M84 Round of 32" [ref=e272] [cursor=pointer]':
+        - generic [ref=e273]:
+          - generic [ref=e274]: M84
+          - generic [ref=e275]: Round of 32
+        - generic [ref=e276]:
+          - generic "Hover to highlight Spain path" [ref=e277]:
+            - generic [ref=e278]:
+              - generic [ref=e279]: 🇪🇸
+              - generic [ref=e280]: Spain
+          - generic [ref=e281]: 100.0%
+        - generic [ref=e282]:
+          - generic "Hover to highlight Austria path" [ref=e283]:
+            - generic [ref=e284]:
+              - generic [ref=e285]: 🇦🇹
+              - generic [ref=e286]: Austria
+          - generic [ref=e287]: 0.0%
+        - generic [ref=e288]:
+          - text: "Final 3-0:"
+          - generic [ref=e289]:
+            - generic [ref=e290]: 🇪🇸
+            - generic [ref=e291]: Spain
+      - 'button "Click for forecast: M85 Round of 32" [ref=e292] [cursor=pointer]':
+        - generic [ref=e293]:
+          - generic [ref=e294]: M85
+          - generic [ref=e295]: Round of 32
+        - generic [ref=e296]:
+          - generic "Hover to highlight Switzerland path" [ref=e297]:
+            - generic [ref=e298]:
+              - generic [ref=e299]: 🇨🇭
+              - generic [ref=e300]: Switzerland
+          - generic [ref=e301]: 100.0%
+        - generic [ref=e302]:
+          - generic "Hover to highlight Algeria path" [ref=e303]:
+            - generic [ref=e304]:
+              - generic [ref=e305]: 🇩🇿
+              - generic [ref=e306]: Algeria
+          - generic [ref=e307]: 0.0%
+        - generic [ref=e308]:
+          - text: "Final 2-0:"
+          - generic [ref=e309]:
+            - generic [ref=e310]: 🇨🇭
+            - generic [ref=e311]: Switzerland
+      - 'button "Click for forecast: M86 Round of 32" [ref=e312] [cursor=pointer]':
+        - generic [ref=e313]:
+          - generic [ref=e314]: M86
+          - generic [ref=e315]: Round of 32
+        - generic [ref=e316]:
+          - generic "Hover to highlight Argentina path" [ref=e317]:
+            - generic [ref=e318]:
+              - generic [ref=e319]: 🇦🇷
+              - generic [ref=e320]: Argentina
+          - generic [ref=e321]: 100.0%
+        - generic [ref=e322]:
+          - generic "Hover to highlight Cape Verde path" [ref=e323]:
+            - generic [ref=e324]:
+              - generic [ref=e325]: 🇨🇻
+              - generic [ref=e326]: Cape Verde
+          - generic [ref=e327]: 0.0%
+        - generic [ref=e328]:
+          - text: "Final 3-2:"
+          - generic [ref=e329]:
+            - generic [ref=e330]: 🇦🇷
+            - generic [ref=e331]: Argentina
+      - 'button "Click for forecast: M87 Round of 32" [ref=e332] [cursor=pointer]':
+        - generic [ref=e333]:
+          - generic [ref=e334]: M87
+          - generic [ref=e335]: Round of 32
+        - generic [ref=e336]:
+          - generic "Hover to highlight Colombia path" [ref=e337]:
+            - generic [ref=e338]:
+              - generic [ref=e339]: 🇨🇴
+              - generic [ref=e340]: Colombia
+          - generic [ref=e341]: 100.0%
+        - generic [ref=e342]:
+          - generic "Hover to highlight Ghana path" [ref=e343]:
+            - generic [ref=e344]:
+              - generic [ref=e345]: 🇬🇭
+              - generic [ref=e346]: Ghana
+          - generic [ref=e347]: 0.0%
+        - generic [ref=e348]:
+          - text: "Final 1-0:"
+          - generic [ref=e349]:
+            - generic [ref=e350]: 🇨🇴
+            - generic [ref=e351]: Colombia
+      - 'button "Click for forecast: M88 Round of 32" [ref=e352] [cursor=pointer]':
+        - generic [ref=e353]:
+          - generic [ref=e354]: M88
+          - generic [ref=e355]: Round of 32
+        - generic [ref=e356]:
+          - generic "Hover to highlight Australia path" [ref=e357]:
+            - generic [ref=e358]:
+              - generic [ref=e359]: 🇦🇺
+              - generic [ref=e360]: Australia
+          - generic [ref=e361]: 0.0%
+        - generic [ref=e362]:
+          - generic "Hover to highlight Egypt path" [ref=e363]:
+            - generic [ref=e364]:
+              - generic [ref=e365]: 🇪🇬
+              - generic [ref=e366]: Egypt
+          - generic [ref=e367]: 100.0%
+        - generic [ref=e368]:
+          - text: "Final 1-1:"
+          - generic [ref=e369]:
+            - generic [ref=e370]: 🇪🇬
+            - generic [ref=e371]: Egypt
+      - 'button "Click for forecast: M89 Round of 16" [ref=e372] [cursor=pointer]':
+        - generic [ref=e373]:
+          - generic [ref=e374]: M89
+          - generic [ref=e375]: Round of 16
+        - generic [ref=e376]:
+          - generic "Hover to highlight Paraguay path" [ref=e377]:
+            - generic [ref=e378]:
+              - generic [ref=e379]: 🇵🇾
+              - generic [ref=e380]: Paraguay
+          - generic [ref=e381]: 0.0%
+        - generic [ref=e382]:
+          - generic "Hover to highlight France path" [ref=e383]:
+            - generic [ref=e384]:
+              - generic [ref=e385]: 🇫🇷
+              - generic [ref=e386]: France
+          - generic [ref=e387]: 100.0%
+        - generic [ref=e388]:
+          - text: "Final 0-1:"
+          - generic [ref=e389]:
+            - generic [ref=e390]: 🇫🇷
+            - generic [ref=e391]: France
+      - 'button "Click for forecast: M90 Round of 16" [ref=e392] [cursor=pointer]':
+        - generic [ref=e393]:
+          - generic [ref=e394]: M90
+          - generic [ref=e395]: Round of 16
+        - generic [ref=e396]:
+          - generic "Hover to highlight Canada path" [ref=e397]:
+            - generic [ref=e398]:
+              - generic [ref=e399]: 🇨🇦
+              - generic [ref=e400]: Canada
+          - generic [ref=e401]: 0.0%
+        - generic [ref=e402]:
+          - generic "Hover to highlight Morocco path" [ref=e403]:
+            - generic [ref=e404]:
+              - generic [ref=e405]: 🇲🇦
+              - generic [ref=e406]: Morocco
+          - generic [ref=e407]: 100.0%
+        - generic [ref=e408]:
+          - text: "Final 0-3:"
+          - generic [ref=e409]:
+            - generic [ref=e410]: 🇲🇦
+            - generic [ref=e411]: Morocco
+      - 'button "Click for forecast: M91 Round of 16" [ref=e412] [cursor=pointer]':
+        - generic [ref=e413]:
+          - generic [ref=e414]: M91
+          - generic [ref=e415]: Round of 16
+        - generic [ref=e416]:
+          - generic "Hover to highlight Brazil path" [ref=e417]:
+            - generic [ref=e418]:
+              - generic [ref=e419]: 🇧🇷
+              - generic [ref=e420]: Brazil
+          - generic [ref=e421]: 0.0%
+        - generic [ref=e422]:
+          - generic "Hover to highlight Norway path" [ref=e423]:
+            - generic [ref=e424]:
+              - generic [ref=e425]: 🇳🇴
+              - generic [ref=e426]: Norway
+          - generic [ref=e427]: 100.0%
+        - generic [ref=e428]:
+          - text: "Final 1-2:"
+          - generic [ref=e429]:
+            - generic [ref=e430]: 🇳🇴
+            - generic [ref=e431]: Norway
+      - 'button "Click for forecast: M92 Round of 16" [ref=e432] [cursor=pointer]':
+        - generic [ref=e433]:
+          - generic [ref=e434]: M92
+          - generic [ref=e435]: Round of 16
+        - generic [ref=e436]:
+          - generic "Hover to highlight Mexico path" [ref=e437]:
+            - generic [ref=e438]:
+              - generic [ref=e439]: 🇲🇽
+              - generic [ref=e440]: Mexico
+          - generic [ref=e441]: 0.0%
+        - generic [ref=e442]:
+          - generic "Hover to highlight England path" [ref=e443]:
+            - generic [ref=e444]:
+              - generic [ref=e445]: 🇬🇧
+              - generic [ref=e446]: England
+          - generic [ref=e447]: 100.0%
+        - generic [ref=e448]:
+          - text: "Final 2-3:"
+          - generic [ref=e449]:
+            - generic [ref=e450]: 🇬🇧
+            - generic [ref=e451]: England
+      - 'button "Click for forecast: M93 Round of 16" [ref=e452] [cursor=pointer]':
+        - generic [ref=e453]:
+          - generic [ref=e454]: M93
+          - generic [ref=e455]: Round of 16
+        - generic [ref=e456]:
+          - generic "Hover to highlight Portugal path" [ref=e457]:
+            - generic [ref=e458]:
+              - generic [ref=e459]: 🇵🇹
+              - generic [ref=e460]: Portugal
+          - generic [ref=e461]: 0.0%
+        - generic [ref=e462]:
+          - generic "Hover to highlight Spain path" [ref=e463]:
+            - generic [ref=e464]:
+              - generic [ref=e465]: 🇪🇸
+              - generic [ref=e466]: Spain
+          - generic [ref=e467]: 100.0%
+        - generic [ref=e468]:
+          - text: "Final 0-1:"
+          - generic [ref=e469]:
+            - generic [ref=e470]: 🇪🇸
+            - generic [ref=e471]: Spain
+      - 'button "Click for forecast: M94 Round of 16" [ref=e472] [cursor=pointer]':
+        - generic [ref=e473]:
+          - generic [ref=e474]: M94
+          - generic [ref=e475]: Round of 16
+        - generic [ref=e476]:
+          - generic "Hover to highlight United States path" [ref=e477]:
+            - generic [ref=e478]:
+              - generic [ref=e479]: 🇺🇸
+              - generic [ref=e480]: United States
+          - generic [ref=e481]: 0.0%
+        - generic [ref=e482]:
+          - generic "Hover to highlight Belgium path" [ref=e483]:
+            - generic [ref=e484]:
+              - generic [ref=e485]: 🇧🇪
+              - generic [ref=e486]: Belgium
+          - generic [ref=e487]: 100.0%
+        - generic [ref=e488]:
+          - text: "Final 1-4:"
+          - generic [ref=e489]:
+            - generic [ref=e490]: 🇧🇪
+            - generic [ref=e491]: Belgium
+      - 'button "Click for forecast: M95 Round of 16" [ref=e492] [cursor=pointer]':
+        - generic [ref=e493]:
+          - generic [ref=e494]: M95
+          - generic [ref=e495]: Round of 16
+        - generic [ref=e496]:
+          - generic "Hover to highlight Argentina path" [ref=e497]:
+            - generic [ref=e498]:
+              - generic [ref=e499]: 🇦🇷
+              - generic [ref=e500]: Argentina
+          - generic [ref=e501]: 100.0%
+        - generic [ref=e502]:
+          - generic "Hover to highlight Egypt path" [ref=e503]:
+            - generic [ref=e504]:
+              - generic [ref=e505]: 🇪🇬
+              - generic [ref=e506]: Egypt
+          - generic [ref=e507]: 0.0%
+        - generic [ref=e508]:
+          - text: "Final 3-2:"
+          - generic [ref=e509]:
+            - generic [ref=e510]: 🇦🇷
+            - generic [ref=e511]: Argentina
+      - 'button "Click for forecast: M96 Round of 16" [ref=e512] [cursor=pointer]':
+        - generic [ref=e513]:
+          - generic [ref=e514]: M96
+          - generic [ref=e515]: Round of 16
+        - generic [ref=e516]:
+          - generic "Hover to highlight Switzerland path" [ref=e517]:
+            - generic [ref=e518]:
+              - generic [ref=e519]: 🇨🇭
+              - generic [ref=e520]: Switzerland
+          - generic [ref=e521]: 100.0%
+        - generic [ref=e522]:
+          - generic "Hover to highlight Colombia path" [ref=e523]:
+            - generic [ref=e524]:
+              - generic [ref=e525]: 🇨🇴
+              - generic [ref=e526]: Colombia
+          - generic [ref=e527]: 0.0%
+        - generic [ref=e528]:
+          - text: "Final 0-0:"
+          - generic [ref=e529]:
+            - generic [ref=e530]: 🇨🇭
+            - generic [ref=e531]: Switzerland
+      - 'button "Click for forecast: M97 Quarter-finals" [ref=e532] [cursor=pointer]':
+        - generic [ref=e533]:
+          - generic [ref=e534]: M97
+          - generic [ref=e535]: Quarter-finals
+        - generic [ref=e536]:
+          - generic "Hover to highlight France path" [ref=e537]:
+            - generic [ref=e538]:
+              - generic [ref=e539]: 🇫🇷
+              - generic [ref=e540]: France
+          - generic [ref=e541]: 100.0%
+        - generic [ref=e542]:
+          - generic "Hover to highlight Morocco path" [ref=e543]:
+            - generic [ref=e544]:
+              - generic [ref=e545]: 🇲🇦
+              - generic [ref=e546]: Morocco
+          - generic [ref=e547]: 0.0%
+        - generic [ref=e548]:
+          - text: "Final 2-0:"
+          - generic [ref=e549]:
+            - generic [ref=e550]: 🇫🇷
+            - generic [ref=e551]: France
+      - 'button "Click for forecast: M98 Quarter-finals" [ref=e552] [cursor=pointer]':
+        - generic [ref=e553]:
+          - generic [ref=e554]: M98
+          - generic [ref=e555]: Quarter-finals
+        - generic [ref=e556]:
+          - generic "Hover to highlight Spain path" [ref=e557]:
+            - generic [ref=e558]:
+              - generic [ref=e559]: 🇪🇸
+              - generic [ref=e560]: Spain
+          - generic [ref=e561]: 100.0%
+        - generic [ref=e562]:
+          - generic "Hover to highlight Belgium path" [ref=e563]:
+            - generic [ref=e564]:
+              - generic [ref=e565]: 🇧🇪
+              - generic [ref=e566]: Belgium
+          - generic [ref=e567]: 0.0%
+        - generic [ref=e568]:
+          - text: "Final 2-1:"
+          - generic [ref=e569]:
+            - generic [ref=e570]: 🇪🇸
+            - generic [ref=e571]: Spain
+      - 'button "Click for forecast: M99 Quarter-finals" [ref=e572] [cursor=pointer]':
+        - generic [ref=e573]:
+          - generic [ref=e574]: M99
+          - generic [ref=e575]: Quarter-finals
+        - generic [ref=e576]:
+          - generic "Hover to highlight Norway path" [ref=e577]:
+            - generic [ref=e578]:
+              - generic [ref=e579]: 🇳🇴
+              - generic [ref=e580]: Norway
+          - generic [ref=e581]: 0.0%
+        - generic [ref=e582]:
+          - generic "Hover to highlight England path" [ref=e583]:
+            - generic [ref=e584]:
+              - generic [ref=e585]: 🇬🇧
+              - generic [ref=e586]: England
+          - generic [ref=e587]: 100.0%
+        - generic [ref=e588]:
+          - text: "Final 1-2:"
+          - generic [ref=e589]:
+            - generic [ref=e590]: 🇬🇧
+            - generic [ref=e591]: England
+      - 'button "Click for forecast: M100 Quarter-finals" [ref=e592] [cursor=pointer]':
+        - generic [ref=e593]:
+          - generic [ref=e594]: M100
+          - generic [ref=e595]: Quarter-finals
+        - generic [ref=e596]:
+          - generic "Hover to highlight Argentina path" [ref=e597]:
+            - generic [ref=e598]:
+              - generic [ref=e599]: 🇦🇷
+              - generic [ref=e600]: Argentina
+          - generic [ref=e601]: 100.0%
+        - generic [ref=e602]:
+          - generic "Hover to highlight Switzerland path" [ref=e603]:
+            - generic [ref=e604]:
+              - generic [ref=e605]: 🇨🇭
+              - generic [ref=e606]: Switzerland
+          - generic [ref=e607]: 0.0%
+        - generic [ref=e608]:
+          - text: "Final 3-1:"
+          - generic [ref=e609]:
+            - generic [ref=e610]: 🇦🇷
+            - generic [ref=e611]: Argentina
+      - 'button "Click for forecast: M101 Semi-finals" [ref=e612] [cursor=pointer]':
+        - generic [ref=e613]:
+          - generic [ref=e614]: M101
+          - generic [ref=e615]: Semi-finals
+        - generic [ref=e616]:
+          - generic "Hover to highlight France path" [ref=e617]:
+            - generic [ref=e618]:
+              - generic [ref=e619]: 🇫🇷
+              - generic [ref=e620]: France
+          - generic [ref=e621]: 0.0%
+        - generic [ref=e622]:
+          - generic "Hover to highlight Spain path" [ref=e623]:
+            - generic [ref=e624]:
+              - generic [ref=e625]: 🇪🇸
+              - generic [ref=e626]: Spain
+          - generic [ref=e627]: 100.0%
+        - generic [ref=e628]:
+          - text: "Final 0-2:"
+          - generic [ref=e629]:
+            - generic [ref=e630]: 🇪🇸
+            - generic [ref=e631]: Spain
+      - 'button "Click for forecast: M102 Semi-finals" [ref=e632] [cursor=pointer]':
+        - generic [ref=e633]:
+          - generic [ref=e634]: M102
+          - generic [ref=e635]: Semi-finals
+        - generic [ref=e636]:
+          - generic "Hover to highlight England path" [ref=e637]:
+            - generic [ref=e638]:
+              - generic [ref=e639]: 🇬🇧
+              - generic [ref=e640]: England
+          - generic [ref=e641]: 0.0%
+        - generic [ref=e642]:
+          - generic "Hover to highlight Argentina path" [ref=e643]:
+            - generic [ref=e644]:
+              - generic [ref=e645]: 🇦🇷
+              - generic [ref=e646]: Argentina
+          - generic [ref=e647]: 100.0%
+        - generic [ref=e648]:
+          - text: "Final 1-2:"
+          - generic [ref=e649]:
+            - generic [ref=e650]: 🇦🇷
+            - generic [ref=e651]: Argentina
+      - 'button "Click for forecast: M104 Final" [ref=e652] [cursor=pointer]':
+        - generic [ref=e653]:
+          - generic [ref=e654]: M104
+          - generic [ref=e655]: Final
+        - generic [ref=e656]:
+          - generic "Hover to highlight Spain path" [ref=e657]:
+            - generic [ref=e658]:
+              - generic [ref=e659]: 🇪🇸
+              - generic [ref=e660]: Spain
+          - generic [ref=e661]: 100.0%
+        - generic [ref=e662]:
+          - generic "Hover to highlight Argentina path" [ref=e663]:
+            - generic [ref=e664]:
+              - generic [ref=e665]: 🇦🇷
+              - generic [ref=e666]: Argentina
+          - generic [ref=e667]: 0.0%
+        - generic [ref=e668]:
+          - text: "Final 1-0:"
+          - generic [ref=e669]:
+            - generic [ref=e670]: 🇪🇸
+            - generic [ref=e671]: Spain
+      - 'button "Click for forecast: M103 Third-place play-off" [ref=e672] [cursor=pointer]':
+        - generic [ref=e673]:
+          - generic [ref=e674]: M103
+          - generic [ref=e675]: Third-place play-off
+        - generic [ref=e676]:
+          - generic "Hover to highlight France path" [ref=e677]:
+            - generic [ref=e678]:
+              - generic [ref=e679]: 🇫🇷
+              - generic [ref=e680]: France
+          - generic [ref=e681]: 0.0%
+        - generic [ref=e682]:
+          - generic "Hover to highlight England path" [ref=e683]:
+            - generic [ref=e684]:
+              - generic [ref=e685]: 🇬🇧
+              - generic [ref=e686]: England
+          - generic [ref=e687]: 100.0%
+        - generic [ref=e688]:
+          - text: "Final 4-6:"
+          - generic [ref=e689]:
+            - generic [ref=e690]: 🇬🇧
+            - generic [ref=e691]: England
+      - 'button "Click for forecast: Champion Champion" [ref=e692] [cursor=pointer]':
+        - generic [ref=e693]:
+          - generic [ref=e694]: Champion
+          - generic [ref=e695]: Champion
+        - generic [ref=e696]:
+          - text: "Projected champion:"
+          - generic [ref=e697]:
+            - generic [ref=e698]: 🇪🇸
+            - generic [ref=e699]: Spain
+        - generic [ref=e700]: Title 100.0%
+      - 'button "Click for forecast: winner from M73" [ref=e701] [cursor=pointer]':
+        - generic [ref=e702]:
+          - generic [ref=e703]: 🇨🇦
+          - generic [ref=e704]: Canada
+        - text: Final 0-1
+      - 'button "Click for forecast: winner from M74" [ref=e705] [cursor=pointer]':
+        - generic [ref=e706]:
+          - generic [ref=e707]: 🇵🇾
+          - generic [ref=e708]: Paraguay
+        - text: Final 1-1
+      - 'button "Click for forecast: winner from M75" [ref=e709] [cursor=pointer]':
+        - generic [ref=e710]:
+          - generic [ref=e711]: 🇲🇦
+          - generic [ref=e712]: Morocco
+        - text: Final 1-1
+      - 'button "Click for forecast: winner from M76" [ref=e713] [cursor=pointer]':
+        - generic [ref=e714]:
+          - generic [ref=e715]: 🇧🇷
+          - generic [ref=e716]: Brazil
+        - text: Final 2-1
+      - 'button "Click for forecast: winner from M77" [ref=e717] [cursor=pointer]':
+        - generic [ref=e718]:
+          - generic [ref=e719]: 🇫🇷
+          - generic [ref=e720]: France
+        - text: Final 3-0
+      - 'button "Click for forecast: winner from M78" [ref=e721] [cursor=pointer]':
+        - generic [ref=e722]:
+          - generic [ref=e723]: 🇳🇴
+          - generic [ref=e724]: Norway
+        - text: Final 1-2
+      - 'button "Click for forecast: winner from M79" [ref=e725] [cursor=pointer]':
+        - generic [ref=e726]:
+          - generic [ref=e727]: 🇲🇽
+          - generic [ref=e728]: Mexico
+        - text: Final 2-0
+      - 'button "Click for forecast: winner from M80" [ref=e729] [cursor=pointer]':
+        - generic [ref=e730]:
+          - generic [ref=e731]: 🇬🇧
+          - generic [ref=e732]: England
+        - text: Final 2-1
+      - 'button "Click for forecast: winner from M81" [ref=e733] [cursor=pointer]':
+        - generic [ref=e734]:
+          - generic [ref=e735]: 🇺🇸
+          - generic [ref=e736]: United States
+        - text: Final 2-0
+      - 'button "Click for forecast: winner from M82" [ref=e737] [cursor=pointer]':
+        - generic [ref=e738]:
+          - generic [ref=e739]: 🇧🇪
+          - generic [ref=e740]: Belgium
+        - text: Final 3-2
+      - 'button "Click for forecast: winner from M83" [ref=e741] [cursor=pointer]':
+        - generic [ref=e742]:
+          - generic [ref=e743]: 🇵🇹
+          - generic [ref=e744]: Portugal
+        - text: Final 2-1
+      - 'button "Click for forecast: winner from M84" [ref=e745] [cursor=pointer]':
+        - generic [ref=e746]:
+          - generic [ref=e747]: 🇪🇸
+          - generic [ref=e748]: Spain
+        - text: Final 3-0
+      - 'button "Click for forecast: winner from M85" [ref=e749] [cursor=pointer]':
+        - generic [ref=e750]:
+          - generic [ref=e751]: 🇨🇭
+          - generic [ref=e752]: Switzerland
+        - text: Final 2-0
+      - 'button "Click for forecast: winner from M86" [ref=e753] [cursor=pointer]':
+        - generic [ref=e754]:
+          - generic [ref=e755]: 🇦🇷
+          - generic [ref=e756]: Argentina
+        - text: Final 3-2
+      - 'button "Click for forecast: winner from M87" [ref=e757] [cursor=pointer]':
+        - generic [ref=e758]:
+          - generic [ref=e759]: 🇨🇴
+          - generic [ref=e760]: Colombia
+        - text: Final 1-0
+      - 'button "Click for forecast: winner from M88" [ref=e761] [cursor=pointer]':
+        - generic [ref=e762]:
+          - generic [ref=e763]: 🇪🇬
+          - generic [ref=e764]: Egypt
+        - text: Final 1-1
+      - 'button "Click for forecast: winner from M89" [ref=e765] [cursor=pointer]':
+        - generic [ref=e766]:
+          - generic [ref=e767]: 🇫🇷
+          - generic [ref=e768]: France
+        - text: Final 0-1
+      - 'button "Click for forecast: winner from M90" [ref=e769] [cursor=pointer]':
+        - generic [ref=e770]:
+          - generic [ref=e771]: 🇲🇦
+          - generic [ref=e772]: Morocco
+        - text: Final 0-3
+      - 'button "Click for forecast: winner from M91" [ref=e773] [cursor=pointer]':
+        - generic [ref=e774]:
+          - generic [ref=e775]: 🇳🇴
+          - generic [ref=e776]: Norway
+        - text: Final 1-2
+      - 'button "Click for forecast: winner from M92" [ref=e777] [cursor=pointer]':
+        - generic [ref=e778]:
+          - generic [ref=e779]: 🇬🇧
+          - generic [ref=e780]: England
+        - text: Final 2-3
+      - 'button "Click for forecast: winner from M93" [ref=e781] [cursor=pointer]':
+        - generic [ref=e782]:
+          - generic [ref=e783]: 🇪🇸
+          - generic [ref=e784]: Spain
+        - text: Final 0-1
+      - 'button "Click for forecast: winner from M94" [ref=e785] [cursor=pointer]':
+        - generic [ref=e786]:
+          - generic [ref=e787]: 🇧🇪
+          - generic [ref=e788]: Belgium
+        - text: Final 1-4
+      - 'button "Click for forecast: winner from M95" [ref=e789] [cursor=pointer]':
+        - generic [ref=e790]:
+          - generic [ref=e791]: 🇦🇷
+          - generic [ref=e792]: Argentina
+        - text: Final 3-2
+      - 'button "Click for forecast: winner from M96" [ref=e793] [cursor=pointer]':
+        - generic [ref=e794]:
+          - generic [ref=e795]: 🇨🇭
+          - generic [ref=e796]: Switzerland
+        - text: Final 0-0
+      - 'button "Click for forecast: winner from M97" [ref=e797] [cursor=pointer]':
+        - generic [ref=e798]:
+          - generic [ref=e799]: 🇫🇷
+          - generic [ref=e800]: France
+        - text: Final 2-0
+      - 'button "Click for forecast: winner from M98" [ref=e801] [cursor=pointer]':
+        - generic [ref=e802]:
+          - generic [ref=e803]: 🇪🇸
+          - generic [ref=e804]: Spain
+        - text: Final 2-1
+      - 'button "Click for forecast: winner from M99" [ref=e805] [cursor=pointer]':
+        - generic [ref=e806]:
+          - generic [ref=e807]: 🇬🇧
+          - generic [ref=e808]: England
+        - text: Final 1-2
+      - 'button "Click for forecast: winner from M100" [ref=e809] [cursor=pointer]':
+        - generic [ref=e810]:
+          - generic [ref=e811]: 🇦🇷
+          - generic [ref=e812]: Argentina
+        - text: Final 3-1
+      - 'button "Click for forecast: winner from M101" [ref=e813] [cursor=pointer]':
+        - generic [ref=e814]:
+          - generic [ref=e815]: 🇪🇸
+          - generic [ref=e816]: Spain
+        - text: Final 0-2
+      - 'button "Click for forecast: loser from M101" [ref=e817] [cursor=pointer]':
+        - generic [ref=e818]:
+          - generic [ref=e819]: 🇫🇷
+          - generic [ref=e820]: France
+        - text: to third-place play-off
+      - 'button "Click for forecast: winner from M102" [ref=e821] [cursor=pointer]':
+        - generic [ref=e822]:
+          - generic [ref=e823]: 🇦🇷
+          - generic [ref=e824]: Argentina
+        - text: Final 1-2
+      - 'button "Click for forecast: loser from M102" [ref=e825] [cursor=pointer]':
+        - generic [ref=e826]:
+          - generic [ref=e827]: 🇬🇧
+          - generic [ref=e828]: England
+        - text: to third-place play-off
+      - 'button "Click for forecast: winner from M104" [ref=e829] [cursor=pointer]':
+        - generic [ref=e830]:
+          - generic [ref=e831]: 🇪🇸
+          - generic [ref=e832]: Spain
+        - text: Final 1-0
+    - group [ref=e833]:
+      - generic "Methodology" [ref=e834] [cursor=pointer]
+      - paragraph [ref=e835]: xGelo estimates match goal distributions, simulates scorelines, derives win/draw/loss probabilities, and then samples full tournaments. Completed World Cup group matches are fixed at their actual scores; remaining fixtures are simulated from team Elo strength, leakage-safe Transfermarkt player-pool valuation, and weighted historical goal ability. xG/form is currently not used because international rolling-form coverage is too sparse. The combined model is the default because it improved EURO 2024 Brier score, log loss, and ranked probability score without materially hurting draw calibration. Knockout rounds resolve each simulated bracket directly from the simulated group table, derive 90-minute route probabilities from the goal-model score distribution, and allocate drawn 90-minute probability mass to ET/pens advancement by Elo tiebreak share.
+    - group [ref=e836]:
+      - generic "Data Credits" [ref=e837] [cursor=pointer]

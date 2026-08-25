@@ -1,0 +1,152 @@
+{
+  "activeSection": "groups",
+  "bracketControls": [
+    {
+      "aria": "Click for forecast: M73 Round of 32",
+      "role": "button",
+      "tabindex": "0",
+      "tag": "DIV"
+    },
+    {
+      "aria": "Click for forecast: M74 Round of 32",
+      "role": "button",
+      "tabindex": "0",
+      "tag": "DIV"
+    },
+    {
+      "aria": "Click for forecast: M75 Round of 32",
+      "role": "button",
+      "tabindex": "0",
+      "tag": "DIV"
+    },
+    {
+      "aria": "Click for forecast: M76 Round of 32",
+      "role": "button",
+      "tabindex": "0",
+      "tag": "DIV"
+    }
+  ],
+  "detailStates": {
+    "bracketInspectorLive": "polite",
+    "sections": [
+      {
+        "display": "block",
+        "hidden": false,
+        "id": "groups"
+      },
+      {
+        "display": "none",
+        "hidden": false,
+        "id": "matches"
+      },
+      {
+        "display": "none",
+        "hidden": false,
+        "id": "bracket"
+      },
+      {
+        "display": "none",
+        "hidden": false,
+        "id": "teams"
+      },
+      {
+        "display": "none",
+        "hidden": false,
+        "id": "elo"
+      }
+    ]
+  },
+  "groupToggles": [
+    {
+      "active": true,
+      "ariaPressed": null,
+      "text": "Forecast"
+    },
+    {
+      "active": false,
+      "ariaPressed": null,
+      "text": "Current"
+    },
+    {
+      "active": true,
+      "ariaPressed": null,
+      "text": "Forecast"
+    },
+    {
+      "active": false,
+      "ariaPressed": null,
+      "text": "Current"
+    }
+  ],
+  "inputs": [
+    {
+      "ariaLabel": null,
+      "id": "matchSearch",
+      "labelCount": 0,
+      "labelledBy": null,
+      "placeholder": "Search team",
+      "tag": "INPUT"
+    },
+    {
+      "ariaLabel": null,
+      "id": "groupFilter",
+      "labelCount": 0,
+      "labelledBy": null,
+      "placeholder": null,
+      "tag": "SELECT"
+    },
+    {
+      "ariaLabel": null,
+      "id": "teamSearch",
+      "labelCount": 0,
+      "labelledBy": null,
+      "placeholder": "Search team",
+      "tag": "INPUT"
+    },
+    {
+      "ariaLabel": null,
+      "id": "eloSearch",
+      "labelCount": 0,
+      "labelledBy": null,
+      "placeholder": "Search team or group",
+      "tag": "INPUT"
+    }
+  ],
+  "tabButtons": [
+    {
+      "active": true,
+      "ariaControls": null,
+      "ariaSelected": null,
+      "role": null,
+      "text": "Groups"
+    },
+    {
+      "active": false,
+      "ariaControls": null,
+      "ariaSelected": null,
+      "role": null,
+      "text": "Matches"
+    },
+    {
+      "active": false,
+      "ariaControls": null,
+      "ariaSelected": null,
+      "role": null,
+      "text": "Bracket"
+    },
+    {
+      "active": false,
+      "ariaControls": null,
+      "ariaSelected": null,
+      "role": null,
+      "text": "Teams"
+    },
+    {
+      "active": false,
+      "ariaControls": null,
+      "ariaSelected": null,
+      "role": null,
+      "text": "Elo Ratings"
+    }
+  ]
+}

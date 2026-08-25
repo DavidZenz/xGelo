@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Should xGelo Replace Its Custom Elo?</title>
+  <style>
+    body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; background: #FCFCFD; color: #1F2430; }
+    main { max-width: 940px; margin: 0 auto; padding: 44px 22px 70px; }
+    header, section { margin-bottom: 34px; }
+    h1 { font-size: 38px; line-height: 1.08; margin: 0 0 8px; }
+    h2 { font-size: 24px; line-height: 1.2; margin: 0 0 14px; }
+    p, li { line-height: 1.62; font-size: 16px; }
+    .muted { color: #6F768A; }
+    .summary { padding: 21px 24px; background: #F4F5F7; border: 1px solid #E2E5EA; border-radius: 14px; }
+    .summary ul { margin: 0; padding-left: 22px; }
+    .summary li + li { margin-top: 11px; }
+    figure { margin: 22px 0; }
+    figure img { width: 100%; height: auto; border: 1px solid #E2E5EA; border-radius: 8px; background: #fff; }
+    figcaption { color: #6F768A; font-size: 14px; margin-top: 8px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0 8px; font-size: 14px; }
+    th, td { text-align: left; border-bottom: 1px solid #E6E8F0; padding: 10px 8px; vertical-align: top; }
+    th { color: #464C55; background: #F4F5F7; font-weight: 700; }
+    .callout { padding: 16px 18px; background: #FFF4C2; border-left: 4px solid #B8A037; border-radius: 8px; }
+    code { background: #F4F5F7; padding: 2px 5px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+<main data-report-audience="product stakeholders">
+  <header data-contract-section="title">
+    <h1>Should xGelo Replace Its Custom Elo?</h1>
+    <p class="muted">Decision report for the next tournament or qualifier cycle</p>
+  </header>
+
+  <section class="summary" data-contract-section="executive-summary">
+    <h2>Executive Summary</h2>
+    <ul>
+      <li><strong>Do not swap the Elo input blindly, but prioritize an eloratings.net-style replacement benchmark.</strong> The recent smoke test favors eloratings.net on every rating-only outcome metric, with RMSE improving from 0.341 for current xGelo Elo to 0.309 for eloratings.net-style ratings with home advantage.</li>
+      <li><strong>The current custom Elo is structurally underpowered for this use case.</strong> xGelo uses match-frequency K factors, rating decay, a +60 home adjustment, and no goal-difference or tournament-importance multiplier; eloratings.net uses tournament K, goal-margin scaling, about +100 home adjustment, and no decay in the published method.</li>
+      <li><strong>The decision should be made before the next cycle, not during it.</strong> The evidence is strong enough to create a dedicated implementation and backtest phase, but the current latest-feed sample is too narrow to justify changing live World Cup dashboard forecasts without a broader rolling-origin validation.</li>
+    </ul>
+  </section>
+
+  <section data-contract-section="key-findings">
+    <h2>eloratings.net is the stronger rating-only signal in the recent sample</h2>
+    <p><strong>The smoke test says the external rating is more predictive right now.</strong> On 319 matched matches from March 15, 2026 to June 17, 2026, eloratings.net beats xGelo's current Elo on RMSE, Brier-like score, correlation, and directional accuracy. The result holds both when ratings are compared as neutral fields and when each system's home-advantage convention is added.</p>
+    <figure>
+      <img src="rating_rmse_comparison.svg" alt="Bar chart comparing RMSE for eloratings.net and xGelo Elo variants">
+      <figcaption>Lower RMSE means the rating-implied expected result is closer to the actual win/draw/loss result coded as 1, 0.5, or 0.</figcaption>
+    </figure>
+    <table>
+      <thead><tr><th>Rating signal</th><th>RMSE</th><th>Brier-like</th><th>Correlation</th><th>Directional accuracy</th></tr></thead>
+      <tbody><tr><td>eloratings.net neutral</td><td>0.336</td><td>0.113</td><td>0.526</td><td>62.7%</td></tr>
+<tr><td>xGelo custom neutral</td><td>0.368</td><td>0.135</td><td>0.421</td><td>60.8%</td></tr>
+<tr><td>eloratings.net + home adv.</td><td>0.309</td><td>0.095</td><td>0.530</td><td>66.5%</td></tr>
+<tr><td>xGelo custom + home adv.</td><td>0.341</td><td>0.116</td><td>0.425</td><td>62.4%</td></tr></tbody>
+    </table>
+    <p><strong>So what:</strong> as a pure strength prior, the current xGelo Elo should be treated as provisional. It is still useful as a relative signal, but the external formula appears better calibrated to international football outcomes.</p>
+  </section>
+
+  <section data-contract-section="key-findings">
+    <h2>The formulas explain why the xGelo signal is compressed</h2>
+    <p><strong>The gap is not just a data-source quirk.</strong> xGelo currently updates ratings with a simple expected-result delta and a K factor of 20 or 40 based on match frequency. The eloratings.net method multiplies by tournament importance and goal margin, so World Cup matches and decisive wins move ratings more strongly. xGelo also applies rating decay, which pulls older or less active teams toward lower absolute levels and compresses differences over time.</p>
+    <p>That compression showed up in the examples we inspected. Before Austria-Jordan, eloratings.net had Austria-Jordan at 1853-1655, implying a stronger Austria edge than xGelo's 1316-1175. For Algeria-Austria, this matters because the current xGelo Elo gap is small enough that other hybrid features can flip the match forecast.</p>
+    <table>
+      <thead><tr><th>Date</th><th>Match</th><th>eloratings pre</th><th>xGelo pre</th><th>Home expected result</th></tr></thead>
+      <tbody><tr><td>Jun 1</td><td>Austria 1-0 Tunisia</td><td>1830-1634</td><td>1305-1216</td><td>75.6% vs 62.5%</td></tr>
+<tr><td>Mar 31</td><td>Algeria 0-0 Uruguay</td><td>1743-1894</td><td>1308-1359</td><td>29.5% vs 42.7%</td></tr>
+<tr><td>Mar 31</td><td>Austria 1-0 Korea Republic</td><td>1827-1753</td><td>1288-1298</td><td>60.5% vs 48.5%</td></tr>
+<tr><td>Mar 27</td><td>Algeria 7-0 Guatemala</td><td>1736-1515</td><td>1304-1086</td><td>78.1% vs 77.8%</td></tr>
+<tr><td>Mar 27</td><td>Austria 5-1 Ghana</td><td>1821-1507</td><td>1286-1096</td><td>85.9% vs 75.0%</td></tr></tbody>
+    </table>
+    <p><strong>So what:</strong> if the hybrid model is meant to use Elo as a stable team-strength prior, an eloratings-style implementation is more aligned with the public benchmark and likely less vulnerable to small-form features overpowering meaningful national-team strength differences.</p>
+  </section>
+
+  <section data-contract-section="recommended-next-steps">
+    <h2>Recommended Next Steps</h2>
+    <ol>
+      <li><strong>Add an eloratings-style Elo implementation behind a feature flag.</strong> Include tournament K, goal-difference multiplier, +100 home adjustment, shootout handling where available, and no rating decay unless a validation run proves decay helps.</li>
+      <li><strong>Run a full rolling-origin benchmark before changing production forecasts.</strong> Compare current xGelo Elo, eloratings-style recomputed Elo, and published eloratings feed where available across multiple years and tournaments. Score rating-only expected result, 1X2 probabilities after draw calibration, and downstream hybrid forecast metrics.</li>
+      <li><strong>Retest the World Cup dashboard with Elo substituted in the hybrid feature table.</strong> The key question is not only whether eloratings predicts match outcomes better by itself, but whether it improves calibrated forecast probabilities once squad, form, and goal-ability features are included.</li>
+    </ol>
+  </section>
+
+  <section data-contract-section="further-questions">
+    <h2>Further Questions</h2>
+    <ul>
+      <li>Does eloratings-style Elo still win on older held-out periods, or is this recent feed unusually favorable?</li>
+      <li>How much of the improvement comes from goal-difference scaling versus tournament K versus removing decay?</li>
+      <li>Does the hybrid model need coefficient regularization if a stronger Elo prior is introduced?</li>
+    </ul>
+  </section>
+
+  <section data-contract-section="caveats-and-assumptions">
+    <h2>Caveats and Assumptions</h2>
+    <div class="callout">
+      <p>This report uses the local latest-feed smoke test, not a definitive historical benchmark. The sample is recent and compact, and the home-advantage variant applies a simple convention rather than reconstructing every venue nuance. Treat the recommendation as a phase-planning decision: strong enough to prioritize implementation and validation, not strong enough to silently change live forecasts today.</p>
+    </div>
+  </section>
+</main>
+</body>
+</html>

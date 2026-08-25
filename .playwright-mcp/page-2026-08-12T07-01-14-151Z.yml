@@ -1,0 +1,31 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - heading "Phase 12 Validation Files" [level=1] [ref=e4]
+    - paragraph [ref=e5]: Browser-rendered evidence for the five exact synthetic contract-test files used by the calibration, freeze, final-evaluation, promotion, and release boundaries.
+  - status [ref=e6]:
+    - strong [ref=e7]: 5 of 5 files parse successfully
+    - text: R parse check completed 2026-08-12 · no production data or WC2026 labels are loaded by this check
+  - heading "Contract surface" [level=2] [ref=e8]
+  - generic [ref=e9]:
+    - generic [ref=e10]:
+      - generic [ref=e11]: tests/testthat/test_phase12_calibration.R
+      - generic [ref=e12]: PASS · parse
+      - generic [ref=e13]: Calibration chronology, simplex, raw fallback, scoring, and development-gate contracts.
+    - generic [ref=e14]:
+      - generic [ref=e15]: tests/testthat/test_phase12_freeze.R
+      - generic [ref=e16]: PASS · parse
+      - generic [ref=e17]: Nine-candidate freeze identity, self-hash, drift rejection, and sealed-boundary contracts.
+    - generic [ref=e18]:
+      - generic [ref=e19]: tests/testthat/test_phase12_final_evaluation.R
+      - generic [ref=e20]: PASS · parse
+      - generic [ref=e21]: Label-free final-fit manifest, unopened preflight, and exact opener boundary contracts.
+    - generic [ref=e22]:
+      - generic [ref=e23]: tests/testthat/test_phase12_promotion.R
+      - generic [ref=e24]: PASS · parse
+      - generic [ref=e25]: Evaluator-backed promotion decision, incumbent retention, and fail-closed authority contracts.
+    - generic [ref=e26]:
+      - generic [ref=e27]: tests/testthat/test_phase12_release.R
+      - generic [ref=e28]: PASS · parse
+      - generic [ref=e29]: Release manifest, consumer resolver, hash validation, and release safety contracts.
+  - group [ref=e30]:
+    - generic "What this check does" [ref=e31] [cursor=pointer]

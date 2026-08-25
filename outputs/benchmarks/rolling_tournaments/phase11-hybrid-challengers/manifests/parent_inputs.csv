@@ -2,11 +2,11 @@
 "ranger_provenance","data/benchmark/phase11/ranger_provenance.csv","c977b24609a9f4fa6fb7e9b63dbbb6fcf2d571b007136e84517749ae5085b986","present","phase11_registered_parent",TRUE,TRUE
 "country_centroids","data/benchmark/phase11/country_centroids.csv","e5121ee7260bd066e6fbcc8af337ff148c1e5606ab136eda27429656ea6ce4dc","present","phase11_registered_parent",TRUE,TRUE
 "country_centroids_metadata","data/benchmark/phase11/country_centroids_metadata.csv","581dabb7730d4e54301d8c871cd734300b1eb3ef67d95a786432f1ba7ea92422","present","phase11_registered_parent",TRUE,TRUE
-"structural_sources","data/benchmark/phase11/structural_sources.csv","a2b3bfc2b1c908395c24128ed97d9383cc741c342d759ff812b2ac74d32f26a1","present","phase11_registered_parent",TRUE,TRUE
-"structural_sources_metadata","data/benchmark/phase11/structural_sources_metadata.csv","f458e290183dc7b032a5242a0212c3dd29aa2863ae2e622d374bbf0391b64b18","present","phase11_registered_parent",TRUE,TRUE
-"structural_sources_checksums","data/benchmark/phase11/structural_sources_checksums.csv","db40e27216b0a2da83e86650e188c96f8bc3669222d68350e65285b95111e776","present","phase11_registered_parent",TRUE,TRUE
+"structural_sources","data/benchmark/phase11/structural_sources.csv","f8e811eff52e912063b4c30985468cf806a2ed05748b898c794b00277876495a","present","phase11_registered_parent",TRUE,TRUE
+"structural_sources_metadata","data/benchmark/phase11/structural_sources_metadata.csv","69946ab1dbb4f24760c3d3b9c9386702ac29b19dfb89dcc3a74c082bddc6214d","present","phase11_registered_parent",TRUE,TRUE
+"structural_sources_checksums","data/benchmark/phase11/structural_sources_checksums.csv","dcf94018e77955ef573c430aa509891f16ef4aa553a03e78188e0b08a7fc1d7d","present","phase11_registered_parent",TRUE,TRUE
 "xg_gate_manifest","data/benchmark/phase11/xg_gate_manifest.csv","9c246d68b7ed9ef9889bb8c9a787c48746d294917f6acdac6b65565c843c335f","present","phase11_registered_parent",TRUE,TRUE
-"structural_prior_manifest","data/benchmark/phase11/structural_prior_manifest.csv","2aaa571340aed0a003dc9fa07fad8dd032320676d02a54b4a3a8e73caf7ac864","present","phase11_registered_parent",TRUE,TRUE
+"structural_prior_manifest","data/benchmark/phase11/structural_prior_manifest.csv","7a7f87b16205507e303fe444ea5123875f1d9f520ad4a22666d231b8e629e210","present","phase11_registered_parent",TRUE,TRUE
 "mode_registry","data/benchmark/phase11/mode_registry.csv","2395a4cc5c318f7efca62ef0fee0b4df838ef5f79c416149b67a0b941aeaf578","present","phase11_registered_parent",TRUE,TRUE
 "manual_market_manifest","data/benchmark/phase11/manual_market_manifest.csv","652b4a0aa175dd8b0e6bbe6d8ffb3d25b71f50040cf2000bb2d86d01ce8fcddf","present","phase11_registered_parent",TRUE,TRUE
 "phase09_run_manifest","outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/run_manifest.csv","fddea9fed6d11a8b4611f12ca6b0ff73c86fa8a7ec2e6e760dbcc696aec9ff1a","present","phase11_registered_parent",TRUE,TRUE

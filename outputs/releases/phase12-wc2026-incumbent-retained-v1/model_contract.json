@@ -1,0 +1,23 @@
+{
+  "schema_version": "phase12-model-contract-v1",
+  "release_id": "phase12-wc2026-incumbent-retained-v1",
+  "status": "incumbent retained",
+  "selected_model_id": "open_nb_incumbent",
+  "incumbent_id": "open_nb_incumbent",
+  "challenger_evidence_id": "phase11_rf_dynamic_elo_context_drop_host_open",
+  "track_id": "updating",
+  "panel_id": "open_core",
+  "feature_set_id": "phase11_rf_dynamic_elo_context_open",
+  "score_support_g": 40,
+  "primary_probability_view": "raw_1x2",
+  "raw_fallback": {
+    "status": "available; incumbent retained without a fitted Phase 12 calibrator",
+    "view": "raw_1x2"
+  },
+  "score_distribution_contract": "fitted G=40 score distribution unchanged",
+  "decision_sha256": "ae4307aa6ca4c392997d09246f4c65ff9e1e301fa80d3362ef9e0cb5778dce16",
+  "freeze_id": "phase12_freeze_v1",
+  "model_artifact": "model/approved_model.rds",
+  "calibrator_artifact": "model/calibrator.rds",
+  "labels_embedded": false
+}
