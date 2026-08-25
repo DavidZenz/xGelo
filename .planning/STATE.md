@@ -5,8 +5,8 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 17
 current_phase_name: Shared Dashboards and Atomic Refresh Operations
 status: planning
-stopped_at: Phase 16 complete; ready to plan Phase 17
-last_updated: "2026-08-24T19:56:00Z"
+stopped_at: Phase 17 UI-SPEC approved
+last_updated: "2026-08-25T09:41:12.981Z"
 last_activity: 2026-08-24
 last_activity_desc: Phase 16 complete, transitioned to Phase 17
 progress:
@@ -206,9 +206,9 @@ Plan Phase 17 shared dashboards and atomic refresh operations.
 
 ## Session Continuity
 
-**Last session:** 2026-08-24T19:56:00Z
-**Stopped at:** Phase 16 complete; ready to plan Phase 17
-**Resume file:** None
+**Last session:** 2026-08-25T09:41:12.959Z
+**Stopped at:** Phase 17 UI-SPEC approved
+**Resume file:** .planning/phases/17-shared-dashboards-and-atomic-refresh-operations/17-UI-SPEC.md
 
 ## Performance Metrics
 
