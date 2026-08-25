@@ -43,8 +43,8 @@
 
 - [x] **DASH-01**: The project publishes dedicated Nations League and EURO qualifying dashboard entry points powered by one shared rendering and payload engine.
 - [x] **DASH-02**: Each dashboard provides competition structure, groups or leagues, standings, fixtures, results, match forecasts, form, and projected outcomes.
-- [ ] **DASH-03**: Users can filter by competition section, league/group, team, matchday, and fixture status in responsive desktop and mobile views.
-- [ ] **DASH-04**: Each dashboard shows refresh status, source confidence, model release, warnings, and collapsed data credits without presenting operational detail as the primary content.
+- [x] **DASH-03**: Users can filter by competition section, league/group, team, matchday, and fixture status in responsive desktop and mobile views.
+- [x] **DASH-04**: Each dashboard shows refresh status, source confidence, model release, warnings, and collapsed data credits without presenting operational detail as the primary content.
 
 ### Automated Operations
 
@@ -101,8 +101,8 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | SIM-04 | Phase 16 | Complete |
 | DASH-01 | Phase 17 | Complete |
 | DASH-02 | Phase 17 | Complete |
-| DASH-03 | Phase 17 | Pending |
-| DASH-04 | Phase 17 | Pending |
+| DASH-03 | Phase 17 | Complete |
+| DASH-04 | Phase 17 | Complete |
 | OPS-01 | Phase 17 | Pending |
 | OPS-02 | Phase 17 | Pending |
 | OPS-03 | Phase 17 | Pending |
