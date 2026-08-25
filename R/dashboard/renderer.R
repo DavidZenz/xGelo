@@ -31,6 +31,16 @@ phase17_row_text <- function(row) {
     ":</b> ", phase17_display_value(row[[field]]), "</span>"), character(1)), collapse = " ")
 }
 
+phase17_row_attribute <- function(row, fields, separator = "") {
+  values <- vapply(fields, function(field) {
+    value <- row[[field]]
+    if (is.null(value) || !length(value) || is.na(value[[1L]])) "" else as.character(value[[1L]])
+  }, character(1))
+  values <- unique(values[nzchar(values)])
+  value <- if (length(values)) paste(values, collapse = separator) else ""
+  phase17_html_escape(value)
+}
+
 phase17_section_status <- function(section) {
   status <- as.character(section$status[[1L]])
   label <- phase17_status_labels()[[status]] %||% tools::toTitleCase(gsub("_", " ", status))
@@ -50,7 +60,11 @@ phase17_render_section <- function(section) {
   rows <- if (is.null(section$rows)) list() else section$rows
   row_html <- if (length(rows)) paste0(
     '<div class="table-scroll"><table><thead><tr><th scope="col">Accepted data</th></tr></thead><tbody>',
-    paste(vapply(rows, function(row) paste0('<tr>', phase17_row_text(row), '</tr>'), character(1)), collapse = ""),
+    paste(vapply(rows, function(row) paste0('<tr data-filter-group="', phase17_row_attribute(row, c("league_or_group", "group_id", "league", "group")),
+                                               '" data-filter-team="', phase17_row_attribute(row, c("team", "home_team", "away_team"), "|"),
+                                               '" data-filter-matchday="', phase17_row_attribute(row, c("matchday", "match_day")),
+                                               '" data-filter-status="', phase17_row_attribute(row, c("fixture_status", "status")), '">',
+                                               phase17_row_text(row), '</tr>'), character(1)), collapse = ""),
     '</tbody></table></div>') else ""
   paste0('<section id="', phase17_html_escape(section$id), '" data-section="',
          phase17_html_escape(section$id), '" class="dashboard-section"><h2>',
@@ -143,7 +157,7 @@ render_phase17_dashboard <- function(payload, route = NULL) {
     '<details id="source-lineage"><summary>Source, model, and refresh lineage</summary><dl>', phase17_render_metadata(metadata), '</dl></details>',
     '<details id="data-credits"><summary>Data credits</summary><div class="credits">', phase17_html_escape(phase17_canonical_json(payload$credits)), '</div></details>',
     '<script id="dashboard-data" type="application/json">', payload_json, '</script>',
-    '<script>(function(){const root=document;const ids=["filter-section","filter-league-group","filter-team","filter-matchday","filter-status"];const count=root.getElementById("filter-result-count");const sections=[...root.querySelectorAll("[data-section]")];function selected(id){const e=root.getElementById(id);return e?e.value:""}function apply(){const section=selected("filter-section"),group=selected("filter-league-group"),team=selected("filter-team"),day=selected("filter-matchday"),status=selected("filter-status");let visible=0;sections.forEach(s=>{const showSection=!section||s.dataset.section===section;s.hidden=!showSection;if(showSection){[...s.querySelectorAll("tbody tr")].forEach(row=>{const text=row.textContent.toLowerCase();const show=(!group||text.includes(group.toLowerCase()))&&(!team||text.includes(team.toLowerCase()))&&(!day||text.includes(day.toLowerCase()))&&(!status||text.includes(status.toLowerCase()));row.hidden=!show;if(show)visible++})}});count.textContent=visible?"Showing "+visible+" matching accepted row(s).":"No rows match the selected filters."}ids.forEach(id=>root.getElementById(id).addEventListener("change",apply));root.getElementById("clear-filters").addEventListener("click",()=>{ids.forEach(id=>root.getElementById(id).value="");apply()});apply()})();</script>',
+    '<script>(function(){const root=document;const ids=["filter-section","filter-league-group","filter-team","filter-matchday","filter-status"];const count=root.getElementById("filter-result-count");const sections=[...root.querySelectorAll("[data-section]")];function selected(id){const e=root.getElementById(id);return e?e.value:""}function apply(){const section=selected("filter-section"),group=selected("filter-league-group"),team=selected("filter-team"),day=selected("filter-matchday"),status=selected("filter-status");let visible=0;sections.forEach(s=>{const showSection=!section||s.dataset.section===section;s.hidden=!showSection;if(showSection){[...s.querySelectorAll("tbody tr")].forEach(row=>{const teams=(row.dataset.filterTeam||"").split("|");const show=(!group||row.dataset.filterGroup===group)&&(!team||teams.includes(team))&&(!day||row.dataset.filterMatchday===day)&&(!status||row.dataset.filterStatus===status);row.hidden=!show;if(show)visible++})}});count.textContent=visible?"Showing "+visible+" matching accepted row(s).":"No rows match the selected filters."}ids.forEach(id=>root.getElementById(id).addEventListener("change",apply));root.getElementById("clear-filters").addEventListener("click",()=>{ids.forEach(id=>root.getElementById(id).value="");apply()});apply()})();</script>',
     '</main></body></html>')
 }
 

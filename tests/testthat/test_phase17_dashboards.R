@@ -252,12 +252,15 @@ test_that("filters|responsive|accessibility|zero-one-many|long-text", {
   html <- api$render_phase17_dashboard(payload)
   expect_true(all(vapply(c("<select", "aria-label=\"Dashboard filters\"", "aria-live=\"polite\"",
                            "focus-visible", "overflow-x:auto", "prefers-reduced-motion", "Clear filters",
-                           "No rows match the selected filters", "overflow-wrap:anywhere"),
+                           "No rows match the selected filters", "overflow-wrap:anywhere", "data-filter-group",
+                           "data-filter-team", "data-filter-matchday", "data-filter-status", "===", "teams.includes"),
                          grepl, logical(1), x = html, fixed = TRUE)))
   expect_true(grepl("All sections", html, fixed = TRUE))
   expect_true(grepl("All teams", html, fixed = TRUE))
   expect_true(grepl("All matchdays", html, fixed = TRUE))
   expect_true(grepl("All statuses", html, fixed = TRUE))
+  expect_identical(filtered$metadata, payload$metadata)
+  expect_identical(filtered$sections$standings, payload$sections$standings)
   long <- payload
   long$metadata$source_bundle_id <- paste(rep("long-source-id", 30L), collapse = "-")
   long$metadata$warnings <- paste(rep("long warning reason", 40L), collapse = " ")
