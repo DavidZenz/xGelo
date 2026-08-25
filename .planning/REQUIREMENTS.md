@@ -49,10 +49,10 @@
 ### Automated Operations
 
 - [ ] **OPS-01**: A macOS launchd job refreshes both competition bundles hourly using the existing reproducible update pattern.
-- [ ] **OPS-02**: Candidate source snapshots and derived outputs are staged and validated before both dashboards are atomically published as one coherent refresh batch.
-- [ ] **OPS-03**: The refresh runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression tests before publication.
+- [x] **OPS-02**: Candidate source snapshots and derived outputs are staged and validated before both dashboards are atomically published as one coherent refresh batch.
+- [x] **OPS-03**: The refresh runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression tests before publication.
 - [ ] **OPS-04**: Changed compact code, manifests, and dashboard outputs are committed and pushed only when the worktree is clean and the branch is upstream-aligned.
-- [ ] **OPS-05**: The refresh fails closed on incomplete sources, dirty or diverged repositories, failed tests, invalid hashes, partial bundles, or oversized generated artifacts.
+- [x] **OPS-05**: The refresh fails closed on incomplete sources, dirty or diverged repositories, failed tests, invalid hashes, partial bundles, or oversized generated artifacts.
 
 ## Future Requirements
 
@@ -104,10 +104,10 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | DASH-03 | Phase 17 | Complete |
 | DASH-04 | Phase 17 | Complete |
 | OPS-01 | Phase 17 | Pending |
-| OPS-02 | Phase 17 | Pending |
-| OPS-03 | Phase 17 | Pending |
+| OPS-02 | Phase 17 | Complete |
+| OPS-03 | Phase 17 | Complete |
 | OPS-04 | Phase 17 | Pending |
-| OPS-05 | Phase 17 | Pending |
+| OPS-05 | Phase 17 | Complete |
 
 **Coverage:**
 

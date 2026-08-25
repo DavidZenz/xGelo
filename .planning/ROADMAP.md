@@ -230,7 +230,7 @@ Post-execution remediation is recorded in `16-06-SUMMARY.md` and included in the
 4. An hourly macOS `launchd` refresh stages both competitions together, runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression checks, and atomically promotes only a fully valid batch.
 5. Auto-commit and push happen only from a clean, upstream-aligned repository and include only compact code, manifests, and dashboard outputs; dirty, diverged, partial, oversized, or failed batches stay unpublished.
 
-**Plans**: 2/4 plans executed
+**Plans**: 3/4 plans executed
 Plans:
 
 **Wave 0**
@@ -243,7 +243,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 17-03-PLAN.md — Implement the exact cross-edition batch envelope, ordered gates, route artifacts, and rollback-safe promotion
+- [x] 17-03-PLAN.md — Implement the exact cross-edition batch envelope, ordered gates, route artifacts, and rollback-safe promotion
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -259,7 +259,7 @@ Plans:
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
 | 16. EURO Qualifying Activation and Play-off Rules | 6/6 | Complete    | 2026-08-24 |
-| 17. Shared Dashboards and Atomic Refresh Operations | 2/4 | In Progress|  |
+| 17. Shared Dashboards and Atomic Refresh Operations | 3/4 | In Progress|  |
 
 ## Requirement Coverage
 

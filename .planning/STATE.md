@@ -5,15 +5,15 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 17
 current_phase_name: Shared Dashboards and Atomic Refresh Operations
 status: executing
-stopped_at: Completed 17-02-PLAN.md
-last_updated: "2026-08-25T11:28:00.789Z"
+stopped_at: Completed 17-03-PLAN.md
+last_updated: "2026-08-25T11:46:41.211Z"
 last_activity: 2026-08-25
 last_activity_desc: Phase 17 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 52
-  completed_plans: 50
+  completed_plans: 51
 ---
 
 # xGelo Project State
@@ -21,13 +21,13 @@ progress:
 ## Current Position
 
 Phase: 17 (Shared Dashboards and Atomic Refresh Operations) — EXECUTING
-Plan: 3 of 4
+Plan: 4 of 4
 Status: Ready to execute
 Last activity: 2026-08-25 — Phase 17 execution started
 
 ## Progress
 
-**Progress:** [██████████] 96% (4/5 phases complete; 48/48 formal plans complete)
+**Progress:** [██████████] 98% (4/5 phases complete; 48/48 formal plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -193,6 +193,8 @@ dependence on paid data feeds.
 - [Phase ?]: Phase 17 payloads use canonical JSON bytes, SHA-256 snapshots, and shared pure rendering before later promotion.
 - [Phase ?]: Plan 17-02 keeps filtering client-side and payload-derived; metadata, warnings, and accepted batch identity remain immutable.
 - [Phase ?]: Plan 17-02 renders all eight dashboard sections in stable order with typed empty and blocked states.
+- [Phase ?]: Phase 17 Plan 03: publish both dashboard editions through one exact ten-file batch envelope with named byte limits and one shared batch identity.
+- [Phase ?]: Phase 17 Plan 03: retain incumbent bytes on every gate, promotion, or read-back failure and promote only by same-parent rename.
 
 ## Accumulated Context
 
@@ -211,8 +213,8 @@ Plan Phase 17 shared dashboards and atomic refresh operations.
 
 ## Session Continuity
 
-**Last session:** 2026-08-25T11:28:00.774Z
-**Stopped at:** Completed 17-02-PLAN.md
+**Last session:** 2026-08-25T11:46:41.194Z
+**Stopped at:** Completed 17-03-PLAN.md
 **Resume file:** None
 
 ## Performance Metrics
@@ -273,6 +275,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 16 P06 | 1h35m | 1 tasks | 4 files |
 | Phase 17 P01 | 12 min | 2 tasks | 6 files |
 | Phase 17-shared-dashboards-and-atomic-refresh-operations P02 | 35 min | 2 tasks | 3 files |
+| Phase 17 P3 | approximately 2 hours | 3 tasks | 13 files |
 
 ### Blockers
 
