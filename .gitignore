@@ -12,6 +12,10 @@ outputs/dashboard_bench_*/
 _targets/
 logs/
 
+# Disposable root-level test/probe workspaces belong outside the repository.
+/phase13-*
+/phase14-*
+
 # Reproducible generated datasets exceed GitHub's per-file limits.
 data/processed/goal_training_features_hybrid.csv
 outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/predictions/score_distributions.csv
