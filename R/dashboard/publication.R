@@ -187,7 +187,7 @@ phase17_rollback_batch <- function(public_root, incumbent_root = NULL, incumbent
 
 phase17_promote_batch <- function(candidate_root, public_root, injectors = list(), read_back = TRUE) {
   candidate_root <- phase17_project_root(candidate_root)
-  public_root <- phase17_project_root(public_root, create = TRUE)
+  public_root <- phase17_project_root(public_root, create = FALSE)
   phase17_validate_batch_envelope(candidate_root)
   parent <- dirname(public_root)
   if (!identical(normalizePath(dirname(candidate_root), winslash = "/", mustWork = TRUE),
@@ -196,11 +196,14 @@ phase17_promote_batch <- function(candidate_root, public_root, injectors = list(
   }
   backup <- tempfile("phase17-incumbent-", tmpdir = parent)
   had_incumbent <- dir.exists(public_root) && length(list.files(public_root, all.files = TRUE, no.. = TRUE)) > 0L
+  if (dir.exists(public_root) && !had_incumbent) unlink(public_root, recursive = TRUE, force = TRUE)
   if (had_incumbent && !file.rename(public_root, backup)) stop("Phase 17 incumbent move failed", call. = FALSE)
-  promoted <- FALSE
-  on.exit(if (!promoted && had_incumbent && dir.exists(backup)) {
+  committed <- FALSE
+  on.exit(if (!committed) {
     if (dir.exists(public_root)) unlink(public_root, recursive = TRUE, force = TRUE)
-    file.rename(backup, public_root)
+    if (had_incumbent && dir.exists(backup)) {
+      if (!file.rename(backup, public_root)) stop("Phase 17 incumbent rollback failed", call. = FALSE)
+    }
   }, add = TRUE)
   injector <- function(name) {
     fn <- injectors[[name]]
@@ -209,11 +212,11 @@ phase17_promote_batch <- function(candidate_root, public_root, injectors = list(
   }
   injector("promotion")
   if (!file.rename(candidate_root, public_root)) stop("Phase 17 candidate promotion failed", call. = FALSE)
-  promoted <- TRUE
   if (isTRUE(read_back)) {
     injector("read_back")
     phase17_validate_batch_envelope(public_root)
   }
   if (had_incumbent && dir.exists(backup)) unlink(backup, recursive = TRUE, force = TRUE)
+  committed <- TRUE
   invisible(list(public_root = public_root, validated = TRUE))
 }

@@ -221,8 +221,9 @@ phase17_validate_payload <- function(payload) {
   if (!identical(as.character(payload$schema_version), phase17_dashboard_schema_version)) {
     stop("Phase 17 payload schema version is unsupported", call. = FALSE)
   }
-  if (!identical(as.character(payload$edition_id), phase17_editions())) {
-    if (!as.character(payload$edition_id) %in% phase17_editions()) stop("Phase 17 payload edition is unknown", call. = FALSE)
+  if (length(payload$edition_id) != 1L || is.na(payload$edition_id) ||
+      !phase17_scalar(payload$edition_id, "payload edition_id") %in% phase17_editions()) {
+    stop("Phase 17 payload edition_id must be one registered scalar edition", call. = FALSE)
   }
   if (!is.list(payload$metadata) || !is.list(payload$sections) || !is.list(payload$credits)) {
     stop("Phase 17 payload metadata, sections, and credits must be lists", call. = FALSE)
