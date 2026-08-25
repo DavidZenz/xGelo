@@ -49,6 +49,12 @@ phase17_section_states <- function() {
     "unresolved", "suppressed", "partial")
 }
 
+phase17_status_labels <- function() {
+  c(available = "Available", pre_draw = "Pre-draw", loading = "Refresh pending",
+    blocked = "Refresh blocked", unavailable = "Unavailable", unresolved = "Unresolved",
+    suppressed = "Suppressed", partial = "Partial")
+}
+
 phase17_expected_public_inventory <- function() {
   c(
     "docs/competitions/nations-league/index.html",
@@ -233,6 +239,14 @@ phase17_validate_payload <- function(payload) {
     }
     if (!is.list(section$rows)) stop("Phase 17 section rows must be a list", call. = FALSE)
   }
+  metadata_required <- c("batch_id", "lifecycle_state", "forecast_status", "last_refresh_at_utc",
+                         "generated_at_utc", "source_confidence", "source_bundle_id",
+                         "model_release_id", "ruleset_version", "projection_run_id",
+                         "simulation_seed", "simulation_count")
+  missing_metadata <- setdiff(metadata_required, names(payload$metadata))
+  if (length(missing_metadata)) {
+    stop("Phase 17 payload metadata is missing: ", paste(missing_metadata, collapse = ", "), call. = FALSE)
+  }
   invisible(TRUE)
 }
 
@@ -392,6 +406,9 @@ phase17_normalize_metadata <- function(bundle, batch_id = "phase17-fixture-batch
 phase17_status_for_section <- function(rows, lifecycle, reason = NULL) {
   if (length(rows)) return(list(status = "available", reason = ""))
   if (identical(lifecycle, "pre_draw")) return(list(status = "pre_draw", reason = reason %||% "Awaiting the official draw and schedule."))
+  if (lifecycle %in% c("revision_blocked", "unavailable")) {
+    return(list(status = "blocked", reason = reason %||% "Refresh blocked - showing the last accepted snapshot."))
+  }
   list(status = "unavailable", reason = reason %||% "No accepted data for this section.")
 }
 
@@ -422,4 +439,46 @@ phase17_neutral_payload <- function(bundle, section_labels, batch_id = "phase17-
                   sections = sections, credits = credits)
   phase17_validate_payload(payload)
   payload
+}
+
+phase17_row_value <- function(row, fields, default = "") {
+  if (!is.list(row)) return(default)
+  for (field in fields) {
+    value <- row[[field]]
+    if (!is.null(value) && length(value) && !is.na(value[[1L]])) return(as.character(value[[1L]]))
+  }
+  default
+}
+
+phase17_filter_payload <- function(payload, filters = list()) {
+  phase17_validate_payload(payload)
+  filters <- modifyList(list(section = "", league_or_group = "", team = "",
+                             matchday = "", fixture_status = ""), filters)
+  result <- unserialize(serialize(payload, NULL))
+  selected_section <- as.character(filters$section %||% "")[[1L]]
+  selected_group <- as.character(filters$league_or_group %||% "")[[1L]]
+  selected_team <- as.character(filters$team %||% "")[[1L]]
+  selected_matchday <- as.character(filters$matchday %||% "")[[1L]]
+  selected_status <- tolower(as.character(filters$fixture_status %||% "")[[1L]])
+  if (nzchar(selected_section) && selected_section %in% names(result$sections)) {
+    result$sections <- result$sections[selected_section]
+  }
+  row_matches <- function(row) {
+    group <- phase17_row_value(row, c("league_or_group", "group_id", "league", "group"))
+    team_values <- vapply(row[c("team", "home_team", "away_team")], function(value) {
+      if (is.null(value) || !length(value)) "" else as.character(value[[1L]])
+    }, character(1), USE.NAMES = FALSE)
+    matchday <- phase17_row_value(row, c("matchday", "match_day"))
+    status <- tolower(phase17_row_value(row, c("fixture_status", "status")))
+    (is.null(selected_group) || !nzchar(selected_group) || identical(group, selected_group)) &&
+      (is.null(selected_team) || !nzchar(selected_team) || selected_team %in% team_values) &&
+      (is.null(selected_matchday) || !nzchar(selected_matchday) || identical(matchday, selected_matchday)) &&
+      (is.null(selected_status) || !nzchar(selected_status) || identical(status, selected_status))
+  }
+  for (name in names(result$sections)) {
+    rows <- result$sections[[name]]$rows
+    if (length(rows)) result$sections[[name]]$rows <- rows[vapply(rows, row_matches, logical(1))]
+  }
+  result$filter_result_count <- sum(vapply(result$sections, function(section) length(section$rows), integer(1)))
+  result
 }

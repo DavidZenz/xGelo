@@ -187,3 +187,81 @@ test_that("phase17_tracer", {
   api$phase17_validate_published_route(nl_payload, file.path(root, "docs/competitions/nations-league"))
   expect_identical(names(api$phase17_public_route_targets(root)), api$phase17_expected_public_inventory()[1:8])
 })
+
+test_that("payload sections|metadata|pre_draw|blocked|credits", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_euro.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+  nl <- api$phase17_fixture_bundle("uefa_nations_league_2026_27")
+  nl$artifacts$structure <- data.frame(league = "League A", stringsAsFactors = FALSE)
+  nl$artifacts$standings <- data.frame(group_id = "A", team = "Alpha", points = 3L, stringsAsFactors = FALSE)
+  nl$artifacts$fixtures <- data.frame(group_id = "A", matchday = 1L, home_team = "Alpha", away_team = "Beta", status = "scheduled", stringsAsFactors = FALSE)
+  nl$artifacts$results <- data.frame(group_id = "A", home_team = "Alpha", away_team = "Beta", status = "final", score = "2-1", stringsAsFactors = FALSE)
+  nl$artifacts$form <- data.frame(team = "Alpha", form = "W", stringsAsFactors = FALSE)
+  nl$artifacts$forecasts <- data.frame(home_team = "Alpha", away_team = "Beta", status = "available", home_probability = 0.5, stringsAsFactors = FALSE)
+  nl$artifacts$projected_outcomes <- data.frame(team = "Alpha", outcome = "Title path", stringsAsFactors = FALSE)
+  payload <- api$phase17_payload_nations_league(nl)
+  html <- api$render_phase17_dashboard(payload)
+  expect_identical(names(payload$sections), api$phase17_section_ids())
+  expect_true(all(vapply(api$phase17_section_ids(), grepl, logical(1), x = html, fixed = TRUE)))
+  expect_true(all(vapply(c("dashboard-data", "dashboard-status", "source-lineage", "data-credits",
+                           "filter-section", "filter-league-group", "filter-team", "filter-matchday",
+                           "filter-status", "clear-filters", "filter-result-count"),
+                         grepl, logical(1), x = html, fixed = TRUE)))
+  expect_true(all(vapply(c("Batch", "Last accepted refresh", "Source confidence", "Model release",
+                           "Simulation seed", "Simulation count", "Data credits"),
+                         grepl, logical(1), x = html, fixed = TRUE)))
+  hostile <- payload
+  hostile$sections$overview$rows <- list(list(note = "<script>alert('x')</script>"))
+  hostile$credits$source_url <- "https://example.test/?q=<bad>"
+  hostile_html <- api$render_phase17_dashboard(hostile)
+  expect_false(grepl("<script>alert", hostile_html, fixed = TRUE))
+  expect_true(grepl("\\u003cscript\\u003e", hostile_html, fixed = TRUE))
+  euro <- api$phase17_payload_euro(api$phase17_fixture_bundle("uefa_euro_2028_qualifying"))
+  euro_html <- api$render_phase17_dashboard(euro)
+  expect_true(grepl("Pre-draw", euro_html, fixed = TRUE))
+  expect_false(grepl("fixture-001", euro_html, fixed = TRUE))
+  blocked <- nl
+  blocked$lifecycle_state <- "revision_blocked"
+  blocked$warnings <- "Candidate rules failed validation."
+  blocked$showing_last_accepted_snapshot <- TRUE
+  blocked_payload <- api$phase17_payload_nations_league(blocked)
+  blocked_html <- api$render_phase17_dashboard(blocked_payload)
+  expect_true(grepl("Refresh blocked", blocked_html, fixed = TRUE))
+  expect_true(grepl("Showing last accepted snapshot", blocked_html, fixed = TRUE))
+  expect_true(grepl("Candidate rules failed validation", blocked_html, fixed = TRUE))
+})
+
+test_that("filters|responsive|accessibility|zero-one-many|long-text", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+  bundle <- api$phase17_fixture_bundle("uefa_nations_league_2026_27")
+  bundle$artifacts$fixtures <- data.frame(
+    group_id = c("A", "B"), matchday = c(1L, 2L), home_team = c("Alpha", "Beta"),
+    away_team = c("Beta", "Gamma"), status = c("scheduled", "final"), stringsAsFactors = FALSE
+  )
+  payload <- api$phase17_payload_nations_league(bundle)
+  filtered <- api$phase17_filter_payload(payload, list(league_or_group = "A", team = "Alpha",
+                                                        matchday = "1", fixture_status = "scheduled"))
+  expect_equal(length(filtered$sections$fixtures$rows), 1L)
+  expect_equal(length(payload$sections$fixtures$rows), 2L)
+  no_match <- api$phase17_filter_payload(payload, list(team = "Missing"))
+  expect_equal(no_match$filter_result_count, 0L)
+  html <- api$render_phase17_dashboard(payload)
+  expect_true(all(vapply(c("<select", "aria-label=\"Dashboard filters\"", "aria-live=\"polite\"",
+                           "focus-visible", "overflow-x:auto", "prefers-reduced-motion", "Clear filters",
+                           "No rows match the selected filters", "overflow-wrap:anywhere"),
+                         grepl, logical(1), x = html, fixed = TRUE)))
+  expect_true(grepl("All sections", html, fixed = TRUE))
+  expect_true(grepl("All teams", html, fixed = TRUE))
+  expect_true(grepl("All matchdays", html, fixed = TRUE))
+  expect_true(grepl("All statuses", html, fixed = TRUE))
+  long <- payload
+  long$metadata$source_bundle_id <- paste(rep("long-source-id", 30L), collapse = "-")
+  long$metadata$warnings <- paste(rep("long warning reason", 40L), collapse = " ")
+  long_html <- api$render_phase17_dashboard(long)
+  expect_true(grepl("long-source-id", long_html, fixed = TRUE))
+  expect_true(grepl("overflow-wrap:anywhere", long_html, fixed = TRUE))
+})
