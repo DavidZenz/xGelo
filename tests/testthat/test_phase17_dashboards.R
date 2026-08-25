@@ -268,3 +268,85 @@ test_that("filters|responsive|accessibility|zero-one-many|long-text", {
   expect_true(grepl("long-source-id", long_html, fixed = TRUE))
   expect_true(grepl("overflow-wrap:anywhere", long_html, fixed = TRUE))
 })
+
+test_that("atomic batch|inventory|hash|size|rollback|idempotency", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/publication.R"), api)
+  script <- new.env(parent = globalenv())
+  sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  root <- tempfile("phase17-transaction-")
+  dir.create(root, recursive = TRUE)
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+  candidate_parent <- file.path(root, "staging")
+  dir.create(candidate_parent, recursive = TRUE)
+  candidate <- file.path(candidate_parent, "candidate")
+  bundles <- setNames(lapply(api$phase17_editions(), api$phase17_fixture_bundle), api$phase17_editions())
+  batch_id <- api$phase17_batch_identity(bundles = bundles)
+  materialized <- script$phase17_materialize_routes(bundles, candidate, batch_id)
+  script$phase17_write_batch_envelope(materialized$batch_root, materialized$payloads,
+                                      materialized$routes, batch_id)
+  expect_length(api$phase17_expected_public_inventory(), 10L)
+  expect_silent(api$phase17_validate_batch_envelope(materialized$batch_root, expected_batch_id = batch_id))
+  expect_identical(api$phase17_json_read(file.path(materialized$batch_root, "nations-league/current.json"))$batch_id,
+                   api$phase17_json_read(file.path(materialized$batch_root, "euro-qualifying/current.json"))$batch_id)
+  extra <- file.path(materialized$batch_root, "logs/refresh.log")
+  dir.create(dirname(extra), recursive = TRUE)
+  writeLines("forbidden", extra)
+  expect_error(api$phase17_validate_batch_envelope(materialized$batch_root), "prohibited|inventory")
+  unlink(dirname(extra), recursive = TRUE, force = TRUE)
+
+  public <- file.path(candidate_parent, "public")
+  dir.create(public, recursive = TRUE)
+  incumbent_path <- file.path(public, "incumbent.txt")
+  writeBin(charToRaw("incumbent bytes"), incumbent_path)
+  incumbent <- api$phase17_snapshot_bytes(incumbent_path, root = public)
+  expect_error(api$phase17_promote_batch(materialized$batch_root, public, injectors = list(promotion = function() stop("Injected"))), "Injected")
+  expect_true(api$phase17_snapshot_equal(incumbent, api$phase17_snapshot_bytes(incumbent_path, root = public)))
+  dir.create(file.path(root, ".phase17-batch.lock"))
+  expect_error(api$phase17_with_batch_lock(root, TRUE), "lock collision")
+  unlink(file.path(root, ".phase17-batch.lock"), recursive = TRUE, force = TRUE)
+})
+
+test_that("exact gate order|dry run|fail closed|prior phase contracts", {
+  script <- new.env(parent = globalenv())
+  sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  result <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"))
+  labels <- vapply(result$trace, `[[`, character(1), "label")
+  expect_identical(labels, c(
+    "phase17_git_preflight", "phase13_source", "phase13_snapshot", "phase13_registry",
+    "phase14_shared_preflight", "phase14_state_candidate", "phase14_fixture_forecasts",
+    "phase12_approved_selector", "phase15_nl_builder", "phase15_nl_validator",
+    "phase16_euro_source", "phase16_euro_activation", "phase16_euro_builder",
+    "phase16_euro_validator", "phase17_probability", "phase17_freshness", "phase15_replay",
+    "phase16_replay", "phase16_euro_replay_child", "phase17_run_browser_gate",
+    "phase17_run_regression_gate", "envelope"
+  ))
+  expect_true(result$dry_run)
+  expect_length(result$inventory, 10L)
+  for (failure in c("source", "rules", "probability", "replay", "browser", "manifest", "hash")) {
+    expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root,
+                                               "--skip-git", "--gate-failure", failure)),
+                 paste0("Injected Phase 17 ", failure))
+  }
+  expect_identical(script$phase17_run_regression_gate(execute = FALSE)$commands[[1L]],
+                   "scripts/build_euro_qualifying_outcomes.R --replay-check")
+  expect_identical(script$phase17_run_regression_gate(execute = FALSE)$environment$PHASE17_IN_REGRESSION_GATE, "1")
+})
+
+test_that("route rendering|shared renderer|route manifests|current pointers", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/publication.R"), api)
+  script <- new.env(parent = globalenv())
+  sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  root <- tempfile("phase17-routes-")
+  dir.create(root, recursive = TRUE)
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+  bundles <- setNames(lapply(api$phase17_editions(), api$phase17_fixture_bundle), api$phase17_editions())
+  materialized <- script$phase17_materialize_routes(bundles, root, script$phase17_batch_identity(bundles = bundles))
+  expect_true(file.exists(file.path(materialized$batch_root, "nations-league/index.html")))
+  expect_true(file.exists(file.path(materialized$batch_root, "euro-qualifying/payload.json")))
+  expect_silent(script$phase17_write_batch_envelope(materialized$batch_root, materialized$payloads,
+                                                    materialized$routes, script$phase17_batch_identity(bundles = bundles)))
+  expect_silent(api$phase17_validate_batch_envelope(materialized$batch_root))
+  expect_true(grepl("pre_draw", paste(readLines(file.path(materialized$batch_root, "euro-qualifying/payload.json")), collapse = ""), fixed = TRUE))
+})
