@@ -185,14 +185,44 @@ phase17_provider_gate <- function(call, label) {
   }, error = function(error) list(valid = FALSE, failure_reason = conditionMessage(error)))
 }
 
-phase17_production_callbacks <- function(bundles, project_root, now = "2026-08-25T00:00:00Z") {
+phase17_provider_bounded_gate <- function(call, label, seconds = 20) {
+  seconds <- suppressWarnings(as.numeric(seconds[[1L]]))
+  if (!is.finite(seconds) || seconds <= 0) stop("Phase 17 provider gate timeout must be positive", call. = FALSE)
+  tryCatch({
+    setTimeLimit(elapsed = seconds, transient = TRUE)
+    on.exit(setTimeLimit(cpu = Inf, elapsed = Inf, transient = TRUE), add = TRUE)
+    phase17_provider_gate(force(call), label)
+  }, error = function(error) list(valid = FALSE, failure_reason = paste0(label, " exceeded ", seconds, "s: ", conditionMessage(error))))
+}
+
+phase17_production_callbacks <- function(
+    bundles,
+    project_root,
+    now = "2026-08-25T00:00:00Z",
+    phase14_state_mode = Sys.getenv("PHASE17_PHASE14_STATE_MODE", "accepted"),
+    phase14_state_timeout_seconds = 20) {
   context <- attr(bundles, "phase17_production_context")
+  phase14_state_mode <- match.arg(tolower(as.character(phase14_state_mode[[1L]])), c("accepted", "rebuild"))
   registry <- context$registry
   nl <- bundles[["uefa_nations_league_2026_27"]]
   euro <- bundles[["uefa_euro_2028_qualifying"]]
-  phase14_release <- function() phase14_resolve_approved_release(file.path(project_root, "outputs/releases/approved_release.csv"), file.path(project_root, "outputs/releases"))
+  phase14_release <- local({
+    loaded <- FALSE
+    value <- NULL
+    function() {
+      if (!loaded) {
+        value <<- phase14_resolve_approved_release(
+          file.path(project_root, "outputs/releases/approved_release.csv"),
+          file.path(project_root, "outputs/releases")
+        )
+        loaded <<- TRUE
+      }
+      value
+    }
+  })
   phase14_manifest_path <- file.path(project_root, "outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv")
   phase14_manifest <- phase17_provider_read_csv(phase14_manifest_path)
+  phase14_state_root <- nl$state$root %||% file.path(project_root, "outputs/competition/uefa_nations_league_2026_27")
   phase14_common <- function() list(
     edition_registry = registry$editions,
     canonical_matches = nl$source$tables$fixtures,
@@ -213,6 +243,23 @@ phase17_production_callbacks <- function(bundles, project_root, now = "2026-08-2
     values <- phase14_common()[c("team_registry", "resolved_release", "selector_path", "trusted_release_root", "elo_ratings", "national_team_xg_registry", "national_team_xg_history", "model_manifest", "model_manifest_path", "edition_registry", "generated_at_utc")]
     values$canonical_matches <- euro$source$tables$fixtures
     values
+  }
+  phase14_state_candidate <- function() {
+    if (identical(phase14_state_mode, "accepted")) {
+      return(phase14_validate_competition_state_bundle(
+        phase14_state_root,
+        resolved_release = phase14_release(),
+        selector_path = file.path(project_root, "outputs/releases/approved_release.csv"),
+        trusted_release_root = file.path(project_root, "outputs/releases")
+      ))
+    }
+    do.call(
+      phase14_build_competition_state_candidate,
+      c(
+        list(edition_id = "uefa_nations_league_2026_27", source_bundle_manifest = nl$source$manifest),
+        phase14_state()
+      )
+    )
   }
   list(
     load_bundles = function(...) bundles,
@@ -236,18 +283,18 @@ phase17_production_callbacks <- function(bundles, project_root, now = "2026-08-2
       for (id in phase17_editions()) phase13_validate_accepted_snapshot(file.path(project_root, "data/competition/accepted", id), registry$editions[registry$editions$edition_id == id, , drop = FALSE], registry$source_bundles, registry$source_artifacts, project_root = project_root)
       TRUE
     }, "phase13 snapshot"),
-    phase13_validate_competition_edition_registries = function(...) phase17_provider_gate(phase13_validate_competition_edition_registries(registry$editions, source_bundles = registry$source_bundles, trusted_release_root = file.path(project_root, "outputs/releases"), selector_path = file.path(project_root, "outputs/releases/approved_release.csv"), project_root = project_root), "phase13 registry"),
+    phase13_validate_competition_edition_registries = function(...) phase17_provider_gate(phase13_validate_competition_edition_registries(registry$editions, source_bundles = registry$source_bundles, trusted_release_root = file.path(project_root, "outputs/releases"), selector_path = file.path(project_root, "outputs/releases/approved_release.csv"), resolved_release = phase14_release(), project_root = project_root), "phase13 registry"),
     phase14_state_bundle_shared_preflight = function(...) phase17_provider_gate(do.call(phase14_state_bundle_shared_preflight, c(list(ids = phase17_editions()), phase14_shared())), "phase14 shared preflight"),
-    phase14_build_competition_state_candidate = function(...) phase17_provider_gate(do.call(phase14_build_competition_state_candidate, c(list(edition_id = "uefa_nations_league_2026_27", source_bundle_manifest = nl$source$manifest), phase14_state())), "phase14 state candidate"),
+    phase14_build_competition_state_candidate = function(...) phase17_provider_bounded_gate(phase14_state_candidate(), "phase14 state candidate", phase14_state_timeout_seconds),
     phase14_build_fixture_forecasts = function(...) phase17_provider_gate(do.call(phase14_build_fixture_forecasts, c(phase14_forecast(), list(edition_lifecycle_state = "pre_draw"))), "phase14 forecast boundary"),
     phase14_resolve_approved_release = function(...) phase17_provider_gate(phase14_release(), "phase14 release"),
     phase17_validate_probability_inputs = function(...) phase17_provider_gate({ phase17_validate_probability_inputs(nl); phase17_validate_probability_inputs(euro); TRUE }, "phase17 probability"),
     phase17_validate_competition_freshness = function(...) phase17_provider_gate({ phase17_validate_competition_freshness(nl, cutoff = as.POSIXct(now, tz = "UTC")); phase17_validate_competition_freshness(euro, cutoff = as.POSIXct(now, tz = "UTC")); TRUE }, "phase17 freshness"),
     phase15_validate_nl_outcomes_bundle = function(...) phase17_provider_gate(phase15_validate_nl_outcomes_bundle(context$nl_outcomes), "phase15 outcomes"),
-    phase15_nl_compare_replays = function(...) phase17_provider_gate(phase15_nl_compare_replays(context$nl_outcomes, context$nl_outcomes), "phase15 replay"),
+    phase15_nl_compare_replays = function(...) phase17_provider_gate(phase15_nl_compare_replays(context$nl_outcomes, phase15_nl_read_outcomes_bundle(file.path(project_root, "outputs/competition/uefa_nations_league_2026_27/outcomes"), validate = TRUE), label = "replay"), "phase15 replay"),
     phase16_validate_euro_source_bundle = function(...) phase17_provider_gate(phase16_validate_euro_source_bundle(c(context$euro_source$euro_candidate, list(resources = context$euro_source$tables, source_artifacts = context$euro_source$artifacts, manifest = context$euro_source$manifest, raw_snapshot = context$euro_source$manifest[1L, , drop = FALSE]))), "phase16 source"),
     validate_euro_activation = function(...) phase17_provider_gate(validate_euro_activation(c(context$euro_source$euro_candidate, list(resources = context$euro_source$tables, source_artifacts = context$euro_source$artifacts, manifest = context$euro_source$manifest, raw_snapshot = context$euro_source$manifest[1L, , drop = FALSE]))), "phase16 activation"),
     phase16_validate_euro_outcomes_bundle = function(...) phase17_provider_gate(phase16_validate_euro_outcomes_bundle(context$euro_outcomes), "phase16 outcomes"),
-    phase16_compare_euro_outcomes_replays = function(...) phase17_provider_gate(phase16_compare_euro_outcomes_replays(context$euro_outcomes, context$euro_outcomes), "phase16 replay")
+    phase16_compare_euro_outcomes_replays = function(...) phase17_provider_gate(phase16_compare_euro_outcomes_replays(context$euro_outcomes, phase16_read_euro_outcomes_bundle(output_root = file.path(project_root, "outputs/competition/uefa_euro_2028_qualifying/outcomes"), validate = TRUE)), "phase16 replay")
   )
 }

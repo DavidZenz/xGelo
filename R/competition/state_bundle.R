@@ -240,6 +240,9 @@ phase14_state_bundle_active_input_audit <- function(
   failure_reason <- NA_character_
   if ("elo_diff" %in% active_ids) {
     elo_status <- "available"
+    validated_team_registry <- phase14_forecast_team_registry(team_registry)
+    team_name_lookup <- phase14_forecast_team_name_lookup(validated_team_registry)
+    elo_index <- phase14_state_bundle_elo_index(elo_ratings)
     if (!is.data.frame(elo_ratings) || !nrow(elo_ratings)) {
       elo_status <- "active_required_missing"
       required_status <- "unavailable"
@@ -254,11 +257,9 @@ phase14_state_bundle_active_input_audit <- function(
           if (is.null(cutoff)) return(FALSE)
           home <- phase14_forecast_row_value(canonical_matches, index, "home_team_id", NA_character_)
           away <- phase14_forecast_row_value(canonical_matches, index, "away_team_id", NA_character_)
-          registry <- phase14_forecast_team_registry(team_registry)
-          names <- phase14_forecast_team_name_lookup(registry)
-          if (is.na(names[[home]]) || is.na(names[[away]])) return(FALSE)
-          evidence <- phase14_forecast_elo_evidence(
-            elo_ratings, names[[home]], names[[away]], cutoff,
+          if (is.na(team_name_lookup[[home]]) || is.na(team_name_lookup[[away]])) return(FALSE)
+          evidence <- phase14_state_bundle_elo_evidence(
+            elo_index, team_name_lookup[[home]], team_name_lookup[[away]], cutoff,
             phase14_forecast_row_value(canonical_matches, index, "venue", "home")
           )
           isTRUE(evidence$available)
@@ -287,6 +288,58 @@ phase14_state_bundle_active_input_audit <- function(
     required_active_input_status = required_status,
     failure_reason = failure_reason,
     fan_out = 0L
+  )
+}
+
+phase14_state_bundle_elo_index <- function(elo_ratings) {
+  if (!is.data.frame(elo_ratings)) return(NULL)
+  team_col <- if ("team" %in% names(elo_ratings)) "team" else if ("team_canonical" %in% names(elo_ratings)) "team_canonical" else ""
+  date_col <- if ("date" %in% names(elo_ratings)) "date" else if ("evidence_date" %in% names(elo_ratings)) "evidence_date" else ""
+  if (!nzchar(team_col) || !nzchar(date_col) || !"rating" %in% names(elo_ratings)) return(NULL)
+  evidence_col <- c("evidence_at_utc", "evidence_completed_at_utc", "updated_at_utc", "timestamp_utc")
+  evidence_col <- evidence_col[evidence_col %in% names(elo_ratings)]
+  evidence <- if (length(evidence_col)) {
+    parsed <- as.POSIXct(as.character(elo_ratings[[evidence_col[[1L]]]]), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    missing <- is.na(parsed)
+    if (any(missing)) parsed[missing] <- as.POSIXct(paste(as.Date(elo_ratings[[date_col]][missing]), "00:00:00"), tz = "UTC")
+    parsed
+  } else {
+    as.POSIXct(paste(as.Date(elo_ratings[[date_col]]), "00:00:00"), tz = "UTC")
+  }
+  ratings <- suppressWarnings(as.numeric(elo_ratings$rating))
+  keep <- !is.na(evidence) & is.finite(ratings)
+  if (!any(keep)) return(NULL)
+  rows <- data.frame(
+    team = as.character(elo_ratings[[team_col]][keep]),
+    evidence = as.numeric(evidence[keep]),
+    rating = ratings[keep],
+    stringsAsFactors = FALSE
+  )
+  split_rows <- split(rows[c("evidence", "rating")], rows$team)
+  lapply(split_rows, function(value) value[order(value$evidence, method = "radix"), , drop = FALSE])
+}
+
+phase14_state_bundle_elo_evidence <- function(index, home, away, cutoff_utc, venue, home_advantage = 60) {
+  if (is.null(index)) return(list(value = NA_real_, available = FALSE, latest = as.POSIXct(NA)))
+  cutoff <- tryCatch(phase14_forecast_parse_utc(cutoff_utc, "feature cutoff"), error = function(error) NULL)
+  if (is.null(cutoff)) return(list(value = NA_real_, available = FALSE, latest = as.POSIXct(NA)))
+  latest <- function(team) {
+    rows <- index[[as.character(team)]]
+    if (is.null(rows) || !nrow(rows)) return(NULL)
+    eligible <- which(rows$evidence < as.numeric(cutoff))
+    if (!length(eligible)) return(NULL)
+    rows[eligible[[length(eligible)]], , drop = FALSE]
+  }
+  home_row <- latest(home)
+  away_row <- latest(away)
+  if (is.null(home_row) || is.null(away_row)) return(list(value = NA_real_, available = FALSE, latest = as.POSIXct(NA)))
+  value <- as.numeric(home_row$rating[[1L]]) - as.numeric(away_row$rating[[1L]])
+  if (identical(venue, "home")) value <- value + as.numeric(home_advantage)
+  if (identical(venue, "away")) value <- value - as.numeric(home_advantage)
+  list(
+    value = value,
+    available = is.finite(value),
+    latest = as.POSIXct(max(home_row$evidence[[1L]], away_row$evidence[[1L]]), origin = "1970-01-01", tz = "UTC")
   )
 }
 
