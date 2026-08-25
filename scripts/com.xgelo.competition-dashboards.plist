@@ -9,9 +9,8 @@
   <string>/Users/davidzenz/R/xGelo</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/Rscript</string>
-    <string>--vanilla</string>
-    <string>/Users/davidzenz/R/xGelo/scripts/refresh_competition_dashboards.R</string>
+    <string>/bin/bash</string>
+    <string>/Users/davidzenz/R/xGelo/scripts/auto_update_competition_dashboards.sh</string>
   </array>
   <key>RunAtLoad</key>
   <true/>

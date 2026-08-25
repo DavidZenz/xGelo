@@ -327,12 +327,16 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
   callback_names <- character()
   callbacks <- list(
-    phase13_validate_source_bundle = function(arguments) callback_names <<- c(callback_names, "source"),
-    phase14_resolve_approved_release = function(arguments) callback_names <<- c(callback_names, "release"),
-    phase17_validate_probability_inputs = function(arguments) callback_names <<- c(callback_names, "probability")
+    phase13_validate_source_bundle = function(arguments) { callback_names <<- c(callback_names, "source"); list(valid = TRUE) },
+    phase14_resolve_approved_release = function(arguments) { callback_names <<- c(callback_names, "release"); list(valid = TRUE) },
+    phase17_validate_probability_inputs = function(arguments) { callback_names <<- c(callback_names, "probability"); list(valid = TRUE) }
   )
-  result <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"))
-  result_with_callbacks <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"), callbacks = callbacks)
+  result <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"))
+  result_with_callbacks <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"), callbacks = callbacks)
+  expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git")), "validated bundle provider")
+  expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"),
+                                           callbacks = list(phase13_validate_source_bundle = function(arguments) list(valid = FALSE, failure_reason = "rejected source"))),
+               "rejected source")
   labels <- vapply(result$trace, `[[`, character(1), "label")
   expect_identical(labels, c(
     "phase17_git_preflight", "phase13_source", "phase13_snapshot", "phase13_registry",
@@ -348,7 +352,7 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   expect_true(result_with_callbacks$dry_run)
   expect_length(result$inventory, 10L)
   for (failure in c("source", "rules", "probability", "replay", "browser", "manifest", "hash")) {
-    expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root,
+    expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root,
                                                "--skip-git", "--gate-failure", failure)),
                  paste0("Injected Phase 17 ", failure))
   }
@@ -382,7 +386,7 @@ test_that("launchd|Safari policy|browser smoke|scheduler conflict", {
   old_plist <- api$phase17_validate_plist(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist"))
   expect_true(new_plist$valid && old_plist$valid)
   expect_identical(new_plist$label, "com.xgelo.competition-dashboards")
-  expect_true(all(c("/opt/homebrew/bin/Rscript", "--vanilla", "/Users/davidzenz/R/xGelo/scripts/refresh_competition_dashboards.R") %in% unlist(new_plist$arguments)))
+  expect_true(all(c("/bin/bash", "/Users/davidzenz/R/xGelo/scripts/auto_update_competition_dashboards.sh") %in% unlist(new_plist$arguments)))
   expect_identical(old_plist$label, "com.xgelo.dashboard-update")
   expect_true(grepl("Disabled", paste(readLines(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist")), collapse = " "), fixed = TRUE))
 })
@@ -413,7 +417,8 @@ test_that("browser smoke", {
   bundles <- setNames(lapply(api$phase17_editions(), api$phase17_fixture_bundle), api$phase17_editions())
   materialized <- script$phase17_materialize_routes(bundles, root, "phase17-browser-batch")
   capability <- api$phase17_probe_safari_capability(version_output = "SafariDriver 26.5.2")
-  result <- script$phase17_run_browser_gate(materialized$batch_root, capability = capability)
+  result <- script$phase17_run_browser_gate(materialized$batch_root, capability = capability,
+                                            browser_runner = function(path, width, height) list(valid = TRUE))
   expect_true(result$valid && result$automated_only)
   expect_identical(result$status, "passed")
   expect_identical(result$viewports$desktop, c(1440L, 900L))
@@ -446,6 +451,12 @@ test_that("regression|Git preflight|exact allowlist|push failure|no mutation", {
   expect_true(gate$valid && identical(gate$status, "passed"))
   expect_identical(gate$environment$PHASE17_IN_REGRESSION_GATE, "1")
   expect_identical(gate$commands[[1L]], "scripts/build_euro_qualifying_outcomes.R --replay-check")
+  captured <- list()
+  script$phase17_run_regression_gate(execute = TRUE, runner = function(command, args, ...) {
+    if (!length(captured)) captured <<- list(command = command, args = args)
+    integer()
+  })
+  expect_identical(captured, list(command = "Rscript", args = c("--vanilla", "scripts/build_euro_qualifying_outcomes.R", "--edition-id", "uefa_euro_2028_qualifying", "--replay-check")))
   expect_match(paste(gate$commands, collapse = "\n"), "test_phase17_dashboards")
   expect_true(grepl("PHASE17_IN_REGRESSION_GATE", paste(readLines(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R")), collapse = " "), fixed = TRUE))
 })
@@ -490,7 +501,7 @@ test_that("no mutation", {
   api <- phase17_test_load_contract()
   script <- new.env(parent = globalenv())
   sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
-  result <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"))
+  result <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"))
   expect_true(result$valid && result$dry_run)
   expect_true(all(vapply(result$trace, function(item) identical(item$status, "pass"), logical(1))))
   expect_identical(sort(result$inventory), sort(api$phase17_expected_git_allowlist()[api$phase17_expected_git_allowlist() %in% api$phase17_expected_public_inventory()]))

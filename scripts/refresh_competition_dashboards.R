@@ -39,15 +39,16 @@ phase17_cli_scalar <- function(value, option) {
 
 phase17_parse_refresh_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(dry_run = FALSE, fixture_root = phase17_cli_root, public_root = file.path(phase17_cli_root, "docs/competitions"),
-                  gate_failure = NULL, skip_git = FALSE, skip_push = FALSE,
+                  gate_failure = NULL, skip_git = FALSE, skip_push = FALSE, fixture_mode = FALSE,
                   emit_git_allowlist = FALSE, help = FALSE)
   index <- 1L
   while (index <= length(args)) {
     arg <- as.character(args[[index]])
-    if (arg %in% c("--dry-run", "--skip-git", "--skip-push", "--emit-git-allowlist", "--help", "-h")) {
+    if (arg %in% c("--dry-run", "--skip-git", "--skip-push", "--fixture-mode", "--emit-git-allowlist", "--help", "-h")) {
       if (arg == "--dry-run") options$dry_run <- TRUE
       if (arg == "--skip-git") options$skip_git <- TRUE
       if (arg == "--skip-push") options$skip_push <- TRUE
+      if (arg == "--fixture-mode") options$fixture_mode <- TRUE
       if (arg == "--emit-git-allowlist") options$emit_git_allowlist <- TRUE
       if (arg %in% c("--help", "-h")) options$help <- TRUE
       index <- index + 1L
@@ -73,6 +74,7 @@ phase17_parse_refresh_args <- function(args = commandArgs(trailingOnly = TRUE)) 
   }
   if (isTRUE(options$skip_git) && !isTRUE(options$dry_run)) stop("--skip-git is only valid with --dry-run", call. = FALSE)
   if (isTRUE(options$skip_push) && !isTRUE(options$dry_run)) stop("--skip-push is only valid with --dry-run", call. = FALSE)
+  if (isTRUE(options$fixture_mode) && !isTRUE(options$dry_run)) stop("--fixture-mode is test-only and requires --dry-run", call. = FALSE)
   options
 }
 
@@ -98,7 +100,7 @@ phase17_detect_browser_capability <- function() {
   phase17_probe_safari_capability()
 }
 
-phase17_run_browser_gate <- function(public_root, capability = phase17_detect_browser_capability(), viewports = list(desktop = c(1440L, 900L), mobile = c(390L, 844L)), injector = NULL) {
+phase17_run_browser_gate <- function(public_root, capability = phase17_detect_browser_capability(), viewports = list(desktop = c(1440L, 900L), mobile = c(390L, 844L)), injector = NULL, browser_runner = NULL) {
   if (is.function(injector)) injector()
   if (!isTRUE(capability$automated_only) || !isTRUE(capability$available) ||
       !identical(capability$runner, "safari-webdriver") ||
@@ -111,12 +113,19 @@ phase17_run_browser_gate <- function(public_root, capability = phase17_detect_br
       !identical(as.integer(viewports$mobile), c(390L, 844L))) {
     stop("Phase 17 browser viewport smoke failed", call. = FALSE)
   }
+  if (!is.function(browser_runner)) stop("Phase 17 browser gate unavailable: no WebDriver runner", call. = FALSE)
   routes <- c("nations-league", "euro-qualifying")
   checks <- unlist(lapply(routes, function(route) {
     path <- file.path(public_root, route, "index.html")
-    html <- paste(readLines(path, warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-    c(file.exists(path), grepl("aria-label=", html, fixed = TRUE), grepl("role=\"status\"", html, fixed = TRUE),
-      grepl("id=\"dashboard-filters\"", html, fixed = TRUE))
+    if (!file.exists(path)) stop("Phase 17 browser route is missing", call. = FALSE)
+    vapply(viewports, function(size) {
+      result <- tryCatch(browser_runner(path, as.integer(size[[1L]]), as.integer(size[[2L]])),
+                         error = function(error) stop("Phase 17 browser DOM/ARIA smoke failed: ", conditionMessage(error), call. = FALSE))
+      if (!is.list(result) || length(result$valid) != 1L || !isTRUE(result$valid)) {
+        stop("Phase 17 browser DOM/ARIA smoke failed", call. = FALSE)
+      }
+      TRUE
+    }, logical(1))
   }))
   if (!all(checks)) stop("Phase 17 browser DOM/ARIA smoke failed", call. = FALSE)
   list(valid = TRUE, runner = capability$runner, driver = capability$driver,
@@ -124,7 +133,7 @@ phase17_run_browser_gate <- function(public_root, capability = phase17_detect_br
        routes = routes, viewports = viewports)
 }
 
-phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute = FALSE, env = Sys.getenv(), injector = NULL) {
+phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute = FALSE, env = Sys.getenv(), injector = NULL, runner = NULL) {
   if (is.function(injector)) injector()
   commands <- c(
     "scripts/build_euro_qualifying_outcomes.R --replay-check",
@@ -139,10 +148,12 @@ phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute
     "testthat::test_file(\"tests/testthat/test_phase17_dashboards.R\", desc = \"phase17 regression\")"
   )
   if (isTRUE(execute)) {
+    runner <- runner %||% function(command, args, ...) system2(command, args, ...)
+    child_args <- c("--vanilla", "scripts/build_euro_qualifying_outcomes.R", "--edition-id", "uefa_euro_2028_qualifying", "--replay-check")
     for (i in seq_along(commands)) {
-      status <- if (i == 1L) system2("Rscript", c("--vanilla", commands[[i]]), stdout = TRUE, stderr = TRUE) else
-        system2("Rscript", c("--vanilla", "-e", commands[[i]]), stdout = TRUE, stderr = TRUE,
-                env = if (i == length(commands)) c(env, PHASE17_IN_REGRESSION_GATE = "1") else env)
+      args <- if (i == 1L) child_args else c("--vanilla", "-e", commands[[i]])
+      status <- runner("Rscript", args, stdout = TRUE, stderr = TRUE,
+                       env = if (i == length(commands)) c(env, PHASE17_IN_REGRESSION_GATE = "1") else env)
       if (!identical(attr(status, "status") %||% 0L, 0L)) stop("Phase 17 regression gate failed: ", commands[[i]], call. = FALSE)
     }
   }
@@ -247,7 +258,7 @@ phase17_callback_aliases <- function(label) {
     phase17_freshness = "phase17_validate_competition_freshness",
     phase15_replay = "phase15_nl_compare_replays",
     phase16_replay = "phase16_compare_euro_outcomes_replays",
-    phase16_euro_replay_child = "scripts/build_euro_qualifying_outcomes.R --replay-check",
+    phase16_euro_replay_child = "phase16_euro_replay_child",
     phase17_run_browser_gate = "phase17_run_browser_gate",
     phase17_run_regression_gate = "phase17_run_regression_gate",
     envelope = "phase17_validate_batch_envelope",
@@ -255,6 +266,22 @@ phase17_callback_aliases <- function(label) {
     read_back = "phase17_validate_batch_envelope"
   )
   aliases[[label]] %||% label
+}
+
+phase17_load_production_bundles <- function(project_root, provider = NULL) {
+  if (!is.function(provider)) {
+    stop("Phase 17 production refresh requires a validated bundle provider; fixture mode is unavailable", call. = FALSE)
+  }
+  bundles <- provider(project_root)
+  if (!is.list(bundles) || !identical(sort(names(bundles)), sort(phase17_editions()))) {
+    stop("Phase 17 bundle provider did not return both registered editions", call. = FALSE)
+  }
+  for (edition in phase17_editions()) {
+    if (!is.list(bundles[[edition]]) || grepl("fixture", paste(unlist(bundles[[edition]], use.names = FALSE), collapse = " "), ignore.case = TRUE)) {
+      stop("Phase 17 provider returned untrusted or fixture data", call. = FALSE)
+    }
+  }
+  bundles
 }
 
 phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callbacks = list(), now = "2026-08-25T00:00:00Z") {
@@ -266,15 +293,20 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   }
   root <- normalizePath(options$fixture_root, winslash = "/", mustWork = TRUE)
   public_parent <- normalizePath(dirname(options$public_root), winslash = "/", mustWork = TRUE)
-  batch_id <- phase17_batch_identity(bundles = lapply(phase17_editions(), phase17_fixture_bundle))
   trace <- list()
   record <- function(label, arguments = list(), contract = "") {
-    trace[[length(trace) + 1L]] <<- list(label = label, arguments = arguments, contract = contract, status = "pass")
-    callback <- callbacks[[label]]
-    if (is.function(callback)) callback(arguments)
     alias <- phase17_callback_aliases(label)
-    callback <- callbacks[[alias]]
-    if (is.function(callback) && !identical(alias, label)) callback(arguments)
+    names <- unique(c(label, alias))
+    registered <- names[vapply(names, function(name) is.function(callbacks[[name]]), logical(1))]
+    if (length(registered) > 1L) stop("Phase 17 gate has multiple callback implementations: ", label, call. = FALSE)
+    if (length(registered)) {
+      result <- callbacks[[registered[[1L]]]](arguments)
+      if (!is.list(result) || length(result$valid) != 1L || !is.logical(result$valid) || is.na(result$valid)) {
+        stop("Phase 17 gate callback must return list(valid = TRUE/FALSE)", call. = FALSE)
+      }
+      if (!isTRUE(result$valid)) stop("Phase 17 gate failed: ", result$failure_reason %||% label, call. = FALSE)
+    }
+    trace[[length(trace) + 1L]] <<- list(label = label, arguments = arguments, contract = contract, status = "pass")
     invisible(TRUE)
   }
   inject <- function(name) {
@@ -285,6 +317,12 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
     phase17_git_preflight(root, fetch = TRUE)
   }
   record("phase17_git_preflight", list(project_root = root, required = !isTRUE(options$dry_run)), "clean/upstream-aligned preflight")
+  if (isTRUE(options$fixture_mode)) {
+    bundles <- setNames(lapply(phase17_editions(), phase17_fixture_bundle), phase17_editions())
+  } else {
+    bundles <- phase17_load_production_bundles(root, callbacks$load_bundles)
+  }
+  batch_id <- phase17_batch_identity(bundles = bundles)
   inject("source"); record("phase13_source", list(bundle = "both", artifacts = "registered"), "phase13_validate_source_bundle(bundle, artifacts)")
   record("phase13_snapshot", list(accepted_dir = "both", edition_row = "one-row", source_bundles = "registered", source_artifacts = "registered", project_root = root, identity_registry = NULL, raw_root = NULL), "phase13_validate_accepted_snapshot(...)")
   inject("rules"); record("phase13_registry", list(registries = "both", source_bundles = "registered", approved_model_release_ids = "phase17", trusted_release_root = root, selector_path = root, resolved_release = NULL, require_complete = NULL, project_root = root), "phase13_validate_competition_edition_registries(...)")
@@ -304,12 +342,13 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   record("phase16_replay", list(first = "first", second = "second"), "phase16_compare_euro_outcomes_replays(first, second)")
   record("phase16_euro_replay_child", list(command = "scripts/build_euro_qualifying_outcomes.R --replay-check"), "child process")
   inject("browser")
-  bundles <- list(uefa_nations_league_2026_27 = phase17_fixture_bundle("uefa_nations_league_2026_27"), uefa_euro_2028_qualifying = phase17_fixture_bundle("uefa_euro_2028_qualifying"))
   stage <- tempfile("phase17-candidate-", tmpdir = public_parent); dir.create(stage, recursive = TRUE)
   on.exit(unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
   materialized <- phase17_materialize_routes(bundles, stage, batch_id)
   phase17_write_batch_envelope(materialized$batch_root, materialized$payloads, materialized$routes, batch_id, now)
-  browser <- phase17_run_browser_gate(materialized$batch_root)
+  browser_runner <- callbacks$browser_runner
+  if (isTRUE(options$fixture_mode) && !is.function(browser_runner)) browser_runner <- function(path, width, height) list(valid = TRUE)
+  browser <- phase17_run_browser_gate(materialized$batch_root, browser_runner = browser_runner)
   record("phase17_run_browser_gate", list(public_root = materialized$batch_root, viewports = c("desktop", "mobile"), runner = browser$runner, version = browser$version, status = browser$status), "phase17_run_browser_gate")
   regression <- phase17_run_regression_gate(root, execute = !isTRUE(options$dry_run))
   record("phase17_run_regression_gate", list(environment = "PHASE17_IN_REGRESSION_GATE=1", status = regression$status), "phase17_run_regression_gate")
