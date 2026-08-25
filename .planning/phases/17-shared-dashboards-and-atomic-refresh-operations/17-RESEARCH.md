@@ -490,27 +490,15 @@ The planner should lock these fields before implementation:
 | A4 | Public dashboard content requires no authentication/session management. | Security Domain | Medium; adding an operator UI or protected admin route would change ASVS scope. |
 | A5 | The current installed R package versions are the versions used by the launchd environment. | Standard Stack | Medium; launchd may resolve a different R/library path unless the plist pins it. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What exact static public directory layout should Phase 17 promote?**
-   - What we know: current World Cup uses `docs/wc2026/index.html`; competition bundles live under `outputs/competition/...`. [VERIFIED: repository]
-   - What's unclear: whether Pages expects `docs/nations-league/`, `docs/euro-qualifying/`, or a generated site root with a selector.
-   - Recommendation: lock route paths and whether the stable pointer is a directory or batch manifest before the renderer/publication plan.
+1. **Static public directory layout:** Resolved to the fixed Pages routes `docs/competitions/nations-league/index.html` and `docs/competitions/euro-qualifying/index.html`, with sibling `payload.json`, `route-manifest.json`, and `current.json` markers, plus `docs/competitions/phase17-batch-manifest.json` and `docs/competitions/current.json`. The complete ten-file public inventory is shared by the payload, renderer, transaction, tests, and Git publication gate. [RESOLVED: Phase 17 planning contract]
 
-2. **Is browser automation mandatory in the production refresh?**
-   - What we know: OPS-03 names browser smoke; no Playwright/Chromium was found, while Safari WebDriver is a possible macOS-native route. [VERIFIED: local probes; [CITED: Apple Safari WebDriver](https://developer.apple.com/documentation/webkit/testing-with-webdriver-in-safari)]
-   - What's unclear: whether the machine is permitted to enable Safari WebDriver or install Playwright/browser binaries.
-   - Recommendation: make missing browser capability a named fail-closed condition unless the user explicitly accepts a manual release gate.
+2. **Browser automation policy:** Resolved to automated-only Safari WebDriver. The host currently exposes `/System/Cryptexes/App/usr/bin/safaridriver` from Safari 26.5.2. The refresh records runner/version/capability and fails closed without public promotion when the driver is unavailable, disabled, version-mismatched, or any DOM/ARIA or desktop/mobile smoke check fails. No manual approval or silent dependency installation substitutes for automation. [RESOLVED: local capability check and Phase 17 planning contract]
 
-3. **Should the public payload include all fixture/form rows or only dashboard-ready compact projections?**
-   - What we know: requirements require fixtures, results, forecasts, and form; out-of-scope rules prohibit large raw/score-distribution artifacts in Git. [VERIFIED: requirements]
-   - What's unclear: the exact compact column subset and total artifact size budget.
-   - Recommendation: define a field allowlist and byte budget in the batch manifest; never serialize raw RDS or raw source responses into the public bundle.
+3. **Public payload scope and size:** Resolved to compact dashboard-ready projections only: typed section rows, metadata, warnings, lineage, and credits. Raw source responses, RDS files, score distributions, and refresh history remain excluded. The shared contract names `phase17_max_public_file_bytes = 5L * 1024L * 1024L` and `phase17_max_batch_bytes = 20L * 1024L * 1024L`; equal-limit and over-limit cases are mandatory tests. [RESOLVED: REQUIREMENTS.md and Phase 17 planning contract]
 
-4. **How should hourly acquisition interact with a blocked edition?**
-   - What we know: Phase 13/16 retain incumbents and expose blocked/revision warnings rather than silently replacing valid data. [VERIFIED: prior phase summaries]
-   - What's unclear: whether a blocked candidate for one edition should leave the entire prior cross-edition batch visible or publish a new batch containing incumbent content plus a blocked warning.
-   - Recommendation: preserve the last coherent public batch by default; record the blocked candidate in refresh history and publish only if the cross-edition batch policy explicitly allows incumbent-plus-warning composition.
+4. **Blocked-edition behavior:** Resolved to preserve the last coherent public batch and publish no candidate when either edition fails a required gate. The blocked candidate and reason are recorded outside the public candidate/transaction scope; incumbent bytes remain visible and no incumbent-plus-warning mixed batch is promoted. [RESOLVED: Phase 13/16 incumbent-safe rollback contract and Phase 17 planning contract]
 
 ## Sources
 

@@ -230,7 +230,25 @@ Post-execution remediation is recorded in `16-06-SUMMARY.md` and included in the
 4. An hourly macOS `launchd` refresh stages both competitions together, runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression checks, and atomically promotes only a fully valid batch.
 5. Auto-commit and push happen only from a clean, upstream-aligned repository and include only compact code, manifests, and dashboard outputs; dirty, diverged, partial, oversized, or failed batches stay unpublished.
 
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+
+**Wave 0**
+
+- [ ] 17-01-PLAN.md — Build the deterministic Wave 0 harness, neutral payload contract, and shared renderer tracer
+
+**Wave 1** *(blocked on Wave 0 completion)*
+
+- [ ] 17-02-PLAN.md — Complete the shared responsive dashboard renderer, filters, statuses, warnings, and credits
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 17-03-PLAN.md — Implement the exact cross-edition batch envelope, ordered gates, route artifacts, and rollback-safe promotion
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 17-04-PLAN.md — Install the automated Safari/launchd policy and exact Git publication wrapper
+
 **UI hint**: yes
 
 ## Progress
@@ -241,7 +259,7 @@ Post-execution remediation is recorded in `16-06-SUMMARY.md` and included in the
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
 | 16. EURO Qualifying Activation and Play-off Rules | 6/6 | Complete    | 2026-08-24 |
-| 17. Shared Dashboards and Atomic Refresh Operations | 0/TBD | Not started | - |
+| 17. Shared Dashboards and Atomic Refresh Operations | 0/4 | Not started | - |
 
 ## Requirement Coverage
 
@@ -271,4 +289,4 @@ Phases 8 through 12 completed the benchmark, challenger, calibration, promotion,
 and release work that v3.0 reuses as its approved forecast engine.
 
 ---
-*Last updated: 2026-08-24 after Phase 16 completion*
+*Last updated: 2026-08-25 after Phase 17 planning*

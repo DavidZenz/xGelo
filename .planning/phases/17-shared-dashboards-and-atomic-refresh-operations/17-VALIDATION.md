@@ -32,10 +32,10 @@ created: 2026-08-25
 
 | Plan | Wave | Requirements | Test Type | Automated Verification |
 |------|------|--------------|-----------|------------------------|
-| 17-01 | 1 | SIM-03, DASH-01, DASH-02 | contract/integration | Payload schema, edition isolation, truthful pre-draw state, lineage fields, and deterministic replay assertions |
-| 17-02 | 2 | DASH-01, DASH-02, DASH-03, DASH-04 | renderer/browser | Shared-renderer identity, required sections, filter dimensions, responsive DOM/ARIA checks, warning and collapsed-credit rendering |
-| 17-03 | 3 | OPS-02, OPS-03, OPS-05 | integration/failure injection | Candidate envelope staging, ordered gates, exact inventories/hashes, promotion, rollback, and incumbent-byte preservation |
-| 17-04 | 4 | OPS-01, OPS-04, OPS-05 | shell/operational | `plutil -lint`, bounded launchd entrypoint, clean/upstream-aligned preflight, compact allowlist, and no mutation on failure |
+| 17-01 | 0 | SIM-03, DASH-01, DASH-02 | contract/integration | Payload schema, edition isolation, truthful pre-draw state, lineage fields, and deterministic replay assertions |
+| 17-02 | 1 | DASH-01, DASH-02, DASH-03, DASH-04 | renderer/browser | Shared-renderer identity, required sections, filter dimensions, responsive DOM/ARIA checks, warning and collapsed-credit rendering |
+| 17-03 | 2 | OPS-02, OPS-03, OPS-05 | integration/failure injection | Candidate envelope staging, ordered gates, exact inventories/hashes, promotion, rollback, and incumbent-byte preservation |
+| 17-04 | 3 | OPS-01, OPS-04, OPS-05 | shell/operational | `plutil -lint`, bounded launchd entrypoint, clean/upstream-aligned preflight, compact allowlist, and no mutation on failure |
 
 ## Requirement Coverage
 
@@ -44,7 +44,7 @@ created: 2026-08-25
 | SIM-03 | Both edition payloads expose seed, ruleset, source, model, projection, and replay lineage. | integration/replay | Phase 17 test file plus fresh `Rscript` child replay | No - Wave 0 |
 | DASH-01 | Nations League and EURO entry points use one schema and renderer. | unit/integration | Shared renderer and schema assertions | No - Wave 0 |
 | DASH-02 | Structure, standings, fixtures, results, forecasts, form, and projected outcomes are present or truthfully unavailable. | contract | Payload section assertions | No - Wave 0 |
-| DASH-03 | Section, league/group, team, matchday, and fixture-status filters work at responsive viewports. | browser smoke | Safari WebDriver/Playwright gate or approved fallback | No - Wave 0 |
+| DASH-03 | Section, league/group, team, matchday, and fixture-status filters work at responsive viewports. | browser smoke | Safari WebDriver at `/System/Cryptexes/App/usr/bin/safaridriver`, requiring Safari `26.5.2` | No - Wave 0 |
 | DASH-04 | Refresh, confidence, model, warnings, and collapsed credits render without operational detail dominating. | DOM/ARIA and payload | Browser smoke plus structural payload assertions | No - Wave 0 |
 | OPS-01 | launchd invokes one bounded hourly batch with explicit paths and logs. | shell/integration | `plutil -lint` plus bounded dry run | No - Wave 0 |
 | OPS-02 | Both candidate dashboards stage and promote as one coherent batch. | integration/failure injection | Atomic batch test with interrupted promotion | No - Wave 0 |
@@ -58,14 +58,14 @@ created: 2026-08-25
 - [ ] Neutral payload schema validator and exact expected section/filter dimensions.
 - [ ] Candidate batch fixture with incumbent/candidate trees and byte-snapshot helper.
 - [ ] Failure injectors for source, rules, probability, freshness, replay, browser, manifest/hash, promotion, read-back, and Git preflight gates.
-- [ ] Browser smoke harness or an explicit Safari WebDriver provisioning decision; do not silently install Playwright or browser binaries.
+- [ ] Safari WebDriver smoke harness at `/System/Cryptexes/App/usr/bin/safaridriver`, requiring Safari `26.5.2`; unavailable or mismatched capability fails closed and no browser dependency is installed.
 - [ ] Plist lint/status helper and bounded `--dry-run` refresh command.
 
 ## Manual-Only Verifications
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Public route layout and visual hierarchy on a real desktop and mobile browser | DASH-03, DASH-04 | No browser automation is currently installed; environment capability must be decided before publication is accepted. | Open both routes, exercise every filter, verify responsive layout, inspect warnings/credits, and record browser/version. |
+| Public route layout and visual hierarchy on a real desktop and mobile browser | DASH-03, DASH-04 | The automated Safari gate is the publication acceptance authority; optional human review is non-gating. | Open both routes after an automated Safari pass, exercise every filter, verify responsive layout, inspect warnings/credits, and record Safari version. |
 | launchd installation and hourly scheduling under the user's macOS account | OPS-01 | `launchctl` state and permissions are host-specific. | Lint the plist, install in the user LaunchAgents domain, trigger a bounded run, inspect stdout/stderr and exit status, then unload it. |
 
 ## Validation Sign-Off
