@@ -310,7 +310,14 @@ test_that("atomic batch|inventory|hash|size|rollback|idempotency", {
 test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   script <- new.env(parent = globalenv())
   sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  callback_names <- character()
+  callbacks <- list(
+    phase13_validate_source_bundle = function(arguments) callback_names <<- c(callback_names, "source"),
+    phase14_resolve_approved_release = function(arguments) callback_names <<- c(callback_names, "release"),
+    phase17_validate_probability_inputs = function(arguments) callback_names <<- c(callback_names, "probability")
+  )
   result <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"))
+  result_with_callbacks <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"), callbacks = callbacks)
   labels <- vapply(result$trace, `[[`, character(1), "label")
   expect_identical(labels, c(
     "phase17_git_preflight", "phase13_source", "phase13_snapshot", "phase13_registry",
@@ -322,6 +329,8 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
     "phase17_run_regression_gate", "envelope"
   ))
   expect_true(result$dry_run)
+  expect_true(all(c("source", "release", "probability") %in% callback_names))
+  expect_true(result_with_callbacks$dry_run)
   expect_length(result$inventory, 10L)
   for (failure in c("source", "rules", "probability", "replay", "browser", "manifest", "hash")) {
     expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root,

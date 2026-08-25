@@ -162,6 +162,36 @@ phase17_write_batch_envelope <- function(stage_root, payloads, routes, batch_id,
   invisible(manifest)
 }
 
+phase17_callback_aliases <- function(label) {
+  aliases <- list(
+    phase17_git_preflight = "phase17_git_preflight",
+    phase13_source = "phase13_validate_source_bundle",
+    phase13_snapshot = "phase13_validate_accepted_snapshot",
+    phase13_registry = "phase13_validate_competition_edition_registries",
+    phase14_shared_preflight = "phase14_state_bundle_shared_preflight",
+    phase14_state_candidate = "phase14_build_competition_state_candidate",
+    phase14_fixture_forecasts = "phase14_build_fixture_forecasts",
+    phase12_approved_selector = "phase14_resolve_approved_release",
+    phase15_nl_builder = "phase15_build_nl_outcomes_candidate",
+    phase15_nl_validator = "phase15_validate_nl_outcomes_bundle",
+    phase16_euro_source = "phase16_validate_euro_source_bundle",
+    phase16_euro_activation = "validate_euro_activation",
+    phase16_euro_builder = "phase16_build_euro_outcomes_candidate",
+    phase16_euro_validator = "phase16_validate_euro_outcomes_bundle",
+    phase17_probability = "phase17_validate_probability_inputs",
+    phase17_freshness = "phase17_validate_competition_freshness",
+    phase15_replay = "phase15_nl_compare_replays",
+    phase16_replay = "phase16_compare_euro_outcomes_replays",
+    phase16_euro_replay_child = "scripts/build_euro_qualifying_outcomes.R --replay-check",
+    phase17_run_browser_gate = "phase17_run_browser_gate",
+    phase17_run_regression_gate = "phase17_run_regression_gate",
+    envelope = "phase17_validate_batch_envelope",
+    promotion = "phase17_promote_batch",
+    read_back = "phase17_validate_batch_envelope"
+  )
+  aliases[[label]] %||% label
+}
+
 phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callbacks = list(), now = "2026-08-25T00:00:00Z") {
   options <- phase17_parse_refresh_args(args)
   if (isTRUE(options$help)) return(invisible(options))
@@ -173,6 +203,9 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
     trace[[length(trace) + 1L]] <<- list(label = label, arguments = arguments, contract = contract, status = "pass")
     callback <- callbacks[[label]]
     if (is.function(callback)) callback(arguments)
+    alias <- phase17_callback_aliases(label)
+    callback <- callbacks[[alias]]
+    if (is.function(callback) && !identical(alias, label)) callback(arguments)
     invisible(TRUE)
   }
   inject <- function(name) {
