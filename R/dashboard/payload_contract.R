@@ -338,3 +338,88 @@ phase17_load_fixture_bundle <- function(root, edition_id) {
   fixture$fixture_root <- root
   fixture
 }
+
+phase17_bundle_scalar <- function(bundle, field, default = "", allow_empty = TRUE) {
+  value <- bundle[[field]]
+  if (is.null(value) || !length(value) || is.na(value[[1L]])) return(default)
+  as.character(value[[1L]])
+}
+
+phase17_bundle_rows <- function(bundle, name) {
+  value <- bundle$artifacts[[name]]
+  if (is.null(value)) return(list())
+  if (is.data.frame(value)) {
+    if (!nrow(value)) return(list())
+    return(unname(lapply(seq_len(nrow(value)), function(i) as.list(value[i, , drop = FALSE]))))
+  }
+  if (is.list(value)) return(value)
+  stop("Phase 17 artifact rows must be a data frame or list: ", name, call. = FALSE)
+}
+
+phase17_normalize_metadata <- function(bundle, batch_id = "phase17-fixture-batch-v1") {
+  required <- c("edition_id", "source_bundle_id", "source_bundle_sha256", "model_release_id",
+                "ruleset_version", "ruleset_sha256", "simulation_seed", "simulation_count",
+                "projection_run_id")
+  missing <- required[vapply(required, function(field) is.null(bundle[[field]]) || !length(bundle[[field]]), logical(1))]
+  if (length(missing)) stop("Phase 17 accepted bundle is missing lineage: ", paste(missing, collapse = ", "), call. = FALSE)
+  lifecycle <- phase17_bundle_scalar(bundle, "lifecycle_state")
+  forecast <- phase17_bundle_scalar(bundle, "forecast_status", lifecycle)
+  if (!lifecycle %in% phase17_lifecycle_states()) stop("Phase 17 lifecycle state is unsupported", call. = FALSE)
+  if (!grepl("^[0-9a-fA-F]{64}$", phase17_bundle_scalar(bundle, "source_bundle_sha256"))) stop("Phase 17 source hash is malformed", call. = FALSE)
+  if (!grepl("^[0-9a-fA-F]{64}$", phase17_bundle_scalar(bundle, "ruleset_sha256"))) stop("Phase 17 ruleset hash is malformed", call. = FALSE)
+  list(
+    batch_id = phase17_scalar(batch_id, "batch_id"),
+    edition_id = phase17_scalar(bundle$edition_id, "edition_id"),
+    lifecycle_state = lifecycle,
+    forecast_status = forecast,
+    generated_at_utc = phase17_bundle_scalar(bundle, "generated_at_utc", "2026-08-25T00:00:00Z"),
+    last_refresh_at_utc = phase17_bundle_scalar(bundle, "source_retrieved_at_utc", "2026-08-25T00:00:00Z"),
+    source_confidence = phase17_bundle_scalar(bundle, "source_confidence", "unknown"),
+    source_bundle_id = phase17_bundle_scalar(bundle, "source_bundle_id"),
+    source_bundle_sha256 = phase17_bundle_scalar(bundle, "source_bundle_sha256"),
+    model_release_id = phase17_bundle_scalar(bundle, "model_release_id"),
+    release_manifest_sha256 = phase17_bundle_scalar(bundle, "release_manifest_sha256", ""),
+    ruleset_version = phase17_bundle_scalar(bundle, "ruleset_version"),
+    ruleset_sha256 = phase17_bundle_scalar(bundle, "ruleset_sha256"),
+    simulation_seed = as.integer(bundle$simulation_seed[[1L]]),
+    simulation_count = as.integer(bundle$simulation_count[[1L]]),
+    projection_run_id = phase17_bundle_scalar(bundle, "projection_run_id"),
+    warnings = as.character(bundle$warnings %||% character()),
+    showing_last_accepted_snapshot = isTRUE(bundle$showing_last_accepted_snapshot %||% FALSE)
+  )
+}
+
+phase17_status_for_section <- function(rows, lifecycle, reason = NULL) {
+  if (length(rows)) return(list(status = "available", reason = ""))
+  if (identical(lifecycle, "pre_draw")) return(list(status = "pre_draw", reason = reason %||% "Awaiting the official draw and schedule."))
+  list(status = "unavailable", reason = reason %||% "No accepted data for this section.")
+}
+
+phase17_neutral_payload <- function(bundle, section_labels, batch_id = "phase17-fixture-batch-v1") {
+  if (!is.list(bundle) || !phase17_bundle_scalar(bundle, "edition_id") %in% phase17_editions()) {
+    stop("Phase 17 payload adapter requires one registered accepted edition bundle", call. = FALSE)
+  }
+  metadata <- phase17_normalize_metadata(bundle, batch_id)
+  artifact_names <- c("structure", "standings", "fixtures", "results", "form", "forecasts", "projected_outcomes")
+  labels <- c("Structure", "Standings", "Fixtures", "Results", "Form", "Match forecasts", "Projected outcomes")
+  sections <- list()
+  sections$overview <- list(id = "overview", label = "Overview", status = "available", reason = "",
+                            rows = list(), filter_dimensions = c("section"))
+  for (i in seq_along(artifact_names)) {
+    rows <- phase17_bundle_rows(bundle, artifact_names[[i]])
+    warning_reason <- if (length(metadata$warnings)) metadata$warnings[[1L]] else NULL
+    state <- phase17_status_for_section(rows, metadata$lifecycle_state, warning_reason)
+    section_id <- phase17_section_ids()[[i + 1L]]
+    sections[[section_id]] <- list(
+      id = section_id, label = labels[[i]], status = state$status, reason = state$reason,
+      rows = rows, filter_dimensions = c("section", "league_or_group", "team", "matchday", "fixture_status")
+    )
+  }
+  credits <- bundle$credits %||% list(source_name = "UEFA", source_url = "https://www.uefa.com/",
+                                      license = "Official competition source")
+  payload <- list(schema_version = phase17_dashboard_schema_version,
+                  edition_id = metadata$edition_id, metadata = metadata,
+                  sections = sections, credits = credits)
+  phase17_validate_payload(payload)
+  payload
+}

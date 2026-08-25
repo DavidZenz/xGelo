@@ -59,7 +59,7 @@ test_that("deterministic accepted fixtures are root-aware and EURO stays pre_dra
   expect_equal(nrow(euro$artifacts$fixtures), 0L)
   expect_equal(nrow(euro$artifacts$projected_outcomes), 0L)
   expect_identical(api$phase17_fixture_bundle("uefa_euro_2028_qualifying"), euro[names(euro) != "fixture_root"])
-  expect_error(api$phase17_load_fixture_bundle(root, "forged-edition"), "unknown")
+  expect_error(api$phase17_load_fixture_bundle(root, "forged-edition"), "Unknown")
   expect_error(api$phase17_resolve_path(root, "../escape"), "traversal")
 })
 
@@ -68,7 +68,8 @@ test_that("canonical bytes and raw snapshots are stable and preserve incumbent i
   first <- api$phase17_canonical_bytes(list(b = 2, a = "text"))
   second <- api$phase17_canonical_bytes(list(b = 2, a = "text"))
   expect_identical(first, second)
-  expect_length(api$phase17_sha256_raw(first), 64L)
+  expect_length(api$phase17_sha256_raw(first), 1L)
+  expect_equal(nchar(api$phase17_sha256_raw(first)), 64L)
   root <- tempfile("phase17-snapshot-")
   dir.create(root, recursive = TRUE)
   on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
@@ -88,16 +89,16 @@ test_that("5 MiB and 20 MiB limits accept equality and reject excess", {
   root <- tempfile("phase17-limits-")
   dir.create(root, recursive = TRUE)
   on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
-  exact <- api$phase17_test_write_bytes(file.path(root, "exact.bin"), raw(api$phase17_max_public_file_bytes))
+  exact <- phase17_test_write_bytes(file.path(root, "exact.bin"), raw(api$phase17_max_public_file_bytes))
   expect_silent(api$phase17_validate_byte_limits(exact))
-  over_file <- api$phase17_test_write_bytes(file.path(root, "over.bin"), raw(api$phase17_max_public_file_bytes + 1L))
+  over_file <- phase17_test_write_bytes(file.path(root, "over.bin"), raw(api$phase17_max_public_file_bytes + 1L))
   expect_error(api$phase17_validate_byte_limits(over_file), "file exceeds")
-  batch <- vapply(seq_len(4L), function(i) api$phase17_test_write_bytes(
+  batch <- vapply(seq_len(4L), function(i) phase17_test_write_bytes(
     file.path(root, paste0("batch-", i, ".bin")), raw(api$phase17_max_public_file_bytes)
   ), character(1))
   expect_equal(api$phase17_validate_byte_limits(batch, max_file_bytes = api$phase17_max_batch_bytes)$total_bytes,
                api$phase17_max_batch_bytes)
-  fifth <- api$phase17_test_write_bytes(file.path(root, "batch-over.bin"), raw(1L))
+  fifth <- phase17_test_write_bytes(file.path(root, "batch-over.bin"), raw(1L))
   expect_error(api$phase17_validate_byte_limits(c(batch, fifth), max_file_bytes = api$phase17_max_batch_bytes), "batch exceeds")
 })
 
@@ -149,7 +150,40 @@ test_that("the eight UI state categories and contract prohibitions are named", {
   expect_length(api$phase17_section_ids(), 8L)
   expect_true(all(c("pre_draw", "unavailable", "unresolved", "revision_blocked") %in%
                     api$phase17_lifecycle_states()))
-  expect_true(all(c("raw source", "score distribution", "refresh history", "invented") %in%
-                    tolower(paste(c("No raw source publication", "No score distribution publication",
-                                    "No refresh history publication", "No invented probabilities"), collapse = " "))))
+  prohibition_text <- tolower(paste(c("No raw source publication", "No score distribution publication",
+                                      "No refresh history publication", "No invented probabilities"), collapse = " "))
+  expect_true(all(vapply(c("raw source", "score distribution", "refresh history", "invented"),
+                         grepl, logical(1), x = prohibition_text, fixed = TRUE)))
+})
+
+test_that("phase17_tracer", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_euro.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/publication.R"), api)
+  nl <- api$phase17_fixture_bundle("uefa_nations_league_2026_27")
+  euro <- api$phase17_fixture_bundle("uefa_euro_2028_qualifying")
+  nl_payload <- api$phase17_payload_nations_league(nl)
+  euro_payload <- api$phase17_payload_euro(euro)
+  expect_identical(names(nl_payload$sections), api$phase17_section_ids())
+  expect_identical(names(euro_payload$sections), api$phase17_section_ids())
+  expect_identical(api$phase17_payload_nations_league(nl), nl_payload)
+  expect_identical(euro_payload$metadata$lifecycle_state, "pre_draw")
+  expect_true(all(vapply(euro_payload$sections[names(euro_payload$sections) != "overview"],
+                         function(section) section$status == "pre_draw", logical(1))))
+  nl_payload$sections$overview$rows <- list(list(name = "<script>alert('x')</script>"))
+  rendered <- api$render_phase17_dashboard(nl_payload)
+  expect_true(grepl("\\u003cscript\\u003e", rendered, fixed = TRUE))
+  expect_false(grepl("<script>alert", rendered, fixed = TRUE))
+  expect_true(all(vapply(c("Overview", "Structure", "Standings", "Fixtures", "Results", "Form",
+                           "Match forecasts", "Projected outcomes"),
+                    grepl, logical(1), x = rendered, fixed = TRUE)))
+  root <- tempfile("phase17-route-")
+  dir.create(root, recursive = TRUE)
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+  route <- api$phase17_render_route(nl_payload, root)
+  expect_length(route$files, 4L)
+  api$phase17_validate_published_route(nl_payload, file.path(root, "docs/competitions/nations-league"))
+  expect_identical(names(api$phase17_public_route_targets(root)), api$phase17_expected_public_inventory()[1:8])
 })
