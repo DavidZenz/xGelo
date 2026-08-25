@@ -17,7 +17,7 @@ simulations, and fail-closed hourly publication.
 - [x] **Phase 14: Shared Competition State and Forecast Layer** - Build the shared standings, status, form, and point-in-time forecast layer that both competitions consume. (completed 2026-08-21)
 - [x] **Phase 15: Nations League Rules and Outcomes** - Deliver the full 2026/27 Nations League state, forecasts, and projection logic. (completed 2026-08-22)
 - [x] **Phase 16: EURO Qualifying Activation and Play-off Rules** - Deliver truthful EURO 2028 qualifying pre-draw behavior and official post-draw qualification logic. (completed 2026-08-24)
-- [ ] **Phase 17: Shared Dashboards and Atomic Refresh Operations** - Publish both dashboards from one renderer and harden the hourly batch refresh, validation, and release flow.
+- [x] **Phase 17: Shared Dashboards and Atomic Refresh Operations** - Publish both dashboards from one renderer and harden the hourly batch refresh, validation, and release flow. (completed 2026-08-25)
 
 ## Phase Details
 
@@ -230,7 +230,7 @@ Post-execution remediation is recorded in `16-06-SUMMARY.md` and included in the
 4. An hourly macOS `launchd` refresh stages both competitions together, runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression checks, and atomically promotes only a fully valid batch.
 5. Auto-commit and push happen only from a clean, upstream-aligned repository and include only compact code, manifests, and dashboard outputs; dirty, diverged, partial, oversized, or failed batches stay unpublished.
 
-**Plans**: 3/4 plans executed
+**Plans**: 4/4 plans executed
 Plans:
 
 **Wave 0**
@@ -247,7 +247,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 17-04-PLAN.md — Install the automated Safari/launchd policy and exact Git publication wrapper
+- [x] 17-04-PLAN.md — Install the automated Safari/launchd policy and exact Git publication wrapper
 
 **UI hint**: yes
 
@@ -259,7 +259,7 @@ Plans:
 | 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
 | 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
 | 16. EURO Qualifying Activation and Play-off Rules | 6/6 | Complete    | 2026-08-24 |
-| 17. Shared Dashboards and Atomic Refresh Operations | 3/4 | In Progress|  |
+| 17. Shared Dashboards and Atomic Refresh Operations | 4/4 | Complete    | 2026-08-25 |
 
 ## Requirement Coverage
 
@@ -289,4 +289,4 @@ Phases 8 through 12 completed the benchmark, challenger, calibration, promotion,
 and release work that v3.0 reuses as its approved forecast engine.
 
 ---
-*Last updated: 2026-08-25 after Phase 17 planning*
+*Last updated: 2026-08-25 after Phase 17 Plan 04 execution*
