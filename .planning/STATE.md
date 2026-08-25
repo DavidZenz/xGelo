@@ -5,29 +5,29 @@ milestone_name: UEFA Competition Forecast Dashboards
 current_phase: 17
 current_phase_name: Shared Dashboards and Atomic Refresh Operations
 status: executing
-stopped_at: Phase 17 plans created; ready to execute
-last_updated: "2026-08-25T10:54:52.361Z"
+stopped_at: Completed 17-01-PLAN.md
+last_updated: "2026-08-25T11:17:58.152Z"
 last_activity: 2026-08-25
-last_activity_desc: Phase 17 plans created; ready to execute
+last_activity_desc: Phase 17 execution started
 progress:
   total_phases: 5
   completed_phases: 4
   total_plans: 52
-  completed_plans: 48
+  completed_plans: 49
 ---
 
 # xGelo Project State
 
 ## Current Position
 
-Phase: 17 — Shared Dashboards and Atomic Refresh Operations
-Plan: Not started
+Phase: 17 (Shared Dashboards and Atomic Refresh Operations) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-08-25 — Phase 17 plans created; ready to execute
+Last activity: 2026-08-25 — Phase 17 execution started
 
 ## Progress
 
-**Progress:** [████████░░] 80% (4/5 phases complete; 48/48 formal plans complete)
+**Progress:** [█████████░] 94% (4/5 phases complete; 48/48 formal plans complete)
 
 | Phase | Name | Status | Requirements |
 |-------|------|--------|--------------|
@@ -188,6 +188,9 @@ dependence on paid data feeds.
 - [Phase ?]: Scheduled EURO activation requires a non-empty accepted official status resource with edition and lifecycle evidence; candidate lifecycle text cannot substitute.
 - [Phase ?]: Qualification simulation requires validated active registered activation/source proof before emitting probabilities.
 - [Phase ?]: Outcomes publication retains the incumbent backup until promoted read-back validation succeeds and restores it on failure.
+- [Phase ?]: Phase 17 Plan 01 uses provider-backed ten-path public inventory and complete Git allowlist.
+- [Phase ?]: Phase 17 adapters preserve EURO pre_draw with typed empty sections and no fabricated competition data.
+- [Phase ?]: Phase 17 payloads use canonical JSON bytes, SHA-256 snapshots, and shared pure rendering before later promotion.
 
 ## Accumulated Context
 
@@ -206,9 +209,9 @@ Plan Phase 17 shared dashboards and atomic refresh operations.
 
 ## Session Continuity
 
-**Last session:** 2026-08-25T09:41:12.959Z
-**Stopped at:** Phase 17 UI-SPEC approved
-**Resume file:** .planning/phases/17-shared-dashboards-and-atomic-refresh-operations/17-UI-SPEC.md
+**Last session:** 2026-08-25T11:17:58.139Z
+**Stopped at:** Completed 17-01-PLAN.md
+**Resume file:** None
 
 ## Performance Metrics
 
@@ -266,6 +269,7 @@ Plan 13-01 execution metrics are recorded below.
 | Phase 16 P04 | 88min | 2 tasks | 4 files |
 | Phase 16 P05 | 2h 8m | 2 tasks | 12 files |
 | Phase 16 P06 | 1h35m | 1 tasks | 4 files |
+| Phase 17 P01 | 12 min | 2 tasks | 6 files |
 
 ### Blockers
 

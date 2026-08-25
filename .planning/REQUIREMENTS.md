@@ -36,13 +36,13 @@
 
 - [x] **SIM-01**: The Nations League simulator reports projected standings, League A quarter-final and title paths, direct promotion/relegation, and applicable promotion/relegation play-offs.
 - [x] **SIM-02**: The EURO simulator reports direct qualification, host-reserved places, Nations League-linked play-off eligibility, and every valid play-off topology.
-- [ ] **SIM-03**: Every simulation records deterministic seeds, ruleset hashes, source bundle identity, model release identity, and replayable run metadata.
+- [x] **SIM-03**: Every simulation records deterministic seeds, ruleset hashes, source bundle identity, model release identity, and replayable run metadata.
 - [x] **SIM-04**: Pre-draw, unresolved, and insufficient-source states are shown explicitly without fabricated groups, fixtures, standings, or probabilities.
 
 ### Dashboard Experience
 
-- [ ] **DASH-01**: The project publishes dedicated Nations League and EURO qualifying dashboard entry points powered by one shared rendering and payload engine.
-- [ ] **DASH-02**: Each dashboard provides competition structure, groups or leagues, standings, fixtures, results, match forecasts, form, and projected outcomes.
+- [x] **DASH-01**: The project publishes dedicated Nations League and EURO qualifying dashboard entry points powered by one shared rendering and payload engine.
+- [x] **DASH-02**: Each dashboard provides competition structure, groups or leagues, standings, fixtures, results, match forecasts, form, and projected outcomes.
 - [ ] **DASH-03**: Users can filter by competition section, league/group, team, matchday, and fixture status in responsive desktop and mobile views.
 - [ ] **DASH-04**: Each dashboard shows refresh status, source confidence, model release, warnings, and collapsed data credits without presenting operational detail as the primary content.
 
@@ -97,10 +97,10 @@ Each active v3.0 requirement maps to exactly one roadmap phase.
 | FORECAST-03 | Phase 14 | Complete |
 | SIM-01 | Phase 15 | Complete |
 | SIM-02 | Phase 16 | Complete |
-| SIM-03 | Phase 17 | Pending |
+| SIM-03 | Phase 17 | Complete |
 | SIM-04 | Phase 16 | Complete |
-| DASH-01 | Phase 17 | Pending |
-| DASH-02 | Phase 17 | Pending |
+| DASH-01 | Phase 17 | Complete |
+| DASH-02 | Phase 17 | Complete |
 | DASH-03 | Phase 17 | Pending |
 | DASH-04 | Phase 17 | Pending |
 | OPS-01 | Phase 17 | Pending |
