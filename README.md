@@ -271,9 +271,7 @@ On macOS, use the LaunchAgent definition for a durable hourly local schedule:
 
 ```bash
 mkdir -p ~/Library/LaunchAgents
-cp scripts/com.xgelo.dashboard-update.plist ~/Library/LaunchAgents/
-launchctl unload ~/Library/LaunchAgents/com.xgelo.dashboard-update.plist 2>/dev/null || true
-launchctl load ~/Library/LaunchAgents/com.xgelo.dashboard-update.plist
+scripts/install_competition_dashboards.sh
 ```
 
 The LaunchAgent runs once when loaded and then every hour. Its stdout/stderr go

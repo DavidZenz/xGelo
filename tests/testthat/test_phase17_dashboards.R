@@ -389,6 +389,8 @@ test_that("launchd|Safari policy|browser smoke|scheduler conflict", {
   expect_true(all(c("/bin/bash", "/Users/davidzenz/R/xGelo/scripts/auto_update_competition_dashboards.sh") %in% unlist(new_plist$arguments)))
   expect_identical(old_plist$label, "com.xgelo.dashboard-update")
   expect_true(grepl("Disabled", paste(readLines(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist")), collapse = " "), fixed = TRUE))
+  installer <- paste(readLines(file.path(phase17_test_project_root, "scripts/install_competition_dashboards.sh")), collapse = "\n")
+  expect_true(all(vapply(c("bootout", "disable", "bootstrap", "print-disabled", "com.xgelo.dashboard-update"), grepl, logical(1), x = installer, fixed = TRUE)))
 })
 
 test_that("Safari policy", {
