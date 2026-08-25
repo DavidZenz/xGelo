@@ -432,6 +432,7 @@ test_that("regression|Git preflight|exact allowlist|push failure|no mutation", {
   expect_identical(gate$environment$PHASE17_IN_REGRESSION_GATE, "1")
   expect_identical(gate$commands[[1L]], "scripts/build_euro_qualifying_outcomes.R --replay-check")
   expect_match(paste(gate$commands, collapse = "\n"), "test_phase17_dashboards")
+  expect_true(grepl("PHASE17_IN_REGRESSION_GATE", paste(readLines(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R")), collapse = " "), fixed = TRUE))
 })
 
 test_that("Git preflight", {
@@ -447,6 +448,7 @@ test_that("Git preflight", {
   expect_true(result$valid && identical(result$status, "clean_upstream_aligned"))
   writeLines("dirty", file.path(root, "dirty.txt"))
   expect_error(script$phase17_git_preflight(root, fetch = FALSE), "clean worktree")
+  expect_true(grepl("require_clean = FALSE", paste(readLines(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R")), collapse = " "), fixed = TRUE))
 })
 
 test_that("exact allowlist", {

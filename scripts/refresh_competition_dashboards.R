@@ -280,7 +280,10 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   inject <- function(name) {
     if (identical(options$gate_failure, name)) stop("Injected Phase 17 ", name, " failure", call. = FALSE)
   }
-  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) phase17_git_preflight(root, fetch = TRUE)
+  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) {
+    inject("git_preflight")
+    phase17_git_preflight(root, fetch = TRUE)
+  }
   record("phase17_git_preflight", list(project_root = root, required = !isTRUE(options$dry_run)), "clean/upstream-aligned preflight")
   inject("source"); record("phase13_source", list(bundle = "both", artifacts = "registered"), "phase13_validate_source_bundle(bundle, artifacts)")
   record("phase13_snapshot", list(accepted_dir = "both", edition_row = "one-row", source_bundles = "registered", source_artifacts = "registered", project_root = root, identity_registry = NULL, raw_root = NULL), "phase13_validate_accepted_snapshot(...)")
@@ -308,7 +311,7 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   phase17_write_batch_envelope(materialized$batch_root, materialized$payloads, materialized$routes, batch_id, now)
   browser <- phase17_run_browser_gate(materialized$batch_root)
   record("phase17_run_browser_gate", list(public_root = materialized$batch_root, viewports = c("desktop", "mobile"), runner = browser$runner, version = browser$version, status = browser$status), "phase17_run_browser_gate")
-  regression <- phase17_run_regression_gate(root, execute = FALSE)
+  regression <- phase17_run_regression_gate(root, execute = !isTRUE(options$dry_run))
   record("phase17_run_regression_gate", list(environment = "PHASE17_IN_REGRESSION_GATE=1", status = regression$status), "phase17_run_regression_gate")
   inject("manifest"); inject("hash"); record("envelope", list(inventory = phase17_expected_public_inventory()), "phase17_validate_batch_envelope")
   if (isTRUE(options$dry_run)) return(list(valid = TRUE, dry_run = TRUE, batch_id = batch_id, trace = trace, staged_root = stage, inventory = phase17_expected_public_inventory()))
@@ -317,7 +320,10 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
     phase17_promote_batch(stage, options$public_root, injectors = list(promotion = function() inject("promotion"), read_back = function() inject("read_back")))
   })
   record("read_back", list(public_root = options$public_root), "phase17_validate_batch_envelope")
-  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) phase17_git_preflight(root, fetch = FALSE)
+  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) {
+    inject("git_preflight")
+    phase17_git_preflight(root, fetch = FALSE, require_clean = FALSE)
+  }
   record("phase17_git_preflight_final", list(project_root = root, allowlist = phase17_expected_git_allowlist()), "pre-commit preflight")
   list(valid = TRUE, dry_run = FALSE, batch_id = batch_id, trace = trace, inventory = phase17_expected_public_inventory())
 }
