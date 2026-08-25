@@ -3,31 +3,23 @@
   "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>Disabled</key>
-  <true/>
   <key>Label</key>
-  <string>com.xgelo.dashboard-update</string>
-
+  <string>com.xgelo.competition-dashboards</string>
   <key>WorkingDirectory</key>
   <string>/Users/davidzenz/R/xGelo</string>
-
   <key>ProgramArguments</key>
   <array>
-    <string>/bin/zsh</string>
-    <string>-lc</string>
-    <string>scripts/auto_update_worldcup_dashboard.sh</string>
+    <string>/opt/homebrew/bin/Rscript</string>
+    <string>--vanilla</string>
+    <string>/Users/davidzenz/R/xGelo/scripts/refresh_competition_dashboards.R</string>
   </array>
-
   <key>RunAtLoad</key>
   <true/>
-
   <key>StartInterval</key>
   <integer>3600</integer>
-
   <key>StandardOutPath</key>
-  <string>/Users/davidzenz/R/xGelo/logs/launchd-dashboard-update.out</string>
-
+  <string>/Users/davidzenz/R/xGelo/logs/competition-dashboard-update.out</string>
   <key>StandardErrorPath</key>
-  <string>/Users/davidzenz/R/xGelo/logs/launchd-dashboard-update.err</string>
+  <string>/Users/davidzenz/R/xGelo/logs/competition-dashboard-update.err</string>
 </dict>
 </plist>

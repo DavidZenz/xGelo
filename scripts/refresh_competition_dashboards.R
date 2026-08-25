@@ -39,13 +39,16 @@ phase17_cli_scalar <- function(value, option) {
 
 phase17_parse_refresh_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(dry_run = FALSE, fixture_root = phase17_cli_root, public_root = file.path(phase17_cli_root, "docs/competitions"),
-                  gate_failure = NULL, skip_git = FALSE, help = FALSE)
+                  gate_failure = NULL, skip_git = FALSE, skip_push = FALSE,
+                  emit_git_allowlist = FALSE, help = FALSE)
   index <- 1L
   while (index <= length(args)) {
     arg <- as.character(args[[index]])
-    if (arg %in% c("--dry-run", "--skip-git", "--help", "-h")) {
+    if (arg %in% c("--dry-run", "--skip-git", "--skip-push", "--emit-git-allowlist", "--help", "-h")) {
       if (arg == "--dry-run") options$dry_run <- TRUE
       if (arg == "--skip-git") options$skip_git <- TRUE
+      if (arg == "--skip-push") options$skip_push <- TRUE
+      if (arg == "--emit-git-allowlist") options$emit_git_allowlist <- TRUE
       if (arg %in% c("--help", "-h")) options$help <- TRUE
       index <- index + 1L
       next
@@ -69,6 +72,7 @@ phase17_parse_refresh_args <- function(args = commandArgs(trailingOnly = TRUE)) 
     stop("Unsupported option: ", arg, call. = FALSE)
   }
   if (isTRUE(options$skip_git) && !isTRUE(options$dry_run)) stop("--skip-git is only valid with --dry-run", call. = FALSE)
+  if (isTRUE(options$skip_push) && !isTRUE(options$dry_run)) stop("--skip-push is only valid with --dry-run", call. = FALSE)
   options
 }
 
@@ -96,7 +100,17 @@ phase17_detect_browser_capability <- function() {
 
 phase17_run_browser_gate <- function(public_root, capability = phase17_detect_browser_capability(), viewports = list(desktop = c(1440L, 900L), mobile = c(390L, 844L)), injector = NULL) {
   if (is.function(injector)) injector()
-  if (!isTRUE(capability$available)) stop("Phase 17 browser gate unavailable: ", capability$failure_reason %||% capability$status, call. = FALSE)
+  if (!isTRUE(capability$automated_only) || !isTRUE(capability$available) ||
+      !identical(capability$runner, "safari-webdriver") ||
+      !identical(capability$driver, phase17_safari_driver_path) ||
+      !identical(capability$version, phase17_safari_version)) {
+    stop("Phase 17 browser gate unavailable: ", capability$failure_reason %||% capability$status, call. = FALSE)
+  }
+  if (!identical(names(viewports), c("desktop", "mobile")) ||
+      !identical(as.integer(viewports$desktop), c(1440L, 900L)) ||
+      !identical(as.integer(viewports$mobile), c(390L, 844L))) {
+    stop("Phase 17 browser viewport smoke failed", call. = FALSE)
+  }
   routes <- c("nations-league", "euro-qualifying")
   checks <- unlist(lapply(routes, function(route) {
     path <- file.path(public_root, route, "index.html")
@@ -104,8 +118,10 @@ phase17_run_browser_gate <- function(public_root, capability = phase17_detect_br
     c(file.exists(path), grepl("aria-label=", html, fixed = TRUE), grepl("role=\"status\"", html, fixed = TRUE),
       grepl("id=\"dashboard-filters\"", html, fixed = TRUE))
   }))
-  if (!all(checks) || length(viewports) != 2L) stop("Phase 17 browser DOM/ARIA smoke failed", call. = FALSE)
-  list(valid = TRUE, runner = capability$runner, version = capability$version, routes = routes, viewports = viewports)
+  if (!all(checks)) stop("Phase 17 browser DOM/ARIA smoke failed", call. = FALSE)
+  list(valid = TRUE, runner = capability$runner, driver = capability$driver,
+       version = capability$version, status = "passed", automated_only = TRUE,
+       routes = routes, viewports = viewports)
 }
 
 phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute = FALSE, env = Sys.getenv(), injector = NULL) {
@@ -130,7 +146,56 @@ phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute
       if (!identical(attr(status, "status") %||% 0L, 0L)) stop("Phase 17 regression gate failed: ", commands[[i]], call. = FALSE)
     }
   }
-  list(valid = TRUE, commands = commands, environment = list(PHASE17_IN_REGRESSION_GATE = "1"))
+  list(valid = TRUE, status = "passed", commands = commands,
+       environment = list(PHASE17_IN_REGRESSION_GATE = "1"))
+}
+
+phase17_git_run <- function(args, project_root, capture = TRUE) {
+  status <- NULL
+  previous <- getwd()
+  setwd(project_root)
+  on.exit(setwd(previous), add = TRUE)
+  output <- system2("git", args, stdout = if (capture) TRUE else "", stderr = if (capture) TRUE else "")
+  status <- attr(output, "status") %||% 0L
+  list(status = as.integer(status), output = as.character(output))
+}
+
+phase17_git_preflight <- function(project_root = phase17_cli_root, fetch = FALSE, require_clean = TRUE) {
+  root <- normalizePath(project_root, winslash = "/", mustWork = TRUE)
+  if (isTRUE(fetch)) {
+    fetched <- phase17_git_run(c("fetch", "--quiet"), root)
+    if (!identical(fetched$status, 0L)) stop("Phase 17 Git fetch failed", call. = FALSE)
+  }
+  status <- phase17_git_run(c("status", "--porcelain=v1", "--untracked-files=all"), root)
+  if (isTRUE(require_clean) && (status$status != 0L || length(status$output) > 0L)) {
+    stop("Phase 17 Git preflight requires a clean worktree", call. = FALSE)
+  }
+  upstream <- phase17_git_run(c("rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"), root)
+  local <- phase17_git_run(c("rev-parse", "@"), root)
+  if (local$status != 0L) stop("Phase 17 Git local HEAD is unavailable", call. = FALSE)
+  upstream_head <- NA_character_
+  upstream_name <- if (length(upstream$output)) trimws(upstream$output[[1L]]) else ""
+  if (upstream$status == 0L && nzchar(upstream_name)) {
+    remote <- phase17_git_run(c("rev-parse", "@{u}"), root)
+    if (remote$status != 0L) stop("Phase 17 Git upstream HEAD is unavailable", call. = FALSE)
+    upstream_head <- if (length(remote$output)) trimws(remote$output[[1L]]) else ""
+    if (!identical(trimws(local$output[[1L]]), upstream_head)) stop("Phase 17 Git branch is diverged from upstream", call. = FALSE)
+  }
+  list(valid = TRUE, status = "clean_upstream_aligned", local_head = trimws(local$output[[1L]]),
+       upstream = upstream_name, upstream_head = upstream_head, status_lines = character())
+}
+
+phase17_git_staged_inventory <- function(project_root = phase17_cli_root) {
+  result <- phase17_git_run(c("diff", "--cached", "--name-only", "--diff-filter=ACMRT"), project_root)
+  if (result$status != 0L) stop("Phase 17 Git staged inventory could not be read", call. = FALSE)
+  sort(unique(trimws(result$output[nzchar(trimws(result$output))])))
+}
+
+phase17_validate_git_allowlist <- function(paths, allowlist = phase17_expected_git_allowlist()) {
+  actual <- sort(unique(gsub("\\\\", "/", as.character(paths))))
+  expected <- sort(unique(as.character(allowlist)))
+  if (!identical(actual, expected)) stop("Phase 17 Git staged inventory is not the exact allowlist", call. = FALSE)
+  invisible(list(valid = TRUE, allowlist = expected))
 }
 
 phase17_materialize_routes <- function(bundles, stage_root, batch_id) {
@@ -195,6 +260,10 @@ phase17_callback_aliases <- function(label) {
 phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callbacks = list(), now = "2026-08-25T00:00:00Z") {
   options <- phase17_parse_refresh_args(args)
   if (isTRUE(options$help)) return(invisible(options))
+  if (isTRUE(options$emit_git_allowlist)) {
+    cat(paste(phase17_expected_git_allowlist(), collapse = "\n"), "\n", sep = "")
+    return(invisible(list(valid = TRUE, emitted = phase17_expected_git_allowlist())))
+  }
   root <- normalizePath(options$fixture_root, winslash = "/", mustWork = TRUE)
   public_parent <- normalizePath(dirname(options$public_root), winslash = "/", mustWork = TRUE)
   batch_id <- phase17_batch_identity(bundles = lapply(phase17_editions(), phase17_fixture_bundle))
@@ -211,7 +280,8 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   inject <- function(name) {
     if (identical(options$gate_failure, name)) stop("Injected Phase 17 ", name, " failure", call. = FALSE)
   }
-  record("phase17_git_preflight", list(project_root = root), "clean/upstream-aligned preflight")
+  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) phase17_git_preflight(root, fetch = TRUE)
+  record("phase17_git_preflight", list(project_root = root, required = !isTRUE(options$dry_run)), "clean/upstream-aligned preflight")
   inject("source"); record("phase13_source", list(bundle = "both", artifacts = "registered"), "phase13_validate_source_bundle(bundle, artifacts)")
   record("phase13_snapshot", list(accepted_dir = "both", edition_row = "one-row", source_bundles = "registered", source_artifacts = "registered", project_root = root, identity_registry = NULL, raw_root = NULL), "phase13_validate_accepted_snapshot(...)")
   inject("rules"); record("phase13_registry", list(registries = "both", source_bundles = "registered", approved_model_release_ids = "phase17", trusted_release_root = root, selector_path = root, resolved_release = NULL, require_complete = NULL, project_root = root), "phase13_validate_competition_edition_registries(...)")
@@ -236,8 +306,10 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   on.exit(unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
   materialized <- phase17_materialize_routes(bundles, stage, batch_id)
   phase17_write_batch_envelope(materialized$batch_root, materialized$payloads, materialized$routes, batch_id, now)
-  record("phase17_run_browser_gate", list(public_root = materialized$batch_root, viewports = c("desktop", "mobile")), "phase17_run_browser_gate")
-  record("phase17_run_regression_gate", list(environment = "PHASE17_IN_REGRESSION_GATE=1"), "phase17_run_regression_gate")
+  browser <- phase17_run_browser_gate(materialized$batch_root)
+  record("phase17_run_browser_gate", list(public_root = materialized$batch_root, viewports = c("desktop", "mobile"), runner = browser$runner, version = browser$version, status = browser$status), "phase17_run_browser_gate")
+  regression <- phase17_run_regression_gate(root, execute = FALSE)
+  record("phase17_run_regression_gate", list(environment = "PHASE17_IN_REGRESSION_GATE=1", status = regression$status), "phase17_run_regression_gate")
   inject("manifest"); inject("hash"); record("envelope", list(inventory = phase17_expected_public_inventory()), "phase17_validate_batch_envelope")
   if (isTRUE(options$dry_run)) return(list(valid = TRUE, dry_run = TRUE, batch_id = batch_id, trace = trace, staged_root = stage, inventory = phase17_expected_public_inventory()))
   phase17_with_batch_lock(public_parent, {
@@ -245,7 +317,8 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
     phase17_promote_batch(stage, options$public_root, injectors = list(promotion = function() inject("promotion"), read_back = function() inject("read_back")))
   })
   record("read_back", list(public_root = options$public_root), "phase17_validate_batch_envelope")
-  record("phase17_git_preflight_final", list(project_root = root), "pre-commit preflight")
+  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) phase17_git_preflight(root, fetch = FALSE)
+  record("phase17_git_preflight_final", list(project_root = root, allowlist = phase17_expected_git_allowlist()), "pre-commit preflight")
   list(valid = TRUE, dry_run = FALSE, batch_id = batch_id, trace = trace, inventory = phase17_expected_public_inventory())
 }
 
