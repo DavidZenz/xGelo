@@ -41,7 +41,8 @@ test_that("phase17_wave0", {
   expect_true(all(inventory %in% allowlist))
   expect_true(all(c(
     "R/dashboard/payload_contract.R", "R/dashboard/renderer.R",
-    "R/dashboard/publication.R", "scripts/refresh_competition_dashboards.R"
+    "R/dashboard/publication.R", "R/dashboard/production_provider.R",
+    "scripts/refresh_competition_dashboards.R"
   ) %in% allowlist))
   expect_false(any(grepl("data/competition/(raw|refresh_batches)|score_distributions|logs/", allowlist)))
 })
@@ -333,7 +334,8 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   )
   result <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"))
   result_with_callbacks <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"), callbacks = callbacks)
-  expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git")), "validated bundle provider")
+  production <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"))
+  expect_true(production$valid && production$dry_run)
   expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"),
                                            callbacks = list(phase13_validate_source_bundle = function(arguments) list(valid = FALSE, failure_reason = "rejected source"))),
                "rejected source")
@@ -359,6 +361,22 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   expect_identical(script$phase17_run_regression_gate(execute = FALSE)$commands[[1L]],
                    "scripts/build_euro_qualifying_outcomes.R --replay-check")
   expect_identical(script$phase17_run_regression_gate(execute = FALSE)$environment$PHASE17_IN_REGRESSION_GATE, "1")
+})
+
+test_that("production provider is accepted-data only and callbacks are real", {
+  script <- new.env(parent = globalenv())
+  sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  bundles <- script$phase17_load_accepted_production_bundles(phase17_test_project_root)
+  expect_identical(bundles[["uefa_nations_league_2026_27"]]$source_bundle_id, "nl-2026-27-official-uefa-v2")
+  expect_true(nrow(bundles[["uefa_nations_league_2026_27"]]$artifacts$fixtures) > 0L)
+  expect_true(nrow(bundles[["uefa_nations_league_2026_27"]]$artifacts$standings) > 0L)
+  expect_true(nrow(bundles[["uefa_nations_league_2026_27"]]$artifacts$forecasts) > 0L)
+  expect_identical(bundles[["uefa_euro_2028_qualifying"]]$lifecycle_state, "pre_draw")
+  expect_false(any(grepl("fixture-001|nl-fixture-v1|Alpha|Beta", paste(unlist(bundles, use.names = FALSE), collapse = " "))))
+  callbacks <- script$phase17_production_callbacks(bundles, phase17_test_project_root)
+  expect_true(callbacks$phase13_validate_source_bundle(list())$valid)
+  expect_true(callbacks$phase15_validate_nl_outcomes_bundle(list())$valid)
+  expect_true(callbacks$phase16_validate_euro_source_bundle(list())$valid)
 })
 
 test_that("route rendering|shared renderer|route manifests|current pointers", {

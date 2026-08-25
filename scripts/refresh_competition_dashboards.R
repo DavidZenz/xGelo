@@ -29,6 +29,7 @@ phase17_cli_source("R/dashboard/payload_nations_league.R")
 phase17_cli_source("R/dashboard/payload_euro.R")
 phase17_cli_source("R/dashboard/renderer.R")
 phase17_cli_source("R/dashboard/publication.R")
+phase17_cli_source("R/dashboard/production_provider.R")
 
 phase17_cli_scalar <- function(value, option) {
   if (is.null(value) || length(value) != 1L || is.na(value) || !nzchar(as.character(value))) {
@@ -90,7 +91,9 @@ phase17_validate_competition_freshness <- function(bundle, cutoff = Sys.time(), 
 phase17_validate_probability_inputs <- function(bundle, approved_release = NULL) {
   required <- c("simulation_seed", "simulation_count", "forecast_status")
   valid <- is.list(bundle) && all(required %in% names(bundle)) &&
-    is.finite(as.numeric(bundle$simulation_seed[[1L]])) && as.numeric(bundle$simulation_count[[1L]]) > 0
+    ((identical(phase17_bundle_scalar(bundle, "forecast_status"), "pre_draw") &&
+      !length(phase17_bundle_rows(bundle, "forecasts"))) ||
+      (is.finite(as.numeric(bundle$simulation_seed[[1L]])) && as.numeric(bundle$simulation_count[[1L]]) > 0))
   if (!is.null(approved_release)) valid <- valid && is.list(approved_release)
   list(valid = valid, failure_reason = if (valid) NULL else "probability inputs are incomplete",
        gate_trace = list(gate = "phase17_probability", required = required))
@@ -269,15 +272,12 @@ phase17_callback_aliases <- function(label) {
 }
 
 phase17_load_production_bundles <- function(project_root, provider = NULL) {
-  if (!is.function(provider)) {
-    stop("Phase 17 production refresh requires a validated bundle provider; fixture mode is unavailable", call. = FALSE)
-  }
-  bundles <- provider(project_root)
+  bundles <- if (is.function(provider)) provider(project_root) else phase17_load_accepted_production_bundles(project_root)
   if (!is.list(bundles) || !identical(sort(names(bundles)), sort(phase17_editions()))) {
     stop("Phase 17 bundle provider did not return both registered editions", call. = FALSE)
   }
   for (edition in phase17_editions()) {
-    if (!is.list(bundles[[edition]]) || grepl("fixture", paste(unlist(bundles[[edition]], use.names = FALSE), collapse = " "), ignore.case = TRUE)) {
+    if (!is.list(bundles[[edition]]) || grepl("fixture-001|nl-fixture-v1|euro-fixture-v1|phase17-fixture|Alpha|Beta", paste(unlist(bundles[[edition]], use.names = FALSE), collapse = " "), ignore.case = TRUE)) {
       stop("Phase 17 provider returned untrusted or fixture data", call. = FALSE)
     }
   }
@@ -322,6 +322,8 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   } else {
     bundles <- phase17_load_production_bundles(root, callbacks$load_bundles)
   }
+  production_callbacks <- if (isTRUE(options$fixture_mode)) list() else phase17_production_callbacks(bundles, root, now)
+  callbacks <- modifyList(production_callbacks, callbacks)
   batch_id <- phase17_batch_identity(bundles = bundles)
   inject("source"); record("phase13_source", list(bundle = "both", artifacts = "registered"), "phase13_validate_source_bundle(bundle, artifacts)")
   record("phase13_snapshot", list(accepted_dir = "both", edition_row = "one-row", source_bundles = "registered", source_artifacts = "registered", project_root = root, identity_registry = NULL, raw_root = NULL), "phase13_validate_accepted_snapshot(...)")

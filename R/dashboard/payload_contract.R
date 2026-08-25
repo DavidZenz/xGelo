@@ -78,7 +78,7 @@ phase17_expected_git_allowlist <- function() {
     phase17_expected_public_inventory(),
     file.path("R/dashboard", c(
       "payload_contract.R", "payload_nations_league.R", "payload_euro.R",
-      "renderer.R", "publication.R"
+      "renderer.R", "publication.R", "production_provider.R"
     )),
     "tests/testthat/test_phase17_dashboards.R",
     "scripts/refresh_competition_dashboards.R",
