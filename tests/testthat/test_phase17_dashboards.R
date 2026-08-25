@@ -357,5 +357,6 @@ test_that("route rendering|shared renderer|route manifests|current pointers", {
   expect_silent(script$phase17_write_batch_envelope(materialized$batch_root, materialized$payloads,
                                                     materialized$routes, script$phase17_batch_identity(bundles = bundles)))
   expect_silent(api$phase17_validate_batch_envelope(materialized$batch_root))
-  expect_true(grepl("pre_draw", paste(readLines(file.path(materialized$batch_root, "euro-qualifying/payload.json")), collapse = ""), fixed = TRUE))
+  payload_bytes <- readBin(file.path(materialized$batch_root, "euro-qualifying/payload.json"), what = "raw", n = file.info(file.path(materialized$batch_root, "euro-qualifying/payload.json"))$size)
+  expect_true(grepl("pre_draw", rawToChar(payload_bytes), fixed = TRUE))
 })
