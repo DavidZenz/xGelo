@@ -17,7 +17,10 @@ done
 R_SCRIPT="${XGELO_RSCRIPT:-/opt/homebrew/bin/Rscript}"
 [[ -x "$R_SCRIPT" ]] || { echo "Missing absolute Rscript: $R_SCRIPT" >&2; exit 1; }
 
-mapfile -t ALLOWLIST < <("$R_SCRIPT" --vanilla scripts/refresh_competition_dashboards.R --emit-git-allowlist)
+ALLOWLIST=()
+while IFS= read -r path; do
+  [[ -n "$path" ]] && ALLOWLIST+=("$path")
+done < <("$R_SCRIPT" --vanilla scripts/refresh_competition_dashboards.R --emit-git-allowlist)
 [[ "${#ALLOWLIST[@]}" -gt 0 ]] || { echo "Phase 17 Git allowlist is empty" >&2; exit 1; }
 
 git_preflight() {
@@ -57,7 +60,10 @@ if [[ "$DRY_RUN" == true ]]; then
 fi
 
 git add -- "${ALLOWLIST[@]}"
-mapfile -t STAGED < <(git diff --cached --name-only --diff-filter=ACMRT | sort -u)
+STAGED=()
+while IFS= read -r path; do
+  [[ -n "$path" ]] && STAGED+=("$path")
+done < <(git diff --cached --name-only --diff-filter=ACMRT | sort -u)
 for path in "${STAGED[@]}"; do
   if ! printf '%s\n' "${ALLOWLIST[@]}" | grep -Fxq "$path"; then
     echo "Phase 17 staged path is outside the exact allowlist: $path" >&2

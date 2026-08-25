@@ -329,5 +329,5 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
 }
 
 if (identical(environment(), globalenv()) && !interactive()) {
-  tryCatch(phase17_refresh_main(), error = function(error) { message(conditionMessage(error)); quit(status = 1L) })
+  tryCatch(invisible(phase17_refresh_main()), error = function(error) { message(conditionMessage(error)); quit(status = 1L) })
 }
