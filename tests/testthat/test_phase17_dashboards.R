@@ -234,6 +234,35 @@ test_that("payload sections|metadata|pre_draw|blocked|credits", {
   expect_true(grepl("Candidate rules failed validation", blocked_html, fixed = TRUE))
 })
 
+test_that("Nations League renderer uses a World Cup-style shell", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+  bundle <- api$phase17_fixture_bundle("uefa_nations_league_2026_27", lifecycle_state = "scheduled")
+  bundle$artifacts$structure <- data.frame(
+    league = "A", display_name = "Group A1", group_id = "A", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$fixtures <- data.frame(
+    fixture_id = "fixture-001", group_id = "A", home_display_name = "Alpha",
+    away_display_name = "Beta", scheduled_at_utc = "2026-11-12T19:45:00Z",
+    source_status = "UPCOMING", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$forecasts <- data.frame(
+    fixture_id = "fixture-001", forecast_status = "available", p_home = .5,
+    p_draw = .25, p_away = .25, expected_home_goals = 1.4,
+    expected_away_goals = 1.1, stringsAsFactors = FALSE
+  )
+  html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
+  expect_true(all(vapply(c(
+    "nl-dashboard", "data-nl-tab=\"groups\"", "data-nl-tab=\"fixtures\"",
+    "data-nl-tab=\"results\"", "data-nl-tab=\"outlook\"", "data-nl-tab=\"format\"",
+    "Forecast", "Current", "nl-group-table", "nl-match-card",
+    "No completed results yet", "Scheduled · forecasts available"
+  ), grepl, logical(1), x = html, fixed = TRUE)))
+  expect_false(grepl("<th scope=\"col\">Accepted data</th>", html, fixed = TRUE))
+  expect_false(grepl("Refresh blocked", html, fixed = TRUE))
+})
+
 test_that("public section projection keeps provenance out of both dashboards", {
   api <- phase17_test_load_contract()
   sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
