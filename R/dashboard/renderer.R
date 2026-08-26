@@ -24,10 +24,211 @@ phase17_display_value <- function(value) {
   phase17_html_escape(as.character(value[[1L]]))
 }
 
+phase17_public_scalar <- function(value) {
+  if (is.null(value) || !length(value) || is.na(value[[1L]])) return("")
+  as.character(value[[1L]])
+}
+
+phase17_public_status <- function(value) {
+  value <- phase17_public_scalar(value)
+  if (!nzchar(value)) return("")
+  key <- tolower(value)
+  labels <- c(
+    upcoming = "Scheduled", scheduled = "Scheduled", live = "In progress",
+    in_progress = "In progress", finished = "Final", played = "Final", final = "Final",
+    available = "Available", unavailable = "Unavailable", unresolved = "Unresolved",
+    suppressed = "Suppressed", postponed = "Postponed", cancelled = "Cancelled",
+    none = ""
+  )
+  if (key %in% names(labels)) labels[[key]] else tools::toTitleCase(gsub("_", " ", key, fixed = TRUE))
+}
+
+phase17_public_percentage <- function(value) {
+  number <- suppressWarnings(as.numeric(phase17_public_scalar(value)))
+  if (!is.finite(number)) "" else sprintf("%.1f%%", 100 * number)
+}
+
+phase17_public_decimal <- function(value, digits = 2L) {
+  number <- suppressWarnings(as.numeric(phase17_public_scalar(value)))
+  if (!is.finite(number)) "" else formatC(number, format = "f", digits = as.integer(digits))
+}
+
+phase17_public_mapping <- function(mapping, key) {
+  key <- phase17_public_scalar(key)
+  if (!nzchar(key) || is.null(names(mapping)) || !key %in% names(mapping)) return("")
+  unname(mapping[[key]])
+}
+
+phase17_public_context <- function(payload) {
+  groups <- character()
+  teams <- character()
+  fixtures <- list()
+  add_mapping <- function(mapping, keys, label) {
+    label <- phase17_public_scalar(label)
+    if (!nzchar(label)) return(mapping)
+    keys <- unique(vapply(keys, phase17_public_scalar, character(1)))
+    keys <- keys[nzchar(keys)]
+    if (length(keys)) mapping[keys] <- label
+    mapping
+  }
+  structure_rows <- payload$sections$structure$rows
+  if (is.null(structure_rows)) structure_rows <- list()
+  for (row in structure_rows) {
+    label <- phase17_row_value(row, c("display_name", "league_or_group", "group"))
+    groups <- add_mapping(groups, row[c("source_group_id", "group_id", "display_name", "league_or_group", "group")], label)
+  }
+  fixture_rows <- payload$sections$fixtures$rows
+  result_rows <- payload$sections$results$rows
+  if (is.null(fixture_rows)) fixture_rows <- list()
+  if (is.null(result_rows)) result_rows <- list()
+  match_rows <- c(fixture_rows, result_rows)
+  for (row in match_rows) {
+    fixture_id <- phase17_row_value(row, "fixture_id")
+    if (nzchar(fixture_id) && is.null(fixtures[[fixture_id]])) fixtures[[fixture_id]] <- row
+    home <- phase17_row_value(row, c("home_display_name", "home_team"))
+    away <- phase17_row_value(row, c("away_display_name", "away_team"))
+    teams <- add_mapping(teams, row[c("home_team_id", "home_uefa_source_team_id")], home)
+    teams <- add_mapping(teams, row[c("away_team_id", "away_uefa_source_team_id")], away)
+  }
+  list(groups = groups, teams = teams, fixtures = fixtures)
+}
+
+phase17_public_group <- function(row, context) {
+  for (field in c("display_name", "group", "league_or_group", "group_id", "source_group_id")) {
+    value <- phase17_public_scalar(row[[field]])
+    if (!nzchar(value)) next
+    mapped <- phase17_public_mapping(context$groups, value)
+    if (nzchar(mapped)) return(mapped)
+    if (grepl("^(Group|League) ", value)) return(value)
+    if (field %in% c("group", "group_id") && grepl("^[A-Za-z][A-Za-z0-9 -]*$", value)) {
+      return(paste("Group", value))
+    }
+  }
+  league <- phase17_public_scalar(row$league)
+  if (nzchar(league) && grepl("^[A-Za-z][A-Za-z0-9 -]*$", league)) paste("League", league) else ""
+}
+
+phase17_public_team <- function(row, role = "team", context) {
+  display_fields <- switch(role,
+    home = c("home_display_name", "home_team"),
+    away = c("away_display_name", "away_team"),
+    c("team_display_name", "display_name", "team")
+  )
+  id_fields <- switch(role,
+    home = c("home_team_id", "home_uefa_source_team_id"),
+    away = c("away_team_id", "away_uefa_source_team_id"),
+    c("team_id", "team")
+  )
+  for (field in display_fields) {
+    value <- phase17_public_scalar(row[[field]])
+    if (!nzchar(value)) next
+    mapped <- phase17_public_mapping(context$teams, value)
+    if (nzchar(mapped)) return(mapped)
+    if (!grepl("^team_", value)) return(value)
+  }
+  for (field in id_fields) {
+    value <- phase17_public_scalar(row[[field]])
+    mapped <- phase17_public_mapping(context$teams, value)
+    if (nzchar(mapped)) return(mapped)
+  }
+  ""
+}
+
+phase17_public_fixture <- function(row, context) {
+  fixture_id <- phase17_row_value(row, "fixture_id")
+  if (!nzchar(fixture_id)) return(list())
+  fixture <- context$fixtures[[fixture_id]]
+  if (is.null(fixture)) list() else fixture
+}
+
+phase17_public_row <- function(row, section_id, context) {
+  if (!is.list(row)) return(list())
+  fields <- list()
+  add <- function(label, value) {
+    value <- phase17_public_scalar(value)
+    if (nzchar(value)) fields[[label]] <<- value
+  }
+  add_status <- function(label, value) add(label, phase17_public_status(value))
+  fixture <- phase17_public_fixture(row, context)
+  match_row <- if (length(fixture)) modifyList(fixture, row) else row
+  group <- phase17_public_group(match_row, context)
+  home <- phase17_public_team(match_row, "home", context)
+  away <- phase17_public_team(match_row, "away", context)
+  kickoff <- phase17_row_value(match_row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc", "date"))
+  matchday <- phase17_row_value(match_row, c("matchday", "match_day"))
+
+  if (identical(section_id, "structure")) {
+    league <- phase17_public_scalar(row$league)
+    if (nzchar(league)) add("League", if (grepl("^League ", league)) league else paste("League", league))
+    add("Group", phase17_row_value(row, c("display_name", "group")))
+    add("Stage", row$stage)
+    add("Promotion path", row$promotion_path)
+    add("Relegation path", row$relegation_path)
+  } else if (section_id %in% c("standings", "projected_outcomes")) {
+    add("League/group", group)
+    add("Team", phase17_public_team(row, "team", context))
+    add("Rank", row$rank)
+    standing_fields <- c(
+      played = "Played", wins = "Won", draws = "Drawn", losses = "Lost",
+      goals_for = "Goals for", goals_against = "Goals against",
+      goal_difference = "Goal difference", points = "Points"
+    )
+    for (field in names(standing_fields)) add(standing_fields[[field]], row[[field]])
+    add("Expected points", phase17_public_decimal(row$expected_points, 1L))
+    add("Expected goal difference", phase17_public_decimal(row$expected_goal_difference, 1L))
+    add("Stage", row$stage)
+    add("Outcome", row$outcome)
+    add("Probability", phase17_public_percentage(row$probability))
+    add_status("Status", row$ranking_status %||% row$status)
+    add("Reason", row$reason)
+  } else if (identical(section_id, "fixtures")) {
+    add("Matchday", matchday)
+    add("League/group", group)
+    add("Kickoff (UTC)", kickoff)
+    add("Home", home)
+    add("Away", away)
+    add("Venue", row$venue)
+    add_status("Status", row$source_status %||% row$fixture_status %||% row$status)
+  } else if (identical(section_id, "results")) {
+    add("Matchday", matchday)
+    add("League/group", group)
+    add("Date (UTC)", kickoff)
+    add("Home", home)
+    home_goals <- phase17_row_value(row, c("final_home_goals", "home_goals", "regulation_home_goals"))
+    away_goals <- phase17_row_value(row, c("final_away_goals", "away_goals", "regulation_away_goals"))
+    if (nzchar(home_goals) && nzchar(away_goals)) add("Score", paste(home_goals, away_goals, sep = "-") )
+    add("Away", away)
+    add_status("Status", row$match_status %||% row$source_status %||% row$status)
+  } else if (identical(section_id, "form")) {
+    add("Home", home)
+    add("Away", away)
+    add_status("Competition form", row$competition_form_status)
+    add("Competition window", phase17_public_status(row$competition_form_window_type))
+    add("Competition matches", row$competition_form_window_size)
+    add_status("All-international form", row$all_international_form_status)
+    add("All-international window", phase17_public_status(row$all_international_form_window_type))
+    add("All-international matches", row$all_international_form_window_size)
+    add_status("National-team xG", row$national_team_xg_status)
+  } else if (identical(section_id, "match_forecasts")) {
+    add("Kickoff (UTC)", kickoff)
+    add("Home", home)
+    add("Away", away)
+    add_status("Forecast", row$forecast_status %||% row$status)
+    add("Home win", phase17_public_percentage(row$p_home %||% row$home_probability))
+    add("Draw", phase17_public_percentage(row$p_draw %||% row$draw_probability))
+    add("Away win", phase17_public_percentage(row$p_away %||% row$away_probability))
+    add("Home xG", phase17_public_decimal(row$expected_home_goals, 2L))
+    add("Away xG", phase17_public_decimal(row$expected_away_goals, 2L))
+    reason <- phase17_public_scalar(row$suppression_reason)
+    if (nzchar(reason) && !identical(tolower(reason), "none")) add("Reason", phase17_public_status(reason))
+  }
+  fields
+}
+
 phase17_row_text <- function(row) {
-  if (!is.list(row) || !length(row)) return("No accepted row data")
+  if (!is.list(row) || !length(row)) return('<span class="row-empty">No public row data</span>')
   paste(vapply(names(row), function(field) paste0(
-    "<span class=\"row-field\"><b>", phase17_html_escape(gsub("_", " ", field)),
+    "<span class=\"row-field\"><b>", phase17_html_escape(field),
     ":</b> ", phase17_display_value(row[[field]]), "</span>"), character(1)), collapse = " ")
 }
 
@@ -55,16 +256,40 @@ phase17_section_status <- function(section) {
          phase17_html_escape(reason), '</p></details></div>')
 }
 
-phase17_render_section <- function(section) {
+phase17_public_dimensions <- function(row, section_id, context) {
+  fixture <- phase17_public_fixture(row, context)
+  match_row <- if (length(fixture)) modifyList(fixture, row) else row
+  teams <- if (section_id %in% c("fixtures", "results", "form", "match_forecasts")) {
+    c(phase17_public_team(match_row, "home", context), phase17_public_team(match_row, "away", context))
+  } else if (section_id %in% c("standings", "projected_outcomes")) phase17_public_team(row, "team", context) else character()
+  status <- if (identical(section_id, "fixtures")) {
+    phase17_public_status(match_row$source_status %||% match_row$fixture_status %||% match_row$status)
+  } else if (identical(section_id, "results")) {
+    phase17_public_status(row$match_status %||% row$source_status %||% row$status)
+  } else if (section_id %in% c("form", "match_forecasts")) {
+    phase17_public_status(fixture$source_status %||% fixture$fixture_status %||% fixture$status)
+  } else ""
+  list(
+    group = phase17_public_group(match_row, context),
+    teams = unique(teams[nzchar(teams)]),
+    matchday = phase17_row_value(match_row, c("matchday", "match_day")),
+    status = status
+  )
+}
+
+phase17_render_section <- function(section, context) {
   if (!is.list(section)) stop("Phase 17 renderer section must be a list", call. = FALSE)
   rows <- if (is.null(section$rows)) list() else section$rows
   row_html <- if (length(rows)) paste0(
     '<div class="table-scroll"><table><thead><tr><th scope="col">Accepted data</th></tr></thead><tbody>',
-    paste(vapply(rows, function(row) paste0('<tr data-filter-group="', phase17_row_attribute(row, c("league_or_group", "group_id", "league", "group")),
-                                               '" data-filter-team="', phase17_row_attribute(row, c("team", "home_team", "away_team"), "|"),
-                                               '" data-filter-matchday="', phase17_row_attribute(row, c("matchday", "match_day")),
-                                               '" data-filter-status="', phase17_row_attribute(row, c("fixture_status", "status")), '">',
-                                               phase17_row_text(row), '</tr>'), character(1)), collapse = ""),
+    paste(vapply(rows, function(row) {
+      dimensions <- phase17_public_dimensions(row, section$id, context)
+      paste0('<tr data-filter-group="', phase17_html_escape(dimensions$group),
+             '" data-filter-team="', phase17_html_escape(paste(dimensions$teams, collapse = "|")),
+             '" data-filter-matchday="', phase17_html_escape(dimensions$matchday),
+             '" data-filter-status="', phase17_html_escape(dimensions$status), '"><td>',
+             phase17_row_text(phase17_public_row(row, section$id, context)), '</td></tr>')
+    }, character(1)), collapse = ""),
     '</tbody></table></div>') else ""
   paste0('<section id="', phase17_html_escape(section$id), '" data-section="',
          phase17_html_escape(section$id), '" class="dashboard-section"><h2>',
@@ -73,11 +298,16 @@ phase17_render_section <- function(section) {
          row_html, '</div></section>')
 }
 
-phase17_filter_values <- function(payload, field_sets) {
-  values <- as.character(unlist(lapply(payload$sections, function(section) lapply(section$rows, function(row) {
-    phase17_row_value(row, field_sets)
-  })), use.names = FALSE))
-  sort(unique(values[nzchar(values)]), method = "radix")
+phase17_filter_values <- function(payload, dimension, context = phase17_public_context(payload)) {
+  values <- unlist(lapply(payload$sections, function(section) lapply(section$rows, function(row) {
+    dimensions <- phase17_public_dimensions(row, section$id, context)
+    dimensions[[dimension]]
+  })), use.names = FALSE)
+  values <- unique(as.character(values[nzchar(values)]))
+  if (identical(dimension, "matchday") && length(values) && all(grepl("^[0-9]+$", values))) {
+    return(as.character(sort(as.integer(values))))
+  }
+  sort(values, method = "radix")
 }
 
 phase17_select <- function(id, label, values, default_label) {
@@ -89,10 +319,11 @@ phase17_select <- function(id, label, values, default_label) {
 }
 
 phase17_render_filter_toolbar <- function(payload) {
-  groups <- phase17_filter_values(payload, c("league_or_group", "group_id", "league", "group"))
-  teams <- phase17_filter_values(payload, c("team", "home_team", "away_team"))
-  matchdays <- phase17_filter_values(payload, c("matchday", "match_day"))
-  statuses <- phase17_filter_values(payload, c("fixture_status", "status"))
+  context <- phase17_public_context(payload)
+  groups <- phase17_filter_values(payload, "group", context)
+  teams <- phase17_filter_values(payload, "teams", context)
+  matchdays <- phase17_filter_values(payload, "matchday", context)
+  statuses <- phase17_filter_values(payload, "status", context)
   paste0('<form id="dashboard-filters" class="filters" aria-label="Dashboard filters">',
     '<label for="filter-section">Section<select id="filter-section" name="section"><option value="">All sections</option>',
     paste(vapply(payload$sections, function(section) paste0('<option value="', phase17_html_escape(section$id), '">',
@@ -132,7 +363,8 @@ render_phase17_dashboard <- function(payload, route = NULL) {
     if (isTRUE(metadata$showing_last_accepted_snapshot)) '<p>Showing last accepted snapshot.</p>' else "", '</aside>') else ""
   nav <- paste(vapply(payload$sections, function(section) paste0('<a href="#', phase17_html_escape(section$id),
                                                                   '">', phase17_html_escape(section$label), '</a>'), character(1)), collapse = "")
-  sections <- paste(vapply(payload$sections, phase17_render_section, character(1)), collapse = "")
+  context <- phase17_public_context(payload)
+  sections <- paste(vapply(payload$sections, function(section) phase17_render_section(section, context), character(1)), collapse = "")
   payload_json <- phase17_json_script_escape(rawToChar(phase17_payload_bytes(payload)))
   state_label <- if (identical(forecast, "available")) "Available" else if (identical(lifecycle, "pre_draw")) "Pre-draw" else "Refresh blocked"
   paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',

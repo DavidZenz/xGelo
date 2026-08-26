@@ -60,7 +60,6 @@ phase17_provider_alias_rows <- function(table, edition_id) {
   if ("home_display_name" %in% names(table)) table$home_team <- table$home_display_name
   if ("away_display_name" %in% names(table)) table$away_team <- table$away_display_name
   if ("team_id" %in% names(table) && !"team" %in% names(table)) table$team <- table$team_id
-  if ("scheduled_at_utc" %in% names(table) && !"matchday" %in% names(table)) table$matchday <- seq_len(nrow(table))
   if ("forecast_status" %in% names(table) && !"status" %in% names(table)) table$status <- table$forecast_status
   table
 }

@@ -234,6 +234,78 @@ test_that("payload sections|metadata|pre_draw|blocked|credits", {
   expect_true(grepl("Candidate rules failed validation", blocked_html, fixed = TRUE))
 })
 
+test_that("public section projection keeps provenance out of both dashboards", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_euro.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+
+  row_hash <- paste(rep("a", 64L), collapse = "")
+  for (edition_id in api$phase17_editions()) {
+    bundle <- api$phase17_fixture_bundle(edition_id, lifecycle_state = "active")
+    bundle$artifacts$structure <- data.frame(
+      schema_version = "phase13-groups-v1", source_group_id = "2014191",
+      league = "A", display_name = "Group A1", edition_id = edition_id,
+      source_artifact_id = "internal-groups-artifact", row_sha256 = row_hash,
+      league_or_group = "Group A1", internal_future_marker = "should-never-render",
+      stringsAsFactors = FALSE
+    )
+    bundle$artifacts$standings <- data.frame(
+      group_id = "2014191", league = "A", team_id = "team_alpha", team = "team_alpha",
+      expected_points = 5, expected_goal_difference = 2, ranking_status = "unresolved",
+      row_sha256 = row_hash, league_or_group = "2014191", stringsAsFactors = FALSE
+    )
+    bundle$artifacts$fixtures <- data.frame(
+      schema_version = "phase14-normalized-fixture-v2", fixture_id = "internal-fixture-1",
+      group_id = "2014191", home_team_id = "team_alpha", away_team_id = "team_beta",
+      home_display_name = "Alpha", away_display_name = "Beta", home_team = "Alpha",
+      away_team = "Beta", scheduled_at_utc = "2026-11-12T19:45:00Z",
+      source_status = "UPCOMING", source_artifact_id = "internal-fixtures-artifact",
+      row_sha256 = row_hash, league_or_group = "2014191", stringsAsFactors = FALSE
+    )
+    bundle$artifacts$results <- data.frame(
+      fixture_id = "internal-fixture-1", group_id = "2014191",
+      home_display_name = "Alpha", away_display_name = "Beta", match_status = "scheduled",
+      scheduled_at_utc = "2026-11-12T19:45:00Z", row_sha256 = row_hash,
+      league_or_group = "2014191", stringsAsFactors = FALSE
+    )
+    bundle$artifacts$form <- data.frame(
+      fixture_id = "internal-fixture-1", competition_form_status = "unavailable",
+      competition_form_window_type = "no_eligible_form_history",
+      all_international_form_status = "unavailable",
+      all_international_form_window_type = "no_eligible_form_history",
+      parent_state_manifest_sha256 = row_hash, row_sha256 = row_hash,
+      stringsAsFactors = FALSE
+    )
+    bundle$artifacts$forecasts <- data.frame(
+      fixture_id = "internal-fixture-1", forecast_status = "available",
+      p_home = 0.55, p_draw = 0.25, p_away = 0.20,
+      expected_home_goals = 1.6, expected_away_goals = 0.9,
+      model_release_id = "internal-model-release", row_sha256 = row_hash,
+      stringsAsFactors = FALSE
+    )
+    bundle$artifacts$projected_outcomes <- bundle$artifacts$standings
+
+    payload <- if (identical(edition_id, "uefa_nations_league_2026_27")) {
+      api$phase17_payload_nations_league(bundle)
+    } else api$phase17_payload_euro(bundle)
+    html <- api$render_phase17_dashboard(payload)
+    primary_html <- sub('<details id="source-lineage".*$', "", html)
+
+    expect_identical(payload$sections$structure$rows[[1L]]$schema_version, "phase13-groups-v1")
+    expect_identical(payload$sections$structure$rows[[1L]]$row_sha256, row_hash)
+    expect_true(all(vapply(c("Group A1", "Alpha", "Beta"), grepl, logical(1),
+                           x = primary_html, fixed = TRUE)))
+    expect_true(grepl("55.0%", primary_html, fixed = TRUE))
+    expect_false(any(vapply(c(
+      "<b>schema version:</b>", "<b>source group id:</b>", "<b>edition id:</b>",
+      "<b>source artifact id:</b>", "<b>row sha256:</b>", "<b>fixture id:</b>",
+      "<b>team id:</b>", "<b>league or group:</b>", "internal-fixture-1",
+      "team_alpha", "internal-groups-artifact", row_hash, "should-never-render"
+    ), grepl, logical(1), x = primary_html, fixed = TRUE)))
+  }
+})
+
 test_that("filters|responsive|accessibility|zero-one-many|long-text", {
   api <- phase17_test_load_contract()
   sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
@@ -371,6 +443,11 @@ test_that("production provider is accepted-data only and callbacks are real", {
   expect_true(nrow(bundles[["uefa_nations_league_2026_27"]]$artifacts$fixtures) > 0L)
   expect_true(nrow(bundles[["uefa_nations_league_2026_27"]]$artifacts$standings) > 0L)
   expect_true(nrow(bundles[["uefa_nations_league_2026_27"]]$artifacts$forecasts) > 0L)
+  expect_false("matchday" %in% names(script$phase17_provider_alias_rows(
+    data.frame(scheduled_at_utc = c("2026-09-01T18:00:00Z", "2026-09-02T18:00:00Z"),
+               stringsAsFactors = FALSE),
+    "uefa_nations_league_2026_27"
+  )))
   expect_identical(bundles[["uefa_euro_2028_qualifying"]]$lifecycle_state, "pre_draw")
   expect_false(any(grepl("fixture-001|nl-fixture-v1|Alpha|Beta", paste(unlist(bundles, use.names = FALSE), collapse = " "))))
   callbacks <- script$phase17_production_callbacks(bundles, phase17_test_project_root)
