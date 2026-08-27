@@ -889,7 +889,14 @@ phase15_nl_build_simulation_metadata <- function(simulation, state, source, rule
   phase15_nl_add_row_hashes(output)
 }
 
-phase15_nl_parent_graph_from_state <- function(state, source, stage_capture, rules_lineage, simulation, simulation_metadata) {
+phase15_nl_parent_graph_from_state <- function(
+    state,
+    source,
+    stage_capture,
+    rules_lineage,
+    simulation,
+    simulation_metadata,
+    rule_inputs = NULL) {
   manifest <- state$state_manifest
   parent <- list()
   put <- function(key, path, hash) parent[[key]] <<- list(path = path, sha256 = phase15_nl_text(hash))
@@ -914,6 +921,34 @@ phase15_nl_parent_graph_from_state <- function(state, source, stage_capture, rul
   put("calibrator", "outputs/releases/model_manifest.csv", phase15_nl_scalar(manifest, "calibrator_sha256"))
   put("phase14_feature_cutoff", "state/forecast_status.csv#feature_cutoff_utc", phase15_nl_sha256(unique(as.character(state$forecast_status$feature_cutoff_utc))))
   put("simulation_metadata", "outcomes/simulation_metadata.csv", phase15_nl_table_content_hash(simulation_metadata))
+  # Article 15 inputs are an independently captured companion to the Phase 13
+  # five-resource source bundle.  Keep their hashes in the parent graph so an
+  # outcomes bundle cannot silently outlive a changed access list or discipline
+  # baseline, while preserving synthetic/unit callers that do not supply them.
+  if (is.list(rule_inputs)) {
+    paths <- rule_inputs$paths %||% list()
+    if (nzchar(phase15_nl_text(rule_inputs$manifest_sha256, ""))) {
+      put(
+        "article15_rule_inputs_manifest",
+        paths$manifest_relative_path %||% "data/competition/rule_inputs/uefa_nations_league_2026_27/manifest.csv",
+        rule_inputs$manifest_sha256
+      )
+    }
+    if (nzchar(phase15_nl_text(rule_inputs$access_list_sha256, ""))) {
+      put(
+        "article15_access_list",
+        paths$access_list_relative_path %||% "data/competition/rule_inputs/uefa_nations_league_2026_27/access_list.csv",
+        rule_inputs$access_list_sha256
+      )
+    }
+    if (nzchar(phase15_nl_text(rule_inputs$discipline_points_sha256, ""))) {
+      put(
+        "article15_discipline_points",
+        paths$discipline_points_relative_path %||% "data/competition/rule_inputs/uefa_nations_league_2026_27/discipline_points.csv",
+        rule_inputs$discipline_points_sha256
+      )
+    }
+  }
   parent
 }
 
@@ -925,7 +960,8 @@ phase15_build_nl_outcomes_candidate <- function(
     stage_capture = NULL,
     state_bundle = NULL,
     project_root = ".",
-    generated_at_utc = NULL) {
+    generated_at_utc = NULL,
+    rule_inputs = NULL) {
   if (!is.list(simulation)) stop("Phase 15 outcomes candidate requires a simulation return list", call. = FALSE)
   state <- state_bundle %||% phase15_nl_read_phase14_state_bundle(project_root = project_root)
   if (is.character(state)) state <- phase15_nl_read_phase14_state_bundle(project_root = project_root, state_root = state)
@@ -960,7 +996,10 @@ phase15_build_nl_outcomes_candidate <- function(
     source = source
   )
   simulation_metadata <- phase15_nl_build_simulation_metadata(simulation, state, source, rules_lineage, common)
-  parent_graph <- phase15_nl_parent_graph_from_state(state, source, stage_capture, rules_lineage, simulation, simulation_metadata)
+  parent_graph <- phase15_nl_parent_graph_from_state(
+    state, source, stage_capture, rules_lineage, simulation, simulation_metadata,
+    rule_inputs = rule_inputs
+  )
   state$parent_graph <- parent_graph
   output_hash <- phase15_nl_sha256(list(
     projected_standings, projected_rankings, transition_outcomes, team_paths,
@@ -986,6 +1025,7 @@ phase15_build_nl_outcomes_candidate <- function(
     ruleset_sha256 = rules_lineage$ruleset_sha256,
     topology = topology,
     source = source,
+    rule_inputs = rule_inputs,
     stage_capture = stage_capture,
     state_bundle = state,
     state_manifest = state$state_manifest,
@@ -1166,14 +1206,14 @@ phase15_nl_manifest_parent_keys <- function(artifact_key) {
   artifact_key <- sub("\\.csv$", "", artifact_key)
   switch(
     artifact_key,
-    competition_topology = c("source_bundle_manifest", "ruleset"),
+    competition_topology = c("source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points"),
     stage_slots = c("source_bundle_manifest", "stage_capture_manifest", "stage_capture_raw", "stage_capture_content", "ruleset", "simulation_metadata"),
-    projected_standings = c("phase14_state_manifest", "phase14_canonical_matches", "source_bundle_manifest", "ruleset", "simulation_metadata"),
-    projected_rankings = c("phase14_state_manifest", "phase14_canonical_matches", "source_bundle_manifest", "ruleset", "simulation_metadata"),
-    transition_outcomes = c("phase14_state_manifest", "source_bundle_manifest", "ruleset", "model_release", "simulation_metadata"),
-    team_path_probabilities = c("phase14_state_manifest", "source_bundle_manifest", "ruleset", "model_release", "simulation_metadata"),
+    projected_standings = c("phase14_state_manifest", "phase14_canonical_matches", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "simulation_metadata"),
+    projected_rankings = c("phase14_state_manifest", "phase14_canonical_matches", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "simulation_metadata"),
+    transition_outcomes = c("phase14_state_manifest", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release", "simulation_metadata"),
+    team_path_probabilities = c("phase14_state_manifest", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release", "simulation_metadata"),
     fixture_forecast_form = c("phase14_state_manifest", "phase14_canonical_matches", "phase14_forecast_status", "phase14_forecasts", "phase14_score_distributions", "source_bundle_manifest"),
-    simulation_metadata = c("phase14_state_manifest", "phase14_forecast_status", "phase14_forecasts", "phase14_score_distributions", "source_bundle_manifest", "ruleset", "model_release"),
+    simulation_metadata = c("phase14_state_manifest", "phase14_forecast_status", "phase14_forecasts", "phase14_score_distributions", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release"),
     character()
   )
 }
@@ -1409,7 +1449,21 @@ phase15_validate_nl_outcomes_bundle <- function(bundle) {
   )
   phase15_nl_validate_stage_slot_output(artifacts[["outcomes/stage_slots.csv"]], rules_lineage)
   phase15_nl_validate_probability_groups(artifacts[["outcomes/projected_standings.csv"]], c("league", "group_id", "rank"), "projected standings")
-  phase15_nl_validate_probability_groups(artifacts[["outcomes/projected_rankings.csv"]], c("ranking_scope", "rank"), "projected rankings")
+  # A group rank is conserved within its published group, individual-league
+  # ranks within a league, and interim/final ranks globally.  Validate each
+  # scope with its own identity instead of pooling unrelated groups or
+  # splitting a global rank by the team's source group.
+  rankings <- artifacts[["outcomes/projected_rankings.csv"]]
+  ranking_scopes <- list(
+    group = c("ranking_scope", "league", "group_id", "rank"),
+    individual_league = c("ranking_scope", "league", "rank"),
+    interim_overall = c("ranking_scope", "rank"),
+    final_overall = c("ranking_scope", "rank")
+  )
+  for (scope in names(ranking_scopes)) {
+    rows <- rankings[as.character(rankings$ranking_scope) == scope, , drop = FALSE]
+    phase15_nl_validate_probability_groups(rows, ranking_scopes[[scope]], paste0("projected rankings (", scope, ")"))
+  }
   for (field in c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win", "p_playoff_loss")) {
     values <- suppressWarnings(as.numeric(as.character(artifacts[["outcomes/team_path_probabilities.csv"]][[field]])))
     if (any(!is.na(values) & (values < 0 | values > 1))) stop("Team path probability is outside [0,1]: ", field, call. = FALSE)

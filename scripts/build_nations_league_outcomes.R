@@ -46,6 +46,7 @@ phase15_nl_source_file("R/competition/form.R")
 phase15_nl_source_file("R/competition/match_state.R")
 phase15_nl_source_if_missing("R/competition/state_bundle.R", "phase14_build_competition_state_candidate")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_rules.R", "uefa_nl_2026_27_rules")
+phase15_nl_source_if_missing("R/competition/uefa_nations_league_rule_inputs.R", "phase15_nl_read_rule_inputs")
 phase15_nl_source_if_missing("R/competition/standings.R", "phase14_compute_standings")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_simulation.R", "uefa_nl_run_simulation")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_adapter.R", "phase14_uefa_nl_validate_response")
@@ -228,9 +229,20 @@ phase15_nl_default_inputs <- function(
     project_root = project_root,
     edition_id = edition_id
   )
+  topology_base <- uefa_nl_build_topology(
+    groups = source$groups,
+    fixtures = source$fixtures,
+    project_root = project_root
+  )
+  rule_inputs <- phase15_nl_read_rule_inputs(
+    project_root = project_root,
+    teams = topology_base$teams
+  )
   topology <- uefa_nl_build_topology(
     groups = source$groups,
     fixtures = source$fixtures,
+    access_list = rule_inputs$access_list,
+    discipline_points = rule_inputs$discipline_points,
     project_root = project_root
   )
   list(
@@ -242,6 +254,7 @@ phase15_nl_default_inputs <- function(
     raw_hashes = raw_hashes,
     stage_capture = stage_capture,
     state_bundle = state_bundle,
+    rule_inputs = rule_inputs,
     topology = topology,
     rules = uefa_nl_2026_27_rules()
   )
@@ -345,7 +358,8 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
     stage_capture = loaded$stage_capture,
     state_bundle = state_bundle,
     project_root = loaded$project_root,
-    generated_at_utc = NULL
+    generated_at_utc = NULL,
+    rule_inputs = loaded$rule_inputs
   )
   candidate <- phase15_nl_attach_stage_capture_lineage(candidate, loaded$stage_capture)
   phase15_validate_nl_outcomes_bundle(candidate)
@@ -448,7 +462,10 @@ phase15_nl_compare_replays <- function(first, second, label = "replay") {
     "stage_capture_lineage",
     "stage_capture_manifest",
     "stage_capture_raw",
-    "stage_capture_content"
+    "stage_capture_content",
+    "article15_rule_inputs_manifest",
+    "article15_access_list",
+    "article15_discipline_points"
   )
   for (key in explicit_lineage) {
     if (!identical(first_candidate$parent_graph[[key]], second_candidate$parent_graph[[key]])) {

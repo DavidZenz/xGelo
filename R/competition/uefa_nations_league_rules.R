@@ -510,7 +510,13 @@ uefa_nl_validate_group_formation <- function(
   if (any(as.character(access_rows$group_key) != as.character(group_by_team$group_id))) stop("Nations League access list group assignment disagrees with published groups", call. = FALSE)
   expected_band <- vapply(access_rows$access_list_position, uefa_nl_access_band, character(1))
   if (any(expected_band != access_rows$league_id)) stop("Nations League group formation has a wrong league band", call. = FALSE)
-  if (anyDuplicated(paste(access_rows$group_key, access_rows$draw_pot, sep = "::"))) {
+  # Leagues A–C receive one team from each of four pots.  League D is
+  # different in 2026/27: its four-team Pot 1 is distributed two per group,
+  # followed by one Pot 2 team (Article 13 / UEFA draw procedure).  Only the
+  # A–C one-per-pot invariant is therefore a duplicate-pot failure here.
+  duplicate_key <- paste(access_rows$group_key, access_rows$draw_pot, sep = "::")
+  non_d <- access_rows$league_id != "D"
+  if (anyDuplicated(duplicate_key[non_d])) {
     stop("Nations League group formation assigns a draw pot more than once in a group", call. = FALSE)
   }
   access_rows$group_id <- access_rows$group_key
@@ -643,6 +649,7 @@ uefa_nl_build_topology <- function(
     groups = NULL,
     fixtures = NULL,
     access_list = NULL,
+    discipline_points = NULL,
     group_formation_seed = 15013L,
     project_root = ".") {
   root <- uefa_nl_rules_project_root(project_root)
@@ -788,13 +795,39 @@ uefa_nl_build_topology <- function(
   team_table$draw_pot <- as.character(access_rows$draw_pot[access_match])
   team_table$group_formation_status <- as.character(access_rows$group_formation_status[access_match])
   team_table$group_formation_seed <- as.integer(group_formation_seed)
+  if (is.null(discipline_points)) {
+    team_table$discipline_points <- rep(NA_integer_, nrow(team_table))
+    discipline_status <- "unresolved_discipline_points"
+  } else {
+    if (!is.data.frame(discipline_points) || !all(c("team_id", "discipline_points") %in% names(discipline_points))) {
+      stop("Nations League discipline points require team_id and discipline_points", call. = FALSE)
+    }
+    discipline_rows <- as.data.frame(discipline_points, stringsAsFactors = FALSE, check.names = FALSE)
+    discipline_ids <- trimws(as.character(discipline_rows$team_id))
+    if (any(is.na(discipline_ids) | !nzchar(discipline_ids)) || anyDuplicated(discipline_ids)) {
+      stop("Nations League discipline points have invalid or duplicate stable team IDs", call. = FALSE)
+    }
+    if (!setequal(discipline_ids, as.character(team_table$team_id))) {
+      stop("Nations League discipline points do not cover the topology team set exactly", call. = FALSE)
+    }
+    values <- suppressWarnings(as.numeric(as.character(discipline_rows$discipline_points)))
+    if (any(is.na(values) | !is.finite(values) | values < 0 | values != floor(values))) {
+      stop("Nations League discipline points must be non-negative integers", call. = FALSE)
+    }
+    team_table$discipline_points <- as.integer(values[match(team_table$team_id, discipline_ids)])
+    discipline_status <- if ("initialization_status" %in% names(discipline_rows)) {
+      unique(trimws(as.character(discipline_rows$initialization_status)))[[1L]]
+    } else {
+      "validated"
+    }
+  }
   team_table$row_sha256 <- uefa_nl_rules_row_sha256(team_table)
   fixture_table$row_sha256 <- uefa_nl_rules_row_sha256(fixture_table)
   stage_topology <- uefa_nl_stage_topology()
   rules <- uefa_nl_2026_27_rules()
   rules_hash <- uefa_nl_ruleset_sha256(rules)
   stage_hash <- uefa_nl_stage_topology_hash(stage_topology)
-  topology_body <- list(groups = group_table, teams = team_table, fixtures = fixture_table, stages = stage_topology, group_formation_seed = as.integer(group_formation_seed), access_list_status = access_result$status)
+  topology_body <- list(groups = group_table, teams = team_table, fixtures = fixture_table, stages = stage_topology, group_formation_seed = as.integer(group_formation_seed), access_list_status = access_result$status, discipline_points_status = discipline_status)
   topology_hash <- uefa_nl_ruleset_sha256(topology_body)
   list(
     edition_id = uefa_nl_edition_id(),
@@ -817,6 +850,8 @@ uefa_nl_build_topology <- function(
     source_artifact_ids = sort(unique(c(as.character(group_table$source_artifact_id), as.character(fixture_table$source_artifact_id))), method = "radix"),
     access_list = access_rows,
     access_list_status = access_result$status,
+    discipline_points = team_table[, c("team_id", "discipline_points"), drop = FALSE],
+    discipline_points_status = discipline_status,
     missing_rule_input = access_result$missing_rule_input,
     group_formation = formation_result,
     group_formation_status = formation_result$group_formation_status,
