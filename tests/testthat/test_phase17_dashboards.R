@@ -247,6 +247,11 @@ test_that("Nations League renderer uses a World Cup-style shell", {
     away_display_name = "Beta", scheduled_at_utc = "2026-11-12T19:45:00Z",
     source_status = "UPCOMING", stringsAsFactors = FALSE
   )
+  bundle$artifacts$standings <- data.frame(
+    group_id = "A", team = "Alpha", expected_points = 5,
+    expected_goal_difference = 1, ranking_status = "unresolved",
+    stringsAsFactors = FALSE
+  )
   bundle$artifacts$forecasts <- data.frame(
     fixture_id = "fixture-001", forecast_status = "available", p_home = .5,
     p_draw = .25, p_away = .25, expected_home_goals = 1.4,
@@ -259,8 +264,33 @@ test_that("Nations League renderer uses a World Cup-style shell", {
     "Forecast", "Current", "nl-group-table", "nl-match-card",
     "No completed results yet", "Scheduled · forecasts available"
   ), grepl, logical(1), x = html, fixed = TRUE)))
+  expect_true(grepl('class="group-view nl-forecast-view" data-view="forecast"', html, fixed = TRUE))
+  expect_true(grepl('class="group-view nl-current-view" data-view="current" hidden', html, fixed = TRUE))
+  expect_true(grepl("Goals<br>For", html, fixed = TRUE))
+  expect_true(grepl("Rank probabilities are pending Article 15", html, fixed = TRUE))
+  expect_false(grepl('data-table-view="forecast"', html, fixed = TRUE))
   expect_false(grepl("<th scope=\"col\">Accepted data</th>", html, fixed = TRUE))
   expect_false(grepl("Refresh blocked", html, fixed = TRUE))
+})
+
+test_that("Nations League current table derives standings from completed accepted results", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+  bundle <- api$phase17_fixture_bundle("uefa_nations_league_2026_27", lifecycle_state = "active")
+  bundle$artifacts$structure <- data.frame(league = "A", display_name = "Group A1", group_id = "A", stringsAsFactors = FALSE)
+  bundle$artifacts$standings <- data.frame(
+    group_id = "A", team = "Alpha", expected_points = 5, expected_goal_difference = 1,
+    ranking_status = "unresolved", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$results <- data.frame(
+    fixture_id = "fixture-001", group_id = "A", home_display_name = "Alpha", away_display_name = "Beta",
+    match_status = "final", final_home_goals = 2, final_away_goals = 1,
+    counts_for_standings = TRUE, stringsAsFactors = FALSE
+  )
+  html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
+  expect_true(grepl("Current standings reflect completed accepted results.", html, fixed = TRUE))
+  expect_true(grepl("<td class=\"num\">3</td><td class=\"num\">1</td><td class=\"num\">1</td><td class=\"num\">0</td><td class=\"num\">0</td><td class=\"num\">2</td><td class=\"num\">1</td><td class=\"num\">+1</td>", html, fixed = TRUE))
 })
 
 test_that("public section projection keeps provenance out of both dashboards", {

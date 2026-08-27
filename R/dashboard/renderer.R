@@ -461,16 +461,116 @@ phase17_nl_rank_cell <- function(row, field) {
 }
 
 phase17_nl_expected_cell <- function(row, field, digits = 1L) {
-  value <- phase17_public_decimal(row[[field]], digits)
+  value <- phase17_public_decimal(phase17_nl_value(row, field), digits)
   if (!nzchar(value)) "—" else phase17_html_escape(value)
+}
+
+phase17_nl_number <- function(row, fields, default = NA_real_) {
+  value <- phase17_nl_value(row, fields)
+  number <- suppressWarnings(as.numeric(value))
+  if (!length(number) || !is.finite(number[[1L]])) default else number[[1L]]
+}
+
+phase17_nl_completed_result <- function(row) {
+  counts <- tolower(phase17_nl_value(row, "counts_for_standings"))
+  if (counts %in% c("false", "0", "no", "n")) return(NULL)
+  home_goals <- phase17_nl_number(row, c("final_home_goals", "home_goals", "regulation_home_goals"))
+  away_goals <- phase17_nl_number(row, c("final_away_goals", "away_goals", "regulation_away_goals"))
+  if (!is.finite(home_goals) || !is.finite(away_goals)) return(NULL)
+  # A final score is sufficient when the source omits a terminal status.
+  list(home_goals = home_goals, away_goals = away_goals)
 }
 
 phase17_nl_status_copy <- function(payload) {
   standings <- phase17_nl_rows(payload, "standings")
   projected <- phase17_nl_rows(payload, "projected_outcomes")
   if (phase17_nl_has_resolved_rankings(c(standings, projected))) "Forecast standings are available." else
-    if (length(c(standings, projected))) "Forecast rank unavailable — xPts and xGD show the accepted expectation inputs." else
+    if (length(c(standings, projected))) "Expected points and goal difference are forecast inputs. Rank probabilities are pending Article 15 access-list and discipline inputs." else
       "Forecast unavailable — aggregate standings are unresolved in the accepted outcome bundle."
+}
+
+phase17_nl_current_rows <- function(payload, group, context, teams) {
+  standings <- phase17_nl_rows(payload, "standings")
+  result_rows <- phase17_nl_rows(payload, "results")
+  current_fields <- c("points", "played", "wins", "draws", "losses", "goals_for", "goals_against", "goal_difference")
+  matching_standings <- standings[vapply(standings, function(row) {
+    identical(phase17_nl_group_key(row, context), group) &&
+      phase17_nl_team_name(row, "team", context) %in% vapply(teams, function(item) item$name, character(1))
+  }, logical(1))]
+  has_snapshot <- length(matching_standings) && any(vapply(matching_standings, function(row) {
+    any(vapply(current_fields, function(field) is.finite(phase17_nl_number(row, field)), logical(1)))
+  }, logical(1)))
+
+  stats <- setNames(lapply(teams, function(item) {
+    list(name = item$name, points = 0, played = 0, wins = 0, draws = 0, losses = 0,
+         goals_for = 0, goals_against = 0, goal_difference = 0, current_position = "",
+         current_available = FALSE)
+  }), vapply(teams, function(item) item$name, character(1)))
+
+  if (isTRUE(has_snapshot)) {
+    for (item in teams) {
+      name <- item$name
+      matching <- matching_standings[vapply(matching_standings, function(row) {
+        identical(phase17_nl_team_name(row, "team", context), name)
+      }, logical(1))]
+      if (!length(matching)) next
+      row <- matching[[1L]]
+      for (field in current_fields) {
+        value <- phase17_nl_number(row, field)
+        if (is.finite(value)) stats[[name]][[field]] <- value
+      }
+      current_position <- phase17_nl_value(row, c("current_position", "official_rank"))
+      if (nzchar(current_position)) stats[[name]]$current_position <- current_position
+      stats[[name]]$current_available <- TRUE
+    }
+  } else {
+    for (row in result_rows) {
+      if (!identical(phase17_nl_group_key(row, context), group)) next
+      result <- phase17_nl_completed_result(row)
+      if (is.null(result)) next
+      home <- phase17_nl_team_name(row, "home", context)
+      away <- phase17_nl_team_name(row, "away", context)
+      if (!home %in% names(stats) || !away %in% names(stats) || identical(home, "Team") || identical(away, "Team")) next
+      stats[[home]]$played <- stats[[home]]$played + 1
+      stats[[away]]$played <- stats[[away]]$played + 1
+      stats[[home]]$goals_for <- stats[[home]]$goals_for + result$home_goals
+      stats[[home]]$goals_against <- stats[[home]]$goals_against + result$away_goals
+      stats[[away]]$goals_for <- stats[[away]]$goals_for + result$away_goals
+      stats[[away]]$goals_against <- stats[[away]]$goals_against + result$home_goals
+      if (result$home_goals > result$away_goals) {
+        stats[[home]]$wins <- stats[[home]]$wins + 1
+        stats[[away]]$losses <- stats[[away]]$losses + 1
+        stats[[home]]$points <- stats[[home]]$points + 3
+      } else if (result$home_goals < result$away_goals) {
+        stats[[away]]$wins <- stats[[away]]$wins + 1
+        stats[[home]]$losses <- stats[[home]]$losses + 1
+        stats[[away]]$points <- stats[[away]]$points + 3
+      } else {
+        stats[[home]]$draws <- stats[[home]]$draws + 1
+        stats[[away]]$draws <- stats[[away]]$draws + 1
+        stats[[home]]$points <- stats[[home]]$points + 1
+        stats[[away]]$points <- stats[[away]]$points + 1
+      }
+    }
+    for (name in names(stats)) {
+      stats[[name]]$goal_difference <- stats[[name]]$goals_for - stats[[name]]$goals_against
+      stats[[name]]$current_available <- stats[[name]]$played > 0
+    }
+  }
+
+  if (!length(stats)) return(list())
+  stats[order(-vapply(stats, function(item) item$points, numeric(1)),
+              -vapply(stats, function(item) item$goal_difference, numeric(1)),
+              -vapply(stats, function(item) item$goals_for, numeric(1)),
+              -vapply(stats, function(item) item$wins, numeric(1)),
+              vapply(stats, function(item) item$name, character(1)), method = "radix")]
+}
+
+phase17_nl_current_cell <- function(value, signed = FALSE) {
+  number <- suppressWarnings(as.numeric(value))
+  if (!length(number) || !is.finite(number[[1L]])) return("—")
+  if (signed && number[[1L]] > 0) paste0("+", formatC(number[[1L]], format = "f", digits = 0L)) else
+    formatC(number[[1L]], format = "f", digits = 0L)
 }
 
 phase17_nl_group_table <- function(payload, definition, context) {
@@ -483,40 +583,84 @@ phase17_nl_group_table <- function(payload, definition, context) {
       identical(phase17_nl_group_key(row, context), definition$name) &&
         identical(phase17_nl_team_name(row, "team", context), name)
     }, logical(1))]
-    if (length(matching)) matching[[1L]] else list()
+    if (!length(matching)) return(list())
+    fields <- unique(unlist(lapply(matching, names), use.names = FALSE))
+    merged <- list()
+    for (field in fields) {
+      values <- vapply(matching, function(row) phase17_nl_value(row, field), character(1))
+      value <- values[nzchar(values)][1L]
+      if (length(value) && !is.na(value) && nzchar(value)) merged[[field]] <- value
+    }
+    merged
   }
-  table_rows <- if (length(teams)) paste(vapply(teams, function(item) {
-    row <- if (length(item$row)) item$row else row_for_team(item$name)
-    status <- phase17_nl_value(row, c("ranking_status", "status"))
-    status_label <- if (nzchar(status)) phase17_public_status(status) else "Not started"
-    current_status <- if (nzchar(phase17_nl_value(row, c("points", "rank")))) "Current" else "Not started"
-    current_rank <- phase17_nl_value(row, c("current_rank"))
-    paste0('<tr><th scope="row">', phase17_html_escape(item$name), '</th>',
-           '<td><span class="nl-forecast-value nl-status nl-status-muted">', phase17_html_escape(status_label), '</span><span class="nl-current-value nl-status nl-status-muted" hidden>', phase17_html_escape(current_status), '</span></td>',
-           '<td><span class="nl-forecast-value">', phase17_nl_expected_cell(row, "expected_points", 1L), '</span><span class="nl-current-value" hidden>', phase17_nl_expected_cell(row, "points", 1L), '</span></td>',
-           '<td><span class="nl-forecast-value">', phase17_nl_expected_cell(row, "expected_goal_difference", 1L), '</span><span class="nl-current-value" hidden>', phase17_nl_expected_cell(row, "goal_difference", 1L), '</span></td>',
-           '<td><span class="nl-forecast-value">', phase17_nl_rank_cell(row, "rank"), '</span><span class="nl-current-value" hidden>', if (nzchar(current_rank)) phase17_html_escape(current_rank) else "—", '</span></td></tr>')
+  forecast_items <- if (length(teams)) lapply(teams, function(item) {
+    row <- row_for_team(item$name)
+    list(name = item$name, row = row,
+         expected_points = phase17_nl_number(row, c("expected_points", "xpts", "x_points"), -Inf),
+         expected_goal_difference = phase17_nl_number(row, c("expected_goal_difference", "xgd", "x_goal_difference"), -Inf))
+  }) else list()
+  if (length(forecast_items)) {
+    forecast_items <- forecast_items[order(-vapply(forecast_items, function(item) item$expected_points, numeric(1)),
+                                           -vapply(forecast_items, function(item) item$expected_goal_difference, numeric(1)),
+                                           vapply(forecast_items, function(item) item$name, character(1)), method = "radix")]
+  }
+  forecast_rows <- if (length(forecast_items)) paste(vapply(forecast_items, function(item) {
+    row <- item$row
+    resolved <- phase17_nl_has_resolved_rankings(list(row))
+    status_title <- if (resolved) "Forecast rank available" else "Forecast rank unresolved"
+    status_mark <- if (resolved) "✓" else "?"
+    status_class <- if (resolved) "nl-table-status-current" else "nl-table-status-unresolved"
+    paste0('<tr><th scope="row" class="team-cell">', phase17_html_escape(item$name), '</th>',
+           '<td class="status-cell"><span class="nl-table-status ', status_class, '" title="', status_title,
+           '" aria-label="', status_title, '">', status_mark, '</span></td>',
+           '<td class="num">', phase17_nl_expected_cell(row, c("expected_points", "xpts", "x_points"), 1L), '</td>',
+           '<td class="num">', phase17_nl_expected_cell(row, c("expected_goal_difference", "xgd", "x_goal_difference"), 1L), '</td>',
+           '<td class="num">', phase17_nl_rank_cell(row, "rank"), '</td></tr>')
   }, character(1)), collapse = "") else
     '<tr><td colspan="5" class="nl-table-empty">Teams will appear when the accepted group roster is available.</td></tr>'
+  current_rows <- phase17_nl_current_rows(payload, definition$name, context, teams)
+  current_rows_html <- if (length(current_rows)) paste(vapply(current_rows, function(item) {
+    status_title <- if (isTRUE(item$current_available)) "Current standings available" else "No completed results"
+    status_mark <- if (isTRUE(item$current_available)) "•" else "—"
+    status_class <- if (isTRUE(item$current_available)) "nl-table-status-current" else "nl-table-status-pending"
+    paste0('<tr><th scope="row" class="team-cell">', phase17_html_escape(item$name), '</th>',
+           '<td class="status-cell"><span class="nl-table-status ', status_class, '" title="', status_title,
+           '" aria-label="', status_title, '">', status_mark, '</span></td>',
+           '<td class="num">', phase17_nl_current_cell(item$points), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$played), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$wins), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$draws), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$losses), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$goals_for), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$goals_against), '</td>',
+           '<td class="num">', phase17_nl_current_cell(item$goal_difference, signed = TRUE), '</td></tr>')
+  }, character(1)), collapse = "") else
+    '<tr><td colspan="10" class="nl-table-empty">Current standings will appear when the accepted group roster is available.</td></tr>'
+  has_current_results <- any(vapply(current_rows, function(item) isTRUE(item$current_available) && item$played > 0, logical(1)))
+  current_note <- if (has_current_results) "Current standings reflect completed accepted results." else
+    "No completed results yet. Current standings will appear after the first final matches."
   status_copy <- if (phase17_nl_has_resolved_rankings(by_team)) "Forecast standings available" else "Rank unresolved"
   paste0('<article class="nl-group-card" data-group="', phase17_html_escape(definition$name), '">',
-         '<div class="nl-card-heading"><div><p class="eyebrow">', phase17_html_escape(definition$league),
+         '<div class="group-head nl-card-heading"><div><p class="eyebrow">', phase17_html_escape(definition$league),
          '</p><h3>', phase17_html_escape(definition$name), '</h3></div>',
          '<span class="nl-card-state">', phase17_html_escape(status_copy), '</span></div>',
-         '<div class="nl-view-toggle" role="group" aria-label="', phase17_html_escape(definition$name), ' table view">',
-         '<button type="button" class="nl-toggle is-active" data-table-view="forecast">Forecast</button>',
-         '<button type="button" class="nl-toggle" data-table-view="current">Current</button></div>',
+         '<div class="group-toggle" role="group" aria-label="', phase17_html_escape(definition$name), ' table view">',
+         '<button type="button" class="active" data-group-view="forecast">Forecast</button>',
+         '<button type="button" data-group-view="current">Current</button></div>',
          '<p class="nl-table-note nl-forecast-view">', phase17_html_escape(phase17_nl_status_copy(payload)), '</p>',
-         '<p class="nl-table-note nl-current-view" hidden>No completed results yet. Current standings will appear after the first final matches.</p>',
-         '<div class="nl-table-scroll"><table class="nl-group-table"><thead><tr><th scope="col">Team</th><th scope="col">Status</th><th scope="col">xPts Avg</th><th scope="col">xGD Avg</th><th scope="col">Rank</th></tr></thead><tbody>',
-         table_rows, '</tbody></table></div></article>')
+         '<p class="nl-table-note nl-current-view" hidden>', phase17_html_escape(current_note), '</p>',
+         '<div class="nl-table-scroll">',
+         '<div class="group-view nl-forecast-view" data-view="forecast"><table class="nl-group-table group-table"><thead><tr><th scope="col">Team</th><th class="status-head" scope="col" aria-label="Status"></th><th class="num xpts-head" scope="col">xPts<br>Avg</th><th class="num" scope="col">xGD<br>Avg</th><th class="num" scope="col">Rank</th></tr></thead><tbody>',
+         forecast_rows, '</tbody></table></div>',
+         '<div class="group-view nl-current-view" data-view="current" hidden><table class="nl-group-table group-table current-table"><thead><tr><th scope="col">Team</th><th class="status-head" scope="col" aria-label="Status"></th><th class="num xpts-head" scope="col">Pts</th><th class="num standing-head" scope="col">Played</th><th class="num standing-head" scope="col">Wins</th><th class="num standing-head" scope="col">Draws</th><th class="num standing-head" scope="col">Losses</th><th class="num standing-head" scope="col">Goals<br>For</th><th class="num standing-head" scope="col">Goals<br>Against</th><th class="num standing-head" scope="col">Goal<br>Diff</th></tr></thead><tbody>',
+         current_rows_html, '</tbody></table></div></div></article>')
 }
 
 phase17_nl_render_groups <- function(payload, context) {
   definitions <- phase17_nl_group_definitions(payload, context)
   cards <- if (length(definitions)) paste(vapply(definitions, function(definition) phase17_nl_group_table(payload, definition, context), character(1)), collapse = "") else
     '<div class="nl-empty"><strong>No groups available</strong><p>The accepted competition structure has not supplied a group roster yet.</p></div>'
-  paste0('<section id="groups" class="nl-view" data-nl-view="groups"><div class="section-heading"><div><p class="eyebrow">Forecast table</p><h2>Groups</h2></div><p class="section-intro">Group tables mirror the World Cup view. Switch between the model forecast and confirmed results as the competition progresses.</p></div><div class="nl-group-grid">', cards, '</div></section>')
+  paste0('<section id="groups" class="nl-view" data-nl-view="groups"><div class="section-heading"><div><p class="eyebrow">Forecast table</p><h2>Groups</h2></div><p class="section-intro">Each group uses the World Cup table contract: Forecast shows expected points, expected goal difference, and rank probabilities; Current shows the accepted W/D/L and goals table.</p></div><div id="groupsGrid" class="nl-group-grid">', cards, '</div></section>')
 }
 
 phase17_nl_forecast_for_fixture <- function(payload, fixture_id) {
@@ -611,7 +755,7 @@ phase17_nl_render_results <- function(payload, context) {
 phase17_nl_render_outlook <- function(payload, context) {
   rows <- phase17_nl_rows(payload, "projected_outcomes")
   resolved <- phase17_nl_has_resolved_rankings(rows)
-  body <- if (!resolved) '<div class="nl-empty nl-empty-warning"><strong>Forecast unavailable</strong><p>Aggregate standings are unresolved in the accepted outcome bundle, so no finishing-order probabilities are shown.</p></div>' else {
+  body <- if (!resolved) '<div class="nl-empty nl-empty-warning"><strong>Forecast rank unavailable</strong><p>Expected points and goal difference are available in the group tables. Finishing-order probabilities remain unresolved because the accepted bundle is missing the Article 15 access-list and discipline inputs.</p></div>' else {
     sorted <- rows[order(vapply(rows, function(row) suppressWarnings(as.numeric(phase17_nl_value(row, "rank"))), numeric(1)), na.last = TRUE)]
     paste0('<div class="nl-table-scroll"><table class="nl-outlook-table"><thead><tr><th scope="col">Group</th><th scope="col">Team</th><th scope="col">Rank</th><th scope="col">Outcome</th><th scope="col">Probability</th></tr></thead><tbody>', paste(vapply(sorted, function(row) paste0('<tr><td>', phase17_html_escape(phase17_nl_group_key(row, context)), '</td><th scope="row">', phase17_html_escape(phase17_nl_team_name(row, "team", context)), '</th><td>', phase17_nl_rank_cell(row, "rank"), '</td><td>', phase17_html_escape(phase17_nl_value(row, "outcome")), '</td><td>', phase17_html_escape(phase17_public_percentage(row$probability)), '</td></tr>'), character(1)), collapse = ""), '</tbody></table></div>')
   }
@@ -658,7 +802,7 @@ phase17_nl_render_dashboard <- function(payload, route) {
   tab_html <- paste(vapply(names(tabs), function(id) paste0('<button type="button" class="nl-tab', if (identical(id, "groups")) ' is-active' else '', '" data-nl-tab="', id, '" aria-controls="', id, '" aria-selected="', if (identical(id, "groups")) "true" else "false", '">', tabs[[id]], '</button>'), character(1)), collapse = "")
   contract_labels <- paste(vapply(payload$sections, function(section) phase17_html_escape(section$label), character(1)), collapse = " ")
   paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>', phase17_html_escape(title), '</title><style>',
-    ':root{--ink:#1d1d1f;--muted:#666;--line:#d8d8d8;--paper:#f7f6f2;--panel:#fff;--blue:#3573a8;--blue-dark:#24577e;--blue-soft:#eef6fb;--gold:#d29d2b;--green:#3b8754;--danger:#b23a2f}*{box-sizing:border-box}html{scroll-behavior:smooth}body{font:14px/1.5 Arial,Helvetica,sans-serif;background:var(--paper);color:var(--ink);margin:0}main{max-width:1180px;margin:0 auto;padding:24px}.nl-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;padding:12px 0 24px;border-bottom:1px solid var(--line)}.nl-header h1{font-size:34px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}.nl-header p{color:var(--muted);margin:0}.nl-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.nl-header-status{white-space:nowrap;background:var(--blue-soft);color:var(--blue-dark);padding:8px 12px;border-radius:999px}.nl-header-status:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}.nl-meta{display:flex;gap:20px;flex-wrap:wrap;padding:14px 0;color:var(--muted);font-size:12px}.nl-meta b{color:var(--ink);display:block;font-size:13px}.nl-hero{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:4px 0 20px}.nl-metric{background:var(--panel);padding:16px}.nl-metric span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.nl-metric strong{display:block;font-size:22px;margin-top:4px}.warning{border-left:4px solid var(--danger);background:#fff;padding:12px 16px;overflow-wrap:anywhere;margin:12px 0}.warning p{margin:4px 0}.nl-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:18px 0 14px;border-bottom:1px solid var(--line)}.nl-tab{border:0;background:transparent;color:var(--muted);padding:12px 16px;min-height:46px;font-weight:700;cursor:pointer}.nl-tab.is-active{background:var(--ink);color:#fff}.nl-tab:hover{color:var(--ink)}.nl-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);padding:14px;margin:0 0 18px}.nl-filters label{font-weight:700;font-size:12px;color:var(--muted)}.nl-filters input,.nl-filters select{display:block;min-width:150px;min-height:42px;margin-top:4px;border:1px solid #aaa;background:#fff;padding:7px 9px;font:inherit;color:var(--ink)}.nl-filters input{min-width:190px}.nl-filters button{min-height:42px;padding:8px 13px;background:#fff;border:1px solid var(--blue);color:var(--ink);font-weight:700;cursor:pointer}.nl-filters p{margin:0 0 8px;color:var(--muted);font-size:12px}.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:end;margin:10px 0 14px}.section-heading h2{font-size:25px;margin:0}.eyebrow{margin:0 0 3px;color:var(--blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em}.section-intro{max-width:560px;color:var(--muted);margin:0}.nl-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.nl-group-card,.nl-format-card,.nl-match-card,.nl-empty{background:var(--panel);border:1px solid var(--line);padding:16px}.nl-card-heading{display:flex;justify-content:space-between;gap:12px;align-items:start}.nl-card-heading h3,.nl-format-card h3{margin:0;font-size:19px}.nl-card-state{color:var(--muted);font-size:11px;text-align:right}.nl-view-toggle{display:flex;gap:0;margin:14px 0 8px;border-bottom:1px solid var(--line)}.nl-toggle{border:0;background:transparent;color:var(--muted);padding:7px 11px;font-weight:700;cursor:pointer}.nl-toggle.is-active{color:var(--blue-dark);border-bottom:3px solid var(--blue)}.nl-table-note{color:var(--muted);font-size:12px;min-height:36px;margin:8px 0}.nl-table-scroll,.nl-table-scroll table{max-width:100%;overflow-x:auto}.nl-group-table,.nl-outlook-table{border-collapse:collapse;width:100%;font-size:13px}.nl-group-table th,.nl-group-table td,.nl-outlook-table th,.nl-outlook-table td{border-bottom:1px solid var(--line);padding:9px 7px;text-align:left;vertical-align:middle}.nl-group-table th:first-child{width:40%}.nl-group-table td:nth-child(n+3),.nl-group-table th:nth-child(n+3){text-align:right}.nl-status-muted{color:var(--muted);font-size:11px}.nl-table-empty{text-align:left!important;color:var(--muted);padding:16px!important}.nl-match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nl-match-card{padding:14px}.nl-match-top,.nl-match-bottom{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px}.nl-match-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:15px 0 12px}.nl-match-teams strong{display:block;font-size:16px}.nl-match-teams small{display:block;color:var(--muted);font-size:11px;margin-top:2px}.nl-match-teams .away{text-align:right}.nl-score{font-size:18px;white-space:nowrap}.nl-probabilities{display:flex;gap:10px;margin:8px 0 0}.nl-probabilities span{display:flex;gap:3px;align-items:baseline}.nl-probabilities b{color:var(--blue-dark)}.nl-probabilities small{color:var(--muted);font-size:10px}.nl-match-meta{margin:8px 0 0;color:var(--muted);font-size:11px}.nl-empty{border-left:4px solid var(--gold);padding:18px}.nl-empty strong{font-size:16px}.nl-empty p{color:var(--muted);margin:4px 0 0}.nl-empty-warning{border-left-color:var(--gold)}.nl-format-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.nl-format-card ul{list-style:none;padding:0;margin:12px 0 0}.nl-format-card li{border-top:1px solid var(--line);padding:7px 0}.nl-details{margin-top:20px;background:var(--panel);border:1px solid var(--line);padding:14px}.nl-details summary{font-weight:700;cursor:pointer}.nl-details dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:14px 0 0}.nl-details dd{margin:0;overflow-wrap:anywhere}.credits{overflow-wrap:anywhere}.contract-labels{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.nl-view[hidden]{display:none!important}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:2px}@media(max-width:800px){main{padding:16px}.nl-header{display:block}.nl-header-status{display:inline-flex;margin-top:14px}.nl-hero{grid-template-columns:repeat(2,1fr)}.nl-group-grid,.nl-match-grid{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-heading{display:block}.section-intro{margin-top:8px}.nl-filters{display:grid;grid-template-columns:1fr}.nl-filters label,.nl-filters input,.nl-filters select,.nl-filters button{width:100%}}@media(max-width:460px){.nl-hero{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:1fr}.nl-header h1{font-size:27px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}',
+    ':root{--ink:#1d1d1f;--muted:#666;--line:#d8d8d8;--paper:#f7f6f2;--panel:#fff;--blue:#3573a8;--blue-dark:#24577e;--blue-soft:#eef6fb;--gold:#d29d2b;--green:#3b8754;--danger:#b23a2f}*{box-sizing:border-box}html{scroll-behavior:smooth}body{font:14px/1.5 Arial,Helvetica,sans-serif;background:var(--paper);color:var(--ink);margin:0}main{max-width:1180px;margin:0 auto;padding:24px}.nl-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;padding:12px 0 24px;border-bottom:1px solid var(--line)}.nl-header h1{font-size:34px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}.nl-header p{color:var(--muted);margin:0}.nl-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.nl-header-status{white-space:nowrap;background:var(--blue-soft);color:var(--blue-dark);padding:8px 12px;border-radius:999px}.nl-header-status:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}.nl-meta{display:flex;gap:20px;flex-wrap:wrap;padding:14px 0;color:var(--muted);font-size:12px}.nl-meta b{color:var(--ink);display:block;font-size:13px}.nl-hero{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:4px 0 20px}.nl-metric{background:var(--panel);padding:16px}.nl-metric span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.nl-metric strong{display:block;font-size:22px;margin-top:4px}.warning{border-left:4px solid var(--danger);background:#fff;padding:12px 16px;overflow-wrap:anywhere;margin:12px 0}.warning p{margin:4px 0}.nl-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:18px 0 14px;border-bottom:1px solid var(--line)}.nl-tab{border:0;background:transparent;color:var(--muted);padding:12px 16px;min-height:46px;font-weight:700;cursor:pointer}.nl-tab.is-active{background:var(--ink);color:#fff}.nl-tab:hover{color:var(--ink)}.nl-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);padding:14px;margin:0 0 18px}.nl-filters label{font-weight:700;font-size:12px;color:var(--muted)}.nl-filters input,.nl-filters select{display:block;min-width:150px;min-height:42px;margin-top:4px;border:1px solid #aaa;background:#fff;padding:7px 9px;font:inherit;color:var(--ink)}.nl-filters input{min-width:190px}.nl-filters button{min-height:42px;padding:8px 13px;background:#fff;border:1px solid var(--blue);color:var(--ink);font-weight:700;cursor:pointer}.nl-filters p{margin:0 0 8px;color:var(--muted);font-size:12px}.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:end;margin:10px 0 14px}.section-heading h2{font-size:25px;margin:0}.eyebrow{margin:0 0 3px;color:var(--blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em}.section-intro{max-width:560px;color:var(--muted);margin:0}.nl-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.nl-group-card,.nl-format-card,.nl-match-card,.nl-empty{background:var(--panel);border:1px solid var(--line);padding:16px}.nl-card-heading{display:flex;justify-content:space-between;gap:12px;align-items:start}.nl-card-heading h3,.nl-format-card h3{margin:0;font-size:19px}.nl-card-state{color:var(--muted);font-size:11px;text-align:right}.nl-group-card .group-head{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:9px}.group-toggle{display:inline-flex;gap:0;border:1px solid var(--line);background:#f9f9f7;border-radius:999px;overflow:hidden;margin:0 0 8px}.group-toggle button{border:0;background:transparent;color:var(--muted);padding:6px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none!important}.nl-table-note{color:var(--muted);font-size:12px;min-height:36px;margin:8px 0}.nl-table-scroll{max-width:100%;overflow-x:auto}.nl-group-table{border-collapse:separate;border-spacing:3px;width:100%;min-width:570px;font-size:13px}.nl-group-table.current-table{min-width:700px}.nl-group-table th,.nl-group-table td,.nl-outlook-table th,.nl-outlook-table td{border-bottom:1px solid var(--line);padding:9px 7px;text-align:left;vertical-align:middle}.nl-outlook-table{border-collapse:collapse;width:100%;font-size:13px}.nl-group-table th:first-child{width:40%}.nl-group-table td:nth-child(n+3),.nl-group-table th:nth-child(n+3){text-align:right}.nl-group-table .status-head,.nl-group-table .status-cell{width:34px;text-align:center!important}.nl-table-status{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;font-size:12px;font-weight:700}.nl-table-status-unresolved{background:#fff3d6;color:#996b00}.nl-table-status-current{background:#e7f4eb;color:#28653a}.nl-table-status-pending{background:#f1f1ef;color:var(--muted)}.nl-status-muted{color:var(--muted);font-size:11px}.nl-table-empty{text-align:left!important;color:var(--muted);padding:16px!important}.nl-match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nl-match-card{padding:14px}.nl-match-top,.nl-match-bottom{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px}.nl-match-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:15px 0 12px}.nl-match-teams strong{display:block;font-size:16px}.nl-match-teams small{display:block;color:var(--muted);font-size:11px;margin-top:2px}.nl-match-teams .away{text-align:right}.nl-score{font-size:18px;white-space:nowrap}.nl-probabilities{display:flex;gap:10px;margin:8px 0 0}.nl-probabilities span{display:flex;gap:3px;align-items:baseline}.nl-probabilities b{color:var(--blue-dark)}.nl-probabilities small{color:var(--muted);font-size:10px}.nl-match-meta{margin:8px 0 0;color:var(--muted);font-size:11px}.nl-empty{border-left:4px solid var(--gold);padding:18px}.nl-empty strong{font-size:16px}.nl-empty p{color:var(--muted);margin:4px 0 0}.nl-empty-warning{border-left-color:var(--gold)}.nl-format-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.nl-format-card ul{list-style:none;padding:0;margin:12px 0 0}.nl-format-card li{border-top:1px solid var(--line);padding:7px 0}.nl-details{margin-top:20px;background:var(--panel);border:1px solid var(--line);padding:14px}.nl-details summary{font-weight:700;cursor:pointer}.nl-details dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:14px 0 0}.nl-details dd{margin:0;overflow-wrap:anywhere}.credits{overflow-wrap:anywhere}.contract-labels{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.nl-view[hidden]{display:none!important}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:2px}@media(max-width:800px){main{padding:16px}.nl-header{display:block}.nl-header-status{display:inline-flex;margin-top:14px}.nl-hero{grid-template-columns:repeat(2,1fr)}.nl-group-grid,.nl-match-grid{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-heading{display:block}.section-intro{margin-top:8px}.nl-filters{display:grid;grid-template-columns:1fr}.nl-filters label,.nl-filters input,.nl-filters select,.nl-filters button{width:100%}}@media(max-width:460px){.nl-hero{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:1fr}.nl-header h1{font-size:27px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}',
     '</style></head><body><main class="nl-dashboard" data-route="', phase17_html_escape(route), '"><header class="nl-header"><div><p class="eyebrow">UEFA Nations League 2026/27</p><h1>', phase17_html_escape(title), '</h1><p>Forecast-led group tables, fixtures, and tournament outlook.</p></div><p id="dashboard-status" class="nl-header-status" role="status">', phase17_html_escape(status_label), '</p></header>',
     warning_html,
     '<div class="nl-meta"><span><b>Source</b>', phase17_html_escape(phase17_public_scalar(metadata$source_confidence)), '</span><span><b>Last accepted refresh</b>', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), '</span><span><b>Model release</b>', phase17_html_escape(phase17_public_scalar(metadata$model_release_id)), '</span></div>',
@@ -670,7 +814,7 @@ phase17_nl_render_dashboard <- function(payload, route) {
     '<details id="source-lineage" class="nl-details"><summary>Source, model, and refresh lineage</summary><dl>', phase17_render_metadata(metadata), '</dl></details>',
     '<details id="data-credits" class="nl-details"><summary>Data credits</summary><div class="credits">', phase17_html_escape(phase17_canonical_json(payload$credits)), '</div></details>',
     '<script id="dashboard-data" type="application/json">', payload_json, '</script>',
-    '<script>(function(){const root=document;const tabs=[...root.querySelectorAll("[data-nl-tab]")];const views=[...root.querySelectorAll("[data-nl-view]")];const validTabs=new Set(tabs.map(tab=>tab.dataset.nlTab));function setTab(name,write){const selected=validTabs.has(name)?name:"groups";tabs.forEach(tab=>{const active=tab.dataset.nlTab===selected;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",active?"true":"false")});views.forEach(view=>{view.hidden=view.dataset.nlView!==selected});if(write&&location.hash!=="#"+selected)history.replaceState(null,"","#"+selected);applyFilters()}function requestedTab(){const value=location.hash.replace(/^#/,"");return validTabs.has(value)?value:"groups"}tabs.forEach(tab=>tab.addEventListener("click",()=>setTab(tab.dataset.nlTab,true)));window.addEventListener("hashchange",()=>setTab(requestedTab(),false));root.querySelectorAll("[data-table-view]").forEach(button=>button.addEventListener("click",()=>{const card=button.closest(".nl-group-card");if(!card)return;const forecast=button.dataset.tableView==="forecast";card.querySelectorAll("[data-table-view]").forEach(item=>item.classList.toggle("is-active",item===button));card.querySelectorAll(".nl-forecast-view").forEach(item=>{item.hidden=!forecast});card.querySelectorAll(".nl-current-view").forEach(item=>{item.hidden=forecast});card.querySelectorAll(".nl-forecast-value").forEach(item=>{item.hidden=!forecast});card.querySelectorAll(".nl-current-value").forEach(item=>{item.hidden=forecast})}));const search=root.getElementById("nl-team-search"),group=root.getElementById("nl-group-filter"),date=root.getElementById("nl-date-filter"),status=root.getElementById("nl-status-filter"),count=root.getElementById("nl-filter-result-count");function applyFilters(){const query=(search.value||"").trim().toLowerCase(),selectedGroup=group.value,selectedDate=date.value,selectedStatus=status.value;let visible=0;root.querySelectorAll(".nl-match-card").forEach(card=>{const teams=(card.dataset.filterTeam||"").toLowerCase().split("|");const exactTeamMatch=teams.includes(query),show=(!query||exactTeamMatch||teams.some(team=>team.includes(query)))&&(!selectedGroup||card.dataset.filterGroup===selectedGroup)&&(!selectedDate||card.dataset.filterDate===selectedDate)&&(!selectedStatus||card.dataset.filterStatus===selectedStatus);card.hidden=!show;if(show)visible++});count.textContent=visible?"Showing "+visible+" matching matches.":"No matches match the selected filters."}[',
+    '<script>(function(){const root=document;const tabs=[...root.querySelectorAll("[data-nl-tab]")];const views=[...root.querySelectorAll("[data-nl-view]")];const validTabs=new Set(tabs.map(tab=>tab.dataset.nlTab));function setTab(name,write){const selected=validTabs.has(name)?name:"groups";tabs.forEach(tab=>{const active=tab.dataset.nlTab===selected;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",active?"true":"false")});views.forEach(view=>{view.hidden=view.dataset.nlView!==selected});if(write&&location.hash!=="#"+selected)history.replaceState(null,"","#"+selected);applyFilters()}function requestedTab(){const value=location.hash.replace(/^#/,"");return validTabs.has(value)?value:"groups"}tabs.forEach(tab=>tab.addEventListener("click",()=>setTab(tab.dataset.nlTab,true)));window.addEventListener("hashchange",()=>setTab(requestedTab(),false));const groupsGrid=root.getElementById("groupsGrid");if(groupsGrid)groupsGrid.addEventListener("click",event=>{const button=event.target&&event.target.closest?event.target.closest("[data-group-view]"):null;if(!button||!groupsGrid.contains(button))return;const card=button.closest(".nl-group-card");if(!card)return;const view=button.dataset.groupView;card.querySelectorAll("[data-group-view]").forEach(toggle=>toggle.classList.toggle("active",toggle===button));card.querySelectorAll(".group-view").forEach(panel=>{panel.hidden=panel.dataset.view!==view});card.querySelectorAll(".nl-forecast-view").forEach(item=>{item.hidden=view!=="forecast"});card.querySelectorAll(".nl-current-view").forEach(item=>{item.hidden=view!=="current"})});const search=root.getElementById("nl-team-search"),group=root.getElementById("nl-group-filter"),date=root.getElementById("nl-date-filter"),status=root.getElementById("nl-status-filter"),count=root.getElementById("nl-filter-result-count");function applyFilters(){const query=(search.value||"").trim().toLowerCase(),selectedGroup=group.value,selectedDate=date.value,selectedStatus=status.value;let visible=0;root.querySelectorAll(".nl-match-card").forEach(card=>{const teams=(card.dataset.filterTeam||"").toLowerCase().split("|");const exactTeamMatch=teams.includes(query),show=(!query||exactTeamMatch||teams.some(team=>team.includes(query)))&&(!selectedGroup||card.dataset.filterGroup===selectedGroup)&&(!selectedDate||card.dataset.filterDate===selectedDate)&&(!selectedStatus||card.dataset.filterStatus===selectedStatus);card.hidden=!show;if(show)visible++});count.textContent=visible?"Showing "+visible+" matching matches.":"No matches match the selected filters."}[',
     '"search","group","date","status"].forEach(id=>root.getElementById(id).addEventListener(id==="search"?"input":"change",applyFilters));root.getElementById("nl-clear-filters").addEventListener("click",()=>{search.value="";[group,date,status].forEach(item=>item.value="");applyFilters()});setTab(requestedTab(),false)})();</script></main></body></html>')
 }
 
