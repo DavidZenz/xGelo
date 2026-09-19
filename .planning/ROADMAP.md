@@ -32,7 +32,26 @@ Publish a trustworthy, automatically refreshed UEFA Champions League dashboard f
 4. Every current and historical club record resolves through a stable, validity-aware identity contract that rejects ambiguous aliases and national-team identities.
 5. The historical club corpus is pinned and auditable for licensing, point-in-time availability, coverage, duplicates, and regulation/extra-time/shootout score semantics before model training can consume it.
 
-**Plans**: TBD
+**Plans:** 6 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 18-01-PLAN.md — Define owner review, lifecycle expectations, and the bounded atomic first-acceptance probe.
+- [ ] 18-02-PLAN.md — Establish validity-aware club identity plus one reviewed current/history bootstrap with durable unresolved evidence.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 18-03-PLAN.md — Validate the fixed four-endpoint UCL window and integrate the bounded first-acceptance probe with reviewed club identity.
+- [ ] 18-05-PLAN.md — Pin, identity-review, normalize, audit, and conditionally accept the historical club corpus.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 18-06-PLAN.md — Seal canonical UCL candidates with complete provenance hashes and discriminated provider/manual/fixture authority.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 18-04-PLAN.md — Recompute promotion authority, preserve technical last-known-good state, and execute reviewed provider-exit retain or withdraw transactions.
 
 ### Phase 19: Independent Club Forecast Authority
 
@@ -99,7 +118,7 @@ Publish a trustworthy, automatically refreshed UEFA Champions League dashboard f
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 18. Club and UCL Source Contracts | 0/TBD | Not started | - |
+| 18. Club and UCL Source Contracts | 0/6 | Planned | - |
 | 19. Independent Club Forecast Authority | 0/TBD | Not started | - |
 | 20. UCL Rules, State, and Tournament Outcomes | 0/TBD | Not started | - |
 | 21. N-Edition Dashboard and Atomic Publication | 0/TBD | Not started | - |

@@ -455,27 +455,27 @@ if (inherits(result, "try-error")) {
 | A3 | Five completed seasons are a useful initial historical audit window. | Historical Corpus Acceptance | Too narrow may under-connect clubs/leagues; too broad may increase identity and coverage debt. Treat it as an audit starting point, not a promotion threshold. |
 | A4 | Owner/provider clarification may permit the intended normalized display and retention model. | Provider Acceptance Contract | If it does not, automated current-state acquisition remains disabled and Phase 18 must exit in manual/unavailable mode. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Will the owner accept football-data.org’s application, attribution, retention, and termination terms for this public dashboard?**
+1. **Will the owner accept football-data.org’s application, attribution, retention, and termination terms for this public dashboard? — Resolution: owner review remains a blocking human evidence gate.**
    - What we know: attribution, credential secrecy, one-application scope, and a post-cancellation restriction are publicly stated. `[CITED: https://www.football-data.org/about]`
    - What is unclear: normalized-field display, private raw retention, long-lived last-known-good display, and provider-exit handling for this exact application. `[ASSUMED]`
-   - Recommendation: make this a blocking human review in the plan; contact the provider for written clarification where the public terms do not answer the use case. Do not mark acceptance from code. `[CITED: https://www.football-data.org/about]`
+   - Chosen resolution: code records and validates the review but cannot approve it. Any unresolved dimension leaves automation disabled; written provider clarification is attached to the review when public terms are insufficient. `[CITED: https://www.football-data.org/about]`
 
-2. **Does the live free-tier API represent the 2026/27 UCL league phase and standings completely?**
+2. **Does the live free-tier API represent the 2026/27 UCL league phase and standings completely? — Resolution: only the bounded `live_acceptance_probe` can establish live coverage.**
    - What we know: Champions League is listed in the free tier and the relevant endpoints are documented. `[CITED: https://www.football-data.org/coverage][CITED: https://docs.football-data.org/general/v4/coding_client.html]`
    - What is unclear: actual new-format stage labels, match cardinality, 36-club table shape, update delay, and null behavior for the current edition. `[ASSUMED]`
-   - Recommendation: resolve only through the opt-in live-key matrix; absent a key, retain `not_run` and automation disabled. `[VERIFIED: local runtime probe]`
+   - Chosen resolution: after owner review is complete but while automation remains false, an opt-in `live_acceptance_probe` performs only the four fixed competition endpoints in an isolated no-cache run. It checks a reviewed edition-expectation artifact, records the full machine matrix and secret scan, and atomically creates the accepted provider manifest only on an exact pass. Ordinary `provider_live` ingestion remains blocked until that manifest validates. Absent a key, retain `not_run` and automation disabled. `[VERIFIED: local runtime probe]`
 
-3. **Which domestic leagues/seasons have enough OpenFootball coverage for the club model?**
+3. **Which domestic leagues/seasons have enough OpenFootball coverage for the club model? — Resolution: the five-season set is audit-only.**
    - What we know: public-domain domestic and European repositories exist, but updates are contributor-maintained. `[CITED: https://github.com/openfootball][CITED: https://github.com/openfootball/football.json]`
    - What is unclear: season completeness, identity continuity, cross-league connectivity, and score semantics for the intended training window. `[ASSUMED]`
-   - Recommendation: Phase 18 produces coverage evidence and an accepted inventory; Phase 19 chooses the model panel only after inspecting that evidence. `[VERIFIED: ROADMAP.md]`
+   - Chosen resolution: Phase 18 audits the declared 2021/22–2025/26 set and may accept a reproducible corpus, but this set is not a model-panel decision or promotion threshold. Phase 19 chooses the model panel only after inspecting the audit evidence. `[VERIFIED: ROADMAP.md]`
 
-4. **What exact evidence-time policy applies to date-only historical rows?**
+4. **What exact evidence-time policy applies to date-only historical rows? — Resolution: freeze next-day UTC availability.**
    - What we know: the public JSON example carries a date and full-time score without a kickoff timestamp. `[CITED: https://github.com/openfootball/football.json]`
    - What is unclear: whether every selected upstream path provides time detail or later corrections. `[ASSUMED]`
-   - Recommendation: use a conservative declared policy, keep `kickoff_precision`, and add same-day boundary tests; do not invent times. `[VERIFIED: REQUIREMENTS.md]`
+   - Chosen resolution: for date-only event date D, keep `kickoff_utc` missing, set `kickoff_precision=date`, and freeze `evidence_available_at_utc` to D+1 at 00:00:00 UTC. Eligibility uses strict evidence time earlier than cutoff, with equality and one-second boundary tests; no kickoff is invented. `[VERIFIED: REQUIREMENTS.md]`
 
 ## Environment Availability
 
