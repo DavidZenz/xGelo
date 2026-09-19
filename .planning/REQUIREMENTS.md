@@ -1,119 +1,120 @@
-# Requirements: xGelo v3.0
+# Requirements: xGelo v4.0
 
-**Defined:** 2026-08-13
-**Core Value:** Accurate, calibrated international-football forecasting without dependence on paid data feeds.
+**Defined:** 2026-09-19
+**Core Value:** Accurate, calibrated football forecasting without dependence on paid data feeds.
 
-## v3.0 Requirements
+## v4.0 Requirements
 
-### Competition Data
+### Source Acceptance and Club Identity
 
-- [x] **DATA-01**: The analyst can capture official UEFA snapshots for competition fixtures, groups, standings, results, and status.
-- [x] **DATA-02**: Every captured snapshot records its source URL, retrieval time, raw-byte hash, parser version, and fallback status.
-- [x] **DATA-03**: UEFA and open historical results are normalized to stable team IDs and competition-edition IDs while preserving source display names.
-- [x] **DATA-04**: The pipeline supports audited manual fallback snapshots with source, retrieval date, reason, operator note, and checksum visible in the published metadata.
+- [ ] **UCLSRC-01**: The operator can run a live-key acceptance check covering API rights, attribution, retention, quota, schema, completeness, and freshness before automated UCL acquisition is enabled.
+- [ ] **UCLSRC-02**: The operator can ingest current UCL fixtures, results, standings, clubs, and lifecycle metadata without storing provider credentials in generated artifacts or Git.
+- [ ] **UCLSRC-03**: Every accepted current-state artifact records provider, retrieval time, source-as-of time, edition, schema version, and content hashes.
+- [ ] **UCLSRC-04**: A failed, empty, stale, or incomplete retrieval retains the last known good accepted bundle and records a blocked refresh with a machine-readable reason.
+- [ ] **CLUBID-01**: Every club resolves to one stable internal identity through source IDs, validity-aware aliases, and explicit rejection of ambiguous or cross-domain matches.
+- [ ] **CLUBHIST-01**: Historical domestic and European club results are pinned, licensed, audited for coverage, duplication, and score semantics, and normalized with point-in-time availability for model training.
 
-### Competition Registry and Rules
+### Independent Club Forecast Authority
 
-- [x] **COMP-01**: Each competition edition is registered with lifecycle state, ruleset version, source bundle, model release, and output bundle.
-- [x] **COMP-02**: The 2026/27 Nations League registry represents Leagues A-D, published groups, league-phase fixtures, and downstream knockout or play-off stages.
-- [x] **COMP-03**: The EURO 2028 qualifying registry represents the pre-draw state and activates groups, fixtures, and simulations only after an official draw snapshot exists.
-- [x] **COMP-04**: Competition state applies the official tie-breakers, cross-group rankings, host-place rules, play-off topology, and regulation-version checks for the selected edition.
+- [ ] **CLUBMOD-01**: The project can train club-only rating and goal models without consuming national-team features, releases, or selectors as forecast authority.
+- [ ] **CLUBMOD-02**: Club-model evaluation uses frozen rolling-origin and cross-league folds with explicit information cutoffs and same-kickoff leakage tests.
+- [ ] **CLUBMOD-03**: A club candidate is promoted only after passing predeclared proper-score, calibration, coverage, and reproducibility gates against documented baselines.
+- [ ] **CLUBMOD-04**: The approved club release is immutable, selector-authorized, documented by a model card, and rejected by national-team consumers while national-team releases are rejected by club consumers.
+- [ ] **CLUBMOD-05**: Current xG, injury, lineup, suspension, and player features remain typed unavailable unless a separately accepted lawful source contract exists.
 
-### Competition State and Form
+### UCL Rules and Tournament Outcomes
 
-- [x] **STATE-01**: The analyst can compute competition-specific standings from completed results with played, wins, draws, losses, goals, goal difference, points, and official rank.
-- [x] **STATE-02**: The data model keeps scheduled, completed, postponed, abandoned, extra-time, and penalty-shootout states distinct, including regulation and final scores where applicable.
-- [x] **STATE-03**: The dashboard reports competition-specific recent form and a separate all-international form view with explicit windows and point-in-time cutoffs.
-- [x] **STATE-04**: Nations League and EURO state remain independent while sharing canonical team identity, Elo/xG strength, and international match history.
+- [ ] **UCLRULE-01**: Users can see a recomputed 36-club league-phase table with accessible top-8, ranks 9-24, and ranks 25-36 qualification bands.
+- [ ] **UCLRULE-02**: Interim and final editioned tie-breakers execute in official order and expose the decisive criterion or an unresolved rank when required evidence is unavailable.
+- [ ] **UCLRULE-03**: Users can inspect the accepted eight-opponent schedule, matchday, venue, kickoff, status, and score for every league-phase club.
+- [ ] **UCLOUT-01**: Users can see immutable pre-kickoff home/draw/away, expected-goals, and likely-score forecasts only when an approved club release covers the fixture.
+- [ ] **UCLOUT-02**: Users can see mutually exclusive top-8, play-off, and eliminated probabilities plus rank and cut-line distributions conditioned on accepted completed results.
+- [ ] **UCLOUT-03**: Simulations represent only legal rank-constrained knockout play-off and round-of-16 paths and condition on accepted draw artifacts when available.
+- [ ] **UCLOUT-04**: Knockout simulation handles two legs, aggregate scores, extra time, penalties, the absence of the away-goals rule, ranking-based leg order, and a neutral final.
+- [ ] **UCLOUT-05**: Each club's progression probabilities reconcile with league-phase bands and remain monotone through play-off, round of 16, quarter-final, semi-final, final, and champion stages.
+- [ ] **UCLOUT-06**: Repeated simulations with identical source, rules, model, and seed inputs reproduce byte-equivalent outcome artifacts.
 
-### Match Forecasts
+### Dashboard and Atomic Publication
 
-- [x] **FORECAST-01**: Both dashboards use the approved calibrated model release and expose its model identity, data cutoff, and feature cutoff.
-- [x] **FORECAST-02**: Each open fixture has calibrated home/draw/away probabilities, expected goals, a most likely score, a bounded scoreline distribution, and uncertainty metadata.
-- [x] **FORECAST-03**: Forecast generation proves point-in-time feature safety and never uses future competition standings or outcomes as pre-match model inputs.
+- [ ] **UCLDASH-01**: Users can browse UCL standings, fixtures, results, club form, match forecasts, rank distributions, qualification bands, knockout paths, and progression probabilities in the shared responsive dashboard.
+- [ ] **UCLDASH-02**: The UCL page shows source freshness, delayed-data status, rules version, model release and cutoff, simulation seed, batch identity, attribution, and last-known-good status.
+- [ ] **UCLDASH-03**: Missing enrichment, unresolved ties or draws, and blocked or stale states render explicitly without zero-filling, hidden omission, or fabricated certainty.
+- [ ] **UCLPUB-01**: Public routes, adapters, expected artifacts, output limits, and credits are derived from an enabled-edition registry that supports zero, one, or many editions.
+- [ ] **UCLPUB-02**: Nations League and EURO outputs remain compatible while UCL joins the same staged, validated, atomic promotion, read-back, and rollback transaction.
 
-### Competition Simulation
+### Automated Operations and Release Acceptance
 
-- [x] **SIM-01**: The Nations League simulator reports projected standings, League A quarter-final and title paths, direct promotion/relegation, and applicable promotion/relegation play-offs.
-- [x] **SIM-02**: The EURO simulator reports direct qualification, host-reserved places, Nations League-linked play-off eligibility, and every valid play-off topology.
-- [x] **SIM-03**: Every simulation records deterministic seeds, ruleset hashes, source bundle identity, model release identity, and replayable run metadata.
-- [x] **SIM-04**: Pre-draw, unresolved, and insufficient-source states are shown explicitly without fabricated groups, fixtures, standings, or probabilities.
-
-### Dashboard Experience
-
-- [x] **DASH-01**: The project publishes dedicated Nations League and EURO qualifying dashboard entry points powered by one shared rendering and payload engine.
-- [x] **DASH-02**: Each dashboard provides competition structure, groups or leagues, standings, fixtures, results, match forecasts, form, and projected outcomes.
-- [x] **DASH-03**: Users can filter by competition section, league/group, team, matchday, and fixture status in responsive desktop and mobile views.
-- [x] **DASH-04**: Each dashboard shows refresh status, source confidence, model release, warnings, and collapsed data credits without presenting operational detail as the primary content.
-
-### Automated Operations
-
-- [x] **OPS-01**: A macOS launchd job refreshes both competition bundles hourly using the existing reproducible update pattern.
-- [x] **OPS-02**: Candidate source snapshots and derived outputs are staged and validated before both dashboards are atomically published as one coherent refresh batch.
-- [x] **OPS-03**: The refresh runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression tests before publication.
-- [x] **OPS-04**: Changed compact code, manifests, and dashboard outputs are committed and pushed only when the worktree is clean and the branch is upstream-aligned.
-- [x] **OPS-05**: The refresh fails closed on incomplete sources, dirty or diverged repositories, failed tests, invalid hashes, partial bundles, or oversized generated artifacts.
+- [ ] **UCLOPS-01**: Scheduled refreshes respect provider quotas, caching, retry and backoff, non-overlap, secret redaction, and lifecycle-specific freshness limits.
+- [ ] **UCLOPS-02**: A retrieval, model, rules, simulation, render, promotion, or read-back failure leaves every incumbent public edition byte unchanged.
+- [ ] **UCLOPS-03**: Failure-injection tests cover rate limits, server errors, null, empty, stale, and postponed data, no network, concurrent runs, and provider exit.
+- [ ] **UCLOPS-04**: Release acceptance proves deterministic performance, compact outputs, browser and accessibility behavior, recovery runbooks, and an end-to-end three-edition refresh.
 
 ## Future Requirements
 
-### Additional Editions and Data
+### Post-v4 Enhancements
 
-- **FUTURE-01**: Add a historical 2026 FIFA World Cup European qualifiers edition to the shared competition selector.
-- **FUTURE-02**: Activate full EURO 2028 qualifying groups and simulations after the official 6 December 2026 draw and schedule publication.
-- **FUTURE-03**: Add richer lineup, injury, or squad-availability signals when a legal, reproducible historical source exists.
-- **FUTURE-04**: Add continuous live-event or post-match evaluation after the batch refresh and immutable snapshot contracts are proven.
+- **UCLFUT-01**: Users can run isolated what-if result scenarios without overwriting the published baseline.
+- **UCLFUT-02**: Users can inspect richer schedule-strength and forecast-change explanations derived from frozen inputs.
+- **UCLFUT-03**: The model can consume advanced event, lineup, injury, or suspension data after a lawful source and incremental-value test are accepted.
+- **UCLFUT-04**: Users can forecast UCL qualifying rounds after their distinct data and rules contracts are implemented.
+- **UCLFUT-05**: Additional UEFA club competitions can reuse the registry after competition-specific schedule, ranking, and bracket rules are implemented.
+- **UCLFUT-06**: The public product can approach near-live refreshes after source SLA, hosting, cost, and monitoring requirements justify a different operating model.
 
 ## Out of Scope
 
 | Feature | Reason |
 |---------|--------|
-| Automatic bookmaker, FotMob, or Transfermarkt scraping | Conflicts with licensing, terms, or the open-data-first operating mode |
-| Paid data as a required dependency | Violates the project's core value |
-| Live event tracker or betting recommendations | These dashboards are scheduled analytical forecasts, not a live-score or betting product |
-| Mobile app or server-backed public API | The milestone uses the existing static dashboard and launchd publication surface |
-| Invented EURO qualifying groups before the official draw | Unknown competition state must remain explicitly pre-draw |
-| Large raw response bodies or score-distribution artifacts in Git | Avoids repository bloat and preserves the code/manifests-only publication boundary |
+| Automated scraping of UEFA web pages | Current terms do not provide an accepted automated match-state contract; UEFA material is retained only as manually reviewed rules evidence. |
+| Reusing the national-team forecast release for clubs | Club schedules, strength dynamics, and evaluation populations require independent model authority. |
+| Unsupported current xG, injuries, lineups, suspensions, or player projections | No accepted free production source currently supports truthful automated claims. |
+| Real-time event tracking | The accepted free source is delayed and the static publication system does not promise live state. |
+| Browser-side authenticated API requests | This would expose credentials and bypass accepted source, validation, and atomic publication boundaries. |
+| Betting odds, tips, or expected-value recommendations | The product publishes analytical probabilities, not wagering advice. |
+| Invented round-robin fixtures or guessed knockout brackets | The UCL uses an accepted eight-opponent schedule and rank-constrained, draw-conditioned paths. |
+| Database, application server, or new frontend framework | The existing R, targets, and static dashboard architecture is sufficient for the milestone. |
 
 ## Traceability
 
-Each active v3.0 requirement maps to exactly one roadmap phase.
+Each active v4.0 requirement will map to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| DATA-01 | Phase 13 | Complete |
-| DATA-02 | Phase 13 | Complete |
-| DATA-03 | Phase 13 | Complete |
-| DATA-04 | Phase 13 | Complete |
-| COMP-01 | Phase 13 | Complete |
-| COMP-02 | Phase 15 | Complete |
-| COMP-03 | Phase 16 | Complete |
-| COMP-04 | Phase 16 | Complete |
-| STATE-01 | Phase 14 | Complete |
-| STATE-02 | Phase 14 | Complete |
-| STATE-03 | Phase 14 | Complete |
-| STATE-04 | Phase 14 | Complete |
-| FORECAST-01 | Phase 14 | Complete |
-| FORECAST-02 | Phase 14 | Complete |
-| FORECAST-03 | Phase 14 | Complete |
-| SIM-01 | Phase 15 | Complete |
-| SIM-02 | Phase 16 | Complete |
-| SIM-03 | Phase 17 | Complete |
-| SIM-04 | Phase 16 | Complete |
-| DASH-01 | Phase 17 | Complete |
-| DASH-02 | Phase 17 | Complete |
-| DASH-03 | Phase 17 | Complete |
-| DASH-04 | Phase 17 | Complete |
-| OPS-01 | Phase 17 | Complete |
-| OPS-02 | Phase 17 | Complete |
-| OPS-03 | Phase 17 | Complete |
-| OPS-04 | Phase 17 | Complete |
-| OPS-05 | Phase 17 | Complete |
+| UCLSRC-01 | TBD | Pending |
+| UCLSRC-02 | TBD | Pending |
+| UCLSRC-03 | TBD | Pending |
+| UCLSRC-04 | TBD | Pending |
+| CLUBID-01 | TBD | Pending |
+| CLUBHIST-01 | TBD | Pending |
+| CLUBMOD-01 | TBD | Pending |
+| CLUBMOD-02 | TBD | Pending |
+| CLUBMOD-03 | TBD | Pending |
+| CLUBMOD-04 | TBD | Pending |
+| CLUBMOD-05 | TBD | Pending |
+| UCLRULE-01 | TBD | Pending |
+| UCLRULE-02 | TBD | Pending |
+| UCLRULE-03 | TBD | Pending |
+| UCLOUT-01 | TBD | Pending |
+| UCLOUT-02 | TBD | Pending |
+| UCLOUT-03 | TBD | Pending |
+| UCLOUT-04 | TBD | Pending |
+| UCLOUT-05 | TBD | Pending |
+| UCLOUT-06 | TBD | Pending |
+| UCLDASH-01 | TBD | Pending |
+| UCLDASH-02 | TBD | Pending |
+| UCLDASH-03 | TBD | Pending |
+| UCLPUB-01 | TBD | Pending |
+| UCLPUB-02 | TBD | Pending |
+| UCLOPS-01 | TBD | Pending |
+| UCLOPS-02 | TBD | Pending |
+| UCLOPS-03 | TBD | Pending |
+| UCLOPS-04 | TBD | Pending |
 
 **Coverage:**
 
-- v3.0 requirements: 28 total
-- Mapped to phases: 28
-- Unmapped: 0
+- v4.0 requirements: 29 total
+- Mapped to phases: 0
+- Unmapped: 29
 
 ---
-*Requirements defined: 2026-08-13*
+*Requirements defined: 2026-09-19*
+*Last updated: 2026-09-19 after research-backed milestone scoping*
