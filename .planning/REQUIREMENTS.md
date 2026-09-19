@@ -79,42 +79,42 @@ Each active v4.0 requirement will map to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UCLSRC-01 | TBD | Pending |
-| UCLSRC-02 | TBD | Pending |
-| UCLSRC-03 | TBD | Pending |
-| UCLSRC-04 | TBD | Pending |
-| CLUBID-01 | TBD | Pending |
-| CLUBHIST-01 | TBD | Pending |
-| CLUBMOD-01 | TBD | Pending |
-| CLUBMOD-02 | TBD | Pending |
-| CLUBMOD-03 | TBD | Pending |
-| CLUBMOD-04 | TBD | Pending |
-| CLUBMOD-05 | TBD | Pending |
-| UCLRULE-01 | TBD | Pending |
-| UCLRULE-02 | TBD | Pending |
-| UCLRULE-03 | TBD | Pending |
-| UCLOUT-01 | TBD | Pending |
-| UCLOUT-02 | TBD | Pending |
-| UCLOUT-03 | TBD | Pending |
-| UCLOUT-04 | TBD | Pending |
-| UCLOUT-05 | TBD | Pending |
-| UCLOUT-06 | TBD | Pending |
-| UCLDASH-01 | TBD | Pending |
-| UCLDASH-02 | TBD | Pending |
-| UCLDASH-03 | TBD | Pending |
-| UCLPUB-01 | TBD | Pending |
-| UCLPUB-02 | TBD | Pending |
-| UCLOPS-01 | TBD | Pending |
-| UCLOPS-02 | TBD | Pending |
-| UCLOPS-03 | TBD | Pending |
-| UCLOPS-04 | TBD | Pending |
+| UCLSRC-01 | Phase 18 | Pending |
+| UCLSRC-02 | Phase 18 | Pending |
+| UCLSRC-03 | Phase 18 | Pending |
+| UCLSRC-04 | Phase 18 | Pending |
+| CLUBID-01 | Phase 18 | Pending |
+| CLUBHIST-01 | Phase 18 | Pending |
+| CLUBMOD-01 | Phase 19 | Pending |
+| CLUBMOD-02 | Phase 19 | Pending |
+| CLUBMOD-03 | Phase 19 | Pending |
+| CLUBMOD-04 | Phase 19 | Pending |
+| CLUBMOD-05 | Phase 19 | Pending |
+| UCLRULE-01 | Phase 20 | Pending |
+| UCLRULE-02 | Phase 20 | Pending |
+| UCLRULE-03 | Phase 20 | Pending |
+| UCLOUT-01 | Phase 20 | Pending |
+| UCLOUT-02 | Phase 20 | Pending |
+| UCLOUT-03 | Phase 20 | Pending |
+| UCLOUT-04 | Phase 20 | Pending |
+| UCLOUT-05 | Phase 20 | Pending |
+| UCLOUT-06 | Phase 20 | Pending |
+| UCLDASH-01 | Phase 21 | Pending |
+| UCLDASH-02 | Phase 21 | Pending |
+| UCLDASH-03 | Phase 21 | Pending |
+| UCLPUB-01 | Phase 21 | Pending |
+| UCLPUB-02 | Phase 21 | Pending |
+| UCLOPS-01 | Phase 22 | Pending |
+| UCLOPS-02 | Phase 22 | Pending |
+| UCLOPS-03 | Phase 22 | Pending |
+| UCLOPS-04 | Phase 22 | Pending |
 
 **Coverage:**
 
 - v4.0 requirements: 29 total
-- Mapped to phases: 0
-- Unmapped: 29
+- Mapped to phases: 29
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-09-19*
-*Last updated: 2026-09-19 after research-backed milestone scoping*
+*Last updated: 2026-09-19 after roadmap creation*

@@ -1,292 +1,120 @@
-# xGelo Roadmap
+# Roadmap: xGelo v4.0 UEFA Champions League Forecast Dashboard
 
-**Active milestone:** v3.0 - UEFA Competition Forecast Dashboards
+**Active milestone:** v4.0 - UEFA Champions League Forecast Dashboard
 **Status:** Planned
-**Created:** 2026-08-13
+**Created:** 2026-09-19
+**Granularity:** Standard
 
 ## Milestone Objective
 
-Build two public static forecast dashboards for the 2026/27 UEFA Nations League
-and UEFA EURO 2028 qualifying cycle from one shared engine, with official UEFA
-competition data, truthful pre-draw handling, calibrated forecasts, replayable
-simulations, and fail-closed hourly publication.
+Publish a trustworthy, automatically refreshed UEFA Champions League dashboard from lawful current-state data, an independently validated club-football forecast release, editioned competition rules, and the existing static dashboard engine generalized to an atomic N-edition publisher.
 
 ## Phases
 
-- [x] **Phase 13: Source Contracts and Competition Registry** - Freeze official snapshot, fallback, normalization, and edition-registry contracts for both competitions. (completed 2026-08-16)
-- [x] **Phase 14: Shared Competition State and Forecast Layer** - Build the shared standings, status, form, and point-in-time forecast layer that both competitions consume. (completed 2026-08-21)
-- [x] **Phase 15: Nations League Rules and Outcomes** - Deliver the full 2026/27 Nations League state, forecasts, and projection logic. (completed 2026-08-22)
-- [x] **Phase 16: EURO Qualifying Activation and Play-off Rules** - Deliver truthful EURO 2028 qualifying pre-draw behavior and official post-draw qualification logic. (completed 2026-08-24)
-- [x] **Phase 17: Shared Dashboards and Atomic Refresh Operations** - Publish both dashboards from one renderer and harden the hourly batch refresh, validation, and release flow. (completed 2026-08-25)
+- [ ] **Phase 18: Club and UCL Source Contracts** - Establish lawful current-state acquisition, stable club identity, and a pinned historical training corpus.
+- [ ] **Phase 19: Independent Club Forecast Authority** - Promote a reproducible club-only rating and goal-model release through frozen evaluation gates.
+- [ ] **Phase 20: UCL Rules, State, and Tournament Outcomes** - Deliver official league-phase ranking, legal knockout paths, and deterministic competition probabilities.
+- [ ] **Phase 21: N-Edition Dashboard and Atomic Publication** - Add the UCL to the shared dashboard through a registry-derived, rollback-safe three-edition transaction.
+- [ ] **Phase 22: Automated Refresh and Release Hardening** - Prove scheduled operation, failure containment, deterministic performance, and public release acceptance.
 
 ## Phase Details
 
-### Phase 13: Source Contracts and Competition Registry
+### Phase 18: Club and UCL Source Contracts
 
-**Goal**: Analysts can capture authoritative UEFA competition snapshots and register both competition editions under one auditable contract.
-**Depends on**: Nothing (first v3.0 phase)
-**Requirements**: DATA-01, DATA-02, DATA-03, DATA-04, COMP-01
+**Goal**: Operators can acquire and audit lawful Champions League current and historical data through stable club identities without risking credentials or accepted state.
+**Depends on**: Nothing (first v4.0 phase)
+**Requirements**: UCLSRC-01, UCLSRC-02, UCLSRC-03, UCLSRC-04, CLUBID-01, CLUBHIST-01
 **Success Criteria** (what must be TRUE):
 
-1. An analyst can capture official UEFA snapshots for Nations League and EURO qualifying fixtures, groups, standings, results, and competition status.
-2. Every accepted snapshot exposes its source URL, retrieval time, raw-byte hash, parser version, and fallback flag in audit metadata.
-3. Manual fallback snapshots can be loaded with visible source, retrieval date, reason, operator note, and checksum instead of silently replacing official data.
-4. Normalized records retain UEFA display names while resolving to stable team IDs and competition-edition IDs for both competition editions.
-5. Registry entries exist for the 2026/27 Nations League and EURO 2028 qualifying editions with lifecycle state, source bundle, model release slot, and output bundle target.
+1. An operator can run a live-key acceptance check that records the provider's permitted use, attribution, retention, quota, schema, completeness, and freshness verdict before automation is enabled.
+2. An operator can ingest current UCL fixtures, results, standings, clubs, and lifecycle metadata into edition-scoped artifacts whose provenance and content hashes are visible while credentials remain absent from Git and generated outputs.
+3. Failed, empty, stale, or incomplete retrievals leave the last accepted bundle unchanged and expose a machine-readable blocked-refresh reason.
+4. Every current and historical club record resolves through a stable, validity-aware identity contract that rejects ambiguous aliases and national-team identities.
+5. The historical club corpus is pinned and auditable for licensing, point-in-time availability, coverage, duplicates, and regulation/extra-time/shootout score semantics before model training can consume it.
 
-**Plans**: 13/13 plans executed
+**Plans**: TBD
 
-- [x] 13-13-PLAN.md
+### Phase 19: Independent Club Forecast Authority
 
-- [x] 13-04-PLAN.md
-- [x] 13-05-PLAN.md
-- [x] 13-06-PLAN.md
-- [x] 13-07-PLAN.md
-- [x] 13-08-PLAN.md
-- [x] 13-09-PLAN.md
-- [x] 13-10-PLAN.md
-- [x] 13-11-PLAN.md
-- [x] 13-12-PLAN.md
-
-**Wave 1**
-
-- [x] 13-01-PLAN.md
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 13-02-PLAN.md
-- [x] 13-03-PLAN.md
-
-### Phase 14: Shared Competition State and Forecast Layer
-
-**Goal**: Both competitions can reuse one edition-aware state, form, and pre-match forecast engine without leaking future information.
-**Depends on**: Phase 13
-**Requirements**: STATE-01, STATE-02, STATE-03, STATE-04, FORECAST-01, FORECAST-02, FORECAST-03
+**Goal**: Forecast consumers can use an immutable, independently validated club-football release that cannot be confused with national-team authority.
+**Depends on**: Phase 18
+**Requirements**: CLUBMOD-01, CLUBMOD-02, CLUBMOD-03, CLUBMOD-04, CLUBMOD-05
 **Success Criteria** (what must be TRUE):
 
-1. Standings can be computed from completed results with played, wins, draws, losses, goals, goal difference, points, and official rank visible for the selected competition state.
-2. Scheduled, completed, postponed, abandoned, extra-time, and penalty-shootout states remain distinct, including regulation and final scores where applicable.
-3. Both competitions expose separate competition-specific form and all-international form views with explicit windows and point-in-time cutoffs.
-4. Open fixtures show calibrated home, draw, and away probabilities, expected goals, a most likely score, a bounded score distribution, and uncertainty metadata from the approved release.
-5. Forecast audits prove point-in-time feature safety, and Nations League and EURO competition states remain independent while sharing canonical team identity and strength inputs.
+1. Club fixtures receive forecasts only from club-only rating and goal models trained without national-team features, releases, or selectors.
+2. Analysts can reproduce frozen rolling-origin and cross-league evaluations whose information-cutoff and same-kickoff checks demonstrate that future evidence was not used.
+3. A club candidate becomes approved only when its recorded proper scores, calibration, coverage, and reproducibility pass predeclared gates against documented baselines.
+4. Consumers can resolve one immutable, model-card-backed club release, while cross-domain attempts to use club and national-team releases are rejected in both directions.
+5. Current xG, injury, lineup, suspension, and player inputs appear as typed unavailable evidence unless a separate lawful source contract has been accepted.
 
-**Plans**: 22/22 plans executed
-**Wave 1**
+**Plans**: TBD
 
-- [x] 14-01-PLAN.md
-- [x] 14-02-PLAN.md
-- [x] 14-03-PLAN.md
-- [x] 14-04-PLAN.md
+### Phase 20: UCL Rules, State, and Tournament Outcomes
 
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 14-05-PLAN.md
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 14-21-PLAN.md
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 14-22-PLAN.md
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 14-06-PLAN.md
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
-- [x] 14-07-PLAN.md
-
-**Wave 7** *(blocked on Wave 6 completion)*
-
-- [x] 14-08-PLAN.md
-
-**Wave 8** *(blocked on Wave 7 completion)*
-
-- [x] 14-09-PLAN.md
-
-**Wave 9** *(blocked on Wave 8 completion)*
-
-- [x] 14-10-PLAN.md
-
-**Wave 10** *(blocked on Wave 9 completion)*
-
-- [x] 14-11-PLAN.md
-
-**Wave 11** *(blocked on Wave 10 completion)*
-
-- [x] 14-12-PLAN.md
-
-**Wave 12** *(blocked on Wave 11 completion)*
-
-- [x] 14-13-PLAN.md
-
-**Wave 13** *(blocked on Wave 12 completion)*
-
-- [x] 14-14-PLAN.md
-
-**Wave 14** *(blocked on Wave 13 completion)*
-
-- [x] 14-15-PLAN.md
-
-**Wave 15** *(blocked on Wave 14 completion)*
-
-- [x] 14-16-PLAN.md
-
-**Wave 16** *(blocked on Wave 15 completion)*
-
-- [x] 14-17-PLAN.md
-
-**Wave 17** *(blocked on Wave 16 completion)*
-
-- [x] 14-18-PLAN.md
-
-**Wave 18** *(blocked on Wave 17 completion)*
-
-- [x] 14-19-PLAN.md
-
-**Wave 19** *(blocked on Wave 18 completion)*
-
-- [x] 14-20-PLAN.md
-
-### Phase 15: Nations League Rules and Outcomes
-
-**Goal**: Users can inspect the full 2026/27 Nations League competition state and projections under the official edition rules.
-**Depends on**: Phase 14
-**Requirements**: COMP-02, SIM-01
+**Goal**: Users can inspect a rules-correct Champions League state and replayable probabilities from the league phase through the final.
+**Depends on**: Phase 19
+**Requirements**: UCLRULE-01, UCLRULE-02, UCLRULE-03, UCLOUT-01, UCLOUT-02, UCLOUT-03, UCLOUT-04, UCLOUT-05, UCLOUT-06
 **Success Criteria** (what must be TRUE):
 
-1. The Nations League output shows Leagues A through D, published groups, league-phase fixtures, completed results, and downstream knockout or play-off stages for the 2026/27 edition.
-2. Nations League tables and overall rankings follow the official edition rules, including cross-group comparisons and League D group-size handling where required.
-3. Open Nations League fixtures show calibrated forecasts together with competition-specific form and all-international form from the shared engine.
-4. Projected outcomes report League A quarter-final and title paths, direct promotion and relegation, and applicable promotion or relegation play-off probabilities for every team.
+1. Users can inspect all 36 clubs in a recomputed league-phase table, see top-8, ranks 9-24, and ranks 25-36 bands, and trace each resolved tie to the decisive editioned criterion or an explicit unresolved state.
+2. Users can inspect every club's accepted eight-opponent schedule with matchday, venue, kickoff, status, score, and immutable pre-kickoff forecast when the approved club release covers the fixture.
+3. Users can see mutually exclusive top-8, play-off, and eliminated probabilities together with rank and cut-line distributions conditioned on accepted completed results.
+4. Knockout projections use only legal rank-constrained and accepted draw-conditioned paths, correctly resolving two legs, aggregate scores, extra time, penalties, leg order, no away-goals rule, and the neutral final.
+5. Each club's stage probabilities reconcile and remain monotone through champion, and rerunning identical source, rules, model, and seed inputs produces byte-equivalent outcome artifacts.
 
-**Plans**: 7/7 plans executed
-Plans:
-**Wave 1**
+**Plans**: TBD
 
-- [x] 15-00-PLAN.md — Create the Wave 0 Phase 15 test harness and synthetic fixtures
-- [x] 15-01-PLAN.md — Freeze topology, Article 13 access-list/group formation, and separately registered stage capture
+### Phase 21: N-Edition Dashboard and Atomic Publication
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Goal**: Users can browse the Champions League beside existing UEFA editions while operators publish every enabled edition as one validated atomic batch.
+**Depends on**: Phase 20
+**Requirements**: UCLDASH-01, UCLDASH-02, UCLDASH-03, UCLPUB-01, UCLPUB-02
+**Success Criteria** (what must be TRUE):
 
-- [x] 15-02-PLAN.md — Implement Article 15/19 rankings, final overall rank, blocked inputs, transitions, and C/D retention
+1. Users can browse responsive UCL views for standings, fixtures, results, club form, match forecasts, rank distributions, qualification bands, knockout paths, and progression probabilities through the shared dashboard engine.
+2. The UCL page visibly identifies source freshness and delay, rules version, model release and cutoff, simulation seed, batch identity, attribution, and whether last-known-good state is being shown.
+3. Missing enrichment, unresolved ties or draws, and blocked or stale state render explicitly without zero-filled values, hidden omission, or fabricated certainty.
+4. Operators can enable zero, one, or many competition editions whose routes, adapters, artifact inventory, output limits, and credits are derived from the edition registry rather than hard-coded branches.
+5. Nations League, EURO, and UCL can pass one staged validation and atomic promotion/read-back transaction, while any candidate failure preserves the incumbent editions byte-for-byte.
 
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 15-03-PLAN.md — Implement calibrated simulation and Article 14-18 stage resolution
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 15-04-PLAN.md — Define and validate the nine-file sibling outcomes bundle with fixture forecast/form pass-through
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 15-05-PLAN.md — Build the Nations League CLI, registered output root, and durable nine-file outcome artifacts
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
-- [x] 15-06-PLAN.md — Run production acceptance, replay, and no-leakage checks
-
+**Plans**: TBD
 **UI hint**: yes
 
-### Phase 16: EURO Qualifying Activation and Play-off Rules
+### Phase 22: Automated Refresh and Release Hardening
 
-**Goal**: Users can see a truthful EURO 2028 qualifying dashboard before the draw and the full official qualification logic once UEFA publishes the draw and schedule.
-**Depends on**: Phase 15
-**Requirements**: COMP-03, COMP-04, SIM-02, SIM-04
+**Goal**: The public three-edition dashboard refreshes on schedule and remains truthful, deterministic, and recoverable under provider and pipeline failures.
+**Depends on**: Phase 21
+**Requirements**: UCLOPS-01, UCLOPS-02, UCLOPS-03, UCLOPS-04
 **Success Criteria** (what must be TRUE):
 
-1. Before an official draw snapshot exists, the EURO 2028 qualifying output remains in an explicit `pre_draw` state through the official 6 December 2026 draw date without invented groups, fixtures, standings, or probabilities.
-2. Once an official draw snapshot exists, the competition activates real groups, fixtures, standings, and simulations from the registered UEFA source bundle rather than guessed structures.
-3. Qualification outputs apply the official edition rules for direct qualification, host-reserved places, best runners-up, Nations League-linked play-off eligibility, and every valid play-off topology.
-4. Unresolved, blocked, or insufficient-source states stay explicit and suppress fabricated groups, fixtures, standings, and probabilities.
+1. Scheduled refreshes stay within provider quotas and freshness policy, reuse caches, apply bounded retry/backoff, prevent overlapping runs, and keep credentials out of logs and artifacts.
+2. Retrieval, model, rules, simulation, rendering, promotion, or read-back failures leave every incumbent public edition byte unchanged and produce an actionable private diagnostic.
+3. Operators can demonstrate last-known-good behavior for rate limits, server errors, null, empty, stale, postponed, no-network, concurrent-run, and provider-exit scenarios.
+4. Release acceptance demonstrates deterministic simulation performance, compact publication outputs, responsive browser behavior, accessibility checks, recovery runbooks, and one successful end-to-end three-edition refresh.
 
-**Plans**: 6/6 plans executed
-Plans:
-
-- [x] 16-00-PLAN.md — Wave 0 focused harness, deterministic fixtures, and baseline fingerprint (execution Wave 1)
-- [x] 16-01-PLAN.md — Accepted-bundle activation, active-after-draw, and pre-draw state contract (execution Wave 2)
-- [x] 16-02-PLAN.md — Official ranking, four-host allocation, draw conditions, and play-off topology (execution Wave 3)
-- [x] 16-03-PLAN.md — Interim-stage Nations League handoff and seeded qualification simulation (execution Wave 4)
-- [x] 16-04-PLAN.md — EURO outcomes schema and Phase 14 activation/state gate (execution Wave 5)
-- [x] 16-05-PLAN.md — Registered CLI, exact outputs, revision-safe publication, and replay (execution Wave 6)
-
-Post-execution remediation is recorded in `16-06-SUMMARY.md` and included in the Phase 16 verification gate; it has no separate formal plan.
-
-**UI hint**: yes
-
-### Phase 17: Shared Dashboards and Atomic Refresh Operations
-
-**Goal**: The public site publishes both competition dashboards from one shared renderer and refreshes them safely as one validated hourly batch.
-**Depends on**: Phase 16
-**Requirements**: SIM-03, DASH-01, DASH-02, DASH-03, DASH-04, OPS-01, OPS-02, OPS-03, OPS-04, OPS-05
-**Success Criteria** (what must be TRUE):
-
-1. Users can open dedicated Nations League and EURO qualifying entry points powered by one shared rendering and payload engine, and each dashboard shows structure, standings, fixtures, results, form, match forecasts, and projected outcomes.
-2. Users can filter by competition section, league or group, team, matchday, and fixture status in responsive desktop and mobile layouts.
-3. Every published dashboard shows refresh status, source confidence, model release, warnings, collapsed data credits, and replayable simulation metadata.
-4. An hourly macOS `launchd` refresh stages both competitions together, runs source, rules, probability, freshness, deterministic replay, browser smoke, and regression checks, and atomically promotes only a fully valid batch.
-5. Auto-commit and push happen only from a clean, upstream-aligned repository and include only compact code, manifests, and dashboard outputs; dirty, diverged, partial, oversized, or failed batches stay unpublished.
-
-**Plans**: 4/4 plans executed
-Plans:
-
-**Wave 0**
-
-- [x] 17-01-PLAN.md — Build the deterministic Wave 0 harness, neutral payload contract, and shared renderer tracer
-
-**Wave 1** *(blocked on Wave 0 completion)*
-
-- [x] 17-02-PLAN.md — Complete the shared responsive dashboard renderer, filters, statuses, warnings, and credits
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 17-03-PLAN.md — Implement the exact cross-edition batch envelope, ordered gates, route artifacts, and rollback-safe promotion
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 17-04-PLAN.md — Install the automated Safari/launchd policy and exact Git publication wrapper
-
+**Plans**: TBD
 **UI hint**: yes
 
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 13. Source Contracts and Competition Registry | 13/13 | Complete    | 2026-08-16 |
-| 14. Shared Competition State and Forecast Layer | 22/22 | Complete    | 2026-08-21 |
-| 15. Nations League Rules and Outcomes | 7/7 | Complete    | 2026-08-22 |
-| 16. EURO Qualifying Activation and Play-off Rules | 6/6 | Complete    | 2026-08-24 |
-| 17. Shared Dashboards and Atomic Refresh Operations | 4/4 | Complete    | 2026-08-25 |
+| 18. Club and UCL Source Contracts | 0/TBD | Not started | - |
+| 19. Independent Club Forecast Authority | 0/TBD | Not started | - |
+| 20. UCL Rules, State, and Tournament Outcomes | 0/TBD | Not started | - |
+| 21. N-Edition Dashboard and Atomic Publication | 0/TBD | Not started | - |
+| 22. Automated Refresh and Release Hardening | 0/TBD | Not started | - |
 
 ## Requirement Coverage
 
 | Phase | Requirements | Count |
 |-------|--------------|-------|
-| 13 | DATA-01..04, COMP-01 | 5 |
-| 14 | STATE-01..04, FORECAST-01..03 | 7 |
-| 15 | COMP-02, SIM-01 | 2 |
-| 16 | COMP-03, COMP-04, SIM-02, SIM-04 | 4 |
-| 17 | SIM-03, DASH-01..04, OPS-01..05 | 10 |
-| **Total** | **All v3.0 requirements** | **28** |
-
-## Completed Milestones
-
-### v1.0 - Open-Data Forecasting MVP
-
-**Status:** Complete (2026-06-05)
-
-See [v1.0 roadmap](milestones/v1.0-ROADMAP.md) and
-[v1.0 requirements](milestones/v1.0-REQUIREMENTS.md).
-
-### v2.0 - Model Retrospective and Forecast Evolution
-
-**Status:** Complete (2026-08-13)
-
-Phases 8 through 12 completed the benchmark, challenger, calibration, promotion,
-and release work that v3.0 reuses as its approved forecast engine.
+| 18 | UCLSRC-01, UCLSRC-02, UCLSRC-03, UCLSRC-04, CLUBID-01, CLUBHIST-01 | 6 |
+| 19 | CLUBMOD-01, CLUBMOD-02, CLUBMOD-03, CLUBMOD-04, CLUBMOD-05 | 5 |
+| 20 | UCLRULE-01, UCLRULE-02, UCLRULE-03, UCLOUT-01, UCLOUT-02, UCLOUT-03, UCLOUT-04, UCLOUT-05, UCLOUT-06 | 9 |
+| 21 | UCLDASH-01, UCLDASH-02, UCLDASH-03, UCLPUB-01, UCLPUB-02 | 5 |
+| 22 | UCLOPS-01, UCLOPS-02, UCLOPS-03, UCLOPS-04 | 4 |
+| **Total** | **All active v4.0 requirements mapped exactly once** | **29** |
 
 ---
-*Last updated: 2026-08-25 after Phase 17 Plan 04 execution*
+*Roadmap created: 2026-09-19*
