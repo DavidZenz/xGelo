@@ -1,25 +1,26 @@
-# xGelo: Free Elo + xG Forecasting for UEFA World Cup Qualifiers
+# xGelo: Open-Data Football Forecasting and Competition Dashboards
 
 ---
 *Project Code: XGELO* | *Language: R* | *Domain: Sports Analytics / Football Forecasting*
 
 ## What This Is
 
-A **free, open-data-first** forecasting system for men's international football that combines team-strength ratings, goal models, expected goals (xG), and tournament simulation. It produces leakage-safe match probabilities and tournament forecasts while keeping restricted data optional, local, and auditable.
+A **free, open-data-first** forecasting system for men's international and European club football that combines team-strength ratings, goal models, expected goals (xG) where defensible, and competition simulation. It produces leakage-safe match probabilities and competition forecasts while keeping restricted data optional, local, and auditable.
 
 ## Core Value
 
-**Accurate, calibrated international-football forecasting without dependence on paid data feeds.**
+**Accurate, calibrated football forecasting without dependence on paid data feeds.**
 
-## Current Milestone: v3.0 UEFA Competition Forecast Dashboards
+## Current Milestone: v4.0 UEFA Champions League Forecast Dashboard
 
-**Goal:** Build two public, automatically refreshed dashboards for the 2026/27 UEFA Nations League and UEFA EURO 2028 qualifying cycle.
+**Goal:** Build a public, automatically refreshed UEFA Champions League dashboard backed by an independently validated club-football forecasting model and auditable competition rules.
 
 **Target features:**
-- Publish dedicated Nations League and EURO qualifying entry points through one shared dashboard engine.
-- Show competition-specific groups, standings, fixtures, results, form, calibrated match forecasts, and simulated outcomes.
-- Use official UEFA competition data with auditable fallbacks and preserve the shared open-data model and release contracts.
-- Refresh both dashboards hourly through the existing fail-closed launchd workflow.
+- Ingest current Champions League fixtures, results, standings, and competition metadata through a licensed or explicitly permitted machine-readable source with versioned provenance.
+- Train and validate a club-specific strength and goal model; do not reuse the national-team release as club forecast authority.
+- Implement the 36-team league phase, UEFA tie-breakers, knockout qualification paths, and deterministic tournament simulation.
+- Publish the Champions League through the shared static dashboard engine while generalizing the current two-edition atomic publication contract to an N-edition registry.
+- Surface data gaps such as unavailable current xG, injuries, and lineups explicitly instead of fabricating or silently imputing evidence.
 
 ## Context
 
@@ -98,6 +99,9 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 | **Outcome publication rollback** | Retain the incumbent EURO outcomes backup through promoted read-back validation and restore it byte-for-byte after a promotion or read-back failure | Confirmed in Phase 16 |
 | **FotMob as optional layer** | Most practical WCQ shot source but ToS-restricted; manual cache only | Pending validation |
 | **Three operating modes** | Open (no WCQ shots), Hybrid (cached FotMob), Experimental (full archive) — allows progressive enhancement | Pending |
+| **Separate club forecast authority** | National-team ratings and evaluation do not transfer safely to club football; v4.0 requires a club-specific release and promotion gate | Pending validation |
+| **Machine-readable match-state source** | Use an API or open repository whose terms permit the intended automation; UEFA web pages remain a manual rules authority | Pending source spike |
+| **Truthful enrichment gaps** | Current xG, injuries, and lineups remain explicitly unavailable until a compliant source is accepted | Pending validation |
 
 ## Requirements
 
@@ -117,8 +121,11 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 
 ### Active
 
-- [ ] Implement and compare literature-backed goal and machine-learning challengers.
-- [ ] Improve strength, context, xG, squad, and calibration features only when they generalize out of sample.
+- [ ] Establish a lawful, reproducible Champions League current-state and historical-data contract.
+- [ ] Build and independently validate club-specific ratings and calibrated match forecasts.
+- [ ] Model league-phase tie-breakers, qualification paths, and knockout outcomes from versioned UEFA rules.
+- [ ] Generalize the shared dashboard and atomic publisher for a third competition edition.
+- [ ] Publish an automatically refreshed Champions League dashboard with explicit provenance, freshness, model lineage, and unavailable-data states.
 
 ### Out of Scope
 
@@ -130,6 +137,9 @@ While training data is abundant (StatsBomb Open Data covers World Cups, Euros, a
 - **Mobile app or general-purpose web application** — This milestone includes static public dashboards, not a separate mobile app or server-backed product.
 - **Women's football** — Scope limited to men's WCQ-UEFA (can extend later)
 - **Youth tournaments** — Focus on senior national teams only
+- **Automated UEFA website scraping** — UEFA pages are rules/reference inputs only unless explicit machine-access permission is established.
+- **Current xG, injury, or lineup claims without a licensed source** — Missing evidence is displayed as unavailable in v4.0.
+- **Reusing the national-team model for clubs** — Club forecasting requires separately trained and validated authority.
 
 ## Architecture Overview
 
@@ -214,7 +224,7 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-**v3.0:** Phases 13 through 16 are complete; Phase 17 is ready to plan the shared dashboards and atomic refresh operations.
+**v4.0:** Starting the UEFA Champions League dashboard milestone after completion of the shared UEFA dashboard and atomic publication foundation in v3.0.
 
 **v1.0 MVP (Open Mode)**: ✅ **SHIPPED** - 2026-06-05
 
@@ -259,4 +269,4 @@ frozen contract.
 - Dashboard behavior remains stable while model evaluation and replacement happen behind explicit versioned contracts.
 
 ---
-*Last updated: 2026-08-24 after Phase 16 completion*
+*Last updated: 2026-09-19 at milestone v4.0 start*
