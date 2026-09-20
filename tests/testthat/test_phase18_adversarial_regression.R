@@ -48,6 +48,42 @@ phase18_adversarial_probe_catalog <- function() list(
   warnings = phase18_adversarial_required_warnings
 )
 
+phase18_adversarial_edge_catalog <- function() data.frame(
+  edge_id = c(
+    "UCLSRC-01-CONCURRENCY", "UCLSRC-01-INTERRUPTION", "UCLSRC-02-UNCLASSIFIED",
+    "UCLSRC-03-COLLISION", "UCLSRC-03-EMPTY-NULL", "UCLSRC-03-STABLE-ORDER",
+    "UCLSRC-04-TECHNICAL-FAILURE", "UCLSRC-04-NO-INCUMBENT",
+    "CLUBID-01-ADJACENCY", "CLUBID-01-EMPTY-NULL", "CLUBID-01-ACTIVE-STATUS",
+    "CLUBID-01-STABLE-ORDER", "CLUBHIST-01-THRESHOLD",
+    "CLUBHIST-01-PRECISION", "CLUBHIST-01-TIES"
+  ),
+  test_file = c(
+    "test_phase18_source_acceptance.R", "test_phase18_source_acceptance.R",
+    "test_phase18_football_data_adapter.R", "test_phase18_canonical_hash.R",
+    "test_phase18_source_bundle.R", "test_phase18_football_data_adapter.R",
+    "test_phase18_refresh_failure.R", "test_phase18_refresh_failure.R",
+    rep("test_phase18_club_identity.R", 4L), rep("test_phase18_club_history_contract.R", 3L)
+  ),
+  test_name = c(
+    "concurrency and writer interruption preserve incumbent bytes",
+    "terminating a writer on either side of the pointer swap preserves a complete generation",
+    "unknown acquisition failures are sanitized into one closed blocked reason",
+    "length-prefixed row encoding rejects the reproduced delimiter collision",
+    "empty null adjacent and equal-key resource outcomes are explicit",
+    "provider row reordering preserves canonical projection order and hashes",
+    "technical reason vocabulary is closed and sanitized",
+    "technical first-refresh failure records explicit no-incumbent without accepted bytes",
+    "half-open boundaries assign an instant only to the adjacent row",
+    "empty and cross-domain inputs fail with typed reasons",
+    "club status and validity are closed and active at the event instant",
+    "registry hash and resolution are invariant to row order",
+    "coverage equality and all zero-tolerance gates fail at one step",
+    "completed evidence obeys conservative completion and cutoff boundaries",
+    "date-only evidence uses next-day UTC and strict prior-information cutoff"
+  ),
+  stringsAsFactors = FALSE
+)
+
 phase18_adversarial_mark <- function(id) {
   required <- unname(unlist(phase18_adversarial_probe_catalog(), use.names = FALSE))
   if (!id %in% required) stop("unknown Phase 18 adversarial probe: ", id, call. = FALSE)
