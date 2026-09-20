@@ -367,8 +367,8 @@ testthat::test_that("atomic registry writer preserves incumbent bytes on invalid
   on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
   incumbent <- phase18_identity_test_registry()
   phase18_write_club_registries_atomic(incumbent, root)
-  paths <- file.path(root, c("clubs.csv", "club_source_ids.csv", "club_aliases.csv"))
-  before <- lapply(paths, readBin, what = "raw", n = 100000L)
+  pointer <- file.path(root, "current.json")
+  before <- readBin(pointer, what = "raw", n = file.info(pointer)$size)
   invalid <- incumbent
   invalid$aliases$club_id <- "club_unknown"
   invalid <- phase18_hash_club_registry_rows(invalid)
@@ -376,8 +376,58 @@ testthat::test_that("atomic registry writer preserves incumbent bytes on invalid
     phase18_write_club_registries_atomic(invalid, root),
     class = "unknown_club_identity"
   )
-  after <- lapply(paths, readBin, what = "raw", n = 100000L)
+  after <- readBin(pointer, what = "raw", n = file.info(pointer)$size)
   testthat::expect_identical(after, before)
+  testthat::expect_identical(
+    phase18_club_registry_hash(phase18_load_club_registries(root)),
+    phase18_club_registry_hash(incumbent)
+  )
+})
+
+testthat::test_that("registry readers see only complete old or new immutable generations", {
+  phase18_identity_test_load()
+  root <- tempfile("phase18-club-registry-generation-")
+  dir.create(root, recursive = TRUE)
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+  incumbent <- phase18_identity_test_registry()
+  phase18_write_club_registries_atomic(incumbent, root)
+  incumbent_hash <- phase18_club_registry_hash(incumbent)
+  candidate <- incumbent
+  candidate$clubs$canonical_name <- paste(candidate$clubs$canonical_name, "Updated")
+  candidate <- phase18_hash_club_registry_rows(candidate)
+  candidate_hash <- phase18_club_registry_hash(candidate)
+
+  for (boundary in c(1L, 2L, 3L)) {
+    observed <- character()
+    injector <- function(stage, index, name) {
+      observed <<- c(observed, phase18_club_registry_hash(phase18_load_club_registries(root)))
+      if (identical(stage, "after_file") && identical(index, boundary)) stop("simulated process death")
+    }
+    testthat::expect_error(
+      phase18_write_club_registries_atomic(candidate, root, injector),
+      "simulated process death"
+    )
+    testthat::expect_true(all(observed == incumbent_hash))
+    testthat::expect_identical(
+      phase18_club_registry_hash(phase18_load_club_registries(root)), incumbent_hash
+    )
+  }
+  testthat::expect_error(
+    phase18_write_club_registries_atomic(candidate, root, function(stage, ...) {
+      testthat::expect_identical(
+        phase18_club_registry_hash(phase18_load_club_registries(root)), incumbent_hash
+      )
+      if (identical(stage, "before_pointer")) stop("simulated pre-pointer death")
+    }),
+    "simulated pre-pointer death"
+  )
+  testthat::expect_identical(
+    phase18_club_registry_hash(phase18_load_club_registries(root)), incumbent_hash
+  )
+  phase18_write_club_registries_atomic(candidate, root)
+  testthat::expect_identical(
+    phase18_club_registry_hash(phase18_load_club_registries(root)), candidate_hash
+  )
 })
 
 testthat::test_that("source alias and club boundaries use exact half-open adjacency", {

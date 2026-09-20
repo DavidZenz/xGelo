@@ -327,7 +327,23 @@ phase18_resolve_club_identity <- function(
   )
 }
 
-phase18_load_club_registries <- function(root = "data/club/registries") {
+phase18_club_registry_pointer_hash <- function(pointer) {
+  required <- c(
+    "schema_version", "hash_encoding_version", "generation",
+    "registry_sha256", "pointer_sha256"
+  )
+  if (!is.list(pointer) || !identical(names(pointer), required)) {
+    phase18_club_abort("invalid_club_registry_pointer", "Club registry pointer schema is not exact")
+  }
+  phase18_hash_sequence_v2(
+    pointer[setdiff(required, "pointer_sha256")],
+    domain = "phase18-club-registry-pointer-v2",
+    names = setdiff(required, "pointer_sha256"),
+    types = rep("character", length(required) - 1L)
+  )
+}
+
+phase18_read_club_registry_files <- function(root) {
   schemas <- phase18_club_registry_schemas()
   files <- c(clubs = "clubs.csv", source_ids = "club_source_ids.csv", aliases = "club_aliases.csv")
   registries <- lapply(names(files), function(name) {
@@ -343,5 +359,32 @@ phase18_load_club_registries <- function(root = "data/club/registries") {
   })
   names(registries) <- names(files)
   phase18_validate_club_registries(registries)
+  registries
+}
+
+phase18_load_club_registries <- function(root = "data/club/registries") {
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  pointer_path <- file.path(root, "current.json")
+  if (!file.exists(pointer_path)) return(phase18_read_club_registry_files(root))
+  if (dir.exists(pointer_path) || nzchar(Sys.readlink(pointer_path))) {
+    phase18_club_abort("invalid_club_registry_pointer", "Club registry pointer must be a regular file")
+  }
+  pointer <- jsonlite::fromJSON(pointer_path, simplifyVector = TRUE)
+  pointer <- as.list(pointer)
+  if (!identical(as.character(pointer$schema_version), "phase18-club-registry-pointer-v2") ||
+      !identical(as.character(pointer$hash_encoding_version), phase18_canonical_encoding_v2()) ||
+      !grepl("^g-[0-9a-f]{24}$", as.character(pointer$generation)) ||
+      !grepl("^[0-9a-f]{64}$", as.character(pointer$registry_sha256)) ||
+      !identical(as.character(pointer$pointer_sha256), phase18_club_registry_pointer_hash(pointer))) {
+    phase18_club_abort("invalid_club_registry_pointer", "Club registry pointer is malformed or stale")
+  }
+  generation_root <- file.path(root, "generations", as.character(pointer$generation))
+  if (!dir.exists(generation_root) || nzchar(Sys.readlink(generation_root))) {
+    phase18_club_abort("invalid_club_registry_pointer", "Club registry generation is missing or unsafe")
+  }
+  registries <- phase18_read_club_registry_files(generation_root)
+  if (!identical(phase18_club_registry_hash(registries), as.character(pointer$registry_sha256))) {
+    phase18_club_abort("club_registry_hash_mismatch", "Club registry generation differs from its pointer")
+  }
   registries
 }

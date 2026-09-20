@@ -454,31 +454,65 @@ phase18_write_csv_atomic <- function(data, path) {
   invisible(path)
 }
 
-phase18_write_club_registries_atomic <- function(registries, root) {
+phase18_write_club_registries_atomic <- function(registries, root, failure_injector = NULL) {
   phase18_validate_club_registries(registries)
+  if (!is.null(failure_injector) && !is.function(failure_injector)) {
+    phase18_club_abort("club_registry_write_failed", "failure_injector must be a function")
+  }
   dir.create(root, recursive = TRUE, showWarnings = FALSE)
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
   files <- c(clubs = "clubs.csv", source_ids = "club_source_ids.csv", aliases = "club_aliases.csv")
-  snapshots <- lapply(files, function(file) {
-    path <- file.path(root, file)
-    if (file.exists(path)) readBin(path, "raw", n = file.info(path)$size) else raw(0)
-  })
-  written <- character(0)
-  tryCatch({
-    for (name in names(files)) {
-      path <- file.path(root, files[[name]])
-      phase18_write_csv_atomic(phase18_club_canonical_table(registries[[name]], phase18_club_sort_keys()[[name]]), path)
-      written <- c(written, name)
+  registry_sha256 <- phase18_club_registry_hash(registries)
+  generation <- paste0("g-", substr(registry_sha256, 1L, 24L))
+  generations_root <- file.path(root, "generations")
+  dir.create(generations_root, recursive = TRUE, showWarnings = FALSE)
+  target <- file.path(generations_root, generation)
+  if (!dir.exists(target)) {
+    stage <- tempfile(".club-registry-stage-", tmpdir = generations_root)
+    if (!dir.create(stage, recursive = FALSE, showWarnings = FALSE)) {
+      phase18_club_abort("club_registry_write_failed", "Could not create registry generation stage")
     }
-    reloaded <- phase18_load_club_registries(root)
-    if (!identical(phase18_club_registry_hash(reloaded), phase18_club_registry_hash(registries))) {
-      phase18_club_abort("club_registry_write_failed", "Registry read-back hash mismatch")
+    on.exit(if (dir.exists(stage)) unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
+    for (index in seq_along(files)) {
+      name <- names(files)[[index]]
+      phase18_write_csv_atomic(
+        phase18_club_canonical_table(registries[[name]], phase18_club_sort_keys()[[name]]),
+        file.path(stage, files[[name]])
+      )
+      if (!is.null(failure_injector)) failure_injector("after_file", index, name)
     }
-  }, error = function(error) {
-    for (name in written) {
-      path <- file.path(root, files[[name]])
-      if (length(snapshots[[name]])) writeBin(snapshots[[name]], path) else unlink(path, force = TRUE)
+    staged <- phase18_read_club_registry_files(stage)
+    if (!identical(phase18_club_registry_hash(staged), registry_sha256)) {
+      phase18_club_abort("club_registry_write_failed", "Registry generation read-back hash mismatch")
     }
-    stop(error)
-  })
+    if (!file.rename(stage, target)) {
+      phase18_club_abort("club_registry_write_failed", "Could not finalize immutable registry generation")
+    }
+  } else {
+    existing <- phase18_read_club_registry_files(target)
+    if (!identical(phase18_club_registry_hash(existing), registry_sha256)) {
+      phase18_club_abort("club_registry_write_failed", "Registry generation ID collision")
+    }
+  }
+  if (!is.null(failure_injector)) failure_injector("before_pointer", length(files), generation)
+  pointer <- list(
+    schema_version = "phase18-club-registry-pointer-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    generation = generation,
+    registry_sha256 = registry_sha256,
+    pointer_sha256 = ""
+  )
+  pointer$pointer_sha256 <- phase18_club_registry_pointer_hash(pointer)
+  pointer_path <- file.path(root, "current.json")
+  pointer_stage <- tempfile(".club-registry-pointer-", tmpdir = root)
+  on.exit(if (file.exists(pointer_stage)) unlink(pointer_stage, force = TRUE), add = TRUE)
+  jsonlite::write_json(pointer, pointer_stage, auto_unbox = TRUE, pretty = TRUE)
+  if (!file.rename(pointer_stage, pointer_path)) {
+    phase18_club_abort("club_registry_write_failed", "Could not atomically publish club registry pointer")
+  }
+  reloaded <- phase18_load_club_registries(root)
+  if (!identical(phase18_club_registry_hash(reloaded), registry_sha256)) {
+    phase18_club_abort("club_registry_write_failed", "Published registry read-back hash mismatch")
+  }
   invisible(root)
 }
