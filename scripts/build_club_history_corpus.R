@@ -14,6 +14,7 @@ for (argument in args) {
 }
 
 project_root <- normalizePath(options$`project-root` %||% getwd(), winslash = "/", mustWork = TRUE)
+source(file.path(project_root, "R/common/phase18_canonical_hash.R"), local = .GlobalEnv)
 source(file.path(project_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
 source(file.path(project_root, "R/club/identity.R"), local = .GlobalEnv)
 source(file.path(project_root, "R/club/identity_bootstrap.R"), local = .GlobalEnv)

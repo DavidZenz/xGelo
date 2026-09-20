@@ -18,6 +18,7 @@ if (is.null(phase18_cli_mode) && length(phase18_cli_positionals)) phase18_cli_mo
 if (is.null(phase18_cli_mode)) phase18_cli_mode <- "verify"
 phase18_cli_root <- normalizePath(phase18_cli_options$`project-root` %||% getwd(), mustWork = TRUE)
 
+source(file.path(phase18_cli_root, "R/common/phase18_canonical_hash.R"), local = .GlobalEnv)
 source(file.path(phase18_cli_root, "R/club/identity.R"), local = .GlobalEnv)
 source(file.path(phase18_cli_root, "R/club/identity_bootstrap.R"), local = .GlobalEnv)
 

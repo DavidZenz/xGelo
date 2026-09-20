@@ -26,6 +26,7 @@ if (is.na(phase18_accept_script) || !nzchar(phase18_accept_script)) {
 }
 phase18_accept_script <- normalizePath(phase18_accept_script, winslash = "/", mustWork = TRUE)
 phase18_accept_project_root <- normalizePath(file.path(dirname(phase18_accept_script), ".."), winslash = "/", mustWork = TRUE)
+source(file.path(phase18_accept_project_root, "R/common/phase18_canonical_hash.R"), local = TRUE)
 source(file.path(phase18_accept_project_root, "R/competition/ucl_source_acceptance.R"), local = TRUE)
 source(file.path(phase18_accept_project_root, "R/club/identity.R"), local = TRUE)
 source(file.path(phase18_accept_project_root, "R/club/identity_bootstrap.R"), local = TRUE)

@@ -9,6 +9,7 @@ phase18_refresh_script_root <- normalizePath(
   file.path(dirname(phase18_refresh_script_file), ".."), winslash = "/", mustWork = TRUE
 )
 
+source(file.path(phase18_refresh_script_root, "R/common/phase18_canonical_hash.R"), local = .GlobalEnv)
 source(file.path(phase18_refresh_script_root, "R/competition/ucl_source_acceptance.R"), local = .GlobalEnv)
 source(file.path(phase18_refresh_script_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
 source(file.path(phase18_refresh_script_root, "R/competition/edition_registry.R"), local = .GlobalEnv)
