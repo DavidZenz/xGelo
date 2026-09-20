@@ -1,216 +1,158 @@
 ---
 phase: 18-club-and-ucl-source-contracts
-verified: 2026-09-20T10:37:52Z
-status: gaps_found
-score: "0/5 roadmap must-haves verified"
+verified: 2026-09-20T16:20:04Z
+status: human_needed
+score: "5/5 roadmap must-haves verified"
 behavior_unverified: 0
 overrides_applied: 0
-next_action: "Gaps found. Plan the fixes, then re-run execute-phase before shipping."
-next_command: "/gsd:plan-phase 18 --gaps"
-gaps:
-  - truth: "An operator can run a trustworthy live-key acceptance check before automation is enabled."
-    status: failed
-    reason: "Acceptance authority can be forged or enabled from incomplete evidence: row hashes collide, review loading re-hashes tampered rows, pending default expectations validate, four resource rows enable automation without the exact 16-capability matrix, schema fingerprints are not recomputed, and edition IDs can escape the provider evidence directory."
-    artifacts:
-      - path: "R/competition/ucl_source_acceptance.R"
-        issue: "Ambiguous hashing and incomplete review, expectation, capability, and schema-fingerprint validation permit forged accepted authority."
-      - path: "scripts/accept_ucl_provider.R"
-        issue: "Unvalidated edition IDs permit path traversal during the no-key write path."
-    missing:
-      - "Use a versioned unambiguous canonical encoding for every Phase 18 row/table hash and migrate persisted hashes."
-      - "Validate durable review hashes without rewriting them and require an explicit production review set."
-      - "Require approved expectation review metadata and the exact 16-row capability/evidence matrix."
-      - "Recompute and validate the durable four-row schema fingerprint from the actual table."
-      - "Allow only the supported edition ID and verify the resolved evidence path remains contained."
-  - truth: "Current UCL resources are ingested into edition-scoped, credential-safe, tamper-evident artifacts."
-    status: failed
-    reason: "Candidate authority is not bound to the candidate edition or raw bytes, in-root symlinks pass the guard, and resource freshness is reported true after checking only competition metadata."
-    artifacts:
-      - path: "R/competition/ucl_source_bundle.R"
-        issue: "Manual/provider authority and exact inventories are not fully bound to candidate bytes, edition, or symlink-free paths."
-      - path: "R/competition/football_data_org_adapter.R"
-        issue: "Stale team/match/standings timestamps can pass with freshness_passed=TRUE."
-    missing:
-      - "Bind every authority variant to the exact candidate edition and canonical aggregate of the four raw resource hashes."
-      - "Check lexical path components for symlinks before resolution and enforce exact hidden/evidence inventories."
-      - "Validate freshness for every required resource and relevant row; derive freshness_passed from those checks."
-  - truth: "Failed or concurrent refreshes preserve an atomic last-known-good bundle and auditable state."
-    status: failed
-    reason: "Readers can observe partial accepted trees, lock losers mutate shared history without the lock, invalid prior history is retained while a refresh reports accepted, and provider exit can act on an unrelated or unreadable incumbent."
-    artifacts:
-      - path: "R/competition/ucl_source_refresh.R"
-        issue: "File-by-file publication, unlink-before-rename writers, unlocked collision evidence, missing pre-validation, and unbound provider-exit review violate the transaction contract."
-    missing:
-      - "Publish complete generations through one atomic directory/pointer swap without unlink-before-rename windows."
-      - "Never mutate shared evidence without the transaction lock."
-      - "Validate incumbent history/sidecar before mutation and validate the resulting ledger before commit."
-      - "Load and validate the incumbent bundle and bind provider exit to its provider, edition, decision ID, decision hash, and inventory."
-  - truth: "Every current and historical club resolves through a stable, validity-aware, fail-closed club identity contract."
-    status: failed
-    reason: "The shared delimiter-ambiguous row hash permits distinct identity rows to collide, and club validity/status metadata is not consistently validated or enforced during resolution."
-    artifacts:
-      - path: "R/club/identity.R"
-        issue: "Row integrity is collision-prone; club timestamps/status values are not fully validated and inactive states may still resolve."
-    missing:
-      - "Adopt unambiguous row encoding for identity artifacts and recompute all registries."
-      - "Validate club validity intervals and a closed status enum, and enforce active status during resolution."
-  - truth: "The historical club corpus is independently pinned and audited for safe model-training eligibility."
-    status: failed
-    reason: "Evidence that predates kickoff is treated as model-eligible, and corpus validation trusts stored identity/duplicate/score/temporal audit claims instead of recomputing them from normalized matches and bound registry/review artifacts."
-    artifacts:
-      - path: "R/club/history_contract.R"
-        issue: "Temporal leakage and self-consistent forged audit claims can pass accepted_for_training validation."
-    missing:
-      - "Require result evidence at or after a conservative match completion instant and before cutoff."
-      - "Recompute every eligibility gate from matches/source rows and verify the exact registry/review artifact hashes."
-      - "Publish audit and accepted state as one generation and reject hidden/surplus inventory."
-deferred: []
+re_verification:
+  previous_status: gaps_found
+  previous_score: "0/5"
+  gaps_closed:
+    - "Trustworthy live-key acceptance authority"
+    - "Edition-scoped credential-safe current UCL artifacts"
+    - "Atomic last-known-good refresh and provider-exit state"
+    - "Stable validity-aware club identity authority"
+    - "Pinned, recomputed, temporally safe historical corpus authority"
+  gaps_remaining: []
+  regressions: []
+human_verification:
+  - test: "Complete the real football-data.org owner review and opt-in live-key acceptance probe for UCL 2026/27."
+    expected: "All seven owner dimensions, exact 16-capability evidence, four-resource schema/cardinality/freshness checks, and token scan pass before automation becomes enabled."
+    why_human: "Provider rights, account scope, current terms, and the behavior of a real external credential cannot be established from fixture replay."
+  - test: "Review current and historical club token mappings and their half-open validity intervals."
+    expected: "Only explicitly approved club mappings enter registry authority; ambiguous, inactive, cross-domain, and unresolved tokens remain blocked."
+    why_human: "Entity identity and historical rename/merger interpretation require domain-owner judgment."
+  - test: "Review the pinned historical source commits, paths, license evidence, expected counts, and resulting corpus manifest."
+    expected: "A corpus becomes training-eligible only after every pin, license, coverage, identity, score, lineage, duplicate, and temporal gate passes."
+    why_human: "The repository intentionally has no accepted real historical generation until source and license evidence is supplied and reviewed."
 ---
 
 # Phase 18: Club and UCL Source Contracts Verification Report
 
 **Phase Goal:** Operators can acquire and audit lawful Champions League current and historical data through stable club identities without risking credentials or accepted state.
 
-**Verified:** 2026-09-20T10:37:52Z  
-**Status:** gaps_found  
-**Re-verification:** No — initial verification
+**Verified:** 2026-09-20T16:20:04Z
+**Status:** human_needed
+**Re-verification:** Yes — after gap closure and final code-review remediation
 
 ## Goal Achievement
 
-The phase is not ready to proceed. All planned artifacts exist and the nominal Phase 18 suite passes, but adversarial execution reproduced every one of the 15 blockers in `18-REVIEW.md`. These failures invalidate all five roadmap success criteria and all six Phase 18 requirements.
+All five roadmap truths are implemented and behaviorally exercised. The prior 15 critical defects, four warnings, six follow-up blockers, and four follow-up warnings are closed by production-facing regressions. The automated phase gate passed in fresh processes with 142 tests and 840 assertions while proving that verification itself did not mutate production evidence.
+
+The remaining checks are intentionally external judgments: real provider terms/key behavior, real club mappings, and real source/license evidence. Production correctly remains fail-closed until those checks occur, so no fabricated provider, accepted-current-state, club identity, or training authority exists.
 
 ### Observable Truths
 
 | # | Roadmap truth | Status | Evidence |
 |---|---|---|---|
-| 1 | Live-key acceptance records lawful-use, attribution, retention, quota, schema, completeness, and freshness evidence before automation | FAILED | A four-row machine matrix enabled automation; pending default expectations validated; tampered owner review was re-hashed and accepted; schema fingerprint tampering remained authoritative; unsafe edition traversal wrote outside the provider directory. |
-| 2 | Current UCL data becomes edition-scoped, credential-safe, provenance-visible artifacts | FAILED | A wrong-edition/unrelated-raw manual review produced a promotion-eligible candidate; an in-root symlink passed; a 2020 team timestamp produced `freshness_passed=TRUE`. |
-| 3 | Failed, empty, stale, incomplete, or concurrent refreshes preserve last-known-good accepted state | FAILED | A promotion hook observed a one-file accepted tree; lock collision wrote history without the lock; invalid prior history was appended and the refresh returned accepted; unrelated incumbent bytes accepted provider-exit review. |
-| 4 | Current and historical club records resolve through a stable validity-aware club identity contract | FAILED | Distinct identity rows collide under the shared delimiter hash; club status/validity metadata is not consistently enforced. |
-| 5 | Historical club data is independently pinned/audited before training | FAILED | Pre-kickoff result evidence returned `counts_for_model=TRUE`; a bundle with a blank club identity and rehashed stored claims still validated as training-accepted. |
+| 1 | An operator can run a live-key acceptance check that records lawful-use, attribution, retention, quota, schema, completeness, and freshness evidence before automation | VERIFIED | `phase18_validate_terms_review()`, exact reviewed edition expectations, exact 16-capability evidence, typed/cardinality-aware four-resource fingerprints, immutable acceptance generations, safe edition containment, and live-probe/CLI tests all pass. The committed decision is `not_run`, `missing_credential`, `automation_enabled=FALSE`. |
+| 2 | Current fixtures, results, standings, clubs, and lifecycle metadata become edition-scoped, credential-safe, provenance-visible artifacts | VERIFIED | The fixed four-endpoint adapter feeds its canonical eight-column fingerprint table unchanged into the bundle builder; provider/manual/fixture authority binds exact edition and ordered raw hashes; lexical symlinks and hidden/surplus inventory fail. Fixture and integration tests cover real production interfaces without persisting credentials. |
+| 3 | Failed, empty, stale, incomplete, concurrent, interrupted, or provider-exit refreshes preserve truthful accepted state | VERIFIED | Immutable accepted/evidence generations become visible through one self-hashed pointer; lock losers mutate nothing; prior ledger/sidecar/incumbent state is prevalidated; post-commit notification faults cannot contradict committed state; provider exit is incumbent- and terms-bound. Production pointer validates as `no_incumbent`. |
+| 4 | Current and historical clubs resolve through one stable validity-aware authority that rejects ambiguous and national-team identities | VERIFIED | Canonical-v2 registries, collision-safe tuple grouping, closed club status enum, positive half-open intervals, source-ID-first lookup, exact reviewed aliases, active-at-event enforcement, immutable registry generation publication, and ambiguity/cross-domain tests pass. Production registries contain zero fabricated identities. |
+| 5 | Historical club data is pinned and audited for licensing, point-in-time availability, coverage, duplicates, and score semantics before training | VERIFIED | Corpus validation recomputes every gate from bound source/match/registry/review evidence; conservative completion floors and strict cutoffs reject leakage; immutable audit/accepted generation linkage is atomic. Production history validates as `blocked` with no accepted generation. |
 
-**Score:** 0/5 roadmap truths verified.
+**Score:** 5/5 roadmap truths verified; 0 present-but-behavior-unverified.
 
 ## Required Artifacts
 
-The artifact existence checker passed 27/27 declared artifacts. Existence is not the failure mode; substantive validation and transaction semantics are.
+| Artifact | Expected | Status | Details |
+|---|---|---|---|
+| `R/common/phase18_canonical_hash.R` | Typed, framed scalar/sequence/row/table hashes | VERIFIED | 277 substantive lines; delimiter, type, missing, control-character, schema, ordering, and multiplicity regressions pass. |
+| `R/competition/ucl_source_acceptance.R` + `scripts/accept_ucl_provider.R` | Provider review, acceptance state machine, immutable generations, safe CLI | VERIFIED | Public interfaces exist and are used by the CLI; acceptance generation and self-hashed `current.json` validate. |
+| `R/competition/football_data_org_adapter.R` | Fixed four-resource transport/projection and freshness authority | VERIFIED | Fixed host/window, secret boundary, typed schema/cardinality fingerprint, per-resource freshness, identity resolution, and closed failure classification are exercised. |
+| `R/competition/ucl_source_bundle.R` | Exact provenance graph and closed authority union | VERIFIED | Bundle construction/validation, lexical symlink checks, snapshot reads, raw/edition binding, recursive exact inventory, replay, and collision paths pass. |
+| `R/competition/ucl_source_refresh.R` + current pointer/generation | Atomic last-known-good and provider-exit transaction | VERIFIED | Pointer-selected immutable generations, lock discipline, ledger validation, no-incumbent state, and compliance exits pass failure injection. |
+| `R/club/identity.R` + `R/club/identity_bootstrap.R` | Stable validity-aware club identity and atomic registry publication | VERIFIED | Resolver and generation writer are substantive and tested across ambiguity, active status, adjacency, collisions, reader concurrency, and killed writers. |
+| `R/club/history_contract.R` + history generation/pointer | Recomputed historical training eligibility | VERIFIED | Pinned-source, normalized-match, exact audit, temporal, inventory, immutable-generation, and pointer readers validate. |
+| `scripts/verify_phase18_contracts.R` + eight `test_phase18_*.R` files | Independent adversarial phase gate | VERIFIED | Exact inventory enforced: 15 critical, 4 warning, 15 edge, and 50 prohibition checks; no missing, skipped, warning, or failed test is accepted. |
 
-| Plan | Artifacts | L1 Exists | L2 Substantive | L3 Wired | Final status |
-|---|---:|---|---|---|---|
-| 18-01 provider acceptance | 7/7 | yes | yes | yes | FAILED behavior/authority |
-| 18-02 club identity | 6/6 | yes | yes | yes | FAILED integrity/status |
-| 18-03 provider adapter | 3/3 | yes | yes | yes | FAILED freshness |
-| 18-04 refresh transaction | 4/4 | yes | yes | yes | FAILED atomicity/ledger/exit |
-| 18-05 historical corpus | 4/4 | yes | yes | yes | FAILED temporal/audit recomputation |
-| 18-06 source bundle | 3/3 | yes | yes | yes (manual trace) | FAILED authority/path binding |
+The generic artifact checker reports four obsolete flat acceptance paths as missing and directory artifacts as `EISDIR`. These are not implementation gaps: Plan 18-08 deliberately replaced the flat six-file acceptance set with the safer `current.json` plus immutable generation layout, and manual read-back validated the selected generation. Other checker misses use function names rather than file paths in plan metadata; the links were traced manually below.
 
-The automated key-link checker reported 13/15 links. Its two 18-06 misses were pattern false negatives: manual tracing confirms adapter bytes/URLs flow into `phase18_build_ucl_source_bundle()`, and refresh calls `phase18_validate_ucl_source_bundle()` plus source-authority checks. The links are present, but their security semantics are incomplete.
+## Key Link Verification
+
+| From | To | Via | Status | Details |
+|---|---|---|---|---|
+| Provider CLI | Acceptance state machine | Canonical-first source and mode-tagged main | WIRED | CLI calls durable review loader, acceptance-set reader/validator, adapter, bundle builder, and immutable writer. |
+| Adapter | Club identity and bundle | Active-at-event resolution plus unchanged fingerprint table | WIRED | Projection calls the club resolver; a dedicated adapter-to-bundle integration test passes without fingerprint substitution. |
+| Acceptance pointer | Immutable generation | One captured, self-hashed `current.json` reference | WIRED | Current generation contains the manifest, review, expectations, exact capability matrix, schema fingerprints, and operator explanation. |
+| Candidate bundle | Refresh | Full source-authority and bundle recomputation before staging | WIRED | Refresh reads and validates the candidate, revalidates provider authority, stages complete generations, then commits one pointer. |
+| Refresh pointer | Transaction/accepted generations | Hash-bound generation IDs, ledgers, sidecar, and accepted ref | WIRED | Production pointer references one valid transaction generation and explicit `no_incumbent`. |
+| History validator | Audit builder | Independent recomputation from durable source/match/registry/review snapshots | WIRED | Stored audit claims are exact-compared against rebuilt tables before any accepted authority. |
+| History pointer | Audit/accepted generation | One self-hashed descriptor | WIRED | Production points to one blocked audit generation and no accepted generation. |
+| Four production CLIs/tests | Canonical hash module | Canonical module sourced before every consumer | WIRED | Loader-order assertions and fresh-process inventory tests pass. |
 
 ## Data-Flow Trace (Level 4)
 
-| Artifact | Data flow | Result |
-|---|---|---|
-| Provider acceptance | CLI -> owner review / edition expectations / machine checks -> acceptance manifest | Data flows, but the loader rewrites review hashes and the enabling conjunction accepts incomplete/unreviewed evidence. |
-| Current adapter | Four fixed responses -> canonical clubs/matches/standings/lifecycle -> coverage | Real response data flows, but per-resource freshness is not validated and the success boolean is constant. |
-| Source bundle | Raw bytes + canonical tables + authority -> candidate manifests/tree | Data flows, but manual/provider authority is not bound to the same edition and raw-byte aggregate; symlink and inventory checks are incomplete. |
-| Refresh | Candidate -> staged files -> reader-visible accepted root -> history/sidecar | Data flows, but publication is file-by-file and ledger mutations are not consistently lock-protected or prevalidated. |
-| Historical corpus | Pinned source rows -> normalized matches -> stored audits -> corpus manifest | Data flows, but pre-kickoff evidence is eligible and validation trusts stored audit assertions instead of recomputing them. |
-
-## Adversarial Finding Validation
-
-All 15 review blockers were independently confirmed against the current code.
-
-| Finding | Classification | Independent evidence |
-|---|---|---|
-| CR-01 delimiter-ambiguous hashes | BLOCKER confirmed | `("x|y","z")` and `("x","y|z")` produced the same SHA-256. |
-| CR-02 owner review re-hashing/fixture preference | BLOCKER confirmed | A stale-hash review changed to reviewer `attacker`; `phase18_read_terms_review()` replaced hashes and validation returned true. |
-| CR-03 unreviewed expectations | BLOCKER confirmed | `reviewer=pending_owner_review` returned `valid=TRUE`. |
-| CR-04 incomplete capability evidence | BLOCKER confirmed | Four resource rows produced `automation_enabled=TRUE` and `decision=accepted`; the other 12 required capabilities were absent. |
-| CR-05 schema fingerprint not validated | BLOCKER confirmed | A modified fingerprint table still passed `phase18_validate_source_authority(provider_live, ...)`. |
-| CR-06 authority not bound to bytes/edition | BLOCKER confirmed | Review edition `ucl_wrong_edition` with unrelated aggregate raw hash produced a promotion-eligible `ucl_2026_27` candidate. |
-| CR-07 symlink guard bypass | BLOCKER confirmed | An in-root file symlink returned `symlink_result=accepted`. |
-| CR-08 mixed-state/crash windows | BLOCKER confirmed | An observer hook saw `artifacts.csv` alone in the accepted root during promotion; writers also unlink incumbents before rename. |
-| CR-09 lock loser mutates history | BLOCKER confirmed | `concurrent_refresh` wrote one history row while the competing lock existed. |
-| CR-10 invalid history accepted | BLOCKER confirmed | A `not-a-hash` prior row remained in a two-row ledger while refresh returned `accepted`; post-validation failed. |
-| CR-11 provider exit not incumbent-bound | BLOCKER confirmed | A self-hashed provider review retained an arbitrary two-file tree with no valid provider bundle. |
-| CR-12 pre-kickoff result leakage | BLOCKER confirmed | Kickoff 18:00, evidence 10:00 produced `counts_for_model=TRUE`. |
-| CR-13 partial freshness validation | BLOCKER confirmed | A team last updated in 2020 produced `freshness_passed=TRUE` in a 2026 projection. |
-| CR-14 stored audit claims trusted | BLOCKER confirmed | After blanking `home_club_id`, recomputing only row/component/manifest hashes preserved `accepted_for_training=TRUE`. |
-| CR-15 edition path traversal | BLOCKER confirmed | Edition `../../escaped` created `escaped/acceptance_manifest.csv` outside the evidence root. |
-
-### Warnings validated
-
-| Finding | Status | Impact |
-|---|---|---|
-| WR-01 club status/validity inconsistency | WARNING confirmed | Club timestamps/status enum are not fully validated; resolution does not require active status. |
-| WR-02 hidden/surplus inventory ignored | WARNING confirmed | `all.files=FALSE` and incomplete authority-evidence inventory checks omit hidden/surplus files. |
-| WR-03 candidate CLI success footer | WARNING confirmed | Candidate modes return metadata without `manifest`, while the executable footer always dereferences `result$manifest`. |
-| WR-04 audit/accepted split transaction | WARNING confirmed | Audit publication occurs before accepted publication, allowing roots to disagree on failure. |
+| Artifact | Data variable | Source | Produces real/explicit data | Status |
+|---|---|---|---|---|
+| Provider acceptance | review, expectations, capabilities, fingerprint, manifest | immutable selected acceptance generation | Explicit real production state: no credential, no automation | FLOWING, FAIL-CLOSED |
+| Current UCL adapter/bundle | four raw resources -> canonical tables -> provenance graph | fixed provider endpoints or explicit manual/fixture authority | Fixture replay proves the path; real provider state is blocked until acceptance | FLOWING, GUARDED |
+| UCL refresh | candidate + incumbent + transaction evidence | validated candidate and selected immutable generations | Production truthfully records blocked no-incumbent state | FLOWING, FAIL-CLOSED |
+| Club identity | source IDs/aliases/status/intervals | reviewed registry generation or validated legacy-empty set | Production has zero invented identities | FLOWING, FAIL-CLOSED |
+| Historical corpus | pinned source rows -> normalized matches -> recomputed audits | exact source and registry/review snapshots | Complete blocked audit exists; no accepted training generation | FLOWING, FAIL-CLOSED |
 
 ## Behavioral Spot-Checks
 
-| Check | Result | Status |
-|---|---|---|
-| Full Phase 18 test set (`testthat::test_dir(..., filter="phase18")`) | 403 assertions across six files, exit 0 | PASS, but insufficient |
-| Hash collision probe | Distinct records produced identical hash | FAIL |
-| Owner-review tamper probe | Tampered reviewer re-hashed and validated | FAIL |
-| Four-row live acceptance probe | Accepted with automation enabled | FAIL |
-| Schema/edition/raw authority probes | Tampered or mismatched authority remained valid/promotable | FAIL |
-| Symlink and path-traversal probes | Both escaped intended trust boundaries | FAIL |
-| Refresh concurrency/atomicity/history probes | Unlocked mutation, partial reader state, and invalid ledger acceptance reproduced | FAIL |
-| Historical leakage/audit probes | Pre-kickoff evidence and forged audit claims accepted | FAIL |
-
-The passing suite is therefore misleading evidence for the phase goal: it proves the implemented happy-path contracts, not the adversarial invariants those contracts claim.
+| Behavior | Command | Result | Status |
+|---|---|---|---|
+| Full Phase 18 contract gate | `Rscript --vanilla scripts/verify_phase18_contracts.R` | `PHASE18_GATE_OK ... files=8 tests=142 assertions=840 production_fail_closed=true` | PASS |
+| Production authority read-back | Fresh R process loading acceptance, refresh, history, and club readers | provider `authorized=FALSE reason=missing_credential`; refresh `no_incumbent`; history `blocked`; registries 0/0/0 | PASS |
+| Canonical collision/type domain | Fresh R sequence hashes for delimiter collision and character-vs-double | both pairs differ | PASS |
+| Repository hygiene | `git diff --check` | exit 0 | PASS |
 
 ## Probe Execution
 
-No phase-declared or conventional `scripts/*/tests/probe-*.sh` probes exist. The verifier ran direct read-only R probes in fresh processes using temporary roots; none modified repository source or durable project data.
+No `probe-*.sh` files are declared. The authoritative R runner is the phase-declared probe and was executed independently with exit code 0. It ran all eight test files in fresh processes, required the exact exploit/edge/prohibition inventories, checked production byte maps before and after, and emitted `PHASE18_GATE_OK`.
 
 ## Requirements Coverage
 
-| Requirement | Status | Evidence |
-|---|---|---|
-| UCLSRC-01 | BLOCKED | CR-01 through CR-05 and CR-15 permit forged, incomplete, or path-escaped provider acceptance. |
-| UCLSRC-02 | BLOCKED | CR-07 and CR-13 allow unsafe paths and stale current resources to pass. |
-| UCLSRC-03 | BLOCKED | CR-01, CR-05, CR-06, CR-07, and WR-02 invalidate tamper-evident provenance/authority claims. |
-| UCLSRC-04 | BLOCKED | CR-08 through CR-11 violate atomic last-known-good, ledger integrity, lock ownership, and provider-exit authorization. |
-| CLUBID-01 | BLOCKED | CR-01 and WR-01 undermine stable registry integrity and active validity semantics. |
-| CLUBHIST-01 | BLOCKED | CR-12 and CR-14 allow temporal leakage and forged eligibility audits into accepted training state. |
+| Requirement | Source plans | Status | Evidence |
+|---|---|---|---|
+| UCLSRC-01 | 18-01, 18-07, 18-08, 18-13, 18-14 | SATISFIED | Exact owner/edition/capability/fingerprint authority, atomic acceptance generations, safe CLI, adversarial regressions. |
+| UCLSRC-02 | 18-03, 18-09, 18-13, 18-14 | SATISFIED | Fixed secret-safe adapter, canonical projection, active club identity, per-resource freshness, closed failures. |
+| UCLSRC-03 | 18-06, 18-10, 18-13, 18-14 | SATISFIED | Exact edition/raw/fingerprint provenance graph, closed authority union, symlink/snapshot/inventory protection. |
+| UCLSRC-04 | 18-04, 18-11, 18-13, 18-14 | SATISFIED | Immutable generation/pointer refresh, lock silence, prevalidated ledger, no-incumbent and provider-exit semantics. |
+| CLUBID-01 | 18-02, 18-07, 18-09, 18-13, 18-14 | SATISFIED | Canonical-v2 active validity-aware club authority and atomic registry generations. |
+| CLUBHIST-01 | 18-05, 18-12, 18-13, 18-14 | SATISFIED | Conservative temporal policy, exact audit recomputation, source/license gates, atomic audit/accepted visibility. |
 
-No Phase 18 requirement is orphaned, and no gap is explicitly deferred by Phases 19–22. Later phases depend on these contracts; they do not repair them.
+No Phase 18 requirement is orphaned. Later phases consume these contracts; none is relied on to repair a Phase 18 gap.
 
 ## Anti-Patterns Found
 
-No unreferenced `TBD`, `FIXME`, `XXX`, `TODO`, `HACK`, placeholder, empty-return, or console-only markers were found in the Phase 18 implementation files. The blockers are substantive logic and transaction defects, not visible stubs.
+No unreferenced `TBD`, `FIXME`, `XXX`, `TODO`, `HACK`, empty implementation, or placeholder-output blocker was found in Phase 18 production files. Matches for `placeholder`, `todo`, and `tbd` are deliberate rejection vocabularies that make human-authority validators fail closed.
 
-## Prohibitions and Human Verification
+## Disconfirmation Pass
 
-The plans contain 20 `[FLAGGED-UNVERIFIED]` prohibitions. They are not silently passed. Several are contradicted by the automated probes (tamper evidence, path containment, fixture/incomplete authority, atomic accepted state, and historical temporal safety); the remainder still require explicit human review after code gaps close.
+- **Partially realized external requirement:** the real provider/key and historical source evidence are intentionally absent, so the implementation is proven as a safe capability but production remains disabled.
+- **Misleading-test check:** the original nominal suite missed 15 critical exploits. The final verdict relies on the explicit adversarial catalog and follow-up review regressions, not nominal happy paths.
+- **Error-path check:** unknown adapter errors, post-pointer notification failures, malformed provider-exit reviews, lock losers, killed writers, tampered ledgers, and no-incumbent failures now each have named executable coverage.
 
-Deferred end-of-phase human checks remain:
+## Human Verification Required
 
-1. Review the real provider account terms, attribution, retention, termination, and live-key evidence.
-2. Review every production current/historical club mapping and validity interval.
-3. Review pinned historical commits, paths, licenses, expected counts, and the final corpus manifest.
-4. Review the technical-failure and provider-exit retain/withdraw matrix against corrected atomic transactions.
+### 1. Real provider acceptance
 
-Human approval cannot override the reproduced code defects.
+**Test:** Complete owner/legal review, supply `FOOTBALL_DATA_API_TOKEN` out of band, and run the opt-in live acceptance probe.
+**Expected:** Exact owner, application, 16-capability, four-resource schema/cardinality/freshness, identity, quota, and secret-scan evidence passes before automation becomes enabled.
+**Why human:** External terms, account scope, and real credential-backed endpoint behavior cannot be established offline.
+
+### 2. Club identity review
+
+**Test:** Review every real current and historical club token and its validity interval before applying the bootstrap.
+**Expected:** Only unambiguous approved club identities enter registry authority; unresolved or cross-domain rows remain blocked.
+**Why human:** Canonical entity identity and historical rename/merger semantics require domain-owner judgment.
+
+### 3. Historical source/license review
+
+**Test:** Supply and review exact historical commit pins, paths, license evidence, expected counts, and resulting corpus manifest.
+**Expected:** Training authority remains blocked until every source, coverage, identity, score, duplicate, lineage, license, and temporal gate passes.
+**Why human:** Real source licensing and intended dataset coverage are external factual judgments.
 
 ## Gaps Summary
 
-Five root concerns block the phase goal:
-
-1. Provider acceptance authority can be forged from ambiguous hashes, rewritten reviews, unreviewed expectations, incomplete capability evidence, unvalidated schema fingerprints, and unsafe edition paths.
-2. Current candidate provenance does not bind authority to the exact edition/bytes and does not fully enforce freshness or filesystem trust boundaries.
-3. Refresh and provider-exit transactions are not atomic or consistently lock/ledger/incumbent validated.
-4. Club registry integrity/status semantics are incomplete.
-5. Historical eligibility admits pre-kickoff outcome evidence and trusts stored audit claims.
-
-The correct escalation route is gap planning, not Phase 19:
-
-`/gsd:plan-phase 18 --gaps`
+No automated implementation gaps remain. All five previous root gaps are closed with no detected regression. Status is `human_needed`, rather than `passed`, solely because the real-provider, real-identity, and real-source/license checks are external human judgments; the implemented and committed production behavior for their absence is the required fail-closed state.
 
 ---
 
-_Verified: 2026-09-20T10:37:52Z_  
+_Verified: 2026-09-20T16:20:04Z_
 _Verifier: the agent (gsd-verifier)_
