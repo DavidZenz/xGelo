@@ -8,6 +8,7 @@ phase19_pipeline_root <- normalizePath(
 source(file.path(phase19_pipeline_root, "tests/testthat/helper_phase19_club_fixture.R"),
        local = .GlobalEnv)
 phase19_test_load()
+source(file.path(phase19_pipeline_root, "R/club/release.R"), local = .GlobalEnv)
 
 phase19_pipeline_cli <- function(arguments = character()) {
   script <- file.path(phase19_pipeline_root, "scripts/run_phase19_club_evaluation.R")
