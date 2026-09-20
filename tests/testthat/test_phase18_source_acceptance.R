@@ -376,20 +376,23 @@ phase18_test_adapter_registries <- function() {
   display <- sprintf("Fixture Club %02d", seq_len(36L))
   phase18_hash_club_registry_rows(list(
     clubs = data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = ids,
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = ids,
       entity_kind = "club", canonical_name = display, association_code = "FX",
       valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
       club_status = "active", row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
     ),
     source_ids = data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = ids,
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = ids,
       source_system = "football_data_org_v4", source_club_id = provider_ids,
       valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
       review_state = "approved", source_bundle_id = "fixture-review-v1",
       row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
     ),
     aliases = data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = ids,
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = ids,
       source_system = "football_data_org_v4", alias = display,
       normalized_alias = phase18_normalize_club_name(display),
       valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
@@ -645,13 +648,27 @@ phase18_expect_canonical_first_script <- function(relative_path) {
 
 phase18_loader_snapshot <- function(roots) {
   records <- unlist(lapply(roots, function(root) {
-    if (!dir.exists(root)) return(setNames(character(), character()))
+    normalized_root <- gsub("\\\\", "/", as.character(root))
+    normalized_project <- paste0(gsub("\\\\", "/", phase18_test_root), "/")
+    label <- if (startsWith(normalized_root, normalized_project)) {
+      substring(normalized_root, nchar(normalized_project) + 1L)
+    } else {
+      normalized_root
+    }
+    if (file.exists(root) && !dir.exists(root)) {
+      return(setNames(
+        digest::digest(file = root, algo = "sha256", serialize = FALSE),
+        paste0(label, ":file")
+      ))
+    }
+    if (!dir.exists(root)) return(setNames("absent", paste0(label, ":absent")))
     paths <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE)
     paths <- paths[file.exists(paths) & !dir.exists(paths)]
     relative <- substring(paths, nchar(normalizePath(root, winslash = "/")) + 2L)
-    setNames(vapply(paths, function(path) {
+    hashes <- setNames(vapply(paths, function(path) {
       digest::digest(file = path, algo = "sha256", serialize = FALSE)
-    }, character(1)), paste(basename(root), relative, sep = "/"))
+    }, character(1)), paste(label, relative, sep = "/"))
+    c(setNames("directory", paste0(label, ":directory")), hashes)
   }), recursive = FALSE)
   unlist(records, use.names = TRUE)
 }
@@ -683,7 +700,9 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
     "data/club/registries",
     "data/club/identity_reviews",
     "data/club/history_audits",
-    "data/club/accepted"
+    "data/club/accepted",
+    "data/club/history_current.json",
+    "data/club/history_generations"
   ))
   before <- phase18_loader_snapshot(durable_roots)
   scratch <- tempfile("phase18-loader-smoke-")
@@ -722,8 +741,8 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
     "scripts/build_club_history_corpus.R",
     c(
       paste0("--project-root=", shQuote(phase18_test_root)),
-      paste0("--audit-root=", shQuote(file.path(club_scratch, "audit"))),
-      paste0("--accepted-root=", shQuote(file.path(club_scratch, "accepted")))
+      paste0("--generations-root=", shQuote(file.path(club_scratch, "generations"))),
+      paste0("--current-path=", shQuote(file.path(club_scratch, "current.json")))
     )
   )
 
