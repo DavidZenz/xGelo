@@ -261,3 +261,142 @@ test_that("club goal authority rejects domain, rating, feature, and grid attacks
     class = "phase19_club_goal_model_error"
   )
 })
+
+test_that("all four frozen club roles dispatch with truthful capabilities", {
+  context <- goal_model_test_context()
+  fixtures <- goal_model_test_fixtures(context)
+  declared <- sort(fixtures$fixture_id, method = "radix")
+  expected <- list(
+    uniform_1x2 = list(goal = FALSE, comparable = FALSE, cells = 0L,
+                       status = "ready_report_only"),
+    expanding_1x2 = list(goal = TRUE, comparable = FALSE, cells = 3362L,
+                         status = "ready_goal_distribution"),
+    club_venue_nb = list(goal = TRUE, comparable = TRUE, cells = 3362L,
+                         status = "ready_goal_distribution"),
+    club_elo_nb = list(goal = TRUE, comparable = TRUE, cells = 3362L,
+                       status = "ready_goal_distribution")
+  )
+  prediction_schemas <- list()
+
+  for (model_id in names(expected)) {
+    dispatched <- phase19_dispatch_club_goal_model(
+      goal_model_test_registration(context, model_id),
+      context$training, context$rating, context$protocol,
+      "2025-06-01T18:00:00Z", fixtures, declared
+    )
+    fit <- dispatched$fit
+    prediction <- dispatched$prediction
+    contract <- expected[[model_id]]
+
+    expect_identical(fit$model_id, model_id)
+    expect_identical(fit$goal_distribution_declared, contract$goal)
+    expect_identical(fit$promotion_comparable, contract$comparable)
+    expect_identical(prediction$promotion_comparable, contract$comparable)
+    expect_equal(nrow(prediction$distributions), contract$cells)
+    expect_true(all(prediction$predictions$prediction_status == contract$status))
+    expect_true(all(prediction$predictions$fallback_status == "none"))
+    prediction_schemas[[model_id]] <- names(prediction$predictions)
+  }
+
+  expect_identical(prediction_schemas$club_venue_nb,
+                   prediction_schemas$club_elo_nb)
+  expect_identical(
+    phase19_club_goal_comparable_ids(context$protocol),
+    c("club_venue_nb", "club_elo_nb")
+  )
+})
+
+test_that("fixture inventory is exact and surplus or duplicate coverage cannot score", {
+  context <- goal_model_test_context()
+  fit <- goal_model_test_fit(context)
+  fixtures <- goal_model_test_fixtures(context)
+
+  expect_error(
+    phase19_predict_club_goal_model(
+      fit, fixtures[1L, , drop = FALSE],
+      declared_fixture_ids = c("ucl_fixture_a", "ucl_fixture_b")
+    ),
+    class = "phase19_club_goal_model_error"
+  )
+  expect_error(
+    phase19_predict_club_goal_model(
+      fit, rbind(fixtures, fixtures[1L, , drop = FALSE]),
+      declared_fixture_ids = c("ucl_fixture_a", "ucl_fixture_b")
+    ),
+    class = "phase19_club_goal_model_error"
+  )
+  expect_error(
+    phase19_predict_club_goal_model(
+      fit, fixtures,
+      declared_fixture_ids = c("ucl_fixture_a")
+    ),
+    class = "phase19_club_goal_model_error"
+  )
+  expect_error(
+    phase19_predict_club_goal_model(
+      fit, fixtures,
+      declared_fixture_ids = c("ucl_fixture_b", "ucl_fixture_a")
+    ),
+    class = "phase19_club_goal_model_error"
+  )
+})
+
+test_that("unavailable enrichment values and candidate formula drift fail before fit", {
+  context <- goal_model_test_context()
+  enriched_rating <- context$rating
+  enriched_rating$predictions$current_xg <- 0
+  expect_error(
+    goal_model_test_fit(context, rating = enriched_rating),
+    class = "phase19_club_goal_model_error"
+  )
+
+  fit <- goal_model_test_fit(context)
+  enriched_fixture <- goal_model_test_fixtures(context)
+  enriched_fixture$injury <- 0
+  expect_error(
+    phase19_predict_club_goal_model(
+      fit, enriched_fixture,
+      declared_fixture_ids = sort(enriched_fixture$fixture_id, method = "radix")
+    ),
+    class = "phase19_club_goal_model_error"
+  )
+
+  drifted <- goal_model_test_registration(context)
+  drifted$formula <- "goals ~ elo_difference_for_team + venue_role + current_xg"
+  drifted$row_sha256 <- phase19_candidate_row_sha256(drifted)
+  expect_error(
+    phase19_fit_club_goal_model(
+      drifted, context$training, context$rating, context$protocol,
+      "2025-06-01T18:00:00Z"
+    ),
+    class = "phase19_club_goal_model_error"
+  )
+})
+
+test_that("invalid NB theta or mean fails without family or control fallback", {
+  context <- goal_model_test_context()
+  fit <- goal_model_test_fit(context)
+  fixtures <- goal_model_test_fixtures(context)
+  declared <- sort(fixtures$fixture_id, method = "radix")
+
+  invalid_theta <- fit
+  invalid_theta$theta <- -1
+  invalid_theta$theta_text <- "-1"
+  invalid_theta$fit_sha256 <- phase19_club_goal_fit_hash(invalid_theta)
+  expect_error(
+    phase19_predict_club_goal_model(invalid_theta, fixtures, declared),
+    class = "phase19_club_goal_model_error"
+  )
+  expect_identical(invalid_theta$model_id, "club_elo_nb")
+  expect_identical(invalid_theta$model_family, "negative_binomial")
+  expect_identical(invalid_theta$fallback_status, "none")
+
+  invalid_model <- fit
+  invalid_model$model$coefficients[[1L]] <- Inf
+  invalid_model$fit_sha256 <- phase19_club_goal_fit_hash(invalid_model)
+  expect_error(
+    phase19_predict_club_goal_model(invalid_model, fixtures, declared),
+    class = "phase19_club_goal_model_error"
+  )
+  expect_identical(invalid_model$fallback_status, "none")
+})
