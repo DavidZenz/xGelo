@@ -8,6 +8,7 @@ phase19_calibration_test_root <- normalizePath(
 phase19_calibration_test_load <- function() {
   paths <- c(
     "R/common/phase18_canonical_hash.R",
+    "R/club/history_contract.R",
     "R/club/model_contract.R",
     "R/evaluation/proper_scores.R",
     "R/club/evaluation_protocol.R",
