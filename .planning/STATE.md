@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-05-PLAN.md
-last_updated: "2026-09-20T18:40:09.103Z"
+stopped_at: Completed 19-06-PLAN.md
+last_updated: "2026-09-20T19:03:38.655Z"
 last_activity: 2026-09-20
-last_activity_desc: Plan 05 club-only goal models and exact G=40 forecast authority verified
+last_activity_desc: Plan 06 nested prior-only club calibration and frozen primary-view gates verified
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 19
-  percent: 79
+  completed_plans: 20
+  percent: 83
 ---
 
 # xGelo Project State
@@ -29,18 +29,18 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 6 of 10
-Status: In progress; Plans 01-05 complete
-Last activity: 2026-09-20 — Plan 05 club-only goal models and exact G=40 forecast authority verified
+Plan: 7 of 10
+Status: In progress; Plans 01-06 complete
+Last activity: 2026-09-20 — Plan 06 nested prior-only club calibration and frozen primary-view gates verified
 
-Progress: [████████░░] 79%
+Progress: [████████░░] 83%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (5/10 plans) |
+| 19 | Independent Club Forecast Authority | 5 | In progress (6/10 plans) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -49,34 +49,21 @@ Progress: [████████░░] 79%
 
 **Current milestone:**
 
-- Total plans completed: 19
+- Total plans completed: 20
 - Average duration: 23 min
-- Total execution time: 434 min
+- Total execution time: 456 min
 
-**Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`.
-**Per-Plan Metrics:**
+**Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`. **Per-Plan Metrics:**
 
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
-| Phase 18 P01 | 14 min | 3 tasks | 10 files |
-| Phase 18 P02 | 10 min | 3 tasks | 10 files |
-| Phase 18 P03 | 9 min | 2 tasks | 8 files |
-| Phase 18 P05 | 15min | 3 tasks | 14 files |
-| Phase 18 P06 | 15min | 2 tasks | 4 files |
-| Phase 18 P04 | 18min | 3 tasks | 5 files |
-| Phase 18 P07 | 4min | 2 tasks | 2 files |
-| Phase 18 P14 | 7min | 2 tasks | 10 files |
-| Phase 18 P08 | 45min | 3 tasks | 10 files |
-| Phase 18 P09 | 16min | 2 tasks | 11 files |
-| Phase 18 P10 | 28min | 2 tasks | 4 files |
-| Phase 18 P12 | 19min | 3 tasks | 24 files |
-| Phase 18 P11 | 62min | 3 tasks | 9 files |
-| Phase 18 P13 | 52min | 2 tasks | 6 files |
+| Phase 18 (14 plans) | 316 min | 33 tasks | 137 files |
 | Phase 19 P01 | 31min | 2 tasks | 5 files |
 | Phase 19 P02 | 17min | 2 tasks | 2 files |
 | Phase 19 P03 | 22 min | 2 tasks | 6 files |
 | Phase 19 P04 | 25min | 2 tasks | 6 files |
 | Phase 19 P05 | 25 min | 2 tasks | 2 files |
+| Phase 19 P06 | 22min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -100,20 +87,15 @@ Progress: [████████░░] 79%
 - [Phase 18]: Technical refresh rollback is separate from reviewed provider-exit retain or withdraw compliance authority.
 - [Phase 18]: Blocked refresh history and sidecars are hash-linked, field-consistent, and metadata-writer failures durably self-report.
 - [Phase 18]: Production UCL current state remains missing-credential, automation-disabled, and no-incumbent until real accepted authority exists.
-- [Phase 18]: Canonical v2 preserves exact UTF-8 bytes without Unicode normalization. — Byte-distinct normalization forms remain auditable and deterministic.
-- [Phase 18]: Canonical tables permit duplicate stable keys but reject missing or blank key components. — Multiplicity remains represented while deterministic v2 row bytes provide tie-breakers.
-- [Phase 18]: Every Phase 18 loader sources the canonical hash module immediately after trusted-root resolution and before consumers.
-- [Phase 18]: Dynamic Phase 18 test loaders source mandatory dependencies unconditionally so missing modules fail closed.
+- [Phase 18]: Canonical v2 preserves exact UTF-8 bytes, permits duplicate stable keys, rejects blank key components, and provides deterministic row tie-breakers.
+- [Phase 18]: Every Phase 18 loader sources mandatory canonical-hash dependencies before consumers and fails closed when a module is missing.
 - [Phase 18]: Production acceptance readers preserve stored canonical-v2 hashes and validators independently recompute exact owner, edition, capability, and fingerprint authority.
 - [Phase 18]: Acceptance publication selects a validated immutable generation through one hash-bound atomic current.json replacement.
 - [Phase 18]: The provider CLI is fixed to football_data_org_v4/ucl_2026_27 and uses tagged results with stable success, blocked, rejected, usage, and runtime exits.
 - [Phase 18]: Club identity authority requires canonical-v2 durability plus active status at the event instant.
-- [Phase 18]: Freshness authority is the conjunction of competition, team-row, match-row, and standings-resource evidence.
-- [Phase 18]: UCL source authority binds exact edition and ordered raw-byte aggregate into one canonical-v2 bundle graph.
+- [Phase 18]: UCL source authority binds exact edition, ordered raw-byte aggregate, and competition/team/match/standings freshness into one canonical-v2 bundle graph.
 - [Phase 18]: Candidate paths are checked lexically before resolution and parsed only from drift-checked in-memory snapshots.
-- [Phase 18]: Completed history evidence is eligible only after method-specific conservative completion and strictly before cutoff.
-- [Phase 18]: Historical corpus authority is independently recomputed from exact source, match, registry, review, and unresolved snapshots.
-- [Phase 18]: History readers trust only one canonical-v2 atomic descriptor selecting immutable audit and accepted generations.
+- [Phase 18]: Historical corpus authority requires conservative completion strictly before cutoff, recomputes exact source/match/registry/review/unresolved snapshots, and is selected through one canonical-v2 atomic descriptor.
 - [Phase 18]: Refresh visibility changes only through one canonical-v2 pointer selecting immutable accepted and transaction generations. — Readers must observe a complete old or complete new bundle/evidence tuple under crashes and concurrency.
 - [Phase 18]: Provider exit is authorized only for the exact provider, edition, decision, bundle, and reviewed inventory of the current generation. — Compliance review must never affect unrelated, manual, fixture, stale, unreadable, or no-incumbent state.
 - [Phase 18]: Phase 18 verification requires eight explicit fresh-process test files with zero failures, warnings, or skips.
@@ -133,6 +115,10 @@ Progress: [████████░░] 79%
 - [Phase 19]: Club goal grids use frozen G=40 support, retain omitted tail mass, and normalize stored joint probabilities exactly once.
 - [Phase 19]: Only club_venue_nb and club_elo_nb are promotion-comparable; empirical controls remain report-only.
 - [Phase 19]: Typed-unavailable enrichment columns are rejected on training, rating, and fixture surfaces rather than imputed.
+- [Phase 19]: Failed calibration remains canonical audit evidence and never becomes raw-fallback authority. — Keeps optimizer or support failures explicit and non-promotable.
+- [Phase 19]: Club temperature calibration transforms only derived 1X2 probabilities. — Source goal-distribution hashes and every non-1X2 market remain unchanged.
+- [Phase 19]: Calibrated primary-view selection follows the frozen ordered gate subset. — Calibration gains cannot bypass RPS, Brier, log-loss, coverage, probability, distribution, or cutoff vetoes.
+- [Phase 19]: Fixture calibration proves mechanics but remains production-ineligible. — Production still requires genuine source and owner-review authority.
 
 ### Pending Todos
 
@@ -158,6 +144,6 @@ Progress: [████████░░] 79%
 
 ## Session Continuity
 
-Last session: 2026-09-20T18:40:09.094Z
-Stopped at: Completed 19-05-PLAN.md
+Last session: 2026-09-20T19:03:27.735Z
+Stopped at: Completed 19-06-PLAN.md
 Resume file: None
