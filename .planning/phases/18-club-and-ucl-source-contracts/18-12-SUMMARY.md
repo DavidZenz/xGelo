@@ -65,7 +65,7 @@ coverage:
     requirement: CLUBHIST-01
     verification:
       - kind: integration
-        ref: "tests/testthat/test_phase18_club_history_contract.R#generation pointer, lock, writer failure, and subprocess termination"
+        ref: "tests/testthat/test_phase18_club_history_contract.R#generation pointer, lock, concurrent readers, writer failure, and subprocess termination"
         status: pass
     human_judgment: false
 
@@ -97,13 +97,13 @@ status: complete
 
 1. **Task 18-12-01: Exclude pre-completion evidence with exact precision and tie rules** — `06d5d2b` (RED), `eb1def6` (GREEN)
 2. **Task 18-12-02: Recompute every corpus gate from bound source and identity snapshots** — `d3d4631` (RED), `58a2c82` (GREEN)
-3. **Task 18-12-03: Commit audit and accepted corpus through one immutable generation pointer** — `fc44df2` (RED), `959f50c` (GREEN)
+3. **Task 18-12-03: Commit audit and accepted corpus through one immutable generation pointer** — `fc44df2` (RED), `959f50c` (GREEN), `bfb1928` (concurrent-reader verification)
 
 ## Files Created/Modified
 
 - `R/club/history_contract.R` — canonical-v2 temporal policy, pure audit recomputation, snapshot validation, and immutable generation publication.
 - `scripts/build_club_history_corpus.R` — builds and reports only descriptor-selected history generations.
-- `tests/testthat/test_phase18_club_history_contract.R` — 87 assertions covering temporal boundaries, forged audits, hidden files, locks, failures, and subprocess termination.
+- `tests/testthat/test_phase18_club_history_contract.R` — 92 assertions covering temporal boundaries, forged audits, hidden files, locks, concurrent readers, failures, and subprocess termination.
 - `data/club/history_sources.csv` — canonical-v2 source inventory migration.
 - `data/club/history_audits/club-history-2026-01/` — regenerated complete blocked audit with bound identity snapshots.
 - `data/club/history_generations/` — immutable blocked production generation.
@@ -124,7 +124,7 @@ status: complete
 - **Issue:** The focused history suite could not reach temporal behavior because its local registries lacked `hash_encoding_version` and the v2 schema identifier.
 - **Fix:** Updated only the overlapping history fixtures to the current identity contract.
 - **Files modified:** `tests/testthat/test_phase18_club_history_contract.R`
-- **Verification:** Focused history suite passes 87/87 assertions.
+- **Verification:** Focused history suite passes 92/92 assertions.
 - **Committed in:** `06d5d2b`, `eb1def6`
 
 **2. [Rule 1 - Bug] Made history row hashes stable across durable CSV round trips**
@@ -160,8 +160,8 @@ None - no external service configuration required.
 ## Self-Check: PASSED
 
 - All key files exist.
-- All six task commits exist.
-- Focused history suite: 87 passed, 0 failed, 0 warnings.
+- All seven task commits exist.
+- Focused history suite: 92 passed, 0 failed, 0 warnings.
 - Production descriptor validates in a fresh process as `blocked` with an empty accepted-generation reference.
 - `git diff --check` passed.
 
