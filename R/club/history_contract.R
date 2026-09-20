@@ -818,37 +818,244 @@ phase18_validate_club_history_corpus <- function(root) {
   invisible(list(accepted_for_training = phase18_history_logical(manifest$accepted_for_training[[1L]]), tables = tables, gates = gates))
 }
 
-phase18_publish_club_history_corpus <- function(audit, audit_root, accepted_root) {
-  if (identical(normalizePath(dirname(audit_root), winslash = "/", mustWork = FALSE),
-                normalizePath(dirname(accepted_root), winslash = "/", mustWork = FALSE)) &&
-      identical(basename(audit_root), basename(accepted_root))) {
-    phase18_history_abort("invalid_history_publish_roots", "Audit and accepted roots must differ")
-  }
-  audit_parent <- dirname(audit_root)
-  dir.create(audit_parent, recursive = TRUE, showWarnings = FALSE)
-  audit_candidate <- tempfile(paste0(".", basename(audit_root), ".candidate-"), tmpdir = audit_parent)
-  on.exit(if (dir.exists(audit_candidate)) unlink(audit_candidate, recursive = TRUE, force = TRUE), add = TRUE)
-  phase18_history_write_bundle_candidate(audit, audit_candidate)
-  phase18_validate_club_history_corpus(audit_candidate)
-  phase18_history_replace_directory(audit_candidate, audit_root)
+phase18_history_generation_manifest_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "generation_id", "acceptance_state",
+    "audit_manifest_sha256", "accepted_generation_id", "accepted_manifest_sha256",
+    "prior_pointer_sha256", "generation_manifest_sha256"
+  )
+}
 
-  accepted <- phase18_history_logical(audit$corpus_manifest$accepted_for_training[[1L]])
-  if (accepted) {
-    accepted_parent <- dirname(accepted_root)
-    dir.create(accepted_parent, recursive = TRUE, showWarnings = FALSE)
-    accepted_candidate <- tempfile(paste0(".", basename(accepted_root), ".candidate-"), tmpdir = accepted_parent)
-    on.exit(if (dir.exists(accepted_candidate)) unlink(accepted_candidate, recursive = TRUE, force = TRUE), add = TRUE)
-    phase18_history_write_bundle_candidate(audit, accepted_candidate)
-    validated <- phase18_validate_club_history_corpus(accepted_candidate)
-    if (!isTRUE(validated$accepted_for_training)) {
-      phase18_history_abort("history_publish_failed", "Accepted candidate failed independent eligibility validation")
-    }
-    phase18_history_replace_directory(accepted_candidate, accepted_root)
+phase18_history_pointer_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "audit_generation_id",
+    "accepted_generation_id", "audit_manifest_sha256", "accepted_manifest_sha256",
+    "acceptance_state", "blocked_reasons", "generation_manifest_sha256", "pointer_sha256"
+  )
+}
+
+phase18_history_pointer_sha256 <- function(pointer) {
+  fields <- setdiff(phase18_history_pointer_schema(), "pointer_sha256")
+  if (!is.list(pointer) || !identical(names(pointer), phase18_history_pointer_schema())) {
+    phase18_history_abort("invalid_history_pointer", "History pointer must use the exact ordered schema")
   }
-  list(
-    accepted_for_training = accepted,
-    audit_root = normalizePath(audit_root, winslash = "/", mustWork = TRUE),
-    accepted_root = if (accepted) normalizePath(accepted_root, winslash = "/", mustWork = TRUE) else accepted_root,
-    blocked_reasons = audit$corpus_manifest$blocked_reasons[[1L]]
+  phase18_hash_sequence_v2(
+    unname(pointer[fields]), domain = "club-history-current-pointer-v2",
+    names = fields, types = rep("character", length(fields))
+  )
+}
+
+phase18_history_safe_generation_id <- function(value) {
+  length(value) == 1L && !is.na(value) && grepl("^[a-z0-9][a-z0-9-]{0,95}$", as.character(value))
+}
+
+phase18_history_read_pointer_file <- function(path) {
+  if (!file.exists(path) || dir.exists(path) || nzchar(Sys.readlink(path))) {
+    phase18_history_abort("missing_history_pointer", "History current descriptor is missing or unsafe")
+  }
+  pointer <- jsonlite::read_json(path, simplifyVector = TRUE)
+  pointer <- as.list(pointer)
+  if (!identical(names(pointer), phase18_history_pointer_schema()) ||
+      any(!vapply(pointer, function(value) length(value) == 1L && !is.na(value), logical(1)))) {
+    phase18_history_abort("invalid_history_pointer", "History current descriptor has the wrong schema")
+  }
+  pointer[] <- lapply(pointer, as.character)
+  if (!identical(pointer$schema_version, "phase18-club-history-pointer-v2") ||
+      !identical(pointer$hash_encoding_version, phase18_canonical_encoding_v2()) ||
+      !identical(pointer$pointer_sha256, phase18_history_pointer_sha256(pointer)) ||
+      !phase18_history_safe_generation_id(pointer$audit_generation_id) ||
+      (!identical(pointer$accepted_generation_id, "") && !phase18_history_safe_generation_id(pointer$accepted_generation_id)) ||
+      !pointer$acceptance_state %in% c("accepted", "blocked")) {
+    phase18_history_abort("invalid_history_pointer", "History current descriptor failed canonical-v2 validation")
+  }
+  pointer
+}
+
+phase18_history_validate_generation <- function(generation_root) {
+  if (!dir.exists(generation_root) || nzchar(Sys.readlink(generation_root))) {
+    phase18_history_abort("invalid_history_generation", "History generation root is missing or unsafe")
+  }
+  manifest_path <- file.path(generation_root, "generation_manifest.csv")
+  manifest <- phase18_history_read_csv(manifest_path)
+  if (!identical(names(manifest), phase18_history_generation_manifest_schema()) || nrow(manifest) != 1L ||
+      !identical(manifest$schema_version[[1L]], "phase18-club-history-generation-v2") ||
+      !identical(manifest$hash_encoding_version[[1L]], phase18_canonical_encoding_v2()) ||
+      !phase18_history_safe_generation_id(manifest$generation_id[[1L]]) ||
+      !identical(manifest$generation_manifest_sha256[[1L]], phase18_history_row_sha256(manifest, "generation_manifest_sha256")[[1L]])) {
+    phase18_history_abort("invalid_history_generation", "History generation manifest failed canonical-v2 validation")
+  }
+  state <- manifest$acceptance_state[[1L]]
+  if (!state %in% c("accepted", "blocked")) {
+    phase18_history_abort("invalid_history_generation", "History generation has an invalid acceptance state")
+  }
+  expected <- c(
+    "generation_manifest.csv",
+    file.path("audit", unname(phase18_history_bundle_files()))
+  )
+  if (identical(state, "accepted")) {
+    expected <- c(expected, file.path("accepted", unname(phase18_history_bundle_files())))
+  }
+  actual <- sort(list.files(generation_root, all.files = TRUE, no.. = TRUE, recursive = TRUE, include.dirs = FALSE))
+  if (!identical(actual, sort(expected))) {
+    phase18_history_abort("invalid_history_generation_inventory", "History generation recursive inventory is not exact")
+  }
+  audit <- phase18_validate_club_history_corpus(file.path(generation_root, "audit"))
+  audit_manifest <- audit$tables$corpus_manifest$manifest_sha256[[1L]]
+  if (!identical(audit_manifest, manifest$audit_manifest_sha256[[1L]])) {
+    phase18_history_abort("invalid_history_generation", "Audit manifest hash is not bound to the generation")
+  }
+  if (identical(state, "accepted")) {
+    accepted <- phase18_validate_club_history_corpus(file.path(generation_root, "accepted"))
+    accepted_manifest <- accepted$tables$corpus_manifest$manifest_sha256[[1L]]
+    if (!isTRUE(accepted$accepted_for_training) ||
+        !identical(manifest$accepted_generation_id[[1L]], manifest$generation_id[[1L]]) ||
+        !identical(accepted_manifest, manifest$accepted_manifest_sha256[[1L]])) {
+      phase18_history_abort("invalid_history_generation", "Accepted corpus is not bound to its generation")
+    }
+  }
+  invisible(list(manifest = manifest, audit = audit))
+}
+
+phase18_read_club_history_current <- function(current_path, generations_root = dirname(current_path)) {
+  pointer <- phase18_history_read_pointer_file(current_path)
+  audit_root <- file.path(generations_root, pointer$audit_generation_id)
+  audit_generation <- phase18_history_validate_generation(audit_root)
+  manifest <- audit_generation$manifest
+  if (!identical(manifest$generation_manifest_sha256[[1L]], pointer$generation_manifest_sha256) ||
+      !identical(manifest$audit_manifest_sha256[[1L]], pointer$audit_manifest_sha256) ||
+      !identical(manifest$acceptance_state[[1L]], pointer$acceptance_state)) {
+    phase18_history_abort("invalid_history_pointer", "History pointer does not bind its audit generation")
+  }
+  if (identical(pointer$acceptance_state, "accepted")) {
+    if (!identical(pointer$accepted_generation_id, pointer$audit_generation_id) ||
+        !identical(pointer$accepted_manifest_sha256, pointer$audit_manifest_sha256)) {
+      phase18_history_abort("invalid_history_pointer", "Accepted pointer must advance audit and accepted state together")
+    }
+  }
+  if (nzchar(pointer$accepted_generation_id)) {
+    accepted_root <- file.path(generations_root, pointer$accepted_generation_id)
+    accepted_generation <- phase18_history_validate_generation(accepted_root)
+    accepted_corpus <- phase18_validate_club_history_corpus(file.path(accepted_root, "accepted"))
+    if (!isTRUE(accepted_corpus$accepted_for_training) ||
+        !identical(accepted_corpus$tables$corpus_manifest$manifest_sha256[[1L]], pointer$accepted_manifest_sha256)) {
+      phase18_history_abort("invalid_history_pointer", "History pointer accepted reference is invalid")
+    }
+  } else if (nzchar(pointer$accepted_manifest_sha256)) {
+    phase18_history_abort("invalid_history_pointer", "No-accepted state cannot contain an accepted manifest hash")
+  }
+  invisible(pointer)
+}
+
+phase18_history_call_writer_hook <- function(writer_hook, boundary, ...) {
+  if (is.null(writer_hook)) return(invisible(TRUE))
+  if (!is.function(writer_hook)) phase18_history_abort("invalid_history_writer_hook", "writer_hook must be a function")
+  writer_hook(boundary, ...)
+  invisible(TRUE)
+}
+
+phase18_publish_club_history_generation <- function(audit, generations_root, current_path, writer_hook = NULL) {
+  if (!is.list(audit) || is.null(audit$corpus_manifest) || nrow(audit$corpus_manifest) != 1L) {
+    phase18_history_abort("invalid_history_audit", "History publication requires one complete audit")
+  }
+  dir.create(generations_root, recursive = TRUE, showWarnings = FALSE)
+  dir.create(dirname(current_path), recursive = TRUE, showWarnings = FALSE)
+  generations_root <- normalizePath(generations_root, winslash = "/", mustWork = TRUE)
+  current_parent <- normalizePath(dirname(current_path), winslash = "/", mustWork = TRUE)
+  current_path <- file.path(current_parent, basename(current_path))
+  lock_path <- paste0(current_path, ".lock")
+  if (!dir.create(lock_path, showWarnings = FALSE)) {
+    phase18_history_abort("history_publish_locked", "Another history publication owns the current descriptor lock")
+  }
+  on.exit(if (dir.exists(lock_path)) unlink(lock_path, recursive = TRUE, force = TRUE), add = TRUE)
+
+  prior <- if (file.exists(current_path)) phase18_read_club_history_current(current_path, generations_root) else NULL
+  accepted <- phase18_history_logical(audit$corpus_manifest$accepted_for_training[[1L]])
+  audit_hash <- as.character(audit$corpus_manifest$manifest_sha256[[1L]])
+  accepted_generation_id <- if (accepted) "" else if (is.null(prior)) "" else prior$accepted_generation_id
+  accepted_manifest_sha256 <- if (accepted) audit_hash else if (is.null(prior)) "" else prior$accepted_manifest_sha256
+  prior_pointer_sha256 <- if (is.null(prior)) "" else prior$pointer_sha256
+  generation_seed <- phase18_hash_sequence_v2(
+    list(audit_hash, if (accepted) "accepted" else "blocked", accepted_generation_id, accepted_manifest_sha256, prior_pointer_sha256),
+    domain = "club-history-generation-id-v2",
+    names = c("audit_manifest_sha256", "acceptance_state", "accepted_generation_id", "accepted_manifest_sha256", "prior_pointer_sha256"),
+    types = rep("character", 5L)
+  )
+  generation_id <- paste0(
+    gsub("[^a-z0-9-]+", "-", tolower(audit$corpus_manifest$corpus_id[[1L]])), "-",
+    substr(generation_seed, 1L, 20L)
+  )
+  if (!phase18_history_safe_generation_id(generation_id)) {
+    phase18_history_abort("invalid_history_generation", "Derived history generation_id is unsafe")
+  }
+  if (accepted) accepted_generation_id <- generation_id
+
+  candidate <- tempfile(paste0(".", generation_id, ".candidate-"), tmpdir = generations_root)
+  dir.create(candidate, recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(candidate)) unlink(candidate, recursive = TRUE, force = TRUE), add = TRUE)
+  phase18_history_write_bundle_candidate(audit, file.path(candidate, "audit"))
+  phase18_validate_club_history_corpus(file.path(candidate, "audit"))
+  if (accepted) {
+    phase18_history_write_bundle_candidate(audit, file.path(candidate, "accepted"))
+    validated <- phase18_validate_club_history_corpus(file.path(candidate, "accepted"))
+    if (!isTRUE(validated$accepted_for_training)) {
+      phase18_history_abort("history_publish_failed", "Accepted generation failed independent validation")
+    }
+  }
+  generation_manifest <- data.frame(
+    schema_version = "phase18-club-history-generation-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    generation_id = generation_id, acceptance_state = if (accepted) "accepted" else "blocked",
+    audit_manifest_sha256 = audit_hash, accepted_generation_id = accepted_generation_id,
+    accepted_manifest_sha256 = accepted_manifest_sha256,
+    prior_pointer_sha256 = prior_pointer_sha256, generation_manifest_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  generation_manifest$generation_manifest_sha256 <- phase18_history_row_sha256(generation_manifest, "generation_manifest_sha256")
+  phase18_history_write_csv(generation_manifest, file.path(candidate, "generation_manifest.csv"))
+  phase18_history_call_writer_hook(writer_hook, "after_stage", candidate = candidate)
+
+  destination <- file.path(generations_root, generation_id)
+  if (!dir.exists(destination)) {
+    if (!file.rename(candidate, destination)) {
+      phase18_history_abort("history_publish_failed", "Could not atomically install immutable history generation")
+    }
+  } else {
+    phase18_history_validate_generation(destination)
+  }
+  phase18_history_validate_generation(destination)
+  phase18_history_call_writer_hook(writer_hook, "after_generation_rename", generation_root = destination)
+
+  pointer <- list(
+    schema_version = "phase18-club-history-pointer-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    audit_generation_id = generation_id,
+    accepted_generation_id = accepted_generation_id,
+    audit_manifest_sha256 = audit_hash,
+    accepted_manifest_sha256 = accepted_manifest_sha256,
+    acceptance_state = if (accepted) "accepted" else "blocked",
+    blocked_reasons = as.character(audit$corpus_manifest$blocked_reasons[[1L]]),
+    generation_manifest_sha256 = generation_manifest$generation_manifest_sha256[[1L]],
+    pointer_sha256 = ""
+  )
+  pointer$pointer_sha256 <- phase18_history_pointer_sha256(pointer)
+  pointer_candidate <- tempfile(paste0(".", basename(current_path), ".candidate-"), tmpdir = current_parent)
+  on.exit(if (file.exists(pointer_candidate)) unlink(pointer_candidate, force = TRUE), add = TRUE)
+  jsonlite::write_json(pointer, pointer_candidate, auto_unbox = TRUE, pretty = TRUE, null = "null")
+  observed_pointer <- phase18_history_read_pointer_file(pointer_candidate)
+  if (!identical(observed_pointer, pointer)) {
+    phase18_history_abort("history_publish_failed", "History descriptor read-back differs before commit")
+  }
+  phase18_history_call_writer_hook(writer_hook, "before_pointer_replace", pointer_candidate = pointer_candidate)
+  if (!file.rename(pointer_candidate, current_path)) {
+    phase18_history_abort("history_publish_failed", "Could not atomically replace history current descriptor")
+  }
+  phase18_read_club_history_current(current_path, generations_root)
+  pointer
+}
+
+phase18_publish_club_history_corpus <- function(...) {
+  phase18_history_abort(
+    "deprecated_history_publication",
+    "Separate audit/accepted publication is disabled; use phase18_publish_club_history_generation"
   )
 }

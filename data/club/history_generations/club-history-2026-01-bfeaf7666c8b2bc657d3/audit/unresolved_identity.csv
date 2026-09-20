@@ -1,0 +1,2 @@
+"schema_version","hash_encoding_version","corpus","source_system","source_row","source_club_id","display_value","evidence_sha256","blocked_reason","row_sha256"
+"phase18-unresolved-club-token-v2","phase18-canonical-v2","historical_inventory","project","data/club/history_sources.csv","","","c063b9f0bfceeb9fac9093f5da6bb34833a971730dce9ab7f2db132e5924a010","missing_history_inventory","7e3c3171adbb5a1216a892727db1f0103eeb76f88a886b4599b1b524e03a5b0e"

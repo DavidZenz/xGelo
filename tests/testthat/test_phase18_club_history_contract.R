@@ -262,14 +262,12 @@ test_that("declared production panel is five seasons by six source families and 
   expect_silent(phase18_validate_history_sources(inventory))
 })
 
-test_that("blocked audits are complete and never replace accepted state", {
+test_that("blocked audits publish complete generations without claiming accepted state", {
   phase18_history_test_load()
-  phase18_history_test_require(c("phase18_publish_club_history_corpus", "phase18_validate_club_history_corpus"))
+  phase18_history_test_require(c("phase18_publish_club_history_generation", "phase18_read_club_history_current"))
   sandbox <- tempfile("phase18-history-blocked-")
-  audit_root <- file.path(sandbox, "audit")
-  accepted_root <- file.path(sandbox, "accepted")
-  dir.create(accepted_root, recursive = TRUE)
-  writeLines("incumbent", file.path(accepted_root, "sentinel.txt"))
+  generations_root <- file.path(sandbox, "generations")
+  current_path <- file.path(sandbox, "history_current.json")
   pending <- phase18_history_test_source(1L, "blocked_pending_review")
   pending$commit_sha <- ""; pending$license_review_state <- "pending"
   pending$blocked_reason <- "missing_verified_pin_and_owner_license_review"
@@ -279,19 +277,20 @@ test_that("blocked audits are complete and never replace accepted state", {
     phase18_history_test_registries(), "2025-06-01T00:00:00Z",
     corpus_id = "blocked-fixture", created_at_utc = "2025-06-01T00:00:00Z", parser_commit = paste(rep("d", 40), collapse = "")
   )
-  result <- phase18_publish_club_history_corpus(blocked, audit_root, accepted_root)
-  expect_false(result$accepted_for_training)
+  result <- phase18_publish_club_history_generation(blocked, generations_root, current_path)
+  expect_identical(result$acceptance_state, "blocked")
+  expect_identical(result$accepted_generation_id, "")
+  audit_root <- file.path(generations_root, result$audit_generation_id, "audit")
   expect_identical(sort(list.files(audit_root)), sort(unname(phase18_history_bundle_files())))
-  expect_identical(readLines(file.path(accepted_root, "sentinel.txt")), "incumbent")
-  expect_silent(phase18_validate_club_history_corpus(audit_root))
+  expect_silent(phase18_read_club_history_current(current_path, generations_root))
 })
 
-test_that("eligible corpus promotes atomically and validates while tampering fails", {
+test_that("eligible corpus publishes one accepted generation and tampering fails", {
   phase18_history_test_load()
-  phase18_history_test_require(c("phase18_publish_club_history_corpus", "phase18_validate_club_history_corpus"))
+  phase18_history_test_require(c("phase18_publish_club_history_generation", "phase18_read_club_history_current"))
   sandbox <- tempfile("phase18-history-accepted-")
-  audit_root <- file.path(sandbox, "audit")
-  accepted_root <- file.path(sandbox, "accepted")
+  generations_root <- file.path(sandbox, "generations")
+  current_path <- file.path(sandbox, "history_current.json")
   matches <- phase18_history_test_good_matches(5L)
   audit <- phase18_audit_club_history(
     matches, phase18_history_test_source(5L), phase18_history_test_registries(), "2025-06-01T00:00:00Z",
@@ -302,13 +301,14 @@ test_that("eligible corpus promotes atomically and validates while tampering fai
     corpus_id = "accepted-fixture", created_at_utc = "2025-06-01T00:00:00Z", parser_commit = paste(rep("d", 40), collapse = "")
   )
   expect_identical(audit$corpus_manifest$manifest_sha256, reversed$corpus_manifest$manifest_sha256)
-  result <- phase18_publish_club_history_corpus(audit, audit_root, accepted_root)
-  expect_true(result$accepted_for_training)
+  result <- phase18_publish_club_history_generation(audit, generations_root, current_path)
+  expect_identical(result$acceptance_state, "accepted")
+  accepted_root <- file.path(generations_root, result$accepted_generation_id, "accepted")
   expect_silent(phase18_validate_club_history_corpus(accepted_root))
   tampered <- phase18_history_read_csv(file.path(accepted_root, "matches.csv"))
   tampered$final_home_goals[[1L]] <- "99"
   utils::write.csv(tampered, file.path(accepted_root, "matches.csv"), row.names = FALSE, na = "", quote = TRUE)
-  expect_error(phase18_validate_club_history_corpus(accepted_root), class = "history_match_hash_mismatch")
+  expect_error(phase18_read_club_history_current(current_path, generations_root), class = "history_match_hash_mismatch")
 })
 
 test_that("history candidates bind exact registry, review, and unresolved snapshots", {
@@ -459,4 +459,53 @@ test_that("writer failures before pointer replacement preserve the prior descrip
   )
   expect_identical(readBin(current, "raw", n = file.info(current)$size), incumbent)
   expect_silent(phase18_read_club_history_current(current, generations))
+})
+
+test_that("lock contention and subprocess termination never change visible authority", {
+  phase18_history_test_load()
+  sandbox <- tempfile("phase18-history-crash-")
+  generations <- file.path(sandbox, "generations")
+  current <- file.path(sandbox, "history_current.json")
+  audit <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "crash-incumbent", identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  incumbent <- phase18_publish_club_history_generation(audit, generations, current)
+  incumbent_bytes <- readBin(current, "raw", n = file.info(current)$size)
+
+  dir.create(paste0(current, ".lock"))
+  expect_error(
+    phase18_publish_club_history_generation(audit, generations, current),
+    class = "history_publish_locked"
+  )
+  unlink(paste0(current, ".lock"), recursive = TRUE)
+  expect_identical(readBin(current, "raw", n = file.info(current)$size), incumbent_bytes)
+
+  replacement <- audit
+  replacement$corpus_manifest$corpus_id <- "crash-replacement"
+  replacement$corpus_manifest$manifest_sha256 <- phase18_history_row_sha256(replacement$corpus_manifest, "manifest_sha256")
+  audit_rds <- file.path(sandbox, "replacement.rds")
+  saveRDS(replacement, audit_rds)
+  source_paths <- file.path(phase18_history_test_root, c(
+    "R/common/phase18_canonical_hash.R", "R/competition/source_contracts.R",
+    "R/club/identity.R", "R/club/identity_bootstrap.R", "R/club/history_contract.R"
+  ))
+  quote_r <- function(value) shQuote(value, type = "sh")
+  command <- paste(c(
+    sprintf("setwd(%s)", quote_r(phase18_history_test_root)),
+    vapply(source_paths, function(path) sprintf("source(%s, local=.GlobalEnv)", quote_r(path)), character(1)),
+    sprintf("audit <- readRDS(%s)", quote_r(audit_rds)),
+    "hook <- function(boundary, ...) if (identical(boundary, 'after_generation_rename')) quit(save='no', status=86L)",
+    sprintf("phase18_publish_club_history_generation(audit, %s, %s, writer_hook=hook)", quote_r(generations), quote_r(current))
+  ), collapse = ";")
+  output <- suppressWarnings(system2(
+    file.path(R.home("bin"), "Rscript"), c("--vanilla", "-e", shQuote(command)),
+    stdout = TRUE, stderr = TRUE
+  ))
+  expect_identical(attr(output, "status"), 86L)
+  expect_identical(readBin(current, "raw", n = file.info(current)$size), incumbent_bytes)
+  observed <- phase18_read_club_history_current(current, generations)
+  expect_identical(observed$pointer_sha256, incumbent$pointer_sha256)
 })

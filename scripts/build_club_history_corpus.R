@@ -38,8 +38,8 @@ inventory_path <- resolve_trusted(options$inventory, "data/club/history_sources.
 registry_root <- resolve_trusted(options$`registry-root`, "data/club/registries", TRUE)
 review_root <- resolve_trusted(options$`identity-review-root`, "data/club/identity_reviews", TRUE)
 raw_root <- resolve_trusted(options$`raw-root`, "data/club/local_raw", FALSE)
-audit_root <- resolve_trusted(options$`audit-root`, "data/club/history_audits/club-history-2026-01", FALSE)
-accepted_root <- resolve_trusted(options$`accepted-root`, "data/club/accepted/club-history-2026-01", FALSE)
+generations_root <- resolve_trusted(options$`generations-root`, "data/club/history_generations", FALSE)
+current_path <- resolve_trusted(options$`current-path`, "data/club/history_current.json", FALSE)
 corpus_id <- options$`corpus-id` %||% "club-history-2026-01"
 cutoff_utc <- options$cutoff %||% "2026-01-01T00:00:00Z"
 
@@ -123,16 +123,21 @@ run <- function() {
     identity_review = identity_review,
     unresolved_identity = unresolved_history
   )
-  result <- phase18_publish_club_history_corpus(audit, audit_root, accepted_root)
-  if (!isTRUE(result$accepted_for_training)) {
+  result <- phase18_publish_club_history_generation(audit, generations_root, current_path)
+  if (!identical(result$acceptance_state, "accepted")) {
     message(
       "club_history_corpus status=blocked corpus_id=", corpus_id,
       " reason=", result$blocked_reasons,
-      " audit_root=", result$audit_root
+      " audit_generation_id=", result$audit_generation_id,
+      " current=", current_path
     )
     quit(save = "no", status = 2L)
   }
-  message("club_history_corpus status=accepted corpus_id=", corpus_id, " accepted_root=", result$accepted_root)
+  message(
+    "club_history_corpus status=accepted corpus_id=", corpus_id,
+    " generation_id=", result$accepted_generation_id,
+    " current=", current_path
+  )
   invisible(TRUE)
 }
 

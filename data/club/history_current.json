@@ -1,0 +1,12 @@
+{
+  "schema_version": "phase18-club-history-pointer-v2",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "audit_generation_id": "club-history-2026-01-bfeaf7666c8b2bc657d3",
+  "accepted_generation_id": "",
+  "audit_manifest_sha256": "3a87a221497956503a01db6fd0a6462bebd435ab066e385bf853f242d5cec672",
+  "accepted_manifest_sha256": "",
+  "acceptance_state": "blocked",
+  "blocked_reasons": "source_pin_fraction;license_fraction;coverage;lineage_fraction;identity_fraction;score_semantics;temporal",
+  "generation_manifest_sha256": "dc91d5747634273101cc2c03ddd6c90fe5c7c90662ecc184284d0e6f0d5f702b",
+  "pointer_sha256": "e7b740f8652fa25e078bdf56a8a39be4c48ade4d15f79328d414df2ee8c2fcdd"
+}

@@ -1,0 +1,2 @@
+"schema_version","cutoff_utc","active_rows","prior_evidence_rows","temporal_violation_rows","gate_passed","blocked_reason","row_sha256"
+"phase18-club-history-temporal-audit-1","2026-01-01T00:00:00Z","0","0","0",FALSE,"missing_or_nonprior_evidence","68b38ff5982ffd938491433b0af0319200318746829fd220bb5658d264d20990"
