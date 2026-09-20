@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: Club and UCL Source Contracts
 status: executing
-stopped_at: Completed 18-01-PLAN.md
-last_updated: "2026-09-20T08:52:59.822Z"
+stopped_at: Completed 18-02-PLAN.md
+last_updated: "2026-09-20T09:08:40.821Z"
 last_activity: 2026-09-20
 last_activity_desc: Completed Plan 18-01 provider acceptance contract
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
-  percent: 17
+  completed_plans: 2
+  percent: 0
 ---
 
 # xGelo Project State
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (Club and UCL Source Contracts) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-09-20 — Completed Plan 18-01 provider acceptance contract
 
-Progress: [██░░░░░░░░] 17%
+Progress: [███░░░░░░░] 33%
 
 ## Milestone Progress
 
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 17%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 18 P01 | 14 min | 3 tasks | 10 files |
+| Phase 18 P02 | 10 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -71,6 +72,8 @@ Progress: [██░░░░░░░░] 17%
 - [v4.0]: UCL joins only after the publisher is registry-derived for 0/1/N editions and preserves all incumbent bytes on failure.
 - [Phase 18]: Provider credentials remain process-local; only presence crosses the acceptance state machine. — Prevents tokens, headers, and reversible credential derivatives from entering durable evidence.
 - [Phase 18]: First provider acceptance requires the four-resource live probe bound to exact 36-club and 144-match expectations. — Fixtures, offline checks, partial coverage, and ordinary provider-live mode cannot bootstrap authority.
+- [Phase 18]: Club identity uses a project-owned club_ namespace and never reuses national-team or FIFA identity as authority. — Prevents cross-domain collisions and keeps source-ID/alias validity semantics explicit.
+- [Phase 18]: Production club registries remain empty until explicit owner mappings exist. — Missing history stays hash-bound blocked evidence and an absent live probe remains not-run rather than inferred.
 
 ### Pending Todos
 
@@ -93,6 +96,6 @@ Progress: [██░░░░░░░░] 17%
 
 ## Session Continuity
 
-Last session: 2026-09-20T08:52:51.166Z
-Stopped at: Completed 18-01-PLAN.md
+Last session: 2026-09-20T09:08:40.813Z
+Stopped at: Completed 18-02-PLAN.md
 Resume file: None
