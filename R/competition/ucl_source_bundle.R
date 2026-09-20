@@ -147,23 +147,36 @@ phase18_ucl_is_symlink <- function(path) {
 }
 
 phase18_ucl_assert_no_symlink <- function(path, root) {
-  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
-  lexical <- gsub("\\\\", "/", as.character(path))
-  if (!grepl("^/", lexical)) lexical <- file.path(root, lexical)
-  resolved <- normalizePath(lexical, winslash = "/", mustWork = FALSE)
-  if (!phase18_ucl_path_within(resolved, root)) {
+  root_lexical <- gsub("\\\\", "/", phase18_ucl_scalar(root, "trusted_root"))
+  if (!grepl("^/", root_lexical)) root_lexical <- file.path(getwd(), root_lexical)
+  root_lexical <- sub("/+$", "", root_lexical)
+  lexical <- gsub("\\\\", "/", phase18_ucl_scalar(path, "candidate_path"))
+  if (!grepl("^/", lexical)) lexical <- file.path(root_lexical, lexical)
+  lexical <- sub("/+$", "", lexical)
+  if (!identical(lexical, root_lexical) && !startsWith(lexical, paste0(root_lexical, "/"))) {
     phase18_ucl_bundle_abort("blocked_unsafe_path", "Candidate path escapes its trusted root")
   }
-  relative <- if (identical(resolved, root)) "" else substring(resolved, nchar(root) + 2L)
-  current <- root
-  if (phase18_ucl_is_symlink(current)) phase18_ucl_bundle_abort("blocked_symlink", "Trusted root is symlinked")
+  relative <- if (identical(lexical, root_lexical)) "" else substring(lexical, nchar(root_lexical) + 2L)
+  parts <- if (nzchar(relative)) strsplit(relative, "/", fixed = TRUE)[[1L]] else character()
+  if (any(parts %in% c("", ".", ".."))) {
+    phase18_ucl_bundle_abort("blocked_unsafe_path", "Candidate path contains an unsafe lexical component")
+  }
+  if (phase18_ucl_is_symlink(root_lexical)) {
+    phase18_ucl_bundle_abort("blocked_symlink", "Trusted root is symlinked")
+  }
+  current <- root_lexical
   if (nzchar(relative)) {
-    for (part in strsplit(relative, "/", fixed = TRUE)[[1L]]) {
+    for (part in parts) {
       current <- file.path(current, part)
-      if (file.exists(current) && phase18_ucl_is_symlink(current)) {
+      if (phase18_ucl_is_symlink(current)) {
         phase18_ucl_bundle_abort("blocked_symlink", paste0("Candidate path contains a symlink: ", relative))
       }
     }
+  }
+  resolved_root <- normalizePath(root_lexical, winslash = "/", mustWork = TRUE)
+  resolved <- normalizePath(lexical, winslash = "/", mustWork = FALSE)
+  if (!phase18_ucl_path_within(resolved, resolved_root)) {
+    phase18_ucl_bundle_abort("blocked_unsafe_path", "Candidate path escapes its trusted root")
   }
   invisible(TRUE)
 }
@@ -407,8 +420,13 @@ phase18_ucl_column_types_json <- function(data) {
 }
 
 phase18_ucl_read_typed_csv <- function(path, types_json) {
+  input <- path
+  if (is.raw(path)) {
+    input <- textConnection(rawToChar(path), open = "r", local = TRUE, encoding = "UTF-8")
+    on.exit(close(input), add = TRUE)
+  }
   data <- utils::read.csv(
-    path, stringsAsFactors = FALSE, check.names = FALSE,
+    input, stringsAsFactors = FALSE, check.names = FALSE,
     na.strings = NULL, colClasses = "character"
   )
   types <- unlist(jsonlite::fromJSON(types_json, simplifyVector = TRUE), use.names = TRUE)
@@ -835,11 +853,49 @@ phase18_ucl_write_csv <- function(data, path) {
   invisible(path)
 }
 
-phase18_ucl_candidate_inventory <- function() c(
-  "artifacts.csv", "authority.csv", "bundle.csv", "table_manifest.csv",
-  file.path("raw", paste0(phase18_ucl_required_resources(), ".json")),
-  file.path("tables", paste0(phase18_ucl_required_tables(), ".csv"))
-)
+phase18_ucl_authority_inventory <- function(authority_type) {
+  authority_type <- phase18_ucl_scalar(authority_type, "authority_type")
+  switch(
+    authority_type,
+    provider_acceptance = file.path("authority_evidence", c(
+      "acceptance_manifest.csv", "acceptance_pointer.csv", "coverage_matrix.csv",
+      "edition_expectations.csv", "provider_terms_review.csv", "schema_fingerprint.csv"
+    )),
+    manual_source_review = file.path("authority_evidence", "manual_source_review.csv"),
+    fixture_contract = file.path("authority_evidence", "fixture_contract.csv"),
+    phase18_ucl_bundle_abort("blocked_authority", "Candidate authority discriminator is unknown")
+  )
+}
+
+phase18_ucl_candidate_inventory <- function(authority_type) {
+  sort(gsub("\\\\", "/", c(
+    "artifacts.csv", "authority.csv", "authority_evidence", "bundle.csv",
+    "raw", "table_manifest.csv", "tables",
+    file.path("raw", paste0(phase18_ucl_required_resources(), ".json")),
+    file.path("tables", paste0(phase18_ucl_required_tables(), ".csv")),
+    phase18_ucl_authority_inventory(authority_type)
+  )), method = "radix")
+}
+
+phase18_ucl_inventory_paths <- function(root) {
+  phase18_ucl_assert_no_symlink(root, root)
+  top <- list.files(
+    root, all.files = TRUE, full.names = FALSE, no.. = TRUE,
+    recursive = FALSE, include.dirs = TRUE
+  )
+  for (relative in top) {
+    phase18_ucl_assert_no_symlink(file.path(root, relative), root)
+  }
+  paths <- list.files(
+    root, all.files = TRUE, full.names = FALSE, no.. = TRUE,
+    recursive = TRUE, include.dirs = TRUE
+  )
+  paths <- sort(gsub("\\\\", "/", paths), method = "radix")
+  for (relative in paths) {
+    phase18_ucl_assert_no_symlink(file.path(root, relative), root)
+  }
+  paths
+}
 
 phase18_ucl_write_authority_evidence <- function(candidate, root) {
   type <- as.character(candidate$authority$authority_type[[1L]])
@@ -861,62 +917,124 @@ phase18_ucl_write_authority_evidence <- function(candidate, root) {
 }
 
 phase18_ucl_read_csv <- function(path) {
-  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  input <- path
+  if (is.raw(path)) {
+    input <- textConnection(rawToChar(path), open = "r", local = TRUE, encoding = "UTF-8")
+    on.exit(close(input), add = TRUE)
+  }
+  utils::read.csv(input, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+}
+
+phase18_ucl_snapshot_metadata <- function(path) {
+  info <- file.info(path)
+  if (nrow(info) != 1L || is.na(info$size[[1L]]) || isTRUE(info$isdir[[1L]])) {
+    phase18_ucl_bundle_abort("blocked_path_drift", paste0("Candidate file is missing or not regular: ", path))
+  }
+  c(
+    size = as.double(info$size[[1L]]),
+    mode = as.double(info$mode[[1L]]),
+    mtime = as.double(info$mtime[[1L]]),
+    ctime = as.double(info$ctime[[1L]])
+  )
+}
+
+phase18_ucl_snapshot_file <- function(path, root) {
+  phase18_ucl_assert_no_symlink(path, root)
+  before <- phase18_ucl_snapshot_metadata(path)
+  connection <- file(path, open = "rb")
+  on.exit(close(connection), add = TRUE)
+  bytes <- readBin(connection, what = "raw", n = as.integer(before[["size"]]) + 1L)
+  if (length(bytes) != as.integer(before[["size"]])) {
+    phase18_ucl_bundle_abort("blocked_path_drift", paste0("Candidate file size drifted while reading: ", path))
+  }
+  hook <- getOption("phase18.ucl.snapshot_hook")
+  if (is.function(hook)) hook(path, bytes)
+  phase18_ucl_assert_no_symlink(path, root)
+  after <- phase18_ucl_snapshot_metadata(path)
+  if (!identical(unname(before), unname(after))) {
+    phase18_ucl_bundle_abort("blocked_path_drift", paste0("Candidate file metadata drifted after reading: ", path))
+  }
+  list(
+    bytes = bytes,
+    sha256 = phase18_ucl_hash(bytes),
+    metadata = before,
+    path = path
+  )
+}
+
+phase18_ucl_recheck_snapshot <- function(snapshot, root) {
+  phase18_ucl_assert_no_symlink(snapshot$path, root)
+  current <- phase18_ucl_snapshot_metadata(snapshot$path)
+  if (!identical(unname(snapshot$metadata), unname(current))) {
+    phase18_ucl_bundle_abort("blocked_path_drift", paste0("Candidate file drifted after snapshot: ", snapshot$path))
+  }
+  invisible(TRUE)
 }
 
 #' Read one candidate tree without granting it authority.
 phase18_read_ucl_candidate <- function(candidate_root) {
-  candidate_root <- normalizePath(candidate_root, winslash = "/", mustWork = TRUE)
-  if (phase18_ucl_is_symlink(candidate_root)) phase18_ucl_bundle_abort("blocked_symlink", "Candidate root is symlinked")
-  phase18_ucl_assert_no_symlink(candidate_root, candidate_root)
-  top <- sort(list.files(candidate_root, all.files = FALSE, full.names = FALSE, no.. = TRUE))
-  expected_top <- sort(c("artifacts.csv", "authority.csv", "authority_evidence", "bundle.csv", "raw", "table_manifest.csv", "tables"))
-  if (!identical(top, expected_top)) phase18_ucl_bundle_abort("blocked_inventory", "Candidate top-level inventory is not exact")
-  expected_raw <- paste0(phase18_ucl_required_resources(), ".json")
-  expected_tables <- paste0(phase18_ucl_required_tables(), ".csv")
-  if (!setequal(list.files(file.path(candidate_root, "raw")), expected_raw) ||
-      !setequal(list.files(file.path(candidate_root, "tables")), expected_tables)) {
-    phase18_ucl_bundle_abort("blocked_inventory", "Candidate resource inventory is not exact")
+  lexical_root <- gsub("\\\\", "/", phase18_ucl_scalar(candidate_root, "candidate_root"))
+  phase18_ucl_assert_no_symlink(lexical_root, lexical_root)
+  candidate_root <- normalizePath(lexical_root, winslash = "/", mustWork = TRUE)
+  observed <- phase18_ucl_inventory_paths(candidate_root)
+  authority_snapshot <- phase18_ucl_snapshot_file(file.path(candidate_root, "authority.csv"), candidate_root)
+  authority <- phase18_ucl_read_csv(authority_snapshot$bytes)
+  if (!is.data.frame(authority) || nrow(authority) != 1L || !"authority_type" %in% names(authority)) {
+    phase18_ucl_bundle_abort("blocked_authority", "Candidate authority discriminator is missing")
   }
-  authority <- phase18_ucl_read_csv(file.path(candidate_root, "authority.csv"))
   type <- as.character(authority$authority_type[[1L]])
+  expected <- phase18_ucl_candidate_inventory(type)
+  if (!identical(observed, expected)) {
+    phase18_ucl_bundle_abort("blocked_inventory", "Candidate recursive authority-specific inventory is not exact")
+  }
+  directories <- c("authority_evidence", "raw", "tables")
+  files <- setdiff(expected, directories)
+  snapshots <- setNames(lapply(files, function(relative) {
+    if (identical(relative, "authority.csv")) authority_snapshot else {
+      phase18_ucl_snapshot_file(file.path(candidate_root, relative), candidate_root)
+    }
+  }), files)
+  for (snapshot in snapshots) phase18_ucl_recheck_snapshot(snapshot, candidate_root)
+  if (!identical(phase18_ucl_inventory_paths(candidate_root), expected)) {
+    phase18_ucl_bundle_abort("blocked_inventory", "Candidate inventory drifted during snapshot")
+  }
+  snapshot_bytes <- function(relative) snapshots[[relative]]$bytes
   evidence_root <- file.path(candidate_root, "authority_evidence")
   evidence <- if (identical(type, "provider_acceptance")) {
     provider <- list(
-      manifest = phase18_ucl_read_csv(file.path(evidence_root, "acceptance_manifest.csv")),
-      machine_checks = phase18_ucl_read_csv(file.path(evidence_root, "coverage_matrix.csv")),
-      owner_review = phase18_ucl_read_csv(file.path(evidence_root, "provider_terms_review.csv")),
-      edition_expectations = phase18_ucl_read_csv(file.path(evidence_root, "edition_expectations.csv")),
-      schema_fingerprint = phase18_ucl_read_csv(file.path(evidence_root, "schema_fingerprint.csv")),
-      pointer = phase18_ucl_read_csv(file.path(evidence_root, "acceptance_pointer.csv"))
+      manifest = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/acceptance_manifest.csv")),
+      machine_checks = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/coverage_matrix.csv")),
+      owner_review = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/provider_terms_review.csv")),
+      edition_expectations = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/edition_expectations.csv")),
+      schema_fingerprint = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/schema_fingerprint.csv")),
+      pointer = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/acceptance_pointer.csv"))
     )
     provider$current_generation <- as.character(provider$pointer$generation[[1L]])
     provider$generation_root <- evidence_root
     provider
   } else if (identical(type, "manual_source_review")) {
-    list(manual_source_review = phase18_ucl_read_csv(file.path(evidence_root, "manual_source_review.csv")))
+    list(manual_source_review = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/manual_source_review.csv")))
   } else if (identical(type, "fixture_contract")) {
-    list(fixture_contract = phase18_ucl_read_csv(file.path(evidence_root, "fixture_contract.csv")))
+    list(fixture_contract = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/fixture_contract.csv")))
   } else phase18_ucl_bundle_abort("blocked_authority", "Candidate authority discriminator is unknown")
   raw_bytes <- setNames(lapply(phase18_ucl_required_resources(), function(resource) {
-    path <- file.path(candidate_root, "raw", paste0(resource, ".json"))
-    phase18_ucl_assert_no_symlink(path, candidate_root)
-    readBin(path, what = "raw", n = file.info(path)$size)
+    snapshot_bytes(file.path("raw", paste0(resource, ".json")))
   }), phase18_ucl_required_resources())
-  table_manifest <- phase18_ucl_read_csv(file.path(candidate_root, "table_manifest.csv"))
+  table_manifest <- phase18_ucl_read_csv(snapshot_bytes("table_manifest.csv"))
   tables <- setNames(lapply(phase18_ucl_required_tables(), function(table) {
-    path <- file.path(candidate_root, "tables", paste0(table, ".csv"))
-    phase18_ucl_assert_no_symlink(path, candidate_root)
     manifest <- table_manifest[as.character(table_manifest$table_name) == table, , drop = FALSE]
     if (nrow(manifest) != 1L || !"column_types_json" %in% names(manifest)) {
       phase18_ucl_bundle_abort("blocked_table_manifest", paste0("Missing typed table manifest: ", table))
     }
-    phase18_ucl_read_typed_csv(path, as.character(manifest$column_types_json[[1L]]))
+    phase18_ucl_read_typed_csv(
+      snapshot_bytes(file.path("tables", paste0(table, ".csv"))),
+      as.character(manifest$column_types_json[[1L]])
+    )
   }), phase18_ucl_required_tables())
   list(
     root = candidate_root,
-    bundle = phase18_ucl_read_csv(file.path(candidate_root, "bundle.csv")),
-    artifacts = phase18_ucl_read_csv(file.path(candidate_root, "artifacts.csv")),
+    bundle = phase18_ucl_read_csv(snapshot_bytes("bundle.csv")),
+    artifacts = phase18_ucl_read_csv(snapshot_bytes("artifacts.csv")),
     table_manifest = table_manifest,
     authority = authority, authority_evidence = evidence, tables = tables,
     raw_bytes = raw_bytes
@@ -932,6 +1050,7 @@ phase18_write_ucl_candidate <- function(candidate_root, bundle, artifacts = NULL
   candidate_root <- gsub("\\\\", "/", phase18_ucl_scalar(candidate_root, "candidate_root"))
   supplied_parent <- dirname(candidate_root)
   dir.create(supplied_parent, recursive = TRUE, showWarnings = FALSE)
+  phase18_ucl_assert_no_symlink(supplied_parent, supplied_parent)
   parent <- normalizePath(supplied_parent, winslash = "/", mustWork = TRUE)
   leaf <- basename(candidate_root)
   if (leaf %in% c("", ".", "..") || grepl("/", leaf, fixed = TRUE)) {
@@ -939,6 +1058,9 @@ phase18_write_ucl_candidate <- function(candidate_root, bundle, artifacts = NULL
   }
   target <- file.path(parent, leaf)
   phase18_ucl_assert_no_symlink(parent, parent)
+  if (phase18_ucl_is_symlink(target)) {
+    phase18_ucl_bundle_abort("blocked_symlink", "Candidate target is symlinked")
+  }
   if (file.exists(target) || dir.exists(target)) {
     existing <- phase18_read_ucl_candidate(target)
     phase18_validate_ucl_source_bundle(existing)
