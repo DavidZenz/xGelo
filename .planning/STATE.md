@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-06-PLAN.md
-last_updated: "2026-09-20T19:03:38.655Z"
+stopped_at: Completed 19-07-PLAN.md
+last_updated: "2026-09-20T20:18:23.575Z"
 last_activity: 2026-09-20
-last_activity_desc: Plan 06 nested prior-only club calibration and frozen primary-view gates verified
+last_activity_desc: Plan 07 paired club evaluation and fail-closed promotion authority verified
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 20
-  percent: 83
+  completed_plans: 21
+  percent: 88
 ---
 
 # xGelo Project State
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 7 of 10
-Status: In progress; Plans 01-06 complete
-Last activity: 2026-09-20 — Plan 06 nested prior-only club calibration and frozen primary-view gates verified
+Plan: 8 of 10
+Status: In progress; Plans 01-07 complete
+Last activity: 2026-09-20 — Plan 07 paired club evaluation and fail-closed promotion authority verified
 
-Progress: [████████░░] 83%
+Progress: [█████████░] 88%
 
 ## Milestone Progress
 
@@ -64,6 +64,7 @@ Progress: [████████░░] 83%
 | Phase 19 P04 | 25min | 2 tasks | 6 files |
 | Phase 19 P05 | 25 min | 2 tasks | 2 files |
 | Phase 19 P06 | 22min | 2 tasks | 2 files |
+| Phase 19 P07 | 74min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -119,6 +120,8 @@ Progress: [████████░░] 83%
 - [Phase 19]: Club temperature calibration transforms only derived 1X2 probabilities. — Source goal-distribution hashes and every non-1X2 market remain unchanged.
 - [Phase 19]: Calibrated primary-view selection follows the frozen ordered gate subset. — Calibration gains cannot bypass RPS, Brier, log-loss, coverage, probability, distribution, or cutoff vetoes.
 - [Phase 19]: Fixture calibration proves mechanics but remains production-ineligible. — Production still requires genuine source and owner-review authority.
+- [Phase 19]: Fixture diagnostic success remains pass / fixture_ineligible / ineligible_fixture and cannot grant production authority.
+- [Phase 19]: Production club promotion authority is projected only from validated accepted history, current-UCL, owner-reviewed fold, and connected rating source objects.
 
 ### Pending Todos
 
@@ -144,6 +147,6 @@ Progress: [████████░░] 83%
 
 ## Session Continuity
 
-Last session: 2026-09-20T19:03:27.735Z
-Stopped at: Completed 19-06-PLAN.md
+Last session: 2026-09-20T20:18:23.565Z
+Stopped at: Completed 19-07-PLAN.md
 Resume file: None

@@ -78,7 +78,7 @@ Plans:
 
 **Completion gate:** Fixture-backed execution may complete the implementation and verification mechanics, but Phase 19 remains `human_needed` and CLUBMOD-04 remains incomplete until real accepted Phase 18 history plus current-UCL/identity generations exist, the exact candidate/gate and fold inventories receive explicit owner review, a production candidate is promoted, and the atomic production club selector resolves the immutable release.
 
-**Plans:** 6/10 plans executed
+**Plans:** 7/10 plans executed
 
 Plans:
 
@@ -102,7 +102,7 @@ Plans:
 
 **Wave 5** *(after Wave 4)*
 
-- [ ] 19-07-PLAN.md — Execute exact paired evaluation and the predeclared promotion decision.
+- [x] 19-07-PLAN.md — Execute exact paired evaluation and the predeclared promotion decision.
 
 **Wave 6** *(after Wave 5)*
 
@@ -167,7 +167,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 18. Club and UCL Source Contracts | 14/14 | In Progress|  |
-| 19. Independent Club Forecast Authority | 6/10 | In Progress|  |
+| 19. Independent Club Forecast Authority | 7/10 | In Progress|  |
 | 20. UCL Rules, State, and Tournament Outcomes | 0/TBD | Not started | - |
 | 21. N-Edition Dashboard and Atomic Publication | 0/TBD | Not started | - |
 | 22. Automated Refresh and Release Hardening | 0/TBD | Not started | - |
