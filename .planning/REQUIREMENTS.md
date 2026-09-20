@@ -10,7 +10,7 @@
 - [x] **UCLSRC-01**: The operator can run a live-key acceptance check covering API rights, attribution, retention, quota, schema, completeness, and freshness before automated UCL acquisition is enabled.
 - [x] **UCLSRC-02**: The operator can ingest current UCL fixtures, results, standings, clubs, and lifecycle metadata without storing provider credentials in generated artifacts or Git.
 - [x] **UCLSRC-03**: Every accepted current-state artifact records provider, retrieval time, source-as-of time, edition, schema version, and content hashes.
-- [ ] **UCLSRC-04**: A failed, empty, stale, or incomplete retrieval retains the last known good accepted bundle and records a blocked refresh with a machine-readable reason.
+- [x] **UCLSRC-04**: A failed, empty, stale, or incomplete retrieval retains the last known good accepted bundle and records a blocked refresh with a machine-readable reason.
 - [x] **CLUBID-01**: Every club resolves to one stable internal identity through source IDs, validity-aware aliases, and explicit rejection of ambiguous or cross-domain matches.
 - [x] **CLUBHIST-01**: Historical domestic and European club results are pinned, licensed, audited for coverage, duplication, and score semantics, and normalized with point-in-time availability for model training.
 
@@ -82,7 +82,7 @@ Each active v4.0 requirement will map to exactly one roadmap phase.
 | UCLSRC-01 | Phase 18 | Complete |
 | UCLSRC-02 | Phase 18 | Complete |
 | UCLSRC-03 | Phase 18 | Complete |
-| UCLSRC-04 | Phase 18 | Pending |
+| UCLSRC-04 | Phase 18 | Complete |
 | CLUBID-01 | Phase 18 | Complete |
 | CLUBHIST-01 | Phase 18 | Complete |
 | CLUBMOD-01 | Phase 19 | Pending |

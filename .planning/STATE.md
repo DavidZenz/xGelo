@@ -4,17 +4,17 @@ milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: Club and UCL Source Contracts
-status: executing
-stopped_at: Completed 18-06-PLAN.md
-last_updated: "2026-09-20T09:57:57.275Z"
+status: verifying
+stopped_at: Completed 18-04-PLAN.md
+last_updated: "2026-09-20T10:17:26.352Z"
 last_activity: 2026-09-20
-last_activity_desc: Completed Plan 18-03 current UCL provider adapter
+last_activity_desc: Completed Plan 18-04 last-known-good refresh transaction
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 6
-  completed_plans: 5
-  percent: 83
+  completed_plans: 6
+  percent: 20
 ---
 
 # xGelo Project State
@@ -30,10 +30,10 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 Phase: 18 (Club and UCL Source Contracts) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
-Last activity: 2026-09-20 — Completed Plan 18-06 canonical UCL source bundle
+Status: Phase complete — ready for verification
+Last activity: 2026-09-20 — Completed Plan 18-04 last-known-good refresh transaction
 
-Progress: [████████░░] 83%
+Progress: [██████████] 100%
 
 ## Milestone Progress
 
@@ -63,6 +63,7 @@ Progress: [████████░░] 83%
 | Phase 18 P03 | 9 min | 2 tasks | 8 files |
 | Phase 18 P05 | 15min | 3 tasks | 14 files |
 | Phase 18 P06 | 15min | 2 tasks | 4 files |
+| Phase 18 P04 | 18min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Progress: [████████░░] 83%
 - [Phase 18]: Date-only club matches become available at the next UTC day boundary and require evidence time strictly earlier than cutoff.
 - [Phase 18]: Source authority is a closed discriminated union recomputed from evidence; stored eligibility booleans are never authority.
 - [Phase 18]: Fixture contracts are permanently non-promotable, and production manual authority remains not_reviewed until real owner evidence exists.
+- [Phase 18]: Technical refresh rollback is separate from reviewed provider-exit retain or withdraw compliance authority.
+- [Phase 18]: Blocked refresh history and sidecars are hash-linked, field-consistent, and metadata-writer failures durably self-report.
+- [Phase 18]: Production UCL current state remains missing-credential, automation-disabled, and no-incumbent until real accepted authority exists.
 
 ### Pending Todos
 
@@ -105,6 +109,6 @@ Progress: [████████░░] 83%
 
 ## Session Continuity
 
-Last session: 2026-09-20T09:57:57.267Z
-Stopped at: Completed 18-06-PLAN.md
+Last session: 2026-09-20T10:17:26.344Z
+Stopped at: Completed 18-04-PLAN.md
 Resume file: None
