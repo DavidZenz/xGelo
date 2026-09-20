@@ -791,3 +791,522 @@ phase19_load_club_evaluation_protocol <- function(...) {
   )
   phase19_evaluate_policy_review(protocol, review, "production")
 }
+
+#' Frozen Phase 19 club fold authority.
+#'
+#' Fold construction is deliberately separate from fitting.  A registry fixes
+#' every assessment fixture, inner evidence role, cutoff, and authority parent
+#' before a model callback can observe an assessment result.
+
+phase19_fold_abort <- function(reason_code, message, data = list()) {
+  stop(structure(
+    c(list(message = as.character(message), call = NULL,
+           reason_code = as.character(reason_code)), data),
+    class = c("phase19_fold_contract_error", "phase19_protocol_error",
+              "error", "condition")
+  ))
+}
+
+phase19_fold_registry_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "fold_id", "fold_family",
+    "assessment_competition_id", "assessment_season_id",
+    "assessment_start_utc", "assessment_end_utc",
+    "training_cutoff_exclusive", "calibration_cutoff_exclusive",
+    "declared_fixture_ids", "declared_fixture_count",
+    "declared_fixture_sha256", "training_fixture_ids",
+    "training_fixture_count", "training_fixture_sha256",
+    "calibration_fixture_ids", "calibration_fixture_count",
+    "calibration_fixture_sha256", "held_out_competition_id",
+    "fit_excluded_competition_id", "tuning_excluded_competition_id",
+    "calibration_excluded_competition_id", "eligibility_status",
+    "support_reason_code", "accepted_generation_id",
+    "corpus_manifest_sha256", "snapshot_sha256", "protocol_sha256",
+    "policy_review_sha256", "calibration_recipe_sha256", "row_sha256"
+  )
+}
+
+phase19_calibration_recipe_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "calibration_family", "probability_view", "initial_temperature",
+    "temperature_lower", "temperature_upper", "epsilon", "optimizer",
+    "optimizer_seed_id", "evidence_role", "minimum_history_rows",
+    "minimum_class_count", "failure_behavior", "raw_fallback_promotable",
+    "distribution_unchanged", "recipe_sha256"
+  )
+}
+
+phase19_calibration_recipe_sha256 <- function(recipe) {
+  schema <- phase19_calibration_recipe_schema()
+  if (!is.list(recipe) || !identical(names(recipe), schema)) {
+    phase19_fold_abort("calibration_recipe_invalid", "Calibration recipe schema is not exact")
+  }
+  values <- recipe[setdiff(schema, "recipe_sha256")]
+  if (any(vapply(values, length, integer(1)) != 1L) ||
+      any(vapply(values, function(value) is.na(value[[1L]]), logical(1)))) {
+    phase19_fold_abort("calibration_recipe_invalid", "Calibration recipe values are not scalars")
+  }
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-calibration-recipe-v1",
+    names = names(values), types = vapply(values, phase18_v2_type_tag, character(1))
+  )
+}
+
+phase19_expected_calibration_recipe <- function() {
+  recipe <- list(
+    schema_version = "phase19-club-calibration-recipe-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club",
+    calibration_family = "temperature_1x2",
+    probability_view = "derived_1x2",
+    initial_temperature = "1",
+    temperature_lower = "0.25",
+    temperature_upper = "4",
+    epsilon = "1e-15",
+    optimizer = "stats::optim-L-BFGS-B",
+    optimizer_seed_id = "club_probability_calibration_v1",
+    evidence_role = "strictly_prior_inner_out_of_fold",
+    minimum_history_rows = "60",
+    minimum_class_count = "10",
+    failure_behavior = "explicit_failure_not_promotion_evidence",
+    raw_fallback_promotable = FALSE,
+    distribution_unchanged = TRUE,
+    recipe_sha256 = ""
+  )
+  recipe$recipe_sha256 <- phase19_calibration_recipe_sha256(recipe)
+  recipe
+}
+
+phase19_validate_calibration_recipe <- function(recipe) {
+  expected <- phase19_expected_calibration_recipe()
+  if (!is.list(recipe) || !identical(names(recipe), names(expected)) ||
+      !identical(recipe, expected) ||
+      !phase19_is_sha256(as.character(recipe$recipe_sha256)) ||
+      !identical(as.character(recipe$recipe_sha256),
+                 phase19_calibration_recipe_sha256(recipe))) {
+    phase19_fold_abort(
+      "calibration_recipe_invalid",
+      "Club calibration family, bounds, support, optimizer, role, or failure policy drifted"
+    )
+  }
+  invisible(recipe)
+}
+
+phase19_fold_parse_utc <- function(value, field) {
+  value <- as.character(value)
+  if (!length(value) || anyNA(value) || any(!grepl(
+    "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", value
+  ))) {
+    phase19_fold_abort("fold_cutoff_invalid", paste0(field, " must be exact UTC seconds"))
+  }
+  parsed <- as.POSIXct(strptime(value, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  canonical <- format(parsed, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  if (anyNA(parsed) || !identical(canonical, value)) {
+    phase19_fold_abort("fold_cutoff_invalid", paste0(field, " contains an invalid UTC instant"))
+  }
+  parsed
+}
+
+phase19_fold_boundary_utc <- function(matches) {
+  required <- c("match_id", "event_date", "kickoff_utc", "kickoff_precision")
+  if (!is.data.frame(matches) || length(setdiff(required, names(matches)))) {
+    phase19_fold_abort("fold_boundary_invalid", "Fold boundary rows are incomplete")
+  }
+  precision <- as.character(matches$kickoff_precision)
+  if (anyNA(precision) || any(!precision %in% c("instant", "date"))) {
+    phase19_fold_abort("fold_boundary_invalid", "Kickoff precision must be instant or date")
+  }
+  result <- character(nrow(matches))
+  instant <- precision == "instant"
+  if (any(instant)) {
+    if (any(!nzchar(as.character(matches$kickoff_utc[instant])))) {
+      phase19_fold_abort("fold_boundary_invalid", "Instant precision requires kickoff UTC")
+    }
+    phase19_fold_parse_utc(matches$kickoff_utc[instant], "kickoff_utc")
+    result[instant] <- as.character(matches$kickoff_utc[instant])
+  }
+  dated <- !instant
+  if (any(dated)) {
+    dates <- as.character(matches$event_date[dated])
+    parsed <- as.Date(dates, format = "%Y-%m-%d")
+    if (any(nzchar(as.character(matches$kickoff_utc[dated]))) || anyNA(parsed) ||
+        !identical(format(parsed, "%Y-%m-%d"), dates)) {
+      phase19_fold_abort(
+        "fold_boundary_invalid",
+        "Date precision requires a blank kickoff and one valid full UTC date"
+      )
+    }
+    result[dated] <- paste0(dates, "T00:00:00Z")
+  }
+  result
+}
+
+phase19_fold_id_values <- function(ids, field, allow_empty = FALSE) {
+  ids <- as.character(ids)
+  if (!length(ids) && isTRUE(allow_empty)) return(character())
+  if (!length(ids) || anyNA(ids) || any(!nzchar(ids)) || anyDuplicated(ids)) {
+    phase19_fold_abort("fold_fixture_inventory_invalid", paste0(field, " is not a unique fixture set"))
+  }
+  sort(ids, method = "radix")
+}
+
+phase19_fold_id_text <- function(ids, field, allow_empty = FALSE) {
+  paste(phase19_fold_id_values(ids, field, allow_empty), collapse = "|")
+}
+
+phase19_fold_parse_id_text <- function(value, field, allow_empty = FALSE) {
+  if (length(value) != 1L || is.na(value)) {
+    phase19_fold_abort("fold_fixture_inventory_invalid", paste0(field, " is not scalar"))
+  }
+  if (!nzchar(value)) {
+    if (isTRUE(allow_empty)) return(character())
+    phase19_fold_abort("fold_fixture_inventory_invalid", paste0(field, " is empty"))
+  }
+  ids <- strsplit(as.character(value), "|", fixed = TRUE)[[1L]]
+  canonical <- phase19_fold_id_values(ids, field, allow_empty)
+  if (!identical(ids, canonical)) {
+    phase19_fold_abort("fold_fixture_inventory_invalid", paste0(field, " is not canonical"))
+  }
+  canonical
+}
+
+phase19_fold_id_sha256 <- function(ids, role) {
+  ids <- phase19_fold_id_values(ids, paste0(role, "_fixture_ids"))
+  phase18_hash_sequence_v2(
+    as.list(ids), domain = paste0("phase19-club-fold-fixtures-v1:", role),
+    names = sprintf("fixture_%05d", seq_along(ids)),
+    types = rep("character", length(ids))
+  )
+}
+
+phase19_fold_row_sha256 <- function(registry) {
+  if (!is.data.frame(registry) ||
+      !identical(names(registry), phase19_fold_registry_schema())) {
+    phase19_fold_abort("fold_registry_invalid", "Fold registry schema is not exact")
+  }
+  phase18_hash_row_v2(
+    registry, exclude = "row_sha256",
+    schema_tag = "phase19-club-fold-registry-row-v1"
+  )
+}
+
+phase19_fold_policy_parents <- function(protocol) {
+  required <- c("protocol_sha256", "policy_review")
+  if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
+      length(setdiff(required, names(protocol))) ||
+      !phase19_is_sha256(protocol$protocol_sha256) ||
+      !is.list(protocol$policy_review) ||
+      !phase19_is_sha256(protocol$policy_review$review_sha256)) {
+    phase19_fold_abort("fold_policy_invalid", "A validated club evaluation protocol is required")
+  }
+  phase19_validate_policy_review(protocol$policy_review, protocol, require_accepted = FALSE)
+  list(
+    protocol_sha256 = as.character(protocol$protocol_sha256),
+    policy_review_sha256 = as.character(protocol$policy_review$review_sha256)
+  )
+}
+
+phase19_fold_eligible_before <- function(matches, cutoff, excluded_competition = "") {
+  cutoff_time <- phase19_fold_parse_utc(cutoff, "fold cutoff")[[1L]]
+  completion <- phase19_fold_parse_utc(
+    matches$completion_not_before_utc, "completion_not_before_utc"
+  )
+  evidence <- phase19_fold_parse_utc(
+    matches$evidence_available_at_utc, "evidence_available_at_utc"
+  )
+  boundary <- phase19_fold_parse_utc(
+    phase19_fold_boundary_utc(matches), "match boundary"
+  )
+  counted <- vapply(matches$counts_for_model, phase18_history_logical, logical(1))
+  eligible <- counted & completion < cutoff_time & evidence < cutoff_time &
+    boundary < cutoff_time
+  if (nzchar(excluded_competition)) {
+    eligible <- eligible & as.character(matches$competition_id) != excluded_competition
+  }
+  matches[eligible, , drop = FALSE]
+}
+
+phase19_fold_raw_registry <- function(snapshot, protocol, authority_mode) {
+  expected_fixture <- identical(authority_mode, "fixture")
+  phase19_validate_club_training_snapshot(snapshot, authority_mode)
+  if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
+      !identical(protocol$status, "ready") ||
+      !identical(protocol$authority_mode, authority_mode) ||
+      !identical(isTRUE(protocol$fixture_authority), expected_fixture)) {
+    phase19_fold_abort("fold_policy_invalid", "Snapshot and protocol authority modes must agree")
+  }
+  parents <- phase19_fold_policy_parents(protocol)
+  recipe <- phase19_expected_calibration_recipe()
+  phase19_validate_calibration_recipe(recipe)
+  matches <- snapshot$matches
+  if (anyDuplicated(matches$match_id)) {
+    phase19_fold_abort("fold_fixture_inventory_invalid", "Snapshot fixture IDs are duplicate")
+  }
+  matches$.fold_boundary_utc <- phase19_fold_boundary_utc(matches)
+  block_key <- paste(matches$competition_id, matches$season_id, sep = "\037")
+  block_names <- sort(unique(block_key), method = "radix")
+  rows <- list()
+  cursor <- 0L
+  for (key in block_names) {
+    assessment <- matches[block_key == key, , drop = FALSE]
+    assessment <- assessment[order(assessment$match_id, method = "radix"), , drop = FALSE]
+    outer_cutoff <- min(assessment$.fold_boundary_utc)
+    assessment_end <- max(assessment$.fold_boundary_utc)
+    for (family in c("rolling_origin_league_season", "heldout_league_transport")) {
+      heldout <- if (identical(family, "heldout_league_transport")) {
+        as.character(assessment$competition_id[[1L]])
+      } else ""
+      prior <- phase19_fold_eligible_before(matches, outer_cutoff, heldout)
+      if (!nrow(prior)) next
+      prior$.fold_boundary_utc <- phase19_fold_boundary_utc(prior)
+      calibration_batch <- max(prior$.fold_boundary_utc)
+      fit <- phase19_fold_eligible_before(prior, calibration_batch, heldout)
+      calibration <- prior[
+        prior$.fold_boundary_utc >= calibration_batch &
+          prior$.fold_boundary_utc < outer_cutoff,
+        , drop = FALSE
+      ]
+      if (!nrow(fit) || !nrow(calibration)) next
+      declared_ids <- phase19_fold_id_values(assessment$match_id, "declared_fixture_ids")
+      fit_ids <- phase19_fold_id_values(fit$match_id, "training_fixture_ids")
+      calibration_ids <- phase19_fold_id_values(
+        calibration$match_id, "calibration_fixture_ids"
+      )
+      if (length(intersect(fit_ids, calibration_ids)) ||
+          length(intersect(c(fit_ids, calibration_ids), declared_ids))) {
+        phase19_fold_abort("fold_role_overlap", "Fold fit, calibration, and assessment roles overlap")
+      }
+      competition <- as.character(assessment$competition_id[[1L]])
+      season <- as.character(assessment$season_id[[1L]])
+      cursor <- cursor + 1L
+      rows[[cursor]] <- data.frame(
+        schema_version = "phase19-club-fold-v1",
+        hash_encoding_version = phase18_canonical_encoding_v2(),
+        forecast_domain = "club", authority_mode = authority_mode,
+        fixture_authority = expected_fixture,
+        fold_id = paste("club", family, competition, season, sep = "__"),
+        fold_family = family, assessment_competition_id = competition,
+        assessment_season_id = season, assessment_start_utc = outer_cutoff,
+        assessment_end_utc = assessment_end,
+        training_cutoff_exclusive = calibration_batch,
+        calibration_cutoff_exclusive = outer_cutoff,
+        declared_fixture_ids = phase19_fold_id_text(declared_ids, "declared_fixture_ids"),
+        declared_fixture_count = as.integer(length(declared_ids)),
+        declared_fixture_sha256 = phase19_fold_id_sha256(declared_ids, "declared"),
+        training_fixture_ids = phase19_fold_id_text(fit_ids, "training_fixture_ids"),
+        training_fixture_count = as.integer(length(fit_ids)),
+        training_fixture_sha256 = phase19_fold_id_sha256(fit_ids, "training"),
+        calibration_fixture_ids = phase19_fold_id_text(
+          calibration_ids, "calibration_fixture_ids"
+        ),
+        calibration_fixture_count = as.integer(length(calibration_ids)),
+        calibration_fixture_sha256 = phase19_fold_id_sha256(
+          calibration_ids, "calibration"
+        ),
+        held_out_competition_id = heldout,
+        fit_excluded_competition_id = heldout,
+        tuning_excluded_competition_id = heldout,
+        calibration_excluded_competition_id = heldout,
+        eligibility_status = "eligible", support_reason_code = "",
+        accepted_generation_id = as.character(snapshot$accepted_generation_id),
+        corpus_manifest_sha256 = as.character(snapshot$corpus_manifest_sha256),
+        snapshot_sha256 = as.character(snapshot$snapshot_sha256),
+        protocol_sha256 = parents$protocol_sha256,
+        policy_review_sha256 = parents$policy_review_sha256,
+        calibration_recipe_sha256 = as.character(recipe$recipe_sha256),
+        row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+      )
+    }
+  }
+  if (!length(rows)) {
+    phase19_fold_abort(
+      "fold_support_empty",
+      "No fold has non-empty strictly nested fit and calibration evidence"
+    )
+  }
+  registry <- do.call(rbind, rows)
+  registry <- registry[order(registry$fold_id, method = "radix"), , drop = FALSE]
+  rownames(registry) <- NULL
+  registry$row_sha256 <- phase19_fold_row_sha256(registry)
+  registry
+}
+
+phase19_validate_fold_registry <- function(registry, snapshot, protocol,
+                                           authority_mode = "fixture") {
+  if (!authority_mode %in% c("fixture", "production")) {
+    phase19_fold_abort("fold_authority_invalid", "Fold authority mode is invalid")
+  }
+  schema <- phase19_fold_registry_schema()
+  if (!is.data.frame(registry) || !identical(names(registry), schema) || !nrow(registry)) {
+    phase19_fold_abort("fold_registry_invalid", "Fold registry schema or inventory is empty")
+  }
+  integer_fields <- c(
+    "declared_fixture_count", "training_fixture_count", "calibration_fixture_count"
+  )
+  logical_fields <- "fixture_authority"
+  character_fields <- setdiff(schema, c(integer_fields, logical_fields))
+  if (any(!vapply(registry[integer_fields], is.integer, logical(1))) ||
+      any(!vapply(registry[logical_fields], is.logical, logical(1))) ||
+      any(!vapply(registry[character_fields], is.character, logical(1))) ||
+      anyNA(registry) || anyDuplicated(registry$fold_id)) {
+    phase19_fold_abort("fold_registry_invalid", "Fold registry types, missingness, or IDs are invalid")
+  }
+  if (any(registry$schema_version != "phase19-club-fold-v1") ||
+      any(registry$hash_encoding_version != phase18_canonical_encoding_v2()) ||
+      any(registry$forecast_domain != "club") ||
+      any(registry$authority_mode != authority_mode) ||
+      any(registry$fixture_authority != identical(authority_mode, "fixture")) ||
+      any(registry$eligibility_status != "eligible") ||
+      any(nzchar(registry$support_reason_code))) {
+    phase19_fold_abort("fold_authority_invalid", "Fold metadata or eligibility drifted")
+  }
+  if (!setequal(
+    unique(registry$fold_family),
+    c("rolling_origin_league_season", "heldout_league_transport")
+  )) {
+    phase19_fold_abort("fold_registry_invalid", "Both exact fold families are required")
+  }
+  if (!identical(as.character(registry$row_sha256), phase19_fold_row_sha256(registry)) ||
+      anyDuplicated(registry$row_sha256) ||
+      any(!vapply(registry$row_sha256, phase19_is_sha256, logical(1)))) {
+    phase19_fold_abort("fold_registry_invalid", "Fold row identity drifted or collided")
+  }
+  expected <- phase19_fold_raw_registry(snapshot, protocol, authority_mode)
+  canonical <- registry[order(registry$fold_id, method = "radix"), , drop = FALSE]
+  rownames(canonical) <- NULL
+  if (!identical(canonical, expected)) {
+    phase19_fold_abort(
+      "fold_registry_invalid",
+      "Fold inventory, cutoffs, roles, fixture coverage, exclusions, or parents drifted"
+    )
+  }
+  invisible(canonical)
+}
+
+phase19_fold_registry_sha256 <- function(registry, snapshot, protocol,
+                                         authority_mode = "fixture") {
+  canonical <- phase19_validate_fold_registry(
+    registry, snapshot, protocol, authority_mode
+  )
+  phase18_hash_table_v2(
+    canonical, key = "fold_id",
+    schema_tag = "phase19-club-fold-registry-table-v1"
+  )
+}
+
+phase19_build_fixture_club_fold_registry <- function(snapshot, protocol) {
+  if (!inherits(snapshot, "phase19_club_authority_result") ||
+      !identical(snapshot$authority_mode, "fixture") ||
+      !isTRUE(snapshot$fixture_authority)) {
+    phase19_fold_abort("fold_authority_invalid", "Fixture fold builder requires fixture snapshot authority")
+  }
+  registry <- phase19_fold_raw_registry(snapshot, protocol, "fixture")
+  phase19_validate_fold_registry(registry, snapshot, protocol, "fixture")
+  registry
+}
+
+phase19_validate_fold_role_evidence <- function(rows, fold, role) {
+  if (!role %in% c("fit", "tuning", "calibration") ||
+      !is.data.frame(fold) || nrow(fold) != 1L ||
+      !identical(names(fold), phase19_fold_registry_schema())) {
+    phase19_fold_abort("fold_role_invalid", "Fold role validation inputs are invalid")
+  }
+  required <- c(
+    "match_id", "competition_id", "counts_for_model",
+    "completion_not_before_utc", "evidence_available_at_utc",
+    "event_date", "kickoff_utc", "kickoff_precision"
+  )
+  if (!is.data.frame(rows) || !nrow(rows) || length(setdiff(required, names(rows))) ||
+      anyDuplicated(rows$match_id)) {
+    phase19_fold_abort("fold_role_invalid", "Fold role evidence is empty, duplicate, or incomplete")
+  }
+  cutoff <- if (role %in% c("fit", "tuning")) {
+    fold$training_cutoff_exclusive[[1L]]
+  } else fold$calibration_cutoff_exclusive[[1L]]
+  cutoff_time <- phase19_fold_parse_utc(cutoff, paste0(role, " cutoff"))[[1L]]
+  completion <- phase19_fold_parse_utc(
+    rows$completion_not_before_utc, "completion_not_before_utc"
+  )
+  evidence <- phase19_fold_parse_utc(
+    rows$evidence_available_at_utc, "evidence_available_at_utc"
+  )
+  boundary <- phase19_fold_parse_utc(
+    phase19_fold_boundary_utc(rows), "match boundary"
+  )
+  if (any(completion >= cutoff_time) || any(evidence >= cutoff_time) ||
+      any(boundary >= cutoff_time) ||
+      any(!vapply(rows$counts_for_model, phase18_history_logical, logical(1)))) {
+    phase19_fold_abort("fold_temporal_leakage", "Fold role evidence is not strictly prior to its cutoff")
+  }
+  excluded_field <- paste0(role, "_excluded_competition_id")
+  excluded <- as.character(fold[[excluded_field]][[1L]])
+  if (nzchar(excluded) && any(as.character(rows$competition_id) == excluded)) {
+    phase19_fold_abort("fold_heldout_leakage", "Held-out competition entered fit, tuning, or calibration")
+  }
+  declared <- phase19_fold_parse_id_text(
+    fold$declared_fixture_ids[[1L]], "declared_fixture_ids"
+  )
+  if (length(intersect(as.character(rows$match_id), declared))) {
+    phase19_fold_abort("fold_assessment_leakage", "Assessment labels entered a prior evidence role")
+  }
+  expected <- if (role %in% c("fit", "tuning")) {
+    phase19_fold_parse_id_text(fold$training_fixture_ids[[1L]], "training_fixture_ids")
+  } else {
+    lower <- phase19_fold_parse_utc(
+      fold$training_cutoff_exclusive[[1L]], "training cutoff"
+    )[[1L]]
+    if (any(boundary < lower)) {
+      phase19_fold_abort("fold_nesting_invalid", "Calibration evidence overlaps inner fit evidence")
+    }
+    phase19_fold_parse_id_text(
+      fold$calibration_fixture_ids[[1L]], "calibration_fixture_ids"
+    )
+  }
+  if (!identical(sort(as.character(rows$match_id), method = "radix"), expected)) {
+    phase19_fold_abort("fold_role_coverage_invalid", "Fold role evidence differs from the frozen fixture set")
+  }
+  invisible(TRUE)
+}
+
+phase19_fold_role_evidence <- function(snapshot, fold, role) {
+  if (!inherits(snapshot, "phase19_club_authority_result") ||
+      !identical(snapshot$status, "ready")) {
+    phase19_fold_abort("fold_authority_invalid", "A validated ready snapshot is required")
+  }
+  ids <- if (role %in% c("fit", "tuning")) {
+    phase19_fold_parse_id_text(fold$training_fixture_ids[[1L]], "training_fixture_ids")
+  } else if (identical(role, "calibration")) {
+    phase19_fold_parse_id_text(
+      fold$calibration_fixture_ids[[1L]], "calibration_fixture_ids"
+    )
+  } else {
+    phase19_fold_abort("fold_role_invalid", "Unknown fold evidence role")
+  }
+  rows <- snapshot$matches[match(ids, snapshot$matches$match_id), , drop = FALSE]
+  if (anyNA(rows$match_id)) {
+    phase19_fold_abort("fold_role_coverage_invalid", "Frozen role fixture is absent from snapshot")
+  }
+  phase19_validate_fold_role_evidence(rows, fold, role)
+  rows
+}
+
+phase19_validate_fold_prediction_coverage <- function(fold, prediction_fixture_ids) {
+  if (!is.data.frame(fold) || nrow(fold) != 1L ||
+      !identical(names(fold), phase19_fold_registry_schema())) {
+    phase19_fold_abort("fold_coverage_invalid", "One exact fold row is required")
+  }
+  expected <- phase19_fold_parse_id_text(
+    fold$declared_fixture_ids[[1L]], "declared_fixture_ids"
+  )
+  observed <- as.character(prediction_fixture_ids)
+  if (anyNA(observed) || any(!nzchar(observed)) || anyDuplicated(observed) ||
+      !identical(sort(observed, method = "radix"), expected)) {
+    phase19_fold_abort(
+      "fold_coverage_invalid",
+      "Predictions must cover the exact declared fold fixture inventory once"
+    )
+  }
+  invisible(TRUE)
+}
