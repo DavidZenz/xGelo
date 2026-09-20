@@ -269,9 +269,9 @@ phase18_resolve_club_identity <- function(
   direct <- phase18_club_at_instant(direct, event_at)
   if (nrow(direct) > 1L) phase18_club_abort("ambiguous_club_identity", "Multiple direct club identities are valid")
 
-  alias <- registries$aliases[registries$aliases$source_system == source_system &
+  alias_all <- registries$aliases[registries$aliases$source_system == source_system &
     !is.na(normalized) & registries$aliases$normalized_alias == normalized, , drop = FALSE]
-  alias <- phase18_club_at_instant(alias, event_at)
+  alias <- phase18_club_at_instant(alias_all, event_at)
   alias_ids <- unique(alias$club_id)
   if (length(alias_ids) > 1L) phase18_club_abort("ambiguous_club_identity", "Multiple reviewed aliases are valid")
 
@@ -287,6 +287,9 @@ phase18_resolve_club_identity <- function(
     warning_value <- "none"
   } else {
     if (is.na(display_name)) phase18_club_abort("unresolved_club_identity", "No direct source ID match and no display alias supplied")
+    if (!length(alias_ids) && nrow(alias_all)) {
+      phase18_club_abort("expired_club_alias", "Reviewed club alias is not valid at the event instant")
+    }
     if (!length(alias_ids)) phase18_club_abort("unresolved_club_identity", "Club identity is unresolved for the reviewed alias")
     selected <- alias[1L, , drop = FALSE]
     method <- "reviewed_alias"
