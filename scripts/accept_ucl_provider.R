@@ -30,10 +30,11 @@ source(file.path(phase18_accept_project_root, "R/competition/ucl_source_acceptan
 source(file.path(phase18_accept_project_root, "R/club/identity.R"), local = TRUE)
 source(file.path(phase18_accept_project_root, "R/club/identity_bootstrap.R"), local = TRUE)
 source(file.path(phase18_accept_project_root, "R/competition/football_data_org_adapter.R"), local = TRUE)
+source(file.path(phase18_accept_project_root, "R/competition/ucl_source_bundle.R"), local = TRUE)
 
 phase18_accept_parse_args <- function(args) {
   required <- c("provider-id", "edition-id", "review-path", "evidence-root")
-  allowed <- c(required, "mode", "club-registry-root")
+  allowed <- c(required, "mode", "club-registry-root", "candidate-root", "bundle-id")
   output <- list()
   index <- 1L
   while (index <= length(args)) {
@@ -49,11 +50,18 @@ phase18_accept_parse_args <- function(args) {
   if (length(missing)) stop("Phase 18 acceptance is missing options: ", paste(missing, collapse = ", "), call. = FALSE)
   if (!identical(output[["provider-id"]], "football_data_org_v4")) stop("Phase 18 provider ID is fixed to football_data_org_v4", call. = FALSE)
   if (is.null(output$mode)) output$mode <- "preflight"
-  if (!output$mode %in% c("preflight", "offline_contract_test", "live_acceptance_probe")) {
-    stop("Phase 18 acceptance mode must be preflight, offline_contract_test, or live_acceptance_probe", call. = FALSE)
+  if (!output$mode %in% c("preflight", "offline_contract_test", "live_acceptance_probe", "provider_live", "manual_reviewed", "fixture_contract")) {
+    stop("Phase 18 acceptance mode is unsupported", call. = FALSE)
   }
-  if (!identical(output$mode, "preflight") && (is.null(output[["club-registry-root"]]) || !nzchar(output[["club-registry-root"]]))) {
+  adapter_modes <- c("offline_contract_test", "live_acceptance_probe", "provider_live")
+  if (output$mode %in% adapter_modes && (is.null(output[["club-registry-root"]]) || !nzchar(output[["club-registry-root"]]))) {
     stop("Phase 18 adapter modes require --club-registry-root", call. = FALSE)
+  }
+  if (output$mode %in% c("provider_live", "manual_reviewed", "fixture_contract")) {
+    candidate_missing <- c("candidate-root", "bundle-id")[!vapply(c("candidate-root", "bundle-id"), function(key) {
+      !is.null(output[[key]]) && nzchar(output[[key]])
+    }, logical(1))]
+    if (length(candidate_missing)) stop("Phase 18 candidate mode is missing options: ", paste(candidate_missing, collapse = ", "), call. = FALSE)
   }
   output
 }
@@ -78,7 +86,8 @@ phase18_accept_ucl_provider_main <- function(
     clock_fn = Sys.time,
     sleep_fn = Sys.sleep,
     now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
-    parser_commit_sha = NULL) {
+    parser_commit_sha = NULL,
+    candidate_input_fn = NULL) {
   options <- phase18_accept_parse_args(args)
   preflight <- phase18_provider_preflight(token_present, now_utc)
   target_root <- file.path(options[["evidence-root"]], options[["provider-id"]], options[["edition-id"]])
@@ -92,6 +101,49 @@ phase18_accept_ucl_provider_main <- function(
   }
   machine_checks <- phase18_default_machine_checks(expectations, now_utc, preflight$reason_code[[1L]])
   schema_fingerprint <- phase18_default_schema_fingerprint(now_utc)
+  if (identical(options$mode, "provider_live")) {
+    if (!isTRUE(token_present)) stop("Phase 18 provider_live candidate requires FOOTBALL_DATA_API_TOKEN", call. = FALSE)
+    accepted <- phase18_read_acceptance_set(target_root)
+    phase18_validate_acceptance_manifest(
+      accepted$manifest, accepted$machine_checks, accepted$owner_review, accepted$edition_expectations
+    )
+    if (!isTRUE(accepted$manifest$automation_enabled[[1L]]) ||
+        !identical(as.character(accepted$manifest$decision[[1L]]), "accepted") ||
+        !identical(as.character(accepted$manifest$execution_mode[[1L]]), "live_acceptance_probe")) {
+      stop("Phase 18 provider_live candidate requires an accepted provider authority", call. = FALSE)
+    }
+    inputs <- if (is.function(candidate_input_fn)) {
+      candidate_input_fn(options, accepted)
+    } else {
+      if (!is.function(perform_request)) perform_request <- phase18_fd_live_performer()
+      fetched <- fetch_window_fn(phase18_fd_request_plan(), perform_request, clock_fn, sleep_fn)
+      registries <- phase18_load_club_registries(options[["club-registry-root"]])
+      projected <- project_resources_fn(
+        fetched, options[["edition-id"]], registries, accepted$edition_expectations, now_utc = now_utc
+      )
+      list(fetched = fetched, projected = projected)
+    }
+    if (!is.list(inputs) || is.null(inputs$fetched) || is.null(inputs$projected)) {
+      stop("Phase 18 candidate input must supply fetched bytes and projected tables", call. = FALSE)
+    }
+    authority <- list(authority_type = "provider_acceptance", provider_acceptance = accepted)
+    candidate <- phase18_build_ucl_source_bundle(
+      inputs$projected, inputs$fetched, authority, accepted$edition_expectations,
+      options[["bundle-id"]]
+    )
+    installed <- phase18_write_ucl_candidate(options[["candidate-root"]], candidate)
+    return(invisible(list(
+      mode = "provider_live", bundle_id = installed$bundle$bundle_id[[1L]],
+      bundle_sha256 = installed$bundle$bundle_sha256[[1L]],
+      manifest_self_sha256 = installed$bundle$manifest_self_sha256[[1L]],
+      authority_id = installed$bundle$authority_id[[1L]],
+      authority_sha256 = installed$bundle$authority_sha256[[1L]],
+      promotion_eligible = installed$bundle$promotion_eligible[[1L]],
+      candidate_root = normalizePath(options[["candidate-root"]], winslash = "/", mustWork = TRUE),
+      resource_count = nrow(installed$artifacts), table_count = nrow(installed$table_manifest),
+      reason_code = "candidate_validated"
+    )))
+  }
   adapter_mode <- options$mode %in% c("offline_contract_test", "live_acceptance_probe")
   if (adapter_mode) {
     if (identical(options$mode, "live_acceptance_probe") && !isTRUE(token_present)) {

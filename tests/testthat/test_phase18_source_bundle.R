@@ -9,8 +9,10 @@ phase18_bundle_test_load <- function() {
   source(file.path(phase18_bundle_test_root, "R/competition/ucl_source_acceptance.R"), local = .GlobalEnv)
   source(file.path(phase18_bundle_test_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
   source(file.path(phase18_bundle_test_root, "R/competition/edition_registry.R"), local = .GlobalEnv)
+  source(file.path(phase18_bundle_test_root, "R/competition/football_data_org_adapter.R"), local = .GlobalEnv)
   bundle_path <- file.path(phase18_bundle_test_root, "R/competition/ucl_source_bundle.R")
   if (file.exists(bundle_path)) source(bundle_path, local = .GlobalEnv)
+  sys.source(file.path(phase18_bundle_test_root, "scripts/accept_ucl_provider.R"), envir = .GlobalEnv)
   invisible(TRUE)
 }
 
@@ -152,9 +154,38 @@ test_that("provider-live projected resources write and fresh-process validate a 
   )
   expression <- sprintf(
     "source(%s); source(%s); x <- phase18_read_ucl_candidate(%s); phase18_validate_ucl_source_bundle(x)",
-    dQuote(file.path(phase18_bundle_test_root, "R/competition/ucl_source_acceptance.R")),
-    dQuote(file.path(phase18_bundle_test_root, "R/competition/ucl_source_bundle.R")), dQuote(root)
+    shQuote(file.path(phase18_bundle_test_root, "R/competition/ucl_source_acceptance.R")),
+    shQuote(file.path(phase18_bundle_test_root, "R/competition/ucl_source_bundle.R")), shQuote(root)
   )
   output <- system2("Rscript", c("--vanilla", "-e", shQuote(expression)), stdout = TRUE, stderr = TRUE)
   expect_equal(attr(output, "status") %||% 0L, 0L, info = paste(output, collapse = "\n"))
+
+  evidence_parent <- tempfile("phase18-provider-authority-")
+  evidence_root <- file.path(evidence_parent, "football_data_org_v4", "ucl_2026_27")
+  dir.create(evidence_root, recursive = TRUE)
+  phase18_write_acceptance_stage(
+    evidence_root, evidence$owner_review, evidence$edition_expectations,
+    evidence$machine_checks, evidence$schema_fingerprint, evidence$manifest,
+    "# Fixture accepted provider authority\n"
+  )
+  cli_root <- tempfile("phase18-provider-live-cli-")
+  registry_root <- tempfile("phase18-club-registry-")
+  dir.create(registry_root)
+  cli <- phase18_accept_ucl_provider_main(
+    args = c(
+      "--provider-id", "football_data_org_v4", "--edition-id", "ucl_2026_27",
+      "--review-path", file.path(phase18_bundle_test_root, "tests/fixtures/phase18/provider_terms_review.csv"),
+      "--evidence-root", evidence_parent, "--mode", "provider_live",
+      "--club-registry-root", registry_root, "--candidate-root", cli_root,
+      "--bundle-id", "ucl-2026-27-provider-cli-v1"
+    ),
+    token_present = TRUE, now_utc = "2026-09-19T12:30:00Z",
+    candidate_input_fn = function(options, accepted) list(
+      projected = phase18_bundle_test_projected(accepted),
+      fetched = phase18_bundle_test_fetched()
+    )
+  )
+  expect_identical(cli$reason_code, "candidate_validated")
+  expect_true(cli$promotion_eligible)
+  expect_true(dir.exists(cli$candidate_root))
 })
