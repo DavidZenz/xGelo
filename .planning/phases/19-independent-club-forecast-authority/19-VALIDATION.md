@@ -42,12 +42,12 @@ production_completion: human_needed
 | 19-06-02 | 4 | CLUBMOD-03 | `test_phase19_club_calibration.R` | same focused command + `rtk git diff --check` | MISSING — Wave 0 |
 | 19-07-01 | 5 | CLUBMOD-02,03 | `test_phase19_club_evaluation.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_club_evaluation.R` | MISSING — Wave 0 |
 | 19-07-02 | 5 | CLUBMOD-03 | `test_phase19_club_evaluation.R` | same focused command + `rtk git diff --check` | MISSING — Wave 0 |
-| 19-08-01 | 6 | CLUBMOD-04 | `test_phase19_club_release.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_club_release.R` | MISSING — Wave 0 |
-| 19-08-02 | 6 | CLUBMOD-01,04,05 | club + national compatibility set | strict runner over club release, Phase 12/14 release, Phase 14 forecast/state, Phase 15 Nations League | MISSING club test; legacy tests exist |
-| 19-09-01 | 7 | CLUBMOD-01..05 | `test_phase19_club_pipeline.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_club_pipeline.R` | MISSING — Wave 0 |
-| 19-09-02 | 7 | CLUBMOD-01..05 | `test_phase19_club_pipeline.R` | focused command + `rtk Rscript --vanilla -e 'targets::tar_manifest(fields=c(name, command))'` | MISSING — Wave 0 |
-| 19-10-01 | 8 | CLUBMOD-01..05 | `test_phase19_adversarial_regression.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_adversarial_regression.R` | MISSING — Wave 0 |
-| 19-10-02 | 8 | CLUBMOD-01..05 | exact full inventory | `rtk Rscript --vanilla scripts/verify_phase19_contracts.R` | MISSING — Wave 0 |
+| 19-08-01 | 6 | CLUBMOD-04 mechanics | `test_phase19_club_release.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_club_release.R` | MISSING — Wave 0; production pending |
+| 19-08-02 | 6 | CLUBMOD-01,05 direct; CLUBMOD-04 mechanics | club + national compatibility set | strict runner over club release, Phase 12/14 release, Phase 14 forecast/state, Phase 15 Nations League | MISSING club test; CLUBMOD-04 production pending |
+| 19-09-01 | 7 | CLUBMOD-01..03,05 direct; CLUBMOD-04 mechanics | `test_phase19_club_pipeline.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_club_pipeline.R` | MISSING — Wave 0; CLUBMOD-04 production pending |
+| 19-09-02 | 7 | CLUBMOD-01..03,05 direct; CLUBMOD-04 mechanics | `test_phase19_club_pipeline.R` | focused command + `rtk Rscript --vanilla -e 'targets::tar_manifest(fields=c(name, command))'` | MISSING — Wave 0; CLUBMOD-04 production pending |
+| 19-10-01 | 8 | CLUBMOD-01..03,05 direct; CLUBMOD-04 mechanics | `test_phase19_adversarial_regression.R` | `rtk Rscript --vanilla scripts/run_phase19_focused_test.R tests/testthat/test_phase19_adversarial_regression.R` | MISSING — Wave 0; CLUBMOD-04 production pending |
+| 19-10-02 | 8 | CLUBMOD-01..03,05 direct; CLUBMOD-04 mechanics | exact full inventory | `rtk Rscript --vanilla scripts/verify_phase19_contracts.R` | MISSING — Wave 0; CLUBMOD-04 production pending |
 
 ## Wave 0 Required Artifacts
 
@@ -68,6 +68,8 @@ The verifier must return `human_needed` until all are true:
 5. The atomic production club selector exists and the production resolver reads back the immutable model-card-backed release.
 
 Fixture evidence may yield `diagnostic_gate_outcome=pass`, but must remain `authority_eligibility=fixture_ineligible` and `promotion_status=ineligible_fixture`.
+
+The fixed-root production CLI currently asserts only the truthful first reason, `no_accepted_club_history`. Later current-UCL, identity, policy-review, and fold-review reasons are validation-mechanics evidence obtained through tagged non-production temporary boundary harnesses; those harnesses cannot create accepted production prerequisites or satisfy CLUBMOD-04.
 
 ## Sign-Off State
 

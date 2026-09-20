@@ -23,7 +23,7 @@ These are precise artifact/executability defects; the revised roadmap goal itsel
 | CLUBMOD-01 | 19-01, 19-02, 19-03, 19-05, 19-08, 19-09, 19-10 | Task coverage present; production outcome remains blocked by Finding B1 |
 | CLUBMOD-02 | 19-02, 19-04, 19-05, 19-06, 19-07, 19-09, 19-10 | Strong cutoff, same-batch, rolling-origin, held-out-league, nesting, and replay coverage |
 | CLUBMOD-03 | 19-03, 19-04, 19-06, 19-07, 19-09, 19-10 | Gate mechanics covered; approval authority missing per Finding B2 |
-| CLUBMOD-04 | 19-08, 19-09, 19-10 | Release mechanics covered; no production-resolvable approved release per Finding B1 |
+| CLUBMOD-04 | 19-08, 19-09, 19-10 | MECHANICS COVERED; PRODUCTION PENDING under the Roadmap completion gate |
 | CLUBMOD-05 | 19-01, 19-05, 19-08, 19-09, 19-10 | Exact five-feature typed-unavailable contract is well covered |
 
 | Plan | Wave | Dependencies | Tasks | Structural status |
@@ -245,3 +245,13 @@ Current production stops first at `no_accepted_club_history`. Reaching `no_accep
 **REVISION REQUIRED: 2 blockers, 0 warnings.**
 
 The substantive authority architecture is now strong and the roadmap outcome is preserved. Once R1 and R2 are corrected, no other blocker is known and the plans should be ready for execution with an expected post-mechanics status of `human_needed` rather than false completion.
+
+## Final revision resolution — 2026-09-20
+
+| Finding | Resolution |
+|---|---|
+| R1 research questions | `19-RESEARCH.md` now records all four questions under `Open Questions (RESOLVED)`: reviewed candidate fold materialization, strict held-out-league policy, candidate-only inherited numeric gates, and an explicit fold-reviewed final-fit cutoff. Each decision retains its real Phase 18 evidence and owner-review dependency without leaving the architecture unresolved or treating candidate values as approved. |
+| R2 unreachable production reasons | Plan 19-10 now asserts only the truthful first fixed-root production failure, `no_accepted_club_history`, plus selector absence and byte preservation. Later current-UCL/identity/policy/fold reason codes are reached through public validators with tagged non-production temporary parents, and root/resolver/publication guards must prove those parents cannot become accepted production authority. |
+| CLUBMOD-04 status | The coverage record now says `MECHANICS COVERED; PRODUCTION PENDING`. Automated fixture/release/domain evidence does not complete CLUBMOD-04; its outcome stays `human_needed` until the Roadmap completion gate is satisfied. |
+
+**Resolution status:** ready for final re-review; both remaining blockers are addressed without weakening the Phase 19 goal.

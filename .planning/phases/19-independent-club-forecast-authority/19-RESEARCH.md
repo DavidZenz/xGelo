@@ -571,27 +571,25 @@ assert_forecast_domain <- function(metadata, expected_domain) {
 | A6 | The club release root should be `outputs/releases/club/` with a separate selector. | Recommended Project Structure | Another disjoint topology is acceptable if all validators and consumers bind it exactly. |
 | A7 | Model-card identity should be machine-validated through a structured projection. | Pattern 8 | Without this, the Markdown can drift from the release; exact implementation format remains planner discretion. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **What real fold inventory is supportable?**
-   - What we know: the pending inventory names multiple domestic and European source families for 2021/22–2025/26. `[VERIFIED: data/club/history_sources.csv]`
-   - What's unclear: no real rows, counts, contemporaneous source commits, identity coverage, or graph connectivity are accepted. `[VERIFIED: production history pointer]`
-   - Recommendation: implement generic fold construction and fixture tests now; after Phase 18 human acceptance, materialize and owner-review the exact production fold registry before any score is computed. `[ASSUMED]`
+The four planning questions are resolved as authority contracts, not as approval of currently proposed values. Production remains dependent on real accepted Phase 18 evidence and explicit owner decisions over the exact hashes described below.
 
-2. **Does “cross-league” require strict leave-one-league-out transport?**
-   - What we know: CLUBMOD-02 requires both frozen rolling-origin and cross-league folds. `[VERIFIED: REQUIREMENTS.md]`
-   - What's unclear: no locked Phase 19 CONTEXT.md defines the split semantics. `[VERIFIED: init.phase-op returned has_context=false]`
-   - Recommendation: use the stricter held-out-league interpretation; it makes transfer limits explicit and cannot overstate evidence. If the owner chooses league-stratified rolling folds instead, record that as a locked decision before planning. `[ASSUMED]`
+1. **Real fold inventory — resolved to reviewed materialization.**
+   - Planning decision: materialize the exact rolling-origin and held-out-league fold inventory only from the accepted historical generation as a self-hashed candidate. It remains `pending_review` until a separate immutable `fold_review.json` records reviewer, review time, decision, exact fold-inventory hash, cutoff hash, calibration-recipe hash, and parent authority hashes. No real score may be computed before that review is accepted.
+   - Remaining human/evidence dependency: Phase 18 must expose accepted real rows, source commits, identity coverage, and graph connectivity; an owner must then accept the exact candidate fold review. `[VERIFIED: production history pointer; RESOLVED: Plans 19-03/19-04 review authority]`
 
-3. **Are the inherited numeric gates accepted for club promotion?**
-   - What we know: they are already implemented and understood for national-team benchmarking. `[VERIFIED: Phase 9 protocol and promotion code]`
-   - What's unclear: club fold counts and variance are not yet observed. `[VERIFIED: blocked history]`
-   - Recommendation: owner-review the proposed registry once, before real predictions; do not revise it from observed club scores. `[ASSUMED]`
+2. **Cross-league semantics — resolved to strict held-out-league transport.**
+   - Planning decision: the fixture-testable protocol uses strict leave-one-league-out assessment, with the held-out league excluded from fitting, tuning, and calibration. This is a policy candidate, not production authority; production requires an accepted self-hashed `policy_review.json` over the exact candidate family and fold semantics.
+   - Remaining human/evidence dependency: an owner must accept the exact policy hash before production fold readiness or scoring. A different split semantics requires a new policy identity and review, never an observed-score-driven edit. `[VERIFIED: CLUBMOD-02; RESOLVED: Plan 19-03 policy review]`
 
-4. **What final-fit cutoff should the first UCL release use?**
-   - What we know: every release must expose model and calibration cutoffs, and evidence must be strictly prior. `[VERIFIED: CLUBMOD-02/04]`
-   - What's unclear: accepted history currently ends in a blocked corpus with cutoff `2026-01-01T00:00:00Z`, which is not a usable 2026/27 training authority. `[VERIFIED: corpus manifest]`
-   - Recommendation: bind the cutoff to the latest accepted history generation strictly before the forecast issuance time; never infer a later cutoff from the current provider bundle. `[ASSUMED]`
+3. **Inherited numeric gates — resolved to reviewable candidates.**
+   - Planning decision: inherited thresholds, baselines, seed registry, candidate family, and one-parameter calibration recipe are committed as immutable candidate inputs. They do not become club promotion authority until an owner accepts their exact hashes in `policy_review.json`, before any real predictions or scores are observed.
+   - Remaining human/evidence dependency: real fold counts and variance remain unavailable until accepted history exists, and the owner must approve or reject the pre-score candidate policy without tuning it from Phase 19 outcomes. `[VERIFIED: Phase 9 protocol and blocked history; RESOLVED: Plan 19-03 policy review]`
+
+4. **Final-fit cutoff — resolved to fold-reviewed explicit identity.**
+   - Planning decision: materialize the final-fit cutoff from the latest eligible row in the accepted history generation strictly before forecast issuance, bind it into the exact candidate fold inventory and `fold_review.json`, and reject any runtime inference from the current provider bundle or forecast inputs.
+   - Remaining human/evidence dependency: the current blocked corpus is not production authority; Phase 18 must first provide accepted usable history, after which the owner must accept the exact cutoff and fold-parent hashes before fitting or release publication. `[VERIFIED: CLUBMOD-02/04 and corpus manifest; RESOLVED: Plan 19-04 fold review]`
 
 ## Environment Availability
 
