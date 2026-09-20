@@ -573,7 +573,6 @@ phase18_ucl_refresh_stage_tombstone <- function(source_root, retained, tombstone
 phase18_apply_provider_exit <- function(exit_review, accepted_root = "data/competition/accepted",
     registry_root = "data/competition/registries", writer_hooks = list(),
     now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")) {
-  phase18_validate_ucl_provider_exit_review(exit_review)
   roots <- phase18_ucl_refresh_roots(accepted_root, registry_root)
   if (file.exists(roots$lock_path) || dir.exists(roots$lock_path) || !dir.create(roots$lock_path, recursive = FALSE, showWarnings = FALSE))
     phase18_ucl_refresh_abort("concurrent_refresh", "Provider-exit lock collision", "compliance")
@@ -584,6 +583,7 @@ phase18_apply_provider_exit <- function(exit_review, accepted_root = "data/compe
   candidate <- current$accepted; phase18_validate_ucl_source_bundle(candidate); authority <- candidate$authority; bundle <- candidate$bundle
   if (!identical(as.character(authority$authority_type[[1L]]), "provider_acceptance"))
     phase18_ucl_refresh_abort("provider_exit_required", "Provider exit cannot affect non-provider authority", "compliance")
+  phase18_validate_ucl_provider_exit_review(exit_review)
   incumbent_terms <- unique(tolower(as.character(candidate$authority_evidence$owner_review$terms_sha256)))
   if (length(incumbent_terms) != 1L ||
       !identical(tolower(as.character(exit_review$terms_sha256[[1L]])), incumbent_terms[[1L]])) {

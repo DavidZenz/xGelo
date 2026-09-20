@@ -309,12 +309,18 @@ test_that("provider exit rejects manual and no-incumbent states without pointer 
 phase18_refresh_test_exit_review <- function(current, disposition, retained = setNames(character(), character())) {
   inventory <- phase18_ucl_refresh_inventory(current$accepted_generation_root)
   authority <- current$accepted$authority; bundle <- current$accepted$bundle
+  owner_terms <- current$accepted$authority_evidence$owner_review$terms_sha256
+  terms_sha256 <- if (is.null(owner_terms) || !length(owner_terms)) {
+    phase18_hash_scalar_v2("non-provider-terms", "terms", "character")
+  } else {
+    unique(as.character(owner_terms))[[1L]]
+  }
   row <- data.frame(schema_version = "phase18-ucl-provider-exit-review-v2",
     hash_encoding_version = phase18_canonical_encoding_v2(), exit_review_id = paste0("exit-review-", disposition, "-001"),
     provider_id = "football_data_org_v4", edition_id = bundle$edition_id[[1L]], decision = "reviewed",
     exit_disposition = disposition, retention_permitted = identical(disposition, "retain"),
     display_permitted = identical(disposition, "retain"),
-    terms_sha256 = unique(as.character(current$accepted$authority_evidence$owner_review$terms_sha256))[[1L]],
+    terms_sha256 = terms_sha256,
     provider_decision_id = authority$provider_decision_id[[1L]], provider_decision_sha256 = authority$provider_decision_sha256[[1L]],
     incumbent_bundle_id = bundle$bundle_id[[1L]], incumbent_bundle_sha256 = bundle$bundle_sha256[[1L]],
     reviewed_inventory_paths = paste(inventory$paths, collapse = "|"), reviewed_inventory_sha256s = paste(inventory$hashes, collapse = "|"),
