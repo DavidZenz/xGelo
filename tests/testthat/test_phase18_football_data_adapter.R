@@ -6,6 +6,7 @@ phase18_fd_test_root <- normalizePath(
 )
 
 phase18_fd_test_load <- function() {
+  source(file.path(phase18_fd_test_root, "R/common/phase18_canonical_hash.R"), local = .GlobalEnv)
   source(file.path(phase18_fd_test_root, "R/competition/ucl_source_acceptance.R"), local = .GlobalEnv)
   source(file.path(phase18_fd_test_root, "R/club/identity.R"), local = .GlobalEnv)
   source(file.path(phase18_fd_test_root, "R/club/identity_bootstrap.R"), local = .GlobalEnv)

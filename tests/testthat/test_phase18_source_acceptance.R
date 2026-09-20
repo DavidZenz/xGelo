@@ -6,8 +6,10 @@ phase18_test_root <- normalizePath(
 )
 
 phase18_test_load <- function() {
+  common_path <- file.path(phase18_test_root, "R/common/phase18_canonical_hash.R")
   source_path <- file.path(phase18_test_root, "R/competition/ucl_source_acceptance.R")
   script_path <- file.path(phase18_test_root, "scripts/accept_ucl_provider.R")
+  source(common_path, local = .GlobalEnv)
   if (file.exists(source_path)) source(source_path, local = .GlobalEnv)
   if (file.exists(script_path)) sys.source(script_path, envir = .GlobalEnv)
   invisible(TRUE)
@@ -265,7 +267,8 @@ test_that("committed no-key decision validates in a fresh process", {
     "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27"
   )
   command <- paste0(
-    "setwd('", phase18_test_root, "');source('R/competition/ucl_source_acceptance.R');",
+    "setwd('", phase18_test_root, "');source('R/common/phase18_canonical_hash.R');",
+    "source('R/competition/ucl_source_acceptance.R');",
     "r<-read.csv('", file.path(root, "provider_terms_review.csv"), "',check.names=FALSE);",
     "e<-read.csv('", file.path(root, "edition_expectations.csv"), "',check.names=FALSE);",
     "m<-read.csv('", file.path(root, "coverage_matrix.csv"), "',check.names=FALSE);",

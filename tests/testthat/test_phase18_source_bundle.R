@@ -6,6 +6,7 @@ phase18_bundle_test_root <- normalizePath(
 )
 
 phase18_bundle_test_load <- function() {
+  source(file.path(phase18_bundle_test_root, "R/common/phase18_canonical_hash.R"), local = .GlobalEnv)
   source(file.path(phase18_bundle_test_root, "R/competition/ucl_source_acceptance.R"), local = .GlobalEnv)
   source(file.path(phase18_bundle_test_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
   source(file.path(phase18_bundle_test_root, "R/competition/edition_registry.R"), local = .GlobalEnv)
@@ -182,7 +183,8 @@ test_that("provider-live projected resources write and fresh-process validate a 
     c("artifacts.csv", "authority.csv", "bundle.csv", "raw", "table_manifest.csv", "tables", "authority_evidence")
   )
   expression <- sprintf(
-    "source(%s); source(%s); x <- phase18_read_ucl_candidate(%s); phase18_validate_ucl_source_bundle(x)",
+    "source(%s); source(%s); source(%s); x <- phase18_read_ucl_candidate(%s); phase18_validate_ucl_source_bundle(x)",
+    shQuote(file.path(phase18_bundle_test_root, "R/common/phase18_canonical_hash.R")),
     shQuote(file.path(phase18_bundle_test_root, "R/competition/ucl_source_acceptance.R")),
     shQuote(file.path(phase18_bundle_test_root, "R/competition/ucl_source_bundle.R")), shQuote(root)
   )

@@ -3,6 +3,7 @@
 phase18_identity_test_root <- normalizePath(file.path(getwd(), "../.."), mustWork = TRUE)
 
 phase18_identity_test_load <- function() {
+  source(file.path(phase18_identity_test_root, "R/common/phase18_canonical_hash.R"), local = .GlobalEnv)
   source(file.path(phase18_identity_test_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
   source(file.path(phase18_identity_test_root, "R/club/identity.R"), local = .GlobalEnv)
   bootstrap <- file.path(phase18_identity_test_root, "R/club/identity_bootstrap.R")

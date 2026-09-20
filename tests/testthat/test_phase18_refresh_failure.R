@@ -7,6 +7,7 @@ phase18_refresh_test_root <- normalizePath(
 
 phase18_refresh_test_load <- function() {
   files <- c(
+    "R/common/phase18_canonical_hash.R",
     "R/competition/ucl_source_acceptance.R",
     "R/competition/source_contracts.R",
     "R/competition/edition_registry.R",
@@ -16,7 +17,7 @@ phase18_refresh_test_load <- function() {
   )
   for (relative in files) {
     path <- file.path(phase18_refresh_test_root, relative)
-    if (file.exists(path)) source(path, local = .GlobalEnv)
+    source(path, local = .GlobalEnv)
   }
   invisible(TRUE)
 }

@@ -7,11 +7,12 @@ phase18_history_test_root <- normalizePath(
 
 phase18_history_test_load <- function() {
   for (path in file.path(phase18_history_test_root, c(
+    "R/common/phase18_canonical_hash.R",
     "R/competition/source_contracts.R",
     "R/club/identity.R",
     "R/club/identity_bootstrap.R",
     "R/club/history_contract.R"
-  ))) if (file.exists(path)) source(path, local = .GlobalEnv)
+  ))) source(path, local = .GlobalEnv)
 }
 
 phase18_history_test_require <- function(names) {
