@@ -324,14 +324,15 @@ phase18_normalize_club_history <- function(rows, source_row, club_registries, cu
 
 phase18_history_corpus_manifest_schema <- function() {
   c(
-    "schema_version", "corpus_id", "cutoff_utc", "created_at_utc", "parser_commit",
+    "schema_version", "hash_encoding_version", "corpus_id", "cutoff_utc", "created_at_utc", "parser_commit",
     "source_manifest_sha256", "matches_sha256", "coverage_audit_sha256",
     "identity_audit_sha256", "duplicate_audit_sha256", "score_semantics_audit_sha256",
-    "temporal_audit_sha256", "club_registry_sha256", "identity_review_sha256",
+    "temporal_audit_sha256", "registry_clubs_sha256", "registry_source_ids_sha256",
+    "registry_aliases_sha256", "club_registry_sha256", "identity_review_sha256",
     "unresolved_identity_sha256", "source_pin_fraction", "license_fraction",
     "lineage_fraction", "identity_fraction", "coverage_gate_passed",
     "duplicate_gate_passed", "score_semantics_gate_passed", "temporal_gate_passed",
-    "accepted_for_training", "blocked_reasons", "manifest_sha256"
+    "row_claims_gate_passed", "accepted_for_training", "blocked_reasons", "manifest_sha256"
   )
 }
 
@@ -369,15 +370,125 @@ phase18_history_summary_row <- function(schema, values) {
   as.data.frame(row, stringsAsFactors = FALSE, check.names = FALSE)
 }
 
+phase18_history_text_table <- function(data) {
+  output <- data
+  output[] <- lapply(output, function(value) {
+    value <- as.character(value)
+    value[is.na(value)] <- ""
+    value
+  })
+  rownames(output) <- NULL
+  output
+}
+
+phase18_history_validate_identity_snapshots <- function(registries, identity_review, unresolved_identity) {
+  phase18_validate_club_registries(registries)
+  if (!is.data.frame(identity_review) || !identical(names(identity_review), phase18_club_review_schema())) {
+    phase18_history_abort("invalid_history_identity_review", "History owner review snapshot must use the exact canonical-v2 schema")
+  }
+  if (nrow(identity_review)) {
+    if (any(identity_review$schema_version != "phase18-club-review-v2") ||
+        any(identity_review$hash_encoding_version != phase18_canonical_encoding_v2()) ||
+        any(identity_review$row_sha256 != phase18_club_row_sha256(identity_review)) ||
+        any(identity_review$corpus != "historical_inventory") ||
+        any(identity_review$review_state != "approved")) {
+      phase18_history_abort("invalid_history_identity_review", "History owner review snapshot is not exact approved canonical-v2 evidence")
+    }
+  }
+  if (!is.data.frame(unresolved_identity) || !identical(names(unresolved_identity), phase18_unresolved_club_token_schema())) {
+    phase18_history_abort("invalid_history_unresolved_identity", "History unresolved snapshot must use the exact canonical-v2 schema")
+  }
+  if (nrow(unresolved_identity)) {
+    if (any(unresolved_identity$schema_version != "phase18-unresolved-club-token-v2") ||
+        any(unresolved_identity$hash_encoding_version != phase18_canonical_encoding_v2()) ||
+        any(unresolved_identity$row_sha256 != phase18_club_row_sha256(unresolved_identity)) ||
+        any(unresolved_identity$corpus != "historical_inventory")) {
+      phase18_history_abort("invalid_history_unresolved_identity", "History unresolved snapshot hash or corpus mismatch")
+    }
+  }
+  invisible(TRUE)
+}
+
+phase18_history_recompute_match_state <- function(matches, source_manifest, club_registries, cutoff) {
+  count <- nrow(matches)
+  result <- list(
+    identity_ok = rep(FALSE, count), score_ok = rep(FALSE, count),
+    temporal_ok = rep(FALSE, count), lineage_ok = rep(FALSE, count),
+    expected_reason = rep("not_completed", count), claim_ok = rep(FALSE, count)
+  )
+  if (!count) return(result)
+  registry_hash <- phase18_club_registry_hash(club_registries)
+  for (index in seq_len(count)) {
+    match <- matches[index, , drop = FALSE]
+    completed <- identical(match$status[[1L]], "completed")
+    source <- source_manifest[source_manifest$source_id == match$source_id[[1L]], , drop = FALSE]
+    result$lineage_ok[[index]] <- nrow(source) == 1L && source$source_status[[1L]] == "active" &&
+      identical(match$source_row_sha256[[1L]], source$row_sha256[[1L]]) &&
+      identical(match$repository_url[[1L]], source$repository_url[[1L]]) &&
+      identical(match$commit_sha[[1L]], source$commit_sha[[1L]]) &&
+      identical(match$relative_path[[1L]], source$relative_path[[1L]]) &&
+      identical(match$competition_id[[1L]], source$competition_id[[1L]]) &&
+      identical(match$season_id[[1L]], source$season_id[[1L]]) &&
+      identical(match$identity_registry_sha256[[1L]], registry_hash)
+
+    event_at <- if (nzchar(match$kickoff_utc[[1L]])) match$kickoff_utc[[1L]] else paste0(match$event_date[[1L]], "T00:00:00Z")
+    home <- phase18_history_identity(club_registries, match$home_display_name[[1L]], event_at)
+    away <- phase18_history_identity(club_registries, match$away_display_name[[1L]], event_at)
+    result$identity_ok[[index]] <- completed &&
+      !inherits(home, "phase18_unresolved_history_identity") &&
+      !inherits(away, "phase18_unresolved_history_identity") &&
+      identical(match$home_club_id[[1L]], home$club_id[[1L]]) &&
+      identical(match$away_club_id[[1L]], away$club_id[[1L]])
+
+    method <- match$completion_method[[1L]]
+    goals <- suppressWarnings(as.integer(c(match$final_home_goals[[1L]], match$final_away_goals[[1L]])))
+    result$score_ok[[index]] <- completed && method %in% c("regulation", "extra_time", "penalties") &&
+      all(!is.na(goals) & goals >= 0L) &&
+      (method != "penalties" || all(nzchar(c(match$shootout_home_goals[[1L]], match$shootout_away_goals[[1L]]))))
+
+    observed <- phase18_history_parse_utc(match$evidence_observed_at_utc[[1L]], "evidence_observed_at_utc", allow_blank = TRUE)[[1L]]
+    stored_floor <- phase18_history_parse_utc(match$completion_not_before_utc[[1L]], "completion_not_before_utc", allow_blank = TRUE)[[1L]]
+    stored_source <- phase18_history_parse_utc(match$source_available_at_utc[[1L]], "source_available_at_utc", allow_blank = TRUE)[[1L]]
+    stored_effective <- phase18_history_parse_utc(match$evidence_available_at_utc[[1L]], "evidence_available_at_utc", allow_blank = TRUE)[[1L]]
+    expected_floor <- as.POSIXct(NA, tz = "UTC")
+    if (completed) {
+      if (identical(match$kickoff_precision[[1L]], "date") && !nzchar(match$kickoff_utc[[1L]])) {
+        expected_floor <- as.POSIXct(as.Date(match$event_date[[1L]]) + 1, tz = "UTC")
+      } else if (identical(match$kickoff_precision[[1L]], "instant") && nzchar(match$kickoff_utc[[1L]])) {
+        kickoff <- phase18_history_parse_utc(match$kickoff_utc[[1L]], "kickoff_utc")[[1L]]
+        expected_floor <- kickoff + if (method %in% c("extra_time", "penalties")) 180 * 60 else 120 * 60
+      }
+    }
+    precompletion <- !is.na(observed) && !is.na(expected_floor) && observed < expected_floor
+    expected_effective <- if (is.na(observed) || is.na(stored_source) || precompletion) as.POSIXct(NA, tz = "UTC") else max(observed, stored_source)
+    floor_equal <- (is.na(stored_floor) && is.na(expected_floor)) || (!is.na(stored_floor) && !is.na(expected_floor) && identical(as.numeric(stored_floor), as.numeric(expected_floor)))
+    effective_equal <- (is.na(stored_effective) && is.na(expected_effective)) || (!is.na(stored_effective) && !is.na(expected_effective) && identical(as.numeric(stored_effective), as.numeric(expected_effective)))
+    source_equal <- nrow(source) == 1L && !is.na(stored_source) && identical(match$source_available_at_utc[[1L]], source$commit_utc[[1L]])
+    result$temporal_ok[[index]] <- completed && floor_equal && source_equal && effective_equal &&
+      !precompletion && !is.na(expected_effective) && expected_effective >= expected_floor && expected_effective < cutoff
+
+    reason <- if (!completed) "not_completed" else if (!result$identity_ok[[index]]) "unresolved_club_identity" else if (!result$score_ok[[index]]) "unresolved_score_semantics" else if (precompletion) "evidence_before_completion" else if (is.na(observed)) "missing_evidence_time" else if (!result$temporal_ok[[index]]) "evidence_not_prior_to_cutoff" else ""
+    result$expected_reason[[index]] <- reason
+    result$claim_ok[[index]] <- identical(match$exclusion_reason[[1L]], reason) &&
+      identical(phase18_history_logical(match$counts_for_model[[1L]]), identical(reason, ""))
+  }
+  result
+}
+
 phase18_audit_club_history <- function(matches, source_manifest, club_registries, cutoff_utc,
                                        corpus_id = "club-history-candidate",
                                        created_at_utc = cutoff_utc,
                                        parser_commit = "working-tree",
-                                       identity_review_sha256 = "",
-                                       unresolved_identity_sha256 = "") {
+                                       identity_review = NULL,
+                                       unresolved_identity = NULL,
+                                       identity_review_sha256 = NULL,
+                                       unresolved_identity_sha256 = NULL) {
   phase18_validate_history_sources(source_manifest)
   phase18_validate_normalized_club_matches(matches)
   phase18_validate_club_registries(club_registries)
+  if (is.null(identity_review)) identity_review <- phase18_empty_table(phase18_club_review_schema())
+  if (is.null(unresolved_identity)) unresolved_identity <- phase18_empty_table(phase18_unresolved_club_token_schema())
+  phase18_history_validate_identity_snapshots(club_registries, identity_review, unresolved_identity)
   cutoff <- phase18_history_parse_utc(cutoff_utc, "cutoff_utc")[[1L]]
   phase18_history_parse_utc(created_at_utc, "created_at_utc")
 
@@ -413,10 +524,10 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
 
   completed <- matches$status == "completed"
   active_count <- sum(completed)
-  identity_resolved <- completed & nzchar(matches$home_club_id) & nzchar(matches$away_club_id) &
-    !matches$exclusion_reason %in% "unresolved_club_identity"
+  state <- phase18_history_recompute_match_state(matches, source_manifest, club_registries, cutoff)
+  identity_resolved <- completed & state$identity_ok
   identity_fraction <- phase18_history_fraction(sum(identity_resolved), active_count)
-  identity_gate <- active_count > 0L && identical(identity_fraction, 1)
+  identity_gate <- active_count > 0L && identical(identity_fraction, 1) && !nrow(unresolved_identity)
   identity_audit <- data.frame(
     schema_version = "phase18-club-history-identity-audit-1", active_rows = as.character(active_count),
     resolved_rows = as.character(sum(identity_resolved)), unresolved_rows = as.character(active_count - sum(identity_resolved)),
@@ -429,7 +540,11 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
   duplicate_count <- 0L
   if (active_count) {
     semantic_fields <- c("competition_id", "season_id", "event_date", "home_club_id", "away_club_id", "final_home_goals", "final_away_goals", "shootout_home_goals", "shootout_away_goals")
-    keys <- do.call(paste, c(lapply(matches[completed, semantic_fields, drop = FALSE], as.character), sep = "\x1f"))
+    active_matches <- phase18_history_text_table(matches[completed, semantic_fields, drop = FALSE])
+    keys <- vapply(seq_len(nrow(active_matches)), function(index) phase18_hash_sequence_v2(
+      as.list(active_matches[index, , drop = FALSE]), domain = "club-history-semantic-match-v2",
+      names = semantic_fields, types = rep("character", length(semantic_fields))
+    ), character(1))
     duplicate_count <- sum(duplicated(keys) | duplicated(keys, fromLast = TRUE))
   }
   duplicate_gate <- duplicate_count == 0L
@@ -441,9 +556,7 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
   )
   duplicate_audit$row_sha256 <- phase18_history_row_sha256(duplicate_audit)
 
-  score_valid <- completed & matches$completion_method %in% c("regulation", "extra_time", "penalties") &
-    nzchar(matches$final_home_goals) & nzchar(matches$final_away_goals) &
-    !matches$exclusion_reason %in% "unresolved_score_semantics"
+  score_valid <- completed & state$score_ok
   unresolved_scores <- active_count - sum(score_valid)
   score_gate <- unresolved_scores == 0L && active_count > 0L
   score_semantics_audit <- data.frame(
@@ -454,12 +567,7 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
   )
   score_semantics_audit$row_sha256 <- phase18_history_row_sha256(score_semantics_audit)
 
-  temporal_valid <- rep(FALSE, nrow(matches))
-  if (nrow(matches)) {
-    available <- nzchar(matches$evidence_available_at_utc)
-    if (any(available)) temporal_valid[available] <- phase18_history_parse_utc(matches$evidence_available_at_utc[available], "evidence_available_at_utc") < cutoff
-    temporal_valid <- completed & temporal_valid
-  }
+  temporal_valid <- completed & state$temporal_ok
   temporal_violations <- active_count - sum(temporal_valid)
   temporal_gate <- temporal_violations == 0L && active_count > 0L
   temporal_audit <- data.frame(
@@ -471,17 +579,9 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
   )
   temporal_audit$row_sha256 <- phase18_history_row_sha256(temporal_audit)
 
-  lineage_ok <- logical(nrow(matches))
-  if (nrow(matches)) {
-    for (index in seq_len(nrow(matches))) {
-      source <- source_manifest[source_manifest$source_id == matches$source_id[[index]], , drop = FALSE]
-      lineage_ok[[index]] <- nrow(source) == 1L && source$source_status[[1L]] == "active" &&
-        identical(matches$source_row_sha256[[index]], source$row_sha256[[1L]]) &&
-        identical(matches$commit_sha[[index]], source$commit_sha[[1L]]) &&
-        identical(matches$relative_path[[index]], source$relative_path[[1L]])
-    }
-  }
+  lineage_ok <- state$lineage_ok
   lineage_fraction <- phase18_history_fraction(sum(lineage_ok & completed), active_count)
+  row_claims_gate <- all(state$claim_ok[completed])
   coverage_gate <- nrow(coverage_audit) > 0L && all(phase18_history_logical(coverage_audit$gate_passed))
   gates <- c(
     source_pin_fraction = identical(source_pin_fraction, 1),
@@ -491,7 +591,8 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
     identity_fraction = identical(identity_fraction, 1),
     duplicate = duplicate_gate,
     score_semantics = score_gate,
-    temporal = temporal_gate
+    temporal = temporal_gate,
+    row_claims = row_claims_gate
   )
   accepted <- length(gates) > 0L && all(gates)
   blocked_reasons <- paste(names(gates)[!gates], collapse = ";")
@@ -503,21 +604,33 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
     identity_audit_sha256 = phase18_history_table_sha256(identity_audit, "schema_version"),
     duplicate_audit_sha256 = phase18_history_table_sha256(duplicate_audit, "schema_version"),
     score_semantics_audit_sha256 = phase18_history_table_sha256(score_semantics_audit, "schema_version"),
-    temporal_audit_sha256 = phase18_history_table_sha256(temporal_audit, "schema_version")
+    temporal_audit_sha256 = phase18_history_table_sha256(temporal_audit, "schema_version"),
+    registry_clubs_sha256 = phase18_history_table_sha256(club_registries$clubs, phase18_club_sort_keys()$clubs),
+    registry_source_ids_sha256 = phase18_history_table_sha256(club_registries$source_ids, phase18_club_sort_keys()$source_ids),
+    registry_aliases_sha256 = phase18_history_table_sha256(club_registries$aliases, phase18_club_sort_keys()$aliases),
+    identity_review_sha256 = phase18_history_table_sha256(identity_review, c("corpus", "source_system", "source_row", "evidence_sha256", "row_sha256")),
+    unresolved_identity_sha256 = phase18_history_table_sha256(unresolved_identity, c("corpus", "source_system", "source_row", "evidence_sha256", "row_sha256"))
   )
+  if (!is.null(identity_review_sha256) && nzchar(as.character(identity_review_sha256)) && !identical(as.character(identity_review_sha256), hashes[["identity_review_sha256"]])) {
+    phase18_history_abort("history_identity_snapshot_mismatch", "Supplied owner-review hash does not match the durable snapshot")
+  }
+  if (!is.null(unresolved_identity_sha256) && nzchar(as.character(unresolved_identity_sha256)) && !identical(as.character(unresolved_identity_sha256), hashes[["unresolved_identity_sha256"]])) {
+    phase18_history_abort("history_identity_snapshot_mismatch", "Supplied unresolved hash does not match the durable snapshot")
+  }
   manifest <- data.frame(
-    schema_version = "phase18-club-history-corpus-1", corpus_id = as.character(corpus_id),
+    schema_version = "phase18-club-history-corpus-v2", hash_encoding_version = phase18_canonical_encoding_v2(), corpus_id = as.character(corpus_id),
     cutoff_utc = phase18_history_format_utc(cutoff), created_at_utc = as.character(created_at_utc),
     parser_commit = as.character(parser_commit), source_manifest_sha256 = hashes[["source_manifest_sha256"]],
     matches_sha256 = hashes[["matches_sha256"]], coverage_audit_sha256 = hashes[["coverage_audit_sha256"]],
     identity_audit_sha256 = hashes[["identity_audit_sha256"]], duplicate_audit_sha256 = hashes[["duplicate_audit_sha256"]],
     score_semantics_audit_sha256 = hashes[["score_semantics_audit_sha256"]], temporal_audit_sha256 = hashes[["temporal_audit_sha256"]],
-    club_registry_sha256 = phase18_club_registry_hash(club_registries), identity_review_sha256 = as.character(identity_review_sha256),
-    unresolved_identity_sha256 = as.character(unresolved_identity_sha256), source_pin_fraction = sprintf("%.12f", source_pin_fraction),
+    registry_clubs_sha256 = hashes[["registry_clubs_sha256"]], registry_source_ids_sha256 = hashes[["registry_source_ids_sha256"]],
+    registry_aliases_sha256 = hashes[["registry_aliases_sha256"]], club_registry_sha256 = phase18_club_registry_hash(club_registries),
+    identity_review_sha256 = hashes[["identity_review_sha256"]], unresolved_identity_sha256 = hashes[["unresolved_identity_sha256"]], source_pin_fraction = sprintf("%.12f", source_pin_fraction),
     license_fraction = sprintf("%.12f", license_fraction), lineage_fraction = sprintf("%.12f", lineage_fraction),
     identity_fraction = sprintf("%.12f", identity_fraction), coverage_gate_passed = coverage_gate,
     duplicate_gate_passed = duplicate_gate, score_semantics_gate_passed = score_gate,
-    temporal_gate_passed = temporal_gate, accepted_for_training = accepted,
+    temporal_gate_passed = temporal_gate, row_claims_gate_passed = row_claims_gate, accepted_for_training = accepted,
     blocked_reasons = blocked_reasons, manifest_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
   )
   manifest$manifest_sha256 <- phase18_history_row_sha256(manifest, "manifest_sha256")
@@ -526,7 +639,13 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
     matches = phase18_history_canonical_table(matches, c("source_id", "source_match_id", "match_id")),
     coverage_audit = coverage_audit, identity_audit = identity_audit,
     duplicate_audit = duplicate_audit, score_semantics_audit = score_semantics_audit,
-    temporal_audit = temporal_audit, corpus_manifest = manifest
+    temporal_audit = temporal_audit,
+    registry_clubs = phase18_history_canonical_table(club_registries$clubs, phase18_club_sort_keys()$clubs),
+    registry_source_ids = phase18_history_canonical_table(club_registries$source_ids, phase18_club_sort_keys()$source_ids),
+    registry_aliases = phase18_history_canonical_table(club_registries$aliases, phase18_club_sort_keys()$aliases),
+    identity_review = phase18_history_canonical_table(identity_review, c("corpus", "source_system", "source_row", "evidence_sha256", "row_sha256")),
+    unresolved_identity = phase18_history_canonical_table(unresolved_identity, c("corpus", "source_system", "source_row", "evidence_sha256", "row_sha256")),
+    corpus_manifest = manifest
   )
 }
 
@@ -569,7 +688,10 @@ phase18_history_bundle_files <- function() {
     source_manifest = "source_manifest.csv", matches = "matches.csv",
     coverage_audit = "coverage_audit.csv", identity_audit = "identity_audit.csv",
     duplicate_audit = "duplicate_audit.csv", score_semantics_audit = "score_semantics_audit.csv",
-    temporal_audit = "temporal_audit.csv", corpus_manifest = "corpus_manifest.csv"
+    temporal_audit = "temporal_audit.csv",
+    registry_clubs = "registry_clubs.csv", registry_source_ids = "registry_source_ids.csv",
+    registry_aliases = "registry_aliases.csv", identity_review = "identity_review.csv",
+    unresolved_identity = "unresolved_identity.csv", corpus_manifest = "corpus_manifest.csv"
   )
 }
 
@@ -618,9 +740,9 @@ phase18_validate_club_history_corpus <- function(root) {
     phase18_history_abort("invalid_history_corpus_root", "History corpus root must be a real directory")
   }
   files <- phase18_history_bundle_files()
-  actual <- sort(list.files(root, all.files = FALSE, no.. = TRUE))
+  actual <- sort(list.files(root, all.files = TRUE, no.. = TRUE, recursive = TRUE, include.dirs = FALSE))
   if (!identical(actual, sort(unname(files)))) {
-    phase18_history_abort("invalid_history_corpus_inventory", "History corpus must contain exactly the eight declared artifacts")
+    phase18_history_abort("invalid_history_corpus_inventory", "History corpus must contain exactly the declared recursive artifacts")
   }
   tables <- lapply(files, function(file) phase18_history_read_csv(file.path(root, file)))
   source_manifest <- tables$source_manifest
@@ -635,69 +757,65 @@ phase18_validate_club_history_corpus <- function(root) {
   if (!identical(manifest$manifest_sha256[[1L]], expected_self_hash[[1L]])) {
     phase18_history_abort("history_manifest_hash_mismatch", "Corpus manifest self-hash mismatch")
   }
+  if (!identical(manifest$schema_version[[1L]], "phase18-club-history-corpus-v2") ||
+      !identical(manifest$hash_encoding_version[[1L]], phase18_canonical_encoding_v2())) {
+    phase18_history_abort("invalid_history_corpus_manifest", "Corpus manifest must declare canonical-v2")
+  }
   for (name in c("coverage_audit", "identity_audit", "duplicate_audit", "score_semantics_audit", "temporal_audit")) {
     table <- tables[[name]]
     if (!"row_sha256" %in% names(table) || any(table$row_sha256 != phase18_history_row_sha256(table))) {
       phase18_history_abort("history_audit_hash_mismatch", paste0(name, " row SHA-256 mismatch"))
     }
   }
-  component_keys <- list(
-    source_manifest = "source_id", matches = c("source_id", "source_match_id", "match_id"),
-    coverage_audit = "source_id", identity_audit = "schema_version",
-    duplicate_audit = "schema_version", score_semantics_audit = "schema_version",
-    temporal_audit = "schema_version"
+  registries <- list(
+    clubs = tables$registry_clubs,
+    source_ids = tables$registry_source_ids,
+    aliases = tables$registry_aliases
   )
-  manifest_fields <- c(
-    source_manifest = "source_manifest_sha256", matches = "matches_sha256",
-    coverage_audit = "coverage_audit_sha256", identity_audit = "identity_audit_sha256",
-    duplicate_audit = "duplicate_audit_sha256", score_semantics_audit = "score_semantics_audit_sha256",
-    temporal_audit = "temporal_audit_sha256"
+  tryCatch(
+    phase18_history_validate_identity_snapshots(registries, tables$identity_review, tables$unresolved_identity),
+    error = function(error) phase18_history_abort("history_identity_snapshot_mismatch", conditionMessage(error))
   )
-  for (name in names(component_keys)) {
-    observed <- phase18_history_table_sha256(tables[[name]], component_keys[[name]])
-    if (!identical(observed, manifest[[manifest_fields[[name]]]][[1L]])) {
-      phase18_history_abort("history_component_hash_mismatch", paste0(name, " component hash mismatch"))
-    }
+  registry_keys <- phase18_club_sort_keys()
+  registry_hashes <- c(
+    registry_clubs_sha256 = phase18_history_table_sha256(registries$clubs, registry_keys$clubs),
+    registry_source_ids_sha256 = phase18_history_table_sha256(registries$source_ids, registry_keys$source_ids),
+    registry_aliases_sha256 = phase18_history_table_sha256(registries$aliases, registry_keys$aliases)
+  )
+  if (any(vapply(names(registry_hashes), function(field) !identical(registry_hashes[[field]], manifest[[field]][[1L]]), logical(1))) ||
+      !identical(phase18_club_registry_hash(registries), manifest$club_registry_sha256[[1L]]) ||
+      (nrow(matches) && any(matches$identity_registry_sha256 != manifest$club_registry_sha256[[1L]]))) {
+    phase18_history_abort("history_identity_snapshot_mismatch", "Registry snapshots do not match the manifest and normalized match lineage")
   }
 
-  active_sources <- source_manifest$source_status == "active"
-  pin_ok <- active_sources & grepl("^[0-9a-f]{40}$", source_manifest$commit_sha) &
-    grepl("^[0-9a-f]{64}$", source_manifest$raw_sha256) & phase18_history_safe_relative_path(source_manifest$relative_path)
-  license_ok <- active_sources & source_manifest$license_review_state == "approved" & grepl("^[0-9a-f]{64}$", source_manifest$license_sha256)
-  source_pin_fraction <- phase18_history_fraction(sum(pin_ok), nrow(source_manifest))
-  license_fraction <- phase18_history_fraction(sum(license_ok), nrow(source_manifest))
-  completed <- matches$status == "completed"
-  lineage_ok <- logical(nrow(matches))
-  if (nrow(matches)) for (index in seq_len(nrow(matches))) {
-    source <- source_manifest[source_manifest$source_id == matches$source_id[[index]], , drop = FALSE]
-    lineage_ok[[index]] <- nrow(source) == 1L && source$source_status[[1L]] == "active" &&
-      identical(matches$source_row_sha256[[index]], source$row_sha256[[1L]]) &&
-      identical(matches$commit_sha[[index]], source$commit_sha[[1L]]) &&
-      identical(matches$relative_path[[index]], source$relative_path[[1L]])
-  }
-  lineage_fraction <- phase18_history_fraction(sum(lineage_ok & completed), sum(completed))
-  identity_fraction <- suppressWarnings(as.numeric(tables$identity_audit$identity_fraction[[1L]]))
-  coverage_gate <- nrow(tables$coverage_audit) > 0L && all(phase18_history_logical(tables$coverage_audit$gate_passed)) &&
-    all(suppressWarnings(as.integer(tables$coverage_audit$expected_completed_matches)) == suppressWarnings(as.integer(tables$coverage_audit$observed_completed_matches)))
-  duplicate_gate <- nrow(tables$duplicate_audit) == 1L && phase18_history_logical(tables$duplicate_audit$gate_passed[[1L]]) && tables$duplicate_audit$unresolved_duplicate_rows[[1L]] == "0"
-  score_gate <- nrow(tables$score_semantics_audit) == 1L && phase18_history_logical(tables$score_semantics_audit$gate_passed[[1L]]) && tables$score_semantics_audit$unresolved_score_rows[[1L]] == "0"
-  temporal_gate <- nrow(tables$temporal_audit) == 1L && phase18_history_logical(tables$temporal_audit$gate_passed[[1L]]) && tables$temporal_audit$temporal_violation_rows[[1L]] == "0"
-  gates <- c(
-    source_pin_fraction = identical(source_pin_fraction, 1), license_fraction = identical(license_fraction, 1),
-    coverage = coverage_gate, lineage_fraction = identical(lineage_fraction, 1),
-    identity_fraction = !is.na(identity_fraction) && identical(identity_fraction, 1),
-    duplicate = duplicate_gate, score_semantics = score_gate, temporal = temporal_gate
+  recomputed <- tryCatch(
+    phase18_audit_club_history(
+      matches, source_manifest, registries, manifest$cutoff_utc[[1L]],
+      corpus_id = manifest$corpus_id[[1L]], created_at_utc = manifest$created_at_utc[[1L]],
+      parser_commit = manifest$parser_commit[[1L]], identity_review = tables$identity_review,
+      unresolved_identity = tables$unresolved_identity
+    ),
+    error = function(error) phase18_history_abort("history_recomputed_audit_mismatch", conditionMessage(error))
   )
-  recomputed_accepted <- length(gates) > 0L && all(gates)
-  stored_accepted <- phase18_history_logical(manifest$accepted_for_training[[1L]])
-  if (!identical(recomputed_accepted, stored_accepted) ||
-      !identical(sprintf("%.12f", source_pin_fraction), manifest$source_pin_fraction[[1L]]) ||
-      !identical(sprintf("%.12f", license_fraction), manifest$license_fraction[[1L]]) ||
-      !identical(sprintf("%.12f", lineage_fraction), manifest$lineage_fraction[[1L]]) ||
-      !identical(paste(names(gates)[!gates], collapse = ";"), manifest$blocked_reasons[[1L]])) {
-    phase18_history_abort("history_eligibility_mismatch", "Stored corpus eligibility does not match recomputed strict gates")
+  for (name in names(files)) {
+    observed <- phase18_history_text_table(tables[[name]])
+    expected <- phase18_history_text_table(recomputed[[name]])
+    if (!identical(observed, expected)) {
+      phase18_history_abort("history_recomputed_audit_mismatch", paste0(name, " does not equal the independently recomputed table"))
+    }
   }
-  invisible(list(accepted_for_training = recomputed_accepted, tables = tables, gates = gates))
+  gates <- c(
+    source_pin_fraction = identical(manifest$source_pin_fraction[[1L]], "1.000000000000"),
+    license_fraction = identical(manifest$license_fraction[[1L]], "1.000000000000"),
+    coverage = phase18_history_logical(manifest$coverage_gate_passed[[1L]]),
+    lineage_fraction = identical(manifest$lineage_fraction[[1L]], "1.000000000000"),
+    identity_fraction = identical(manifest$identity_fraction[[1L]], "1.000000000000"),
+    duplicate = phase18_history_logical(manifest$duplicate_gate_passed[[1L]]),
+    score_semantics = phase18_history_logical(manifest$score_semantics_gate_passed[[1L]]),
+    temporal = phase18_history_logical(manifest$temporal_gate_passed[[1L]]),
+    row_claims = phase18_history_logical(manifest$row_claims_gate_passed[[1L]])
+  )
+  invisible(list(accepted_for_training = phase18_history_logical(manifest$accepted_for_training[[1L]]), tables = tables, gates = gates))
 }
 
 phase18_publish_club_history_corpus <- function(audit, audit_root, accepted_root) {

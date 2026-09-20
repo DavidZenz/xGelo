@@ -281,10 +281,7 @@ test_that("blocked audits are complete and never replace accepted state", {
   )
   result <- phase18_publish_club_history_corpus(blocked, audit_root, accepted_root)
   expect_false(result$accepted_for_training)
-  expect_identical(sort(list.files(audit_root)), sort(c(
-    "source_manifest.csv", "matches.csv", "coverage_audit.csv", "identity_audit.csv",
-    "duplicate_audit.csv", "score_semantics_audit.csv", "temporal_audit.csv", "corpus_manifest.csv"
-  )))
+  expect_identical(sort(list.files(audit_root)), sort(unname(phase18_history_bundle_files())))
   expect_identical(readLines(file.path(accepted_root, "sentinel.txt")), "incumbent")
   expect_silent(phase18_validate_club_history_corpus(audit_root))
 })

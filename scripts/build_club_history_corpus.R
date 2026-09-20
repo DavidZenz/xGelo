@@ -56,19 +56,16 @@ run <- function() {
   history_tokens <- phase18_history_read_csv(
     file.path(review_root, "historical_inventory_tokens.csv"), phase18_club_token_schema()
   )
+  identity_review <- phase18_history_read_csv(
+    file.path(review_root, "historical_owner_review.csv"), phase18_club_review_schema()
+  )
   unresolved <- phase18_history_read_csv(
     file.path(review_root, "unresolved_club_tokens.csv"), phase18_unresolved_club_token_schema()
   )
   if (nrow(history_tokens) && any(history_tokens$corpus != "historical_inventory")) {
     phase18_history_abort("invalid_history_identity_review", "Historical token ledger contains a foreign corpus")
   }
-  identity_review_sha256 <- phase18_history_table_sha256(
-    history_tokens, c("corpus", "source_system", "source_club_id", "source_row", "row_sha256")
-  )
   unresolved_history <- unresolved[unresolved$corpus == "historical_inventory", , drop = FALSE]
-  unresolved_identity_sha256 <- phase18_history_table_sha256(
-    unresolved_history, c("corpus", "source_system", "source_club_id", "source_row", "row_sha256")
-  )
 
   normalized_parts <- list()
   active <- inventory[inventory$source_status == "active", , drop = FALSE]
@@ -123,8 +120,8 @@ run <- function() {
   audit <- phase18_audit_club_history(
     matches, inventory, registries, cutoff_utc,
     corpus_id = corpus_id, created_at_utc = cutoff_utc, parser_commit = parser_commit,
-    identity_review_sha256 = identity_review_sha256,
-    unresolved_identity_sha256 = unresolved_identity_sha256
+    identity_review = identity_review,
+    unresolved_identity = unresolved_history
   )
   result <- phase18_publish_club_history_corpus(audit, audit_root, accepted_root)
   if (!isTRUE(result$accepted_for_training)) {
