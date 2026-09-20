@@ -231,7 +231,12 @@ phase18_ucl_refresh_empty_history <- function() {
 
 phase18_ucl_refresh_read_history <- function(path) {
   if (!file.exists(path)) return(phase18_ucl_refresh_empty_history())
-  utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  history <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  for (field in setdiff(names(history), "automation_enabled")) {
+    history[[field]] <- as.character(history[[field]])
+    history[[field]][is.na(history[[field]])] <- ""
+  }
+  history
 }
 
 phase18_ucl_refresh_row_hash <- function(row) {
@@ -376,12 +381,31 @@ phase18_validate_ucl_refresh_state <- function(history, blocked_sidecar = NULL, 
     if (is.character(blocked_sidecar) && length(blocked_sidecar) == 1L) {
       blocked_sidecar <- jsonlite::fromJSON(blocked_sidecar, simplifyVector = TRUE)
     }
-    if (!is.list(blocked_sidecar) ||
+    shared <- setdiff(
+      intersect(names(blocked_sidecar), names(last)),
+      c("schema_version", "blocked_record_sha256", "row_sha256")
+    )
+    shared_equal <- length(shared) > 0L && all(vapply(shared, function(field) {
+      identical(
+        phase18_canonical_scalar(blocked_sidecar[[field]]),
+        phase18_canonical_scalar(last[[field]][[1L]])
+      )
+    }, logical(1)))
+    if (!is.list(blocked_sidecar) || !shared_equal ||
         !identical(as.character(blocked_sidecar$refresh_batch_id), as.character(last$refresh_batch_id[[1L]])) ||
         !identical(as.character(blocked_sidecar$history_row_sha256), as.character(last$row_sha256[[1L]])) ||
         !identical(as.character(blocked_sidecar$blocked_record_sha256), as.character(last$blocked_record_sha256[[1L]])) ||
         !identical(phase18_ucl_refresh_sidecar_hash(blocked_sidecar), as.character(blocked_sidecar$blocked_record_sha256))) {
       phase18_ucl_refresh_abort("schema_invalid", "Blocked sidecar and history row disagree", "sidecar")
+    }
+    accepted_root <- normalizePath(accepted_root, winslash = "/", mustWork = FALSE)
+    accepted_target <- file.path(accepted_root, as.character(last$edition_id[[1L]]))
+    incumbent <- phase18_ucl_refresh_bundle_identity(accepted_target)
+    expected_status <- as.character(last$incumbent_status[[1L]])
+    if (!identical(incumbent$status, expected_status) ||
+        !identical(incumbent$id, as.character(last$incumbent_bundle_id[[1L]])) ||
+        !identical(incumbent$sha256, as.character(last$incumbent_bundle_sha256[[1L]]))) {
+      phase18_ucl_refresh_abort("schema_invalid", "Blocked history does not match the retained incumbent", "read_back")
     }
   }
   invisible(history)
@@ -749,4 +773,3 @@ phase18_apply_provider_exit <- function(
     tombstone_path = file.path(target, "source_unavailable.json")
   ))
 }
-
