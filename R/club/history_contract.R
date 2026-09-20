@@ -278,3 +278,210 @@ phase18_normalize_club_history <- function(rows, source_row, club_registries, cu
   result <- if (length(output)) do.call(rbind, output) else phase18_history_empty(phase18_normalized_club_match_schema())
   phase18_history_canonical_table(result, c("source_id", "source_match_id", "match_id"))
 }
+
+phase18_history_corpus_manifest_schema <- function() {
+  c(
+    "schema_version", "corpus_id", "cutoff_utc", "created_at_utc", "parser_commit",
+    "source_manifest_sha256", "matches_sha256", "coverage_audit_sha256",
+    "identity_audit_sha256", "duplicate_audit_sha256", "score_semantics_audit_sha256",
+    "temporal_audit_sha256", "club_registry_sha256", "identity_review_sha256",
+    "unresolved_identity_sha256", "source_pin_fraction", "license_fraction",
+    "lineage_fraction", "identity_fraction", "coverage_gate_passed",
+    "duplicate_gate_passed", "score_semantics_gate_passed", "temporal_gate_passed",
+    "accepted_for_training", "blocked_reasons", "manifest_sha256"
+  )
+}
+
+phase18_validate_normalized_club_matches <- function(matches) {
+  schema <- phase18_normalized_club_match_schema()
+  if (!is.data.frame(matches) || !identical(names(matches), schema)) {
+    phase18_history_abort("invalid_history_match_schema", "Normalized matches must use the exact Phase 18 schema")
+  }
+  if (!nrow(matches)) return(invisible(TRUE))
+  if (any(matches$schema_version != "phase18-club-history-match-1")) {
+    phase18_history_abort("invalid_history_match_schema", "Unsupported normalized match schema_version")
+  }
+  if (anyDuplicated(matches$match_id) || any(!nzchar(matches$match_id))) {
+    phase18_history_abort("duplicate_history_match_id", "Normalized match_id values must be non-empty and unique")
+  }
+  if (any(matches$row_sha256 != phase18_club_row_sha256(matches))) {
+    phase18_history_abort("history_match_hash_mismatch", "Normalized match row SHA-256 mismatch")
+  }
+  invisible(TRUE)
+}
+
+phase18_history_logical <- function(value) {
+  if (is.logical(value)) return(!is.na(value) & value)
+  tolower(as.character(value)) %in% c("true", "t", "1")
+}
+
+phase18_history_fraction <- function(numerator, denominator) {
+  if (!denominator) 0 else as.numeric(numerator) / as.numeric(denominator)
+}
+
+phase18_history_summary_row <- function(schema, values) {
+  row <- as.list(setNames(rep("", length(schema)), schema))
+  for (name in intersect(names(values), schema)) row[[name]] <- values[[name]]
+  as.data.frame(row, stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+phase18_audit_club_history <- function(matches, source_manifest, club_registries, cutoff_utc,
+                                       corpus_id = "club-history-candidate",
+                                       created_at_utc = cutoff_utc,
+                                       parser_commit = "working-tree",
+                                       identity_review_sha256 = "",
+                                       unresolved_identity_sha256 = "") {
+  phase18_validate_history_sources(source_manifest)
+  phase18_validate_normalized_club_matches(matches)
+  phase18_validate_club_registries(club_registries)
+  cutoff <- phase18_history_parse_utc(cutoff_utc, "cutoff_utc")[[1L]]
+  phase18_history_parse_utc(created_at_utc, "created_at_utc")
+
+  active_sources <- source_manifest$source_status == "active"
+  pin_ok <- active_sources & grepl("^[0-9a-f]{40}$", source_manifest$commit_sha) &
+    grepl("^[0-9a-f]{64}$", source_manifest$raw_sha256) &
+    phase18_history_safe_relative_path(source_manifest$relative_path)
+  license_ok <- active_sources & source_manifest$license_review_state == "approved" &
+    grepl("^[0-9a-f]{64}$", source_manifest$license_sha256)
+  source_pin_fraction <- phase18_history_fraction(sum(pin_ok), nrow(source_manifest))
+  license_fraction <- phase18_history_fraction(sum(license_ok), nrow(source_manifest))
+
+  coverage_rows <- lapply(seq_len(nrow(source_manifest)), function(index) {
+    source <- source_manifest[index, , drop = FALSE]
+    observed <- sum(matches$source_id == source$source_id[[1L]] & matches$status == "completed")
+    expected <- suppressWarnings(as.integer(source$expected_completed_matches[[1L]]))
+    passed <- source$source_status[[1L]] == "active" && !is.na(expected) && expected > 0L && observed == expected
+    data.frame(
+      schema_version = "phase18-club-history-coverage-audit-1", source_id = source$source_id[[1L]],
+      competition_id = source$competition_id[[1L]], season_id = source$season_id[[1L]],
+      expected_completed_matches = if (is.na(expected)) "" else as.character(expected),
+      observed_completed_matches = as.character(observed), delta = if (is.na(expected)) "" else as.character(observed - expected),
+      gate_passed = passed, blocked_reason = if (passed) "" else if (source$source_status[[1L]] != "active") source$blocked_reason[[1L]] else "completed_match_count_mismatch",
+      row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+    )
+  })
+  coverage_audit <- if (length(coverage_rows)) do.call(rbind, coverage_rows) else phase18_history_empty(c(
+    "schema_version", "source_id", "competition_id", "season_id", "expected_completed_matches",
+    "observed_completed_matches", "delta", "gate_passed", "blocked_reason", "row_sha256"
+  ))
+  coverage_audit$row_sha256 <- phase18_club_row_sha256(coverage_audit)
+  coverage_audit <- phase18_history_canonical_table(coverage_audit, c("source_id"))
+
+  completed <- matches$status == "completed"
+  active_count <- sum(completed)
+  identity_resolved <- completed & nzchar(matches$home_club_id) & nzchar(matches$away_club_id) &
+    !matches$exclusion_reason %in% "unresolved_club_identity"
+  identity_fraction <- phase18_history_fraction(sum(identity_resolved), active_count)
+  identity_gate <- active_count > 0L && identical(identity_fraction, 1)
+  identity_audit <- data.frame(
+    schema_version = "phase18-club-history-identity-audit-1", active_rows = as.character(active_count),
+    resolved_rows = as.character(sum(identity_resolved)), unresolved_rows = as.character(active_count - sum(identity_resolved)),
+    identity_fraction = sprintf("%.12f", identity_fraction), gate_passed = identity_gate,
+    blocked_reason = if (identity_gate) "" else "active_identity_fraction_below_one", row_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  identity_audit$row_sha256 <- phase18_club_row_sha256(identity_audit)
+
+  duplicate_count <- 0L
+  if (active_count) {
+    semantic_fields <- c("competition_id", "season_id", "event_date", "home_club_id", "away_club_id", "final_home_goals", "final_away_goals", "shootout_home_goals", "shootout_away_goals")
+    keys <- do.call(paste, c(lapply(matches[completed, semantic_fields, drop = FALSE], as.character), sep = "\x1f"))
+    duplicate_count <- sum(duplicated(keys) | duplicated(keys, fromLast = TRUE))
+  }
+  duplicate_gate <- duplicate_count == 0L
+  duplicate_audit <- data.frame(
+    schema_version = "phase18-club-history-duplicate-audit-1", active_rows = as.character(active_count),
+    unresolved_duplicate_rows = as.character(duplicate_count), gate_passed = duplicate_gate,
+    blocked_reason = if (duplicate_gate) "" else "unresolved_semantic_duplicates", row_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  duplicate_audit$row_sha256 <- phase18_club_row_sha256(duplicate_audit)
+
+  score_valid <- completed & matches$completion_method %in% c("regulation", "extra_time", "penalties") &
+    nzchar(matches$final_home_goals) & nzchar(matches$final_away_goals) &
+    !matches$exclusion_reason %in% "unresolved_score_semantics"
+  unresolved_scores <- active_count - sum(score_valid)
+  score_gate <- unresolved_scores == 0L && active_count > 0L
+  score_semantics_audit <- data.frame(
+    schema_version = "phase18-club-history-score-audit-1", active_rows = as.character(active_count),
+    resolved_score_rows = as.character(sum(score_valid)), unresolved_score_rows = as.character(unresolved_scores),
+    gate_passed = score_gate, blocked_reason = if (score_gate) "" else "unresolved_score_semantics",
+    row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+  )
+  score_semantics_audit$row_sha256 <- phase18_club_row_sha256(score_semantics_audit)
+
+  temporal_valid <- rep(FALSE, nrow(matches))
+  if (nrow(matches)) {
+    available <- nzchar(matches$evidence_available_at_utc)
+    if (any(available)) temporal_valid[available] <- phase18_history_parse_utc(matches$evidence_available_at_utc[available], "evidence_available_at_utc") < cutoff
+    temporal_valid <- completed & temporal_valid
+  }
+  temporal_violations <- active_count - sum(temporal_valid)
+  temporal_gate <- temporal_violations == 0L && active_count > 0L
+  temporal_audit <- data.frame(
+    schema_version = "phase18-club-history-temporal-audit-1", cutoff_utc = phase18_history_format_utc(cutoff),
+    active_rows = as.character(active_count), prior_evidence_rows = as.character(sum(temporal_valid)),
+    temporal_violation_rows = as.character(temporal_violations), gate_passed = temporal_gate,
+    blocked_reason = if (temporal_gate) "" else "missing_or_nonprior_evidence", row_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  temporal_audit$row_sha256 <- phase18_club_row_sha256(temporal_audit)
+
+  lineage_ok <- logical(nrow(matches))
+  if (nrow(matches)) {
+    for (index in seq_len(nrow(matches))) {
+      source <- source_manifest[source_manifest$source_id == matches$source_id[[index]], , drop = FALSE]
+      lineage_ok[[index]] <- nrow(source) == 1L && source$source_status[[1L]] == "active" &&
+        identical(matches$source_row_sha256[[index]], source$row_sha256[[1L]]) &&
+        identical(matches$commit_sha[[index]], source$commit_sha[[1L]]) &&
+        identical(matches$relative_path[[index]], source$relative_path[[1L]])
+    }
+  }
+  lineage_fraction <- phase18_history_fraction(sum(lineage_ok & completed), active_count)
+  coverage_gate <- nrow(coverage_audit) > 0L && all(phase18_history_logical(coverage_audit$gate_passed))
+  gates <- c(
+    source_pin_fraction = identical(source_pin_fraction, 1),
+    license_fraction = identical(license_fraction, 1),
+    coverage = coverage_gate,
+    lineage_fraction = identical(lineage_fraction, 1),
+    identity_fraction = identical(identity_fraction, 1),
+    duplicate = duplicate_gate,
+    score_semantics = score_gate,
+    temporal = temporal_gate
+  )
+  accepted <- length(gates) > 0L && all(gates)
+  blocked_reasons <- paste(names(gates)[!gates], collapse = ";")
+
+  hashes <- c(
+    source_manifest_sha256 = phase18_history_table_sha256(source_manifest, "source_id"),
+    matches_sha256 = phase18_history_table_sha256(matches, c("source_id", "source_match_id", "match_id")),
+    coverage_audit_sha256 = phase18_history_table_sha256(coverage_audit, "source_id"),
+    identity_audit_sha256 = phase18_history_table_sha256(identity_audit, "schema_version"),
+    duplicate_audit_sha256 = phase18_history_table_sha256(duplicate_audit, "schema_version"),
+    score_semantics_audit_sha256 = phase18_history_table_sha256(score_semantics_audit, "schema_version"),
+    temporal_audit_sha256 = phase18_history_table_sha256(temporal_audit, "schema_version")
+  )
+  manifest <- data.frame(
+    schema_version = "phase18-club-history-corpus-1", corpus_id = as.character(corpus_id),
+    cutoff_utc = phase18_history_format_utc(cutoff), created_at_utc = as.character(created_at_utc),
+    parser_commit = as.character(parser_commit), source_manifest_sha256 = hashes[["source_manifest_sha256"]],
+    matches_sha256 = hashes[["matches_sha256"]], coverage_audit_sha256 = hashes[["coverage_audit_sha256"]],
+    identity_audit_sha256 = hashes[["identity_audit_sha256"]], duplicate_audit_sha256 = hashes[["duplicate_audit_sha256"]],
+    score_semantics_audit_sha256 = hashes[["score_semantics_audit_sha256"]], temporal_audit_sha256 = hashes[["temporal_audit_sha256"]],
+    club_registry_sha256 = phase18_club_registry_hash(club_registries), identity_review_sha256 = as.character(identity_review_sha256),
+    unresolved_identity_sha256 = as.character(unresolved_identity_sha256), source_pin_fraction = sprintf("%.12f", source_pin_fraction),
+    license_fraction = sprintf("%.12f", license_fraction), lineage_fraction = sprintf("%.12f", lineage_fraction),
+    identity_fraction = sprintf("%.12f", identity_fraction), coverage_gate_passed = coverage_gate,
+    duplicate_gate_passed = duplicate_gate, score_semantics_gate_passed = score_gate,
+    temporal_gate_passed = temporal_gate, accepted_for_training = accepted,
+    blocked_reasons = blocked_reasons, manifest_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+  )
+  manifest$manifest_sha256 <- phase18_club_row_sha256(manifest, "manifest_sha256")
+  list(
+    source_manifest = phase18_history_canonical_table(source_manifest, "source_id"),
+    matches = phase18_history_canonical_table(matches, c("source_id", "source_match_id", "match_id")),
+    coverage_audit = coverage_audit, identity_audit = identity_audit,
+    duplicate_audit = duplicate_audit, score_semantics_audit = score_semantics_audit,
+    temporal_audit = temporal_audit, corpus_manifest = manifest
+  )
+}

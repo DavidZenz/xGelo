@@ -5,6 +5,7 @@ data/cache/
 data/raw/transfermarkt/*.duckdb
 data/raw/transfermarkt/*.duckdb.wal
 data/competition/local_raw/
+data/club/local_raw/
 outputs/dashboard_smoke*/
 outputs/dashboard_parallel_smoke/
 outputs/dashboard_precompute_smoke/
