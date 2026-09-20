@@ -1,6 +1,7 @@
 ---
 phase: 18-club-and-ucl-source-contracts
 reviewed: 2026-09-20T15:25:42Z
+fixed: 2026-09-20T16:55:00Z
 depth: deep
 files_reviewed: 55
 files_reviewed_list:
@@ -60,11 +61,15 @@ files_reviewed_list:
   - data/club/history_generations/club-history-2026-01-bfeaf7666c8b2bc657d3/audit/corpus_manifest.csv
   - data/club/history_generations/club-history-2026-01-bfeaf7666c8b2bc657d3/audit/matches.csv
 findings:
+  critical: 0
+  warning: 0
+  info: 0
+  total: 0
+resolved_findings:
   critical: 6
   warning: 4
-  info: 0
   total: 10
-status: issues_found
+status: clean
 ---
 
 # Phase 18: Code Review Report
@@ -72,25 +77,33 @@ status: issues_found
 **Reviewed:** 2026-09-20T15:25:42Z
 **Depth:** deep
 **Files Reviewed:** 55
-**Status:** issues_found
+**Status:** clean
 
 ## Summary
 
-The gap plans close all 15 blockers and all 4 warnings from the prior review, and the authoritative runner succeeds with `PHASE18_GATE_OK` (8 files, 131 tests, 785 assertions). Production evidence also validates as deliberately fail-closed: provider authority is `missing_credential`, UCL refresh is `no_incumbent`, and club history is `blocked` with no accepted generation.
-
-The phase is nevertheless **not ready to ship**. This final cross-module review found six new blockers that the authoritative runner does not cover: schema fingerprints ignore types/cardinality, owner terms approval accepts blank and foreign scope, real adapter output cannot enter the bundle builder, the club registry set is not atomically published, post-commit hooks can report failure after committing state, and malformed provider-exit approval metadata is accepted. Four additional robustness defects should also be fixed.
+All six blockers and four warnings from this final cross-module review are resolved. The authoritative runner now succeeds with `PHASE18_GATE_OK` across 8 files, 142 tests, and 840 assertions. Production evidence remains deliberately fail-closed: provider authority is `missing_credential`, UCL refresh is `no_incumbent`, and club history is `blocked` with no accepted generation.
 
 ## Verification Performed
 
-- `Rscript --vanilla scripts/verify_phase18_contracts.R` — **PASS**: 8 test files, 131 tests, 785 assertions, 15 original critical probes, 4 original warning probes, 15 edge probes, 50 prohibitions, production fail-closed.
+- `Rscript --vanilla scripts/verify_phase18_contracts.R` — **PASS**: 8 test files, 142 tests, 840 assertions, 15 original critical probes, 4 original warning probes, 15 edge probes, 50 prohibitions, production fail-closed.
 - `git diff --check` — **PASS**.
 - Production readers — **PASS**: provider automation disabled (`missing_credential`), UCL has no incumbent, history remains training-ineligible.
-- Direct adversarial reproductions — **FAIL as expected** for the new findings:
-  - Blank reviewer: `blank_reviewer_valid=TRUE decision=accepted`.
-  - Foreign scope: `foreign_scope_valid=TRUE decision=accepted`.
-  - Scalar type drift: `type_drift_same=TRUE` with the same fingerprint.
-  - Adapter fingerprint table: `adapter_columns=resource,fingerprint_sha256,raw_sha256`; validator rejects it because the acceptance columns are not exact.
-  - Malformed exit review: blank reviewer/reason/terms hash, invalid timestamp, and garbage booleans still produce `malformed_exit_review_valid=TRUE` after self-hashing.
+- Direct adversarial reproductions — **PASS**: typed/cardinality schema drift, blank/foreign authority, unchanged adapter-to-bundle integration, malformed provider-exit metadata, post-commit faults, registry publication boundaries, retryable exceptions, and delimiter-collision tuples are all covered by focused regressions.
+
+## Final Finding Disposition
+
+| Finding | Disposition | Closing evidence |
+|---|---|---|
+| CR-NEW-01 | CLOSED | Typed full-tree JSON fingerprints bind scalar/container types, array cardinality, and every element. |
+| CR-NEW-02 | CLOSED | Trusted provider/application scope and nonblank reviewer authority are enforced and rebound in manifests. |
+| CR-NEW-03 | CLOSED | Adapter output is the canonical eight-column fingerprint table and enters bundle validation unchanged. |
+| CR-NEW-04 | CLOSED | Club registries publish as immutable generations selected by one self-hashed atomic pointer. |
+| CR-NEW-05 | CLOSED | Pointer replacement is the linearization point; post-commit hooks are nonfatal notifications. |
+| CR-NEW-06 | CLOSED | Exit reviews enforce exact schema, strict metadata/booleans/time, and incumbent terms authority. |
+| WR-NEW-01 | CLOSED | Human authority validation rejects placeholder, invalid, and future manual reviews. |
+| WR-NEW-02 | CLOSED | Legacy definitions are explicitly named and a static test enforces one runtime definition per symbol. |
+| WR-NEW-03 | CLOSED | Trusted transient transport errors retain retry markers, accounting, and bounded backoff. |
+| WR-NEW-04 | CLOSED | Club overlap groups use canonical collision-safe tuple hashes. |
 
 ## Prior Finding Disposition
 
@@ -116,7 +129,7 @@ The phase is nevertheless **not ready to ship**. This final cross-module review 
 | WR-03 successful CLI exits as failure | CLOSED | Tagged result union and mode-specific subprocess exit tests. |
 | WR-04 split history publication | CLOSED | Audit and accepted state share one immutable generation/pointer transaction. |
 
-## Narrative Findings (AI reviewer)
+## Historical Narrative Findings (resolved)
 
 ## Critical Issues
 
