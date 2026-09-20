@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-07-PLAN.md
-last_updated: "2026-09-20T20:18:23.575Z"
+stopped_at: Completed 19-08-PLAN.md
+last_updated: "2026-09-20T20:59:59.012Z"
 last_activity: 2026-09-20
-last_activity_desc: Plan 07 paired club evaluation and fail-closed promotion authority verified
+last_activity_desc: Plan 08 immutable club release and bidirectional domain guards verified; national regression awaits a pre-existing model artifact
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 21
-  percent: 88
+  completed_plans: 22
+  percent: 92
 ---
 
 # xGelo Project State
@@ -29,18 +29,18 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 8 of 10
-Status: In progress; Plans 01-07 complete
-Last activity: 2026-09-20 — Plan 07 paired club evaluation and fail-closed promotion authority verified
+Plan: 9 of 10
+Status: In progress; Plans 01-08 complete
+Last activity: 2026-09-20 — Plan 08 immutable club release and bidirectional domain guards verified; national regression awaits a pre-existing model artifact
 
-Progress: [█████████░] 88%
+Progress: [█████████░] 92%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (6/10 plans) |
+| 19 | Independent Club Forecast Authority | 5 | In progress (8/10 plans) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -49,9 +49,9 @@ Progress: [█████████░] 88%
 
 **Current milestone:**
 
-- Total plans completed: 20
+- Total plans completed: 22
 - Average duration: 23 min
-- Total execution time: 456 min
+- Total execution time: 504 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`. **Per-Plan Metrics:**
 
@@ -65,6 +65,7 @@ Progress: [█████████░] 88%
 | Phase 19 P05 | 25 min | 2 tasks | 2 files |
 | Phase 19 P06 | 22min | 2 tasks | 2 files |
 | Phase 19 P07 | 74min | 2 tasks | 2 files |
+| Phase 19 P08 | 48 | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -122,6 +123,9 @@ Progress: [█████████░] 88%
 - [Phase 19]: Fixture calibration proves mechanics but remains production-ineligible. — Production still requires genuine source and owner-review authority.
 - [Phase 19]: Fixture diagnostic success remains pass / fixture_ineligible / ineligible_fixture and cannot grant production authority.
 - [Phase 19]: Production club promotion authority is projected only from validated accepted history, current-UCL, owner-reviewed fold, and connected rating source objects.
+- [Phase 19]: Legacy national release files remain unchanged; national consumers project absent domain metadata to national_team at their boundary.
+- [Phase 19]: Fixture evidence is accepted only by the explicit fixture resolver and cannot create production authority or a production selector.
+- [Phase 19]: Declared club domains are rejected by national release and forecast boundaries before forecast use.
 
 ### Pending Todos
 
@@ -135,6 +139,7 @@ Progress: [█████████░] 88%
 - Production automation is conditional on provider rights, retention, attribution, quota, schema, completeness, and freshness acceptance.
 - Historical club coverage and cross-league connectivity must be measured before production model promotion can run.
 - Late UEFA tie-break evidence needs either a permitted source or an explicit unresolved-rank release tolerance.
+- Required Phase 12/14 regression gate is blocked by pre-existing missing outputs/releases/phase12-wc2026-incumbent-retained-v1/model/approved_model.rds; restore the genuine artifact before rerunning.
 
 ## Deferred Items
 
@@ -147,6 +152,6 @@ Progress: [█████████░] 88%
 
 ## Session Continuity
 
-Last session: 2026-09-20T20:18:23.565Z
-Stopped at: Completed 19-07-PLAN.md
+Last session: 2026-09-20T20:59:32.431Z
+Stopped at: Completed 19-08-PLAN.md
 Resume file: None
