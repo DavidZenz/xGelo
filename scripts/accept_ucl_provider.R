@@ -34,7 +34,10 @@ source(file.path(phase18_accept_project_root, "R/competition/ucl_source_bundle.R
 
 phase18_accept_parse_args <- function(args) {
   required <- c("provider-id", "edition-id", "review-path", "evidence-root")
-  allowed <- c(required, "mode", "club-registry-root", "candidate-root", "bundle-id")
+  allowed <- c(
+    required, "mode", "club-registry-root", "candidate-root", "bundle-id",
+    "manual-review-path", "fixture-contract-path"
+  )
   output <- list()
   index <- 1L
   while (index <= length(args)) {
@@ -62,6 +65,14 @@ phase18_accept_parse_args <- function(args) {
       !is.null(output[[key]]) && nzchar(output[[key]])
     }, logical(1))]
     if (length(candidate_missing)) stop("Phase 18 candidate mode is missing options: ", paste(candidate_missing, collapse = ", "), call. = FALSE)
+  }
+  if (identical(output$mode, "manual_reviewed") &&
+      (is.null(output[["manual-review-path"]]) || !nzchar(output[["manual-review-path"]]))) {
+    stop("Phase 18 manual_reviewed mode requires --manual-review-path", call. = FALSE)
+  }
+  if (identical(output$mode, "fixture_contract") &&
+      (is.null(output[["fixture-contract-path"]]) || !nzchar(output[["fixture-contract-path"]]))) {
+    stop("Phase 18 fixture_contract mode requires --fixture-contract-path", call. = FALSE)
   }
   output
 }
@@ -101,6 +112,47 @@ phase18_accept_ucl_provider_main <- function(
   }
   machine_checks <- phase18_default_machine_checks(expectations, now_utc, preflight$reason_code[[1L]])
   schema_fingerprint <- phase18_default_schema_fingerprint(now_utc)
+  if (options$mode %in% c("manual_reviewed", "fixture_contract")) {
+    if (!is.function(candidate_input_fn)) {
+      stop("Phase 18 non-provider candidate modes require an explicit local candidate input loader", call. = FALSE)
+    }
+    if (identical(options$mode, "manual_reviewed")) {
+      review_path <- normalizePath(options[["manual-review-path"]], winslash = "/", mustWork = TRUE)
+      manual_review <- utils::read.csv(review_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+      authority <- list(authority_type = "manual_source_review", manual_source_review = manual_review)
+    } else {
+      contract_path <- normalizePath(options[["fixture-contract-path"]], winslash = "/", mustWork = TRUE)
+      fixture_contract <- utils::read.csv(contract_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+      authority <- list(authority_type = "fixture_contract", fixture_contract = fixture_contract)
+    }
+    validated_authority <- phase18_validate_source_authority(options$mode, authority)
+    if (!identical(as.character(validated_authority$record$source_mode[[1L]]), options$mode)) {
+      stop("Phase 18 candidate authority mode mismatch", call. = FALSE)
+    }
+    inputs <- candidate_input_fn(options, validated_authority)
+    if (!is.list(inputs) || is.null(inputs$fetched) || is.null(inputs$projected)) {
+      stop("Phase 18 candidate input must supply fetched bytes and projected tables", call. = FALSE)
+    }
+    candidate_expectations <- if (!is.null(inputs$edition_expectations)) inputs$edition_expectations else expectations
+    candidate <- phase18_build_ucl_source_bundle(
+      inputs$projected, inputs$fetched, authority, candidate_expectations,
+      options[["bundle-id"]]
+    )
+    installed <- phase18_write_ucl_candidate(options[["candidate-root"]], candidate)
+    promotable <- phase18_ucl_bool(installed$bundle$promotion_eligible[[1L]], "promotion_eligible")
+    provider_enabled <- phase18_ucl_bool(installed$bundle$provider_automation_enabled[[1L]], "provider_automation_enabled")
+    return(invisible(list(
+      mode = options$mode, bundle_id = installed$bundle$bundle_id[[1L]],
+      bundle_sha256 = installed$bundle$bundle_sha256[[1L]],
+      manifest_self_sha256 = installed$bundle$manifest_self_sha256[[1L]],
+      authority_id = installed$bundle$authority_id[[1L]],
+      authority_sha256 = installed$bundle$authority_sha256[[1L]],
+      promotion_eligible = promotable, provider_automation_enabled = provider_enabled,
+      candidate_root = normalizePath(options[["candidate-root"]], winslash = "/", mustWork = TRUE),
+      resource_count = nrow(installed$artifacts), table_count = nrow(installed$table_manifest),
+      reason_code = if (promotable) "candidate_validated" else "candidate_validated_non_promotable"
+    )))
+  }
   if (identical(options$mode, "provider_live")) {
     if (!isTRUE(token_present)) stop("Phase 18 provider_live candidate requires FOOTBALL_DATA_API_TOKEN", call. = FALSE)
     accepted <- phase18_read_acceptance_set(target_root)

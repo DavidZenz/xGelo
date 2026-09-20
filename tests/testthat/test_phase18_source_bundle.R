@@ -282,10 +282,10 @@ test_that("complete bundle hashes are order-stable and every tamper surface fail
 
   raw_tamper <- base
   raw_tamper$raw_bytes$teams[[1L]] <- as.raw(bitwXor(as.integer(raw_tamper$raw_bytes$teams[[1L]]), 1L))
-  expect_error(phase18_validate_ucl_source_bundle(raw_tamper), "raw|hash")
+  expect_error(phase18_validate_ucl_source_bundle(raw_tamper), "[Rr]aw|hash")
   canonical_tamper <- base
   canonical_tamper$tables$clubs$display_name[[1L]] <- "Tampered Club"
-  expect_error(phase18_validate_ucl_source_bundle(canonical_tamper), "row hash|canonical")
+  expect_error(phase18_validate_ucl_source_bundle(canonical_tamper), "row hash|[Cc]anonical")
   schema_tamper <- base
   schema_tamper$artifacts$schema_fingerprint_sha256[[1L]] <- phase18_ucl_hash("drift")
   expect_error(phase18_validate_ucl_source_bundle(schema_tamper), "Artifact hash|schema")
@@ -327,7 +327,9 @@ test_that("manual and fixture CLI modes share validation and never enable provid
     args = c(common, "--mode", "manual_reviewed", "--manual-review-path", manual_path,
       "--candidate-root", manual_root, "--bundle-id", "ucl-2026-27-manual-cli-v1"),
     token_present = FALSE,
-    candidate_input_fn = function(options, authority) list(projected = projected, fetched = fetched)
+    candidate_input_fn = function(options, authority) list(
+      projected = projected, fetched = fetched, edition_expectations = evidence$edition_expectations
+    )
   )
   expect_true(manual$promotion_eligible)
   expect_false(manual$provider_automation_enabled)
@@ -339,7 +341,9 @@ test_that("manual and fixture CLI modes share validation and never enable provid
     args = c(common, "--mode", "fixture_contract", "--fixture-contract-path", fixture_path,
       "--candidate-root", fixture_root, "--bundle-id", "ucl-2026-27-fixture-cli-v1"),
     token_present = FALSE,
-    candidate_input_fn = function(options, authority) list(projected = projected, fetched = fetched)
+    candidate_input_fn = function(options, authority) list(
+      projected = projected, fetched = fetched, edition_expectations = evidence$edition_expectations
+    )
   )
   expect_false(fixture$promotion_eligible)
   expect_false(fixture$provider_automation_enabled)
