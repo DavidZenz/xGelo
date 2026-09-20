@@ -509,3 +509,43 @@ test_that("lock contention and subprocess termination never change visible autho
   observed <- phase18_read_club_history_current(current, generations)
   expect_identical(observed$pointer_sha256, incumbent$pointer_sha256)
 })
+
+test_that("concurrent descriptor readers observe only complete old or new generations", {
+  skip_on_os("windows")
+  phase18_history_test_load()
+  sandbox <- tempfile("phase18-history-concurrent-")
+  generations <- file.path(sandbox, "generations")
+  current <- file.path(sandbox, "history_current.json")
+  generation_ready <- file.path(sandbox, "generation-ready")
+  audit <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "concurrent-old", identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  old <- phase18_publish_club_history_generation(audit, generations, current)
+  replacement <- audit
+  replacement$corpus_manifest$corpus_id <- "concurrent-new"
+  replacement$corpus_manifest$manifest_sha256 <- phase18_history_row_sha256(replacement$corpus_manifest, "manifest_sha256")
+  writer <- parallel::mcparallel(phase18_publish_club_history_generation(
+    replacement, generations, current,
+    writer_hook = function(boundary, ...) if (identical(boundary, "after_generation_rename")) {
+      file.create(generation_ready)
+      Sys.sleep(0.35)
+    }
+  ))
+  ready_deadline <- Sys.time() + 5
+  while (!file.exists(generation_ready) && Sys.time() < ready_deadline) Sys.sleep(0.01)
+  expect_true(file.exists(generation_ready))
+  observed <- character()
+  deadline <- Sys.time() + 0.25
+  while (Sys.time() < deadline) {
+    observed <- c(observed, phase18_read_club_history_current(current, generations)$pointer_sha256)
+  }
+  collected <- parallel::mccollect(writer)[[1L]]
+  expect_type(collected, "list")
+  new <- phase18_read_club_history_current(current, generations)
+  expect_true(length(observed) >= 1L)
+  expect_true(all(observed %in% c(old$pointer_sha256, new$pointer_sha256)))
+  expect_false(identical(old$pointer_sha256, new$pointer_sha256))
+})
