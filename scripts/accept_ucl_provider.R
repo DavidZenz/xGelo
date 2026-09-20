@@ -15,11 +15,14 @@ repeat {
   phase18_accept_search_root <- phase18_accept_parent
 }
 phase18_accept_candidates <- c(
-  if (length(phase18_accept_file_arg)) sub("^--file=", "", phase18_accept_file_arg[[1L]]) else character(),
   if (!is.null(phase18_accept_source_file)) as.character(phase18_accept_source_file) else character(),
+  if (length(phase18_accept_file_arg)) sub("^--file=", "", phase18_accept_file_arg[[1L]]) else character(),
   phase18_accept_upward_candidates
 )
 phase18_accept_candidates <- phase18_accept_candidates[!is.na(phase18_accept_candidates) & nzchar(phase18_accept_candidates)]
+phase18_accept_candidates <- phase18_accept_candidates[
+  basename(phase18_accept_candidates) == "accept_ucl_provider.R"
+]
 phase18_accept_script <- phase18_accept_candidates[vapply(phase18_accept_candidates, file.exists, logical(1))][1L]
 if (is.na(phase18_accept_script) || !nzchar(phase18_accept_script)) {
   stop("Phase 18 acceptance entrypoint could not resolve its script path", call. = FALSE)
@@ -53,6 +56,9 @@ phase18_accept_parse_args <- function(args) {
   missing <- required[!vapply(required, function(key) !is.null(output[[key]]) && nzchar(output[[key]]), logical(1))]
   if (length(missing)) stop("Phase 18 acceptance is missing options: ", paste(missing, collapse = ", "), call. = FALSE)
   if (!identical(output[["provider-id"]], "football_data_org_v4")) stop("Phase 18 provider ID is fixed to football_data_org_v4", call. = FALSE)
+  if (!identical(output[["edition-id"]], "ucl_2026_27")) {
+    stop("Phase 18 edition ID is fixed to supported edition ucl_2026_27", call. = FALSE)
+  }
   if (is.null(output$mode)) output$mode <- "preflight"
   if (!output$mode %in% c("preflight", "offline_contract_test", "live_acceptance_probe", "provider_live", "manual_reviewed", "fixture_contract")) {
     stop("Phase 18 acceptance mode is unsupported", call. = FALSE)
@@ -78,6 +84,155 @@ phase18_accept_parse_args <- function(args) {
   output
 }
 
+phase18_accept_existing_symlink <- function(path) {
+  link <- tryCatch(Sys.readlink(path), error = function(error) "")
+  length(link) == 1L && !is.na(link[[1L]]) && nzchar(link[[1L]])
+}
+
+phase18_accept_resolve_target <- function(options) {
+  evidence_root <- path.expand(options[["evidence-root"]])
+  if (!grepl("^/", evidence_root)) evidence_root <- file.path(getwd(), evidence_root)
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = FALSE)
+  provider_root <- file.path(evidence_root, options[["provider-id"]])
+  target_root <- file.path(provider_root, options[["edition-id"]])
+  provider_prefix <- paste0(provider_root, "/")
+  if (!startsWith(target_root, provider_prefix) ||
+      phase18_accept_existing_symlink(provider_root) ||
+      phase18_accept_existing_symlink(target_root)) {
+    stop("Phase 18 edition target is unsafe or outside the trusted provider root", call. = FALSE)
+  }
+  list(
+    evidence_root = evidence_root,
+    provider_root = provider_root,
+    target_root = target_root
+  )
+}
+
+phase18_accept_assert_target <- function(options, expected_target) {
+  checked <- phase18_accept_resolve_target(options)$target_root
+  if (!identical(checked, expected_target)) {
+    stop("Phase 18 edition target changed outside the trusted provider root", call. = FALSE)
+  }
+  invisible(checked)
+}
+
+phase18_accept_decision_status <- function(manifest) {
+  decision <- as.character(manifest$decision[[1L]])
+  if (identical(decision, "accepted")) return("success")
+  if (identical(decision, "rejected")) return("rejected")
+  "blocked"
+}
+
+phase18_accept_decision_result <- function(mode, manifest, durable_mutation, extras = list()) {
+  result <- list(
+    result_type = "decision",
+    mode = mode,
+    status = phase18_accept_decision_status(manifest),
+    reason_code = as.character(manifest$reason_code[[1L]]),
+    durable_mutation = isTRUE(durable_mutation),
+    decision = list(
+      decision_id = as.character(manifest$decision_id[[1L]]),
+      decision = as.character(manifest$decision[[1L]]),
+      automation_enabled = isTRUE(manifest$automation_enabled[[1L]])
+    ),
+    bundle = NULL,
+    manifest = manifest
+  )
+  modifyList(result, extras, keep.null = TRUE)
+}
+
+phase18_accept_probe_result <- function(mode, probe, durable_mutation, extras = list()) {
+  if (is.null(probe$manifest)) {
+    stop("Phase 18 probe result is missing decision metadata", call. = FALSE)
+  }
+  result <- phase18_accept_decision_result(mode, probe$manifest, durable_mutation, extras)
+  result$status <- if (isTRUE(probe$accepted)) {
+    "success"
+  } else if (identical(probe$reason_code, "rejected")) {
+    "rejected"
+  } else {
+    "blocked"
+  }
+  result$reason_code <- as.character(probe$reason_code)
+  result$accepted <- isTRUE(probe$accepted)
+  result$idempotent <- isTRUE(probe$idempotent)
+  result$message <- as.character(probe$message)
+  result
+}
+
+phase18_accept_bundle_result <- function(mode, installed, reason_code) {
+  bundle <- list(
+    bundle_id = as.character(installed$bundle$bundle_id[[1L]]),
+    bundle_sha256 = as.character(installed$bundle$bundle_sha256[[1L]]),
+    manifest_self_sha256 = as.character(installed$bundle$manifest_self_sha256[[1L]]),
+    authority_id = as.character(installed$bundle$authority_id[[1L]]),
+    authority_sha256 = as.character(installed$bundle$authority_sha256[[1L]]),
+    promotion_eligible = phase18_ucl_bool(installed$bundle$promotion_eligible[[1L]], "promotion_eligible"),
+    provider_automation_enabled = phase18_ucl_bool(
+      installed$bundle$provider_automation_enabled[[1L]], "provider_automation_enabled"
+    ),
+    candidate_root = normalizePath(installed$root, winslash = "/", mustWork = TRUE),
+    resource_count = nrow(installed$artifacts),
+    table_count = nrow(installed$table_manifest)
+  )
+  c(list(
+    result_type = "bundle", mode = mode, status = "success",
+    reason_code = reason_code, durable_mutation = TRUE,
+    decision = NULL, bundle = bundle
+  ), bundle)
+}
+
+phase18_accept_cli_exit_code <- function(result) {
+  status <- as.character(result$status %||% "runtime_error")
+  switch(
+    status,
+    success = 0L,
+    blocked = 2L,
+    rejected = 3L,
+    usage_error = 64L,
+    70L
+  )
+}
+
+phase18_accept_render_result <- function(result) {
+  fields <- c(
+    paste0("type=", result$result_type), paste0("mode=", result$mode),
+    paste0("status=", result$status), paste0("reason=", result$reason_code),
+    paste0("durable_mutation=", tolower(as.character(isTRUE(result$durable_mutation))))
+  )
+  if (identical(result$result_type, "decision")) {
+    fields <- c(
+      fields,
+      paste0("decision_id=", result$decision$decision_id),
+      paste0("decision=", result$decision$decision),
+      paste0("automation_enabled=", tolower(as.character(result$decision$automation_enabled)))
+    )
+  } else if (identical(result$result_type, "bundle")) {
+    fields <- c(
+      fields,
+      paste0("bundle_id=", result$bundle$bundle_id),
+      paste0("bundle_sha256=", result$bundle$bundle_sha256),
+      paste0("promotion_eligible=", tolower(as.character(result$bundle$promotion_eligible)))
+    )
+  }
+  paste(fields, collapse = " ")
+}
+
+phase18_accept_error_result <- function(error, args = character()) {
+  message <- conditionMessage(error)
+  usage <- grepl(
+    "argument|option|provider ID|edition ID|edition target|mode is unsupported|missing options",
+    message, ignore.case = TRUE
+  )
+  list(
+    result_type = "error", mode = "unknown",
+    status = if (usage) "usage_error" else "runtime_error",
+    reason_code = if (usage) "invalid_arguments" else "execution_error",
+    durable_mutation = FALSE, decision = NULL, bundle = NULL,
+    message = message
+  )
+}
+
 phase18_acceptance_markdown <- function(manifest) {
   paste0(
     "# UCL Provider Acceptance\n\n",
@@ -101,11 +256,14 @@ phase18_accept_ucl_provider_main <- function(
     parser_commit_sha = NULL,
     candidate_input_fn = NULL) {
   options <- phase18_accept_parse_args(args)
+  target <- phase18_accept_resolve_target(options)
   preflight <- phase18_provider_preflight(token_present, now_utc)
-  target_root <- file.path(options[["evidence-root"]], options[["provider-id"]], options[["edition-id"]])
+  target_root <- target$target_root
   review <- phase18_read_terms_review(options[["review-path"]])
   if (is.null(review)) review <- data.frame()
+  phase18_accept_assert_target(options, target_root)
   incumbent <- tryCatch(phase18_read_acceptance_set(target_root), error = function(error) NULL)
+  phase18_accept_assert_target(options, target_root)
   expectation_path <- file.path(target_root, "edition_expectations.csv")
   expectations <- if (!is.null(incumbent)) {
     incumbent$edition_expectations
@@ -144,30 +302,26 @@ phase18_accept_ucl_provider_main <- function(
     )
     installed <- phase18_write_ucl_candidate(options[["candidate-root"]], candidate)
     promotable <- phase18_ucl_bool(installed$bundle$promotion_eligible[[1L]], "promotion_eligible")
-    provider_enabled <- phase18_ucl_bool(installed$bundle$provider_automation_enabled[[1L]], "provider_automation_enabled")
-    return(invisible(list(
-      mode = options$mode, bundle_id = installed$bundle$bundle_id[[1L]],
-      bundle_sha256 = installed$bundle$bundle_sha256[[1L]],
-      manifest_self_sha256 = installed$bundle$manifest_self_sha256[[1L]],
-      authority_id = installed$bundle$authority_id[[1L]],
-      authority_sha256 = installed$bundle$authority_sha256[[1L]],
-      promotion_eligible = promotable, provider_automation_enabled = provider_enabled,
-      candidate_root = normalizePath(options[["candidate-root"]], winslash = "/", mustWork = TRUE),
-      resource_count = nrow(installed$artifacts), table_count = nrow(installed$table_manifest),
-      reason_code = if (promotable) "candidate_validated" else "candidate_validated_non_promotable"
+    return(invisible(phase18_accept_bundle_result(
+      options$mode, installed,
+      if (promotable) "candidate_validated" else "candidate_validated_non_promotable"
     )))
   }
   if (identical(options$mode, "provider_live")) {
-    if (!isTRUE(token_present)) stop("Phase 18 provider_live candidate requires FOOTBALL_DATA_API_TOKEN", call. = FALSE)
+    phase18_accept_assert_target(options, target_root)
     accepted <- phase18_read_acceptance_set(target_root)
     phase18_validate_acceptance_manifest(
       accepted$manifest, accepted$machine_checks, accepted$owner_review,
       accepted$edition_expectations, accepted$schema_fingerprint
     )
-    if (!isTRUE(accepted$manifest$automation_enabled[[1L]]) ||
+    if (!isTRUE(token_present) ||
+        !isTRUE(accepted$manifest$automation_enabled[[1L]]) ||
         !identical(as.character(accepted$manifest$decision[[1L]]), "accepted") ||
         !identical(as.character(accepted$manifest$execution_mode[[1L]]), "live_acceptance_probe")) {
-      stop("Phase 18 provider_live candidate requires an accepted provider authority", call. = FALSE)
+      return(invisible(phase18_accept_decision_result(
+        options$mode, accepted$manifest, FALSE,
+        extras = list(evidence_root = target_root, incumbent_preserved = TRUE)
+      )))
     }
     inputs <- if (is.function(candidate_input_fn)) {
       candidate_input_fn(options, accepted)
@@ -189,16 +343,8 @@ phase18_accept_ucl_provider_main <- function(
       options[["bundle-id"]]
     )
     installed <- phase18_write_ucl_candidate(options[["candidate-root"]], candidate)
-    return(invisible(list(
-      mode = "provider_live", bundle_id = installed$bundle$bundle_id[[1L]],
-      bundle_sha256 = installed$bundle$bundle_sha256[[1L]],
-      manifest_self_sha256 = installed$bundle$manifest_self_sha256[[1L]],
-      authority_id = installed$bundle$authority_id[[1L]],
-      authority_sha256 = installed$bundle$authority_sha256[[1L]],
-      promotion_eligible = installed$bundle$promotion_eligible[[1L]],
-      candidate_root = normalizePath(options[["candidate-root"]], winslash = "/", mustWork = TRUE),
-      resource_count = nrow(installed$artifacts), table_count = nrow(installed$table_manifest),
-      reason_code = "candidate_validated"
+    return(invisible(phase18_accept_bundle_result(
+      "provider_live", installed, "candidate_validated"
     )))
   }
   adapter_mode <- options$mode %in% c("offline_contract_test", "live_acceptance_probe")
@@ -271,6 +417,7 @@ phase18_accept_ucl_provider_main <- function(
     }
     decision_id <- paste0(options$mode, "_", options[["edition-id"]], "_", gsub("[^0-9]", "", now_utc))
     if (identical(options$mode, "live_acceptance_probe")) {
+      phase18_accept_assert_target(options, target_root)
       result <- phase18_run_live_acceptance_probe(
       evidence_root = target_root,
       owner_review = review,
@@ -280,9 +427,22 @@ phase18_accept_ucl_provider_main <- function(
       now_utc = now_utc,
       parser_commit_sha = parser_commit_sha
       )
-      result$projected <- projected
-      result$current_club_tokens <- current_tokens
-      return(invisible(result))
+      if (is.null(result$manifest)) {
+        result$manifest <- if (!is.null(incumbent)) incumbent$manifest else {
+          phase18_build_acceptance_manifest(
+            machine_checks, review, expectations, schema_fingerprint,
+            paste0("blocked_", decision_id), now_utc,
+            parser_commit_sha = parser_commit_sha,
+            project_root = phase18_accept_project_root
+          )
+        }
+      }
+      tagged <- phase18_accept_probe_result(
+        options$mode, result,
+        durable_mutation = isTRUE(result$accepted) && !isTRUE(result$idempotent),
+        extras = list(projected = projected, current_club_tokens = current_tokens)
+      )
+      return(invisible(tagged))
     }
     offline_checks <- phase18_default_machine_checks(expectations, now_utc, "offline_only")
     offline_checks$execution_mode <- "offline_contract_test"
@@ -326,10 +486,12 @@ phase18_accept_ucl_provider_main <- function(
       decision_id, now_utc, parser_commit_sha = parser_commit_sha,
       project_root = phase18_accept_project_root
     )
-    return(invisible(list(
-      manifest = offline_manifest, machine_checks = offline_checks,
-      projected = projected, current_club_tokens = current_tokens,
-      evidence_root = target_root
+    return(invisible(phase18_accept_decision_result(
+      options$mode, offline_manifest, FALSE,
+      extras = list(
+        machine_checks = offline_checks, projected = projected,
+        current_club_tokens = current_tokens, evidence_root = target_root
+      )
     )))
   }
   manifest <- phase18_build_acceptance_manifest(
@@ -343,45 +505,44 @@ phase18_accept_ucl_provider_main <- function(
     project_root = phase18_accept_project_root
   )
   if (!is.null(incumbent)) {
-    return(invisible(list(
-      preflight = preflight,
-      owner_review = review,
-      edition_expectations = expectations,
-      machine_checks = machine_checks,
-      schema_fingerprint = schema_fingerprint,
-      manifest = manifest,
-      evidence_root = target_root,
-      incumbent_preserved = TRUE
+    return(invisible(phase18_accept_decision_result(
+      options$mode, manifest, FALSE,
+      extras = list(
+        preflight = preflight, owner_review = review,
+        edition_expectations = expectations, machine_checks = machine_checks,
+        schema_fingerprint = schema_fingerprint, evidence_root = target_root,
+        incumbent_preserved = TRUE
+      )
     )))
   }
+  phase18_accept_assert_target(options, target_root)
   published <- phase18_publish_acceptance_generation(
     target_root, review, expectations, machine_checks, schema_fingerprint,
     manifest, phase18_acceptance_markdown(manifest)
   )
-  invisible(list(
-    preflight = preflight,
-    owner_review = review,
-    edition_expectations = expectations,
-    machine_checks = machine_checks,
-    schema_fingerprint = schema_fingerprint,
-    manifest = published$manifest,
-    evidence_root = target_root,
-    paths = published$paths,
-    current_generation = published$current_generation
+  invisible(phase18_accept_decision_result(
+    options$mode, published$manifest, TRUE,
+    extras = list(
+      preflight = preflight, owner_review = review,
+      edition_expectations = expectations, machine_checks = machine_checks,
+      schema_fingerprint = schema_fingerprint, evidence_root = target_root,
+      paths = published$paths, current_generation = published$current_generation
+    )
   ))
 }
 
 if (sys.nframe() == 0L) {
-  tryCatch(
-    {
-      result <- phase18_accept_ucl_provider_main()
-      message(sprintf(
-        "Phase 18 provider decision: %s (%s); automation_enabled=%s",
-        result$manifest$decision[[1L]],
-        result$manifest$reason_code[[1L]],
-        result$manifest$automation_enabled[[1L]]
-      ))
-    },
-    error = function(error) stop("Phase 18 provider acceptance blocked: ", conditionMessage(error), call. = FALSE)
+  result <- tryCatch(
+    phase18_accept_ucl_provider_main(),
+    error = function(error) phase18_accept_error_result(error, commandArgs(trailingOnly = TRUE))
   )
+  if (identical(result$result_type, "error")) {
+    message(
+      phase18_accept_render_result(result),
+      " message=", gsub("[\r\n]+", " ", result$message)
+    )
+  } else {
+    message(phase18_accept_render_result(result))
+  }
+  quit(save = "no", status = phase18_accept_cli_exit_code(result), runLast = FALSE)
 }

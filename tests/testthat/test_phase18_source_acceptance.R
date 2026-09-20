@@ -727,7 +727,7 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
     )
   )
 
-  expect_equal(acceptance$status, 0L, info = paste(acceptance$output, collapse = "\n"))
+  expect_equal(acceptance$status, 2L, info = paste(acceptance$output, collapse = "\n"))
   expect_true(identity$status %in% c(0L, 2L), info = paste(identity$output, collapse = "\n"))
   expect_equal(refresh$status, 1L, info = paste(refresh$output, collapse = "\n"))
   expect_true(history$status %in% c(0L, 2L), info = paste(history$output, collapse = "\n"))
@@ -1125,6 +1125,33 @@ phase18_gap08_cli_args <- function(evidence_root, review_path, edition_id = "ucl
   )
 }
 
+phase18_gap08_load_bundle_fixture_helpers <- function() {
+  expressions <- parse(file.path(phase18_test_root, "tests/testthat/test_phase18_source_bundle.R"))
+  wanted <- c(
+    "phase18_bundle_test_projected", "phase18_bundle_test_fetched",
+    "phase18_bundle_test_manual_review", "phase18_bundle_test_fixture_contract"
+  )
+  for (expression in expressions) {
+    if (is.call(expression) && identical(expression[[1L]], as.name("<-")) &&
+        is.symbol(expression[[2L]]) && as.character(expression[[2L]]) %in% wanted) {
+      eval(expression, envir = .GlobalEnv)
+    }
+  }
+  phase18_test_require(wanted)
+  invisible(TRUE)
+}
+
+phase18_gap08_run_cli_harness <- function(harness, payload) {
+  payload_path <- tempfile("phase18-cli-mode-payload-", fileext = ".rds")
+  saveRDS(payload, payload_path)
+  on.exit(unlink(payload_path, force = TRUE), add = TRUE)
+  output <- suppressWarnings(system2(
+    "Rscript", c("--vanilla", harness, phase18_test_root, payload_path),
+    stdout = TRUE, stderr = TRUE
+  ))
+  list(status = attr(output, "status") %||% 0L, output = output)
+}
+
 test_that("unsafe and unknown edition IDs fail before any filesystem mutation", {
   phase18_test_load()
   sandbox <- tempfile("phase18-edition-sandbox-")
@@ -1143,6 +1170,22 @@ test_that("unsafe and unknown edition IDs fail before any filesystem mutation", 
       "edition|supported|unsafe"
     )
     expect_identical(phase18_test_tree_sha(sandbox), before)
+  }
+
+  outside <- tempfile("phase18-edition-outside-")
+  dir.create(outside)
+  link <- file.path(sandbox, "football_data_org_v4")
+  if (isTRUE(file.symlink(outside, link))) {
+    outside_before <- phase18_test_tree_sha(outside)
+    expect_error(
+      phase18_accept_ucl_provider_main(
+        phase18_gap08_cli_args(sandbox, review_path),
+        token_present = FALSE,
+        now_utc = "2026-09-19T15:00:00Z"
+      ),
+      "unsafe|trusted provider root"
+    )
+    expect_identical(phase18_test_tree_sha(outside), outside_before)
   }
 })
 
@@ -1179,8 +1222,12 @@ test_that("CLI render and exit contracts distinguish success blocked rejected an
   expect_match(rendered, "status=blocked")
   expect_false(grepl("bundle_sha256", rendered, fixed = TRUE))
   expect_equal(phase18_accept_cli_exit_code(decision), 2L)
-  expect_equal(phase18_accept_cli_exit_code(transform(decision, status = "rejected")), 3L)
-  expect_equal(phase18_accept_cli_exit_code(transform(decision, status = "success")), 0L)
+  rejected <- decision
+  rejected$status <- "rejected"
+  success <- decision
+  success$status <- "success"
+  expect_equal(phase18_accept_cli_exit_code(rejected), 3L)
+  expect_equal(phase18_accept_cli_exit_code(success), 0L)
 })
 
 test_that("executable CLI rejects traversal without creating paths", {
@@ -1194,9 +1241,153 @@ test_that("executable CLI rejects traversal without creating paths", {
     file.path(phase18_test_root, "scripts/accept_ucl_provider.R"),
     phase18_gap08_cli_args(sandbox, review_path, "../escape")
   )
-  output <- system2("Rscript", c("--vanilla", shQuote(args)), stdout = TRUE, stderr = TRUE)
+  output <- suppressWarnings(system2(
+    "Rscript", c("--vanilla", shQuote(args)), stdout = TRUE, stderr = TRUE
+  ))
   status <- attr(output, "status") %||% 0L
   expect_equal(status, 64L, info = paste(output, collapse = "\n"))
   expect_match(paste(output, collapse = "\n"), "edition|supported|unsafe")
   expect_identical(phase18_test_tree_sha(sandbox), before)
+})
+
+test_that("Rscript subprocesses expose mode-correct decision and bundle exits", {
+  phase18_test_load()
+  phase18_gap08_load_bundle_fixture_helpers()
+  registry_root <- tempfile("phase18-mode-registry-")
+  phase18_write_club_registries_atomic(phase18_test_adapter_registries(), registry_root)
+  review_path <- tempfile("phase18-mode-review-", fileext = ".csv")
+  review <- phase18_test_review("approved")
+  utils::write.csv(review, review_path, row.names = FALSE, na = "", quote = TRUE)
+  expectations <- phase18_gap08_approved_expectations()
+  fingerprint <- phase18_test_fingerprint(TRUE)
+  fixture_evidence <- list(
+    edition_expectations = expectations,
+    schema_fingerprint = fingerprint
+  )
+  projected <- phase18_bundle_test_projected(fixture_evidence)
+  projected$coverage <- list(
+    stages = "LEAGUE_STAGE", freshness_passed = TRUE,
+    identity_passed = TRUE, pagination_complete = TRUE
+  )
+  fetched <- phase18_bundle_test_fetched()
+  inputs <- list(
+    projected = projected, fetched = fetched,
+    edition_expectations = expectations
+  )
+  evidence_root <- tempfile("phase18-mode-evidence-")
+  target_root <- file.path(evidence_root, "football_data_org_v4", "ucl_2026_27")
+  dir.create(target_root, recursive = TRUE)
+  machine <- phase18_default_machine_checks(expectations, "2026-09-19T15:00:00Z", "missing_credential")
+  disabled_fingerprint <- phase18_default_schema_fingerprint("2026-09-19T15:00:00Z")
+  disabled <- phase18_build_acceptance_manifest(
+    machine, review, expectations, disabled_fingerprint,
+    "mode-matrix-disabled", "2026-09-19T15:00:00Z",
+    parser_commit_sha = "0123456789abcdef0123456789abcdef01234567"
+  )
+  phase18_publish_acceptance_generation(
+    target_root, review, expectations, machine, disabled_fingerprint,
+    disabled, phase18_acceptance_markdown(disabled)
+  )
+
+  manual_path <- tempfile("phase18-mode-manual-", fileext = ".csv")
+  fixture_path <- tempfile("phase18-mode-fixture-", fileext = ".csv")
+  utils::write.csv(phase18_bundle_test_manual_review(), manual_path, row.names = FALSE, na = "", quote = TRUE)
+  utils::write.csv(phase18_bundle_test_fixture_contract(), fixture_path, row.names = FALSE, na = "", quote = TRUE)
+  harness <- phase18_test_write_subprocess(c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "project <- args[[1L]]; payload <- readRDS(args[[2L]])",
+    "sys.source(file.path(project, 'scripts/accept_ucl_provider.R'), envir = .GlobalEnv)",
+    "call <- list(args = payload$args, token_present = payload$token_present, now_utc = payload$now_utc)",
+    "if (payload$kind == 'adapter') {",
+    "  call$perform_request <- function(...) stop('fetch stub owns transport')",
+    "  call$fetch_window_fn <- function(...) payload$inputs$fetched",
+    "  call$project_resources_fn <- function(...) payload$inputs$projected",
+    "} else if (payload$kind == 'candidate') {",
+    "  call$candidate_input_fn <- function(...) payload$inputs",
+    "}",
+    "result <- tryCatch(do.call(phase18_accept_ucl_provider_main, call),",
+    "  error = function(error) phase18_accept_error_result(error, payload$args))",
+    "cat(phase18_accept_render_result(result),",
+    "  if (identical(result$result_type, 'error')) paste0(' message=', result$message) else '', '\\n')",
+    "quit(save = 'no', status = phase18_accept_cli_exit_code(result), runLast = FALSE)"
+  ), "phase18-mode-harness-")
+  on.exit(unlink(c(harness, manual_path, fixture_path), force = TRUE), add = TRUE)
+  common <- phase18_gap08_cli_args(evidence_root, review_path)
+
+  cases <- list(
+    offline_contract_test = list(
+      kind = "adapter", args = c(common, "--club-registry-root", registry_root),
+      token_present = FALSE, now_utc = "2026-09-19T15:05:00Z", inputs = inputs,
+      status = 2L, type = "decision", reason = "offline_only"
+    ),
+    live_acceptance_probe = list(
+      kind = "adapter", args = c(
+        phase18_gap08_cli_args(evidence_root, review_path, mode = "live_acceptance_probe"),
+        "--club-registry-root", registry_root
+      ),
+      token_present = TRUE, now_utc = "2026-09-19T15:10:00Z", inputs = inputs,
+      status = 0L, type = "decision", reason = "accepted"
+    )
+  )
+  cases$offline_contract_test$args[match("preflight", cases$offline_contract_test$args)] <- "offline_contract_test"
+  for (name in names(cases)) {
+    result <- phase18_gap08_run_cli_harness(harness, cases[[name]])
+    expect_equal(result$status, cases[[name]]$status, info = paste(result$output, collapse = "\n"))
+    text <- paste(result$output, collapse = "\n")
+    expect_match(text, paste0("type=", cases[[name]]$type))
+    expect_match(text, paste0("mode=", name))
+    expect_match(text, paste0("reason=", cases[[name]]$reason))
+  }
+
+  production_parent <- file.path(phase18_test_root, "data/competition/provider_acceptance")
+  production_selected <- phase18_read_acceptance_set(file.path(
+    production_parent, "football_data_org_v4", "ucl_2026_27"
+  ))
+  provider_case <- list(
+    kind = "candidate",
+    args = c(
+      phase18_gap08_cli_args(
+        production_parent, production_selected$paths[["provider_terms_review.csv"]],
+        mode = "provider_live"
+      ),
+      "--club-registry-root", registry_root,
+      "--candidate-root", tempfile("phase18-provider-candidate-"),
+      "--bundle-id", "ucl-2026-27-provider-mode-v1"
+    ),
+    token_present = TRUE, now_utc = "2026-09-19T15:15:00Z", inputs = inputs
+  )
+  manual_case <- list(
+    kind = "candidate",
+    args = c(
+      phase18_gap08_cli_args(tempfile("phase18-manual-evidence-"), review_path, mode = "manual_reviewed"),
+      "--candidate-root", tempfile("phase18-manual-candidate-"),
+      "--bundle-id", "ucl-2026-27-manual-mode-v1", "--manual-review-path", manual_path
+    ),
+    token_present = FALSE, now_utc = "2026-09-19T15:20:00Z", inputs = inputs
+  )
+  fixture_case <- list(
+    kind = "candidate",
+    args = c(
+      phase18_gap08_cli_args(tempfile("phase18-fixture-evidence-"), review_path, mode = "fixture_contract"),
+      "--candidate-root", tempfile("phase18-fixture-candidate-"),
+      "--bundle-id", "ucl-2026-27-fixture-mode-v1", "--fixture-contract-path", fixture_path
+    ),
+    token_present = FALSE, now_utc = "2026-09-19T15:25:00Z", inputs = inputs
+  )
+  blocked_provider <- phase18_gap08_run_cli_harness(harness, provider_case)
+  expect_equal(
+    blocked_provider$status, 2L,
+    info = paste(blocked_provider$output, collapse = "\n")
+  )
+  expect_match(paste(blocked_provider$output, collapse = "\n"), "type=decision")
+  expect_match(paste(blocked_provider$output, collapse = "\n"), "mode=provider_live")
+
+  for (entry in list(manual_reviewed = manual_case, fixture_contract = fixture_case)) {
+    result <- phase18_gap08_run_cli_harness(harness, entry)
+    expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
+    text <- paste(result$output, collapse = "\n")
+    expect_match(text, "type=bundle")
+    expect_match(text, "status=success")
+    expect_match(text, "bundle_sha256=[0-9a-f]{64}")
+  }
 })
