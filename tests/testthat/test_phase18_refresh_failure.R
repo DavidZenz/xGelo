@@ -30,13 +30,14 @@ phase18_refresh_test_evidence <- function() {
   review <- review[review$review_set == "approved", setdiff(names(review), "review_set"), drop = FALSE]
   review <- phase18_hash_terms_review(review)
   expectations <- phase18_hash_edition_expectations(data.frame(
-    schema_version = "phase18-edition-expectation-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-edition-expectation-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = "ucl_2026_27",
     lifecycle = "league_phase", expected_club_count = 36L,
     expected_league_phase_match_count = 144L,
     allowed_stages = "LEAGUE_STAGE|PLAYOFFS|LAST_16|QUARTER_FINALS|SEMI_FINALS|FINAL",
     standings_required = TRUE, expected_standings_rows = 36L,
-    reviewer = "fixture-reviewer", reviewed_at_utc = "2026-09-19T12:00:00Z",
-    row_sha256 = "", expectation_sha256 = "", stringsAsFactors = FALSE,
+    review_state = "approved", reviewer = "fixture-reviewer",
+    reviewed_at_utc = "2026-09-19T12:00:00Z", stringsAsFactors = FALSE,
     check.names = FALSE
   ))
   list(owner_review = review, edition_expectations = expectations)
@@ -45,16 +46,18 @@ phase18_refresh_test_evidence <- function() {
 phase18_refresh_test_projected <- function(evidence) {
   club_ids <- sprintf("club_%03d", seq_len(36L))
   clubs <- data.frame(
-    schema_version = "phase18-fd-club-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-club-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     provider_id = "football_data_org_v4", provider_club_id = as.character(1000L + seq_len(36L)),
     club_id = club_ids, display_name = sprintf("Fixture Club %02d", seq_len(36L)),
     canonical_name = sprintf("Fixture Club %02d", seq_len(36L)),
     last_updated_utc = "2026-09-19T11:00:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  clubs$row_sha256 <- phase18_row_sha256(clubs)
+  clubs$row_sha256 <- phase18_ucl_projected_row_hash(clubs)
   matches <- data.frame(
-    schema_version = "phase18-fd-match-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-match-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     provider_match_id = as.character(2000L + seq_len(144L)),
     kickoff_utc = "2026-09-20T18:00:00Z", status = "SCHEDULED", stage = "LEAGUE_STAGE",
     home_club_id = club_ids[((seq_len(144L) - 1L) %% 36L) + 1L],
@@ -62,24 +65,27 @@ phase18_refresh_test_projected <- function(evidence) {
     last_updated_utc = "2026-09-19T11:30:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  matches$row_sha256 <- phase18_row_sha256(matches)
+  matches$row_sha256 <- phase18_ucl_projected_row_hash(matches)
   standings <- data.frame(
-    schema_version = "phase18-fd-standing-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-standing-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     stage = "LEAGUE_STAGE", position = seq_len(36L), club_id = club_ids,
     played = 0L, points = 0L, row_sha256 = "", stringsAsFactors = FALSE,
     check.names = FALSE
   )
-  standings$row_sha256 <- phase18_row_sha256(standings)
+  standings$row_sha256 <- phase18_ucl_projected_row_hash(standings)
   competition <- data.frame(
-    schema_version = "phase18-fd-competition-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-competition-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     provider_id = "football_data_org_v4", provider_competition_id = "2001",
     provider_season_id = "2026", code = "CL", name = "UEFA Champions League",
     last_updated_utc = "2026-09-19T11:45:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  competition$row_sha256 <- phase18_row_sha256(competition)
+  competition$row_sha256 <- phase18_ucl_projected_row_hash(competition)
   lifecycle <- data.frame(
-    schema_version = "phase18-fd-lifecycle-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-lifecycle-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     lifecycle = "league_phase", observed_club_count = 36L,
     observed_match_count = 144L, observed_standings_rows = 36L,
     observed_stages = "LEAGUE_STAGE",
@@ -88,12 +94,18 @@ phase18_refresh_test_projected <- function(evidence) {
     retrieved_at_utc = "2026-09-19T12:00:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  lifecycle$row_sha256 <- phase18_row_sha256(lifecycle)
-  fingerprint <- data.frame(
+  lifecycle$row_sha256 <- phase18_ucl_projected_row_hash(lifecycle)
+  fingerprint <- phase18_hash_schema_fingerprint(data.frame(
+    schema_version = "phase18-schema-fingerprint-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     resource = phase18_ucl_required_resources(),
-    fingerprint_sha256 = vapply(phase18_ucl_required_resources(), phase18_ucl_hash, character(1)),
+    endpoint = unname(phase18_probe_endpoints()), observed = TRUE,
+    observed_at_utc = "2026-09-19T12:00:00Z",
+    fingerprint_sha256 = vapply(phase18_ucl_required_resources(), function(value) {
+      phase18_hash_scalar_v2(value, "resource", "character")
+    }, character(1)),
     stringsAsFactors = FALSE, check.names = FALSE
-  )
+  ))
   list(
     competition = competition, clubs = clubs, matches = matches,
     standings = standings, lifecycle = lifecycle, schema_fingerprint = fingerprint
@@ -120,7 +132,8 @@ phase18_refresh_test_fetched <- function(suffix = "candidate") {
 
 phase18_refresh_test_manual_review <- function(id, raw_hash) {
   review <- data.frame(
-    schema_version = "phase18-ucl-manual-source-review-v1",
+    schema_version = "phase18-ucl-manual-source-review-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     manual_review_id = id, edition_id = "ucl_2026_27", decision = "accepted",
     source_url = "https://manual.example/ucl-2026-27.json", license_id = "fixture-test-only",
     reviewer = "fixture-reviewer", reviewed_at_utc = "2026-09-19T12:00:00Z",
@@ -128,14 +141,14 @@ phase18_refresh_test_manual_review <- function(id, raw_hash) {
     stringsAsFactors = FALSE, check.names = FALSE
   )
   review$manual_review_sha256 <- phase18_ucl_manual_review_hash(review)
-  review$row_sha256 <- phase18_row_sha256(review)
+  review$row_sha256 <- phase18_ucl_row_hash(review)
   review
 }
 
 phase18_refresh_test_candidate <- function(id, suffix = id) {
   evidence <- phase18_refresh_test_evidence()
   fetched <- phase18_refresh_test_fetched(suffix)
-  aggregate <- phase18_ucl_hash(paste(vapply(fetched, `[[`, character(1), "raw_sha256"), collapse = "|"))
+  aggregate <- phase18_ucl_raw_aggregate_sha256(fetched)
   phase18_build_ucl_source_bundle(
     phase18_refresh_test_projected(evidence), fetched,
     list(
@@ -279,12 +292,13 @@ test_that("failed first refresh preserves no incumbent and invalid authority nev
 
   fixture <- phase18_refresh_test_candidate("ucl-refresh-fixture-v1")
   contract <- data.frame(
-    schema_version = "phase18-ucl-fixture-contract-v1", fixture_id = "fixture-refresh-001",
+    schema_version = "phase18-ucl-fixture-contract-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(), fixture_id = "fixture-refresh-001",
     edition_id = "ucl_2026_27", fixture_purpose = "tests", fixture_sha256 = "",
     row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
   )
   contract$fixture_sha256 <- phase18_ucl_fixture_hash(contract)
-  contract$row_sha256 <- phase18_row_sha256(contract)
+  contract$row_sha256 <- phase18_ucl_row_hash(contract)
   evidence <- phase18_refresh_test_evidence()
   fixture <- phase18_build_ucl_source_bundle(
     phase18_refresh_test_projected(evidence), phase18_refresh_test_fetched("fixture"),
@@ -307,14 +321,15 @@ phase18_refresh_test_exit_review <- function(
     retention_permitted = identical(disposition, "retain"),
     display_permitted = identical(disposition, "retain")) {
   review <- data.frame(
-    schema_version = "phase18-ucl-provider-exit-review-v1",
+    schema_version = "phase18-ucl-provider-exit-review-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     exit_review_id = paste0("exit-review-", disposition, "-001"),
     provider_id = "football_data_org_v4", edition_id = "ucl_2026_27",
     decision = "reviewed", exit_disposition = disposition,
     retention_permitted = retention_permitted, display_permitted = display_permitted,
-    terms_sha256 = phase18_ucl_hash("reviewed provider terms"),
+    terms_sha256 = phase18_hash_scalar_v2("reviewed provider terms", "terms", "character"),
     provider_decision_id = "provider-accepted-before-exit",
-    provider_decision_sha256 = phase18_ucl_hash("accepted provider decision"),
+    provider_decision_sha256 = phase18_hash_scalar_v2("accepted provider decision", "decision", "character"),
     reviewer = "fixture-compliance-reviewer", reviewed_at_utc = "2026-09-20T13:00:00Z",
     reason = "provider relationship ended",
     retained_relative_paths = paste(retained_paths, collapse = "|"),
@@ -526,4 +541,68 @@ test_that("provider exit cannot retain without explicit reviewed permission", {
   )
   expect_identical(phase18_refresh_test_snapshot(sandbox$target), before)
   unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("refresh visibility is one hash-bound immutable generation pointer", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+
+  result <- phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root, now_utc = "2026-09-20T18:00:00Z"
+  )
+  expect_identical(result$status, "accepted")
+  pointer_path <- file.path(sandbox$registry_root, "ucl_source_current.json")
+  expect_true(file.exists(pointer_path))
+  current <- phase18_read_ucl_refresh_current(sandbox$accepted_root, sandbox$registry_root)
+  expect_identical(current$pointer$hash_encoding_version, phase18_canonical_encoding_v2())
+  expect_identical(current$accepted$bundle$bundle_id[[1L]], "ucl-refresh-candidate-v2")
+  expect_silent(phase18_validate_ucl_refresh_current(current))
+  expect_true(dir.exists(current$accepted_generation_root))
+  expect_true(dir.exists(current$transaction_generation_root))
+  expect_false(startsWith(current$accepted_generation_root, sandbox$accepted_root))
+})
+
+test_that("lock loser is completely silent across the shared refresh root", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root, now_utc = "2026-09-20T18:01:00Z"
+  )
+  dir.create(file.path(sandbox$root, ".phase18-ucl-refresh.lock"))
+  before <- phase18_refresh_test_snapshot(sandbox$root)
+  result <- phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root, now_utc = "2026-09-20T18:02:00Z"
+  )
+  after <- phase18_refresh_test_snapshot(sandbox$root)
+  expect_identical(result$reason_code, "concurrent_refresh")
+  expect_false(isTRUE(result$recorded))
+  expect_identical(after, before)
+})
+
+test_that("tampered current pointer and prior ledger block before allocation", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_sandbox()
+  on.exit(unlink(sandbox$root, recursive = TRUE, force = TRUE), add = TRUE)
+  phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root, now_utc = "2026-09-20T18:03:00Z"
+  )
+  pointer_path <- file.path(sandbox$registry_root, "ucl_source_current.json")
+  pointer <- jsonlite::fromJSON(pointer_path, simplifyVector = TRUE)
+  pointer$transaction_generation_sha256 <- paste(rep("0", 64L), collapse = "")
+  jsonlite::write_json(pointer, pointer_path, auto_unbox = TRUE, pretty = TRUE)
+  before <- phase18_refresh_test_snapshot(sandbox$root)
+  result <- phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root, now_utc = "2026-09-20T18:04:00Z"
+  )
+  expect_identical(result$status, "blocked")
+  expect_identical(result$reason_code, "schema_invalid")
+  expect_false(isTRUE(result$recorded))
+  expect_identical(phase18_refresh_test_snapshot(sandbox$root), before)
 })
