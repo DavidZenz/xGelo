@@ -198,3 +198,77 @@ test_that("declared production panel is five seasons by six source families and 
   expect_true(all(!grepl("(^|/)(main|master|HEAD)($|/)", inventory$commit_sha)))
   expect_silent(phase18_validate_history_sources(inventory))
 })
+
+test_that("blocked audits are complete and never replace accepted state", {
+  phase18_history_test_load()
+  phase18_history_test_require(c("phase18_publish_club_history_corpus", "phase18_validate_club_history_corpus"))
+  sandbox <- tempfile("phase18-history-blocked-")
+  audit_root <- file.path(sandbox, "audit")
+  accepted_root <- file.path(sandbox, "accepted")
+  dir.create(accepted_root, recursive = TRUE)
+  writeLines("incumbent", file.path(accepted_root, "sentinel.txt"))
+  pending <- phase18_history_test_source(1L, "blocked_pending_review")
+  pending$commit_sha <- ""; pending$license_review_state <- "pending"
+  pending$blocked_reason <- "missing_verified_pin_and_owner_license_review"
+  pending$row_sha256 <- phase18_club_row_sha256(pending)
+  blocked <- phase18_audit_club_history(
+    phase18_history_empty(phase18_normalized_club_match_schema()), pending,
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "blocked-fixture", created_at_utc = "2025-06-01T00:00:00Z", parser_commit = paste(rep("d", 40), collapse = "")
+  )
+  result <- phase18_publish_club_history_corpus(blocked, audit_root, accepted_root)
+  expect_false(result$accepted_for_training)
+  expect_identical(sort(list.files(audit_root)), sort(c(
+    "source_manifest.csv", "matches.csv", "coverage_audit.csv", "identity_audit.csv",
+    "duplicate_audit.csv", "score_semantics_audit.csv", "temporal_audit.csv", "corpus_manifest.csv"
+  )))
+  expect_identical(readLines(file.path(accepted_root, "sentinel.txt")), "incumbent")
+  expect_silent(phase18_validate_club_history_corpus(audit_root))
+})
+
+test_that("eligible corpus promotes atomically and validates while tampering fails", {
+  phase18_history_test_load()
+  phase18_history_test_require(c("phase18_publish_club_history_corpus", "phase18_validate_club_history_corpus"))
+  sandbox <- tempfile("phase18-history-accepted-")
+  audit_root <- file.path(sandbox, "audit")
+  accepted_root <- file.path(sandbox, "accepted")
+  matches <- phase18_history_test_good_matches(5L)
+  audit <- phase18_audit_club_history(
+    matches, phase18_history_test_source(5L), phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "accepted-fixture", created_at_utc = "2025-06-01T00:00:00Z", parser_commit = paste(rep("d", 40), collapse = "")
+  )
+  reversed <- phase18_audit_club_history(
+    matches[nrow(matches):1L, , drop = FALSE], phase18_history_test_source(5L), phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "accepted-fixture", created_at_utc = "2025-06-01T00:00:00Z", parser_commit = paste(rep("d", 40), collapse = "")
+  )
+  expect_identical(audit$corpus_manifest$manifest_sha256, reversed$corpus_manifest$manifest_sha256)
+  result <- phase18_publish_club_history_corpus(audit, audit_root, accepted_root)
+  expect_true(result$accepted_for_training)
+  expect_silent(phase18_validate_club_history_corpus(accepted_root))
+  tampered <- phase18_history_read_csv(file.path(accepted_root, "matches.csv"))
+  tampered$final_home_goals[[1L]] <- "99"
+  utils::write.csv(tampered, file.path(accepted_root, "matches.csv"), row.names = FALSE, na = "", quote = TRUE)
+  expect_error(phase18_validate_club_history_corpus(accepted_root), class = "history_match_hash_mismatch")
+})
+
+test_that("source byte verification rejects hash mismatch and symlinks", {
+  phase18_history_test_load()
+  phase18_history_test_require("phase18_verify_history_source_file")
+  sandbox <- tempfile("phase18-history-source-")
+  dir.create(sandbox)
+  source <- phase18_history_test_source(1L)
+  path <- file.path(sandbox, source$relative_path[[1L]])
+  dir.create(dirname(path), recursive = TRUE)
+  writeLines("fixture", path, useBytes = TRUE)
+  bytes <- file.info(path)$size
+  hash <- digest::digest(file = path, algo = "sha256", serialize = FALSE)
+  source$bytes <- as.character(bytes); source$raw_sha256 <- hash; source$row_sha256 <- phase18_club_row_sha256(source)
+  expect_identical(phase18_verify_history_source_file(source, sandbox), normalizePath(path, winslash = "/"))
+  bad <- source; bad$raw_sha256 <- paste(rep("0", 64), collapse = ""); bad$row_sha256 <- phase18_club_row_sha256(bad)
+  expect_error(phase18_verify_history_source_file(bad, sandbox), class = "history_source_hash_mismatch")
+  link <- file.path(dirname(path), "link.txt")
+  if (file.symlink(path, link)) {
+    linked <- source; linked$relative_path <- file.path(dirname(source$relative_path[[1L]]), "link.txt"); linked$row_sha256 <- phase18_club_row_sha256(linked)
+    expect_error(phase18_verify_history_source_file(linked, sandbox), class = "unsafe_history_source_symlink")
+  }
+})
