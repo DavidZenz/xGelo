@@ -1,0 +1,13 @@
+{
+  "schema_version": "phase18-ucl-source-current-v2",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "committed_at_utc": "2026-09-20T10:00:00Z",
+  "transaction_generation_id": "ucl-refresh-20260920-disabled-missing-credential-v2",
+  "transaction_generation_path": "transactions/ucl-refresh-20260920-disabled-missing-credential-v2",
+  "transaction_generation_sha256": "fdd7fce719bc7a7dbeec6f005c4aa407eabf1a0f88843e220166cdc3a137a701",
+  "accepted_status": "no_incumbent",
+  "accepted_generation_id": "",
+  "accepted_generation_path": "",
+  "accepted_generation_sha256": "",
+  "pointer_sha256": "624dceb7619410fd70d87731148b18efda1b4923ae31c87df95d7cb19608c58d"
+}

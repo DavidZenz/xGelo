@@ -5,6 +5,10 @@ if (is.null(phase18_refresh_script_file) || !nzchar(phase18_refresh_script_file)
   file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
   phase18_refresh_script_file <- if (length(file_arg)) sub("^--file=", "", file_arg[[1L]]) else "scripts/refresh_ucl_source.R"
 }
+if (!file.exists(phase18_refresh_script_file) && identical(basename(getwd()), "scripts") &&
+    file.exists(basename(phase18_refresh_script_file))) {
+  phase18_refresh_script_file <- basename(phase18_refresh_script_file)
+}
 phase18_refresh_script_root <- normalizePath(
   file.path(dirname(phase18_refresh_script_file), ".."), winslash = "/", mustWork = TRUE
 )
@@ -17,8 +21,9 @@ source(file.path(phase18_refresh_script_root, "R/competition/ucl_source_bundle.R
 source(file.path(phase18_refresh_script_root, "R/competition/ucl_source_refresh.R"), local = .GlobalEnv)
 
 phase18_refresh_ucl_parse_args <- function(args) {
-  allowed <- c("mode", "candidate-root", "exit-review", "dry-run")
-  options <- list(mode = "refresh", `candidate-root` = NULL, `exit-review` = NULL, `dry-run` = FALSE)
+  allowed <- c("mode", "provider", "edition", "candidate-root", "exit-review", "dry-run")
+  options <- list(mode = "refresh", provider = "football_data_org_v4", edition = "ucl_2026_27",
+                  `candidate-root` = NULL, `exit-review` = NULL, `dry-run` = FALSE)
   index <- 1L
   while (index <= length(args)) {
     token <- args[[index]]
@@ -37,7 +42,23 @@ phase18_refresh_ucl_parse_args <- function(args) {
   if (!options$mode %in% c("refresh", "provider_exit")) {
     stop("--mode must be refresh or provider_exit", call. = FALSE)
   }
+  if (!identical(options$provider, "football_data_org_v4"))
+    stop("--provider must be football_data_org_v4", call. = FALSE)
+  if (!identical(options$edition, "ucl_2026_27"))
+    stop("--edition must be ucl_2026_27", call. = FALSE)
   options
+}
+
+phase18_refresh_cli_exit_code <- function(result = NULL, error = NULL) {
+  if (!is.null(error)) {
+    message <- conditionMessage(error)
+    return(if (grepl("^--|Unsupported refresh option|Unknown positional|Missing value", message)) 64L else 1L)
+  }
+  if (is.null(result) || is.null(result$status)) return(1L)
+  if (as.character(result$status) %in% c("accepted", "retained_last_known_good", "source_unavailable",
+                                         "dry_run_validated", "dry_run_exit_review_validated")) return(0L)
+  if (identical(as.character(result$status), "blocked")) return(2L)
+  1L
 }
 
 #' Fixed-root operator entrypoint; no force or bypass options exist.
@@ -76,12 +97,8 @@ phase18_refresh_ucl_source_main <- function(args = commandArgs(trailingOnly = TR
 }
 
 if (sys.nframe() == 0L) {
-  result <- tryCatch(
-    phase18_refresh_ucl_source_main(),
-    error = function(error) {
-      message(conditionMessage(error))
-      quit(save = "no", status = 1L)
-    }
-  )
-  if (!is.null(result)) print(result)
+  failure <- NULL
+  result <- tryCatch(phase18_refresh_ucl_source_main(), error = function(error) { failure <<- error; NULL })
+  if (!is.null(failure)) message(conditionMessage(failure)) else if (!is.null(result)) print(result)
+  quit(save = "no", status = phase18_refresh_cli_exit_code(result, failure))
 }
