@@ -137,12 +137,23 @@ phase19_test_fixture_root <- function(label = "authority", accepted_history = TR
   root <- tempfile(paste0("phase19-", label, "-"), tmpdir = tempdir())
   dir.create(root, recursive = TRUE)
   phase19_write_fixture_authority_marker(root, paste0("phase19-", label))
-  audit <- phase19_test_history_audit()
-  if (!accepted_history) {
-    audit$corpus_manifest$accepted_for_training <- FALSE
-    audit$corpus_manifest$blocked_reasons <- "fixture_forced_block"
-    audit$corpus_manifest$manifest_sha256 <- phase18_history_row_sha256(
-      audit$corpus_manifest, "manifest_sha256"
+  audit <- if (accepted_history) {
+    phase19_test_history_audit()
+  } else {
+    pending <- phase19_test_history_source("a-pending", "league-a", "2024-25", 1L)
+    pending$commit_sha <- ""
+    pending$license_review_state <- "pending"
+    pending$source_status <- "blocked_pending_review"
+    pending$blocked_reason <- "fixture_source_not_accepted"
+    pending$row_sha256 <- phase18_history_row_sha256(pending)
+    phase18_audit_club_history(
+      phase18_history_empty(phase18_normalized_club_match_schema()), pending,
+      phase19_test_history_registries(), "2025-12-01T00:00:00Z",
+      corpus_id = "phase19-blocked-fixture",
+      created_at_utc = "2025-12-01T00:00:00Z",
+      parser_commit = paste(rep("d", 40L), collapse = ""),
+      identity_review = phase18_empty_table(phase18_club_review_schema()),
+      unresolved_identity = phase18_empty_table(phase18_unresolved_club_token_schema())
     )
   }
   phase18_publish_club_history_generation(

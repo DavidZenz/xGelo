@@ -60,7 +60,8 @@ test_that("fixture history and current roster use explicit non-promotable author
   expect_identical(history$model_domain, "club")
   expect_equal(history$row_count, 6L)
   expect_equal(nrow(history$matches), 6L)
-  expect_true(all(history$matches$counts_for_model))
+  expect_true(all(vapply(history$matches$counts_for_model,
+                         phase18_history_logical, logical(1))))
   expect_true(all(grepl("^club_", history$matches$home_club_id)))
   expect_true(all(grepl("^[0-9a-f]{64}$", c(
     history$pointer_sha256, history$generation_manifest_sha256,
