@@ -110,3 +110,91 @@ test_that("score meanings remain split and unknown semantics stay auditable", {
   expect_identical(unknown$exclusion_reason, "unresolved_score_semantics")
   expect_true(all(grepl("^[0-9a-f]{64}$", normalized$row_sha256)))
 })
+
+phase18_history_test_good_matches <- function(count = 5L) {
+  rows <- utils::read.csv(file.path(phase18_history_test_root, "tests/fixtures/phase18/openfootball/score_cases.csv"), stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  rows <- rows[rows$source_match_id == "reg-1", , drop = FALSE]
+  rows <- rows[rep(1L, count), , drop = FALSE]
+  rows$source_match_id <- paste0("good-", seq_len(count))
+  rows$event_date <- format(as.Date("2025-05-01") + seq_len(count) - 1L, "%Y-%m-%d")
+  rows$kickoff_utc <- paste0(rows$event_date, "T18:00:00Z")
+  rows$evidence_updated_at_utc <- paste0(rows$event_date, "T20:00:00Z")
+  phase18_normalize_club_history(rows, phase18_history_test_source(count), phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+}
+
+test_that("coverage equality and all zero-tolerance gates fail at one step", {
+  phase18_history_test_load()
+  phase18_history_test_require("phase18_audit_club_history")
+  matches <- phase18_history_test_good_matches(5L)
+  source <- phase18_history_test_source(5L)
+  passed <- phase18_audit_club_history(matches, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_true(passed$corpus_manifest$accepted_for_training)
+  expect_true(passed$coverage_audit$gate_passed)
+
+  one_fewer <- phase18_audit_club_history(matches[-1L, , drop = FALSE], source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_false(one_fewer$corpus_manifest$accepted_for_training)
+  one_extra <- matches[c(seq_len(nrow(matches)), nrow(matches)), , drop = FALSE]
+  one_extra$source_match_id[[nrow(one_extra)]] <- "extra-row"
+  one_extra$match_id[[nrow(one_extra)]] <- "clubmatch_extra"
+  one_extra$event_date[[nrow(one_extra)]] <- "2025-05-20"
+  one_extra$row_sha256 <- phase18_club_row_sha256(one_extra)
+  extra_audit <- phase18_audit_club_history(one_extra, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_false(extra_audit$coverage_audit$gate_passed)
+
+  identity_bad <- matches
+  identity_bad$home_club_id[[1L]] <- ""
+  identity_bad$counts_for_model[[1L]] <- FALSE
+  identity_bad$exclusion_reason[[1L]] <- "unresolved_club_identity"
+  identity_bad$row_sha256 <- phase18_club_row_sha256(identity_bad)
+  expect_false(phase18_audit_club_history(identity_bad, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")$identity_audit$gate_passed)
+
+  score_bad <- matches
+  score_bad$score_semantics[[1L]] <- "unknown"
+  score_bad$completion_method[[1L]] <- "unresolved"
+  score_bad$counts_for_model[[1L]] <- FALSE
+  score_bad$exclusion_reason[[1L]] <- "unresolved_score_semantics"
+  score_bad$row_sha256 <- phase18_club_row_sha256(score_bad)
+  expect_false(phase18_audit_club_history(score_bad, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")$score_semantics_audit$gate_passed)
+
+  temporal_bad <- matches
+  temporal_bad$evidence_available_at_utc[[1L]] <- "2025-06-01T00:00:00Z"
+  temporal_bad$counts_for_model[[1L]] <- FALSE
+  temporal_bad$exclusion_reason[[1L]] <- "evidence_not_prior_to_cutoff"
+  temporal_bad$row_sha256 <- phase18_club_row_sha256(temporal_bad)
+  expect_false(phase18_audit_club_history(temporal_bad, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")$temporal_audit$gate_passed)
+})
+
+test_that("semantic duplicates and pending source review are auditable but blocked", {
+  phase18_history_test_load()
+  phase18_history_test_require("phase18_audit_club_history")
+  matches <- phase18_history_test_good_matches(5L)
+  duplicate <- matches[c(seq_len(nrow(matches)), 1L), , drop = FALSE]
+  duplicate$source_match_id[[nrow(duplicate)]] <- "cross-source-copy"
+  duplicate$match_id[[nrow(duplicate)]] <- "clubmatch_cross_source_copy"
+  duplicate$row_sha256 <- phase18_club_row_sha256(duplicate)
+  source <- phase18_history_test_source(6L)
+  audited <- phase18_audit_club_history(duplicate, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_false(audited$duplicate_audit$gate_passed[[1L]])
+  expect_false(audited$corpus_manifest$accepted_for_training)
+
+  pending <- phase18_history_test_source(5L, "blocked_pending_review")
+  pending$commit_sha <- ""
+  pending$license_review_state <- "pending"
+  pending$blocked_reason <- "missing_verified_pin_and_owner_license_review"
+  pending$row_sha256 <- phase18_club_row_sha256(pending)
+  blocked <- phase18_audit_club_history(phase18_history_empty(phase18_normalized_club_match_schema()), pending, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_false(blocked$corpus_manifest$accepted_for_training)
+  expect_match(blocked$corpus_manifest$blocked_reasons, "source_pin_fraction")
+  expect_match(blocked$corpus_manifest$blocked_reasons, "license_fraction")
+})
+
+test_that("declared production panel is five seasons by six source families and stays blocked", {
+  phase18_history_test_load()
+  inventory <- phase18_history_read_csv(file.path(phase18_history_test_root, "data/club/history_sources.csv"))
+  expect_equal(nrow(inventory), 30L)
+  expect_setequal(unique(inventory$season_id), c("2021-22", "2022-23", "2023-24", "2024-25", "2025-26"))
+  expect_equal(length(unique(inventory$repository_url)), 6L)
+  expect_true(all(inventory$source_status == "blocked_pending_review"))
+  expect_true(all(!grepl("(^|/)(main|master|HEAD)($|/)", inventory$commit_sha)))
+  expect_silent(phase18_validate_history_sources(inventory))
+})
