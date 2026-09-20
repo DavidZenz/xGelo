@@ -393,3 +393,401 @@ phase19_load_club_candidate_seed_policy <- function(...) {
     )
   ), class = c("phase19_club_protocol_candidate", "list"))
 }
+
+phase19_gate_registry_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain", "gate_order",
+    "gate_id", "gate_category", "metric_id", "aggregation",
+    "comparator_model_id", "operator", "threshold", "applicability",
+    "failure_reason_code", "row_sha256"
+  )
+}
+
+phase19_policy_review_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain", "reviewer",
+    "reviewed_at_utc", "decision", "candidate_registry_sha256",
+    "gate_registry_sha256", "seed_registry_sha256", "feature_contract_sha256",
+    "protocol_sha256", "rationale_code", "review_sha256"
+  )
+}
+
+phase19_expected_gate_policy <- function() {
+  gate_id <- c(
+    "equal_fold_rps_delta", "paired_rps_ci_upper",
+    "rolling_origin_fold_breadth", "heldout_league_fold_breadth",
+    "worst_fold_rps_regression", "equal_fold_brier_relative_regression",
+    "equal_fold_log_loss_relative_regression", "fixed_bin_calibration_delta",
+    "declared_fixture_coverage", "full_score_grid_coverage",
+    "current_ucl_club_coverage", "common_rating_component_coverage",
+    "byte_reproducibility", "probability_integrity", "distribution_integrity",
+    "cutoff_integrity", "identity_integrity", "source_integrity",
+    "license_integrity", "feature_integrity", "seed_integrity",
+    "checksum_integrity", "domain_integrity", "model_card_integrity"
+  )
+  data.frame(
+    gate_order = seq_along(gate_id),
+    gate_id = gate_id,
+    gate_category = c(
+      "proper_score", "uncertainty", "breadth", "breadth", "proper_score",
+      "supporting_score", "supporting_score", "calibration", "coverage",
+      "coverage", "current_club", "current_club", "reproducibility",
+      rep("integrity", 11L)
+    ),
+    metric_id = c(
+      "candidate_minus_incumbent_rps", "paired_fold_rps_delta_ci_upper",
+      "improved_fold_fraction_rolling_origin_league_season",
+      "improved_fold_fraction_heldout_league_transport",
+      "maximum_fold_rps_regression", "brier_relative_regression",
+      "log_loss_relative_regression", "fixed_bin_calibration_error_delta",
+      "declared_fixture_prediction_fraction", "declared_score_grid_cell_fraction",
+      "accepted_current_ucl_club_fraction", "current_ucl_common_component_fraction",
+      "isolated_canonical_artifact_hash_equality", "probability_contract_pass",
+      "distribution_contract_pass", "exclusive_cutoff_contract_pass",
+      "club_identity_contract_pass", "accepted_source_contract_pass",
+      "source_license_contract_pass", "feature_contract_pass",
+      "seed_contract_pass", "checksum_contract_pass", "club_domain_contract_pass",
+      "model_card_contract_pass"
+    ),
+    aggregation = c(
+      "equal_fold_mean", "paired_fold_bootstrap_95_upper",
+      "eligible_fold_fraction", "eligible_fold_fraction", "maximum_fold_delta",
+      "equal_fold_relative_change", "equal_fold_relative_change",
+      "fixed_probability_bin_error_delta", "declared_fixture_fraction",
+      "declared_grid_cell_fraction", "accepted_current_ucl_club_fraction",
+      "accepted_current_ucl_common_component_fraction", "isolated_run_hash_equality",
+      rep("all_rows_boolean", 11L)
+    ),
+    comparator_model_id = c(
+      rep("club_venue_nb", 8L), "declared_assessment_fixtures",
+      "declared_score_support_g40", "accepted_current_ucl_roster",
+      "accepted_history_rating_graph", "same_protocol_isolated_replay",
+      rep("predeclared_contract", 11L)
+    ),
+    operator = c("<=", "<", ">=", ">=", rep("<=", 4L), rep("==", 16L)),
+    threshold = c(-0.003, 0, 2 / 3, 2 / 3, 0.015, 0.01, 0.01, 0.01, rep(1, 16L)),
+    applicability = c(
+      rep("candidate_vs_club_venue_nb", 8L),
+      "all_declared_assessment_fixtures", "all_declared_goal_distributions",
+      "production_release", "production_release", "same_parents_code_and_seeds",
+      rep("all_evaluation_and_release_artifacts", 11L)
+    ),
+    failure_reason_code = c(
+      "primary_rps_effect_failed", "paired_uncertainty_failed",
+      "rolling_origin_breadth_failed", "heldout_league_breadth_failed",
+      "worst_fold_regression_failed", "brier_relative_regression_failed",
+      "log_loss_relative_regression_failed", "calibration_delta_failed",
+      "declared_fixture_coverage_failed", "score_grid_coverage_failed",
+      "current_ucl_club_coverage_failed", "common_rating_component_failed",
+      "byte_reproducibility_failed", "probability_integrity_failed",
+      "distribution_integrity_failed", "cutoff_integrity_failed",
+      "identity_integrity_failed", "source_integrity_failed",
+      "license_integrity_failed", "feature_integrity_failed", "seed_integrity_failed",
+      "checksum_integrity_failed", "domain_integrity_failed", "model_card_integrity_failed"
+    ),
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+phase19_gate_row_sha256 <- function(registry) {
+  phase19_protocol_require_dependencies()
+  if (!is.data.frame(registry) ||
+      !identical(names(registry), phase19_gate_registry_schema())) {
+    phase19_protocol_abort("gate_registry_invalid", "Gate registry schema is not exact")
+  }
+  phase18_hash_row_v2(
+    registry, exclude = "row_sha256",
+    schema_tag = "phase19-club-gate-registry-row-v1"
+  )
+}
+
+phase19_validate_gate_registry <- function(registry) {
+  phase19_protocol_require_dependencies()
+  schema <- phase19_gate_registry_schema()
+  if (!is.data.frame(registry) || !identical(names(registry), schema)) {
+    phase19_protocol_abort("gate_registry_invalid", "Gate registry schema is not exact")
+  }
+  character_fields <- setdiff(schema, c("gate_order", "threshold"))
+  if (any(!vapply(registry[character_fields], is.character, logical(1))) ||
+      !is.integer(registry$gate_order) || !is.double(registry$threshold) ||
+      anyNA(registry)) {
+    phase19_protocol_abort("gate_registry_invalid", "Gate registry types or missingness are invalid")
+  }
+  expected <- phase19_expected_gate_policy()
+  expected_ids <- expected$gate_id
+  if (nrow(registry) != nrow(expected) || anyDuplicated(registry$gate_id) ||
+      anyDuplicated(registry$gate_order) || anyDuplicated(registry$failure_reason_code) ||
+      !setequal(as.character(registry$gate_id), expected_ids)) {
+    phase19_protocol_abort("gate_registry_invalid", "Gate inventory is missing, duplicate, or unknown")
+  }
+  if (any(registry$schema_version != "phase19-club-gate-v1") ||
+      any(registry$hash_encoding_version != phase18_canonical_encoding_v2()) ||
+      any(registry$forecast_domain != "club")) {
+    phase19_protocol_abort("protocol_domain_mismatch", "Gate registry metadata is not club canonical-v2")
+  }
+  phase19_protocol_assert_no_national_authority(registry, "Gate registry")
+  ordered <- registry[order(registry$gate_order, method = "radix"), , drop = FALSE]
+  rownames(ordered) <- NULL
+  policy_fields <- names(expected)
+  if (!identical(ordered[policy_fields], expected)) {
+    phase19_protocol_abort(
+      "gate_registry_invalid",
+      "Gate order, metric, aggregation, comparator, operator, threshold, applicability, or reason drifted"
+    )
+  }
+  if (any(grepl("infer|observed[_ -]?threshold|result[_ -]?derived",
+                tolower(ordered$aggregation), perl = TRUE))) {
+    phase19_protocol_abort("gate_registry_invalid", "Gate thresholds cannot be derived from observed results")
+  }
+  expected_hashes <- phase19_gate_row_sha256(registry)
+  if (!identical(as.character(registry$row_sha256), expected_hashes) ||
+      anyDuplicated(registry$row_sha256) ||
+      any(!vapply(registry$row_sha256, phase19_is_sha256, logical(1)))) {
+    phase19_protocol_abort("gate_registry_invalid", "Gate canonical row hash drifted or collided")
+  }
+  invisible(ordered)
+}
+
+phase19_gate_registry_sha256 <- function(registry) {
+  phase19_validate_gate_registry(registry)
+  phase18_hash_table_v2(
+    registry, key = "gate_id",
+    schema_tag = "phase19-club-gate-registry-table-v1"
+  )
+}
+
+phase19_protocol_file_inventory <- function() {
+  c(
+    "candidate_registry.csv", "gate_registry.csv", "seed_registry.csv",
+    "feature_contract.csv", "policy_review.json"
+  )
+}
+
+phase19_protocol_future_inventory <- function() {
+  c("fold_registry.csv", "protocol_state.json", "calibration_recipe.json", "fold_review.json")
+}
+
+phase19_validate_protocol_inventory <- function(files, allow_missing_review = FALSE) {
+  files <- sort(as.character(files), method = "radix")
+  required <- sort(phase19_protocol_file_inventory(), method = "radix")
+  optional <- character()
+  if (isTRUE(allow_missing_review)) {
+    required <- setdiff(required, "policy_review.json")
+    optional <- "policy_review.json"
+  }
+  future <- sort(phase19_protocol_future_inventory(), method = "radix")
+  extras <- sort(setdiff(files, c(required, optional)), method = "radix")
+  future_state_valid <- !length(extras) || identical(extras, future)
+  if (anyNA(files) || any(!nzchar(files)) || anyDuplicated(files) ||
+      length(setdiff(required, files)) || !future_state_valid) {
+    phase19_protocol_abort(
+      "protocol_inventory_invalid",
+      "Club protocol directory has missing, duplicate, unsafe, or surplus files"
+    )
+  }
+  invisible(TRUE)
+}
+
+phase19_protocol_sha256 <- function(candidate_registry, gate_registry, seed_registry,
+                                    feature_contract) {
+  candidate_hash <- phase19_candidate_registry_sha256(candidate_registry, feature_contract)
+  gate_hash <- phase19_gate_registry_sha256(gate_registry)
+  seed_hash <- phase19_seed_registry_sha256(seed_registry)
+  feature_hash <- phase19_feature_contract_sha256(feature_contract)
+  file_names <- c(
+    "candidate_registry.csv", "gate_registry.csv", "seed_registry.csv",
+    "feature_contract.csv"
+  )
+  schemas <- list(
+    phase19_candidate_registry_schema(), phase19_gate_registry_schema(),
+    phase19_seed_registry_schema(), phase19_feature_contract_schema()
+  )
+  table_hashes <- c(candidate_hash, gate_hash, seed_hash, feature_hash)
+  values <- list(
+    schema_version = "phase19-club-evaluation-protocol-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", score_support = "0:40"
+  )
+  for (index in seq_along(file_names)) {
+    prefix <- sprintf("file_%02d", index)
+    values[[paste0(prefix, "_name")]] <- file_names[[index]]
+    values[[paste0(prefix, "_schema_sha256")]] <- phase19_protocol_schema_sha256(
+      schemas[[index]], file_names[[index]]
+    )
+    values[[paste0(prefix, "_table_sha256")]] <- table_hashes[[index]]
+  }
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-evaluation-protocol-v1",
+    names = names(values), types = rep("character", length(values))
+  )
+}
+
+phase19_policy_review_sha256 <- function(review) {
+  schema <- phase19_policy_review_schema()
+  if (!is.list(review) || !identical(names(review), schema)) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Policy review schema is not exact")
+  }
+  values <- review[setdiff(schema, "review_sha256")]
+  if (any(vapply(values, length, integer(1)) != 1L) ||
+      any(vapply(values, function(value) is.na(value[[1L]]), logical(1)))) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Policy review values are not exact scalars")
+  }
+  values[] <- lapply(values, function(value) enc2utf8(as.character(value[[1L]])))
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-policy-review-v1",
+    names = names(values), types = rep("character", length(values))
+  )
+}
+
+phase19_validate_policy_review <- function(review, protocol, require_accepted = FALSE) {
+  if (!is.list(review) || !identical(names(review), phase19_policy_review_schema())) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Policy review is missing or has schema drift")
+  }
+  review[] <- lapply(review, function(value) as.character(value[[1L]]))
+  if (!identical(review$schema_version, "phase19-club-policy-review-v1") ||
+      !identical(review$hash_encoding_version, phase18_canonical_encoding_v2()) ||
+      !identical(review$forecast_domain, "club") ||
+      !review$decision %in% c("pending", "accepted", "rejected") ||
+      !phase19_is_sha256(review$review_sha256) ||
+      !identical(review$review_sha256, phase19_policy_review_sha256(review))) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Policy review metadata or self-hash is invalid")
+  }
+  parent_fields <- c(
+    "candidate_registry_sha256", "gate_registry_sha256", "seed_registry_sha256",
+    "feature_contract_sha256", "protocol_sha256"
+  )
+  if (any(!vapply(review[parent_fields], phase19_is_sha256, logical(1))) ||
+      !identical(
+        unname(unlist(review[parent_fields], use.names = FALSE)),
+        unname(unlist(protocol[parent_fields], use.names = FALSE))
+      )) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Policy review does not bind the exact protocol parents")
+  }
+  if (identical(review$decision, "pending")) {
+    if (nzchar(review$reviewer) || nzchar(review$reviewed_at_utc) ||
+        !identical(review$rationale_code, "pending_owner_review")) {
+      phase19_protocol_abort("protocol_policy_not_approved", "Pending review invents owner evidence")
+    }
+  }
+  if (identical(review$decision, "accepted")) {
+    if (!nzchar(review$reviewer) ||
+        !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+               review$reviewed_at_utc) || !nzchar(review$rationale_code)) {
+      phase19_protocol_abort("protocol_policy_not_approved", "Accepted review lacks owner or UTC evidence")
+    }
+  }
+  if (isTRUE(require_accepted) && !identical(review$decision, "accepted")) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Club protocol owner review is not accepted")
+  }
+  invisible(review)
+}
+
+phase19_protocol_read_gates <- function(path) {
+  phase19_assert_regular_file(path, "gate_registry_invalid")
+  utils::read.csv(
+    path, stringsAsFactors = FALSE, check.names = FALSE,
+    na.strings = character(),
+    colClasses = c(
+      rep("character", 3L), "integer", rep("character", 6L), "double",
+      rep("character", 3L)
+    )
+  )
+}
+
+phase19_protocol_read_review <- function(path) {
+  phase19_assert_regular_file(path, "protocol_policy_not_approved")
+  review <- as.list(jsonlite::fromJSON(path, simplifyVector = TRUE))
+  if (!identical(names(review), phase19_policy_review_schema())) {
+    phase19_protocol_abort("protocol_policy_not_approved", "Policy review schema is not exact")
+  }
+  review[] <- lapply(review, function(value) as.character(value[[1L]]))
+  review
+}
+
+phase19_protocol_components <- function(include_review = TRUE) {
+  root <- file.path(.phase19_club_project_root, "data", "club", "model_protocol")
+  entries <- list.files(root, all.files = FALSE, no.. = TRUE)
+  phase19_validate_protocol_inventory(entries, allow_missing_review = !isTRUE(include_review))
+  candidate_registry <- phase19_protocol_read_candidates(file.path(root, "candidate_registry.csv"))
+  gate_registry <- phase19_protocol_read_gates(file.path(root, "gate_registry.csv"))
+  seed_registry <- phase19_protocol_read_seeds(file.path(root, "seed_registry.csv"))
+  feature_contract <- phase19_load_feature_contract()
+  candidate_registry <- phase19_validate_candidate_registry(candidate_registry, feature_contract)
+  gate_registry <- phase19_validate_gate_registry(gate_registry)
+  seed_registry <- phase19_validate_seed_registry(seed_registry)
+  hashes <- list(
+    candidate_registry_sha256 = phase19_candidate_registry_sha256(candidate_registry, feature_contract),
+    gate_registry_sha256 = phase19_gate_registry_sha256(gate_registry),
+    seed_registry_sha256 = phase19_seed_registry_sha256(seed_registry),
+    feature_contract_sha256 = phase19_feature_contract_sha256(feature_contract)
+  )
+  hashes$protocol_sha256 <- phase19_protocol_sha256(
+    candidate_registry, gate_registry, seed_registry, feature_contract
+  )
+  c(list(
+    schema_version = "phase19-club-evaluation-protocol-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", candidate_registry = candidate_registry,
+    gate_registry = gate_registry, seed_registry = seed_registry,
+    feature_contract = feature_contract
+  ), hashes, list(
+    policy_review = if (isTRUE(include_review)) {
+      phase19_protocol_read_review(file.path(root, "policy_review.json"))
+    } else NULL
+  ))
+}
+
+phase19_evaluate_policy_review <- function(protocol, review, authority_mode = "production") {
+  if (!authority_mode %in% c("production", "fixture")) {
+    phase19_protocol_abort("protocol_domain_mismatch", "Protocol authority mode is invalid")
+  }
+  valid <- tryCatch({
+    phase19_validate_policy_review(
+      review, protocol, require_accepted = identical(authority_mode, "production")
+    )
+    TRUE
+  }, error = function(error) error)
+  if (inherits(valid, "error")) {
+    return(structure(list(
+      status = "blocked", reason_code = "protocol_policy_not_approved",
+      authority_mode = authority_mode,
+      fixture_authority = identical(authority_mode, "fixture"),
+      production_eligible = FALSE, forecast_domain = "club",
+      upstream_reason = if (is.null(valid$reason_code)) class(valid)[[1L]] else valid$reason_code
+    ), class = c("phase19_club_evaluation_protocol", "list")))
+  }
+  result <- protocol
+  result$status <- "ready"
+  result$reason_code <- ""
+  result$authority_mode <- authority_mode
+  result$fixture_authority <- identical(authority_mode, "fixture")
+  result$production_eligible <- identical(authority_mode, "production")
+  result$policy_review <- review
+  structure(result, class = c("phase19_club_evaluation_protocol", "list"))
+}
+
+#' Load the committed policy for deterministic fixture evaluation.
+phase19_load_fixture_club_evaluation_protocol <- function(...) {
+  phase19_reject_arbitrary_arguments(list(...))
+  protocol <- phase19_protocol_components(include_review = TRUE)
+  phase19_validate_policy_review(protocol$policy_review, protocol, require_accepted = FALSE)
+  result <- protocol
+  result$status <- "ready"
+  result$reason_code <- ""
+  result$authority_mode <- "fixture"
+  result$fixture_authority <- TRUE
+  result$production_eligible <- FALSE
+  structure(result, class = c("phase19_club_evaluation_protocol", "list"))
+}
+
+#' Load production club policy only when one exact owner review is accepted.
+phase19_load_club_evaluation_protocol <- function(...) {
+  phase19_reject_arbitrary_arguments(list(...))
+  protocol <- phase19_protocol_components(include_review = FALSE)
+  root <- file.path(.phase19_club_project_root, "data", "club", "model_protocol")
+  review <- tryCatch(
+    phase19_protocol_read_review(file.path(root, "policy_review.json")),
+    error = function(error) NULL
+  )
+  phase19_evaluate_policy_review(protocol, review, "production")
+}
