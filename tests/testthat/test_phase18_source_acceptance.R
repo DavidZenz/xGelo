@@ -566,3 +566,114 @@ test_that("exact replay is idempotent while decision collisions are blocked", {
   expect_identical(phase18_test_tree_sha(root), accepted_bytes)
   expect_false(any(grepl("phase18-acceptance-(stage|backup|lock)", list.files(dirname(root), all.files = TRUE))))
 })
+
+phase18_loader_script_consumers <- c(
+  "R/competition/ucl_source_acceptance.R",
+  "R/competition/source_contracts.R",
+  "R/competition/edition_registry.R",
+  "R/club/identity.R",
+  "R/club/identity_bootstrap.R",
+  "R/competition/football_data_org_adapter.R",
+  "R/competition/ucl_source_bundle.R",
+  "R/competition/ucl_source_refresh.R",
+  "R/club/history_contract.R"
+)
+
+phase18_expect_canonical_first_script <- function(relative_path) {
+  lines <- readLines(file.path(phase18_test_root, relative_path), warn = FALSE)
+  common <- grep("R/common/phase18_canonical_hash[.]R", lines)
+  consumers <- which(vapply(lines, function(line) {
+    any(vapply(phase18_loader_script_consumers, grepl, logical(1), x = line, fixed = TRUE))
+  }, logical(1)))
+  expect_equal(length(common), 1L, info = relative_path)
+  expect_true(length(consumers) > 0L, info = relative_path)
+  if (length(common) == 1L && length(consumers)) {
+    expect_true(common[[1L]] < min(consumers), info = relative_path)
+    expect_match(lines[[common[[1L]]]], "^source\\(", info = relative_path)
+  }
+}
+
+phase18_loader_snapshot <- function(roots) {
+  records <- unlist(lapply(roots, function(root) {
+    if (!dir.exists(root)) return(setNames(character(), character()))
+    paths <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE)
+    paths <- paths[file.exists(paths) & !dir.exists(paths)]
+    relative <- substring(paths, nchar(normalizePath(root, winslash = "/")) + 2L)
+    setNames(vapply(paths, function(path) {
+      digest::digest(file = path, algo = "sha256", serialize = FALSE)
+    }, character(1)), paste(basename(root), relative, sep = "/"))
+  }), recursive = FALSE)
+  unlist(records, use.names = TRUE)
+}
+
+phase18_loader_run_cli <- function(script, args = character(), env = character()) {
+  output <- suppressWarnings(system2(
+    "Rscript", c("--vanilla", shQuote(file.path(phase18_test_root, script)), args),
+    stdout = TRUE, stderr = TRUE, env = env
+  ))
+  list(output = output, status = attr(output, "status") %||% 0L)
+}
+
+test_that("all Phase 18 production CLIs bootstrap the canonical hash module first", {
+  scripts <- c(
+    "scripts/accept_ucl_provider.R",
+    "scripts/bootstrap_club_identity.R",
+    "scripts/refresh_ucl_source.R",
+    "scripts/build_club_history_corpus.R"
+  )
+  invisible(lapply(scripts, phase18_expect_canonical_first_script))
+})
+
+test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", {
+  durable_roots <- file.path(phase18_test_root, c(
+    "data/competition/provider_acceptance",
+    "data/competition/accepted",
+    "data/competition/registries",
+    "data/club/registries",
+    "data/club/identity_reviews",
+    "data/club/history_audits",
+    "data/club/accepted"
+  ))
+  before <- phase18_loader_snapshot(durable_roots)
+  scratch <- tempfile("phase18-loader-smoke-")
+  dir.create(scratch, recursive = TRUE)
+  on.exit(unlink(scratch, recursive = TRUE, force = TRUE), add = TRUE)
+  club_scratch <- file.path(
+    phase18_test_root, "data/club",
+    paste0(".phase18-loader-smoke-", Sys.getpid(), "-", as.integer(Sys.time()))
+  )
+  dir.create(club_scratch, recursive = TRUE)
+  on.exit(unlink(club_scratch, recursive = TRUE, force = TRUE), add = TRUE)
+
+  acceptance <- phase18_loader_run_cli(
+    "scripts/accept_ucl_provider.R",
+    c(
+      "--provider-id", "football_data_org_v4",
+      "--edition-id", "ucl_2026_27",
+      "--review-path", shQuote(file.path(phase18_test_root, "tests/fixtures/phase18/provider_terms_review.csv")),
+      "--evidence-root", shQuote(file.path(scratch, "provider_acceptance"))
+    ),
+    env = "FOOTBALL_DATA_API_TOKEN="
+  )
+  identity <- phase18_loader_run_cli(
+    "scripts/bootstrap_club_identity.R",
+    c("--mode=verify", paste0("--project-root=", shQuote(phase18_test_root)))
+  )
+  refresh <- phase18_loader_run_cli("scripts/refresh_ucl_source.R")
+  history <- phase18_loader_run_cli(
+    "scripts/build_club_history_corpus.R",
+    c(
+      paste0("--project-root=", shQuote(phase18_test_root)),
+      paste0("--audit-root=", shQuote(file.path(club_scratch, "audit"))),
+      paste0("--accepted-root=", shQuote(file.path(club_scratch, "accepted")))
+    )
+  )
+
+  expect_equal(acceptance$status, 0L, info = paste(acceptance$output, collapse = "\n"))
+  expect_true(identity$status %in% c(0L, 2L), info = paste(identity$output, collapse = "\n"))
+  expect_equal(refresh$status, 1L, info = paste(refresh$output, collapse = "\n"))
+  expect_true(history$status %in% c(0L, 2L), info = paste(history$output, collapse = "\n"))
+  combined <- paste(c(acceptance$output, identity$output, refresh$output, history$output), collapse = "\n")
+  expect_false(grepl("could not find function.*phase18_|object.*phase18_.*not found", combined, ignore.case = TRUE))
+  expect_identical(phase18_loader_snapshot(durable_roots), before)
+})
