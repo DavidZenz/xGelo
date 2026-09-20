@@ -1,0 +1,6 @@
+source_match_id,event_date,kickoff_utc,stage,status,home_name,away_name,score_text,score_semantics,evidence_updated_at_utc
+reg-1,2025-05-01,2025-05-01T18:00:00Z,league,completed,Alpha FC,Beta FC,2-1,regulation,2025-05-01T20:00:00Z
+date-only,2025-05-02,,league,completed,Alpha FC,Beta FC,1-0,regulation,
+extra-time,2025-05-03,2025-05-03T18:00:00Z,cup,completed,Alpha FC,Beta FC,1-1; aet 2-1,extra_time,2025-05-03T21:00:00Z
+shootout,2025-05-04,2025-05-04T18:00:00Z,cup,completed,Alpha FC,Beta FC,1-1; aet 1-1; pens 4-3,penalties,2025-05-04T21:00:00Z
+unknown-score,2025-05-05,2025-05-05T18:00:00Z,cup,completed,Alpha FC,Beta FC,TBD,unknown,2025-05-05T20:00:00Z
