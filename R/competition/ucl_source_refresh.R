@@ -71,8 +71,8 @@ phase18_classify_ucl_refresh_failure <- function(error) {
     concurrent_refresh = "lock collision|concurrent",
     read_back_failure = "read.?back",
     promotion_failure = "promotion|promote",
-    history_write_failure = "history writer|history write",
-    sidecar_write_failure = "sidecar writer|sidecar write"
+    history_write_failure = "history[_ ]writer|history write",
+    sidecar_write_failure = "sidecar[_ ]writer|sidecar write"
   )
   for (reason in names(patterns)) {
     if (grepl(patterns[[reason]], message, perl = TRUE)) {
@@ -568,7 +568,19 @@ phase18_refresh_ucl_source <- function(
       phase18_ucl_refresh_publish_event(roots, row, hooks = evidence_hooks, blocked = TRUE)
       NULL
     }, error = function(error) error)
-    if (!is.null(record_error)) recorded <- FALSE
+    if (!is.null(record_error)) {
+      metadata_failure <- phase18_classify_ucl_refresh_failure(record_error)
+      fallback_row <- phase18_ucl_refresh_event_row(
+        refresh_batch_id, now_utc, edition_id, "blocked", candidate, incumbent,
+        metadata_failure$failure_phase, metadata_failure$reason_code
+      )
+      fallback_error <- tryCatch({
+        phase18_ucl_refresh_publish_event(roots, fallback_row, hooks = list(), blocked = TRUE)
+        NULL
+      }, error = function(error) error)
+      recorded <- is.null(fallback_error)
+      if (recorded) classified <- metadata_failure
+    }
     cleanup()
     return(invisible(list(
       status = "blocked", reason_code = classified$reason_code,

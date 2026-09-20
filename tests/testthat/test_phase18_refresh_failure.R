@@ -430,7 +430,6 @@ test_that("history and sidecar writer failures never corrupt accepted state", {
 
   sandbox <- phase18_refresh_test_sandbox()
   accepted_before <- phase18_refresh_test_snapshot(file.path(sandbox$accepted_root, "ucl_2026_27"))
-  history_before <- phase18_refresh_test_snapshot(sandbox$registry_root)
   result <- phase18_refresh_ucl_source(
     file.path(sandbox$root, "missing"), sandbox$accepted_root, sandbox$registry_root,
     sandbox$acceptance_root,
@@ -438,8 +437,11 @@ test_that("history and sidecar writer failures never corrupt accepted state", {
     now_utc = "2026-09-20T14:01:00Z"
   )
   expect_identical(phase18_refresh_test_snapshot(file.path(sandbox$accepted_root, "ucl_2026_27")), accepted_before)
-  expect_identical(phase18_refresh_test_snapshot(sandbox$registry_root), history_before)
-  expect_false(result$recorded)
+  expect_identical(result$reason_code, "sidecar_write_failure")
+  expect_true(result$recorded)
+  history <- phase18_ucl_refresh_read_history(file.path(sandbox$registry_root, "ucl_source_refreshes.csv"))
+  sidecar <- jsonlite::fromJSON(file.path(sandbox$registry_root, "ucl_source_blocked_refresh.json"), simplifyVector = TRUE)
+  expect_silent(phase18_validate_ucl_refresh_state(history, sidecar, sandbox$accepted_root))
   unlink(sandbox$root, recursive = TRUE, force = TRUE)
 })
 
