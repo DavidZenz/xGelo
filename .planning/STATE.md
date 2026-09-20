@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: Club and UCL Source Contracts
 status: executing
-stopped_at: Completed 18-05-PLAN.md
-last_updated: "2026-09-20T09:39:30.049Z"
+stopped_at: Completed 18-06-PLAN.md
+last_updated: "2026-09-20T09:57:57.275Z"
 last_activity: 2026-09-20
-last_activity_desc: Completed Plan 18-05 historical club corpus contract
+last_activity_desc: Completed Plan 18-03 current UCL provider adapter
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
-  percent: 67
+  completed_plans: 5
+  percent: 83
 ---
 
 # xGelo Project State
@@ -29,17 +29,17 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (Club and UCL Source Contracts) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
-Last activity: 2026-09-20 — Completed Plan 18-03 current UCL provider adapter
+Last activity: 2026-09-20 — Completed Plan 18-06 canonical UCL source bundle
 
-Progress: [███████░░░] 67%
+Progress: [████████░░] 83%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 18 | Club and UCL Source Contracts | 6 | In progress (4/6) |
+| 18 | Club and UCL Source Contracts | 6 | In progress (5/6) |
 | 19 | Independent Club Forecast Authority | 5 | Not started |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
@@ -49,9 +49,9 @@ Progress: [███████░░░] 67%
 
 **Current milestone:**
 
-- Total plans completed: 3
-- Average duration: 11 min
-- Total execution time: 33 min
+- Total plans completed: 5
+- Average duration: 13 min
+- Total execution time: 63 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`.
 **Per-Plan Metrics:**
@@ -62,6 +62,7 @@ Progress: [███████░░░] 67%
 | Phase 18 P02 | 10 min | 3 tasks | 10 files |
 | Phase 18 P03 | 9 min | 2 tasks | 8 files |
 | Phase 18 P05 | 15min | 3 tasks | 14 files |
+| Phase 18 P06 | 15min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Progress: [███████░░░] 67%
 - [Phase 18]: Synthetic provider evidence remains offline-only; only explicit live_acceptance_probe may invoke atomic provider acceptance after owner and identity review.
 - [Phase 18]: The 2021/22-2025/26 six-family club-history panel remains blocked until full pins, licenses, expected counts, and owner mappings exist.
 - [Phase 18]: Date-only club matches become available at the next UTC day boundary and require evidence time strictly earlier than cutoff.
+- [Phase 18]: Source authority is a closed discriminated union recomputed from evidence; stored eligibility booleans are never authority.
+- [Phase 18]: Fixture contracts are permanently non-promotable, and production manual authority remains not_reviewed until real owner evidence exists.
 
 ### Pending Todos
 
@@ -102,6 +105,6 @@ Progress: [███████░░░] 67%
 
 ## Session Continuity
 
-Last session: 2026-09-20T09:39:30.041Z
-Stopped at: Completed 18-05-PLAN.md
+Last session: 2026-09-20T09:57:57.267Z
+Stopped at: Completed 18-06-PLAN.md
 Resume file: None
