@@ -65,9 +65,15 @@ phase18_accept_ucl_provider_main <- function(
     parser_commit_sha = NULL) {
   options <- phase18_accept_parse_args(args)
   preflight <- phase18_provider_preflight(token_present, now_utc)
+  target_root <- file.path(options[["evidence-root"]], options[["provider-id"]], options[["edition-id"]])
   review <- phase18_read_terms_review(options[["review-path"]])
   if (is.null(review)) review <- data.frame()
-  expectations <- phase18_default_edition_expectations(options[["edition-id"]], now_utc)
+  expectation_path <- file.path(target_root, "edition_expectations.csv")
+  expectations <- if (file.exists(expectation_path)) {
+    utils::read.csv(expectation_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  } else {
+    phase18_default_edition_expectations(options[["edition-id"]], now_utc)
+  }
   machine_checks <- phase18_default_machine_checks(expectations, now_utc, preflight$reason_code[[1L]])
   schema_fingerprint <- phase18_default_schema_fingerprint(now_utc)
   if (isTRUE(token_present)) {
@@ -87,7 +93,6 @@ phase18_accept_ucl_provider_main <- function(
     parser_commit_sha = parser_commit_sha,
     project_root = phase18_accept_project_root
   )
-  target_root <- file.path(options[["evidence-root"]], options[["provider-id"]], options[["edition-id"]])
   dir.create(target_root, recursive = TRUE, showWarnings = FALSE)
   phase18_write_csv_atomic(review, file.path(target_root, "provider_terms_review.csv"))
   phase18_write_csv_atomic(expectations, file.path(target_root, "edition_expectations.csv"))

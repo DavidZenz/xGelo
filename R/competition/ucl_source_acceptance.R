@@ -287,14 +287,14 @@ phase18_build_acceptance_manifest <- function(
   machine_result <- phase18_validate_machine_checks(machine_checks)
   modes <- if (is.data.frame(machine_checks) && "execution_mode" %in% names(machine_checks)) unique(as.character(machine_checks$execution_mode)) else character()
   execution_mode <- if (length(modes) == 1L) modes[[1L]] else "not_run"
-  integrate <- if (is.data.frame(machine_checks) && all(c("decision", "capability") %in% names(machine_checks))) {
-    machine_checks[toupper(as.character(machine_checks$decision)) == "INTEGRATE", , drop = FALSE]
-  } else machine_checks[0, , drop = FALSE]
   required_capabilities <- c("competition_metadata", "teams", "matches", "standings")
+  integrate <- if (is.data.frame(machine_checks) && all(c("decision", "capability") %in% names(machine_checks))) {
+    machine_checks[as.character(machine_checks$capability) %in% required_capabilities, , drop = FALSE]
+  } else machine_checks[0, , drop = FALSE]
   complete_resources <- nrow(integrate) == 4L && setequal(as.character(integrate$capability), required_capabilities)
-  all_machine_pass <- complete_resources && all(as.logical(integrate$passed)) &&
-    all(as.logical(integrate$freshness_passed)) && all(as.logical(integrate$identity_passed)) &&
-    all(as.logical(integrate$pagination_complete)) && all(as.logical(integrate$secret_scan_passed))
+  all_machine_pass <- complete_resources && all(as.logical(machine_checks$passed)) &&
+    all(as.logical(machine_checks$freshness_passed)) && all(as.logical(machine_checks$identity_passed)) &&
+    all(as.logical(machine_checks$pagination_complete)) && all(as.logical(machine_checks$secret_scan_passed))
   live_ids <- unique(as.character(integrate$live_run_id))
   live_id <- if (length(live_ids) == 1L) live_ids[[1L]] else ""
   real_key <- nrow(integrate) == 4L && all(as.logical(integrate$real_key_evidence))
@@ -309,6 +309,9 @@ phase18_build_acceptance_manifest <- function(
   if (can_accept) {
     decision <- "accepted"
     reason_code <- "accepted"
+  } else if (identical(execution_mode, "not_run") && (!real_key || !nzchar(live_id))) {
+    decision <- "not_run"
+    reason_code <- "missing_credential"
   } else if (!review_result$valid && identical(review_result$decision, "rejected")) {
     decision <- "rejected"
     reason_code <- review_result$reason_code
@@ -410,12 +413,13 @@ phase18_default_edition_expectations <- function(edition_id = "ucl_2026_27", now
 }
 
 phase18_default_machine_checks <- function(expectations, now_utc, reason_code = "missing_credential") {
-  capabilities <- c("competition_metadata", "teams", "matches", "standings")
+  decisions <- phase18_capability_decisions()
+  capabilities <- names(decisions)
   expectation_hash <- as.character(expectations$expectation_sha256[[1L]])
   checks <- data.frame(
     schema_version = "phase18-machine-check-v1",
     capability = capabilities,
-    decision = "INTEGRATE",
+    decision = unname(decisions),
     execution_mode = "not_run",
     passed = FALSE,
     observed_count = NA_integer_,
@@ -434,6 +438,27 @@ phase18_default_machine_checks <- function(expectations, now_utc, reason_code = 
     check.names = FALSE
   )
   phase18_hash_machine_checks(checks)
+}
+
+phase18_capability_decisions <- function() {
+  c(
+    competition_metadata = "INTEGRATE",
+    teams = "INTEGRATE",
+    matches = "INTEGRATE",
+    standings = "INTEGRATE",
+    scorers = "OPT-OUT",
+    head_to_head = "OPT-OUT",
+    match_detail = "OPT-OUT",
+    team_detail = "OPT-OUT",
+    person_detail = "OPT-OUT",
+    filters = "INTEGRATE",
+    pagination = "INTEGRATE",
+    authenticated_headers = "INTEGRATE",
+    rate_limits = "INTEGRATE",
+    null_empty_semantics = "INTEGRATE",
+    attribution = "INTEGRATE",
+    provider_exit = "INTEGRATE"
+  )
 }
 
 phase18_default_schema_fingerprint <- function(now_utc) {

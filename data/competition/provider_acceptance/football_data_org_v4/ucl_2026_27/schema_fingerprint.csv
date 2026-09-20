@@ -1,0 +1,5 @@
+"schema_version","resource","endpoint","observed","observed_at_utc","fingerprint_sha256","row_sha256"
+"phase18-schema-fingerprint-v1","competition_metadata","/competitions/CL",FALSE,"2026-09-20T08:46:01Z","a22dc0ec46924ae0d99d0d6f93b4c2ab04e8f2745534c095ff632e2197394844","3265d7e6fbcf42b52a037e1dad76d34d65d527989f4efc740ba0f52653043776"
+"phase18-schema-fingerprint-v1","teams","/competitions/CL/teams?season=2026",FALSE,"2026-09-20T08:46:01Z","0d9ef17073bd88f8a4cb6b3f21a6829a9fe2b13bcb63b32d550caec132bc1c6b","85acb8065c8d8fb42699d04568796aa2afcfa5edfaf3bf848db7e9fe8011fec7"
+"phase18-schema-fingerprint-v1","matches","/competitions/CL/matches?season=2026",FALSE,"2026-09-20T08:46:01Z","40d7c6bfa7a73bc51b1326fdfafe83f1fe21414c36851ffdbf81c33a32bae3e6","dec81c2a15b31176dd9250c073e72b5410a47d18c57f0fb9971e26949e3b341e"
+"phase18-schema-fingerprint-v1","standings","/competitions/CL/standings?season=2026",FALSE,"2026-09-20T08:46:01Z","4c3456dd903d1e559742b69366db30fae420759bdd160307a6c4faca19d4bb50","6193d489102b039e167d054adc6b44b93ba1fc804e4a130417be6720a60269ad"
