@@ -111,7 +111,16 @@ test_that("CR-04 incomplete or zero-observation capability evidence cannot autom
   expect_false(phase18_validate_machine_checks(checks[-1L, , drop = FALSE])$valid)
   zero <- checks; integrated <- zero$decision == "INTEGRATE"; zero$observed_count[integrated] <- 0L
   zero <- phase18_hash_machine_checks(zero)
-  expect_false(phase18_validate_machine_checks(zero)$valid)
+  validated <- phase18_validate_machine_checks(zero)
+  expect_false(validated$valid)
+  expect_identical(validated$reason_code, "coverage")
+  manifest <- phase18_build_acceptance_manifest(
+    zero, phase18_test_review("approved"), expectations, phase18_test_fingerprint(TRUE),
+    "cr04-zero-observation", "2026-09-19T12:30:00Z",
+    parser_commit_sha = "0123456789abcdef0123456789abcdef01234567"
+  )
+  expect_false(manifest$automation_enabled)
+  expect_identical(manifest$reason_code, "coverage")
 })
 
 test_that("CR-05 changed schema fingerprint rows invalidate manifest authority", {

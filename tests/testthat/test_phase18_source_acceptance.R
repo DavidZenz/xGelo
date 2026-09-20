@@ -904,6 +904,21 @@ test_that("machine authority requires the exact sixteen capability evidence cont
   invented$freshness_passed[opted_out] <- TRUE
   invented <- phase18_hash_machine_checks(invented)
   expect_false(phase18_validate_machine_checks(invented)$valid)
+
+  zero_observations <- phase18_test_machine_checks("live_acceptance_probe", TRUE)
+  resources <- zero_observations$capability %in% names(phase18_probe_endpoints())
+  zero_observations$observed_count[resources] <- 0L
+  zero_observations <- phase18_hash_machine_checks(zero_observations)
+  validation <- phase18_validate_machine_checks(zero_observations)
+  expect_false(validation$valid)
+  expect_identical(validation$reason_code, "coverage")
+  manifest <- phase18_build_acceptance_manifest(
+    zero_observations, phase18_test_review("approved"), expectations,
+    phase18_test_fingerprint(TRUE), "zero-observation-proof", "2026-09-19T12:30:00Z",
+    parser_commit_sha = "0123456789abcdef0123456789abcdef01234567"
+  )
+  expect_false(manifest$automation_enabled)
+  expect_identical(manifest$reason_code, "coverage")
 })
 
 test_that("schema fingerprint rows and aggregate are independently recomputed", {

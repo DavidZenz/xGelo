@@ -1422,10 +1422,15 @@ phase18_validate_machine_checks <- function(machine_checks) {
     mode <- unique(as.character(machine_checks$execution_mode))[[1L]]
     if (!identical(mode, "not_run")) {
       integrate <- as.character(machine_checks$decision) == "INTEGRATE"
+      resource_integrate <- integrate & as.character(machine_checks$capability) %in% names(phase18_probe_endpoints())
       optout <- !integrate
       if (any(!as.logical(machine_checks$executed[integrate])) || any(!as.logical(machine_checks$passed[integrate])) ||
           any(as.integer(machine_checks$applicable_check_count[integrate]) < 1L) ||
           any(!nzchar(as.character(machine_checks$evidence_observation[integrate])))) phase18_acceptance_abort("integrity", "integrated capabilities require executed evidence")
+      if (any(is.na(as.integer(machine_checks$observed_count[resource_integrate]))) ||
+          any(as.integer(machine_checks$observed_count[resource_integrate]) < 1L)) {
+        phase18_acceptance_abort("coverage", "integrated resource capabilities require positive observed counts")
+      }
       expected_evidence <- mapply(
         phase18_machine_evidence_hash,
         machine_checks$capability[integrate], machine_checks$evidence_kind[integrate],
