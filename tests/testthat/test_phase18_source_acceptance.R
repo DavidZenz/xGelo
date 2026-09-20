@@ -168,3 +168,113 @@ test_that("owner review validation is typed for approved pending rejected and ma
   expect_false(malformed$valid)
   expect_true(malformed$decision %in% c("manual_only", "rejected"))
 })
+
+test_that("production evidence enumerates every reviewed dimension and coverage capability", {
+  phase18_test_load()
+  root <- file.path(
+    phase18_test_root,
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27"
+  )
+  paths <- file.path(root, c(
+    "provider_terms_review.csv", "edition_expectations.csv", "coverage_matrix.csv",
+    "schema_fingerprint.csv", "acceptance_manifest.csv", "ACCEPTANCE.md"
+  ))
+  expect_true(all(file.exists(paths)))
+  review <- utils::read.csv(paths[[1L]], stringsAsFactors = FALSE, check.names = FALSE)
+  coverage <- utils::read.csv(paths[[3L]], stringsAsFactors = FALSE, check.names = FALSE)
+  expected_capabilities <- c(
+    "competition_metadata", "teams", "matches", "standings", "scorers",
+    "head_to_head", "match_detail", "team_detail", "person_detail", "filters",
+    "pagination", "authenticated_headers", "rate_limits", "null_empty_semantics",
+    "attribution", "provider_exit"
+  )
+  expect_setequal(review$dimension, phase18_owner_review_dimensions())
+  expect_equal(nrow(review), length(phase18_owner_review_dimensions()))
+  expect_true(all(review$status == "pending"))
+  expect_setequal(coverage$capability, expected_capabilities)
+  expect_equal(nrow(coverage), length(expected_capabilities))
+  expect_true(all(coverage$execution_mode == "not_run"))
+})
+
+test_that("reviewed league-phase expectations reject every shortfall excess and unknown stage", {
+  phase18_test_load()
+  expectations_path <- file.path(
+    phase18_test_root,
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/edition_expectations.csv"
+  )
+  expectations <- utils::read.csv(expectations_path, stringsAsFactors = FALSE, check.names = FALSE)
+  baseline <- list(
+    club_count = 36L,
+    league_phase_match_count = 144L,
+    stages = "LEAGUE_STAGE",
+    standings_rows = 36L
+  )
+  expect_true(phase18_validate_edition_expectations(expectations, baseline, "league_phase")$valid)
+  for (clubs in c(35L, 37L)) {
+    observed <- baseline
+    observed$club_count <- clubs
+    expect_identical(phase18_validate_edition_expectations(expectations, observed, "league_phase")$reason_code, "cardinality")
+  }
+  for (matches in c(143L, 145L)) {
+    observed <- baseline
+    observed$league_phase_match_count <- matches
+    expect_identical(phase18_validate_edition_expectations(expectations, observed, "league_phase")$reason_code, "cardinality")
+  }
+  bad_stage <- baseline
+  bad_stage$stages <- "INVENTED_STAGE"
+  expect_identical(phase18_validate_edition_expectations(expectations, bad_stage, "league_phase")$reason_code, "stage")
+  bad_standings <- baseline
+  bad_standings$standings_rows <- 35L
+  expect_identical(phase18_validate_edition_expectations(expectations, bad_standings, "league_phase")$reason_code, "standings")
+})
+
+test_that("only exact live owner and machine conjunction can enable automation", {
+  phase18_test_load()
+  review <- phase18_test_review("approved")
+  expectations <- phase18_test_expectations()
+  machine <- phase18_test_machine_checks("live_acceptance_probe", TRUE)
+  schema_hash <- paste(rep("e", 64L), collapse = "")
+  accepted <- phase18_build_acceptance_manifest(
+    machine, review, expectations,
+    list(schema_fingerprint_sha256 = schema_hash),
+    "live-proof-001", "2026-09-19T12:30:00Z"
+  )
+  expect_true(accepted$automation_enabled)
+  expect_identical(accepted$decision, "accepted")
+  expect_silent(phase18_validate_acceptance_manifest(accepted, machine, review, expectations))
+
+  stale_review <- review
+  stale_review$terms_sha256 <- paste(rep("f", 64L), collapse = "")
+  stale_review <- phase18_hash_terms_review(stale_review)
+  expect_error(
+    phase18_validate_acceptance_manifest(accepted, machine, stale_review, expectations),
+    "recomputed evidence|review"
+  )
+  missing_owner_row <- review[-1L, , drop = FALSE]
+  blocked <- phase18_build_acceptance_manifest(
+    machine, missing_owner_row, expectations,
+    list(schema_fingerprint_sha256 = schema_hash),
+    "live-proof-002", "2026-09-19T12:30:00Z"
+  )
+  expect_false(blocked$automation_enabled)
+})
+
+test_that("committed no-key decision validates in a fresh process", {
+  root <- file.path(
+    phase18_test_root,
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27"
+  )
+  command <- paste0(
+    "setwd('", phase18_test_root, "');source('R/competition/ucl_source_acceptance.R');",
+    "r<-read.csv('", file.path(root, "provider_terms_review.csv"), "',check.names=FALSE);",
+    "e<-read.csv('", file.path(root, "edition_expectations.csv"), "',check.names=FALSE);",
+    "m<-read.csv('", file.path(root, "coverage_matrix.csv"), "',check.names=FALSE);",
+    "a<-read.csv('", file.path(root, "acceptance_manifest.csv"), "',check.names=FALSE);",
+    "phase18_validate_acceptance_manifest(a,m,r,e);",
+    "stopifnot(!a$automation_enabled[[1]], a$reason_code[[1]]=='missing_credential')"
+  )
+  output <- system2("Rscript", c("--vanilla", "-e", shQuote(command)), stdout = TRUE, stderr = TRUE)
+  status <- attr(output, "status")
+  if (is.null(status)) status <- 0L
+  expect_equal(status, 0L, info = paste(output, collapse = "\n"))
+})
