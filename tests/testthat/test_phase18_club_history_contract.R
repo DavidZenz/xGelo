@@ -49,7 +49,7 @@ phase18_history_test_registries <- function() {
 
 phase18_history_test_source <- function(expected = 5L, status = "active") {
   row <- data.frame(
-    schema_version = "phase18-club-history-source-1", source_id = "england-2025-fixture",
+    schema_version = "phase18-club-history-source-v2", hash_encoding_version = phase18_canonical_encoding_v2(), source_id = "england-2025-fixture",
     repository_url = "https://github.com/openfootball/england", commit_sha = paste(rep("a", 40), collapse = ""),
     commit_utc = "2025-01-01T00:00:00Z", relative_path = "2025-26/1-premierleague.txt",
     competition_id = "england-premier-league", season_id = "2025-26", license_id = "cc0-1.0",
@@ -60,7 +60,7 @@ phase18_history_test_source <- function(expected = 5L, status = "active") {
     coverage_reviewed_at_utc = "2026-01-02T00:00:00Z", source_status = status, blocked_reason = "", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  row$row_sha256 <- phase18_club_row_sha256(row)
+  row$row_sha256 <- phase18_history_row_sha256(row)
   row
 }
 
@@ -75,9 +75,9 @@ test_that("history schemas and pins are exact and fail closed", {
     "completion_not_before_utc", "source_available_at_utc", "evidence_available_at_utc",
     "evidence_precision_policy", "counts_for_model"
   ) %in% phase18_normalized_club_match_schema()))
-  bad <- source; bad$commit_sha <- "main"; bad$row_sha256 <- phase18_club_row_sha256(bad)
+  bad <- source; bad$commit_sha <- "main"; bad$row_sha256 <- phase18_history_row_sha256(bad)
   expect_error(phase18_validate_history_sources(bad), class = "invalid_history_source_pin")
-  unsafe <- source; unsafe$relative_path <- "../secret"; unsafe$row_sha256 <- phase18_club_row_sha256(unsafe)
+  unsafe <- source; unsafe$relative_path <- "../secret"; unsafe$row_sha256 <- phase18_history_row_sha256(unsafe)
   expect_error(phase18_validate_history_sources(unsafe), class = "unsafe_history_source_path")
 })
 
@@ -140,7 +140,7 @@ test_that("extra-time, penalties, and source availability use the latest safe in
 
   late_source <- phase18_history_test_source(1L)
   late_source$commit_utc <- "2025-05-01T20:00:01Z"
-  late_source$row_sha256 <- phase18_club_row_sha256(late_source)
+  late_source$row_sha256 <- phase18_history_row_sha256(late_source)
   effective <- phase18_normalize_club_history(rows[rows$source_match_id == "reg-1", , drop = FALSE], late_source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
   expect_identical(effective$evidence_observed_at_utc, "2025-05-01T20:00:00Z")
   expect_identical(effective$source_available_at_utc, "2025-05-01T20:00:01Z")
@@ -192,7 +192,7 @@ test_that("coverage equality and all zero-tolerance gates fail at one step", {
   one_extra$source_match_id[[nrow(one_extra)]] <- "extra-row"
   one_extra$match_id[[nrow(one_extra)]] <- "clubmatch_extra"
   one_extra$event_date[[nrow(one_extra)]] <- "2025-05-20"
-  one_extra$row_sha256 <- phase18_club_row_sha256(one_extra)
+  one_extra$row_sha256 <- phase18_history_row_sha256(one_extra)
   extra_audit <- phase18_audit_club_history(one_extra, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
   expect_false(extra_audit$coverage_audit$gate_passed)
 
@@ -200,7 +200,7 @@ test_that("coverage equality and all zero-tolerance gates fail at one step", {
   identity_bad$home_club_id[[1L]] <- ""
   identity_bad$counts_for_model[[1L]] <- FALSE
   identity_bad$exclusion_reason[[1L]] <- "unresolved_club_identity"
-  identity_bad$row_sha256 <- phase18_club_row_sha256(identity_bad)
+  identity_bad$row_sha256 <- phase18_history_row_sha256(identity_bad)
   expect_false(phase18_audit_club_history(identity_bad, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")$identity_audit$gate_passed)
 
   score_bad <- matches
@@ -208,14 +208,14 @@ test_that("coverage equality and all zero-tolerance gates fail at one step", {
   score_bad$completion_method[[1L]] <- "unresolved"
   score_bad$counts_for_model[[1L]] <- FALSE
   score_bad$exclusion_reason[[1L]] <- "unresolved_score_semantics"
-  score_bad$row_sha256 <- phase18_club_row_sha256(score_bad)
+  score_bad$row_sha256 <- phase18_history_row_sha256(score_bad)
   expect_false(phase18_audit_club_history(score_bad, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")$score_semantics_audit$gate_passed)
 
   temporal_bad <- matches
   temporal_bad$evidence_available_at_utc[[1L]] <- "2025-06-01T00:00:00Z"
   temporal_bad$counts_for_model[[1L]] <- FALSE
   temporal_bad$exclusion_reason[[1L]] <- "evidence_not_prior_to_cutoff"
-  temporal_bad$row_sha256 <- phase18_club_row_sha256(temporal_bad)
+  temporal_bad$row_sha256 <- phase18_history_row_sha256(temporal_bad)
   expect_false(phase18_audit_club_history(temporal_bad, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")$temporal_audit$gate_passed)
 })
 
@@ -226,7 +226,7 @@ test_that("semantic duplicates and pending source review are auditable but block
   duplicate <- matches[c(seq_len(nrow(matches)), 1L), , drop = FALSE]
   duplicate$source_match_id[[nrow(duplicate)]] <- "cross-source-copy"
   duplicate$match_id[[nrow(duplicate)]] <- "clubmatch_cross_source_copy"
-  duplicate$row_sha256 <- phase18_club_row_sha256(duplicate)
+  duplicate$row_sha256 <- phase18_history_row_sha256(duplicate)
   source <- phase18_history_test_source(6L)
   audited <- phase18_audit_club_history(duplicate, source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
   expect_false(audited$duplicate_audit$gate_passed[[1L]])
@@ -236,7 +236,7 @@ test_that("semantic duplicates and pending source review are auditable but block
   pending$commit_sha <- ""
   pending$license_review_state <- "pending"
   pending$blocked_reason <- "missing_verified_pin_and_owner_license_review"
-  pending$row_sha256 <- phase18_club_row_sha256(pending)
+  pending$row_sha256 <- phase18_history_row_sha256(pending)
   blocked <- phase18_audit_club_history(phase18_history_empty(phase18_normalized_club_match_schema()), pending, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
   expect_false(blocked$corpus_manifest$accepted_for_training)
   expect_match(blocked$corpus_manifest$blocked_reasons, "source_pin_fraction")
@@ -265,7 +265,7 @@ test_that("blocked audits are complete and never replace accepted state", {
   pending <- phase18_history_test_source(1L, "blocked_pending_review")
   pending$commit_sha <- ""; pending$license_review_state <- "pending"
   pending$blocked_reason <- "missing_verified_pin_and_owner_license_review"
-  pending$row_sha256 <- phase18_club_row_sha256(pending)
+  pending$row_sha256 <- phase18_history_row_sha256(pending)
   blocked <- phase18_audit_club_history(
     phase18_history_empty(phase18_normalized_club_match_schema()), pending,
     phase18_history_test_registries(), "2025-06-01T00:00:00Z",
@@ -317,13 +317,13 @@ test_that("source byte verification rejects hash mismatch and symlinks", {
   writeLines("fixture", path, useBytes = TRUE)
   bytes <- file.info(path)$size
   hash <- digest::digest(file = path, algo = "sha256", serialize = FALSE)
-  source$bytes <- as.character(bytes); source$raw_sha256 <- hash; source$row_sha256 <- phase18_club_row_sha256(source)
+  source$bytes <- as.character(bytes); source$raw_sha256 <- hash; source$row_sha256 <- phase18_history_row_sha256(source)
   expect_identical(phase18_verify_history_source_file(source, sandbox), normalizePath(path, winslash = "/"))
-  bad <- source; bad$raw_sha256 <- paste(rep("0", 64), collapse = ""); bad$row_sha256 <- phase18_club_row_sha256(bad)
+  bad <- source; bad$raw_sha256 <- paste(rep("0", 64), collapse = ""); bad$row_sha256 <- phase18_history_row_sha256(bad)
   expect_error(phase18_verify_history_source_file(bad, sandbox), class = "history_source_hash_mismatch")
   link <- file.path(dirname(path), "link.txt")
   if (file.symlink(path, link)) {
-    linked <- source; linked$relative_path <- file.path(dirname(source$relative_path[[1L]]), "link.txt"); linked$row_sha256 <- phase18_club_row_sha256(linked)
+    linked <- source; linked$relative_path <- file.path(dirname(source$relative_path[[1L]]), "link.txt"); linked$row_sha256 <- phase18_history_row_sha256(linked)
     expect_error(phase18_verify_history_source_file(linked, sandbox), class = "unsafe_history_source_symlink")
   }
 })
