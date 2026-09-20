@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
-current_phase: 18
-current_phase_name: club-and-ucl-source-contracts
-status: human_needed
-stopped_at: Phase 18 automated verification passed; external evidence pending
-last_updated: "2026-09-20T17:10:00Z"
+status: executing
+stopped_at: Completed 19-01-PLAN.md
+last_updated: "2026-09-20T17:47:13.215Z"
 last_activity: 2026-09-20
-last_activity_desc: Phase 18 execution completed; adversarial verification gate passed
+last_activity_desc: Phase 19 Plan 01 completed with production fail-closed and fixture authority verified
 progress:
   total_phases: 5
   completed_phases: 1
-  total_plans: 14
-  completed_plans: 14
-  percent: 20
+  total_plans: 24
+  completed_plans: 15
+  percent: 63
+current_phase: 19
+current_phase_name: independent-club-forecast-authority
 ---
 
 # xGelo Project State
@@ -24,23 +24,23 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 **Core value:** Accurate, calibrated football forecasting without dependence on paid data feeds.
-**Current focus:** Phase 18 — external provider, identity, and history evidence
+**Current focus:** Phase 19 — independent club forecast authority
 
 ## Current Position
 
-Phase: 18 (club-and-ucl-source-contracts) — HUMAN CHECK REQUIRED
-Plan: 14 of 14
-Status: Automated verification passed; real-world evidence remains fail-closed
-Last activity: 2026-09-20 — Phase 18 verified 5/5 with 142 tests and 840 assertions; human evidence pending
+Phase: 19 (independent-club-forecast-authority) — EXECUTING
+Plan: 2 of 10
+Status: In progress; Plan 01 complete
+Last activity: 2026-09-20 — Plan 01 authority tracer and typed unavailable evidence verified
 
-Progress: [██████████] 100%
+Progress: [██████░░░░] 63%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | Not started |
+| 19 | Independent Club Forecast Authority | 5 | In progress (1/10 plans) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -72,6 +72,7 @@ Progress: [██████████] 100%
 | Phase 18 P12 | 19min | 3 tasks | 24 files |
 | Phase 18 P11 | 62min | 3 tasks | 9 files |
 | Phase 18 P13 | 52min | 2 tasks | 6 files |
+| Phase 19 P01 | 31min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -113,6 +114,9 @@ Progress: [██████████] 100%
 - [Phase 18]: Provider exit is authorized only for the exact provider, edition, decision, bundle, and reviewed inventory of the current generation. — Compliance review must never affect unrelated, manual, fixture, stale, unreadable, or no-incumbent state.
 - [Phase 18]: Phase 18 verification requires eight explicit fresh-process test files with zero failures, warnings, or skips.
 - [Phase 18]: Live provider resource authority requires positive observed counts before automation can enable.
+- [Phase 19]: Unavailable club enrichment remains value-less, inactive, optional, and non-imputable until one matching canonical hash-valid accepted source contract exists.
+- [Phase 19]: The five-feature registry rejects non-canonical row order in addition to canonical row and table hash drift.
+- [Phase 19]: Production club authority uses only fixed accepted Phase 18 descriptors; synthetic authority is marker-bound, temporary, explicit, and non-promotable.
 
 ### Pending Todos
 
@@ -138,6 +142,6 @@ Progress: [██████████] 100%
 
 ## Session Continuity
 
-Last session: 2026-09-20T15:08:59.639Z
-Stopped at: Phase 18 automated verification passed; external evidence pending
+Last session: 2026-09-20T17:47:13.204Z
+Stopped at: Completed 19-01-PLAN.md
 Resume file: None
