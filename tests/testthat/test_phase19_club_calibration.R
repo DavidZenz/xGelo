@@ -246,3 +246,163 @@ test_that("calibrator identity is canonical and binds every frozen parent", {
     class = "phase19_club_calibration_error"
   )
 })
+
+phase19_calibration_test_applied <- function(context = phase19_calibration_test_context()) {
+  calibrator <- phase19_fit_club_calibrator(
+    context$rows, context$fold, context$candidate, context$protocol
+  )
+  predictions <- data.frame(
+    fixture_id = c("assessment_b", "assessment_a"),
+    candidate_id = context$candidate$model_id,
+    evidence_cutoff_exclusive = context$fold$calibration_cutoff_exclusive,
+    p_home = c(0.22, 0.62), p_draw = c(0.23, 0.23), p_away = c(0.55, 0.15),
+    p_over_2_5 = c(0.55, 0.63), p_btts = c(0.48, 0.57),
+    expected_home_goals = c(0.8, 1.8), expected_away_goals = c(1.7, 0.8),
+    likely_home_goals = c(0L, 2L), likely_away_goals = c(2L, 1L),
+    distribution_sha256 = vapply(c("assessment_b", "assessment_a"), function(id) {
+      digest::digest(paste0("assessment-grid-", id), algo = "sha256", serialize = FALSE)
+    }, character(1)), stringsAsFactors = FALSE, check.names = FALSE
+  )
+  list(
+    calibrator = calibrator,
+    applied = phase19_apply_club_calibrator(calibrator, predictions, context$fold),
+    outcomes = data.frame(
+      fixture_id = c("assessment_a", "assessment_b"),
+      observed_class = c("home", "away"),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  )
+}
+
+test_that("exact paired raw and calibrated rows produce fixed-bin score evidence", {
+  context <- phase19_calibration_test_context()
+  view <- phase19_calibration_test_applied(context)
+  evidence <- phase19_compare_club_calibration(
+    view$applied, view$outcomes, context$fold, context$protocol
+  )
+
+  expect_s3_class(evidence, "phase19_club_calibration_evidence")
+  expect_identical(evidence$fixture_ids, c("assessment_a", "assessment_b"))
+  expect_identical(nrow(evidence$fixture_scores), 2L)
+  expect_identical(nrow(evidence$calibration_bins), 60L)
+  expect_identical(
+    sort(unique(evidence$calibration_bins$bin_id)), as.integer(seq_len(10L))
+  )
+  expect_identical(
+    sort(unique(evidence$calibration_bins$probability_view)),
+    c("calibrated_1x2", "raw_1x2")
+  )
+  expect_identical(evidence$summary$fold_id, context$fold$fold_id)
+  expect_identical(evidence$summary$fold_family, context$fold$fold_family)
+  expect_identical(
+    evidence$summary$assessment_competition_id,
+    context$fold$assessment_competition_id
+  )
+  expect_identical(
+    evidence$summary$assessment_season_id,
+    context$fold$assessment_season_id
+  )
+  expect_equal(evidence$summary$declared_fixture_coverage, 1)
+  expect_true(evidence$summary$probability_integrity)
+  expect_true(evidence$summary$distribution_integrity)
+  expect_match(evidence$evidence_sha256, "^[0-9a-f]{64}$")
+
+  decision <- phase19_select_club_primary_view(
+    evidence, view$applied, view$outcomes, context$fold, context$protocol
+  )
+  expect_identical(decision$primary_probability_view, "calibrated_1x2")
+  expect_identical(decision$reason_codes, "")
+  expect_false(decision$production_eligible)
+  expect_match(decision$decision_sha256, "^[0-9a-f]{64}$")
+})
+
+test_that("calibration improvement cannot bypass proper-score or coverage vetoes", {
+  phase19_calibration_test_load()
+  protocol <- phase19_load_fixture_club_evaluation_protocol()
+  score_veto <- phase19_club_calibration_gate_decision(list(
+    rps_delta = 0.02, brier_relative_regression = -0.20,
+    log_loss_relative_regression = -0.20, calibration_delta = -0.10,
+    declared_fixture_coverage = 1, probability_integrity = TRUE,
+    distribution_integrity = TRUE, cutoff_integrity = TRUE
+  ), protocol)
+  expect_false(score_veto$passed)
+  expect_identical(score_veto$primary_probability_view, "raw_1x2")
+  expect_true("worst_fold_regression_failed" %in% score_veto$reason_codes)
+
+  coverage_veto <- phase19_club_calibration_gate_decision(list(
+    rps_delta = -0.10, brier_relative_regression = -0.20,
+    log_loss_relative_regression = -0.20, calibration_delta = -0.10,
+    declared_fixture_coverage = 0.99, probability_integrity = TRUE,
+    distribution_integrity = TRUE, cutoff_integrity = TRUE
+  ), protocol)
+  expect_false(coverage_veto$passed)
+  expect_true("declared_fixture_coverage_failed" %in% coverage_veto$reason_codes)
+  expect_false("calibration_delta_failed" %in% coverage_veto$reason_codes)
+})
+
+test_that("paired evidence rejects missing duplicate surplus and forged rows", {
+  context <- phase19_calibration_test_context()
+  view <- phase19_calibration_test_applied(context)
+  missing <- view$outcomes[-1L, , drop = FALSE]
+  duplicate <- rbind(view$outcomes, view$outcomes[1L, , drop = FALSE])
+  surplus <- rbind(
+    view$outcomes,
+    data.frame(fixture_id = "assessment_c", observed_class = "draw")
+  )
+  for (attack in list(missing = missing, duplicate = duplicate, surplus = surplus)) {
+    expect_error(
+      phase19_compare_club_calibration(
+        view$applied, attack, context$fold, context$protocol
+      ),
+      class = "phase19_club_calibration_error"
+    )
+  }
+
+  evidence <- phase19_compare_club_calibration(
+    view$applied, view$outcomes, context$fold, context$protocol
+  )
+  forged <- evidence
+  forged$summary$calibration_delta <- -1
+  expect_error(
+    phase19_select_club_primary_view(
+      forged, view$applied, view$outcomes, context$fold, context$protocol
+    ),
+    class = "phase19_club_calibration_error"
+  )
+})
+
+test_that("decision identity replays under reorder and changes on evidence drift", {
+  context <- phase19_calibration_test_context()
+  view <- phase19_calibration_test_applied(context)
+  evidence <- phase19_compare_club_calibration(
+    view$applied, view$outcomes, context$fold, context$protocol
+  )
+  decision <- phase19_select_club_primary_view(
+    evidence, view$applied, view$outcomes, context$fold, context$protocol
+  )
+
+  reordered_view <- view$applied
+  reordered_view$predictions <- reordered_view$predictions[2:1, , drop = FALSE]
+  reordered_outcomes <- view$outcomes[2:1, , drop = FALSE]
+  replay_evidence <- phase19_compare_club_calibration(
+    reordered_view, reordered_outcomes, context$fold, context$protocol
+  )
+  replay_decision <- phase19_select_club_primary_view(
+    replay_evidence, reordered_view, reordered_outcomes,
+    context$fold, context$protocol
+  )
+  expect_identical(evidence$evidence_sha256, replay_evidence$evidence_sha256)
+  expect_identical(decision$decision_sha256, replay_decision$decision_sha256)
+
+  changed_outcomes <- view$outcomes
+  changed_outcomes$observed_class[[1L]] <- "draw"
+  changed_evidence <- phase19_compare_club_calibration(
+    view$applied, changed_outcomes, context$fold, context$protocol
+  )
+  changed_decision <- phase19_select_club_primary_view(
+    changed_evidence, view$applied, changed_outcomes,
+    context$fold, context$protocol
+  )
+  expect_false(identical(evidence$evidence_sha256, changed_evidence$evidence_sha256))
+  expect_false(identical(decision$decision_sha256, changed_decision$decision_sha256))
+})
