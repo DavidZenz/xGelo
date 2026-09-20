@@ -380,3 +380,25 @@ test_that("unknown acquisition failures are sanitized into one closed blocked re
   expect_identical(condition$reason_code, "blocked_unclassified_acquisition")
   expect_false(grepl(sentinel, conditionMessage(condition), fixed = TRUE))
 })
+
+test_that("schema fingerprints bind node types, array cardinality, and every element", {
+  phase18_fd_test_load()
+  baseline <- list(id = "1", rows = list(list(a = 1L)))
+
+  expect_false(identical(
+    phase18_fd_fingerprint(baseline),
+    phase18_fd_fingerprint(list(id = 1L, rows = list(list(a = 1L))))
+  ))
+  expect_false(identical(
+    phase18_fd_fingerprint(baseline),
+    phase18_fd_fingerprint(list(id = "1", rows = list()))
+  ))
+  expect_false(identical(
+    phase18_fd_fingerprint(baseline),
+    phase18_fd_fingerprint(list(id = "1", rows = list(list(a = 1L), list(a = 1L))))
+  ))
+  expect_false(identical(
+    phase18_fd_fingerprint(list(rows = list(list(a = 1L), list(a = 1L)))),
+    phase18_fd_fingerprint(list(rows = list(list(a = 1L), list(a = 1L, late = TRUE))))
+  ))
+})

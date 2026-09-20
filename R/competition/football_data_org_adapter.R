@@ -272,16 +272,62 @@ phase18_fd_nullable_integer <- function(value) {
 }
 
 phase18_fd_fingerprint <- function(payload) {
-  walk <- function(value, prefix = "") {
-    if (!is.list(value) || is.data.frame(value)) return(prefix)
-    fields <- sort(names(value))
-    unique(c(prefix, unlist(lapply(fields, function(field) {
-      child <- if (nzchar(prefix)) paste(prefix, field, sep = ".") else field
-      item <- value[[field]]
-      if (is.list(item) && length(item)) walk(item[[1L]], child) else child
-    }), use.names = FALSE)))
+  rows <- list()
+  add_row <- function(path, node_type, scalar_type, cardinality) {
+    path_names <- if (length(path)) paste0("segment_", seq_along(path)) else character()
+    path_types <- rep("character", length(path))
+    path_sha256 <- phase18_hash_sequence_v2(
+      as.list(path), "phase18-fd-json-path-v2", path_names, path_types
+    )
+    rows[[length(rows) + 1L]] <<- data.frame(
+      path_sha256 = path_sha256,
+      depth = as.integer(length(path)),
+      node_type = node_type,
+      scalar_type = scalar_type,
+      cardinality = as.integer(cardinality),
+      stringsAsFactors = FALSE,
+      check.names = FALSE
+    )
   }
-  digest::digest(paste(sort(unique(walk(payload))), collapse = "|"), algo = "sha256", serialize = FALSE)
+  scalar_type <- function(value) {
+    if (is.null(value)) return("null")
+    if (is.character(value)) return("character")
+    if (is.integer(value)) return("integer")
+    if (is.double(value)) return("double")
+    if (is.logical(value)) return("logical")
+    if (is.raw(value)) return("raw")
+    paste0("unsupported:", typeof(value))
+  }
+  walk <- function(value, path = character()) {
+    if (is.null(value)) {
+      add_row(path, "null", "null", 0L)
+      return(invisible(NULL))
+    }
+    if (is.list(value) && !is.data.frame(value)) {
+      named <- !is.null(names(value)) && length(names(value)) == length(value) &&
+        all(nzchar(names(value)))
+      if (named) {
+        fields <- sort(names(value), method = "radix")
+        add_row(path, "object", "not_applicable", length(fields))
+        for (field in fields) walk(value[[field]], c(path, paste0("field:", field)))
+      } else {
+        add_row(path, "array", "not_applicable", length(value))
+        if (length(value)) {
+          for (index in seq_along(value)) walk(value[[index]], c(path, paste0("index:", index)))
+        }
+      }
+      return(invisible(NULL))
+    }
+    add_row(path, "scalar", scalar_type(value), length(value))
+    invisible(NULL)
+  }
+  walk(payload)
+  representation <- do.call(rbind, rows)
+  phase18_hash_table_v2(
+    representation,
+    key = "path_sha256",
+    schema_tag = "phase18-fd-json-schema-fingerprint-v2"
+  )
 }
 
 phase18_fd_freshness_schema <- function() c(
