@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-03-PLAN.md
-last_updated: "2026-09-20T18:12:00.000Z"
+stopped_at: Completed 19-04-PLAN.md
+last_updated: "2026-09-20T18:39:00.386Z"
 last_activity: 2026-09-20
 last_activity_desc: Plan 03 frozen club evaluation policy and owner-review boundary verified
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 17
-  percent: 71
+  completed_plans: 18
+  percent: 75
 ---
 
 # xGelo Project State
@@ -29,18 +29,18 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 4 of 10
-Status: In progress; Plans 01-03 complete
-Last activity: 2026-09-20 — Plan 03 frozen club evaluation policy and owner-review boundary verified
+Plan: 5 of 10
+Status: In progress; Plans 01-04 complete
+Last activity: 2026-09-20 — Plan 04 frozen club fold and owner-review authority verified
 
-Progress: [███████░░░] 71%
+Progress: [████████░░] 75%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (3/10 plans) |
+| 19 | Independent Club Forecast Authority | 5 | In progress (4/10 plans) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -75,6 +75,7 @@ Progress: [███████░░░] 71%
 | Phase 19 P01 | 31min | 2 tasks | 5 files |
 | Phase 19 P02 | 17min | 2 tasks | 2 files |
 | Phase 19 P03 | 22 min | 2 tasks | 6 files |
+| Phase 19 P04 | 25min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -124,6 +125,9 @@ Progress: [███████░░░] 71%
 - [Phase 19]: Only club_venue_nb is the promotion incumbent and club_elo_nb is the promotion candidate; empirical controls remain report-only.
 - [Phase 19]: Every promotion threshold, comparator, aggregation, applicability, order, and failure reason is predeclared and canonical-v2 bound before assessment.
 - [Phase 19]: Production club policy requires one accepted self-hashed owner review binding every exact protocol parent; the committed review remains pending.
+- [Phase 19]: Every fold freezes disjoint exact fixture IDs for fit, calibration, and assessment; timestamps alone cannot silently redefine a role.
+- [Phase 19]: Held-out competition exclusion is explicit across fit, tuning, and calibration roles.
+- [Phase 19]: Production fold authority remains blocked until accepted history, accepted policy, and a separate exact-hash fold owner review exist.
 
 ### Pending Todos
 
@@ -149,6 +153,6 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-09-20T18:10:59.598Z
-Stopped at: Completed 19-03-PLAN.md
+Last session: 2026-09-20T18:39:00.375Z
+Stopped at: Completed 19-04-PLAN.md
 Resume file: None

@@ -17,7 +17,7 @@
 ### Independent Club Forecast Authority
 
 - [x] **CLUBMOD-01**: The project can train club-only rating and goal models without consuming national-team features, releases, or selectors as forecast authority.
-- [ ] **CLUBMOD-02**: Club-model evaluation uses frozen rolling-origin and cross-league folds with explicit information cutoffs and same-kickoff leakage tests.
+- [x] **CLUBMOD-02**: Club-model evaluation uses frozen rolling-origin and cross-league folds with explicit information cutoffs and same-kickoff leakage tests.
 - [x] **CLUBMOD-03**: A club candidate is promoted only after passing predeclared proper-score, calibration, coverage, and reproducibility gates against documented baselines.
 - [ ] **CLUBMOD-04**: The approved club release is immutable, selector-authorized, documented by a model card, and rejected by national-team consumers while national-team releases are rejected by club consumers.
 - [ ] **CLUBMOD-05**: Current xG, injury, lineup, suspension, and player features remain typed unavailable unless a separately accepted lawful source contract exists.
@@ -86,7 +86,7 @@ Each active v4.0 requirement will map to exactly one roadmap phase.
 | CLUBID-01 | Phase 18 | Complete |
 | CLUBHIST-01 | Phase 18 | Complete |
 | CLUBMOD-01 | Phase 19 | Complete |
-| CLUBMOD-02 | Phase 19 | Pending |
+| CLUBMOD-02 | Phase 19 | Complete |
 | CLUBMOD-03 | Phase 19 | Complete |
 | CLUBMOD-04 | Phase 19 | Pending |
 | CLUBMOD-05 | Phase 19 | Pending |

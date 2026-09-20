@@ -78,7 +78,7 @@ Plans:
 
 **Completion gate:** Fixture-backed execution may complete the implementation and verification mechanics, but Phase 19 remains `human_needed` and CLUBMOD-04 remains incomplete until real accepted Phase 18 history plus current-UCL/identity generations exist, the exact candidate/gate and fold inventories receive explicit owner review, a production candidate is promoted, and the atomic production club selector resolves the immutable release.
 
-**Plans:** 3/10 plans executed
+**Plans:** 4/10 plans executed
 
 Plans:
 
@@ -93,7 +93,7 @@ Plans:
 
 **Wave 3** *(after Wave 2; plans can execute in parallel)*
 
-- [ ] 19-04-PLAN.md — Materialize frozen rolling-origin and held-out-league folds with blocked production state.
+- [x] 19-04-PLAN.md — Materialize frozen rolling-origin and held-out-league folds with blocked production state.
 - [ ] 19-05-PLAN.md — Implement fail-closed club negative-binomial models and complete score grids.
 
 **Wave 4** *(after Wave 3)*
@@ -167,7 +167,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 18. Club and UCL Source Contracts | 14/14 | In Progress|  |
-| 19. Independent Club Forecast Authority | 3/10 | In Progress|  |
+| 19. Independent Club Forecast Authority | 4/10 | In Progress|  |
 | 20. UCL Rules, State, and Tournament Outcomes | 0/TBD | Not started | - |
 | 21. N-Edition Dashboard and Atomic Publication | 0/TBD | Not started | - |
 | 22. Automated Refresh and Release Hardening | 0/TBD | Not started | - |
