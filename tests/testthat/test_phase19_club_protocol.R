@@ -33,6 +33,33 @@ phase19_protocol_rehash_seeds <- function(registry) {
   registry
 }
 
+phase19_protocol_rehash_gates <- function(registry) {
+  registry$row_sha256 <- phase19_gate_row_sha256(registry)
+  registry
+}
+
+phase19_protocol_test_review <- function(protocol, decision = "accepted",
+                                         reviewer = "phase19-test-owner",
+                                         reviewed_at_utc = "2026-09-20T12:00:00Z") {
+  review <- list(
+    schema_version = "phase19-club-policy-review-v1",
+    hash_encoding_version = "phase18-canonical-v2",
+    forecast_domain = "club",
+    reviewer = reviewer,
+    reviewed_at_utc = reviewed_at_utc,
+    decision = decision,
+    candidate_registry_sha256 = protocol$candidate_registry_sha256,
+    gate_registry_sha256 = protocol$gate_registry_sha256,
+    seed_registry_sha256 = protocol$seed_registry_sha256,
+    feature_contract_sha256 = protocol$feature_contract_sha256,
+    protocol_sha256 = protocol$protocol_sha256,
+    rationale_code = if (decision == "accepted") "fixture_test_acceptance" else paste0("fixture_test_", decision),
+    review_sha256 = ""
+  )
+  review$review_sha256 <- phase19_policy_review_sha256(review)
+  review
+}
+
 test_that("committed candidate and seed authority is exact club-only policy", {
   phase19_protocol_test_load()
   phase19_protocol_test_require(c(
@@ -184,4 +211,137 @@ test_that("candidate role domain tuning formula and seed attacks fail closed", {
       info = name
     )
   }
+})
+
+test_that("complete ordered club gate policy is frozen before assessment", {
+  phase19_protocol_test_load()
+  phase19_protocol_test_require(c(
+    "phase19_load_fixture_club_evaluation_protocol",
+    "phase19_load_club_evaluation_protocol",
+    "phase19_validate_gate_registry", "phase19_gate_registry_sha256",
+    "phase19_protocol_sha256", "phase19_policy_review_sha256"
+  ))
+  files <- file.path(
+    phase19_protocol_test_root, "data/club/model_protocol",
+    c("candidate_registry.csv", "gate_registry.csv", "seed_registry.csv",
+      "feature_contract.csv", "policy_review.json")
+  )
+  before <- lapply(files, readBin, what = "raw", n = file.info(files)$size)
+  protocol <- phase19_load_fixture_club_evaluation_protocol()
+  after <- lapply(files, readBin, what = "raw", n = file.info(files)$size)
+
+  expect_s3_class(protocol, "phase19_club_evaluation_protocol")
+  expect_identical(protocol$status, "ready")
+  expect_identical(protocol$authority_mode, "fixture")
+  expect_true(protocol$fixture_authority)
+  expect_false(protocol$production_eligible)
+  expect_identical(protocol$forecast_domain, "club")
+  expect_identical(protocol$policy_review$decision, "pending")
+  expect_identical(protocol$policy_review$reviewer, "")
+  expect_identical(protocol$policy_review$reviewed_at_utc, "")
+  expect_identical(before, after)
+
+  gates <- protocol$gate_registry
+  expected_ids <- c(
+    "equal_fold_rps_delta", "paired_rps_ci_upper",
+    "rolling_origin_fold_breadth", "heldout_league_fold_breadth",
+    "worst_fold_rps_regression", "equal_fold_brier_relative_regression",
+    "equal_fold_log_loss_relative_regression", "fixed_bin_calibration_delta",
+    "declared_fixture_coverage", "full_score_grid_coverage",
+    "current_ucl_club_coverage", "common_rating_component_coverage",
+    "byte_reproducibility", "probability_integrity", "distribution_integrity",
+    "cutoff_integrity", "identity_integrity", "source_integrity",
+    "license_integrity", "feature_integrity", "seed_integrity",
+    "checksum_integrity", "domain_integrity", "model_card_integrity"
+  )
+  expect_identical(as.character(gates$gate_id), expected_ids)
+  expect_identical(gates$gate_order, seq_along(expected_ids))
+  expect_identical(gates$comparator_model_id[[1L]], "club_venue_nb")
+  expect_identical(gates$operator[1:8], c("<=", "<", ">=", ">=", "<=", "<=", "<=", "<="))
+  expect_equal(gates$threshold[1:8], c(-0.003, 0, 2 / 3, 2 / 3, 0.015, 0.01, 0.01, 0.01), tolerance = 1e-15)
+  expect_true(all(gates$threshold[9:24] == 1))
+  expect_identical(anyDuplicated(gates$failure_reason_code), 0L)
+  expect_true(all(grepl("^[0-9a-f]{64}$", c(
+    protocol$candidate_registry_sha256, protocol$gate_registry_sha256,
+    protocol$seed_registry_sha256, protocol$feature_contract_sha256,
+    protocol$protocol_sha256, protocol$policy_review$review_sha256
+  ))))
+  expect_silent(phase19_validate_gate_registry(gates))
+  expect_identical(protocol$gate_registry_sha256, phase19_gate_registry_sha256(gates))
+
+  production <- phase19_load_club_evaluation_protocol()
+  expect_identical(production$status, "blocked")
+  expect_identical(production$reason_code, "protocol_policy_not_approved")
+  expect_identical(production$authority_mode, "production")
+  expect_false(production$fixture_authority)
+  expect_false(production$production_eligible)
+})
+
+test_that("policy owner review must accept and bind every exact parent hash", {
+  phase19_protocol_test_load()
+  protocol <- phase19_load_fixture_club_evaluation_protocol()
+  accepted <- phase19_protocol_test_review(protocol)
+  authority <- phase19_evaluate_policy_review(protocol, accepted, "production")
+  expect_identical(authority$status, "ready")
+  expect_true(authority$production_eligible)
+  expect_false(authority$fixture_authority)
+
+  rejected <- phase19_protocol_test_review(protocol, "rejected")
+  pending <- phase19_protocol_test_review(protocol, "pending", "", "")
+  stale <- accepted
+  stale$gate_registry_sha256 <- paste(rep("a", 64L), collapse = "")
+  stale$review_sha256 <- phase19_policy_review_sha256(stale)
+  malformed_accepted <- phase19_protocol_test_review(protocol, "accepted", "", "")
+  attacks <- list(missing = NULL, pending = pending, rejected = rejected,
+                  stale = stale, malformed_accepted = malformed_accepted)
+  for (name in names(attacks)) {
+    result <- phase19_evaluate_policy_review(protocol, attacks[[name]], "production")
+    expect_identical(result$status, "blocked", info = name)
+    expect_identical(result$reason_code, "protocol_policy_not_approved", info = name)
+    expect_false(result$production_eligible, info = name)
+  }
+  drifted_self_hash <- accepted
+  drifted_self_hash$rationale_code <- "edited_after_review"
+  result <- phase19_evaluate_policy_review(protocol, drifted_self_hash, "production")
+  expect_identical(result$reason_code, "protocol_policy_not_approved")
+})
+
+test_that("gate threshold order omission national and inventory attacks fail closed", {
+  phase19_protocol_test_load()
+  protocol <- phase19_load_fixture_club_evaluation_protocol()
+  gates <- protocol$gate_registry
+  attacks <- list(
+    omitted = gates[-1L, , drop = FALSE],
+    duplicate = rbind(gates, gates[1L, , drop = FALSE]),
+    threshold = transform(gates, threshold = replace(threshold, 1L, -0.002)),
+    operator = transform(gates, operator = replace(operator, 2L, "<=")),
+    semantic_order = transform(gates, gate_order = replace(gate_order, c(1L, 2L), c(2L, 1L))),
+    national = transform(gates, applicability = replace(applicability, 1L, "world_cup_updating")),
+    derived = transform(gates, aggregation = replace(aggregation, 1L, "infer_from_observed_scores")),
+    hash_drift = transform(gates, row_sha256 = replace(row_sha256, 1L, paste(rep("c", 64L), collapse = "")))
+  )
+  for (name in setdiff(names(attacks), c("omitted", "duplicate", "hash_drift"))) {
+    attacks[[name]] <- phase19_protocol_rehash_gates(attacks[[name]])
+  }
+  for (name in names(attacks)) {
+    expect_error(
+      phase19_validate_gate_registry(attacks[[name]]),
+      class = "phase19_protocol_registry_error", info = name
+    )
+  }
+  expect_silent(phase19_validate_protocol_inventory(c(
+    "candidate_registry.csv", "gate_registry.csv", "seed_registry.csv",
+    "feature_contract.csv", "policy_review.json"
+  )))
+  expect_error(
+    phase19_validate_protocol_inventory(c(
+      "candidate_registry.csv", "gate_registry.csv", "seed_registry.csv",
+      "feature_contract.csv", "policy_review.json", "observed_thresholds.csv"
+    )),
+    class = "phase19_protocol_registry_error"
+  )
+  expect_error(
+    phase19_load_club_evaluation_protocol(protocol_dir = tempdir()),
+    class = "phase19_arbitrary_authority_error"
+  )
 })
