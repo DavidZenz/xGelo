@@ -64,6 +64,24 @@ phase14_forecast_source_if_missing(
   "R/release/release_contract.R",
   c("phase14_resolve_approved_release")
 )
+phase14_forecast_source_if_missing(
+  "R/release/domain_contract.R",
+  c("assert_forecast_domain")
+)
+
+# National competition forecasts must never consume a structurally compatible
+# club release.  Legacy national artifacts may not carry a domain field, so
+# they are projected to the explicit national_team domain at the boundary.
+phase14_forecast_assert_expected_domain <- function(metadata) {
+  if (exists("phase12_release_project_domain", mode = "function")) {
+    projected <- phase12_release_project_domain(metadata)
+  } else {
+    projected <- if (is.list(metadata)) metadata else as.list(metadata)
+    if (is.null(projected$forecast_domain)) projected$forecast_domain <- "national_team"
+  }
+  assert_forecast_domain(projected, "national_team")
+  invisible(projected)
+}
 
 phase14_forecast_text <- function(value, default = NA_character_) {
   if (length(value) == 0L || is.null(value) || is.na(value[[1L]])) return(default)
@@ -456,6 +474,7 @@ phase14_build_release_features <- function(
     if (is.null(selector_path)) selector_path <- file.path(trusted_release_root, "approved_release.csv")
     resolved_release <- phase14_resolve_approved_release(selector_path, trusted_release_root)
   }
+  phase14_forecast_assert_expected_domain(resolved_release)
   registry <- phase14_forecast_team_registry(team_registry)
   manifest <- phase14_forecast_model_manifest(resolved_release, model_manifest, model_manifest_path)
   if (is.null(national_team_xg_registry)) {
@@ -649,6 +668,7 @@ phase14_forecast_lineage_row <- function(
 }
 
 phase14_forecast_apply_calibrator <- function(calibrator, raw) {
+  phase14_forecast_assert_expected_domain(calibrator)
   raw <- as.numeric(raw)
   if (length(raw) != 3L || any(!is.finite(raw)) || any(raw <= 0) || sum(raw) <= 0) stop("Phase 14 raw probability vector is invalid", call. = FALSE)
   raw <- raw / sum(raw)
@@ -894,6 +914,7 @@ phase14_build_fixture_forecasts <- function(
       selector_path %||% file.path(trusted_release_root, "approved_release.csv"), trusted_release_root
     )
   }
+  phase14_forecast_assert_expected_domain(resolved_release)
   feature_result <- phase14_build_release_features(
     adapted_matches = adapted,
     resolved_release = resolved_release,
@@ -1353,6 +1374,7 @@ phase14_build_fixture_forecasts <- function(
       }
     )
   }
+  if (!is.null(resolved_release)) phase14_forecast_assert_expected_domain(resolved_release)
   release_reason <- if (!is.null(resolved_error)) phase14_forecast_batch_release_failure_reason(resolved_error) else phase14_forecast_batch_release_contract_reason(resolved_release)
   manifest <- NULL
   manifest_error <- NULL

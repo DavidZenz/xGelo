@@ -1,5 +1,46 @@
 #' Approved Phase 12 release resolver and consumer contract.
 
+phase19_release_domain_source_if_missing <- function() {
+  if (exists("assert_forecast_domain", mode = "function")) return(invisible(TRUE))
+  roots <- c(getwd(), file.path(getwd(), "../.."), file.path(getwd(), "../../.."))
+  root <- roots[vapply(roots, function(path) file.exists(file.path(path, "R/release/domain_contract.R")), logical(1))][1L]
+  if (is.na(root) || !nzchar(root)) stop("Shared forecast-domain contract is missing", call. = FALSE)
+  source(file.path(root, "R/release/domain_contract.R"), local = .GlobalEnv)
+  invisible(TRUE)
+}
+
+phase19_release_domain_source_if_missing()
+
+phase12_release_assert_expected_domain <- function(metadata) {
+  if (is.data.frame(metadata)) {
+    if ("forecast_domain" %in% names(metadata)) {
+      assert_forecast_domain(metadata, "national_team")
+    }
+    return(invisible(metadata))
+  }
+  if (!is.list(metadata)) return(invisible(metadata))
+  if (!is.null(metadata$forecast_domain) || !is.null(metadata$model_domain)) {
+    assert_forecast_domain(metadata, "national_team")
+  }
+  # A resolved release carries the contract and loaded objects below the
+  # top-level metadata.  Check declared domains there too, while accepting
+  # legacy national artifacts that predate the explicit field.
+  for (field in c("model_contract", "model", "calibrator")) {
+    value <- metadata[[field]]
+    if (is.list(value) && (!is.null(value$forecast_domain) || !is.null(value$model_domain))) {
+      assert_forecast_domain(value, "national_team")
+    }
+  }
+  invisible(metadata)
+}
+
+phase12_release_project_domain <- function(metadata = list()) {
+  phase12_release_assert_expected_domain(metadata)
+  if (!is.list(metadata)) metadata <- as.list(metadata)
+  metadata$forecast_domain <- "national_team"
+  metadata
+}
+
 phase12_release_contract_source_if_missing <- function() {
   required <- c("validate_phase12_release_bundle", "validate_phase12_complete_release_bundle")
   missing <- required[!vapply(required, exists, logical(1), mode = "function")]
@@ -24,6 +65,9 @@ phase12_release_trusted_root <- function(trusted_root = "outputs/releases") {
   root <- normalizePath(trusted_root, winslash = "/", mustWork = TRUE)
   if (!isTRUE(file.info(root)$isdir) || nzchar(Sys.readlink(root))) {
     stop("Phase 12 trusted release root does not exist or is not a real directory", call. = FALSE)
+  }
+  if (identical(basename(root), "club")) {
+    phase19_domain_abort("National release resolver rejects the club release root")
   }
   root
 }
@@ -79,6 +123,7 @@ phase12_release_contract_path <- function(root, path) {
 phase12_release_contract_validate_identity <- function(root, manifest, contract) {
   if (!is.data.frame(manifest) || !nrow(manifest)) stop("Phase 12 release manifest is empty", call. = FALSE)
   if (!is.list(contract)) stop("Phase 12 model contract is not valid JSON", call. = FALSE)
+  phase12_release_assert_expected_domain(contract)
   status <- unique(as.character(manifest$status))
   if (length(status) != 1L || !status %in% c("approved", "incumbent retained")) stop("Phase 12 release has no approved or retained status", call. = FALSE)
   if (length(unique(as.character(manifest$selected_model_id))) != 1L || length(unique(as.character(manifest$track_id))) != 1L) stop("Phase 12 release identity is ambiguous", call. = FALSE)
@@ -178,7 +223,7 @@ phase14_release_read_selector <- function(selector_path, trusted_release_root) {
   if (phase12_release_contract_is_symlink(supplied_path)) {
     stop("Phase 14 approved release selector must not be a symlink", call. = FALSE)
   }
-  selector <- utils::read.csv(
+  selector_raw <- utils::read.csv(
     supplied_path,
     stringsAsFactors = FALSE,
     check.names = FALSE,
@@ -189,29 +234,38 @@ phase14_release_read_selector <- function(selector_path, trusted_release_root) {
     "release_id", "release_manifest_path", "manifest_sha256",
     "approved_at_utc", "row_sha256"
   )
-  if (nrow(selector) != 1L || !identical(names(selector), expected_columns)) {
+  domain_columns <- c("forecast_domain", expected_columns)
+  if (nrow(selector_raw) != 1L || (!identical(names(selector_raw), expected_columns) && !identical(names(selector_raw), domain_columns))) {
     stop("Phase 14 approved release selector must contain one exact row", call. = FALSE)
   }
-  if (any(!nzchar(as.character(selector[1L, expected_columns, drop = TRUE])))) {
+  legacy_selector <- identical(names(selector_raw), expected_columns)
+  selector <- selector_raw
+  if (legacy_selector) {
+    selector$forecast_domain <- "national_team"
+    selector <- selector[, c("forecast_domain", expected_columns), drop = FALSE]
+  } else {
+    assert_forecast_domain(selector_raw, "national_team")
+  }
+  if (any(!nzchar(as.character(selector_raw[1L, expected_columns, drop = TRUE])))) {
     stop("Phase 14 approved release selector contains an empty identity", call. = FALSE)
   }
-  expected_self_hash <- phase14_release_selector_hash(selector)
-  if (!identical(tolower(as.character(selector$row_sha256[[1L]])), expected_self_hash)) {
+  expected_self_hash <- phase14_release_selector_hash(selector_raw)
+  if (!identical(tolower(as.character(selector_raw$row_sha256[[1L]])), expected_self_hash)) {
     stop("Phase 14 approved release selector self-hash mismatch", call. = FALSE)
   }
-  release_id <- as.character(selector$release_id[[1L]])
+  release_id <- as.character(selector_raw$release_id[[1L]])
   if (grepl("[/\\\\]", release_id) || grepl("(^|/)\\.\\.?(/|$)", release_id)) {
     stop("Phase 14 approved release selector release identity is unsafe", call. = FALSE)
   }
   relative_manifest <- phase12_release_safe_relative_path(
-    as.character(selector$release_manifest_path[[1L]])
+    as.character(selector_raw$release_manifest_path[[1L]])
   )
   expected_manifest <- paste0(release_id, "/release_manifest.csv")
   if (!identical(relative_manifest, expected_manifest)) {
     stop("Phase 14 approved release selector topology disagrees with release identity", call. = FALSE)
   }
-  if (!grepl("^[0-9a-fA-F]{64}$", as.character(selector$manifest_sha256[[1L]])) ||
-      !grepl("^[0-9a-fA-F]{64}$", as.character(selector$row_sha256[[1L]]))) {
+  if (!grepl("^[0-9a-fA-F]{64}$", as.character(selector_raw$manifest_sha256[[1L]])) ||
+      !grepl("^[0-9a-fA-F]{64}$", as.character(selector_raw$row_sha256[[1L]]))) {
     stop("Phase 14 approved release selector hash identity is invalid", call. = FALSE)
   }
   manifest_path <- phase12_release_path_under_root(
@@ -226,7 +280,7 @@ phase14_release_read_selector <- function(selector_path, trusted_release_root) {
   manifest_sha256 <- phase12_release_file_sha256(manifest_path)
   if (!identical(
     manifest_sha256,
-    tolower(as.character(selector$manifest_sha256[[1L]]))
+    tolower(as.character(selector_raw$manifest_sha256[[1L]]))
   )) {
     stop("Phase 14 approved release selector manifest hash mismatch", call. = FALSE)
   }
@@ -393,6 +447,7 @@ preflight_phase12_approved_release <- function(trusted_root = NULL, release_mani
   validated <- validate_phase12_complete_release_bundle(release_root, load_models = FALSE)
   manifest <- validated$release_manifest
   contract <- validated$model_contract
+  phase12_release_assert_expected_domain(contract)
   provenance <- phase12_release_read_contract(phase12_release_contract_path(release_root, "manifests/provenance.json"))
   report <- phase12_release_contract_read_benchmark_evidence(release_root)
   authority <- if (identical(as.character(contract$primary_probability_view), "calibrated_1x2") &&
@@ -425,6 +480,7 @@ validate_phase12_release_contract <- function(release_root, release_manifest = N
   release_root <- normalizePath(release_root, winslash = "/", mustWork = TRUE)
   if (is.null(release_manifest)) release_manifest <- utils::read.csv(file.path(release_root, "release_manifest.csv"), stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   if (is.null(model_contract)) model_contract <- phase12_release_read_contract(file.path(release_root, "model_contract.json"))
+  phase12_release_assert_expected_domain(model_contract)
   validate_phase12_complete_release_bundle(release_root, load_models = load_models)
   phase12_release_contract_validate_identity(release_root, release_manifest, model_contract)
   invisible(list(release_root = release_root, release_manifest = release_manifest, model_contract = model_contract))
@@ -450,7 +506,7 @@ resolve_phase12_approved_release <- function(trusted_root = "outputs/releases", 
       release_manifest_path = fresh_preflight$release_manifest_path
     )
     if (!identical(supplied_paths, fresh_paths)) stop("Phase 12 validated preflight handoff is stale or forged", call. = FALSE)
-    identity_fields <- c("release_id", "status", "selected_model_id", "candidate_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "freeze_id")
+    identity_fields <- c("forecast_domain", "release_id", "status", "selected_model_id", "candidate_id", "incumbent_id", "track_id", "panel_id", "score_support_g", "primary_probability_view", "decision_sha256", "freeze_id")
     if (!is.list(validated_preflight$metadata) || any(!vapply(identity_fields, function(field) identical(as.character(validated_preflight$metadata[[field]]), as.character(fresh_preflight$metadata[[field]])), logical(1)))) {
       stop("Phase 12 validated preflight authority identity drifted", call. = FALSE)
     }
@@ -462,12 +518,15 @@ resolve_phase12_approved_release <- function(trusted_root = "outputs/releases", 
   contract <- full$model_contract
   model_object <- full$model_object
   calibrator <- full$calibrator
+  phase12_release_assert_expected_domain(model_object)
+  phase12_release_assert_expected_domain(calibrator)
   if (is.null(model_object$model_id) || !identical(as.character(model_object$model_id), as.character(contract$selected_model_id))) stop("Phase 12 resolved model identity drifted", call. = FALSE)
   if (is.null(calibrator$candidate_id) || !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id))) stop("Phase 12 resolved calibrator identity drifted", call. = FALSE)
   list(
     release_root = release_root, release_manifest_path = manifest_path,
     release_manifest = manifest, model_contract = contract,
     model = model_object, calibrator = calibrator,
+    forecast_domain = "national_team",
     metadata = phase12_release_metadata(list(
       release_root = release_root, release_manifest = manifest, model_contract = contract
     ))
@@ -483,6 +542,7 @@ phase14_resolve_approved_release <- function(selector_path, trusted_release_root
     selected$release_dir,
     load_models = FALSE
   )
+  phase12_release_assert_expected_domain(selected_metadata$model_contract)
   if (!identical(
     as.character(selected_metadata$model_contract$primary_probability_view),
     "calibrated_1x2"
@@ -528,6 +588,7 @@ phase14_resolve_approved_release <- function(selector_path, trusted_release_root
   manifest <- resolved$release_manifest
   model <- resolved$model
   calibrator <- resolved$calibrator
+  phase12_release_assert_expected_domain(resolved)
   required_contract <- c(
     "model_sha256", "calibrator_id", "calibrator_sha256",
     "calibrator_fit_status", "model_data_cutoff", "calibration_data_cutoff",
@@ -583,6 +644,7 @@ phase14_resolve_approved_release <- function(selector_path, trusted_release_root
   self <- manifest[as.character(manifest$artifact) == "release_manifest.csv", , drop = FALSE]
   if (nrow(self) != 1L) stop("Phase 14 release manifest self identity is invalid", call. = FALSE)
   list(
+    forecast_domain = "national_team",
     release_dir = selected$release_dir,
     release_manifest_path = selected$release_manifest_path,
     release_identity = list(
@@ -629,6 +691,7 @@ phase12_release_metadata <- function(release = NULL, trusted_root = "outputs/rel
     decision_sha256 = as.character(contract$decision_sha256),
     freeze_id = as.character(manifest$freeze_id[[1L]]),
     manifest_self_sha256 = if (nrow(self)) as.character(self$manifest_self_sha256[[1L]]) else "",
-    release_root = as.character(release$release_root)
+    release_root = as.character(release$release_root),
+    forecast_domain = "national_team"
   )
 }
