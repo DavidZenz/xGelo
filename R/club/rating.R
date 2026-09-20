@@ -48,7 +48,7 @@ phase19_club_rating_parameter_hash <- function(parameters) {
   fields <- c(
     "schema_version", "hash_encoding_version", "forecast_domain",
     "base_rating", "home_advantage", "k_factor",
-    "inactivity_half_life_days", "inactivity_rule"
+    "inactivity_factor", "inactivity_rule"
   )
   phase18_hash_sequence_v2(
     unname(parameters[fields]),
@@ -64,23 +64,36 @@ phase19_club_rating_parameter_hash <- function(parameters) {
 phase19_club_rating_parameters <- function(
     base_rating = 1500,
     home_advantage = 60,
-    k_factor = 24,
-    inactivity_half_life_days = 730
+    k_factor = 20,
+    inactivity_factor = 0.995
 ) {
   phase19_club_rating_require_dependencies()
+  base_rating <- phase19_club_rating_scalar(base_rating, "base_rating", positive = TRUE)
+  home_advantage <- phase19_club_rating_scalar(
+    home_advantage, "home_advantage", non_negative = TRUE
+  )
+  k_factor <- phase19_club_rating_scalar(k_factor, "k_factor", positive = TRUE)
+  inactivity_factor <- phase19_club_rating_scalar(
+    inactivity_factor, "inactivity_factor", positive = TRUE
+  )
+  if (!identical(base_rating, 1500) ||
+      !home_advantage %in% c(40, 60, 80) ||
+      !k_factor %in% c(20, 30, 40) ||
+      !inactivity_factor %in% c(0.99, 0.995, 0.999)) {
+    phase19_club_rating_abort(
+      "invalid_parameters",
+      "Club rating settings must belong to the frozen candidate registry"
+    )
+  }
   parameters <- list(
     schema_version = "phase19-club-rating-parameters-v1",
     hash_encoding_version = phase18_canonical_encoding_v2(),
     forecast_domain = "club",
-    base_rating = phase19_club_rating_scalar(base_rating, "base_rating", positive = TRUE),
-    home_advantage = phase19_club_rating_scalar(
-      home_advantage, "home_advantage", non_negative = TRUE
-    ),
-    k_factor = phase19_club_rating_scalar(k_factor, "k_factor", positive = TRUE),
-    inactivity_half_life_days = phase19_club_rating_scalar(
-      inactivity_half_life_days, "inactivity_half_life_days", positive = TRUE
-    ),
-    inactivity_rule = "base_plus_difference_times_half_life_decay",
+    base_rating = base_rating,
+    home_advantage = home_advantage,
+    k_factor = k_factor,
+    inactivity_factor = inactivity_factor,
+    inactivity_rule = "base_plus_difference_times_annual_factor",
     parameter_sha256 = ""
   )
   parameters$parameter_sha256 <- phase19_club_rating_parameter_hash(parameters)
@@ -94,7 +107,7 @@ phase19_validate_club_rating_parameters <- function(parameters) {
   required <- c(
     "schema_version", "hash_encoding_version", "forecast_domain",
     "base_rating", "home_advantage", "k_factor",
-    "inactivity_half_life_days", "inactivity_rule", "parameter_sha256"
+    "inactivity_factor", "inactivity_rule", "parameter_sha256"
   )
   if (!inherits(parameters, "phase19_club_rating_parameters") ||
       !is.list(parameters) || !identical(names(parameters), required) ||
@@ -102,15 +115,26 @@ phase19_validate_club_rating_parameters <- function(parameters) {
       !identical(parameters$hash_encoding_version, phase18_canonical_encoding_v2()) ||
       !identical(parameters$forecast_domain, "club") ||
       !identical(parameters$inactivity_rule,
-                 "base_plus_difference_times_half_life_decay")) {
+                 "base_plus_difference_times_annual_factor")) {
     phase19_club_rating_abort("invalid_parameters", "Club rating parameter schema is not exact")
   }
-  phase19_club_rating_scalar(parameters$base_rating, "base_rating", positive = TRUE)
-  phase19_club_rating_scalar(parameters$home_advantage, "home_advantage",
-                             non_negative = TRUE)
-  phase19_club_rating_scalar(parameters$k_factor, "k_factor", positive = TRUE)
-  phase19_club_rating_scalar(parameters$inactivity_half_life_days,
-                             "inactivity_half_life_days", positive = TRUE)
+  if (!identical(phase19_club_rating_scalar(
+    parameters$base_rating, "base_rating", positive = TRUE
+  ), 1500) ||
+      !phase19_club_rating_scalar(
+        parameters$home_advantage, "home_advantage", non_negative = TRUE
+      ) %in% c(40, 60, 80) ||
+      !phase19_club_rating_scalar(
+        parameters$k_factor, "k_factor", positive = TRUE
+      ) %in% c(20, 30, 40) ||
+      !phase19_club_rating_scalar(
+        parameters$inactivity_factor, "inactivity_factor", positive = TRUE
+      ) %in% c(0.99, 0.995, 0.999)) {
+    phase19_club_rating_abort(
+      "invalid_parameters",
+      "Club rating settings must belong to the frozen candidate registry"
+    )
+  }
   if (!phase19_is_sha256(parameters$parameter_sha256) ||
       !identical(parameters$parameter_sha256,
                  phase19_club_rating_parameter_hash(parameters))) {
@@ -295,8 +319,8 @@ phase19_club_rating_decay_to <- function(state, boundary_utc) {
     phase19_club_rating_abort("invalid_time", "Rating state cannot move before accepted evidence")
   }
   factor <- rep(1, nrow(state$clubs))
-  factor[active] <- 2^(-elapsed_days[active] /
-                        state$parameters$inactivity_half_life_days)
+  factor[active] <- state$parameters$inactivity_factor ^
+    (elapsed_days[active] / 365)
   base <- state$parameters$base_rating
   state$clubs$rating <- base + (state$clubs$rating - base) * factor
   state$as_of_boundary <- as.character(boundary_utc)
@@ -413,6 +437,7 @@ phase19_forecast_club_rating_batch <- function(state, fixtures) {
     away_prior_count = as.integer(pre_state$clubs$prior_match_count[away_index]),
     cold_start = pre_state$clubs$prior_match_count[home_index] == 0L |
       pre_state$clubs$prior_match_count[away_index] == 0L,
+    max_prior_evidence_available_at_utc = pre_state$last_evidence_available_at_utc,
     pre_batch_state_sha256 = pre_hash,
     batch_sha256 = batch_sha256,
     parameter_sha256 = pre_state$parameter_sha256,
@@ -462,4 +487,351 @@ phase19_forecast_club_rating_batch <- function(state, fixtures) {
   updated$state_sha256 <- phase19_club_rating_state_hash(updated)
   phase19_validate_club_rating_state(updated)
   list(predictions = predictions, state = updated)
+}
+
+phase19_club_rating_component_membership <- function(history) {
+  club_ids <- sort(unique(c(
+    as.character(history$home_club_id), as.character(history$away_club_id)
+  )), method = "radix")
+  adjacency <- setNames(lapply(club_ids, function(unused) character()), club_ids)
+  if (nrow(history)) {
+    for (index in seq_len(nrow(history))) {
+      home <- as.character(history$home_club_id[[index]])
+      away <- as.character(history$away_club_id[[index]])
+      adjacency[[home]] <- unique(c(adjacency[[home]], away))
+      adjacency[[away]] <- unique(c(adjacency[[away]], home))
+    }
+  }
+  component <- setNames(rep(NA_integer_, length(club_ids)), club_ids)
+  next_component <- 0L
+  for (seed in club_ids) {
+    if (!is.na(component[[seed]])) next
+    next_component <- next_component + 1L
+    queue <- seed
+    component[[seed]] <- next_component
+    while (length(queue)) {
+      current <- queue[[1L]]
+      queue <- queue[-1L]
+      neighbours <- sort(adjacency[[current]], method = "radix")
+      unseen <- neighbours[is.na(component[neighbours])]
+      if (length(unseen)) {
+        component[unseen] <- next_component
+        queue <- c(queue, unseen)
+      }
+    }
+  }
+  data.frame(
+    club_id = names(component),
+    component_id = sprintf("component_%04d", as.integer(component)),
+    history_match_count = vapply(names(component), function(club_id) {
+      sum(history$home_club_id == club_id | history$away_club_id == club_id)
+    }, integer(1)),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase19_club_rating_component_audit <- function(training_snapshot,
+                                                current_snapshot,
+                                                history) {
+  membership <- phase19_club_rating_component_membership(history)
+  roster <- sort(as.character(current_snapshot$clubs$club_id), method = "radix")
+  current_rows <- membership[match(roster, membership$club_id), , drop = FALSE]
+  missing <- is.na(current_rows$club_id) | current_rows$history_match_count < 1L
+  components <- unique(current_rows$component_id[!missing])
+  coverage_passed <- !any(missing) && length(components) == 1L
+  roster_membership <- data.frame(
+    club_id = roster,
+    component_id = ifelse(is.na(current_rows$component_id), "", current_rows$component_id),
+    history_match_count = ifelse(is.na(current_rows$history_match_count),
+                                 0L, current_rows$history_match_count),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  membership_sha256 <- phase18_hash_table_v2(
+    membership, key = "club_id",
+    schema_tag = "phase19-club-rating-component-membership-v1"
+  )
+  roster_membership_sha256 <- phase18_hash_table_v2(
+    roster_membership, key = "club_id",
+    schema_tag = "phase19-current-ucl-rating-component-v1"
+  )
+  audit <- list(
+    schema_version = "phase19-club-rating-component-audit-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club",
+    authority_mode = as.character(training_snapshot$authority_mode),
+    fixture_authority = isTRUE(training_snapshot$fixture_authority),
+    training_snapshot_sha256 = as.character(training_snapshot$snapshot_sha256),
+    current_snapshot_sha256 = as.character(current_snapshot$snapshot_sha256),
+    current_roster_sha256 = as.character(current_snapshot$roster_sha256),
+    training_club_registry_sha256 = as.character(training_snapshot$club_registry_sha256),
+    current_identity_registry_sha256 = as.character(current_snapshot$identity_registry_sha256),
+    membership_sha256 = membership_sha256,
+    roster_membership_sha256 = roster_membership_sha256,
+    current_club_count = as.integer(length(roster)),
+    missing_current_club_count = as.integer(sum(missing)),
+    current_component_count = as.integer(length(components)),
+    coverage_passed = coverage_passed,
+    component_audit_sha256 = "",
+    membership = membership,
+    roster_membership = roster_membership
+  )
+  hash_fields <- setdiff(names(audit),
+                         c("component_audit_sha256", "membership", "roster_membership"))
+  audit$component_audit_sha256 <- phase18_hash_sequence_v2(
+    unname(audit[hash_fields]),
+    domain = "phase19-club-rating-component-audit-v1",
+    names = hash_fields,
+    types = vapply(audit[hash_fields], phase18_v2_type_tag, character(1))
+  )
+  audit
+}
+
+phase19_club_rating_history_boundaries <- function(history) {
+  precision <- as.character(history$kickoff_precision)
+  exact <- precision == "instant" & nzchar(as.character(history$kickoff_utc))
+  date_only <- precision == "date" & !nzchar(as.character(history$kickoff_utc))
+  if (any(!(exact | date_only))) {
+    phase19_club_rating_abort(
+      "invalid_history", "History kickoff precision must be exact instant or conservative date"
+    )
+  }
+  dates <- as.Date(as.character(history$event_date), format = "%Y-%m-%d")
+  if (anyNA(dates)) {
+    phase19_club_rating_abort("invalid_history", "History event_date must use YYYY-MM-DD")
+  }
+  boundary_utc <- ifelse(
+    exact, as.character(history$kickoff_utc),
+    paste0(format(dates, "%Y-%m-%d"), "T00:00:00Z")
+  )
+  phase19_club_rating_parse_utc(boundary_utc, "history prediction boundary")
+  boundary_id <- ifelse(
+    exact, paste0("kickoff:", boundary_utc),
+    paste0("date:", format(dates, "%Y-%m-%d"))
+  )
+  data.frame(
+    row_index = seq_len(nrow(history)),
+    boundary_id = boundary_id,
+    boundary_utc = boundary_utc,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase19_club_rating_history_batches <- function(history) {
+  boundaries <- phase19_club_rating_history_boundaries(history)
+  indices <- split(boundaries$row_index, boundaries$boundary_id, drop = TRUE)
+  batches <- lapply(sort(names(indices), method = "radix"), function(boundary_id) {
+    rows <- history[indices[[boundary_id]], , drop = FALSE]
+    boundary_utc <- unique(boundaries$boundary_utc[indices[[boundary_id]]])
+    if (length(boundary_utc) != 1L) {
+      phase19_club_rating_abort("invalid_history", "One history batch has mixed boundaries")
+    }
+    completion <- phase19_club_rating_parse_utc(
+      rows$completion_not_before_utc, "completion_not_before_utc"
+    )
+    evidence <- phase19_club_rating_parse_utc(
+      rows$evidence_available_at_utc, "evidence_available_at_utc"
+    )
+    if (any(evidence < completion)) {
+      phase19_club_rating_abort("invalid_history", "History evidence predates completion")
+    }
+    eligible_at <- max(c(completion, evidence))
+    list(
+      boundary_id = boundary_id,
+      boundary_utc = boundary_utc,
+      eligible_at_utc = format(eligible_at, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+      rows = rows[order(as.character(rows$match_id), method = "radix"), , drop = FALSE]
+    )
+  })
+  order_values <- vapply(batches, function(batch) batch$boundary_utc, character(1))
+  batches[order(order_values, vapply(batches, `[[`, character(1), "boundary_id"),
+                method = "radix")]
+}
+
+phase19_club_rating_prediction_frame <- function(batch, authority_mode) {
+  rows <- batch$rows
+  data.frame(
+    fixture_id = as.character(rows$match_id),
+    forecast_domain = "club", authority_mode = authority_mode,
+    boundary_id = batch$boundary_id, kickoff_utc = batch$boundary_utc,
+    home_club_id = as.character(rows$home_club_id),
+    away_club_id = as.character(rows$away_club_id),
+    status = "scheduled", counts_for_model = FALSE,
+    regulation_home_goals = NA_integer_, regulation_away_goals = NA_integer_,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase19_club_rating_update_frame <- function(batches, authority_mode,
+                                             eligible_at_utc) {
+  rows <- do.call(rbind, lapply(batches, `[[`, "rows"))
+  rows <- rows[order(as.character(rows$match_id), method = "radix"), , drop = FALSE]
+  data.frame(
+    fixture_id = as.character(rows$match_id),
+    forecast_domain = "club", authority_mode = authority_mode,
+    boundary_id = paste0("evidence:", eligible_at_utc),
+    kickoff_utc = eligible_at_utc,
+    home_club_id = as.character(rows$home_club_id),
+    away_club_id = as.character(rows$away_club_id),
+    status = "completed", counts_for_model = TRUE,
+    regulation_home_goals = as.integer(rows$regulation_home_goals),
+    regulation_away_goals = as.integer(rows$regulation_away_goals),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase19_club_rating_apply_pending <- function(state, batches, applied,
+                                              before_utc) {
+  eligible_at <- vapply(batches, `[[`, character(1), "eligible_at_utc")
+  due <- which(!applied & eligible_at < before_utc)
+  if (!length(due)) return(list(state = state, applied = applied))
+  due_times <- sort(unique(eligible_at[due]), method = "radix")
+  for (time in due_times) {
+    indices <- which(!applied & eligible_at == time)
+    updates <- phase19_club_rating_update_frame(
+      batches[indices], state$authority_mode, time
+    )
+    state <- phase19_forecast_club_rating_batch(state, updates)$state
+    applied[indices] <- TRUE
+  }
+  list(state = state, applied = applied)
+}
+
+phase19_club_rating_replay_result <- function(status, reason_code,
+                                              training_snapshot,
+                                              current_snapshot,
+                                              component_audit,
+                                              details = list()) {
+  is_fixture <- identical(as.character(training_snapshot$authority_mode), "fixture")
+  structure(c(list(
+    status = status,
+    reason_code = reason_code,
+    forecast_domain = "club",
+    authority_mode = as.character(training_snapshot$authority_mode),
+    fixture_authority = is_fixture,
+    promotion_eligible = identical(status, "ready") && !is_fixture,
+    training_snapshot_sha256 = as.character(training_snapshot$snapshot_sha256),
+    current_snapshot_sha256 = as.character(current_snapshot$snapshot_sha256),
+    component_audit = component_audit
+  ), details), class = c("phase19_club_rating_replay", "list"))
+}
+
+#' Replay accepted club history through strict prior-only rating boundaries.
+#'
+#' `history` may be reordered by a caller only when it is byte-equivalent, after
+#' canonicalization, to the validated training snapshot. This supports
+#' permutation tests without opening an alternate evidence path.
+#'
+#' @export
+phase19_replay_club_ratings <- function(
+    training_snapshot,
+    current_snapshot,
+    parameters,
+    cutoff_utc = training_snapshot$cutoff_utc,
+    history = training_snapshot$matches
+) {
+  phase19_club_rating_require_dependencies()
+  authority_mode <- as.character(training_snapshot$authority_mode)
+  phase19_validate_club_training_snapshot(training_snapshot, authority_mode)
+  phase19_validate_current_ucl_club_snapshot(current_snapshot, authority_mode)
+  phase19_validate_club_rating_parameters(parameters)
+  if (!identical(authority_mode, as.character(current_snapshot$authority_mode)) ||
+      !identical(isTRUE(training_snapshot$fixture_authority),
+                 isTRUE(current_snapshot$fixture_authority)) ||
+      (identical(authority_mode, "fixture") &&
+       !identical(training_snapshot$fixture_root_sha256,
+                  current_snapshot$fixture_root_sha256))) {
+    phase19_club_rating_abort(
+      "authority_mismatch", "Replay snapshots do not share one authority boundary"
+    )
+  }
+  phase18_validate_normalized_club_matches(history)
+  canonical <- phase18_history_canonical_table(
+    history, c("source_id", "source_match_id", "match_id")
+  )
+  observed_history_hash <- phase18_hash_table_v2(
+    canonical, key = c("source_id", "source_match_id", "match_id"),
+    schema_tag = "phase19-club-training-matches-v1"
+  )
+  if (!identical(observed_history_hash,
+                 as.character(training_snapshot$phase19_matches_sha256))) {
+    phase19_club_rating_abort(
+      "invalid_history", "Replay history is not the validated training snapshot"
+    )
+  }
+  counted <- vapply(canonical$counts_for_model, phase18_history_logical, logical(1))
+  if (any(!counted) || any(as.character(canonical$status) != "completed")) {
+    phase19_club_rating_abort(
+      "invalid_history", "Replay history contains ineligible results"
+    )
+  }
+  cutoff <- phase19_club_rating_parse_utc(cutoff_utc, "cutoff_utc")[[1L]]
+  snapshot_cutoff <- phase19_club_rating_parse_utc(
+    training_snapshot$cutoff_utc, "training cutoff_utc"
+  )[[1L]]
+  if (cutoff > snapshot_cutoff) {
+    phase19_club_rating_abort(
+      "invalid_time", "Replay cutoff cannot exceed the accepted training cutoff"
+    )
+  }
+  cutoff_text <- format(cutoff, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  component_audit <- phase19_club_rating_component_audit(
+    training_snapshot, current_snapshot, canonical
+  )
+  if (!isTRUE(component_audit$coverage_passed)) {
+    return(phase19_club_rating_replay_result(
+      "blocked", "current_ucl_identity_incomplete",
+      training_snapshot, current_snapshot, component_audit
+    ))
+  }
+
+  state <- phase19_initialize_club_rating_state(
+    training_snapshot, current_snapshot, parameters
+  )
+  batches <- phase19_club_rating_history_batches(canonical)
+  applied <- rep(FALSE, length(batches))
+  prediction_parts <- list()
+  prediction_index <- 0L
+  for (batch in batches) {
+    if (batch$boundary_utc >= cutoff_text) next
+    pending <- phase19_club_rating_apply_pending(
+      state, batches, applied, batch$boundary_utc
+    )
+    state <- pending$state
+    applied <- pending$applied
+    predicted <- phase19_forecast_club_rating_batch(
+      state, phase19_club_rating_prediction_frame(batch, authority_mode)
+    )
+    state <- predicted$state
+    prediction_index <- prediction_index + 1L
+    prediction_parts[[prediction_index]] <- predicted$predictions
+  }
+  pending <- phase19_club_rating_apply_pending(state, batches, applied, cutoff_text)
+  state <- phase19_club_rating_decay_to(pending$state, cutoff_text)
+  predictions <- if (length(prediction_parts)) {
+    do.call(rbind, prediction_parts)
+  } else {
+    data.frame()
+  }
+  if (nrow(predictions)) {
+    predictions <- predictions[
+      order(predictions$kickoff_utc, predictions$fixture_id, method = "radix"), ,
+      drop = FALSE
+    ]
+    rownames(predictions) <- NULL
+  }
+  phase19_club_rating_replay_result(
+    "ready", "", training_snapshot, current_snapshot, component_audit,
+    list(
+      cutoff_utc = cutoff_text,
+      predictions = predictions,
+      state = state,
+      applied_batch_count = as.integer(sum(pending$applied)),
+      excluded_batch_count = as.integer(length(batches) - sum(pending$applied))
+    )
+  )
 }

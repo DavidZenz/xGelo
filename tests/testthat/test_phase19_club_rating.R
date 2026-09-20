@@ -38,8 +38,8 @@ rating_test_parameters <- function() {
   phase19_club_rating_parameters(
     base_rating = 1500,
     home_advantage = 60,
-    k_factor = 24,
-    inactivity_half_life_days = 730
+    k_factor = 20,
+    inactivity_factor = 0.995
   )
 }
 
@@ -199,11 +199,13 @@ test_that("club rating parameters are closed, finite and canonically identified"
   expect_match(parameters$parameter_sha256, "^[0-9a-f]{64}$")
   expect_error(phase19_club_rating_parameters(base_rating = 0),
                class = "phase19_club_rating_error")
+  expect_error(phase19_club_rating_parameters(base_rating = 1400),
+               class = "phase19_club_rating_error")
   expect_error(phase19_club_rating_parameters(home_advantage = Inf),
                class = "phase19_club_rating_error")
   expect_error(phase19_club_rating_parameters(k_factor = -1),
                class = "phase19_club_rating_error")
-  expect_error(phase19_club_rating_parameters(inactivity_half_life_days = 0),
+  expect_error(phase19_club_rating_parameters(inactivity_factor = 0),
                class = "phase19_club_rating_error")
 })
 
@@ -304,6 +306,46 @@ test_that("replay uses regulation outcomes and is byte-stable under history perm
                changed$state$clubs$prior_match_count)
 })
 
+test_that("identical accepted snapshots replay byte-equivalently in isolated R processes", {
+  rating_test_require()
+  authority <- rating_test_authority()
+  input <- tempfile("phase19-rating-input-", fileext = ".rds")
+  script <- tempfile("phase19-rating-replay-", fileext = ".R")
+  outputs <- tempfile(c("phase19-rating-a-", "phase19-rating-b-"), fileext = ".bin")
+  saveRDS(list(
+    training = authority$training,
+    current = rating_test_matching_current(authority$current),
+    parameters = rating_test_parameters()
+  ), input, version = 3)
+  writeLines(c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "setwd(args[[1L]])",
+    "source('tests/testthat/helper_phase19_club_fixture.R')",
+    "phase19_test_load()",
+    "source('R/club/rating.R')",
+    "value <- readRDS(args[[2L]])",
+    "result <- phase19_replay_club_ratings(value$training, value$current, value$parameters)",
+    "writeBin(serialize(result, NULL, version = 3), args[[3L]])"
+  ), script, useBytes = TRUE)
+  on.exit(unlink(c(input, script, outputs), force = TRUE), add = TRUE)
+
+  statuses <- vapply(outputs, function(output) {
+    process_output <- system2(
+      file.path(R.home("bin"), "Rscript"),
+      c("--vanilla", shQuote(script), shQuote(phase19_test_root),
+        shQuote(input), shQuote(output)),
+      stdout = TRUE, stderr = TRUE
+    )
+    status <- attr(process_output, "status")
+    if (is.null(status)) 0L else as.integer(status)
+  }, integer(1))
+  expect_identical(unname(statuses), c(0L, 0L))
+  bytes <- lapply(outputs, function(path) {
+    readBin(path, what = "raw", n = file.info(path)$size)
+  })
+  expect_identical(bytes[[1L]], bytes[[2L]])
+})
+
 test_that("current UCL roster graph coverage fails closed on absence or disconnection", {
   rating_test_require()
   authority <- rating_test_authority()
@@ -356,7 +398,7 @@ test_that("postponed rows do not update and inactivity regresses only rating dif
     as.POSIXct("2027-05-01T18:00:00Z", tz = "UTC"),
     as.POSIXct("2025-05-01T18:00:00Z", tz = "UTC"), units = "days"
   ))
-  factor <- 2^(-elapsed / rating_test_parameters()$inactivity_half_life_days)
+  factor <- rating_test_parameters()$inactivity_factor ^ (elapsed / 365)
   expect_equal(decayed$clubs$rating - base,
                (completed$clubs$rating - base) * factor, tolerance = 1e-12)
   expect_identical(decayed$clubs$prior_match_count,
