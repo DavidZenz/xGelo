@@ -1,1 +1,1 @@
-schema_version,club_id,entity_kind,canonical_name,association_code,valid_from_utc,valid_to_utc,club_status,row_sha256
+"schema_version","hash_encoding_version","club_id","entity_kind","canonical_name","association_code","valid_from_utc","valid_to_utc","club_status","row_sha256"

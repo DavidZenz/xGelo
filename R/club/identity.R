@@ -1,21 +1,21 @@
 #' Phase 18 club-only identity registry and resolver.
 
-phase18_club_identity_schema_version <- function() "phase18-club-identity-1"
+phase18_club_identity_schema_version <- function() "phase18-club-identity-v2"
 
 phase18_club_registry_schemas <- function() {
   list(
     clubs = c(
-      "schema_version", "club_id", "entity_kind", "canonical_name",
+      "schema_version", "hash_encoding_version", "club_id", "entity_kind", "canonical_name",
       "association_code", "valid_from_utc", "valid_to_utc", "club_status",
       "row_sha256"
     ),
     source_ids = c(
-      "schema_version", "club_id", "source_system", "source_club_id",
+      "schema_version", "hash_encoding_version", "club_id", "source_system", "source_club_id",
       "valid_from_utc", "valid_to_utc", "review_state", "source_bundle_id",
       "row_sha256"
     ),
     aliases = c(
-      "schema_version", "club_id", "source_system", "alias",
+      "schema_version", "hash_encoding_version", "club_id", "source_system", "alias",
       "normalized_alias", "valid_from_utc", "valid_to_utc", "review_state",
       "reviewed_by", "reviewed_at_utc", "row_sha256"
     )
@@ -51,14 +51,14 @@ phase18_club_canonical_scalar <- function(value) {
 }
 
 phase18_club_row_sha256 <- function(data, hash_col = "row_sha256") {
-  if (!requireNamespace("digest", quietly = TRUE)) {
-    stop("digest is required for Phase 18 club identity SHA-256 contracts", call. = FALSE)
+  if (!exists("phase18_hash_row_v2", mode = "function")) {
+    phase18_club_abort("missing_canonical_hash", "Canonical-v2 helpers must be loaded before club identity")
   }
-  fields <- setdiff(names(data), hash_col)
-  vapply(seq_len(nrow(data)), function(index) {
-    values <- vapply(data[index, fields, drop = FALSE], phase18_club_canonical_scalar, character(1))
-    digest::digest(paste(values, collapse = "|"), algo = "sha256", serialize = FALSE)
-  }, character(1))
+  phase18_hash_row_v2(
+    data,
+    exclude = hash_col,
+    schema_tag = paste0("club-identity:", paste(setdiff(names(data), hash_col), collapse = ","))
+  )
 }
 
 phase18_hash_club_registry_rows <- function(registries) {
@@ -77,7 +77,7 @@ phase18_hash_club_registry_rows <- function(registries) {
 
 phase18_club_sort_keys <- function() {
   list(
-    clubs = c("club_id"),
+    clubs = c("club_id", "valid_from_utc", "club_status", "row_sha256"),
     source_ids = c("source_system", "source_club_id", "valid_from_utc", "club_id", "row_sha256"),
     aliases = c("source_system", "normalized_alias", "valid_from_utc", "club_id", "row_sha256")
   )
@@ -93,13 +93,9 @@ phase18_club_canonical_table <- function(data, key) {
 }
 
 phase18_club_table_sha256 <- function(data, key) {
-  data <- phase18_club_canonical_table(data, key)
-  rows <- vapply(seq_len(nrow(data)), function(index) {
-    paste(vapply(data[index, , drop = FALSE], phase18_club_canonical_scalar, character(1)), collapse = "\x1f")
-  }, character(1))
-  digest::digest(
-    paste(c(paste(names(data), collapse = "\x1f"), rows), collapse = "\x1e"),
-    algo = "sha256", serialize = FALSE
+  phase18_hash_table_v2(
+    data, key = key,
+    schema_tag = paste0("club-registry-table:", paste(names(data), collapse = ","))
   )
 }
 
@@ -109,8 +105,10 @@ phase18_club_registry_hash <- function(registries) {
   hashes <- vapply(names(keys), function(name) {
     phase18_club_table_sha256(registries[[name]], keys[[name]])
   }, character(1))
-  digest::digest(paste(names(hashes), hashes, sep = "=", collapse = "|"),
-    algo = "sha256", serialize = FALSE)
+  phase18_hash_sequence_v2(
+    as.list(hashes), domain = "club-registry-aggregate-v2",
+    names = names(hashes), types = rep("character", length(hashes))
+  )
 }
 
 phase18_club_parse_time <- function(value, field, allow_blank = FALSE) {
@@ -171,6 +169,9 @@ phase18_validate_club_registries <- function(registries) {
     if (nrow(table) && any(as.character(table$schema_version) != expected_version)) {
       phase18_club_abort("invalid_club_registry_schema", paste0(name, " has unsupported schema_version"))
     }
+    if (nrow(table) && any(as.character(table$hash_encoding_version) != phase18_canonical_encoding_v2())) {
+      phase18_club_abort("invalid_club_registry_schema", paste0(name, " is not canonical-v2"))
+    }
     if (nrow(table)) {
       expected_hash <- phase18_club_row_sha256(table)
       if (any(is.na(table$row_sha256) | table$row_sha256 != expected_hash)) {
@@ -193,7 +194,17 @@ phase18_validate_club_registries <- function(registries) {
     if (any(clubs$entity_kind != "club")) {
       phase18_club_abort("cross_domain_club_identity", "Club registry entity_kind must be club")
     }
-    if (anyDuplicated(clubs$club_id)) phase18_club_abort("duplicate_club_identity", "clubs contains duplicate club_id")
+    if (any(!clubs$club_status %in% c("active", "inactive", "dissolved", "merged"))) {
+      phase18_club_abort("invalid_club_status", "clubs club_status is outside the closed enum")
+    }
+    starts <- phase18_club_parse_time(clubs$valid_from_utc, "valid_from_utc")
+    ends <- phase18_club_parse_time(clubs$valid_to_utc, "valid_to_utc", allow_blank = TRUE)
+    if (any(!is.na(ends) & starts >= ends)) {
+      phase18_club_abort("invalid_club_validity", "clubs requires positive half-open intervals")
+    }
+    duplicate_key <- clubs[c("club_id", "valid_from_utc", "valid_to_utc", "club_status")]
+    if (anyDuplicated(duplicate_key)) phase18_club_abort("duplicate_club_identity", "clubs contains exact duplicate assignments")
+    phase18_validate_nonoverlap(clubs, "club_id", "clubs")
   }
   if (nrow(source_ids) || nrow(aliases)) {
     foreign <- setdiff(unique(c(source_ids$club_id, aliases$club_id)), clubs$club_id)
@@ -298,6 +309,9 @@ phase18_resolve_club_identity <- function(
   club <- registries$clubs[registries$clubs$club_id == selected$club_id[[1L]], , drop = FALSE]
   club <- phase18_club_at_instant(club, event_at)
   if (nrow(club) != 1L) phase18_club_abort("inactive_club_identity", "Resolved club is not valid at the event instant")
+  if (!identical(as.character(club$club_status[[1L]]), "active")) {
+    phase18_club_abort("inactive_club_identity", "Resolved club is not active at the event instant")
+  }
   data.frame(
     schema_version = "phase18-club-identity-resolution-1",
     club_id = club$club_id[[1L]], entity_kind = club$entity_kind[[1L]],

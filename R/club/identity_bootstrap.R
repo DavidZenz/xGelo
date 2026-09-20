@@ -2,7 +2,7 @@
 
 phase18_club_token_schema <- function() {
   c(
-    "schema_version", "corpus", "source_system", "source_row",
+    "schema_version", "hash_encoding_version", "corpus", "source_system", "source_row",
     "source_club_id", "display_value", "normalized_display", "event_at_utc",
     "evidence_sha256", "row_sha256"
   )
@@ -10,16 +10,16 @@ phase18_club_token_schema <- function() {
 
 phase18_club_review_schema <- function() {
   c(
-    "corpus", "source_system", "source_row", "source_club_id", "display_value",
+    "schema_version", "hash_encoding_version", "corpus", "source_system", "source_row", "source_club_id", "display_value",
     "evidence_sha256", "club_id", "entity_kind", "canonical_name",
     "association_code", "valid_from_utc", "valid_to_utc", "reviewer",
-    "reviewed_at_utc", "review_state", "source_bundle_id"
+    "reviewed_at_utc", "review_state", "source_bundle_id", "row_sha256"
   )
 }
 
 phase18_unresolved_club_token_schema <- function() {
   c(
-    "schema_version", "corpus", "source_system", "source_row",
+    "schema_version", "hash_encoding_version", "corpus", "source_system", "source_row",
     "source_club_id", "display_value", "evidence_sha256", "blocked_reason",
     "row_sha256"
   )
@@ -35,7 +35,8 @@ phase18_empty_table <- function(columns) {
 phase18_token_rows <- function(corpus, source_system, source_row, source_club_id,
                                display_value, event_at_utc) {
   rows <- data.frame(
-    schema_version = "phase18-club-token-1",
+    schema_version = "phase18-club-token-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     corpus = as.character(corpus),
     source_system = as.character(source_system),
     source_row = as.character(source_row),
@@ -51,11 +52,49 @@ phase18_token_rows <- function(corpus, source_system, source_row, source_club_id
     "display_value", "event_at_utc"
   )
   rows$evidence_sha256 <- vapply(seq_len(nrow(rows)), function(index) {
-    values <- vapply(rows[index, evidence_fields, drop = FALSE], phase18_club_canonical_scalar, character(1))
-    digest::digest(paste(values, collapse = "|"), algo = "sha256", serialize = FALSE)
+    values <- lapply(rows[index, evidence_fields, drop = FALSE], function(value) value[[1L]])
+    phase18_hash_sequence_v2(
+      values, domain = "club-token-evidence-v2", names = evidence_fields,
+      types = rep("character", length(evidence_fields))
+    )
   }, character(1))
   rows$row_sha256 <- phase18_club_row_sha256(rows)
   rows
+}
+
+phase18_validate_club_tokens <- function(tokens) {
+  if (!is.data.frame(tokens) || !identical(names(tokens), phase18_club_token_schema())) {
+    phase18_club_abort("invalid_club_token_source", "tokens must use the exact canonical-v2 token schema")
+  }
+  if (!nrow(tokens)) return(invisible(TRUE))
+  if (any(tokens$schema_version != "phase18-club-token-v2") ||
+      any(tokens$hash_encoding_version != phase18_canonical_encoding_v2())) {
+    phase18_club_abort("invalid_club_token_source", "tokens must declare canonical-v2")
+  }
+  expected_rows <- phase18_club_row_sha256(tokens)
+  if (any(tokens$row_sha256 != expected_rows)) {
+    phase18_club_abort("club_identity_evidence_hash_mismatch", "Club token row SHA-256 mismatch")
+  }
+  evidence_fields <- c("corpus", "source_system", "source_row", "source_club_id", "display_value", "event_at_utc")
+  expected_evidence <- vapply(seq_len(nrow(tokens)), function(index) {
+    phase18_hash_sequence_v2(
+      lapply(tokens[index, evidence_fields, drop = FALSE], function(value) value[[1L]]),
+      domain = "club-token-evidence-v2", names = evidence_fields,
+      types = rep("character", length(evidence_fields))
+    )
+  }, character(1))
+  if (any(tokens$evidence_sha256 != expected_evidence)) {
+    phase18_club_abort("club_identity_evidence_hash_mismatch", "Club token evidence SHA-256 mismatch")
+  }
+  invisible(TRUE)
+}
+
+phase18_hash_club_review_rows <- function(review) {
+  if (!is.data.frame(review) || !identical(names(review), phase18_club_review_schema())) {
+    phase18_club_abort("invalid_club_review", "review must use the exact canonical-v2 owner review schema")
+  }
+  review$row_sha256 <- phase18_club_row_sha256(review)
+  review
 }
 
 phase18_extract_current_tokens <- function(current_resources) {
@@ -160,14 +199,19 @@ phase18_extract_club_tokens <- function(current_resources = NULL, history_invent
 }
 
 phase18_validate_club_identity_review <- function(tokens, review) {
-  if (!is.data.frame(tokens) || !identical(names(tokens), phase18_club_token_schema())) {
-    phase18_club_abort("invalid_club_review", "tokens must use the Phase 18 club token schema")
-  }
+  phase18_validate_club_tokens(tokens)
   if (!is.data.frame(review) || !identical(names(review), phase18_club_review_schema())) {
     phase18_club_abort("invalid_club_review", "review must use the exact owner review schema")
   }
   if (!nrow(review)) return(invisible(TRUE))
-  text_fields <- setdiff(names(review), "valid_to_utc")
+  if (any(review$schema_version != "phase18-club-review-v2") ||
+      any(review$hash_encoding_version != phase18_canonical_encoding_v2())) {
+    phase18_club_abort("invalid_club_review", "Owner review must declare canonical-v2")
+  }
+  if (any(review$row_sha256 != phase18_club_row_sha256(review))) {
+    phase18_club_abort("club_identity_evidence_hash_mismatch", "Owner review row SHA-256 mismatch")
+  }
+  text_fields <- setdiff(names(review), c("valid_to_utc", "row_sha256"))
   if (any(vapply(review[text_fields], function(value) any(is.na(value) | !nzchar(as.character(value))), logical(1)))) {
     phase18_club_abort("invalid_club_review", "Owner review contains empty required fields")
   }
@@ -196,7 +240,8 @@ phase18_validate_club_identity_review <- function(tokens, review) {
 
 phase18_unresolved_row <- function(token, reason) {
   row <- data.frame(
-    schema_version = "phase18-unresolved-club-token-1",
+    schema_version = "phase18-unresolved-club-token-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     corpus = token$corpus[[1L]], source_system = token$source_system[[1L]],
     source_row = token$source_row[[1L]], source_club_id = token$source_club_id[[1L]],
     display_value = token$display_value[[1L]], evidence_sha256 = token$evidence_sha256[[1L]],
@@ -262,6 +307,7 @@ phase18_apply_club_identity_review <- function(tokens, review, registries) {
     } else {
       club <- data.frame(
         schema_version = phase18_club_identity_schema_version(),
+        hash_encoding_version = phase18_canonical_encoding_v2(),
         club_id = mapping$club_id[[1L]], entity_kind = "club",
         canonical_name = mapping$canonical_name[[1L]], association_code = mapping$association_code[[1L]],
         valid_from_utc = mapping$valid_from_utc[[1L]], valid_to_utc = mapping$valid_to_utc[[1L]],
@@ -272,7 +318,8 @@ phase18_apply_club_identity_review <- function(tokens, review, registries) {
     }
 
     source_row <- data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = mapping$club_id[[1L]],
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = mapping$club_id[[1L]],
       source_system = token$source_system[[1L]], source_club_id = token$source_club_id[[1L]],
       valid_from_utc = mapping$valid_from_utc[[1L]], valid_to_utc = mapping$valid_to_utc[[1L]],
       review_state = "approved", source_bundle_id = mapping$source_bundle_id[[1L]], row_sha256 = "",
@@ -289,7 +336,8 @@ phase18_apply_club_identity_review <- function(tokens, review, registries) {
     )
 
     alias_row <- data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = mapping$club_id[[1L]],
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = mapping$club_id[[1L]],
       source_system = token$source_system[[1L]], alias = token$display_value[[1L]],
       normalized_alias = token$normalized_display[[1L]],
       valid_from_utc = mapping$valid_from_utc[[1L]], valid_to_utc = mapping$valid_to_utc[[1L]],
@@ -329,12 +377,15 @@ phase18_validate_identity_bootstrap <- function(result, current_expectations = l
     phase18_club_abort("invalid_identity_bootstrap", "Identity bootstrap result is incomplete")
   }
   phase18_validate_club_registries(result$registries)
+  phase18_validate_club_tokens(result$tokens)
   if (!is.data.frame(result$unresolved) ||
       !identical(names(result$unresolved), phase18_unresolved_club_token_schema())) {
     phase18_club_abort("invalid_identity_bootstrap", "Unresolved club evidence has the wrong schema")
   }
   if (nrow(result$unresolved)) {
-    if (any(!grepl("^[0-9a-f]{64}$", result$unresolved$evidence_sha256)) ||
+    if (any(result$unresolved$schema_version != "phase18-unresolved-club-token-v2") ||
+        any(result$unresolved$hash_encoding_version != phase18_canonical_encoding_v2()) ||
+        any(!grepl("^[0-9a-f]{64}$", result$unresolved$evidence_sha256)) ||
         any(result$unresolved$row_sha256 != phase18_club_row_sha256(result$unresolved))) {
       phase18_club_abort("club_identity_evidence_hash_mismatch", "Unresolved club evidence hash mismatch")
     }

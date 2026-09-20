@@ -1,1 +1,1 @@
-schema_version,corpus,source_system,source_row,source_club_id,display_value,normalized_display,event_at_utc,evidence_sha256,row_sha256
+"schema_version","hash_encoding_version","corpus","source_system","source_row","source_club_id","display_value","normalized_display","event_at_utc","evidence_sha256","row_sha256"

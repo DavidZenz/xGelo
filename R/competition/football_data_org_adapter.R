@@ -8,6 +8,42 @@ phase18_fd_abort <- function(reason_code, message, data = list()) {
   stop(condition)
 }
 
+phase18_fd_closed_reasons <- function() c(
+  "blocked_transport", "blocked_http_status", "blocked_content_type",
+  "blocked_redirect_host", "blocked_empty_resource", "blocked_byte_limit",
+  "blocked_invalid_json", "blocked_null_resource", "blocked_schema",
+  "blocked_retry_policy", "blocked_request_scope", "blocked_retry_exhausted",
+  "blocked_missing_credential", "blocked_resource_window", "blocked_edition_identity",
+  "blocked_incomplete_pagination", "blocked_duplicate_id", "blocked_unknown_status",
+  "blocked_unknown_stage", "blocked_cardinality", "blocked_standings",
+  "blocked_coverage", "blocked_missing_team", "blocked_unresolved_club",
+  "blocked_stale_resource", "blocked_future_resource", "blocked_malformed_freshness",
+  "blocked_freshness_unavailable", "blocked_secret_exposure",
+  "blocked_unclassified_acquisition"
+)
+
+phase18_fd_classify_acquisition_error <- function(error) {
+  if (inherits(error, "phase18_fd_error") &&
+      length(error$reason_code) == 1L && error$reason_code %in% phase18_fd_closed_reasons()) {
+    return(error)
+  }
+  if (inherits(error, c("httr2_error", "curl_error", "timeout_error", "connection_error"))) {
+    return(structure(
+      list(message = "Provider transport failed", call = NULL, reason_code = "blocked_transport"),
+      class = c("blocked_transport", "phase18_fd_error", "error", "condition")
+    ))
+  }
+  structure(
+    list(message = "Acquisition failed without a classified reason", call = NULL,
+      reason_code = "blocked_unclassified_acquisition"),
+    class = c("blocked_unclassified_acquisition", "phase18_fd_error", "error", "condition")
+  )
+}
+
+phase18_fd_with_closed_errors <- function(expression) {
+  tryCatch(expression, error = function(error) stop(phase18_fd_classify_acquisition_error(error)))
+}
+
 phase18_fd_scalar <- function(value, field, allow_missing = FALSE) {
   if (is.null(value) || !length(value) || is.na(value[[1L]])) {
     if (allow_missing) return(NA_character_)
@@ -140,7 +176,7 @@ phase18_fd_fetch_window <- function(
     last_error <- NULL
     for (attempt in seq_len(max_attempts)) {
       response <- tryCatch(
-        perform_request(request, attempt),
+        phase18_fd_with_closed_errors(perform_request(request, attempt)),
         error = function(error) {
           if (!isTRUE(attr(error, "retryable")) || attempt == max_attempts) stop(error)
           last_error <<- error
@@ -248,26 +284,66 @@ phase18_fd_fingerprint <- function(payload) {
   digest::digest(paste(sort(unique(walk(payload))), collapse = "|"), algo = "sha256", serialize = FALSE)
 }
 
-phase18_fd_check_freshness <- function(value, now_utc, max_age_hours = 48) {
-  observed <- phase18_fd_parse_time(value, "lastUpdated")
-  now <- phase18_fd_parse_time(now_utc, "now_utc")
-  age <- as.numeric(difftime(now, observed, units = "hours"))
-  if (!is.finite(age) || age < -1 || age > max_age_hours) {
-    phase18_fd_abort("blocked_stale_resource", "Provider resource is outside the accepted freshness window")
+phase18_fd_freshness_schema <- function() c(
+  "schema_version", "hash_encoding_version", "resource", "evidence_kind",
+  "evidence_path", "source_timestamp_utc", "retrieved_at_utc", "checked_at_utc",
+  "age_hours", "policy_threshold_hours", "verdict", "reason", "row_sha256"
+)
+
+phase18_fd_freshness_evidence <- function(resource, values, evidence_kind, evidence_path,
+                                           retrieved_at_utc, now_utc, max_age_hours = 48,
+                                           future_tolerance_hours = 1) {
+  if (is.null(values) || !length(values) || any(vapply(values, function(value) {
+    is.null(value) || !length(value) || is.na(value[[1L]]) || !nzchar(as.character(value[[1L]]))
+  }, logical(1)))) {
+    phase18_fd_abort("blocked_freshness_unavailable", paste0(resource, " has no independent source freshness"))
   }
-  invisible(TRUE)
+  source_text <- vapply(values, function(value) as.character(value[[1L]]), character(1))
+  source_times <- suppressWarnings(as.POSIXct(source_text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  if (any(is.na(source_times))) {
+    phase18_fd_abort("blocked_malformed_freshness", paste0(resource, " has malformed source freshness"))
+  }
+  now <- suppressWarnings(as.POSIXct(as.character(now_utc), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  retrieved <- suppressWarnings(as.POSIXct(as.character(retrieved_at_utc), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  if (length(now) != 1L || is.na(now) || length(retrieved) != 1L || is.na(retrieved)) {
+    phase18_fd_abort("blocked_malformed_freshness", "Freshness check or retrieval time is malformed")
+  }
+  ages <- as.numeric(difftime(now, source_times, units = "hours"))
+  if (any(!is.finite(ages))) {
+    phase18_fd_abort("blocked_malformed_freshness", paste0(resource, " freshness age is not finite"))
+  }
+  if (any(ages < -future_tolerance_hours)) {
+    phase18_fd_abort("blocked_future_resource", paste0(resource, " source freshness is implausibly future-dated"))
+  }
+  if (any(ages > max_age_hours)) {
+    phase18_fd_abort("blocked_stale_resource", paste0(resource, " is outside the accepted freshness window"))
+  }
+  oldest <- which.max(ages)[[1L]]
+  row <- data.frame(
+    schema_version = "phase18-fd-freshness-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    resource = as.character(resource), evidence_kind = as.character(evidence_kind),
+    evidence_path = as.character(evidence_path), source_timestamp_utc = source_text[[oldest]],
+    retrieved_at_utc = as.character(retrieved_at_utc), checked_at_utc = as.character(now_utc),
+    age_hours = as.double(ages[[oldest]]), policy_threshold_hours = as.double(max_age_hours),
+    verdict = "pass", reason = "fresh", row_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  row$row_sha256 <- phase18_hash_row_v2(
+    row, exclude = "row_sha256", schema_tag = "phase18-fd-freshness-v2"
+  )
+  row
 }
 
 phase18_fd_row_hash <- function(data) {
-  if (exists("phase18_row_sha256", mode = "function")) return(phase18_row_sha256(data))
-  fields <- setdiff(names(data), "row_sha256")
-  vapply(seq_len(nrow(data)), function(index) {
-    digest::digest(paste(as.character(data[index, fields, drop = TRUE]), collapse = "|"), algo = "sha256", serialize = FALSE)
-  }, character(1))
+  phase18_hash_row_v2(
+    data, exclude = "row_sha256",
+    schema_tag = paste0("fd-projection:", paste(setdiff(names(data), "row_sha256"), collapse = ","))
+  )
 }
 
 #' Project the four provider resources into edition-scoped canonical tables.
-phase18_fd_project_resources <- function(
+phase18_fd_project_resources_impl <- function(
     fetched,
     edition_id,
     club_registries,
@@ -288,13 +364,29 @@ phase18_fd_project_resources <- function(
   season <- phase18_fd_nested(competition, c("currentSeason"))
   start_date <- phase18_fd_scalar(season$startDate, "currentSeason.startDate")
   if (!startsWith(start_date, "2026-")) phase18_fd_abort("blocked_edition_identity", "Provider season does not start in 2026")
-  phase18_fd_check_freshness(competition$lastUpdated, now_utc)
-
   team_objects <- phase18_fd_list_rows(payload$teams$teams, "teams")
   match_objects <- phase18_fd_list_rows(payload$matches$matches, "matches")
   standing_groups <- phase18_fd_list_rows(payload$standings$standings, "standings")
   standing_objects <- unlist(lapply(standing_groups, function(group) phase18_fd_or(group$table, list())), recursive = FALSE)
   if (!length(standing_objects)) phase18_fd_abort("blocked_empty_resource", "standings table is empty")
+  freshness_evidence <- do.call(rbind, list(
+    phase18_fd_freshness_evidence(
+      "competition_metadata", list(competition$lastUpdated), "resource", "competition_metadata.lastUpdated",
+      fetched$competition_metadata$retrieved_at_utc, now_utc
+    ),
+    phase18_fd_freshness_evidence(
+      "teams", lapply(team_objects, `[[`, "lastUpdated"), "rows", "teams.teams[*].lastUpdated",
+      fetched$teams$retrieved_at_utc, now_utc
+    ),
+    phase18_fd_freshness_evidence(
+      "matches", lapply(match_objects, `[[`, "lastUpdated"), "rows", "matches.matches[*].lastUpdated",
+      fetched$matches$retrieved_at_utc, now_utc
+    ),
+    phase18_fd_freshness_evidence(
+      "standings", list(payload$standings$lastUpdated), "resource", "standings.lastUpdated",
+      fetched$standings$retrieved_at_utc, now_utc
+    )
+  ))
   if (!phase18_fd_pagination_complete(payload$teams, length(team_objects)) ||
       !phase18_fd_pagination_complete(payload$matches, length(match_objects)) ||
       !phase18_fd_pagination_complete(payload$standings, length(standing_objects))) {
@@ -337,7 +429,7 @@ phase18_fd_project_resources <- function(
       error = function(error) phase18_fd_abort("blocked_unresolved_club", conditionMessage(error))
     )
     data.frame(
-      schema_version = "phase18-fd-club-v1", edition_id = edition_id,
+      schema_version = "phase18-fd-club-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,
       provider_id = "football_data_org_v4", provider_club_id = provider_id,
       club_id = resolution$club_id[[1L]], display_name = display_name,
       canonical_name = resolution$canonical_name[[1L]],
@@ -377,7 +469,7 @@ phase18_fd_project_resources <- function(
     score <- phase18_fd_or(match$score, list())
     full_time <- phase18_fd_or(score$fullTime, list())
     data.frame(
-      schema_version = "phase18-fd-match-v1", edition_id = edition_id,
+      schema_version = "phase18-fd-match-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,
       provider_match_id = phase18_fd_scalar(match$id, "match.id"),
       kickoff_utc = kickoff, status = phase18_fd_scalar(match$status, "match.status"),
       stage = phase18_fd_scalar(match$stage, "match.stage"),
@@ -400,7 +492,7 @@ phase18_fd_project_resources <- function(
     provider_id <- phase18_fd_scalar(team$id, "standing.team.id")
     if (!provider_id %in% names(provider_to_club)) phase18_fd_abort("blocked_unresolved_club", "Standing club is unresolved")
     data.frame(
-      schema_version = "phase18-fd-standing-v1", edition_id = edition_id,
+      schema_version = "phase18-fd-standing-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,
       stage = phase18_fd_scalar(standing_groups[[1L]]$stage, "standings.stage"),
       table_type = phase18_fd_scalar(standing_groups[[1L]]$type, "standings.type"),
       position = phase18_fd_nullable_integer(row$position), club_id = unname(provider_to_club[[provider_id]]),
@@ -418,7 +510,7 @@ phase18_fd_project_resources <- function(
   standings$row_sha256 <- phase18_fd_row_hash(standings)
 
   competition_table <- data.frame(
-    schema_version = "phase18-fd-competition-v1", edition_id = edition_id,
+    schema_version = "phase18-fd-competition-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,
     provider_id = "football_data_org_v4",
     provider_competition_id = phase18_fd_scalar(competition$id, "competition.id"),
     provider_season_id = phase18_fd_scalar(season$id, "currentSeason.id"),
@@ -431,7 +523,7 @@ phase18_fd_project_resources <- function(
   )
   competition_table$row_sha256 <- phase18_fd_row_hash(competition_table)
   lifecycle <- data.frame(
-    schema_version = "phase18-fd-lifecycle-v1", edition_id = edition_id,
+    schema_version = "phase18-fd-lifecycle-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,
     lifecycle = "league_phase", observed_club_count = nrow(clubs),
     observed_match_count = nrow(matches), observed_standings_rows = nrow(standings),
     observed_stages = paste(sort(unique(matches$stage)), collapse = "|"),
@@ -452,13 +544,17 @@ phase18_fd_project_resources <- function(
     league_phase_match_count = as.integer(sum(matches$stage == "LEAGUE_STAGE")),
     standings_rows = as.integer(nrow(standings)), stages = sort(unique(matches$stage)),
     identity_passed = TRUE, pagination_complete = TRUE,
-    freshness_passed = TRUE, expectation_sha256 = expectation$expectation_sha256
+    freshness_passed = all(freshness_evidence$verdict == "pass"), expectation_sha256 = expectation$expectation_sha256
   )
   list(
     competition = competition_table, clubs = clubs, matches = matches,
     standings = standings, lifecycle = lifecycle, coverage = coverage,
-    schema_fingerprint = schema_fingerprint
+    schema_fingerprint = schema_fingerprint, freshness_evidence = freshness_evidence
   )
+}
+
+phase18_fd_project_resources <- function(...) {
+  phase18_fd_with_closed_errors(phase18_fd_project_resources_impl(...))
 }
 
 phase18_fd_assert_secret_absent <- function(value, secret) {

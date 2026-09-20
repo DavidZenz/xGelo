@@ -57,7 +57,7 @@ phase18_fd_test_expectations <- function() {
     expected_club_count = 36L, expected_league_phase_match_count = 144L,
     allowed_stages = "LEAGUE_STAGE|PLAYOFFS|LAST_16|QUARTER_FINALS|SEMI_FINALS|FINAL",
     standings_required = TRUE, expected_standings_rows = 36L,
-    reviewer = "fixture-reviewer", reviewed_at_utc = "2026-09-19T10:00:00Z",
+    review_state = "approved", reviewer = "fixture-owner", reviewed_at_utc = "2026-09-19T10:00:00Z",
     row_sha256 = "", expectation_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   ))

@@ -251,7 +251,9 @@ phase18_identity_test_tokens <- function() {
 }
 
 phase18_identity_test_review <- function(tokens) {
-  data.frame(
+  review <- data.frame(
+    schema_version = "phase18-club-review-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     corpus = tokens$corpus,
     source_system = tokens$source_system,
     source_row = tokens$source_row,
@@ -264,9 +266,10 @@ phase18_identity_test_review <- function(tokens) {
     association_code = "AUT",
     valid_from_utc = "2000-01-01T00:00:00Z", valid_to_utc = "",
     reviewer = "owner", reviewed_at_utc = "2026-09-19T00:00:00Z",
-    review_state = "approved", source_bundle_id = "review-fixture-v1",
+    review_state = "approved", source_bundle_id = "review-fixture-v1", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
+  phase18_hash_club_review_rows(review)
 }
 
 testthat::test_that("current and historical extraction emits stable evidence without identity suggestions", {
@@ -307,6 +310,7 @@ testthat::test_that("only complete approved owner mappings update registries", {
 
   cross_domain <- review
   cross_domain$club_id[[1L]] <- "team_alpha"
+  cross_domain <- phase18_hash_club_review_rows(cross_domain)
   testthat::expect_error(
     phase18_apply_club_identity_review(tokens, cross_domain, empty),
     class = "cross_domain_club_identity"
@@ -325,6 +329,7 @@ testthat::test_that("review application is replay-safe and conflicting updates a
   )
   conflict <- review
   conflict$club_id[conflict$source_club_id == "101"] <- "club_beta"
+  conflict <- phase18_hash_club_review_rows(conflict)
   testthat::expect_error(
     phase18_apply_club_identity_review(tokens, conflict, first$registries),
     class = "club_identity_review_conflict"
