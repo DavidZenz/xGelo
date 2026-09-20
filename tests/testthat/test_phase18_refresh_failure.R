@@ -301,3 +301,226 @@ test_that("failed first refresh preserves no incumbent and invalid authority nev
   unlink(sandbox$root, recursive = TRUE, force = TRUE)
 })
 
+phase18_refresh_test_exit_review <- function(
+    disposition, retained_paths = character(), retained_hashes = character(),
+    retention_permitted = identical(disposition, "retain"),
+    display_permitted = identical(disposition, "retain")) {
+  review <- data.frame(
+    schema_version = "phase18-ucl-provider-exit-review-v1",
+    exit_review_id = paste0("exit-review-", disposition, "-001"),
+    provider_id = "football_data_org_v4", edition_id = "ucl_2026_27",
+    decision = "reviewed", exit_disposition = disposition,
+    retention_permitted = retention_permitted, display_permitted = display_permitted,
+    terms_sha256 = phase18_ucl_hash("reviewed provider terms"),
+    provider_decision_id = "provider-accepted-before-exit",
+    provider_decision_sha256 = phase18_ucl_hash("accepted provider decision"),
+    reviewer = "fixture-compliance-reviewer", reviewed_at_utc = "2026-09-20T13:00:00Z",
+    reason = "provider relationship ended",
+    retained_relative_paths = paste(retained_paths, collapse = "|"),
+    retained_inventory_sha256s = paste(retained_hashes, collapse = "|"),
+    exit_review_sha256 = "", row_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  phase18_hash_ucl_provider_exit_review(review)
+}
+
+phase18_refresh_test_exit_sandbox <- function() {
+  root <- tempfile("phase18-provider-exit-")
+  accepted_root <- file.path(root, "accepted")
+  registry_root <- file.path(root, "registries")
+  target <- file.path(accepted_root, "ucl_2026_27")
+  dir.create(file.path(target, "manual_open"), recursive = TRUE)
+  dir.create(registry_root, recursive = TRUE)
+  writeBin(charToRaw("provider-derived-public-bytes"), file.path(target, "provider_public.csv"))
+  writeBin(charToRaw("independently-lawful-manual-bytes"), file.path(target, "manual_open", "reviewed.csv"))
+  list(root = root, accepted_root = accepted_root, registry_root = registry_root, target = target)
+}
+
+test_that("blocked history and sidecar are hash-linked and recovery uses a new batch", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_sandbox(with_incumbent = TRUE)
+  missing <- file.path(sandbox$root, "candidates", "missing")
+  blocked <- phase18_refresh_ucl_source(
+    missing, sandbox$accepted_root, sandbox$registry_root, sandbox$acceptance_root,
+    now_utc = "2026-09-20T13:00:00Z"
+  )
+  expect_true(blocked$recorded)
+  history_path <- file.path(sandbox$registry_root, "ucl_source_refreshes.csv")
+  sidecar_path <- file.path(sandbox$registry_root, "ucl_source_blocked_refresh.json")
+  history <- phase18_ucl_refresh_read_history(history_path)
+  sidecar <- jsonlite::fromJSON(sidecar_path, simplifyVector = TRUE)
+  expect_silent(phase18_validate_ucl_refresh_state(history, sidecar, sandbox$accepted_root))
+  expect_identical(sidecar$refresh_batch_id, blocked$refresh_batch_id)
+  expect_identical(sidecar$history_row_sha256, history$row_sha256[[1L]])
+  expect_identical(sidecar$blocked_record_sha256, history$blocked_record_sha256[[1L]])
+
+  recovered <- phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root, sandbox$acceptance_root,
+    now_utc = "2026-09-20T13:01:00Z"
+  )
+  history <- phase18_ucl_refresh_read_history(history_path)
+  expect_identical(as.character(history$status), c("blocked", "accepted"))
+  expect_equal(anyDuplicated(as.character(history$refresh_batch_id)), 0L)
+  expect_false(file.exists(sidecar_path))
+  expect_silent(phase18_validate_ucl_refresh_state(history, NULL, sandbox$accepted_root))
+  expect_false(identical(blocked$refresh_batch_id, recovered$refresh_batch_id))
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("blocked sidecar cannot disagree with its history reason", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_sandbox()
+  phase18_refresh_ucl_source(
+    file.path(sandbox$root, "missing"), sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root, now_utc = "2026-09-20T13:30:00Z"
+  )
+  history <- phase18_ucl_refresh_read_history(file.path(sandbox$registry_root, "ucl_source_refreshes.csv"))
+  sidecar <- jsonlite::fromJSON(
+    file.path(sandbox$registry_root, "ucl_source_blocked_refresh.json"), simplifyVector = TRUE
+  )
+  sidecar$reason_code <- "http_failure"
+  sidecar$blocked_record_sha256 <- phase18_ucl_refresh_sidecar_hash(sidecar)
+  history$blocked_record_sha256[[nrow(history)]] <- sidecar$blocked_record_sha256
+  expect_error(
+    phase18_validate_ucl_refresh_state(history, sidecar, sandbox$accepted_root),
+    "disagree"
+  )
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("required technical reasons are closed and sanitized", {
+  phase18_refresh_test_load()
+  required <- c(
+    "missing_credential", "owner_review_required", "authority_invalid",
+    "fixture_non_promotable", "http_failure", "rate_limited", "null_response",
+    "empty_response", "stale_response", "incomplete_pagination", "schema_invalid",
+    "expectation_mismatch", "coverage_invalid", "identity_invalid",
+    "provenance_collision", "secret_exposure", "concurrent_refresh", "interrupted",
+    "provider_exit_required", "promotion_failure", "read_back_failure"
+  )
+  expect_setequal(intersect(required, phase18_ucl_refresh_reason_codes()), required)
+  probes <- c(
+    "HTTP 503 server error" = "http_failure",
+    "HTTP 429 rate limit" = "rate_limited",
+    "null response" = "null_response",
+    "stale freshness evidence" = "stale_response",
+    "incomplete pagination" = "incomplete_pagination",
+    "secret exposure detected" = "secret_exposure"
+  )
+  classified <- vapply(names(probes), function(message) {
+    phase18_classify_ucl_refresh_failure(simpleError(message))$reason_code
+  }, character(1))
+  expect_identical(unname(classified), unname(probes))
+})
+
+test_that("history and sidecar writer failures never corrupt accepted state", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_sandbox()
+  accepted_before <- phase18_refresh_test_snapshot(file.path(sandbox$accepted_root, "ucl_2026_27"))
+  result <- phase18_refresh_ucl_source(
+    sandbox$candidate_root, sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root,
+    writer_hooks = list(history_writer = function(...) stop("injected history writer failure")),
+    now_utc = "2026-09-20T14:00:00Z"
+  )
+  expect_identical(result$reason_code, "history_write_failure")
+  expect_identical(phase18_refresh_test_snapshot(file.path(sandbox$accepted_root, "ucl_2026_27")), accepted_before)
+  expect_true(result$recorded)
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+
+  sandbox <- phase18_refresh_test_sandbox()
+  accepted_before <- phase18_refresh_test_snapshot(file.path(sandbox$accepted_root, "ucl_2026_27"))
+  history_before <- phase18_refresh_test_snapshot(sandbox$registry_root)
+  result <- phase18_refresh_ucl_source(
+    file.path(sandbox$root, "missing"), sandbox$accepted_root, sandbox$registry_root,
+    sandbox$acceptance_root,
+    writer_hooks = list(sidecar_writer = function(...) stop("injected sidecar writer failure")),
+    now_utc = "2026-09-20T14:01:00Z"
+  )
+  expect_identical(phase18_refresh_test_snapshot(file.path(sandbox$accepted_root, "ucl_2026_27")), accepted_before)
+  expect_identical(phase18_refresh_test_snapshot(sandbox$registry_root), history_before)
+  expect_false(result$recorded)
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("reviewed retain preserves every byte and disables automation", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_exit_sandbox()
+  before <- phase18_refresh_test_snapshot(sandbox$target)
+  review <- phase18_refresh_test_exit_review("retain")
+  result <- phase18_apply_provider_exit(
+    review, sandbox$accepted_root, sandbox$registry_root,
+    now_utc = "2026-09-20T15:00:00Z"
+  )
+  expect_identical(result$status, "retained_last_known_good")
+  expect_false(result$automation_enabled)
+  expect_identical(phase18_refresh_test_snapshot(sandbox$target), before)
+  history <- phase18_ucl_refresh_read_history(file.path(sandbox$registry_root, "ucl_source_refreshes.csv"))
+  expect_identical(history$status[[1L]], "retained_last_known_good")
+  expect_identical(history$disposition[[1L]], "retain")
+  expect_false(phase18_ucl_refresh_bool(history$automation_enabled[[1L]], "automation_enabled"))
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("reviewed withdraw removes provider bytes, preserves lawful bytes, and writes a tombstone", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_exit_sandbox()
+  retained_path <- file.path("manual_open", "reviewed.csv")
+  retained_bytes <- readBin(file.path(sandbox$target, retained_path), "raw", n = file.info(file.path(sandbox$target, retained_path))$size)
+  retained_hash <- phase18_ucl_hash(retained_bytes)
+  review <- phase18_refresh_test_exit_review("withdraw", retained_path, retained_hash)
+  result <- phase18_apply_provider_exit(
+    review, sandbox$accepted_root, sandbox$registry_root,
+    now_utc = "2026-09-20T16:00:00Z"
+  )
+  expect_identical(result$status, "source_unavailable")
+  expect_false(result$automation_enabled)
+  expect_false(file.exists(file.path(sandbox$target, "provider_public.csv")))
+  expect_identical(
+    readBin(file.path(sandbox$target, retained_path), "raw", n = file.info(file.path(sandbox$target, retained_path))$size),
+    retained_bytes
+  )
+  expect_silent(phase18_validate_ucl_unavailable_tombstone(result$tombstone_path))
+  expect_setequal(
+    list.files(sandbox$target, recursive = TRUE),
+    c(retained_path, "source_unavailable.json")
+  )
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("failed provider withdrawal restores the complete pre-exit tree", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_exit_sandbox()
+  before <- phase18_refresh_test_snapshot(sandbox$target)
+  retained_path <- file.path("manual_open", "reviewed.csv")
+  retained_hash <- phase18_ucl_hash(readBin(
+    file.path(sandbox$target, retained_path), "raw", n = file.info(file.path(sandbox$target, retained_path))$size
+  ))
+  review <- phase18_refresh_test_exit_review("withdraw", retained_path, retained_hash)
+  expect_error(
+    phase18_apply_provider_exit(
+      review, sandbox$accepted_root, sandbox$registry_root,
+      writer_hooks = list(after_provider_exit_swap = function(...) stop("injected withdrawal failure")),
+      now_utc = "2026-09-20T17:00:00Z"
+    ),
+    "after_provider_exit_swap|promotion"
+  )
+  expect_identical(phase18_refresh_test_snapshot(sandbox$target), before)
+  expect_false(any(grepl("[.]phase18-ucl-exit-(stage|backup)", list.files(sandbox$root, all.files = TRUE))))
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
+
+test_that("provider exit cannot retain without explicit reviewed permission", {
+  phase18_refresh_test_load()
+  sandbox <- phase18_refresh_test_exit_sandbox()
+  before <- phase18_refresh_test_snapshot(sandbox$target)
+  review <- phase18_refresh_test_exit_review(
+    "retain", retention_permitted = FALSE, display_permitted = FALSE
+  )
+  expect_error(
+    phase18_apply_provider_exit(review, sandbox$accepted_root, sandbox$registry_root),
+    class = "phase18_refresh_provider_exit_required"
+  )
+  expect_identical(phase18_refresh_test_snapshot(sandbox$target), before)
+  unlink(sandbox$root, recursive = TRUE, force = TRUE)
+})
