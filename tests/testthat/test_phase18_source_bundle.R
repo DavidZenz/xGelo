@@ -124,6 +124,35 @@ phase18_bundle_test_fetched <- function() {
   }), names(urls))
 }
 
+phase18_bundle_test_manual_review <- function(decision = "accepted") {
+  review <- data.frame(
+    schema_version = "phase18-ucl-manual-source-review-v1",
+    manual_review_id = "manual-ucl-fixture-001", edition_id = "ucl_2026_27",
+    decision = decision, source_url = "https://manual.example/ucl-2026-27.json",
+    license_id = "fixture-test-only", reviewer = "fixture-reviewer",
+    reviewed_at_utc = "2026-09-19T12:00:00Z",
+    aggregate_raw_sha256 = phase18_ucl_hash("fixture aggregate raw bytes"),
+    manual_review_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  review$manual_review_sha256 <- phase18_ucl_manual_review_hash(review)
+  review$row_sha256 <- phase18_row_sha256(review)
+  review
+}
+
+phase18_bundle_test_fixture_contract <- function() {
+  contract <- data.frame(
+    schema_version = "phase18-ucl-fixture-contract-v1",
+    fixture_id = "ucl-contract-fixture-001", edition_id = "ucl_2026_27",
+    fixture_purpose = "offline contract tests only",
+    fixture_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  contract$fixture_sha256 <- phase18_ucl_fixture_hash(contract)
+  contract$row_sha256 <- phase18_row_sha256(contract)
+  contract
+}
+
 test_that("provider-live projected resources write and fresh-process validate a candidate bundle", {
   phase18_bundle_test_load()
   required <- c(
@@ -188,4 +217,149 @@ test_that("provider-live projected resources write and fresh-process validate a 
   expect_identical(cli$reason_code, "candidate_validated")
   expect_true(cli$promotion_eligible)
   expect_true(dir.exists(cli$candidate_root))
+})
+
+test_that("manual and fixture authorities are closed, recomputed, and source-mode specific", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+
+  manual <- phase18_bundle_test_manual_review()
+  manual_candidate <- phase18_build_ucl_source_bundle(
+    projected, fetched,
+    list(authority_type = "manual_source_review", manual_source_review = manual),
+    evidence$edition_expectations, "ucl-2026-27-manual-fixture-v1"
+  )
+  expect_silent(phase18_validate_ucl_source_bundle(manual_candidate))
+  expect_true(manual_candidate$bundle$promotion_eligible[[1L]])
+  expect_false(manual_candidate$bundle$provider_automation_enabled[[1L]])
+
+  fixture <- phase18_bundle_test_fixture_contract()
+  fixture_candidate <- phase18_build_ucl_source_bundle(
+    projected, fetched,
+    list(authority_type = "fixture_contract", fixture_contract = fixture),
+    evidence$edition_expectations, "ucl-2026-27-contract-fixture-v1"
+  )
+  expect_silent(phase18_validate_ucl_source_bundle(fixture_candidate))
+  expect_false(fixture_candidate$bundle$promotion_eligible[[1L]])
+  expect_false(fixture_candidate$bundle$provider_automation_enabled[[1L]])
+  expect_identical(fixture_candidate$authority$reason_code[[1L]], "fixture_permanently_non_promotable")
+
+  expect_error(
+    phase18_validate_source_authority("fixture_contract", list(
+      authority_type = "fixture_contract", fixture_contract = fixture,
+      manual_source_review = manual
+    )),
+    "exactly one|authority"
+  )
+  forged <- fixture_candidate
+  forged$authority$promotion_eligible <- TRUE
+  forged$authority$row_sha256 <- phase18_row_sha256(forged$authority)
+  forged$bundle$promotion_eligible <- TRUE
+  forged$bundle$row_sha256 <- phase18_row_sha256(forged$bundle)
+  expect_error(phase18_validate_ucl_source_bundle(forged), "authority|non-promotable")
+})
+
+test_that("complete bundle hashes are order-stable and every tamper surface fails closed", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  authority <- list(authority_type = "fixture_contract", fixture_contract = phase18_bundle_test_fixture_contract())
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+  base <- phase18_build_ucl_source_bundle(
+    projected, fetched, authority, evidence$edition_expectations, "ucl-2026-27-tamper-fixture-v1"
+  )
+  reordered <- projected
+  for (name in c("clubs", "matches", "standings")) {
+    reordered[[name]] <- reordered[[name]][rev(seq_len(nrow(reordered[[name]]))), , drop = FALSE]
+  }
+  replay <- phase18_build_ucl_source_bundle(
+    reordered, fetched, authority, evidence$edition_expectations, "ucl-2026-27-tamper-fixture-v1"
+  )
+  expect_identical(base$bundle$bundle_sha256, replay$bundle$bundle_sha256)
+  expect_identical(base$bundle$manifest_self_sha256, replay$bundle$manifest_self_sha256)
+
+  raw_tamper <- base
+  raw_tamper$raw_bytes$teams[[1L]] <- as.raw(bitwXor(as.integer(raw_tamper$raw_bytes$teams[[1L]]), 1L))
+  expect_error(phase18_validate_ucl_source_bundle(raw_tamper), "raw|hash")
+  canonical_tamper <- base
+  canonical_tamper$tables$clubs$display_name[[1L]] <- "Tampered Club"
+  expect_error(phase18_validate_ucl_source_bundle(canonical_tamper), "row hash|canonical")
+  schema_tamper <- base
+  schema_tamper$artifacts$schema_fingerprint_sha256[[1L]] <- phase18_ucl_hash("drift")
+  expect_error(phase18_validate_ucl_source_bundle(schema_tamper), "Artifact hash|schema")
+  path_tamper <- base
+  path_tamper$artifacts$relative_raw_path[[1L]] <- "../outside.json"
+  path_tamper$artifacts$row_sha256 <- phase18_row_sha256(path_tamper$artifacts)
+  expect_error(phase18_validate_ucl_source_bundle(path_tamper), "Unsafe|path")
+  manifest_tamper <- base
+  manifest_tamper$bundle$manifest_self_sha256 <- phase18_ucl_hash("forged manifest")
+  manifest_tamper$bundle$row_sha256 <- phase18_row_sha256(manifest_tamper$bundle)
+  expect_error(phase18_validate_ucl_source_bundle(manifest_tamper), "manifest|hash")
+
+  root <- tempfile("phase18-collision-")
+  expect_silent(phase18_write_ucl_candidate(root, base))
+  expect_silent(phase18_write_ucl_candidate(root, replay))
+  changed <- fetched
+  changed$teams$body <- c(changed$teams$body, charToRaw(" "))
+  changed$teams$raw_sha256 <- phase18_ucl_hash(changed$teams$body)
+  collision <- phase18_build_ucl_source_bundle(
+    projected, changed, authority, evidence$edition_expectations, "ucl-2026-27-tamper-fixture-v1"
+  )
+  expect_error(phase18_write_ucl_candidate(root, collision), class = "blocked_provenance_collision")
+})
+
+test_that("manual and fixture CLI modes share validation and never enable provider automation", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+  common <- c(
+    "--provider-id", "football_data_org_v4", "--edition-id", "ucl_2026_27",
+    "--review-path", file.path(phase18_bundle_test_root, "tests/fixtures/phase18/provider_terms_review.csv"),
+    "--evidence-root", tempfile("phase18-nonprovider-evidence-")
+  )
+  manual_path <- tempfile("phase18-manual-review-", fileext = ".csv")
+  utils::write.csv(phase18_bundle_test_manual_review(), manual_path, row.names = FALSE, na = "", quote = TRUE)
+  manual_root <- tempfile("phase18-manual-cli-")
+  manual <- phase18_accept_ucl_provider_main(
+    args = c(common, "--mode", "manual_reviewed", "--manual-review-path", manual_path,
+      "--candidate-root", manual_root, "--bundle-id", "ucl-2026-27-manual-cli-v1"),
+    token_present = FALSE,
+    candidate_input_fn = function(options, authority) list(projected = projected, fetched = fetched)
+  )
+  expect_true(manual$promotion_eligible)
+  expect_false(manual$provider_automation_enabled)
+
+  fixture_path <- tempfile("phase18-fixture-contract-", fileext = ".csv")
+  utils::write.csv(phase18_bundle_test_fixture_contract(), fixture_path, row.names = FALSE, na = "", quote = TRUE)
+  fixture_root <- tempfile("phase18-fixture-cli-")
+  fixture <- phase18_accept_ucl_provider_main(
+    args = c(common, "--mode", "fixture_contract", "--fixture-contract-path", fixture_path,
+      "--candidate-root", fixture_root, "--bundle-id", "ucl-2026-27-fixture-cli-v1"),
+    token_present = FALSE,
+    candidate_input_fn = function(options, authority) list(projected = projected, fetched = fetched)
+  )
+  expect_false(fixture$promotion_eligible)
+  expect_false(fixture$provider_automation_enabled)
+  expect_identical(fixture$reason_code, "candidate_validated_non_promotable")
+})
+
+test_that("committed manual source review is explicit and cannot fabricate approval", {
+  phase18_bundle_test_load()
+  path <- file.path(
+    phase18_bundle_test_root, "data/competition/manual_source_reviews/ucl_2026_27.csv"
+  )
+  expect_true(file.exists(path))
+  review <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  expect_identical(review$decision[[1L]], "not_reviewed")
+  expect_match(review$manual_review_sha256[[1L]], "^[0-9a-f]{64}$")
+  expect_match(review$row_sha256[[1L]], "^[0-9a-f]{64}$")
+  expect_error(
+    phase18_validate_source_authority("manual_reviewed", list(
+      authority_type = "manual_source_review", manual_source_review = review
+    )),
+    "not accepted"
+  )
 })
