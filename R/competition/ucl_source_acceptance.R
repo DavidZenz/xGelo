@@ -697,6 +697,261 @@ phase18_build_live_probe_evidence <- function(
   )
 }
 
+phase18_acceptance_pointer_schema <- function() "phase18-acceptance-pointer-v1"
+
+phase18_acceptance_pointer_hash <- function(pointer) {
+  phase18_acceptance_hash_rows(
+    pointer, "phase18-acceptance-pointer-row-v1",
+    exclude = "pointer_sha256"
+  )
+}
+
+phase18_build_acceptance_pointer <- function(manifest, generation) {
+  generation <- phase18_acceptance_scalar(generation, "current generation")
+  pointer <- data.frame(
+    schema_version = phase18_acceptance_pointer_schema(),
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    decision_id = as.character(manifest$decision_id[[1L]]),
+    manifest_sha256 = as.character(manifest$row_sha256[[1L]]),
+    generation = generation,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  pointer$pointer_sha256 <- phase18_acceptance_pointer_hash(pointer)
+  pointer
+}
+
+phase18_validate_acceptance_pointer <- function(pointer) {
+  required <- c(
+    "schema_version", "hash_encoding_version", "decision_id",
+    "manifest_sha256", "generation", "pointer_sha256"
+  )
+  phase18_acceptance_require_schema(
+    pointer, phase18_acceptance_pointer_schema(), required, "acceptance pointer"
+  )
+  if (nrow(pointer) != 1L) phase18_acceptance_abort("integrity", "acceptance pointer must contain one record")
+  generation <- as.character(pointer$generation[[1L]])
+  if (!grepl("^generations/g-[0-9a-f]{24,64}$", generation)) {
+    phase18_acceptance_abort("integrity", "acceptance pointer generation path is unsafe")
+  }
+  if (!grepl("^[0-9a-f]{64}$", tolower(as.character(pointer$manifest_sha256[[1L]])))) {
+    phase18_acceptance_abort("integrity", "acceptance pointer manifest hash is invalid")
+  }
+  expected <- phase18_acceptance_pointer_hash(pointer)
+  if (!identical(tolower(as.character(pointer$pointer_sha256[[1L]])), expected[[1L]])) {
+    phase18_acceptance_abort("integrity", "acceptance pointer hash mismatch")
+  }
+  invisible(pointer)
+}
+
+phase18_acceptance_assert_no_symlink <- function(root, relative) {
+  root <- normalizePath(root, winslash = "/", mustWork = TRUE)
+  relative <- phase18_acceptance_scalar(relative, "generation relative path")
+  if (!grepl("^generations/g-[0-9a-f]{24,64}$", relative)) {
+    phase18_acceptance_abort("integrity", "generation relative path is unsafe")
+  }
+  current <- root
+  for (part in strsplit(relative, "/", fixed = TRUE)[[1L]]) {
+    current <- file.path(current, part)
+    link <- tryCatch(Sys.readlink(current), error = function(error) "")
+    if (length(link) == 1L && nzchar(link)) {
+      phase18_acceptance_abort("integrity", "acceptance generation paths must not contain symlinks")
+    }
+  }
+  resolved <- normalizePath(file.path(root, relative), winslash = "/", mustWork = TRUE)
+  if (!startsWith(resolved, paste0(root, "/"))) {
+    phase18_acceptance_abort("integrity", "acceptance generation escaped its trusted root")
+  }
+  resolved
+}
+
+phase18_read_acceptance_generation <- function(generation_root) {
+  generation_root <- normalizePath(generation_root, winslash = "/", mustWork = TRUE)
+  inventory <- sort(list.files(generation_root, all.files = TRUE, no.. = TRUE))
+  expected <- sort(phase18_acceptance_file_names())
+  if (!identical(inventory, expected)) {
+    phase18_acceptance_abort("integrity", "acceptance generation inventory is not exact")
+  }
+  paths <- setNames(file.path(generation_root, phase18_acceptance_file_names()), phase18_acceptance_file_names())
+  if (any(vapply(paths, function(path) nzchar(Sys.readlink(path)), logical(1)))) {
+    phase18_acceptance_abort("integrity", "acceptance generation files must not be symlinks")
+  }
+  evidence <- list(
+    paths = paths,
+    owner_review = utils::read.csv(paths[["provider_terms_review.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL),
+    edition_expectations = utils::read.csv(paths[["edition_expectations.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL),
+    machine_checks = utils::read.csv(paths[["coverage_matrix.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL),
+    schema_fingerprint = utils::read.csv(paths[["schema_fingerprint.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL),
+    manifest = utils::read.csv(paths[["acceptance_manifest.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  )
+  phase18_validate_acceptance_manifest(
+    evidence$manifest, evidence$machine_checks, evidence$owner_review,
+    evidence$edition_expectations, evidence$schema_fingerprint
+  )
+  evidence
+}
+
+phase18_read_acceptance_pointer <- function(path) {
+  link <- tryCatch(Sys.readlink(path), error = function(error) "")
+  is_link <- length(link) == 1L && !is.na(link[[1L]]) && nzchar(link[[1L]])
+  if (!file.exists(path) || dir.exists(path) || is_link) {
+    phase18_acceptance_abort("integrity", "current.json is missing or unsafe")
+  }
+  parsed <- tryCatch(
+    jsonlite::fromJSON(path, simplifyDataFrame = TRUE),
+    error = function(error) phase18_acceptance_abort("integrity", paste0("current.json is invalid: ", conditionMessage(error)))
+  )
+  pointer <- as.data.frame(parsed, stringsAsFactors = FALSE, check.names = FALSE)
+  phase18_validate_acceptance_pointer(pointer)
+  pointer
+}
+
+phase18_read_acceptance_set <- function(evidence_root) {
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
+  pointer <- phase18_read_acceptance_pointer(file.path(evidence_root, "current.json"))
+  generation_relative <- as.character(pointer$generation[[1L]])
+  generation_root <- phase18_acceptance_assert_no_symlink(evidence_root, generation_relative)
+  evidence <- phase18_read_acceptance_generation(generation_root)
+  if (!identical(as.character(pointer$decision_id[[1L]]), as.character(evidence$manifest$decision_id[[1L]])) ||
+      !identical(tolower(as.character(pointer$manifest_sha256[[1L]])), tolower(as.character(evidence$manifest$row_sha256[[1L]])))) {
+    phase18_acceptance_abort("integrity", "current.json does not match its immutable generation")
+  }
+  evidence$pointer <- pointer
+  evidence$current_generation <- generation_relative
+  evidence$generation_root <- generation_root
+  evidence
+}
+
+phase18_write_acceptance_pointer_atomic <- function(pointer, path) {
+  phase18_validate_acceptance_pointer(pointer)
+  payload <- jsonlite::toJSON(as.list(pointer[1L, , drop = FALSE]), auto_unbox = TRUE, pretty = TRUE, na = "null")
+  staged <- tempfile(".current-", tmpdir = dirname(path), fileext = ".json")
+  on.exit(if (file.exists(staged)) unlink(staged, force = TRUE), add = TRUE)
+  writeLines(enc2utf8(payload), staged, useBytes = TRUE)
+  if (!file.rename(staged, path)) stop("Could not atomically replace Phase 18 acceptance pointer", call. = FALSE)
+  invisible(path)
+}
+
+phase18_publish_acceptance_generation <- function(
+    evidence_root,
+    owner_review,
+    edition_expectations,
+    machine_checks,
+    schema_fingerprint,
+    manifest,
+    markdown,
+    failure_injector = NULL) {
+  dir.create(evidence_root, recursive = TRUE, showWarnings = FALSE)
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
+  phase18_validate_acceptance_manifest(
+    manifest, machine_checks, owner_review, edition_expectations, schema_fingerprint
+  )
+  generation_relative <- file.path(
+    "generations", paste0("g-", substr(tolower(as.character(manifest$row_sha256[[1L]])), 1L, 32L))
+  )
+  generation_root <- file.path(evidence_root, generation_relative)
+  current <- tryCatch(phase18_read_acceptance_set(evidence_root), error = function(error) NULL)
+  if (!is.null(current) &&
+      identical(as.character(current$manifest$row_sha256[[1L]]), as.character(manifest$row_sha256[[1L]]))) {
+    return(c(current, list(idempotent = TRUE)))
+  }
+  stage_root <- tempfile(".phase18-acceptance-stage-", tmpdir = evidence_root)
+  dir.create(stage_root, recursive = FALSE, showWarnings = FALSE)
+  installed_generation <- FALSE
+  pointer_committed <- FALSE
+  on.exit({
+    if (dir.exists(stage_root)) unlink(stage_root, recursive = TRUE, force = TRUE)
+    if (installed_generation && !pointer_committed && dir.exists(generation_root)) {
+      unlink(generation_root, recursive = TRUE, force = TRUE)
+    }
+  }, add = TRUE)
+  phase18_write_acceptance_stage(
+    stage_root, owner_review, edition_expectations, machine_checks,
+    schema_fingerprint, manifest, markdown
+  )
+  phase18_read_acceptance_generation(stage_root)
+  dir.create(dirname(generation_root), recursive = TRUE, showWarnings = FALSE)
+  if (dir.exists(generation_root)) {
+    existing <- phase18_read_acceptance_generation(generation_root)
+    if (!identical(as.character(existing$manifest$row_sha256[[1L]]), as.character(manifest$row_sha256[[1L]]))) {
+      phase18_acceptance_abort("integrity", "immutable generation name collision")
+    }
+    unlink(stage_root, recursive = TRUE, force = TRUE)
+  } else {
+    if (!file.rename(stage_root, generation_root)) stop("Could not install immutable Phase 18 acceptance generation", call. = FALSE)
+    installed_generation <- TRUE
+  }
+  pointer <- phase18_build_acceptance_pointer(manifest, generation_relative)
+  if (is.function(failure_injector)) failure_injector("before_pointer_swap", generation_root, pointer)
+  phase18_write_acceptance_pointer_atomic(pointer, file.path(evidence_root, "current.json"))
+  pointer_committed <- TRUE
+  if (is.function(failure_injector)) failure_injector("after_pointer_swap", generation_root, pointer)
+  phase18_read_acceptance_set(evidence_root)
+}
+
+phase18_run_live_acceptance_probe <- function(
+    evidence_root,
+    owner_review,
+    edition_expectations,
+    transport_fn,
+    decision_id,
+    now_utc,
+    failure_injector = NULL,
+    parser_commit_sha = NULL) {
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
+  decision_id <- phase18_acceptance_scalar(decision_id, "decision_id")
+  now_utc <- phase18_acceptance_utc(now_utc, "now_utc")
+  lock_path <- file.path(evidence_root, ".phase18-acceptance.lock")
+  if (file.exists(lock_path) || dir.exists(lock_path) || !dir.create(lock_path, recursive = FALSE, showWarnings = FALSE)) {
+    return(phase18_probe_result("blocked_concurrent_acceptance"))
+  }
+  on.exit(if (dir.exists(lock_path)) unlink(lock_path, recursive = TRUE, force = TRUE), add = TRUE)
+  incumbent <- tryCatch(phase18_read_acceptance_set(evidence_root), error = function(error) NULL)
+  if (is.null(incumbent)) return(phase18_probe_result("schema", message = "Incumbent acceptance generation is incomplete"))
+  evidence <- tryCatch(
+    phase18_build_live_probe_evidence(transport_fn, owner_review, edition_expectations, decision_id, now_utc),
+    error = function(error) list(valid = FALSE, reason_code = "coverage", message = conditionMessage(error))
+  )
+  if (!isTRUE(evidence$valid)) return(phase18_probe_result(evidence$reason_code, message = evidence$message))
+  manifest <- phase18_build_acceptance_manifest(
+    evidence$machine_checks, owner_review, edition_expectations,
+    evidence$schema_fingerprint, decision_id, now_utc,
+    parser_commit_sha = parser_commit_sha
+  )
+  if (!isTRUE(manifest$automation_enabled[[1L]])) return(phase18_probe_result(as.character(manifest$reason_code[[1L]]), manifest))
+  if (identical(as.character(incumbent$manifest$decision_id[[1L]]), decision_id)) {
+    if (identical(as.character(incumbent$manifest$row_sha256[[1L]]), as.character(manifest$row_sha256[[1L]]))) {
+      return(phase18_probe_result("accepted", incumbent$manifest, idempotent = TRUE))
+    }
+    return(phase18_probe_result("blocked_decision_collision", incumbent$manifest))
+  }
+  markdown <- paste0(
+    "# UCL Provider Acceptance\n\nDecision: `accepted` (`accepted`).\n\n",
+    "Automation enabled: `TRUE`.\n\n",
+    "Acceptance was produced by exact owner, edition, capability, and schema evidence.\n"
+  )
+  transaction_error <- NULL
+  published <- tryCatch(
+    phase18_publish_acceptance_generation(
+      evidence_root, owner_review, edition_expectations, evidence$machine_checks,
+      evidence$schema_fingerprint, manifest, markdown, failure_injector
+    ),
+    error = function(error) {
+      transaction_error <<- error
+      NULL
+    }
+  )
+  if (!is.null(transaction_error)) {
+    installed <- tryCatch(phase18_read_acceptance_set(evidence_root), error = function(error) NULL)
+    if (!is.null(installed) && identical(
+      as.character(installed$manifest$row_sha256[[1L]]), as.character(manifest$row_sha256[[1L]])
+    )) return(phase18_probe_result("accepted", manifest, message = conditionMessage(transaction_error)))
+    reason <- if (grepl("interrupt", conditionMessage(transaction_error), ignore.case = TRUE)) "interrupted" else "writer_failure"
+    return(phase18_probe_result(reason, incumbent$manifest, message = conditionMessage(transaction_error)))
+  }
+  phase18_probe_result("accepted", published$manifest)
+}
+
 phase18_acceptance_snapshot <- function(paths) {
   exists <- file.exists(paths)
   bytes <- lapply(seq_along(paths), function(index) {
@@ -1423,4 +1678,96 @@ phase18_build_live_probe_evidence <- function(
     schema_fingerprint = schema_fingerprint,
     schema_fingerprint_sha256 = fingerprint_result$schema_fingerprint_sha256
   )
+}
+
+# Generation-aware override. The legacy loose-file transaction remains above
+# only for migration readability; this final definition is the public runtime
+# entry point and publishes by one atomic current.json pointer replacement.
+phase18_run_live_acceptance_probe <- function(
+    evidence_root,
+    owner_review,
+    edition_expectations,
+    transport_fn,
+    decision_id,
+    now_utc,
+    failure_injector = NULL,
+    parser_commit_sha = NULL) {
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
+  decision_id <- phase18_acceptance_scalar(decision_id, "decision_id")
+  now_utc <- phase18_acceptance_utc(now_utc, "now_utc")
+  lock_path <- file.path(evidence_root, ".phase18-acceptance.lock")
+  if (file.exists(lock_path) || dir.exists(lock_path) ||
+      !dir.create(lock_path, recursive = FALSE, showWarnings = FALSE)) {
+    return(phase18_probe_result("blocked_concurrent_acceptance"))
+  }
+  on.exit(if (dir.exists(lock_path)) unlink(lock_path, recursive = TRUE, force = TRUE), add = TRUE)
+
+  incumbent <- tryCatch(phase18_read_acceptance_set(evidence_root), error = function(error) NULL)
+  if (is.null(incumbent)) {
+    return(phase18_probe_result("schema", message = "Incumbent acceptance generation is incomplete"))
+  }
+  evidence <- tryCatch(
+    phase18_build_live_probe_evidence(
+      transport_fn, owner_review, edition_expectations, decision_id, now_utc
+    ),
+    error = function(error) list(
+      valid = FALSE, reason_code = "coverage", message = conditionMessage(error)
+    )
+  )
+  if (!isTRUE(evidence$valid)) {
+    return(phase18_probe_result(evidence$reason_code, message = evidence$message))
+  }
+  manifest <- phase18_build_acceptance_manifest(
+    evidence$machine_checks, owner_review, edition_expectations,
+    evidence$schema_fingerprint, decision_id, now_utc,
+    parser_commit_sha = parser_commit_sha
+  )
+  if (!isTRUE(manifest$automation_enabled[[1L]])) {
+    return(phase18_probe_result(as.character(manifest$reason_code[[1L]]), manifest))
+  }
+  if (identical(as.character(incumbent$manifest$decision_id[[1L]]), decision_id)) {
+    if (identical(
+      as.character(incumbent$manifest$row_sha256[[1L]]),
+      as.character(manifest$row_sha256[[1L]])
+    )) {
+      return(phase18_probe_result("accepted", incumbent$manifest, idempotent = TRUE))
+    }
+    return(phase18_probe_result("blocked_decision_collision", incumbent$manifest))
+  }
+  markdown <- paste0(
+    "# UCL Provider Acceptance\n\nDecision: `accepted` (`accepted`).\n\n",
+    "Automation enabled: `TRUE`.\n\n",
+    "Acceptance was produced by exact owner, edition, capability, and schema evidence.\n"
+  )
+  transaction_error <- NULL
+  published <- tryCatch(
+    phase18_publish_acceptance_generation(
+      evidence_root, owner_review, edition_expectations, evidence$machine_checks,
+      evidence$schema_fingerprint, manifest, markdown, failure_injector
+    ),
+    error = function(error) {
+      transaction_error <<- error
+      NULL
+    }
+  )
+  if (!is.null(transaction_error)) {
+    installed <- tryCatch(phase18_read_acceptance_set(evidence_root), error = function(error) NULL)
+    if (!is.null(installed) && identical(
+      as.character(installed$manifest$row_sha256[[1L]]),
+      as.character(manifest$row_sha256[[1L]])
+    )) {
+      return(phase18_probe_result(
+        "accepted", manifest, message = conditionMessage(transaction_error)
+      ))
+    }
+    reason <- if (grepl("interrupt", conditionMessage(transaction_error), ignore.case = TRUE)) {
+      "interrupted"
+    } else {
+      "writer_failure"
+    }
+    return(phase18_probe_result(
+      reason, incumbent$manifest, message = conditionMessage(transaction_error)
+    ))
+  }
+  phase18_probe_result("accepted", published$manifest)
 }

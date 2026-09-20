@@ -143,7 +143,7 @@ test_that("no-key operator path never calls transport and emits a validating man
   expect_identical(result$manifest$decision, "not_run")
   expect_identical(result$manifest$reason_code, "missing_credential")
   expect_false(result$manifest$automation_enabled)
-  manifest_path <- file.path(evidence_root, "football_data_org_v4", "ucl_2026_27", "acceptance_manifest.csv")
+  manifest_path <- result$paths[["acceptance_manifest.csv"]]
   expect_true(file.exists(manifest_path))
   persisted <- utils::read.csv(manifest_path, stringsAsFactors = FALSE, check.names = FALSE)
   expect_silent(phase18_validate_acceptance_manifest(
@@ -198,10 +198,8 @@ test_that("production evidence enumerates every reviewed dimension and coverage 
     phase18_test_root,
     "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27"
   )
-  paths <- file.path(root, c(
-    "provider_terms_review.csv", "edition_expectations.csv", "coverage_matrix.csv",
-    "schema_fingerprint.csv", "acceptance_manifest.csv", "ACCEPTANCE.md"
-  ))
+  accepted <- phase18_read_acceptance_set(root)
+  paths <- accepted$paths
   expect_true(all(file.exists(paths)))
   review <- utils::read.csv(paths[[1L]], stringsAsFactors = FALSE, check.names = FALSE)
   coverage <- utils::read.csv(paths[[3L]], stringsAsFactors = FALSE, check.names = FALSE)
@@ -287,13 +285,8 @@ test_that("committed no-key decision validates in a fresh process", {
   command <- paste0(
     "setwd('", phase18_test_root, "');source('R/common/phase18_canonical_hash.R');",
     "source('R/competition/ucl_source_acceptance.R');",
-    "r<-read.csv('", file.path(root, "provider_terms_review.csv"), "',check.names=FALSE);",
-    "e<-read.csv('", file.path(root, "edition_expectations.csv"), "',check.names=FALSE);",
-    "m<-read.csv('", file.path(root, "coverage_matrix.csv"), "',check.names=FALSE);",
-    "s<-read.csv('", file.path(root, "schema_fingerprint.csv"), "',check.names=FALSE);",
-    "a<-read.csv('", file.path(root, "acceptance_manifest.csv"), "',check.names=FALSE);",
-    "phase18_validate_acceptance_manifest(a,m,r,e,s);",
-    "stopifnot(!a$automation_enabled[[1]], a$reason_code[[1]]=='missing_credential')"
+    "x<-phase18_read_acceptance_set('", root, "');",
+    "stopifnot(!x$manifest$automation_enabled[[1]], x$manifest$reason_code[[1]]=='missing_credential')"
   )
   output <- system2("Rscript", c("--vanilla", "-e", shQuote(command)), stdout = TRUE, stderr = TRUE)
   status <- attr(output, "status")
@@ -327,6 +320,25 @@ phase18_test_tree_sha <- function(root) {
     digest::digest(readBin(path, what = "raw", n = file.info(path)$size), algo = "sha256", serialize = FALSE)
   }, character(1))
   setNames(values, relative)
+}
+
+phase18_test_write_subprocess <- function(lines, prefix) {
+  path <- tempfile(prefix, fileext = ".R")
+  writeLines(lines, path, useBytes = TRUE)
+  path
+}
+
+phase18_test_wait_for_path <- function(path, process = NULL, timeout = 10) {
+  deadline <- Sys.time() + timeout
+  while (!file.exists(path) && Sys.time() < deadline) {
+    if (!is.null(process) && !process$is_alive()) break
+    Sys.sleep(0.02)
+  }
+  if (!file.exists(path)) {
+    details <- if (is.null(process)) "" else paste(process$read_all_error(), collapse = "\n")
+    stop("Timed out waiting for subprocess marker: ", path, "\n", details, call. = FALSE)
+  }
+  invisible(path)
 }
 
 phase18_test_probe_transport <- function(overrides = list(), fingerprint_seed = "fixture-v1") {
@@ -531,7 +543,8 @@ test_that("live acceptance probe is the only first-acceptance path and uses four
 test_that("concurrency and writer interruption preserve incumbent bytes", {
   phase18_test_load()
   root <- phase18_test_seed_probe_root()
-  before <- phase18_test_tree_sha(root)
+  before <- phase18_read_acceptance_set(root)
+  pointer_before <- readBin(file.path(root, "current.json"), "raw", file.info(file.path(root, "current.json"))$size)
   lock <- file.path(root, ".phase18-acceptance.lock")
   dir.create(lock)
   concurrent <- phase18_run_live_acceptance_probe(
@@ -540,18 +553,18 @@ test_that("concurrency and writer interruption preserve incumbent bytes", {
   )
   expect_identical(concurrent$reason_code, "blocked_concurrent_acceptance")
   unlink(lock, recursive = TRUE, force = TRUE)
-  expect_identical(phase18_test_tree_sha(root), before)
+  expect_identical(phase18_read_acceptance_set(root)$current_generation, before$current_generation)
 
   failed <- phase18_run_live_acceptance_probe(
     root, phase18_test_review("approved"), phase18_test_expectations(),
     phase18_test_probe_transport(), "live-probe-writer-failure", "2026-09-19T13:00:00Z",
     failure_injector = function(stage, ...) {
-      if (identical(stage, "after_promote_2")) stop("injected interruption", call. = FALSE)
+      if (identical(stage, "before_pointer_swap")) stop("injected interruption", call. = FALSE)
     }
   )
   expect_identical(failed$reason_code, "interrupted")
-  expect_identical(phase18_test_tree_sha(root), before)
-  residue <- list.files(dirname(root), pattern = "phase18-acceptance-(stage|backup)", all.files = TRUE)
+  expect_identical(readBin(file.path(root, "current.json"), "raw", file.info(file.path(root, "current.json"))$size), pointer_before)
+  residue <- list.files(root, pattern = "phase18-acceptance-stage", all.files = TRUE)
   expect_length(residue, 0L)
   expect_false(dir.exists(lock))
 })
@@ -959,4 +972,140 @@ test_that("pointer-swap interruption exposes only the old or complete new genera
     phase18_read_acceptance_set(root)$manifest$decision_id[[1L]],
     "generation-after-swap"
   )
+})
+
+test_that("terminating a writer on either side of the pointer swap preserves a complete generation", {
+  skip_if_not_installed("processx")
+  phase18_test_load()
+  writer_script <- phase18_test_write_subprocess(c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "project <- args[[1L]]; root <- args[[2L]]; payload_path <- args[[3L]]",
+    "marker <- args[[4L]]; pause_at <- args[[5L]]",
+    "source(file.path(project, 'R/common/phase18_canonical_hash.R'))",
+    "source(file.path(project, 'R/competition/ucl_source_acceptance.R'))",
+    "payload <- readRDS(payload_path)",
+    "phase18_run_live_acceptance_probe(root, payload$review, payload$expectations, payload$transport,",
+    "  payload$decision_id, payload$now_utc, failure_injector = function(stage, ...) {",
+    "    if (identical(stage, pause_at)) { writeLines(stage, marker); Sys.sleep(60) }",
+    "  })"
+  ), "phase18-kill-writer-")
+  on.exit(unlink(writer_script, force = TRUE), add = TRUE)
+
+  run_kill_case <- function(pause_at, decision_id) {
+    root <- phase18_test_seed_probe_root()
+    old <- phase18_read_acceptance_set(root)
+    payload_path <- tempfile("phase18-kill-payload-", fileext = ".rds")
+    marker <- tempfile("phase18-kill-marker-")
+    saveRDS(list(
+      review = phase18_test_review("approved"),
+      expectations = phase18_test_expectations(),
+      transport = phase18_test_probe_transport(fingerprint_seed = decision_id),
+      decision_id = decision_id,
+      now_utc = "2026-09-19T14:00:00Z"
+    ), payload_path)
+    on.exit(unlink(c(payload_path, marker), force = TRUE), add = TRUE)
+    process <- processx::process$new(
+      "Rscript", c("--vanilla", writer_script, phase18_test_root, root, payload_path, marker, pause_at),
+      stdout = "|", stderr = "|"
+    )
+    phase18_test_wait_for_path(marker, process)
+    process$kill()
+    process$wait(timeout = 5000)
+    selected <- phase18_read_acceptance_set(root)
+    expect_silent(phase18_validate_acceptance_manifest(
+      selected$manifest, selected$machine_checks, selected$owner_review,
+      selected$edition_expectations, selected$schema_fingerprint
+    ))
+    if (identical(pause_at, "before_pointer_swap")) {
+      expect_identical(selected$current_generation, old$current_generation)
+    } else {
+      expect_identical(selected$manifest$decision_id[[1L]], decision_id)
+    }
+  }
+
+  run_kill_case("before_pointer_swap", "killed-before-pointer")
+  run_kill_case("after_pointer_swap", "killed-after-pointer")
+})
+
+test_that("a concurrent subprocess reader observes only complete old or new decision tuples", {
+  skip_if_not_installed("processx")
+  phase18_test_load()
+  root <- phase18_test_seed_probe_root()
+  old <- phase18_read_acceptance_set(root)
+  payload_path <- tempfile("phase18-concurrent-payload-", fileext = ".rds")
+  writer_marker <- tempfile("phase18-concurrent-writer-")
+  reader_marker <- tempfile("phase18-concurrent-reader-")
+  release <- tempfile("phase18-concurrent-release-")
+  observations <- tempfile("phase18-concurrent-observations-", fileext = ".csv")
+  saveRDS(list(
+    review = phase18_test_review("approved"), expectations = phase18_test_expectations(),
+    transport = phase18_test_probe_transport(fingerprint_seed = "concurrent-new"),
+    decision_id = "concurrent-new", now_utc = "2026-09-19T14:05:00Z"
+  ), payload_path)
+  writer_script <- phase18_test_write_subprocess(c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "project <- args[[1L]]; root <- args[[2L]]; payload <- readRDS(args[[3L]])",
+    "marker <- args[[4L]]; release <- args[[5L]]",
+    "source(file.path(project, 'R/common/phase18_canonical_hash.R'))",
+    "source(file.path(project, 'R/competition/ucl_source_acceptance.R'))",
+    "phase18_run_live_acceptance_probe(root, payload$review, payload$expectations, payload$transport,",
+    "  payload$decision_id, payload$now_utc, failure_injector = function(stage, ...) {",
+    "    if (identical(stage, 'before_pointer_swap')) {",
+    "      writeLines(stage, marker); while (!file.exists(release)) Sys.sleep(0.01)",
+    "    }",
+    "  })"
+  ), "phase18-concurrent-writer-")
+  reader_script <- phase18_test_write_subprocess(c(
+    "args <- commandArgs(trailingOnly = TRUE)",
+    "project <- args[[1L]]; root <- args[[2L]]; output <- args[[3L]]; ready <- args[[4L]]",
+    "source(file.path(project, 'R/common/phase18_canonical_hash.R'))",
+    "source(file.path(project, 'R/competition/ucl_source_acceptance.R'))",
+    "rows <- vector('list', 120L)",
+    "for (index in seq_len(120L)) {",
+    "  rows[[index]] <- tryCatch({ x <- phase18_read_acceptance_set(root); data.frame(",
+    "    decision_id = x$manifest$decision_id[[1L]], manifest_sha256 = x$manifest$row_sha256[[1L]],",
+    "    error = '', stringsAsFactors = FALSE) }, error = function(error) data.frame(",
+    "    decision_id = '', manifest_sha256 = '', error = conditionMessage(error), stringsAsFactors = FALSE))",
+    "  if (index == 1L) writeLines('ready', ready)",
+    "  Sys.sleep(0.002)",
+    "}",
+    "utils::write.csv(do.call(rbind, rows), output, row.names = FALSE, quote = TRUE)"
+  ), "phase18-concurrent-reader-")
+  on.exit(unlink(c(
+    payload_path, writer_marker, reader_marker, release, observations,
+    writer_script, reader_script
+  ), recursive = TRUE, force = TRUE), add = TRUE)
+
+  writer <- processx::process$new(
+    "Rscript", c("--vanilla", writer_script, phase18_test_root, root, payload_path, writer_marker, release),
+    stdout = "|", stderr = "|"
+  )
+  phase18_test_wait_for_path(writer_marker, writer)
+  reader <- processx::process$new(
+    "Rscript", c("--vanilla", reader_script, phase18_test_root, root, observations, reader_marker),
+    stdout = "|", stderr = "|"
+  )
+  phase18_test_wait_for_path(reader_marker, reader)
+  writeLines("release", release)
+  writer$wait(timeout = 10000)
+  reader$wait(timeout = 30000)
+  expect_equal(writer$get_exit_status(), 0L, info = paste(writer$read_all_error(), collapse = "\n"))
+  expect_equal(reader$get_exit_status(), 0L, info = paste(reader$read_all_error(), collapse = "\n"))
+
+  observed <- utils::read.csv(
+    observations, stringsAsFactors = FALSE, check.names = FALSE,
+    na.strings = character(), colClasses = "character"
+  )
+  new <- phase18_read_acceptance_set(root)
+  allowed <- c(
+    paste(old$manifest$decision_id[[1L]], old$manifest$row_sha256[[1L]], sep = "|"),
+    paste(new$manifest$decision_id[[1L]], new$manifest$row_sha256[[1L]], sep = "|")
+  )
+  tuples <- paste(observed$decision_id, observed$manifest_sha256, sep = "|")
+  expect_true(
+    all(!nzchar(observed$error)),
+    info = paste(unique(observed$error[nzchar(observed$error)]), collapse = "\n")
+  )
+  expect_true(all(tuples %in% allowed))
+  expect_setequal(unique(tuples), allowed)
 })

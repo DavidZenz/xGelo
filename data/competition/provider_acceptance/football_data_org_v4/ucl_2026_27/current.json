@@ -1,0 +1,8 @@
+{
+  "schema_version": "phase18-acceptance-pointer-v1",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "decision_id": "not_run_missing_credential_ucl_2026_27",
+  "manifest_sha256": "ad42bc7742eb490b8f7fe8c4b8a3cebd4d9606fb9ae6341a833ee646af463ba8",
+  "generation": "generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd",
+  "pointer_sha256": "c68222ae485663fea9109bf29e21caeebcccb3edb14fb9048493c7c7ef0306cc"
+}

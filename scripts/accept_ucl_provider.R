@@ -105,8 +105,11 @@ phase18_accept_ucl_provider_main <- function(
   target_root <- file.path(options[["evidence-root"]], options[["provider-id"]], options[["edition-id"]])
   review <- phase18_read_terms_review(options[["review-path"]])
   if (is.null(review)) review <- data.frame()
+  incumbent <- tryCatch(phase18_read_acceptance_set(target_root), error = function(error) NULL)
   expectation_path <- file.path(target_root, "edition_expectations.csv")
-  expectations <- if (file.exists(expectation_path)) {
+  expectations <- if (!is.null(incumbent)) {
+    incumbent$edition_expectations
+  } else if (file.exists(expectation_path)) {
     utils::read.csv(expectation_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
   } else {
     phase18_default_edition_expectations(options[["edition-id"]], now_utc)
@@ -339,7 +342,6 @@ phase18_accept_ucl_provider_main <- function(
     parser_commit_sha = parser_commit_sha,
     project_root = phase18_accept_project_root
   )
-  incumbent <- tryCatch(phase18_read_acceptance_set(target_root), error = function(error) NULL)
   if (!is.null(incumbent)) {
     return(invisible(list(
       preflight = preflight,
@@ -352,21 +354,20 @@ phase18_accept_ucl_provider_main <- function(
       incumbent_preserved = TRUE
     )))
   }
-  dir.create(target_root, recursive = TRUE, showWarnings = FALSE)
-  phase18_write_csv_atomic(review, file.path(target_root, "provider_terms_review.csv"))
-  phase18_write_csv_atomic(expectations, file.path(target_root, "edition_expectations.csv"))
-  phase18_write_csv_atomic(machine_checks, file.path(target_root, "coverage_matrix.csv"))
-  phase18_write_csv_atomic(schema_fingerprint, file.path(target_root, "schema_fingerprint.csv"))
-  phase18_write_csv_atomic(manifest, file.path(target_root, "acceptance_manifest.csv"))
-  phase18_write_text_atomic(phase18_acceptance_markdown(manifest), file.path(target_root, "ACCEPTANCE.md"))
+  published <- phase18_publish_acceptance_generation(
+    target_root, review, expectations, machine_checks, schema_fingerprint,
+    manifest, phase18_acceptance_markdown(manifest)
+  )
   invisible(list(
     preflight = preflight,
     owner_review = review,
     edition_expectations = expectations,
     machine_checks = machine_checks,
     schema_fingerprint = schema_fingerprint,
-    manifest = manifest,
-    evidence_root = target_root
+    manifest = published$manifest,
+    evidence_root = target_root,
+    paths = published$paths,
+    current_generation = published$current_generation
   ))
 }
 
