@@ -367,3 +367,65 @@ test_that("committed manual source review is explicit and cannot fabricate appro
     "not accepted"
   )
 })
+
+test_that("bundle schemas expose the complete provenance graph and reject incomplete inventory", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+  candidate <- phase18_build_ucl_source_bundle(
+    projected, fetched,
+    list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+    evidence$edition_expectations, "ucl-2026-27-schema-fixture-v1"
+  )
+  expect_true(all(c(
+    "provider_id", "source_url", "retrieved_at_utc", "source_as_of_utc",
+    "edition_id", "expectation_sha256", "schema_fingerprint_sha256", "bytes",
+    "raw_sha256", "canonical_content_sha256", "parser_commit_sha", "row_count",
+    "authority_type", "authority_id", "authority_sha256", "row_sha256"
+  ) %in% names(candidate$artifacts)))
+  expect_true(all(c(
+    "artifact_manifest_sha256", "table_manifest_sha256", "bundle_sha256",
+    "manifest_self_sha256", "promotion_eligible"
+  ) %in% names(candidate$bundle)))
+  expect_true(all(candidate$authority[c(
+    "manual_review_id", "manual_review_sha256", "fixture_id", "fixture_sha256"
+  )] == ""))
+
+  incomplete <- projected
+  incomplete$standings <- NULL
+  expect_error(
+    phase18_build_ucl_source_bundle(
+      incomplete, fetched,
+      list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+      evidence$edition_expectations, "ucl-2026-27-incomplete-fixture-v1"
+    ),
+    "five canonical|incomplete"
+  )
+  empty <- projected
+  empty$clubs <- empty$clubs[0, , drop = FALSE]
+  expect_error(
+    phase18_build_ucl_source_bundle(
+      empty, fetched,
+      list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+      evidence$edition_expectations, "ucl-2026-27-empty-fixture-v1"
+    ),
+    "empty"
+  )
+  duplicate <- projected
+  duplicate$clubs$club_id[[2L]] <- duplicate$clubs$club_id[[1L]]
+  duplicate$clubs$row_sha256 <- phase18_row_sha256(duplicate$clubs)
+  expect_error(
+    phase18_build_ucl_source_bundle(
+      duplicate, fetched,
+      list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+      evidence$edition_expectations, "ucl-2026-27-duplicate-fixture-v1"
+    ),
+    "duplicate"
+  )
+
+  root <- tempfile("phase18-inventory-fixture-")
+  phase18_write_ucl_candidate(root, candidate)
+  writeLines("surplus", file.path(root, "surplus.txt"))
+  expect_error(phase18_read_ucl_candidate(root), "inventory")
+})
