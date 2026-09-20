@@ -677,3 +677,75 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
   expect_false(grepl("could not find function.*phase18_|object.*phase18_.*not found", combined, ignore.case = TRUE))
   expect_identical(phase18_loader_snapshot(durable_roots), before)
 })
+
+phase18_loader_extract_block <- function(relative_path, start_pattern) {
+  lines <- readLines(file.path(phase18_test_root, relative_path), warn = FALSE)
+  start <- which(startsWith(trimws(lines), start_pattern))
+  expect_equal(length(start), 1L, info = paste(relative_path, start_pattern))
+  if (length(start) != 1L) return(character())
+  balance <- 0L
+  opened <- FALSE
+  for (index in seq.int(start[[1L]], length(lines))) {
+    opens <- lengths(regmatches(lines[[index]], gregexpr("{", lines[[index]], fixed = TRUE)))
+    closes <- lengths(regmatches(lines[[index]], gregexpr("}", lines[[index]], fixed = TRUE)))
+    if (opens > 0L) opened <- TRUE
+    balance <- balance + opens - closes
+    if (opened && balance == 0L) return(lines[start[[1L]]:index])
+  }
+  fail(paste("Unclosed loader inventory block:", relative_path, start_pattern))
+  character()
+}
+
+phase18_expect_canonical_first_block <- function(lines, label, dynamic = FALSE) {
+  common <- grep("R/common/phase18_canonical_hash[.]R", lines)
+  consumers <- which(vapply(lines, function(line) {
+    any(vapply(phase18_loader_script_consumers, grepl, logical(1), x = line, fixed = TRUE))
+  }, logical(1)))
+  expect_equal(length(common), 1L, info = label)
+  expect_true(length(consumers) > 0L, info = label)
+  if (length(common) == 1L && length(consumers)) {
+    expect_true(common[[1L]] < min(consumers), info = label)
+    expect_false(grepl("^[[:space:]]*if", lines[[common[[1L]]]]), info = label)
+  }
+  if (isTRUE(dynamic)) {
+    expect_false(any(grepl("if[[:space:]]*\\(file[.]exists.*source", lines)), info = label)
+  }
+}
+
+test_that("Phase 18 loader inventory is canonical-first in every parent and child process", {
+  scripts <- c(
+    "scripts/accept_ucl_provider.R",
+    "scripts/bootstrap_club_identity.R",
+    "scripts/refresh_ucl_source.R",
+    "scripts/build_club_history_corpus.R"
+  )
+  invisible(lapply(scripts, phase18_expect_canonical_first_script))
+
+  direct_loaders <- list(
+    list("tests/testthat/test_phase18_source_acceptance.R", "phase18_test_load <- function", FALSE),
+    list("tests/testthat/test_phase18_football_data_adapter.R", "phase18_fd_test_load <- function", FALSE),
+    list("tests/testthat/test_phase18_source_bundle.R", "phase18_bundle_test_load <- function", FALSE),
+    list("tests/testthat/test_phase18_refresh_failure.R", "phase18_refresh_test_load <- function", TRUE),
+    list("tests/testthat/test_phase18_club_identity.R", "phase18_identity_test_load <- function", FALSE),
+    list("tests/testthat/test_phase18_club_history_contract.R", "phase18_history_test_load <- function", TRUE)
+  )
+  for (entry in direct_loaders) {
+    block <- phase18_loader_extract_block(entry[[1L]], entry[[2L]])
+    phase18_expect_canonical_first_block(block, paste(entry[[1L]], entry[[2L]]), entry[[3L]])
+  }
+
+  child_processes <- list(
+    list(
+      "tests/testthat/test_phase18_source_acceptance.R",
+      "test_that(\"committed no-key decision validates in a fresh process\""
+    ),
+    list(
+      "tests/testthat/test_phase18_source_bundle.R",
+      "test_that(\"provider-live projected resources write and fresh-process validate a candidate bundle\""
+    )
+  )
+  for (entry in child_processes) {
+    block <- phase18_loader_extract_block(entry[[1L]], entry[[2L]])
+    phase18_expect_canonical_first_block(block, paste(entry[[1L]], "fresh process"))
+  }
+})
