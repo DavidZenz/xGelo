@@ -100,3 +100,86 @@ testthat::test_that("half-open boundaries assign an instant only to the adjacent
   )
   testthat::expect_identical(at_boundary$club_id[[1L]], "club_alpha")
 })
+
+testthat::test_that("reviewed alias fallback is exact, normalized, and time bounded", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  result <- phase18_resolve_club_identity(
+    registries, "provider", "missing", "Álpha---FC", "2026-09-19T12:00:00Z"
+  )
+  testthat::expect_identical(result$club_id[[1L]], "club_alpha")
+  testthat::expect_identical(result$resolution_method[[1L]], "reviewed_alias")
+  testthat::expect_identical(result$resolution_warning[[1L]], "reviewed_alias_fallback")
+
+  registries$aliases$valid_to_utc <- "2024-01-01T00:00:00Z"
+  registries <- phase18_hash_club_registry_rows(registries)
+  testthat::expect_error(
+    phase18_resolve_club_identity(registries, "provider", "missing", "Alpha FC", "2024-01-01T00:00:00Z"),
+    class = "expired_club_alias"
+  )
+})
+
+testthat::test_that("overlaps, exact duplicates, and pending aliases fail closed", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  duplicate <- registries
+  duplicate$aliases <- rbind(duplicate$aliases, duplicate$aliases)
+  duplicate <- phase18_hash_club_registry_rows(duplicate)
+  testthat::expect_error(phase18_validate_club_registries(duplicate), class = "duplicate_club_identity")
+
+  overlap <- registries
+  second <- overlap$aliases
+  second$valid_from_utc <- "2022-01-01T00:00:00Z"
+  overlap$aliases$valid_to_utc <- "2025-01-01T00:00:00Z"
+  overlap$aliases <- rbind(overlap$aliases, second)
+  overlap <- phase18_hash_club_registry_rows(overlap)
+  testthat::expect_error(phase18_validate_club_registries(overlap), class = "overlapping_club_identity")
+
+  pending <- registries
+  pending$aliases$review_state <- "pending"
+  pending <- phase18_hash_club_registry_rows(pending)
+  testthat::expect_error(phase18_validate_club_registries(pending), class = "unreviewed_club_identity")
+})
+
+testthat::test_that("source ID and reviewed name disagreement is typed", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  beta <- registries$clubs
+  beta$club_id <- "club_beta"
+  beta$canonical_name <- "Beta FC"
+  registries$clubs <- rbind(registries$clubs, beta)
+  beta_alias <- registries$aliases
+  beta_alias$club_id <- "club_beta"
+  beta_alias$alias <- "Beta FC"
+  beta_alias$normalized_alias <- "beta fc"
+  registries$aliases <- rbind(registries$aliases, beta_alias)
+  registries <- phase18_hash_club_registry_rows(registries)
+  testthat::expect_error(
+    phase18_resolve_club_identity(registries, "provider", "101", "Beta FC", "2026-09-19T12:00:00Z"),
+    class = "club_identity_disagreement"
+  )
+})
+
+testthat::test_that("registry hash and resolution are invariant to row order", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  beta <- registries$clubs
+  beta$club_id <- "club_beta"
+  beta$canonical_name <- "Beta FC"
+  beta_source <- registries$source_ids
+  beta_source$club_id <- "club_beta"
+  beta_source$source_club_id <- "202"
+  beta_alias <- registries$aliases
+  beta_alias$club_id <- "club_beta"
+  beta_alias$alias <- "Beta FC"
+  beta_alias$normalized_alias <- "beta fc"
+  registries$clubs <- rbind(registries$clubs, beta)
+  registries$source_ids <- rbind(registries$source_ids, beta_source)
+  registries$aliases <- rbind(registries$aliases, beta_alias)
+  registries <- phase18_hash_club_registry_rows(registries)
+  reversed <- lapply(registries, function(table) table[rev(seq_len(nrow(table))), , drop = FALSE])
+  testthat::expect_identical(phase18_club_registry_hash(registries), phase18_club_registry_hash(reversed))
+  one <- phase18_resolve_club_identity(registries, "provider", "202", "Beta FC", "2026-09-19T12:00:00Z")
+  two <- phase18_resolve_club_identity(reversed, "provider", "202", "Beta FC", "2026-09-19T12:00:00Z")
+  testthat::expect_identical(one, two)
+})
