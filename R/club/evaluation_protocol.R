@@ -1310,3 +1310,623 @@ phase19_validate_fold_prediction_coverage <- function(fold, prediction_fixture_i
   }
   invisible(TRUE)
 }
+
+phase19_protocol_state_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "state", "reason_code",
+    "generation_id", "accepted_generation_id", "corpus_manifest_sha256",
+    "snapshot_sha256", "policy_review_sha256", "protocol_sha256",
+    "calibration_recipe_sha256", "fold_registry_sha256",
+    "fold_review_sha256", "final_cutoff_utc", "code_commit", "state_sha256"
+  )
+}
+
+phase19_fold_review_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "reviewer", "reviewed_at_utc",
+    "decision", "accepted_generation_id", "corpus_manifest_sha256",
+    "snapshot_sha256", "policy_review_sha256", "protocol_sha256",
+    "calibration_recipe_sha256", "fold_registry_sha256", "final_cutoff_utc",
+    "code_commit", "rationale_code", "review_sha256"
+  )
+}
+
+phase19_protocol_pointer_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "authority_mode",
+    "fixture_authority", "generation_id", "protocol_state_sha256",
+    "pointer_sha256"
+  )
+}
+
+phase19_protocol_state_sha256 <- function(state) {
+  schema <- phase19_protocol_state_schema()
+  if (!is.list(state) || !identical(names(state), schema)) {
+    phase19_fold_abort("protocol_state_invalid", "Protocol state schema is not exact")
+  }
+  values <- state[setdiff(schema, "state_sha256")]
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-fold-protocol-state-v1",
+    names = names(values), types = vapply(values, phase18_v2_type_tag, character(1))
+  )
+}
+
+phase19_fold_review_sha256 <- function(review) {
+  schema <- phase19_fold_review_schema()
+  if (!is.list(review) || !identical(names(review), schema)) {
+    phase19_fold_abort("fold_review_invalid", "Fold review schema is not exact")
+  }
+  values <- review[setdiff(schema, "review_sha256")]
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-fold-review-v1",
+    names = names(values), types = vapply(values, phase18_v2_type_tag, character(1))
+  )
+}
+
+phase19_protocol_pointer_sha256 <- function(pointer) {
+  schema <- phase19_protocol_pointer_schema()
+  if (!is.list(pointer) || !identical(names(pointer), schema)) {
+    phase19_fold_abort("protocol_pointer_invalid", "Protocol pointer schema is not exact")
+  }
+  values <- pointer[setdiff(schema, "pointer_sha256")]
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-fold-protocol-pointer-v1",
+    names = names(values), types = vapply(values, phase18_v2_type_tag, character(1))
+  )
+}
+
+phase19_fold_candidate_parents <- function(candidate) {
+  fields <- c(
+    "accepted_generation_id", "corpus_manifest_sha256", "snapshot_sha256",
+    "policy_review_sha256", "protocol_sha256", "calibration_recipe_sha256",
+    "fold_registry_sha256", "final_cutoff_utc", "code_commit"
+  )
+  missing <- setdiff(fields, names(candidate))
+  if (length(missing)) {
+    phase19_fold_abort(
+      "fold_candidate_invalid",
+      paste0("Fold candidate parents are missing: ", paste(missing, collapse = ", "))
+    )
+  }
+  values <- unname(candidate[fields]) |> setNames(fields)
+  values[] <- lapply(values, function(value) as.character(value[[1L]]))
+  values
+}
+
+phase19_validate_fold_review <- function(review, candidate, require_accepted = FALSE) {
+  schema <- phase19_fold_review_schema()
+  if (!is.list(review) || !identical(names(review), schema)) {
+    phase19_fold_abort("fold_review_invalid", "Fold review schema is not exact")
+  }
+  review[] <- lapply(review, function(value) {
+    if (is.logical(value)) isTRUE(value[[1L]]) else as.character(value[[1L]])
+  })
+  if (!identical(review$schema_version, "phase19-club-fold-review-v1") ||
+      !identical(review$hash_encoding_version, phase18_canonical_encoding_v2()) ||
+      !identical(review$forecast_domain, "club") ||
+      !review$authority_mode %in% c("production", "fixture") ||
+      !identical(review$fixture_authority, identical(review$authority_mode, "fixture")) ||
+      !review$decision %in% c("pending", "accepted", "rejected") ||
+      !phase19_is_sha256(review$review_sha256) ||
+      !identical(review$review_sha256, phase19_fold_review_sha256(review))) {
+    phase19_fold_abort("fold_review_invalid", "Fold review metadata or self-hash is invalid")
+  }
+  parents <- phase19_fold_candidate_parents(candidate)
+  if (!identical(
+    unname(unlist(review[names(parents)], use.names = FALSE)),
+    unname(unlist(parents, use.names = FALSE))
+  )) {
+    phase19_fold_abort("fold_inventory_not_approved", "Fold review does not bind the exact candidate parents")
+  }
+  if (identical(review$decision, "pending")) {
+    if (nzchar(review$reviewer) || nzchar(review$reviewed_at_utc) ||
+        !identical(review$rationale_code, "pending_owner_review")) {
+      phase19_fold_abort("fold_review_invalid", "Pending fold review invents owner evidence")
+    }
+  } else {
+    if (!nzchar(review$reviewer) ||
+        !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+               review$reviewed_at_utc) || !nzchar(review$rationale_code)) {
+      phase19_fold_abort("fold_review_invalid", "Decided fold review lacks owner, UTC, or rationale evidence")
+    }
+    phase19_fold_parse_utc(review$reviewed_at_utc, "reviewed_at_utc")
+  }
+  if (isTRUE(require_accepted) && !identical(review$decision, "accepted")) {
+    phase19_fold_abort("fold_inventory_not_approved", "Fold inventory owner review is not accepted")
+  }
+  invisible(review)
+}
+
+phase19_validate_protocol_state <- function(state, candidate = NULL) {
+  schema <- phase19_protocol_state_schema()
+  if (!is.list(state) || !identical(names(state), schema)) {
+    phase19_fold_abort("protocol_state_invalid", "Protocol state schema is not exact")
+  }
+  state[] <- lapply(state, function(value) {
+    if (is.logical(value)) isTRUE(value[[1L]]) else as.character(value[[1L]])
+  })
+  if (!identical(state$schema_version, "phase19-club-fold-protocol-state-v1") ||
+      !identical(state$hash_encoding_version, phase18_canonical_encoding_v2()) ||
+      !identical(state$forecast_domain, "club") ||
+      !state$authority_mode %in% c("production", "fixture") ||
+      !identical(state$fixture_authority, identical(state$authority_mode, "fixture")) ||
+      !state$state %in% c("blocked", "pending_review", "ready") ||
+      !phase19_is_sha256(state$state_sha256) ||
+      !identical(state$state_sha256, phase19_protocol_state_sha256(state))) {
+    phase19_fold_abort("protocol_state_invalid", "Protocol state metadata or self-hash is invalid")
+  }
+  if (identical(state$state, "blocked")) {
+    blank <- c(
+      "generation_id", "accepted_generation_id", "corpus_manifest_sha256",
+      "snapshot_sha256", "fold_registry_sha256", "final_cutoff_utc", "code_commit"
+    )
+    if (!identical(state$reason_code, "no_accepted_club_history") ||
+        any(nzchar(unlist(state[blank], use.names = FALSE)))) {
+      phase19_fold_abort("protocol_state_invalid", "Blocked protocol fabricates accepted fold authority")
+    }
+  } else {
+    hashes <- c(
+      "corpus_manifest_sha256", "snapshot_sha256", "policy_review_sha256",
+      "protocol_sha256", "calibration_recipe_sha256", "fold_registry_sha256",
+      "fold_review_sha256"
+    )
+    if (!nzchar(state$generation_id) || !nzchar(state$accepted_generation_id) ||
+        any(!vapply(state[hashes], phase19_is_sha256, logical(1))) ||
+        !grepl("^[0-9a-f]{40}$", state$code_commit) ||
+        nzchar(state$reason_code) != !identical(state$state, "ready")) {
+      phase19_fold_abort("protocol_state_invalid", "Pending or ready protocol parents are incomplete")
+    }
+    phase19_fold_parse_utc(state$final_cutoff_utc, "final_cutoff_utc")
+  }
+  if (!is.null(candidate)) {
+    parents <- phase19_fold_candidate_parents(candidate)
+    if (!identical(
+      unname(unlist(state[names(parents)], use.names = FALSE)),
+      unname(unlist(parents, use.names = FALSE))
+    )) {
+      phase19_fold_abort("protocol_state_invalid", "Protocol state does not bind the exact candidate parents")
+    }
+  }
+  invisible(state)
+}
+
+phase19_build_fold_review <- function(candidate, decision = "pending", reviewer = "",
+                                      reviewed_at_utc = "",
+                                      rationale_code = "pending_owner_review") {
+  parents <- phase19_fold_candidate_parents(candidate)
+  authority_mode <- as.character(candidate$authority_mode[[1L]])
+  review <- list(
+    schema_version = "phase19-club-fold-review-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", authority_mode = authority_mode,
+    fixture_authority = identical(authority_mode, "fixture"),
+    reviewer = as.character(reviewer), reviewed_at_utc = as.character(reviewed_at_utc),
+    decision = as.character(decision),
+    accepted_generation_id = parents$accepted_generation_id,
+    corpus_manifest_sha256 = parents$corpus_manifest_sha256,
+    snapshot_sha256 = parents$snapshot_sha256,
+    policy_review_sha256 = parents$policy_review_sha256,
+    protocol_sha256 = parents$protocol_sha256,
+    calibration_recipe_sha256 = parents$calibration_recipe_sha256,
+    fold_registry_sha256 = parents$fold_registry_sha256,
+    final_cutoff_utc = parents$final_cutoff_utc,
+    code_commit = parents$code_commit,
+    rationale_code = as.character(rationale_code), review_sha256 = ""
+  )
+  review$review_sha256 <- phase19_fold_review_sha256(review)
+  phase19_validate_fold_review(review, candidate, require_accepted = FALSE)
+  review
+}
+
+phase19_build_protocol_state <- function(candidate, review, state = "pending_review",
+                                         generation_id = "") {
+  parents <- phase19_fold_candidate_parents(candidate)
+  phase19_validate_fold_review(
+    review, candidate, require_accepted = identical(state, "ready")
+  )
+  authority_mode <- as.character(candidate$authority_mode[[1L]])
+  result <- list(
+    schema_version = "phase19-club-fold-protocol-state-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", authority_mode = authority_mode,
+    fixture_authority = identical(authority_mode, "fixture"),
+    state = as.character(state),
+    reason_code = if (identical(state, "pending_review")) {
+      "fold_inventory_not_approved"
+    } else "",
+    generation_id = as.character(generation_id),
+    accepted_generation_id = parents$accepted_generation_id,
+    corpus_manifest_sha256 = parents$corpus_manifest_sha256,
+    snapshot_sha256 = parents$snapshot_sha256,
+    policy_review_sha256 = parents$policy_review_sha256,
+    protocol_sha256 = parents$protocol_sha256,
+    calibration_recipe_sha256 = parents$calibration_recipe_sha256,
+    fold_registry_sha256 = parents$fold_registry_sha256,
+    fold_review_sha256 = as.character(review$review_sha256),
+    final_cutoff_utc = parents$final_cutoff_utc,
+    code_commit = parents$code_commit, state_sha256 = ""
+  )
+  result$state_sha256 <- phase19_protocol_state_sha256(result)
+  phase19_validate_protocol_state(result, candidate)
+  result
+}
+
+phase19_read_json_exact <- function(path, schema, reason_code) {
+  phase19_assert_regular_file(path, reason_code)
+  value <- as.list(jsonlite::fromJSON(path, simplifyVector = TRUE))
+  if (!identical(names(value), schema)) {
+    phase19_fold_abort(reason_code, paste0("JSON schema is not exact: ", basename(path)))
+  }
+  value
+}
+
+phase19_write_json_atomic <- function(value, path) {
+  directory <- dirname(path)
+  if (!dir.exists(directory)) dir.create(directory, recursive = TRUE, showWarnings = FALSE)
+  stage <- tempfile(paste0(".", basename(path), "-"), tmpdir = directory)
+  on.exit(if (file.exists(stage)) unlink(stage, force = TRUE), add = TRUE)
+  jsonlite::write_json(value, stage, auto_unbox = TRUE, pretty = TRUE, null = "null")
+  if (!file.rename(stage, path)) {
+    phase19_fold_abort("protocol_write_failed", paste0("Could not atomically install ", path))
+  }
+  invisible(path)
+}
+
+phase19_read_fold_registry <- function(path, allow_empty = FALSE) {
+  phase19_assert_regular_file(path, "fold_registry_invalid")
+  schema <- phase19_fold_registry_schema()
+  classes <- rep("character", length(schema))
+  classes[match("fixture_authority", schema)] <- "logical"
+  classes[match(c(
+    "declared_fixture_count", "training_fixture_count", "calibration_fixture_count"
+  ), schema)] <- "integer"
+  registry <- utils::read.csv(
+    path, stringsAsFactors = FALSE, check.names = FALSE,
+    na.strings = character(), colClasses = classes
+  )
+  if (!identical(names(registry), schema) || (!isTRUE(allow_empty) && !nrow(registry))) {
+    phase19_fold_abort("fold_registry_invalid", "Persisted fold registry schema or inventory is invalid")
+  }
+  registry
+}
+
+phase19_write_fold_registry <- function(registry, path) {
+  if (!is.data.frame(registry) || !identical(names(registry), phase19_fold_registry_schema())) {
+    phase19_fold_abort("fold_registry_invalid", "Cannot write a non-canonical fold registry")
+  }
+  directory <- dirname(path)
+  if (!dir.exists(directory)) dir.create(directory, recursive = TRUE, showWarnings = FALSE)
+  stage <- tempfile(".fold-registry-", tmpdir = directory)
+  on.exit(if (file.exists(stage)) unlink(stage, force = TRUE), add = TRUE)
+  utils::write.csv(registry, stage, row.names = FALSE, na = "", quote = TRUE)
+  if (!file.rename(stage, path)) {
+    phase19_fold_abort("protocol_write_failed", "Could not atomically install fold registry")
+  }
+  invisible(path)
+}
+
+phase19_protocol_generation_files <- function() {
+  c("fold_registry.csv", "protocol_state.json", "calibration_recipe.json", "fold_review.json")
+}
+
+phase19_protocol_candidate <- function(snapshot, protocol, authority_mode, code_commit) {
+  if (!grepl("^[0-9a-f]{40}$", as.character(code_commit))) {
+    phase19_fold_abort("fold_candidate_invalid", "Code commit must be one lowercase full SHA-1")
+  }
+  folds <- phase19_fold_raw_registry(snapshot, protocol, authority_mode)
+  phase19_validate_fold_registry(folds, snapshot, protocol, authority_mode)
+  fold_hash <- phase19_fold_registry_sha256(folds, snapshot, protocol, authority_mode)
+  recipe <- phase19_expected_calibration_recipe()
+  parents <- phase19_fold_policy_parents(protocol)
+  candidate <- structure(list(
+    status = "pending_review", reason_code = "fold_inventory_not_approved",
+    authority_mode = authority_mode,
+    fixture_authority = identical(authority_mode, "fixture"),
+    production_eligible = FALSE, forecast_domain = "club",
+    accepted_generation_id = as.character(snapshot$accepted_generation_id),
+    corpus_manifest_sha256 = as.character(snapshot$corpus_manifest_sha256),
+    snapshot_sha256 = as.character(snapshot$snapshot_sha256),
+    policy_review_sha256 = parents$policy_review_sha256,
+    protocol_sha256 = parents$protocol_sha256,
+    calibration_recipe_sha256 = as.character(recipe$recipe_sha256),
+    fold_registry_sha256 = fold_hash,
+    final_cutoff_utc = as.character(snapshot$cutoff_utc),
+    code_commit = as.character(code_commit), fold_registry = folds,
+    calibration_recipe = recipe, snapshot = snapshot, protocol = protocol
+  ), class = c("phase19_club_fold_protocol", "list"))
+  candidate
+}
+
+phase19_protocol_generation_id <- function(candidate, review) {
+  digest <- phase18_hash_sequence_v2(
+    list(
+      fold_registry_sha256 = as.character(candidate$fold_registry_sha256),
+      fold_review_sha256 = as.character(review$review_sha256),
+      state = as.character(review$decision)
+    ),
+    domain = "phase19-club-fold-generation-id-v1",
+    names = c("fold_registry_sha256", "fold_review_sha256", "state"),
+    types = rep("character", 3L)
+  )
+  paste0("club-folds-", substr(digest, 1L, 24L))
+}
+
+phase19_protocol_pointer <- function(authority_mode, generation_id, state_sha256) {
+  pointer <- list(
+    schema_version = "phase19-club-fold-protocol-pointer-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    authority_mode = authority_mode,
+    fixture_authority = identical(authority_mode, "fixture"),
+    generation_id = generation_id,
+    protocol_state_sha256 = state_sha256,
+    pointer_sha256 = ""
+  )
+  pointer$pointer_sha256 <- phase19_protocol_pointer_sha256(pointer)
+  pointer
+}
+
+phase19_validate_protocol_pointer <- function(pointer, authority_mode) {
+  if (!is.list(pointer) || !identical(names(pointer), phase19_protocol_pointer_schema()) ||
+      !identical(as.character(pointer$schema_version), "phase19-club-fold-protocol-pointer-v1") ||
+      !identical(as.character(pointer$hash_encoding_version), phase18_canonical_encoding_v2()) ||
+      !identical(as.character(pointer$authority_mode), authority_mode) ||
+      !identical(isTRUE(pointer$fixture_authority), identical(authority_mode, "fixture")) ||
+      !grepl("^club-folds-[0-9a-f]{24}$", as.character(pointer$generation_id)) ||
+      !phase19_is_sha256(pointer$protocol_state_sha256) ||
+      !phase19_is_sha256(pointer$pointer_sha256) ||
+      !identical(as.character(pointer$pointer_sha256), phase19_protocol_pointer_sha256(pointer))) {
+    phase19_fold_abort("protocol_pointer_invalid", "Protocol pointer metadata or self-hash is invalid")
+  }
+  invisible(pointer)
+}
+
+phase19_protocol_write_generation <- function(runtime_root, candidate, review, state_name) {
+  phase19_validate_fold_review(
+    review, candidate, require_accepted = identical(state_name, "ready")
+  )
+  generation_id <- phase19_protocol_generation_id(candidate, review)
+  state <- phase19_build_protocol_state(candidate, review, state_name, generation_id)
+  generations <- file.path(runtime_root, "generations")
+  if (!dir.exists(generations)) dir.create(generations, recursive = TRUE, showWarnings = FALSE)
+  stage <- tempfile(".club-fold-generation-", tmpdir = generations)
+  dir.create(stage)
+  on.exit(if (dir.exists(stage)) unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
+  phase19_write_fold_registry(candidate$fold_registry, file.path(stage, "fold_registry.csv"))
+  phase19_write_json_atomic(state, file.path(stage, "protocol_state.json"))
+  phase19_write_json_atomic(candidate$calibration_recipe, file.path(stage, "calibration_recipe.json"))
+  phase19_write_json_atomic(review, file.path(stage, "fold_review.json"))
+  if (!identical(sort(list.files(stage), method = "radix"),
+                 sort(phase19_protocol_generation_files(), method = "radix"))) {
+    phase19_fold_abort("protocol_write_failed", "Staged protocol inventory is incomplete")
+  }
+  final <- file.path(generations, generation_id)
+  if (file.exists(final) || dir.exists(final)) {
+    phase19_fold_abort("protocol_write_failed", "Immutable fold generation already exists")
+  }
+  if (!file.rename(stage, final)) {
+    phase19_fold_abort("protocol_write_failed", "Could not install immutable fold generation")
+  }
+  pointer <- phase19_protocol_pointer(
+    candidate$authority_mode, generation_id, state$state_sha256
+  )
+  phase19_write_json_atomic(pointer, file.path(runtime_root, "protocol_current.json"))
+  list(state = state, review = review, generation_id = generation_id, pointer = pointer)
+}
+
+phase19_protocol_read_generation <- function(runtime_root, snapshot, protocol,
+                                             authority_mode) {
+  pointer_path <- file.path(runtime_root, "protocol_current.json")
+  pointer <- phase19_read_json_exact(
+    pointer_path, phase19_protocol_pointer_schema(), "protocol_pointer_invalid"
+  )
+  phase19_validate_protocol_pointer(pointer, authority_mode)
+  generation <- file.path(runtime_root, "generations", as.character(pointer$generation_id))
+  if (!dir.exists(generation) || nzchar(Sys.readlink(generation)) ||
+      !identical(sort(list.files(generation), method = "radix"),
+                 sort(phase19_protocol_generation_files(), method = "radix"))) {
+    phase19_fold_abort("protocol_generation_invalid", "Selected protocol generation is unsafe or incomplete")
+  }
+  folds <- phase19_read_fold_registry(file.path(generation, "fold_registry.csv"))
+  phase19_validate_fold_registry(folds, snapshot, protocol, authority_mode)
+  recipe <- phase19_read_json_exact(
+    file.path(generation, "calibration_recipe.json"),
+    phase19_calibration_recipe_schema(), "calibration_recipe_invalid"
+  )
+  phase19_validate_calibration_recipe(recipe)
+  state <- phase19_read_json_exact(
+    file.path(generation, "protocol_state.json"),
+    phase19_protocol_state_schema(), "protocol_state_invalid"
+  )
+  review <- phase19_read_json_exact(
+    file.path(generation, "fold_review.json"),
+    phase19_fold_review_schema(), "fold_review_invalid"
+  )
+  candidate <- phase19_protocol_candidate(
+    snapshot, protocol, authority_mode, as.character(state$code_commit)
+  )
+  phase19_validate_fold_review(
+    review, candidate, require_accepted = identical(as.character(state$state), "ready")
+  )
+  phase19_validate_protocol_state(state, candidate)
+  if (!identical(as.character(state$generation_id), as.character(pointer$generation_id)) ||
+      !identical(as.character(state$state_sha256), as.character(pointer$protocol_state_sha256)) ||
+      !identical(as.character(state$fold_review_sha256), as.character(review$review_sha256))) {
+    phase19_fold_abort("protocol_generation_invalid", "Pointer, state, or review identity drifted")
+  }
+  status <- if (identical(as.character(state$state), "ready")) "ready" else "blocked"
+  reason <- if (identical(status, "ready")) "" else "fold_inventory_not_approved"
+  result <- candidate
+  result$status <- status
+  result$reason_code <- reason
+  result$production_eligible <- identical(status, "ready") &&
+    identical(authority_mode, "production")
+  result$fold_registry <- folds
+  result$calibration_recipe <- recipe
+  result$protocol_state <- state
+  result$fold_review <- review
+  result$generation_id <- as.character(state$generation_id)
+  class(result) <- c("phase19_club_fold_protocol", "list")
+  result
+}
+
+phase19_publish_fixture_fold_candidate <- function(fixture_root, snapshot, protocol,
+                                                   code_commit) {
+  fixture <- phase19_validate_fixture_root(fixture_root)
+  if (!identical(snapshot$fixture_root_sha256, as.character(fixture$marker$fixture_root_sha256))) {
+    phase19_fold_abort("fold_authority_invalid", "Fixture snapshot belongs to another root")
+  }
+  candidate <- phase19_protocol_candidate(snapshot, protocol, "fixture", code_commit)
+  review <- phase19_build_fold_review(candidate)
+  runtime_root <- file.path(fixture$root, "model_protocol")
+  phase19_protocol_write_generation(runtime_root, candidate, review, "pending_review")
+  candidate
+}
+
+phase19_load_fixture_fold_protocol <- function(fixture_root) {
+  fixture <- phase19_validate_fixture_root(fixture_root)
+  snapshot <- phase19_load_fixture_club_training_snapshot(fixture$root)
+  protocol <- phase19_load_fixture_club_evaluation_protocol()
+  phase19_protocol_read_generation(
+    file.path(fixture$root, "model_protocol"), snapshot, protocol, "fixture"
+  )
+}
+
+phase19_apply_fixture_fold_review <- function(fixture_root, review) {
+  fixture <- phase19_validate_fixture_root(fixture_root)
+  current <- phase19_load_fixture_fold_protocol(fixture$root)
+  phase19_validate_fold_review(review, current, require_accepted = TRUE)
+  runtime_root <- file.path(fixture$root, "model_protocol")
+  phase19_protocol_write_generation(runtime_root, current, review, "ready")
+  invisible(phase19_load_fixture_fold_protocol(fixture$root))
+}
+
+phase19_blocked_fold_candidate <- function(protocol, recipe) {
+  list(
+    accepted_generation_id = "", corpus_manifest_sha256 = "", snapshot_sha256 = "",
+    policy_review_sha256 = as.character(protocol$policy_review$review_sha256),
+    protocol_sha256 = as.character(protocol$protocol_sha256),
+    calibration_recipe_sha256 = as.character(recipe$recipe_sha256),
+    fold_registry_sha256 = "", final_cutoff_utc = "", code_commit = ""
+  )
+}
+
+phase19_load_blocked_fold_protocol <- function() {
+  root <- file.path(.phase19_club_project_root, "data", "club", "model_protocol")
+  protocol <- phase19_protocol_components(include_review = TRUE)
+  phase19_validate_policy_review(protocol$policy_review, protocol, require_accepted = FALSE)
+  folds <- phase19_read_fold_registry(file.path(root, "fold_registry.csv"), allow_empty = TRUE)
+  if (nrow(folds)) {
+    phase19_fold_abort("protocol_state_invalid", "Bootstrap blocked fold registry must be header-only")
+  }
+  recipe <- phase19_read_json_exact(
+    file.path(root, "calibration_recipe.json"),
+    phase19_calibration_recipe_schema(), "calibration_recipe_invalid"
+  )
+  phase19_validate_calibration_recipe(recipe)
+  candidate <- phase19_blocked_fold_candidate(protocol, recipe)
+  review <- phase19_read_json_exact(
+    file.path(root, "fold_review.json"), phase19_fold_review_schema(),
+    "fold_review_invalid"
+  )
+  state <- phase19_read_json_exact(
+    file.path(root, "protocol_state.json"), phase19_protocol_state_schema(),
+    "protocol_state_invalid"
+  )
+  phase19_validate_fold_review(review, candidate, require_accepted = FALSE)
+  phase19_validate_protocol_state(state)
+  if (!identical(as.character(state$policy_review_sha256), candidate$policy_review_sha256) ||
+      !identical(as.character(state$protocol_sha256), candidate$protocol_sha256) ||
+      !identical(as.character(state$calibration_recipe_sha256), candidate$calibration_recipe_sha256) ||
+      !identical(as.character(state$fold_review_sha256), as.character(review$review_sha256))) {
+    phase19_fold_abort("protocol_state_invalid", "Blocked state parents drifted")
+  }
+  structure(list(
+    status = "blocked", reason_code = "no_accepted_club_history",
+    authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = FALSE, forecast_domain = "club",
+    fold_registry = folds, fold_registry_sha256 = "",
+    calibration_recipe = recipe, protocol_state = state,
+    fold_review = review, protocol = protocol
+  ), class = c("phase19_club_fold_protocol", "list"))
+}
+
+phase19_club_fold_runtime_root <- function() {
+  file.path(.phase19_club_project_root, "data", "club", "fold_protocol_runtime")
+}
+
+phase19_load_club_fold_protocol <- function(...) {
+  phase19_reject_arbitrary_arguments(list(...))
+  runtime_root <- phase19_club_fold_runtime_root()
+  pointer <- file.path(runtime_root, "protocol_current.json")
+  if (!file.exists(pointer)) return(phase19_load_blocked_fold_protocol())
+  snapshot <- phase19_load_club_training_snapshot()
+  if (!identical(snapshot$status, "ready")) {
+    phase19_fold_abort("protocol_state_invalid", "Runtime fold authority exists without accepted history")
+  }
+  protocol <- phase19_load_club_evaluation_protocol()
+  if (!identical(protocol$status, "ready")) {
+    phase19_fold_abort("protocol_policy_not_approved", "Runtime fold authority exists without accepted policy")
+  }
+  phase19_protocol_read_generation(runtime_root, snapshot, protocol, "production")
+}
+
+phase19_refresh_club_fold_protocol <- function(...) {
+  phase19_reject_arbitrary_arguments(list(...))
+  snapshot <- phase19_load_club_training_snapshot()
+  if (!identical(snapshot$status, "ready")) return(phase19_load_blocked_fold_protocol())
+  protocol <- phase19_load_club_evaluation_protocol()
+  if (!identical(protocol$status, "ready")) {
+    return(structure(list(
+      status = "blocked", reason_code = "protocol_policy_not_approved",
+      authority_mode = "production", fixture_authority = FALSE,
+      production_eligible = FALSE, forecast_domain = "club"
+    ), class = c("phase19_club_fold_protocol", "list")))
+  }
+  commit <- tryCatch(
+    system2("git", c("rev-parse", "HEAD"), stdout = TRUE, stderr = FALSE),
+    error = function(error) character()
+  )
+  if (length(commit) != 1L || !grepl("^[0-9a-f]{40}$", commit)) {
+    phase19_fold_abort("fold_candidate_invalid", "Could not bind the current code commit")
+  }
+  candidate <- phase19_protocol_candidate(snapshot, protocol, "production", commit)
+  review <- phase19_build_fold_review(candidate)
+  phase19_protocol_write_generation(
+    phase19_club_fold_runtime_root(), candidate, review, "pending_review"
+  )
+  phase19_load_club_fold_protocol()
+}
+
+phase19_apply_club_fold_review <- function(review, ...) {
+  phase19_reject_arbitrary_arguments(list(...))
+  current <- phase19_load_club_fold_protocol()
+  if (!identical(current$authority_mode, "production") ||
+      isTRUE(current$fixture_authority) ||
+      !identical(current$status, "blocked") ||
+      !identical(current$reason_code, "fold_inventory_not_approved")) {
+    phase19_fold_abort(
+      "fold_inventory_not_approved",
+      "Production fold review requires one exact pending production inventory"
+    )
+  }
+  phase19_validate_fold_review(review, current, require_accepted = TRUE)
+  phase19_protocol_write_generation(
+    phase19_club_fold_runtime_root(), current, review, "ready"
+  )
+  invisible(phase19_load_club_fold_protocol())
+}
+
+phase19_assert_production_fold_protocol <- function(protocol) {
+  if (!inherits(protocol, "phase19_club_fold_protocol") ||
+      !identical(protocol$status, "ready") ||
+      !identical(protocol$authority_mode, "production") ||
+      isTRUE(protocol$fixture_authority) || !isTRUE(protocol$production_eligible)) {
+    phase19_fold_abort(
+      "fold_authority_invalid",
+      "Only an exact owner-reviewed production fold protocol is consumable"
+    )
+  }
+  invisible(protocol)
+}

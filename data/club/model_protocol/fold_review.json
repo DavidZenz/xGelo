@@ -1,0 +1,21 @@
+{
+  "schema_version": "phase19-club-fold-review-v1",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "forecast_domain": "club",
+  "authority_mode": "production",
+  "fixture_authority": false,
+  "reviewer": "",
+  "reviewed_at_utc": "",
+  "decision": "pending",
+  "accepted_generation_id": "",
+  "corpus_manifest_sha256": "",
+  "snapshot_sha256": "",
+  "policy_review_sha256": "234e11ce8f05d01e614b70957884290e378f240638bbb7a9da0aed01181c3b99",
+  "protocol_sha256": "34e084ab9e88de48ac26d57477a8d9ad03ca36972eac9245a13ddf8da719f9a2",
+  "calibration_recipe_sha256": "40f36e7fe70ff326c067ac88f3d79d54bf9e68b499d7d3640f40765b98ffb583",
+  "fold_registry_sha256": "",
+  "final_cutoff_utc": "",
+  "code_commit": "",
+  "rationale_code": "pending_owner_review",
+  "review_sha256": "a8ffa508705c904f706d0aca33b045d6df09fd0a7961531c781d489818a699bf"
+}

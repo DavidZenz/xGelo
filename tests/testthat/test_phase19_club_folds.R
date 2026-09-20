@@ -291,6 +291,10 @@ test_that("review parent drift partial publication and fixture escalation fail",
     phase19_assert_production_fold_protocol(candidate),
     class = "phase19_fold_contract_error"
   )
+  expect_error(
+    phase19_apply_club_fold_review(review),
+    class = "phase19_fold_contract_error"
+  )
 })
 
 test_that("production refresh remains fail closed without history and policy approval", {

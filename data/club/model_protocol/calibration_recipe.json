@@ -1,0 +1,20 @@
+{
+  "schema_version": "phase19-club-calibration-recipe-v1",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "forecast_domain": "club",
+  "calibration_family": "temperature_1x2",
+  "probability_view": "derived_1x2",
+  "initial_temperature": "1",
+  "temperature_lower": "0.25",
+  "temperature_upper": "4",
+  "epsilon": "1e-15",
+  "optimizer": "stats::optim-L-BFGS-B",
+  "optimizer_seed_id": "club_probability_calibration_v1",
+  "evidence_role": "strictly_prior_inner_out_of_fold",
+  "minimum_history_rows": "60",
+  "minimum_class_count": "10",
+  "failure_behavior": "explicit_failure_not_promotion_evidence",
+  "raw_fallback_promotable": false,
+  "distribution_unchanged": true,
+  "recipe_sha256": "40f36e7fe70ff326c067ac88f3d79d54bf9e68b499d7d3640f40765b98ffb583"
+}
