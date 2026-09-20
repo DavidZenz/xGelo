@@ -85,6 +85,7 @@ test_that("Phase 18 source-acceptance API seam exists", {
     "phase18_validate_acceptance_manifest",
     "phase18_accept_ucl_provider_main"
   ))
+  expect_true(TRUE)
 })
 
 test_that("missing credential preflight is a durable fail-closed decision", {
