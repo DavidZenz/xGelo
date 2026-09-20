@@ -228,6 +228,12 @@ phase18_hash_table_v2 <- function(data, key, exclude = character(), schema_tag) 
   if (nrow(data) && any(vapply(data[key], anyNA, logical(1)))) {
     stop("Phase 18 canonical table keys must not be missing", call. = FALSE)
   }
+  blank_key <- nrow(data) && any(vapply(data[key], function(column) {
+    (is.character(column) || is.factor(column)) && any(!nzchar(trimws(as.character(column))))
+  }, logical(1)))
+  if (blank_key) {
+    stop("Phase 18 canonical table keys must not be blank", call. = FALSE)
+  }
 
   row_bytes <- lapply(seq_len(nrow(data)), function(index) {
     phase18_v2_row_bytes(data, index, exclude, schema_tag)
