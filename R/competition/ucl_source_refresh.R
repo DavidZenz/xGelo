@@ -465,19 +465,57 @@ phase18_hash_ucl_provider_exit_review <- function(review) {
   review
 }
 
+phase18_ucl_refresh_validate_utc <- function(value, field) {
+  value <- as.character(value)
+  if (length(value) != 1L || is.na(value) ||
+      !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", value)) {
+    phase18_ucl_refresh_abort("owner_review_required", paste0(field, " must be a strict UTC timestamp"), "compliance")
+  }
+  parsed <- as.POSIXct(value, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  if (is.na(parsed) || !identical(format(parsed, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), value)) {
+    phase18_ucl_refresh_abort("owner_review_required", paste0(field, " is not a real UTC timestamp"), "compliance")
+  }
+  value
+}
+
 phase18_validate_ucl_provider_exit_review <- function(review) {
   required <- c("schema_version", "hash_encoding_version", "exit_review_id", "provider_id", "edition_id", "decision",
     "exit_disposition", "retention_permitted", "display_permitted", "terms_sha256", "provider_decision_id",
     "provider_decision_sha256", "incumbent_bundle_id", "incumbent_bundle_sha256", "reviewed_inventory_paths",
     "reviewed_inventory_sha256s", "reviewer", "reviewed_at_utc", "reason", "retained_relative_paths",
     "retained_inventory_sha256s", "exit_review_sha256", "row_sha256")
-  if (!is.data.frame(review) || nrow(review) != 1L || length(setdiff(required, names(review))) ||
+  if (!is.data.frame(review) || nrow(review) != 1L || !identical(names(review), required) ||
       !identical(as.character(review$schema_version[[1L]]), "phase18-ucl-provider-exit-review-v2") ||
       !identical(as.character(review$hash_encoding_version[[1L]]), phase18_canonical_encoding_v2()) ||
       !identical(as.character(review$decision[[1L]]), "reviewed") || !as.character(review$exit_disposition[[1L]]) %in% c("retain", "withdraw") ||
       !identical(as.character(review$exit_review_sha256[[1L]]), phase18_ucl_exit_review_hash(review)) ||
       !identical(as.character(review$row_sha256[[1L]]), phase18_hash_row_v2(review, exclude = "row_sha256", schema_tag = "phase18-ucl-provider-exit-review-row-v2")[[1L]]))
     phase18_ucl_refresh_abort("owner_review_required", "Provider exit review is incomplete or stale", "compliance")
+  required_text <- c(
+    "exit_review_id", "provider_id", "edition_id", "decision", "exit_disposition",
+    "terms_sha256", "provider_decision_id", "provider_decision_sha256",
+    "incumbent_bundle_id", "incumbent_bundle_sha256", "reviewer",
+    "reviewed_at_utc", "reason"
+  )
+  if (any(vapply(review[required_text], function(column) {
+    any(is.na(column) | !nzchar(trimws(as.character(column))))
+  }, logical(1)))) {
+    phase18_ucl_refresh_abort("owner_review_required", "Provider exit review contains blank authority evidence", "compliance")
+  }
+  placeholders <- c("fixture-reviewer", "pending_owner_review", "unknown", "todo", "tbd", "none", "n/a")
+  if (tolower(trimws(as.character(review$reviewer[[1L]]))) %in% placeholders ||
+      tolower(trimws(as.character(review$reason[[1L]]))) %in% placeholders) {
+    phase18_ucl_refresh_abort("owner_review_required", "Provider exit review uses placeholder authority evidence", "compliance")
+  }
+  if (!grepl("^[0-9a-f]{64}$", tolower(as.character(review$terms_sha256[[1L]])))) {
+    phase18_ucl_refresh_abort("owner_review_required", "Provider exit terms hash is invalid", "compliance")
+  }
+  phase18_ucl_refresh_validate_utc(review$reviewed_at_utc[[1L]], "reviewed_at_utc")
+  if (!is.logical(review$retention_permitted) || length(review$retention_permitted) != 1L ||
+      is.na(review$retention_permitted[[1L]]) || !is.logical(review$display_permitted) ||
+      length(review$display_permitted) != 1L || is.na(review$display_permitted[[1L]])) {
+    phase18_ucl_refresh_abort("owner_review_required", "Provider exit dispositions must be strict booleans", "compliance")
+  }
   invisible(review)
 }
 
@@ -538,6 +576,11 @@ phase18_apply_provider_exit <- function(exit_review, accepted_root = "data/compe
   candidate <- current$accepted; phase18_validate_ucl_source_bundle(candidate); authority <- candidate$authority; bundle <- candidate$bundle
   if (!identical(as.character(authority$authority_type[[1L]]), "provider_acceptance"))
     phase18_ucl_refresh_abort("provider_exit_required", "Provider exit cannot affect non-provider authority", "compliance")
+  incumbent_terms <- unique(tolower(as.character(candidate$authority_evidence$owner_review$terms_sha256)))
+  if (length(incumbent_terms) != 1L ||
+      !identical(tolower(as.character(exit_review$terms_sha256[[1L]])), incumbent_terms[[1L]])) {
+    phase18_ucl_refresh_abort("owner_review_required", "Provider exit terms evidence differs from the incumbent decision", "compliance")
+  }
   exact <- c(as.character(exit_review$provider_id[[1L]]) == "football_data_org_v4",
     as.character(exit_review$edition_id[[1L]]) == as.character(bundle$edition_id[[1L]]),
     as.character(exit_review$provider_decision_id[[1L]]) == as.character(authority$provider_decision_id[[1L]]),

@@ -313,7 +313,8 @@ phase18_refresh_test_exit_review <- function(current, disposition, retained = se
     hash_encoding_version = phase18_canonical_encoding_v2(), exit_review_id = paste0("exit-review-", disposition, "-001"),
     provider_id = "football_data_org_v4", edition_id = bundle$edition_id[[1L]], decision = "reviewed",
     exit_disposition = disposition, retention_permitted = identical(disposition, "retain"),
-    display_permitted = identical(disposition, "retain"), terms_sha256 = phase18_hash_scalar_v2("terms", "terms", "character"),
+    display_permitted = identical(disposition, "retain"),
+    terms_sha256 = unique(as.character(current$accepted$authority_evidence$owner_review$terms_sha256))[[1L]],
     provider_decision_id = authority$provider_decision_id[[1L]], provider_decision_sha256 = authority$provider_decision_sha256[[1L]],
     incumbent_bundle_id = bundle$bundle_id[[1L]], incumbent_bundle_sha256 = bundle$bundle_sha256[[1L]],
     reviewed_inventory_paths = paste(inventory$paths, collapse = "|"), reviewed_inventory_sha256s = paste(inventory$hashes, collapse = "|"),
@@ -322,6 +323,41 @@ phase18_refresh_test_exit_review <- function(current, disposition, retained = se
     exit_review_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE)
   phase18_hash_ucl_provider_exit_review(row)
 }
+
+test_that("provider exit rejects malformed compliance authority before mutation", {
+  phase18_refresh_test_load(); x <- phase18_refresh_test_sandbox(); on.exit(unlink(x$root, recursive = TRUE), add = TRUE)
+  evidence_root <- file.path(x$acceptance_root, "football_data_org_v4", "ucl_2026_27")
+  evidence <- phase18_refresh_test_provider_evidence(evidence_root)
+  unlink(x$candidate_root, recursive = TRUE)
+  phase18_write_ucl_candidate(
+    x$candidate_root,
+    phase18_refresh_test_candidate("ucl-provider-malformed-exit-v2", authority = "provider", provider_evidence = evidence)
+  )
+  phase18_refresh_ucl_source(
+    x$candidate_root, x$accepted_root, x$registry_root, x$acceptance_root,
+    now_utc = "2026-09-20T18:19:00Z"
+  )
+  current <- phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)
+  valid <- phase18_refresh_test_exit_review(current, "withdraw")
+  pointer_path <- file.path(x$registry_root, "ucl_source_current.json")
+  before <- readBin(pointer_path, "raw", n = file.info(pointer_path)$size)
+  variants <- list(
+    blank_reviewer = function(x) { x$reviewer <- " "; x },
+    blank_reason = function(x) { x$reason <- ""; x },
+    bad_terms = function(x) { x$terms_sha256 <- ""; x },
+    bad_time = function(x) { x$reviewed_at_utc <- "not-a-time"; x },
+    bad_boolean = function(x) { x$retention_permitted <- "garbage"; x },
+    surplus_column = function(x) { x$unexpected <- "surplus"; x }
+  )
+  for (mutate in variants) {
+    malformed <- phase18_hash_ucl_provider_exit_review(mutate(valid))
+    expect_error(
+      phase18_apply_provider_exit(malformed, x$accepted_root, x$registry_root),
+      class = "phase18_refresh_owner_review_required"
+    )
+    expect_identical(readBin(pointer_path, "raw", n = file.info(pointer_path)$size), before)
+  }
+})
 
 test_that("provider exit is bound to exact provider incumbent and inventory", {
   phase18_refresh_test_load(); x <- phase18_refresh_test_sandbox(); on.exit(unlink(x$root, recursive = TRUE), add = TRUE)
