@@ -392,6 +392,9 @@ phase19_evaluation_test_integrity <- function() {
 }
 
 phase19_evaluation_test_promotion <- function(evaluations = phase19_evaluation_test_evaluations()) {
+  if (!exists("phase19_load_fixture_club_evaluation_protocol", mode = "function")) {
+    phase19_evaluation_test_load()
+  }
   protocol <- phase19_load_fixture_club_evaluation_protocol()
   aggregate <- phase19_aggregate_club_evaluations(evaluations, protocol)
   replay <- phase19_club_reproducibility_evidence(
@@ -447,6 +450,8 @@ test_that("frozen threshold boundaries and breadth gates are exact", {
   metrics$equal_fold_brier_relative_regression <- 0.01
   metrics$equal_fold_log_loss_relative_regression <- 0.01
   metrics$fixed_bin_calibration_delta <- 0.01
+  metrics$byte_reproducibility <- 1
+  for (name in phase19_club_integrity_names()) metrics[[name]] <- 1
   passing <- phase19_apply_club_promotion_gates(
     metrics, result$protocol, "fixture"
   )
@@ -472,10 +477,32 @@ test_that("frozen threshold boundaries and breadth gates are exact", {
 
 test_that("ties failures and every production prerequisite retain or block", {
   result <- phase19_evaluation_test_promotion()
-  tied <- result$aggregate
-  tied$metrics$equal_fold_rps_delta <- 0
-  tied$metrics_sha256 <- phase19_club_evaluation_metrics_sha256(tied$metrics)
-  tied$evaluation_set_sha256 <- phase19_club_evaluation_set_sha256(tied)
+  tied_folds <- lapply(result$evaluations, function(fold) {
+    incumbent <- fold$fixture_scores[
+      fold$fixture_scores$model_id == "club_venue_nb" &
+        fold$fixture_scores$metric == "rps", c("fixture_id", "value"), drop = FALSE
+    ]
+    candidate_index <- which(
+      fold$fixture_scores$model_id == "club_elo_nb" &
+        fold$fixture_scores$metric == "rps"
+    )
+    fold$fixture_scores$value[candidate_index] <- incumbent$value[
+      match(fold$fixture_scores$fixture_id[candidate_index], incumbent$fixture_id)
+    ]
+    fold$fold_summary$candidate_rps <- fold$fold_summary$incumbent_rps
+    fold$fold_summary$rps_delta <- 0
+    fold$fixture_scores_sha256 <- phase18_hash_table_v2(
+      fold$fixture_scores, key = c("model_id", "fixture_id", "metric"),
+      schema_tag = "phase19-club-evaluation-fixture-scores-v1"
+    )
+    fold$fold_summary_sha256 <- phase18_hash_table_v2(
+      fold$fold_summary, key = "fold_id",
+      schema_tag = "phase19-club-evaluation-fold-summary-v1"
+    )
+    fold$evaluation_sha256 <- phase19_club_fold_evaluation_sha256(fold)
+    fold
+  })
+  tied <- phase19_aggregate_club_evaluations(tied_folds, result$protocol)
   tied_replay <- phase19_club_reproducibility_evidence(tied, tied, result$protocol)
   tied_authority <- phase19_fixture_evaluation_authority(tied, result$protocol)
   decision <- phase19_evaluate_club_promotion(
@@ -507,13 +534,9 @@ test_that("ties failures and every production prerequisite retain or block", {
 test_that("replay drift and decision relabeling cannot become promotion authority", {
   result <- phase19_evaluation_test_promotion()
   drift <- result$evaluations
-  drift[[1L]]$fold_summary$rps_delta <-
-    drift[[1L]]$fold_summary$rps_delta + 0.001
-  drift[[1L]]$fold_summary_sha256 <- phase18_hash_table_v2(
-    drift[[1L]]$fold_summary, key = "fold_id",
-    schema_tag = "phase19-club-evaluation-fold-summary-v1"
+  drift[[1L]] <- phase19_evaluation_test_clone_fold(
+    drift[[1L]], drift[[1L]]$fold_family, 99L
   )
-  drift[[1L]]$evaluation_sha256 <- phase19_club_fold_evaluation_sha256(drift[[1L]])
   replay <- phase19_club_reproducibility_evidence(
     result$evaluations, drift, result$protocol
   )
@@ -533,6 +556,27 @@ test_that("replay drift and decision relabeling cannot become promotion authorit
     phase19_validate_club_promotion_decision(
       forged, result$aggregate, result$protocol, result$replay,
       phase19_evaluation_test_integrity(), result$authority
+    ), class = "phase19_club_evaluation_error"
+  )
+
+  forged_authority <- result$authority
+  forged_authority$authority_mode <- "production"
+  forged_authority$fixture_authority <- FALSE
+  forged_authority$status <- "ready"
+  forged_authority$reason_code <- ""
+  forged_authority$production_eligible <- TRUE
+  forged_authority$history_snapshot_sha256 <- strrep("a", 64L)
+  forged_authority$current_snapshot_sha256 <- strrep("b", 64L)
+  forged_authority$fold_registry_sha256 <- strrep("c", 64L)
+  forged_authority$fold_review_sha256 <- strrep("d", 64L)
+  forged_authority$current_ucl_club_coverage <- 1
+  forged_authority$common_component_coverage <- 1
+  forged_authority$authority_sha256 <- phase19_club_authority_sha256(forged_authority)
+  class(forged_authority) <- class(result$authority)
+  expect_error(
+    phase19_evaluate_club_promotion(
+      result$aggregate, result$protocol, result$replay,
+      phase19_evaluation_test_integrity(), forged_authority
     ), class = "phase19_club_evaluation_error"
   )
 })
