@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-02-PLAN.md
-last_updated: "2026-09-20T18:08:32.983Z"
+stopped_at: Completed 19-03-PLAN.md
+last_updated: "2026-09-20T18:12:00.000Z"
 last_activity: 2026-09-20
-last_activity_desc: Plan 02 batch-safe club rating and strict replay verified
+last_activity_desc: Plan 03 frozen club evaluation policy and owner-review boundary verified
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 16
-  percent: 67
+  completed_plans: 17
+  percent: 71
 ---
 
 # xGelo Project State
@@ -29,18 +29,18 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 3 of 10
-Status: In progress; Plans 01-02 complete
-Last activity: 2026-09-20 — Plan 02 batch-safe club rating and strict replay verified
+Plan: 4 of 10
+Status: In progress; Plans 01-03 complete
+Last activity: 2026-09-20 — Plan 03 frozen club evaluation policy and owner-review boundary verified
 
-Progress: [███████░░░] 67%
+Progress: [███████░░░] 71%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (1/10 plans) |
+| 19 | Independent Club Forecast Authority | 5 | In progress (3/10 plans) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -49,9 +49,9 @@ Progress: [███████░░░] 67%
 
 **Current milestone:**
 
-- Total plans completed: 14
-- Average duration: 22 min
-- Total execution time: 314 min
+- Total plans completed: 17
+- Average duration: 23 min
+- Total execution time: 384 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`.
 **Per-Plan Metrics:**
@@ -74,6 +74,7 @@ Progress: [███████░░░] 67%
 | Phase 18 P13 | 52min | 2 tasks | 6 files |
 | Phase 19 P01 | 31min | 2 tasks | 5 files |
 | Phase 19 P02 | 17min | 2 tasks | 2 files |
+| Phase 19 P03 | 22 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -120,18 +121,21 @@ Progress: [███████░░░] 67%
 - [Phase 19]: Production club authority uses only fixed accepted Phase 18 descriptors; synthetic authority is marker-bound, temporary, explicit, and non-promotable.
 - [Phase 19]: Club Elo freezes base 1500 and admits only predeclared K, home-advantage, and annual inactivity-factor domains. — Keeps rating evidence inside the frozen club candidate search space.
 - [Phase 19]: Current-UCL rating authority requires the exact roster in one accepted-history connected component. — A shared numeric base is not evidence of cross-league comparability.
+- [Phase 19]: Only club_venue_nb is the promotion incumbent and club_elo_nb is the promotion candidate; empirical controls remain report-only.
+- [Phase 19]: Every promotion threshold, comparator, aggregation, applicability, order, and failure reason is predeclared and canonical-v2 bound before assessment.
+- [Phase 19]: Production club policy requires one accepted self-hashed owner review binding every exact protocol parent; the committed review remains pending.
 
 ### Pending Todos
 
 - Complete real provider terms/key acceptance for `football_data_org_v4`.
 - Approve real club identity mappings for the supported UCL edition.
 - Supply and approve pinned/licensed historical club sources before Phase 19 model training.
-- Re-run Phase 18 verification and completion, then advance to Phase 19 planning.
+- Complete the remaining fixture-backed Phase 19 evaluation/release mechanics while production authority stays fail-closed.
 
 ### Blockers/Concerns
 
 - Production automation is conditional on provider rights, retention, attribution, quota, schema, completeness, and freshness acceptance.
-- Historical club coverage and cross-league connectivity must be measured before model promotion thresholds are frozen.
+- Historical club coverage and cross-league connectivity must be measured before production model promotion can run.
 - Late UEFA tie-break evidence needs either a permitted source or an explicit unresolved-rank release tolerance.
 
 ## Deferred Items
@@ -145,6 +149,6 @@ Progress: [███████░░░] 67%
 
 ## Session Continuity
 
-Last session: 2026-09-20T18:08:32.972Z
-Stopped at: Completed 19-02-PLAN.md
+Last session: 2026-09-20T18:10:59.598Z
+Stopped at: Completed 19-03-PLAN.md
 Resume file: None
