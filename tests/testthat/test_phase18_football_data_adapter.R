@@ -295,3 +295,85 @@ test_that("sentinel token cannot escape the live performer boundary or fetched p
   expect_false(any(grepl("token|authorization|request_object", names(fetched[[1L]]), ignore.case = TRUE)))
   expect_silent(phase18_fd_assert_secret_absent(fetched, sentinel))
 })
+
+test_that("freshness thresholds are exact for every resource and mixed rows fail", {
+  phase18_fd_test_load()
+  now <- "2026-09-19T12:00:00Z"
+  for (resource in c("competition_metadata", "teams", "matches", "standings")) {
+    for (timestamp in c("2026-09-17T12:01:00Z", "2026-09-17T12:00:00Z", "2026-09-19T13:00:00Z")) {
+      evidence <- phase18_fd_freshness_evidence(
+        resource, list(timestamp), "resource", paste0(resource, ".lastUpdated"), now, now
+      )
+      expect_identical(evidence$verdict[[1L]], "pass")
+    }
+    expect_identical(phase18_fd_test_reason(phase18_fd_freshness_evidence(
+      resource, list("2026-09-17T11:59:59Z"), "resource", "x", now, now
+    )), "blocked_stale_resource")
+    expect_identical(phase18_fd_test_reason(phase18_fd_freshness_evidence(
+      resource, list("2026-09-19T13:00:01Z"), "resource", "x", now, now
+    )), "blocked_future_resource")
+    expect_identical(phase18_fd_test_reason(phase18_fd_freshness_evidence(
+      resource, list("not-a-time"), "resource", "x", now, now
+    )), "blocked_malformed_freshness")
+    expect_identical(phase18_fd_test_reason(phase18_fd_freshness_evidence(
+      resource, list(NULL), "resource", "x", now, now
+    )), "blocked_freshness_unavailable")
+    expect_identical(phase18_fd_test_reason(phase18_fd_freshness_evidence(
+      resource, list("2026-09-19T11:00:00Z", "2020-01-01T00:00:00Z"),
+      "rows", "x[*]", now, now
+    )), "blocked_stale_resource")
+  }
+})
+
+test_that("team match and standings evidence independently block one bad row", {
+  phase18_fd_test_load()
+  expect_freshness_reason <- function(payloads, expected) {
+    expect_identical(phase18_fd_test_reason(phase18_fd_project_resources(
+      phase18_fd_test_fetch(payloads), "ucl_2026_27", phase18_fd_test_registries(),
+      phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
+    )), expected)
+  }
+  payloads <- phase18_fd_test_payloads(); payloads$teams$teams[[7L]]$lastUpdated <- "2020-01-01T00:00:00Z"
+  expect_freshness_reason(payloads, "blocked_stale_resource")
+  payloads <- phase18_fd_test_payloads(); payloads$matches$matches[[9L]]$lastUpdated <- "bad-time"
+  expect_freshness_reason(payloads, "blocked_malformed_freshness")
+  payloads <- phase18_fd_test_payloads(); payloads$matches$matches[[11L]]$lastUpdated <- "2026-09-20T12:00:00Z"
+  expect_freshness_reason(payloads, "blocked_future_resource")
+  payloads <- phase18_fd_test_payloads(); payloads$standings$lastUpdated <- "2020-01-01T00:00:00Z"
+  expect_freshness_reason(payloads, "blocked_stale_resource")
+})
+
+test_that("provider row reordering preserves canonical projection order and hashes", {
+  phase18_fd_test_load()
+  payloads <- phase18_fd_test_payloads()
+  reversed <- payloads
+  reversed$teams$teams <- rev(reversed$teams$teams)
+  reversed$matches$matches <- rev(reversed$matches$matches)
+  reversed$standings$standings[[1L]]$table <- rev(reversed$standings$standings[[1L]]$table)
+  one <- phase18_fd_project_resources(
+    phase18_fd_test_fetch(payloads), "ucl_2026_27", phase18_fd_test_registries(),
+    phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
+  )
+  two <- phase18_fd_project_resources(
+    phase18_fd_test_fetch(reversed), "ucl_2026_27", phase18_fd_test_registries(),
+    phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
+  )
+  for (name in c("clubs", "matches", "standings")) expect_identical(one[[name]], two[[name]])
+})
+
+test_that("unknown acquisition failures are sanitized into one closed blocked reason", {
+  phase18_fd_test_load()
+  sentinel <- "secret-provider-detail"
+  performer <- function(request, attempt) stop(sentinel, call. = FALSE)
+  condition <- tryCatch(
+    phase18_fd_fetch_window(
+      phase18_fd_request_plan(), performer,
+      function() as.POSIXct("2026-09-19T12:00:00Z", tz = "UTC"), function(...) invisible(NULL),
+      max_attempts = 1L
+    ),
+    error = identity
+  )
+  expect_s3_class(condition, "phase18_fd_error")
+  expect_identical(condition$reason_code, "blocked_unclassified_acquisition")
+  expect_false(grepl(sentinel, conditionMessage(condition), fixed = TRUE))
+})

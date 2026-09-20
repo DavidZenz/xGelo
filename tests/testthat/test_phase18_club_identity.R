@@ -379,3 +379,45 @@ testthat::test_that("atomic registry writer preserves incumbent bytes on invalid
   after <- lapply(paths, readBin, what = "raw", n = 100000L)
   testthat::expect_identical(after, before)
 })
+
+testthat::test_that("source alias and club boundaries use exact half-open adjacency", {
+  phase18_identity_test_load()
+  boundary <- "2025-01-01T00:00:00Z"
+  before <- "2024-12-31T23:59:59Z"
+  after <- "2025-01-01T00:00:01Z"
+  registries <- phase18_identity_test_registry()
+  for (name in c("clubs", "source_ids", "aliases")) {
+    old <- registries[[name]]
+    old$valid_to_utc <- boundary
+    new <- old
+    new$valid_from_utc <- boundary
+    new$valid_to_utc <- ""
+    registries[[name]] <- rbind(old, new)
+  }
+  registries <- phase18_hash_club_registry_rows(registries)
+  for (instant in c(before, boundary, after)) {
+    direct <- phase18_resolve_club_identity(registries, "provider", "101", "Alpha FC", instant)
+    alias <- phase18_resolve_club_identity(registries, "provider", "missing", "Alpha FC", instant)
+    testthat::expect_identical(direct$club_id[[1L]], "club_alpha")
+    testthat::expect_identical(alias$club_id[[1L]], "club_alpha")
+  }
+})
+
+testthat::test_that("blank identity fields and exact canonical duplicates fail closed", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  for (args in list(
+    list(source_system = "", source_club_id = "101", display_name = "Alpha FC", event_at_utc = "2026-09-19T12:00:00Z"),
+    list(source_system = "provider", source_club_id = "", display_name = "", event_at_utc = "2026-09-19T12:00:00Z"),
+    list(source_system = "provider", source_club_id = "101", display_name = "Alpha FC", event_at_utc = "")
+  )) {
+    testthat::expect_error(
+      do.call(phase18_resolve_club_identity, c(list(registries = registries), args)),
+      class = "invalid_club_identity_input"
+    )
+  }
+  duplicate <- registries
+  duplicate$clubs <- rbind(duplicate$clubs, duplicate$clubs)
+  duplicate <- phase18_hash_club_registry_rows(duplicate)
+  testthat::expect_error(phase18_validate_club_registries(duplicate), class = "duplicate_club_identity")
+})
