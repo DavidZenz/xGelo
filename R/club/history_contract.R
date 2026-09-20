@@ -50,7 +50,10 @@ phase18_history_read_csv <- function(path, schema = NULL) {
     if (is.null(schema)) phase18_history_abort("missing_history_artifact", paste0("Missing file: ", path))
     return(phase18_history_empty(schema))
   }
-  data <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  data <- utils::read.csv(
+    path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL,
+    colClasses = "character"
+  )
   data[] <- lapply(data, function(value) {
     value <- as.character(value)
     value[is.na(value)] <- ""
@@ -483,5 +486,210 @@ phase18_audit_club_history <- function(matches, source_manifest, club_registries
     coverage_audit = coverage_audit, identity_audit = identity_audit,
     duplicate_audit = duplicate_audit, score_semantics_audit = score_semantics_audit,
     temporal_audit = temporal_audit, corpus_manifest = manifest
+  )
+}
+
+phase18_verify_history_source_file <- function(source_row, raw_root) {
+  phase18_validate_history_sources(source_row, allow_pending = FALSE)
+  if (nrow(source_row) != 1L || source_row$source_status[[1L]] != "active") {
+    phase18_history_abort("inactive_history_source", "Source-byte verification requires one active source row")
+  }
+  root <- normalizePath(raw_root, winslash = "/", mustWork = TRUE)
+  relative <- source_row$relative_path[[1L]]
+  if (!phase18_history_safe_relative_path(relative)) {
+    phase18_history_abort("unsafe_history_source_path", "Historical source path is unsafe")
+  }
+  candidate <- file.path(root, relative)
+  if (!file.exists(candidate) || dir.exists(candidate)) {
+    phase18_history_abort("missing_history_source_file", paste0("Declared historical source file is missing: ", relative))
+  }
+  current <- root
+  for (part in strsplit(gsub("\\\\", "/", relative), "/", fixed = TRUE)[[1L]]) {
+    current <- file.path(current, part)
+    if (nzchar(Sys.readlink(current))) {
+      phase18_history_abort("unsafe_history_source_symlink", paste0("Historical source path contains a symlink: ", relative))
+    }
+  }
+  resolved <- normalizePath(candidate, winslash = "/", mustWork = TRUE)
+  if (!(identical(resolved, root) || startsWith(resolved, paste0(root, "/")))) {
+    phase18_history_abort("unsafe_history_source_path", "Historical source path escapes raw_root")
+  }
+  observed_bytes <- file.info(resolved)$size
+  observed_hash <- digest::digest(file = resolved, algo = "sha256", serialize = FALSE)
+  if (!identical(as.character(observed_bytes), as.character(source_row$bytes[[1L]])) ||
+      !identical(observed_hash, source_row$raw_sha256[[1L]])) {
+    phase18_history_abort("history_source_hash_mismatch", "Historical source bytes or SHA-256 do not match the inventory")
+  }
+  resolved
+}
+
+phase18_history_bundle_files <- function() {
+  c(
+    source_manifest = "source_manifest.csv", matches = "matches.csv",
+    coverage_audit = "coverage_audit.csv", identity_audit = "identity_audit.csv",
+    duplicate_audit = "duplicate_audit.csv", score_semantics_audit = "score_semantics_audit.csv",
+    temporal_audit = "temporal_audit.csv", corpus_manifest = "corpus_manifest.csv"
+  )
+}
+
+phase18_history_write_csv <- function(data, path) {
+  utils::write.csv(data, path, row.names = FALSE, na = "", quote = TRUE)
+  invisible(path)
+}
+
+phase18_history_write_bundle_candidate <- function(audit, candidate_root) {
+  files <- phase18_history_bundle_files()
+  if (!is.list(audit) || !all(names(files) %in% names(audit))) {
+    phase18_history_abort("invalid_history_audit", "History audit is missing one or more required tables")
+  }
+  dir.create(candidate_root, recursive = TRUE, showWarnings = FALSE)
+  for (name in names(files)) phase18_history_write_csv(audit[[name]], file.path(candidate_root, files[[name]]))
+  invisible(candidate_root)
+}
+
+phase18_history_replace_directory <- function(candidate_root, destination_root) {
+  parent <- dirname(destination_root)
+  dir.create(parent, recursive = TRUE, showWarnings = FALSE)
+  backup <- tempfile(paste0(".", basename(destination_root), ".backup-"), tmpdir = parent)
+  had_destination <- dir.exists(destination_root)
+  if (file.exists(destination_root) && !had_destination) {
+    phase18_history_abort("history_publish_failed", "Destination exists and is not a directory")
+  }
+  if (had_destination && !file.rename(destination_root, backup)) {
+    phase18_history_abort("history_publish_failed", "Could not move incumbent history bundle aside")
+  }
+  committed <- FALSE
+  tryCatch({
+    if (!file.rename(candidate_root, destination_root)) {
+      phase18_history_abort("history_publish_failed", "Could not atomically promote history bundle")
+    }
+    committed <- TRUE
+    if (dir.exists(backup)) unlink(backup, recursive = TRUE, force = TRUE)
+  }, error = function(error) {
+    if (!committed && had_destination && dir.exists(backup)) file.rename(backup, destination_root)
+    stop(error)
+  })
+  invisible(destination_root)
+}
+
+phase18_validate_club_history_corpus <- function(root) {
+  if (!dir.exists(root) || nzchar(Sys.readlink(root))) {
+    phase18_history_abort("invalid_history_corpus_root", "History corpus root must be a real directory")
+  }
+  files <- phase18_history_bundle_files()
+  actual <- sort(list.files(root, all.files = FALSE, no.. = TRUE))
+  if (!identical(actual, sort(unname(files)))) {
+    phase18_history_abort("invalid_history_corpus_inventory", "History corpus must contain exactly the eight declared artifacts")
+  }
+  tables <- lapply(files, function(file) phase18_history_read_csv(file.path(root, file)))
+  source_manifest <- tables$source_manifest
+  matches <- tables$matches
+  manifest <- tables$corpus_manifest
+  phase18_validate_history_sources(source_manifest)
+  phase18_validate_normalized_club_matches(matches)
+  if (!identical(names(manifest), phase18_history_corpus_manifest_schema()) || nrow(manifest) != 1L) {
+    phase18_history_abort("invalid_history_corpus_manifest", "Corpus manifest must contain one exact-schema row")
+  }
+  expected_self_hash <- phase18_club_row_sha256(manifest, "manifest_sha256")
+  if (!identical(manifest$manifest_sha256[[1L]], expected_self_hash[[1L]])) {
+    phase18_history_abort("history_manifest_hash_mismatch", "Corpus manifest self-hash mismatch")
+  }
+  for (name in c("coverage_audit", "identity_audit", "duplicate_audit", "score_semantics_audit", "temporal_audit")) {
+    table <- tables[[name]]
+    if (!"row_sha256" %in% names(table) || any(table$row_sha256 != phase18_club_row_sha256(table))) {
+      phase18_history_abort("history_audit_hash_mismatch", paste0(name, " row SHA-256 mismatch"))
+    }
+  }
+  component_keys <- list(
+    source_manifest = "source_id", matches = c("source_id", "source_match_id", "match_id"),
+    coverage_audit = "source_id", identity_audit = "schema_version",
+    duplicate_audit = "schema_version", score_semantics_audit = "schema_version",
+    temporal_audit = "schema_version"
+  )
+  manifest_fields <- c(
+    source_manifest = "source_manifest_sha256", matches = "matches_sha256",
+    coverage_audit = "coverage_audit_sha256", identity_audit = "identity_audit_sha256",
+    duplicate_audit = "duplicate_audit_sha256", score_semantics_audit = "score_semantics_audit_sha256",
+    temporal_audit = "temporal_audit_sha256"
+  )
+  for (name in names(component_keys)) {
+    observed <- phase18_history_table_sha256(tables[[name]], component_keys[[name]])
+    if (!identical(observed, manifest[[manifest_fields[[name]]]][[1L]])) {
+      phase18_history_abort("history_component_hash_mismatch", paste0(name, " component hash mismatch"))
+    }
+  }
+
+  active_sources <- source_manifest$source_status == "active"
+  pin_ok <- active_sources & grepl("^[0-9a-f]{40}$", source_manifest$commit_sha) &
+    grepl("^[0-9a-f]{64}$", source_manifest$raw_sha256) & phase18_history_safe_relative_path(source_manifest$relative_path)
+  license_ok <- active_sources & source_manifest$license_review_state == "approved" & grepl("^[0-9a-f]{64}$", source_manifest$license_sha256)
+  source_pin_fraction <- phase18_history_fraction(sum(pin_ok), nrow(source_manifest))
+  license_fraction <- phase18_history_fraction(sum(license_ok), nrow(source_manifest))
+  completed <- matches$status == "completed"
+  lineage_ok <- logical(nrow(matches))
+  if (nrow(matches)) for (index in seq_len(nrow(matches))) {
+    source <- source_manifest[source_manifest$source_id == matches$source_id[[index]], , drop = FALSE]
+    lineage_ok[[index]] <- nrow(source) == 1L && source$source_status[[1L]] == "active" &&
+      identical(matches$source_row_sha256[[index]], source$row_sha256[[1L]]) &&
+      identical(matches$commit_sha[[index]], source$commit_sha[[1L]]) &&
+      identical(matches$relative_path[[index]], source$relative_path[[1L]])
+  }
+  lineage_fraction <- phase18_history_fraction(sum(lineage_ok & completed), sum(completed))
+  identity_fraction <- suppressWarnings(as.numeric(tables$identity_audit$identity_fraction[[1L]]))
+  coverage_gate <- nrow(tables$coverage_audit) > 0L && all(phase18_history_logical(tables$coverage_audit$gate_passed)) &&
+    all(suppressWarnings(as.integer(tables$coverage_audit$expected_completed_matches)) == suppressWarnings(as.integer(tables$coverage_audit$observed_completed_matches)))
+  duplicate_gate <- nrow(tables$duplicate_audit) == 1L && phase18_history_logical(tables$duplicate_audit$gate_passed[[1L]]) && tables$duplicate_audit$unresolved_duplicate_rows[[1L]] == "0"
+  score_gate <- nrow(tables$score_semantics_audit) == 1L && phase18_history_logical(tables$score_semantics_audit$gate_passed[[1L]]) && tables$score_semantics_audit$unresolved_score_rows[[1L]] == "0"
+  temporal_gate <- nrow(tables$temporal_audit) == 1L && phase18_history_logical(tables$temporal_audit$gate_passed[[1L]]) && tables$temporal_audit$temporal_violation_rows[[1L]] == "0"
+  gates <- c(
+    source_pin_fraction = identical(source_pin_fraction, 1), license_fraction = identical(license_fraction, 1),
+    coverage = coverage_gate, lineage_fraction = identical(lineage_fraction, 1),
+    identity_fraction = !is.na(identity_fraction) && identical(identity_fraction, 1),
+    duplicate = duplicate_gate, score_semantics = score_gate, temporal = temporal_gate
+  )
+  recomputed_accepted <- length(gates) > 0L && all(gates)
+  stored_accepted <- phase18_history_logical(manifest$accepted_for_training[[1L]])
+  if (!identical(recomputed_accepted, stored_accepted) ||
+      !identical(sprintf("%.12f", source_pin_fraction), manifest$source_pin_fraction[[1L]]) ||
+      !identical(sprintf("%.12f", license_fraction), manifest$license_fraction[[1L]]) ||
+      !identical(sprintf("%.12f", lineage_fraction), manifest$lineage_fraction[[1L]]) ||
+      !identical(paste(names(gates)[!gates], collapse = ";"), manifest$blocked_reasons[[1L]])) {
+    phase18_history_abort("history_eligibility_mismatch", "Stored corpus eligibility does not match recomputed strict gates")
+  }
+  invisible(list(accepted_for_training = recomputed_accepted, tables = tables, gates = gates))
+}
+
+phase18_publish_club_history_corpus <- function(audit, audit_root, accepted_root) {
+  if (identical(normalizePath(dirname(audit_root), winslash = "/", mustWork = FALSE),
+                normalizePath(dirname(accepted_root), winslash = "/", mustWork = FALSE)) &&
+      identical(basename(audit_root), basename(accepted_root))) {
+    phase18_history_abort("invalid_history_publish_roots", "Audit and accepted roots must differ")
+  }
+  audit_parent <- dirname(audit_root)
+  dir.create(audit_parent, recursive = TRUE, showWarnings = FALSE)
+  audit_candidate <- tempfile(paste0(".", basename(audit_root), ".candidate-"), tmpdir = audit_parent)
+  on.exit(if (dir.exists(audit_candidate)) unlink(audit_candidate, recursive = TRUE, force = TRUE), add = TRUE)
+  phase18_history_write_bundle_candidate(audit, audit_candidate)
+  phase18_validate_club_history_corpus(audit_candidate)
+  phase18_history_replace_directory(audit_candidate, audit_root)
+
+  accepted <- phase18_history_logical(audit$corpus_manifest$accepted_for_training[[1L]])
+  if (accepted) {
+    accepted_parent <- dirname(accepted_root)
+    dir.create(accepted_parent, recursive = TRUE, showWarnings = FALSE)
+    accepted_candidate <- tempfile(paste0(".", basename(accepted_root), ".candidate-"), tmpdir = accepted_parent)
+    on.exit(if (dir.exists(accepted_candidate)) unlink(accepted_candidate, recursive = TRUE, force = TRUE), add = TRUE)
+    phase18_history_write_bundle_candidate(audit, accepted_candidate)
+    validated <- phase18_validate_club_history_corpus(accepted_candidate)
+    if (!isTRUE(validated$accepted_for_training)) {
+      phase18_history_abort("history_publish_failed", "Accepted candidate failed independent eligibility validation")
+    }
+    phase18_history_replace_directory(accepted_candidate, accepted_root)
+  }
+  list(
+    accepted_for_training = accepted,
+    audit_root = normalizePath(audit_root, winslash = "/", mustWork = TRUE),
+    accepted_root = if (accepted) normalizePath(accepted_root, winslash = "/", mustWork = TRUE) else accepted_root,
+    blocked_reasons = audit$corpus_manifest$blocked_reasons[[1L]]
   )
 }
