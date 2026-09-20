@@ -453,6 +453,21 @@ testthat::test_that("source alias and club boundaries use exact half-open adjace
   }
 })
 
+testthat::test_that("overlap grouping uses collision-safe identity tuples", {
+  phase18_identity_test_load()
+  rows <- data.frame(
+    source_system = c("a", paste0("a", "\x1f", "b")),
+    source_club_id = c(paste0("b", "\x1f", "c"), "c"),
+    valid_from_utc = c("2020-01-01T00:00:00Z", "2020-01-01T00:00:00Z"),
+    valid_to_utc = c("", ""),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  expect_silent(phase18_validate_nonoverlap(
+    rows, c("source_system", "source_club_id"), "source identities"
+  ))
+})
+
 testthat::test_that("blank identity fields and exact canonical duplicates fail closed", {
   phase18_identity_test_load()
   registries <- phase18_identity_test_registry()

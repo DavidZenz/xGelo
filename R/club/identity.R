@@ -142,7 +142,14 @@ phase18_club_require_exact_schema <- function(registries) {
 
 phase18_validate_nonoverlap <- function(data, group_fields, label) {
   if (nrow(data) < 2L) return(invisible(TRUE))
-  group <- do.call(paste, c(lapply(data[group_fields], as.character), sep = "\x1f"))
+  group <- vapply(seq_len(nrow(data)), function(index) {
+    phase18_hash_sequence_v2(
+      lapply(data[index, group_fields, drop = FALSE], function(value) as.character(value[[1L]])),
+      domain = "phase18-club-overlap-group-v2",
+      names = group_fields,
+      types = rep("character", length(group_fields))
+    )
+  }, character(1))
   for (key in unique(group)) {
     rows <- data[group == key, , drop = FALSE]
     if (nrow(rows) < 2L) next
