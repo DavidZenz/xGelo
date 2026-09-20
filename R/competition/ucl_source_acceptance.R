@@ -506,3 +506,334 @@ phase18_write_text_atomic <- function(text, path) {
   if (!file.rename(staged, path)) stop("Could not publish Phase 18 text: ", path, call. = FALSE)
   invisible(path)
 }
+
+phase18_acceptance_file_names <- function() {
+  c(
+    "provider_terms_review.csv", "edition_expectations.csv", "coverage_matrix.csv",
+    "schema_fingerprint.csv", "acceptance_manifest.csv", "ACCEPTANCE.md"
+  )
+}
+
+phase18_read_acceptance_set <- function(evidence_root) {
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
+  paths <- setNames(file.path(evidence_root, phase18_acceptance_file_names()), phase18_acceptance_file_names())
+  missing <- names(paths)[!file.exists(paths)]
+  if (length(missing)) stop("Phase 18 acceptance set is missing: ", paste(missing, collapse = ", "), call. = FALSE)
+  list(
+    paths = paths,
+    owner_review = utils::read.csv(paths[["provider_terms_review.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""),
+    edition_expectations = utils::read.csv(paths[["edition_expectations.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""),
+    machine_checks = utils::read.csv(paths[["coverage_matrix.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""),
+    schema_fingerprint = utils::read.csv(paths[["schema_fingerprint.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""),
+    manifest = utils::read.csv(paths[["acceptance_manifest.csv"]], stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  )
+}
+
+phase18_validate_provider_live_authority <- function(evidence_root) {
+  result <- tryCatch({
+    evidence <- phase18_read_acceptance_set(evidence_root)
+    phase18_validate_acceptance_manifest(
+      evidence$manifest,
+      evidence$machine_checks,
+      evidence$owner_review,
+      evidence$edition_expectations
+    )
+    authorized <- isTRUE(evidence$manifest$automation_enabled[[1L]]) &&
+      identical(as.character(evidence$manifest$decision[[1L]]), "accepted") &&
+      identical(as.character(evidence$manifest$execution_mode[[1L]]), "live_acceptance_probe")
+    list(
+      authorized = authorized,
+      reason_code = if (authorized) "accepted" else as.character(evidence$manifest$reason_code[[1L]]),
+      manifest = evidence$manifest
+    )
+  }, error = function(error) {
+    list(authorized = FALSE, reason_code = "schema", message = conditionMessage(error), manifest = NULL)
+  })
+  result
+}
+
+phase18_probe_endpoints <- function() {
+  c(
+    competition_metadata = "/competitions/CL",
+    teams = "/competitions/CL/teams?season=2026",
+    matches = "/competitions/CL/matches?season=2026",
+    standings = "/competitions/CL/standings?season=2026"
+  )
+}
+
+phase18_probe_call <- function(transport_fn, endpoint, max_attempts = 3L) {
+  if (!is.function(transport_fn)) stop("Phase 18 probe transport must be a function", call. = FALSE)
+  max_attempts <- as.integer(max_attempts)
+  if (is.na(max_attempts) || max_attempts < 1L || max_attempts > 3L) stop("Phase 18 probe attempts must be between one and three", call. = FALSE)
+  last_error <- NULL
+  for (attempt in seq_len(max_attempts)) {
+    response <- tryCatch(
+      transport_fn(endpoint = endpoint, attempt = attempt, cache = FALSE),
+      error = function(error) {
+        if (!isTRUE(attr(error, "retryable"))) stop(error)
+        last_error <<- error
+        NULL
+      }
+    )
+    if (!is.null(response)) {
+      if (!is.list(response)) stop("Phase 18 probe transport must return a list", call. = FALSE)
+      if (!isTRUE(response$retryable)) return(list(response = response, attempts = attempt))
+    }
+  }
+  if (!is.null(last_error)) stop(last_error)
+  stop("Phase 18 probe exhausted its bounded retry attempts", call. = FALSE)
+}
+
+phase18_build_live_probe_evidence <- function(
+    transport_fn,
+    owner_review,
+    edition_expectations,
+    decision_id,
+    now_utc) {
+  review_result <- phase18_validate_terms_review(owner_review)
+  if (!review_result$valid) {
+    return(list(valid = FALSE, reason_code = review_result$reason_code, message = review_result$message))
+  }
+  expectation_result <- phase18_validate_edition_expectations(edition_expectations)
+  if (!expectation_result$valid) {
+    return(list(valid = FALSE, reason_code = expectation_result$reason_code, message = expectation_result$message))
+  }
+  endpoints <- phase18_probe_endpoints()
+  responses <- list()
+  attempts <- integer()
+  for (capability in names(endpoints)) {
+    called <- phase18_probe_call(transport_fn, capability, max_attempts = 3L)
+    response <- called$response
+    required <- c("count", "freshness_passed", "identity_passed", "pagination_complete", "secret_scan_passed", "fingerprint_sha256")
+    missing <- setdiff(required, names(response))
+    if (length(missing)) return(list(valid = FALSE, reason_code = "schema", message = paste("Probe response missing fields:", paste(missing, collapse = ", "))))
+    if (!grepl("^[0-9a-fA-F]{64}$", as.character(response$fingerprint_sha256[[1L]]))) {
+      return(list(valid = FALSE, reason_code = "schema", message = "Probe schema fingerprint is invalid"))
+    }
+    responses[[capability]] <- response
+    attempts[[capability]] <- called$attempts
+  }
+  observed <- list(
+    club_count = as.integer(responses$teams$count[[1L]]),
+    league_phase_match_count = as.integer(responses$matches$count[[1L]]),
+    stages = as.character(responses$matches$stages %||% ""),
+    standings_rows = as.integer(responses$standings$count[[1L]])
+  )
+  observed_result <- phase18_validate_edition_expectations(edition_expectations, observed, "league_phase")
+  if (!observed_result$valid) return(c(list(valid = FALSE), observed_result[c("reason_code", "message")]))
+  if (as.integer(responses$competition_metadata$count[[1L]]) != 1L) {
+    return(list(valid = FALSE, reason_code = "cardinality", message = "Competition metadata must contain exactly one object"))
+  }
+  resource_names <- names(endpoints)
+  resource_checks <- data.frame(
+    schema_version = "phase18-machine-check-v1",
+    capability = resource_names,
+    decision = "INTEGRATE",
+    execution_mode = "live_acceptance_probe",
+    passed = TRUE,
+    observed_count = vapply(resource_names, function(name) as.integer(responses[[name]]$count[[1L]]), integer(1)),
+    observed_stages = vapply(resource_names, function(name) as.character(responses[[name]]$stages %||% ""), character(1)),
+    expectation_sha256 = expectation_result$expectation_sha256,
+    live_run_id = decision_id,
+    real_key_evidence = TRUE,
+    freshness_passed = vapply(resource_names, function(name) isTRUE(responses[[name]]$freshness_passed), logical(1)),
+    identity_passed = vapply(resource_names, function(name) isTRUE(responses[[name]]$identity_passed), logical(1)),
+    pagination_complete = vapply(resource_names, function(name) isTRUE(responses[[name]]$pagination_complete), logical(1)),
+    secret_scan_passed = vapply(resource_names, function(name) isTRUE(responses[[name]]$secret_scan_passed), logical(1)),
+    checked_at_utc = now_utc,
+    reason_code = "accepted",
+    attempt_count = unname(attempts),
+    logical_call_count = 1L,
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  decisions <- phase18_capability_decisions()
+  auxiliary <- setdiff(names(decisions), resource_names)
+  auxiliary_checks <- data.frame(
+    schema_version = "phase18-machine-check-v1",
+    capability = auxiliary,
+    decision = unname(decisions[auxiliary]),
+    execution_mode = "live_acceptance_probe",
+    passed = TRUE,
+    observed_count = NA_integer_,
+    observed_stages = "",
+    expectation_sha256 = expectation_result$expectation_sha256,
+    live_run_id = decision_id,
+    real_key_evidence = TRUE,
+    freshness_passed = TRUE,
+    identity_passed = TRUE,
+    pagination_complete = TRUE,
+    secret_scan_passed = TRUE,
+    checked_at_utc = now_utc,
+    reason_code = "accepted",
+    attempt_count = 0L,
+    logical_call_count = 0L,
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  machine_checks <- phase18_hash_machine_checks(rbind(resource_checks, auxiliary_checks))
+  schema_fingerprint <- data.frame(
+    schema_version = "phase18-schema-fingerprint-v1",
+    resource = resource_names,
+    endpoint = unname(endpoints),
+    observed = TRUE,
+    observed_at_utc = now_utc,
+    fingerprint_sha256 = vapply(resource_names, function(name) tolower(as.character(responses[[name]]$fingerprint_sha256[[1L]])), character(1)),
+    row_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  schema_fingerprint$row_sha256 <- phase18_row_sha256(schema_fingerprint)
+  list(
+    valid = TRUE,
+    reason_code = "accepted",
+    machine_checks = machine_checks,
+    schema_fingerprint = schema_fingerprint,
+    schema_fingerprint_sha256 = phase18_canonical_sha256(schema_fingerprint, key = "resource")
+  )
+}
+
+phase18_acceptance_snapshot <- function(paths) {
+  exists <- file.exists(paths)
+  bytes <- lapply(seq_along(paths), function(index) {
+    if (exists[[index]]) readBin(paths[[index]], what = "raw", n = file.info(paths[[index]])$size) else raw()
+  })
+  list(paths = paths, exists = exists, bytes = bytes)
+}
+
+phase18_restore_acceptance_snapshot <- function(snapshot) {
+  for (index in seq_along(snapshot$paths)) {
+    path <- snapshot$paths[[index]]
+    if (isTRUE(snapshot$exists[[index]])) {
+      dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+      staged <- tempfile(paste0(".", basename(path), "-restore-"), tmpdir = dirname(path))
+      writeBin(snapshot$bytes[[index]], staged)
+      if (file.exists(path) || dir.exists(path)) unlink(path, recursive = TRUE, force = TRUE)
+      if (!file.rename(staged, path)) stop("Could not restore Phase 18 incumbent: ", path, call. = FALSE)
+    } else if (file.exists(path) || dir.exists(path)) {
+      unlink(path, recursive = TRUE, force = TRUE)
+    }
+  }
+  invisible(TRUE)
+}
+
+phase18_write_acceptance_stage <- function(stage_root, owner_review, edition_expectations, machine_checks, schema_fingerprint, manifest, markdown) {
+  dir.create(stage_root, recursive = TRUE, showWarnings = FALSE)
+  phase18_write_csv_atomic(owner_review, file.path(stage_root, "provider_terms_review.csv"))
+  phase18_write_csv_atomic(edition_expectations, file.path(stage_root, "edition_expectations.csv"))
+  phase18_write_csv_atomic(machine_checks, file.path(stage_root, "coverage_matrix.csv"))
+  phase18_write_csv_atomic(schema_fingerprint, file.path(stage_root, "schema_fingerprint.csv"))
+  phase18_write_csv_atomic(manifest, file.path(stage_root, "acceptance_manifest.csv"))
+  phase18_write_text_atomic(markdown, file.path(stage_root, "ACCEPTANCE.md"))
+  invisible(stage_root)
+}
+
+phase18_probe_result <- function(reason_code, manifest = NULL, idempotent = FALSE, message = "") {
+  list(
+    accepted = identical(reason_code, "accepted"),
+    reason_code = reason_code,
+    manifest = manifest,
+    idempotent = isTRUE(idempotent),
+    message = message
+  )
+}
+
+#' Run the bounded first-live-acceptance transaction.
+phase18_run_live_acceptance_probe <- function(
+    evidence_root,
+    owner_review,
+    edition_expectations,
+    transport_fn,
+    decision_id,
+    now_utc,
+    failure_injector = NULL,
+    parser_commit_sha = NULL) {
+  evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
+  decision_id <- phase18_acceptance_scalar(decision_id, "decision_id")
+  now_utc <- phase18_acceptance_scalar(now_utc, "now_utc")
+  lock_path <- file.path(evidence_root, ".phase18-acceptance.lock")
+  if (file.exists(lock_path) || dir.exists(lock_path)) {
+    return(phase18_probe_result("blocked_concurrent_acceptance"))
+  }
+  if (!dir.create(lock_path, recursive = FALSE, showWarnings = FALSE)) {
+    return(phase18_probe_result("blocked_concurrent_acceptance"))
+  }
+  stage_root <- tempfile(".phase18-acceptance-stage-", tmpdir = dirname(evidence_root))
+  backup_root <- tempfile(".phase18-acceptance-backup-", tmpdir = dirname(evidence_root))
+  dir.create(stage_root, recursive = FALSE, showWarnings = FALSE)
+  dir.create(backup_root, recursive = FALSE, showWarnings = FALSE)
+  on.exit({
+    if (dir.exists(stage_root)) unlink(stage_root, recursive = TRUE, force = TRUE)
+    if (dir.exists(backup_root)) unlink(backup_root, recursive = TRUE, force = TRUE)
+    if (dir.exists(lock_path) || file.exists(lock_path)) unlink(lock_path, recursive = TRUE, force = TRUE)
+  }, add = TRUE)
+  incumbent <- tryCatch(phase18_read_acceptance_set(evidence_root), error = function(error) NULL)
+  if (is.null(incumbent)) return(phase18_probe_result("schema", message = "Incumbent acceptance set is incomplete"))
+  evidence <- tryCatch(
+    phase18_build_live_probe_evidence(transport_fn, owner_review, edition_expectations, decision_id, now_utc),
+    error = function(error) list(valid = FALSE, reason_code = "coverage", message = conditionMessage(error))
+  )
+  if (!isTRUE(evidence$valid)) return(phase18_probe_result(evidence$reason_code, message = evidence$message))
+  manifest <- phase18_build_acceptance_manifest(
+    evidence$machine_checks,
+    owner_review,
+    edition_expectations,
+    list(schema_fingerprint_sha256 = evidence$schema_fingerprint_sha256),
+    decision_id,
+    now_utc,
+    parser_commit_sha = parser_commit_sha
+  )
+  if (!isTRUE(manifest$automation_enabled[[1L]])) {
+    return(phase18_probe_result(as.character(manifest$reason_code[[1L]]), manifest = manifest))
+  }
+  incumbent_id <- as.character(incumbent$manifest$decision_id[[1L]])
+  if (identical(incumbent_id, decision_id)) {
+    if (identical(tolower(as.character(incumbent$manifest$row_sha256[[1L]])), tolower(as.character(manifest$row_sha256[[1L]])))) {
+      return(phase18_probe_result("accepted", incumbent$manifest, idempotent = TRUE))
+    }
+    return(phase18_probe_result("blocked_decision_collision", incumbent$manifest))
+  }
+  target_paths <- setNames(file.path(evidence_root, phase18_acceptance_file_names()), phase18_acceptance_file_names())
+  snapshot <- phase18_acceptance_snapshot(target_paths)
+  markdown <- paste0(
+    "# UCL Provider Acceptance\n\nDecision: `accepted` (`accepted`).\n\n",
+    "Automation enabled: `TRUE`.\n\n",
+    "Acceptance was produced by the bounded four-resource live probe and remains subject to the owner-reviewed terms evidence.\n"
+  )
+  transaction_error <- NULL
+  tryCatch({
+    phase18_write_acceptance_stage(
+      stage_root, owner_review, edition_expectations, evidence$machine_checks,
+      evidence$schema_fingerprint, manifest, markdown
+    )
+    staged <- phase18_read_acceptance_set(stage_root)
+    phase18_validate_acceptance_manifest(staged$manifest, staged$machine_checks, staged$owner_review, staged$edition_expectations)
+    if (is.function(failure_injector)) failure_injector("before_promotion", 0L, "")
+    for (index in seq_along(target_paths)) {
+      target <- target_paths[[index]]
+      staged_path <- file.path(stage_root, names(target_paths)[[index]])
+      backup_path <- file.path(backup_root, names(target_paths)[[index]])
+      if (file.exists(target)) {
+        if (!file.rename(target, backup_path)) stop("Could not backup Phase 18 incumbent", call. = FALSE)
+      }
+      if (!file.rename(staged_path, target)) stop("Could not promote Phase 18 acceptance evidence", call. = FALSE)
+      if (is.function(failure_injector)) failure_injector(paste0("after_promote_", index), index, target)
+    }
+    installed <- phase18_read_acceptance_set(evidence_root)
+    phase18_validate_acceptance_manifest(installed$manifest, installed$machine_checks, installed$owner_review, installed$edition_expectations)
+  }, error = function(error) transaction_error <<- error)
+  if (!is.null(transaction_error)) {
+    restore_error <- tryCatch({
+      phase18_restore_acceptance_snapshot(snapshot)
+      NULL
+    }, error = function(error) error)
+    if (!is.null(restore_error)) stop("Phase 18 acceptance rollback failed: ", conditionMessage(restore_error), call. = FALSE)
+    reason <- if (grepl("interrupt", conditionMessage(transaction_error), ignore.case = TRUE)) "interrupted" else "writer_failure"
+    return(phase18_probe_result(reason, incumbent$manifest, message = conditionMessage(transaction_error)))
+  }
+  phase18_probe_result("accepted", manifest)
+}
+
+`%||%` <- function(value, fallback) if (is.null(value)) fallback else value

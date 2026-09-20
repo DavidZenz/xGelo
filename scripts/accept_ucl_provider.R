@@ -80,7 +80,15 @@ phase18_accept_ucl_provider_main <- function(
     if (!is.function(transport_fn)) {
       stop("Phase 18 live acceptance requires the injected bounded probe transport", call. = FALSE)
     }
-    stop("Phase 18 live acceptance probe is implemented by the atomic probe task", call. = FALSE)
+    return(invisible(phase18_run_live_acceptance_probe(
+      evidence_root = target_root,
+      owner_review = review,
+      edition_expectations = expectations,
+      transport_fn = transport_fn,
+      decision_id = paste0("live_acceptance_probe_", options[["edition-id"]], "_", gsub("[^0-9]", "", now_utc)),
+      now_utc = now_utc,
+      parser_commit_sha = parser_commit_sha
+    )))
   }
   schema_hash <- phase18_canonical_sha256(schema_fingerprint, key = "resource")
   manifest <- phase18_build_acceptance_manifest(
