@@ -76,6 +76,19 @@ phase19_release_test_calibrator <- function() {
   ), class = c("phase19_club_calibrator", "list"))
 }
 
+phase19_release_test_stage <- function(label = "fixture") {
+  root <- tempfile(paste0("phase19-release-", label, "-"))
+  dir.create(root, recursive = TRUE)
+  staged <- phase19_stage_fixture_club_release(
+    decision = phase19_release_test_minimal_decision(),
+    model = phase19_release_test_model(), calibrator = phase19_release_test_calibrator(),
+    output_root = root, release_id = paste0("fixture-", label),
+    history_snapshot = list(snapshot_sha256 = strrep("7", 64L), accepted_generation_id = "fixture-history"),
+    current_snapshot = list(snapshot_sha256 = strrep("8", 64L), generation_id = "fixture-current")
+  )
+  list(root = root, staged = staged)
+}
+
 test_that("fixture club release APIs are present and the shared guard is strict", {
   phase19_release_test_load(require_release = TRUE)
   phase19_release_test_require(c(
@@ -129,4 +142,94 @@ test_that("fixture authority cannot be staged through the production writer", {
     ),
     class = "phase19_club_release_error"
   )
+})
+
+test_that("fixture release rejects traversal, surplus, missing, symlink, and hash attacks", {
+  phase19_release_test_load(require_release = TRUE)
+  fixture <- phase19_release_test_stage("attacks")
+  extra <- file.path(fixture$staged$release_root, "extra.txt")
+  writeLines("extra", extra)
+  expect_error(phase19_validate_club_release(fixture$staged$release_root, FALSE),
+               class = "phase19_club_release_error")
+
+  fixture <- phase19_release_test_stage("missing")
+  unlink(file.path(fixture$staged$release_root, "limitations.md"))
+  expect_error(phase19_validate_club_release(fixture$staged$release_root, FALSE),
+               class = "phase19_club_release_error")
+
+  fixture <- phase19_release_test_stage("hash")
+  writeLines(c("tampered"), file.path(fixture$staged$release_root, "reports/model_card.md"))
+  expect_error(phase19_validate_club_release(fixture$staged$release_root, FALSE),
+               class = "phase19_club_release_error")
+
+  fixture <- phase19_release_test_stage("traversal")
+  manifest <- utils::read.csv(file.path(fixture$staged$release_root, "release_manifest.csv"),
+                              stringsAsFactors = FALSE, check.names = FALSE,
+                              colClasses = "character", na.strings = character())
+  manifest$relative_path[manifest$artifact == "limitations.md"] <- "../limitations.md"
+  utils::write.csv(manifest, file.path(fixture$staged$release_root, "release_manifest.csv"),
+                   row.names = FALSE, na = "", quote = TRUE)
+  expect_error(phase19_validate_club_release(fixture$staged$release_root, FALSE),
+               class = "phase19_club_release_error")
+
+  fixture <- phase19_release_test_stage("symlink")
+  link <- file.path(fixture$staged$release_root, "reports/link.md")
+  expect_true(file.symlink("model_card.md", link))
+  expect_error(phase19_validate_club_release(fixture$staged$release_root, FALSE),
+               class = "phase19_club_release_error")
+})
+
+test_that("preflight is metadata-first and object/selector identities are checked", {
+  phase19_release_test_load(require_release = TRUE)
+  fixture <- phase19_release_test_stage("identity")
+  expect_silent(phase19_validate_club_release(fixture$staged$release_root, FALSE))
+  installed <- phase19_install_club_release(fixture$staged$release_root,
+                                            file.path(fixture$root, "approved"))
+  before <- readBin(installed$selector_path, "raw", file.info(installed$selector_path)$size)
+  selector <- utils::read.csv(installed$selector_path, stringsAsFactors = FALSE,
+                              check.names = FALSE, colClasses = "character",
+                              na.strings = character())
+  selector$release_id <- "fixture-other"
+  utils::write.csv(selector, installed$selector_path, row.names = FALSE, na = "", quote = TRUE)
+  expect_error(phase19_read_club_selector(installed$selector_path,
+                                           file.path(fixture$root, "approved")),
+               class = "phase19_club_release_error")
+  writeBin(before, installed$selector_path)
+  expect_silent(phase19_read_club_selector(installed$selector_path,
+                                           file.path(fixture$root, "approved")))
+
+  # A corrupt RDS is rejected by the metadata/hash preflight without a readRDS call.
+  writeBin(charToRaw("not-an-rds"), file.path(installed$release_root, "model/approved_model.rds"))
+  expect_error(phase19_validate_club_release(installed$release_root, FALSE),
+               class = "phase19_club_release_error")
+})
+
+test_that("lock and validation failures preserve the prior selector and bytes", {
+  phase19_release_test_load(require_release = TRUE)
+  fixture <- phase19_release_test_stage("rollback")
+  installed <- phase19_install_club_release(fixture$staged$release_root,
+                                            file.path(fixture$root, "approved"))
+  selector_before <- readBin(installed$selector_path, "raw", file.info(installed$selector_path)$size)
+  second <- phase19_release_test_stage("rollback-second")
+  lock <- file.path(fixture$root, "approved", ".approved_release.lock")
+  file.create(lock)
+  expect_error(phase19_install_club_release(second$staged$release_root,
+                                             file.path(fixture$root, "approved")),
+               class = "phase19_club_release_error")
+  unlink(lock)
+  expect_identical(readBin(installed$selector_path, "raw", file.info(installed$selector_path)$size), selector_before)
+
+  third <- phase19_release_test_stage("rollback-third")
+  calls <- 0L
+  failing_validator <- function(root, load_models = TRUE, expected_domain = "club") {
+    calls <<- calls + 1L
+    if (isTRUE(load_models)) stop("injected load failure", call. = FALSE)
+    phase19_validate_club_release(root, load_models = load_models, expected_domain = expected_domain)
+  }
+  expect_error(phase19_install_club_release(third$staged$release_root,
+                                             file.path(fixture$root, "approved"),
+                                             validator = failing_validator),
+               class = "error")
+  expect_true(calls >= 3L)
+  expect_identical(readBin(installed$selector_path, "raw", file.info(installed$selector_path)$size), selector_before)
 })
