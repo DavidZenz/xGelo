@@ -23,21 +23,21 @@ phase18_history_test_require <- function(names) {
 phase18_history_test_registries <- function() {
   schemas <- phase18_club_registry_schemas()
   clubs <- data.frame(
-    schema_version = "phase18-club-identity-1",
+    schema_version = phase18_club_identity_schema_version(), hash_encoding_version = phase18_canonical_encoding_v2(),
     club_id = c("club_alpha", "club_beta"), entity_kind = "club",
     canonical_name = c("Alpha FC", "Beta FC"), association_code = c("AAA", "BBB"),
     valid_from_utc = c("2020-01-01T00:00:00Z", "2020-01-01T00:00:00Z"), valid_to_utc = c("", ""),
     club_status = "active", row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
   )
   source_ids <- data.frame(
-    schema_version = "phase18-club-identity-1", club_id = c("club_alpha", "club_beta"),
+    schema_version = phase18_club_identity_schema_version(), hash_encoding_version = phase18_canonical_encoding_v2(), club_id = c("club_alpha", "club_beta"),
     source_system = "openfootball", source_club_id = c("name:alpha_fc", "name:beta_fc"),
     valid_from_utc = c("2020-01-01T00:00:00Z", "2020-01-01T00:00:00Z"), valid_to_utc = c("", ""),
     review_state = "approved", source_bundle_id = "fixture-review", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
   aliases <- data.frame(
-    schema_version = "phase18-club-identity-1", club_id = c("club_alpha", "club_beta"),
+    schema_version = phase18_club_identity_schema_version(), hash_encoding_version = phase18_canonical_encoding_v2(), club_id = c("club_alpha", "club_beta"),
     source_system = "openfootball", alias = c("Alpha FC", "Beta FC"), normalized_alias = c("alpha fc", "beta fc"),
     valid_from_utc = c("2020-01-01T00:00:00Z", "2020-01-01T00:00:00Z"), valid_to_utc = c("", ""),
     review_state = "approved", reviewed_by = "fixture-owner", reviewed_at_utc = "2026-01-01T00:00:00Z",
@@ -51,7 +51,7 @@ phase18_history_test_source <- function(expected = 5L, status = "active") {
   row <- data.frame(
     schema_version = "phase18-club-history-source-1", source_id = "england-2025-fixture",
     repository_url = "https://github.com/openfootball/england", commit_sha = paste(rep("a", 40), collapse = ""),
-    commit_utc = "2026-01-01T00:00:00Z", relative_path = "2025-26/1-premierleague.txt",
+    commit_utc = "2025-01-01T00:00:00Z", relative_path = "2025-26/1-premierleague.txt",
     competition_id = "england-premier-league", season_id = "2025-26", license_id = "cc0-1.0",
     license_url = "https://creativecommons.org/publicdomain/zero/1.0/", license_sha256 = paste(rep("b", 64), collapse = ""),
     license_review_state = "approved", license_reviewed_by = "fixture-owner", license_reviewed_at_utc = "2026-01-01T00:00:00Z",
@@ -70,7 +70,11 @@ test_that("history schemas and pins are exact and fail closed", {
   source <- phase18_history_test_source()
   expect_silent(phase18_validate_history_sources(source))
   expect_true(all(c("repository_url", "commit_sha", "raw_sha256", "expected_completed_matches") %in% phase18_history_source_schema()))
-  expect_true(all(c("regulation_home_goals", "shootout_home_goals", "evidence_available_at_utc", "counts_for_model") %in% phase18_normalized_club_match_schema()))
+  expect_true(all(c(
+    "regulation_home_goals", "shootout_home_goals", "evidence_observed_at_utc",
+    "completion_not_before_utc", "source_available_at_utc", "evidence_available_at_utc",
+    "evidence_precision_policy", "counts_for_model"
+  ) %in% phase18_normalized_club_match_schema()))
   bad <- source; bad$commit_sha <- "main"; bad$row_sha256 <- phase18_club_row_sha256(bad)
   expect_error(phase18_validate_history_sources(bad), class = "invalid_history_source_pin")
   unsafe <- source; unsafe$relative_path <- "../secret"; unsafe$row_sha256 <- phase18_club_row_sha256(unsafe)
@@ -85,12 +89,62 @@ test_that("date-only evidence uses next-day UTC and strict prior-information cut
   at_cutoff <- phase18_normalize_club_history(date_only, phase18_history_test_source(1L), phase18_history_test_registries(), "2025-05-03T00:00:00Z")
   expect_identical(at_cutoff$kickoff_precision, "date")
   expect_identical(at_cutoff$kickoff_utc, "")
+  expect_identical(at_cutoff$completion_not_before_utc, "2025-05-03T00:00:00Z")
+  expect_identical(at_cutoff$evidence_observed_at_utc, "2025-05-03T00:00:00Z")
   expect_identical(at_cutoff$evidence_available_at_utc, "2025-05-03T00:00:00Z")
+  expect_identical(at_cutoff$evidence_precision_policy, "date_next_day_utc")
   expect_false(at_cutoff$counts_for_model)
   one_second_later <- phase18_normalize_club_history(date_only, phase18_history_test_source(1L), phase18_history_test_registries(), "2025-05-03T00:00:01Z")
   expect_true(one_second_later$counts_for_model)
   one_second_before <- phase18_normalize_club_history(date_only, phase18_history_test_source(1L), phase18_history_test_registries(), "2025-05-02T23:59:59Z")
   expect_false(one_second_before$counts_for_model)
+})
+
+test_that("completed evidence obeys conservative completion and cutoff boundaries", {
+  phase18_history_test_load()
+  rows <- utils::read.csv(file.path(phase18_history_test_root, "tests/fixtures/phase18/openfootball/score_cases.csv"), stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  regulation <- rows[rows$source_match_id == "reg-1", , drop = FALSE]
+  floor <- "2025-05-01T20:00:00Z"
+
+  normalize_at <- function(evidence, cutoff = "2025-06-01T00:00:00Z") {
+    candidate <- regulation
+    candidate$evidence_updated_at_utc <- evidence
+    phase18_normalize_club_history(candidate, phase18_history_test_source(1L), phase18_history_test_registries(), cutoff)
+  }
+
+  before <- normalize_at("2025-05-01T19:59:59Z")
+  expect_identical(before$completion_not_before_utc, floor)
+  expect_identical(before$exclusion_reason, "evidence_before_completion")
+  expect_false(before$counts_for_model)
+
+  equal <- normalize_at(floor)
+  expect_true(equal$counts_for_model)
+  expect_identical(equal$evidence_available_at_utc, floor)
+
+  after <- normalize_at("2025-05-01T20:00:01Z")
+  expect_true(after$counts_for_model)
+
+  cutoff_equal <- normalize_at(floor, floor)
+  expect_false(cutoff_equal$counts_for_model)
+  expect_identical(cutoff_equal$exclusion_reason, "evidence_not_prior_to_cutoff")
+  expect_true(normalize_at(floor, "2025-05-01T20:00:01Z")$counts_for_model)
+})
+
+test_that("extra-time, penalties, and source availability use the latest safe instant", {
+  phase18_history_test_load()
+  rows <- utils::read.csv(file.path(phase18_history_test_root, "tests/fixtures/phase18/openfootball/score_cases.csv"), stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
+  knockout <- rows[rows$source_match_id %in% c("extra-time", "shootout"), , drop = FALSE]
+  normalized <- phase18_normalize_club_history(knockout, phase18_history_test_source(2L), phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_identical(normalized$completion_not_before_utc, c("2025-05-03T21:00:00Z", "2025-05-04T21:00:00Z"))
+  expect_true(all(normalized$evidence_precision_policy == "instant_method_floor"))
+
+  late_source <- phase18_history_test_source(1L)
+  late_source$commit_utc <- "2025-05-01T20:00:01Z"
+  late_source$row_sha256 <- phase18_club_row_sha256(late_source)
+  effective <- phase18_normalize_club_history(rows[rows$source_match_id == "reg-1", , drop = FALSE], late_source, phase18_history_test_registries(), "2025-06-01T00:00:00Z")
+  expect_identical(effective$evidence_observed_at_utc, "2025-05-01T20:00:00Z")
+  expect_identical(effective$source_available_at_utc, "2025-05-01T20:00:01Z")
+  expect_identical(effective$evidence_available_at_utc, "2025-05-01T20:00:01Z")
 })
 
 test_that("score meanings remain split and unknown semantics stay auditable", {
