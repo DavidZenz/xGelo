@@ -902,3 +902,61 @@ test_that("manifest authority receives and binds the actual fingerprint table", 
     "integrity|fingerprint"
   )
 })
+
+test_that("acceptance publication selects one immutable generation with a hash-bound pointer", {
+  phase18_test_load()
+  root <- phase18_test_seed_probe_root()
+  pointer_path <- file.path(root, "current.json")
+  expect_true(file.exists(pointer_path))
+  before <- phase18_read_acceptance_set(root)
+  expect_match(before$current_generation, "^generations/[a-z0-9-]+$")
+  expect_identical(
+    sort(list.files(file.path(root, before$current_generation), all.files = TRUE, no.. = TRUE)),
+    sort(phase18_acceptance_file_names())
+  )
+
+  result <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(), "generation-proof-001", "2026-09-19T13:00:00Z"
+  )
+  expect_identical(result$reason_code, "accepted")
+  after <- phase18_read_acceptance_set(root)
+  expect_false(identical(before$current_generation, after$current_generation))
+  expect_identical(after$pointer$decision_id[[1L]], after$manifest$decision_id[[1L]])
+  expect_identical(after$pointer$manifest_sha256[[1L]], after$manifest$row_sha256[[1L]])
+})
+
+test_that("pointer-swap interruption exposes only the old or complete new generation", {
+  phase18_test_load()
+  root <- phase18_test_seed_probe_root()
+  old <- phase18_read_acceptance_set(root)
+  old_pointer <- readBin(file.path(root, "current.json"), "raw", file.info(file.path(root, "current.json"))$size)
+  interrupted <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(), "generation-before-swap", "2026-09-19T13:00:00Z",
+    failure_injector = function(stage, ...) {
+      if (identical(stage, "before_pointer_swap")) stop("injected interruption", call. = FALSE)
+    }
+  )
+  expect_identical(interrupted$reason_code, "interrupted")
+  expect_identical(
+    readBin(file.path(root, "current.json"), "raw", file.info(file.path(root, "current.json"))$size),
+    old_pointer
+  )
+  expect_identical(phase18_read_acceptance_set(root)$current_generation, old$current_generation)
+
+  committed <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(fingerprint_seed = "after-swap"),
+    "generation-after-swap", "2026-09-19T13:05:00Z",
+    failure_injector = function(stage, ...) {
+      if (identical(stage, "after_pointer_swap")) stop("post-commit interruption", call. = FALSE)
+    }
+  )
+  expect_identical(committed$reason_code, "accepted")
+  expect_silent(phase18_read_acceptance_set(root))
+  expect_identical(
+    phase18_read_acceptance_set(root)$manifest$decision_id[[1L]],
+    "generation-after-swap"
+  )
+})
