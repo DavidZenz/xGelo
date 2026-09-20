@@ -4,17 +4,17 @@ milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: Club and UCL Source Contracts
-status: planned
-stopped_at: Phase 18 planning complete; 6 verified plans are ready to execute
-last_updated: "2026-09-20"
+status: executing
+stopped_at: Completed 18-01-PLAN.md
+last_updated: "2026-09-20T08:52:59.822Z"
 last_activity: 2026-09-20
-last_activity_desc: Phase 18 planning verified with 6 plans across 4 waves
+last_activity_desc: Completed Plan 18-01 provider acceptance contract
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
-  percent: 0
+  completed_plans: 1
+  percent: 17
 ---
 
 # xGelo Project State
@@ -28,18 +28,18 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 ## Current Position
 
-Phase: 18 of 22 (1 of 5 in v4.0) — Club and UCL Source Contracts
-Plan: 0 of 6 in current phase
+Phase: 18 (Club and UCL Source Contracts) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-09-20 — Phase 18 planning verified with 6 plans across 4 waves
+Last activity: 2026-09-20 — Completed Plan 18-01 provider acceptance contract
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██░░░░░░░░] 17%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 18 | Club and UCL Source Contracts | 6 | Not started |
+| 18 | Club and UCL Source Contracts | 6 | In progress (1/6) |
 | 19 | Independent Club Forecast Authority | 5 | Not started |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
@@ -49,11 +49,16 @@ Progress: [░░░░░░░░░░] 0%
 
 **Current milestone:**
 
-- Total plans completed: 0
-- Average duration: —
-- Total execution time: 0 hours
+- Total plans completed: 1
+- Average duration: 14 min
+- Total execution time: 14 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`.
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 18 P01 | 14 min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -64,6 +69,8 @@ Progress: [░░░░░░░░░░] 0%
 - [v4.0]: UEFA web material is manual, versioned rules evidence rather than an automated match-state source.
 - [v4.0]: Current xG, injury, lineup, suspension, and player evidence remains typed unavailable without an accepted lawful source.
 - [v4.0]: UCL joins only after the publisher is registry-derived for 0/1/N editions and preserves all incumbent bytes on failure.
+- [Phase 18]: Provider credentials remain process-local; only presence crosses the acceptance state machine. — Prevents tokens, headers, and reversible credential derivatives from entering durable evidence.
+- [Phase 18]: First provider acceptance requires the four-resource live probe bound to exact 36-club and 144-match expectations. — Fixtures, offline checks, partial coverage, and ordinary provider-live mode cannot bootstrap authority.
 
 ### Pending Todos
 
@@ -86,6 +93,6 @@ Progress: [░░░░░░░░░░] 0%
 
 ## Session Continuity
 
-Last session: 2026-09-20
-Stopped at: Phase 18 planning complete; 6 verified plans are ready to execute
+Last session: 2026-09-20T08:52:51.166Z
+Stopped at: Completed 18-01-PLAN.md
 Resume file: None

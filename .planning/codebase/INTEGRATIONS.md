@@ -19,6 +19,12 @@
   - Local path: `data/raw/team_name_map.csv`
 
 **Restricted/Public Web Sources:**
+- football-data.org v4 - conditional current UEFA Champions League source
+  - Acceptance contract: `R/competition/ucl_source_acceptance.R` and `scripts/accept_ucl_provider.R`
+  - Auth: runtime-only `FOOTBALL_DATA_API_TOKEN`; credential presence crosses the contract boundary, credential bytes do not
+  - Allowed first-acceptance window: competition metadata, teams, matches, and standings for `CL` season `2026`
+  - Durable gate: `data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/`
+  - Current state: `not_run_missing_credential`, automation disabled pending owner review and live-key acceptance
 - FotMob - documented as restricted WCQ shot/xG source requiring manual cache only
   - SDK/Client: no implemented client in current `R/` source
   - Auth: none detected
@@ -84,11 +90,11 @@
 ## Environment Configuration
 
 **Required env vars:**
-- None detected.
+- `FOOTBALL_DATA_API_TOKEN` is conditionally required only for the bounded UCL live-acceptance probe and later accepted acquisition. The default no-key mode remains valid and disabled.
 
 **Secrets location:**
-- Not applicable.
-- No `.env`, `.Renviron`, or credential files are present at the inspected project depth.
+- Provider credentials remain process-local environment values and are forbidden from manifests, logs, request serialization, fixtures, and Git.
+- No `.env`, `.Renviron`, or credential files are committed.
 - Source rules require `data/raw/wcq_cache/` and `data/cache/` to remain local via `.gitignore`.
 
 ## Webhooks & Callbacks

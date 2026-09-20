@@ -7,7 +7,7 @@
 
 ### Source Acceptance and Club Identity
 
-- [ ] **UCLSRC-01**: The operator can run a live-key acceptance check covering API rights, attribution, retention, quota, schema, completeness, and freshness before automated UCL acquisition is enabled.
+- [x] **UCLSRC-01**: The operator can run a live-key acceptance check covering API rights, attribution, retention, quota, schema, completeness, and freshness before automated UCL acquisition is enabled.
 - [ ] **UCLSRC-02**: The operator can ingest current UCL fixtures, results, standings, clubs, and lifecycle metadata without storing provider credentials in generated artifacts or Git.
 - [ ] **UCLSRC-03**: Every accepted current-state artifact records provider, retrieval time, source-as-of time, edition, schema version, and content hashes.
 - [ ] **UCLSRC-04**: A failed, empty, stale, or incomplete retrieval retains the last known good accepted bundle and records a blocked refresh with a machine-readable reason.
@@ -79,7 +79,7 @@ Each active v4.0 requirement will map to exactly one roadmap phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| UCLSRC-01 | Phase 18 | Pending |
+| UCLSRC-01 | Phase 18 | Complete |
 | UCLSRC-02 | Phase 18 | Pending |
 | UCLSRC-03 | Phase 18 | Pending |
 | UCLSRC-04 | Phase 18 | Pending |
