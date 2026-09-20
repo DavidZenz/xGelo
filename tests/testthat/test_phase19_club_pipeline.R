@@ -121,3 +121,67 @@ test_that("repeated fixture and blocked executions are deterministic and credent
   expect_false(grepl("token|secret|credential|/Users/|phase12|national", first$text,
                      ignore.case = TRUE))
 })
+
+phase19_pipeline_manifest <- function() {
+  targets::tar_manifest(
+    fields = c(name, command, format), callr_function = NULL,
+    script = file.path(phase19_pipeline_root, "_targets.R")
+  )
+}
+
+test_that("the target manifest contains a validated club-only authority chain", {
+  manifest <- phase19_pipeline_manifest()
+  expected <- c(
+    "club_history_pointer_file", "club_history_authority",
+    "club_current_ucl_source_file", "club_current_ucl_authority",
+    "club_identity_authority", "club_policy_review_files",
+    "club_fold_registry_file", "club_fold_review_file",
+    "club_protocol_authority", "club_rating_replay",
+    "club_model_candidates", "club_fold_predictions", "club_fold_scores",
+    "club_evaluation_set", "club_promotion_decision", "club_release_state",
+    "club_selector_state"
+  )
+  expect_true(all(expected %in% manifest$name))
+  club <- manifest[grepl("^club_", manifest$name), , drop = FALSE]
+  forbidden <- "phase12_approved_release|phase14|national|fifa|worldcup|euro"
+  expect_false(any(grepl(forbidden, club$command, ignore.case = TRUE)))
+  expect_true(grepl("club_history_authority", manifest$command[manifest$name == "club_protocol_authority"]))
+  expect_true(grepl("club_current_ucl_authority", manifest$command[manifest$name == "club_protocol_authority"]))
+  expect_true(grepl("club_protocol_authority", manifest$command[manifest$name == "club_rating_replay"]))
+  expect_true(grepl("club_fold_scores", manifest$command[manifest$name == "club_evaluation_set"]))
+  expect_true(grepl("club_promotion_decision", manifest$command[manifest$name == "club_release_state"]))
+})
+
+test_that("blocked club targets complete truthfully without release or selector files", {
+  skip_if_not_installed("targets")
+  targets::tar_make(
+    names = c("club_release_state", "club_selector_state"),
+    callr_function = NULL, script = file.path(phase19_pipeline_root, "_targets.R"),
+    reporter = "silent"
+  )
+  decision <- targets::tar_read(club_promotion_decision, store = file.path(phase19_pipeline_root, "_targets"))
+  release <- targets::tar_read(club_release_state, store = file.path(phase19_pipeline_root, "_targets"))
+  selector <- targets::tar_read(club_selector_state, store = file.path(phase19_pipeline_root, "_targets"))
+  expect_identical(decision$status, "blocked")
+  expect_true(decision$reason_code %in% c(
+    "no_accepted_club_history", "no_accepted_current_ucl",
+    "current_ucl_identity_incomplete", "protocol_policy_not_approved",
+    "fold_inventory_not_approved"
+  ))
+  expect_identical(release$status, "blocked")
+  expect_identical(selector$status, "blocked")
+  expect_false(file.exists(file.path(phase19_pipeline_root, "outputs/releases/club/approved_release.csv")))
+})
+
+test_that("club file targets are explicit and downstream invalidation parents are visible", {
+  manifest <- phase19_pipeline_manifest()
+  file_targets <- c(
+    "club_history_pointer_file", "club_current_ucl_source_file",
+    "club_policy_review_files", "club_fold_registry_file", "club_fold_review_file"
+  )
+  rows <- manifest[match(file_targets, manifest$name), , drop = FALSE]
+  expect_true(all(as.character(rows$format) == "file"))
+  expect_true(grepl("club_current_ucl_source_file", manifest$command[manifest$name == "club_current_ucl_authority"]))
+  expect_true(grepl("club_current_ucl_authority", manifest$command[manifest$name == "club_identity_authority"]))
+  expect_true(grepl("club_identity_authority", manifest$command[manifest$name == "club_fold_authority"]))
+})
