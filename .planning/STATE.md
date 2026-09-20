@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-04-PLAN.md
-last_updated: "2026-09-20T18:39:00.386Z"
+stopped_at: Completed 19-05-PLAN.md
+last_updated: "2026-09-20T18:40:09.103Z"
 last_activity: 2026-09-20
-last_activity_desc: Plan 03 frozen club evaluation policy and owner-review boundary verified
+last_activity_desc: Plan 05 club-only goal models and exact G=40 forecast authority verified
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 18
-  percent: 75
+  completed_plans: 19
+  percent: 79
 ---
 
 # xGelo Project State
@@ -29,18 +29,18 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 5 of 10
-Status: In progress; Plans 01-04 complete
-Last activity: 2026-09-20 — Plan 04 frozen club fold and owner-review authority verified
+Plan: 6 of 10
+Status: In progress; Plans 01-05 complete
+Last activity: 2026-09-20 — Plan 05 club-only goal models and exact G=40 forecast authority verified
 
-Progress: [████████░░] 75%
+Progress: [████████░░] 79%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (4/10 plans) |
+| 19 | Independent Club Forecast Authority | 5 | In progress (5/10 plans) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -49,9 +49,9 @@ Progress: [████████░░] 75%
 
 **Current milestone:**
 
-- Total plans completed: 17
+- Total plans completed: 19
 - Average duration: 23 min
-- Total execution time: 384 min
+- Total execution time: 434 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`.
 **Per-Plan Metrics:**
@@ -76,6 +76,7 @@ Progress: [████████░░] 75%
 | Phase 19 P02 | 17min | 2 tasks | 2 files |
 | Phase 19 P03 | 22 min | 2 tasks | 6 files |
 | Phase 19 P04 | 25min | 2 tasks | 6 files |
+| Phase 19 P05 | 25 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,10 @@ Progress: [████████░░] 75%
 - [Phase 19]: Every fold freezes disjoint exact fixture IDs for fit, calibration, and assessment; timestamps alone cannot silently redefine a role.
 - [Phase 19]: Held-out competition exclusion is explicit across fit, tuning, and calibration roles.
 - [Phase 19]: Production fold authority remains blocked until accepted history, accepted policy, and a separate exact-hash fold owner review exist.
+- [Phase 19]: Club venue and Elo candidates use one long-format MASS negative-binomial fit with no family or control fallback.
+- [Phase 19]: Club goal grids use frozen G=40 support, retain omitted tail mass, and normalize stored joint probabilities exactly once.
+- [Phase 19]: Only club_venue_nb and club_elo_nb are promotion-comparable; empirical controls remain report-only.
+- [Phase 19]: Typed-unavailable enrichment columns are rejected on training, rating, and fixture surfaces rather than imputed.
 
 ### Pending Todos
 
@@ -153,6 +158,6 @@ Progress: [████████░░] 75%
 
 ## Session Continuity
 
-Last session: 2026-09-20T18:39:00.375Z
-Stopped at: Completed 19-04-PLAN.md
+Last session: 2026-09-20T18:40:09.094Z
+Stopped at: Completed 19-05-PLAN.md
 Resume file: None
