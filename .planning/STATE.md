@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
+current_phase: 19
+current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-01-PLAN.md
-last_updated: "2026-09-20T17:47:13.215Z"
+stopped_at: Completed 19-02-PLAN.md
+last_updated: "2026-09-20T18:08:32.983Z"
 last_activity: 2026-09-20
-last_activity_desc: Phase 19 Plan 01 completed with production fail-closed and fixture authority verified
+last_activity_desc: Plan 02 batch-safe club rating and strict replay verified
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 15
-  percent: 63
-current_phase: 19
-current_phase_name: independent-club-forecast-authority
+  completed_plans: 16
+  percent: 67
 ---
 
 # xGelo Project State
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 2 of 10
-Status: In progress; Plan 01 complete
-Last activity: 2026-09-20 — Plan 01 authority tracer and typed unavailable evidence verified
+Plan: 3 of 10
+Status: In progress; Plans 01-02 complete
+Last activity: 2026-09-20 — Plan 02 batch-safe club rating and strict replay verified
 
-Progress: [██████░░░░] 63%
+Progress: [███████░░░] 67%
 
 ## Milestone Progress
 
@@ -73,6 +73,7 @@ Progress: [██████░░░░] 63%
 | Phase 18 P11 | 62min | 3 tasks | 9 files |
 | Phase 18 P13 | 52min | 2 tasks | 6 files |
 | Phase 19 P01 | 31min | 2 tasks | 5 files |
+| Phase 19 P02 | 17min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -117,6 +118,8 @@ Progress: [██████░░░░] 63%
 - [Phase 19]: Unavailable club enrichment remains value-less, inactive, optional, and non-imputable until one matching canonical hash-valid accepted source contract exists.
 - [Phase 19]: The five-feature registry rejects non-canonical row order in addition to canonical row and table hash drift.
 - [Phase 19]: Production club authority uses only fixed accepted Phase 18 descriptors; synthetic authority is marker-bound, temporary, explicit, and non-promotable.
+- [Phase 19]: Club Elo freezes base 1500 and admits only predeclared K, home-advantage, and annual inactivity-factor domains. — Keeps rating evidence inside the frozen club candidate search space.
+- [Phase 19]: Current-UCL rating authority requires the exact roster in one accepted-history connected component. — A shared numeric base is not evidence of cross-league comparability.
 
 ### Pending Todos
 
@@ -142,6 +145,6 @@ Progress: [██████░░░░] 63%
 
 ## Session Continuity
 
-Last session: 2026-09-20T17:47:13.204Z
-Stopped at: Completed 19-01-PLAN.md
+Last session: 2026-09-20T18:08:32.972Z
+Stopped at: Completed 19-02-PLAN.md
 Resume file: None
