@@ -1,7 +1,7 @@
 # Phase 19 Plan Review: Independent Club Forecast Authority
 
 **Reviewed:** 2026-09-20  
-**Verdict:** **REVISION REQUIRED**  
+**Verdict:** **REVISION REQUIRED — RE-REVIEW: 2 BLOCKERS**  
 **Plans reviewed:** 19-01 through 19-10  
 **Phase goal:** Forecast consumers can use an immutable, independently validated club-football release that cannot be confused with national-team authority.
 
@@ -9,15 +9,12 @@
 
 The plan set is structurally disciplined: all five `CLUBMOD` requirements appear in plan frontmatter and executable tasks, the dependency graph is acyclic, every plan has two bounded TDD tasks, same-wave file ownership is disjoint, and the final adversarial gate is much stronger than a nominal happy-path suite.
 
-Execution must not start yet. Five blockers remain:
+Commit `3e23e21` materially closes original blockers B1, B3, B4, and B5 plus warnings W1–W3. It also adds the correct owner-review design for B2. Two blockers remain before execution:
 
-1. The plans intentionally finish with no production club release or selector, while the phase goal and Roadmap success criterion 4 require consumers to resolve one approved immutable club release.
-2. Production policy and fold authority are silently frozen from unresolved research assumptions, with no owner-approved policy/fold review gate.
-3. The required current-UCL club/component coverage gate has no authoritative producer: no task resolves the accepted Phase 18 current-UCL generation and binds its exact club set.
-4. Fixture decision semantics contradict the fixture release path: Plan 19-07 makes fixture decisions non-promotable, while Plans 19-08/19-09 require a passing fixture decision to create and resolve a fixture release.
-5. Nyquist validation is enabled, but `19-VALIDATION.md` does not exist before execution and is deferred until Plan 19-10.
+1. `19-RESEARCH.md` still formally declares all four questions unresolved even though production plan authority now depends on their resolution-by-review design.
+2. Plan 19-10 requires the current production CLI to prove every downstream blocked reason independently while simultaneously prohibiting the temporary accepted prerequisites needed to reach any reason after the first missing history gate.
 
-These are goal-achievement and authority-wiring defects, not implementation niceties.
+These are precise artifact/executability defects; the revised roadmap goal itself was not weakened.
 
 ## Coverage and structure
 
@@ -44,7 +41,7 @@ These are goal-achievement and authority-wiring defects, not implementation nice
 
 No dependency cycle, missing plan reference, future dependency, or same-wave file collision was found. Sequential edits to `R/club/evaluation_protocol.R` in Plans 19-03/19-04 and release surfaces in Plans 19-08/19-09 are ordered correctly.
 
-## Blockers
+## Original blockers
 
 ### B1 — Phase goal cannot be achieved by the planned terminal state
 
@@ -120,7 +117,7 @@ Revise the Plan 19-08 wording from "passing fixture decision" to "gate-complete,
 
 **Exact revision required:** create `19-VALIDATION.md` now, before execution, mapping all 20 tasks to their focused automated commands, test files, wave, feedback latency, requirement IDs, and final aggregate gate. Plan 19-10 should **update/finalize** the artifact with observed results, not create the validation architecture for the first time. Include the current production-blocked expectation and fixture-only distinction without treating them as proof of CLUBMOD-04 production completion.
 
-## Warnings
+## Original warnings
 
 ### W1 — National consumer regression coverage omits the file actually modified
 
@@ -194,3 +191,57 @@ All five blockers and three warnings were addressed in commit-ready plan revisio
 | W3 RTK convention | Every executable plan verification segment is prefixed with `rtk`, including commands after shell control operators. |
 
 **Resolution status:** ready for re-review; no roadmap requirement was weakened or marked complete from fixture evidence.
+
+## Re-review — 2026-09-20 after `3e23e21`
+
+### Closure audit
+
+| Prior finding | Re-review result | Evidence |
+|---|---|---|
+| B1 — terminal state missed production release goal | **CLOSED** | ROADMAP now retains success criterion 4 and adds an explicit completion gate: mechanics may execute, but Phase 19 stays `human_needed` and CLUBMOD-04 incomplete until real accepted inputs, reviewed policy/folds, production promotion, selector publication, and resolver readback exist. Plans 19-08..19-10 repeat and verify that distinction. |
+| B2 — policy/fold assumptions gained authority without review | **PARTIALLY CLOSED; R1 remains** | Plans 19-03/19-04 now add pending, self-hashed policy/fold reviews, exact parent binding, pending-review state, separate review application, and stable blocking reasons. However, the authoritative research artifact still says `## Open Questions` with four unresolved questions. |
+| B3 — no current-UCL roster authority producer | **CLOSED** | Plan 19-01 now resolves the fixed Phase 18 refresh and club-registry generation, rejects no-incumbent/tombstone/incomplete identity, and binds edition/source/identity/roster hashes. Plans 19-02/19-07/19-08/19-09/19-10 consume or attack this parent. |
+| B4 — fixture decision contradicted fixture release | **CLOSED** | Plans 19-07..19-10 consistently separate diagnostic outcome, authority eligibility, and promotion status. Fixture pass is `fixture_ineligible`/`ineligible_fixture`; only production plus `promoted` enters the production writer. |
+| B5 — no pre-execution validation artifact | **CLOSED** | `19-VALIDATION.md` now exists, maps all 20 tasks/commands/requirements, defines strict focused/full feedback, and separately records the production human-needed gate. Plan 19-10 updates it rather than first creating the design. |
+| W1 — incomplete national consumer regressions | **CLOSED** | Plan 19-08 and Plan 19-10 include Phase 12/14 release, Phase 14 forecast/state, and Phase 15 Nations League regressions. |
+| W2 — focused checks allowed skip/warning | **CLOSED** | Plan 19-01 creates one strict focused runner; every plan uses it and requires nonzero exit on failure, error, warning, skip, empty, or missing test. |
+| W3 — commands omitted RTK | **CLOSED** | Every `<automated>` executable segment, including commands after `&&`, is prefixed with `rtk`. |
+
+### R1 — Research questions remain formally unresolved
+
+**Severity:** BLOCKER  
+**Dimension:** research resolution  
+**Affected:** `19-RESEARCH.md`, Plans 19-03/19-04
+
+The revised plan correctly resolves uncertainty by making the model/gate values reviewable candidates, making accepted history produce only `pending_review`, and requiring exact accepted policy/fold reviews before production scoring. But `19-RESEARCH.md` still contains `## Open Questions` and all four questions remain written as unclear recommendations. Under the research-resolution gate, a downstream plan cannot silently supersede an unresolved upstream artifact.
+
+**Exact revision required:** change the section to `## Open Questions (RESOLVED)` and record an inline resolution for each question:
+
+1. real fold inventory is materialized as a candidate and requires accepted exact-hash fold review;
+2. strict held-out-league transport is fixture-testable policy and requires accepted policy review for production;
+3. inherited numeric gates are candidates and require accepted exact-hash policy review;
+4. final-fit cutoff is bound into the exact fold review and cannot be inferred at runtime.
+
+This does not approve the values; it resolves the architecture by explicitly deferring production authority to the owner-review contracts.
+
+### R2 — The final gate cannot independently reach all promised production blocked reasons
+
+**Severity:** BLOCKER  
+**Dimension:** verification executability / internal consistency  
+**Affected:** Plan 19-10 Task 19-10-01 and Task 19-10-02
+
+Current production stops first at `no_accepted_club_history`. Reaching `no_accepted_current_ucl`, `current_ucl_identity_incomplete`, `protocol_policy_not_approved`, or `fold_inventory_not_approved` through the full production controller requires valid earlier production authorities. Plan 19-10 nevertheless requires current production to prove every reason independently while also saying verification must not manufacture accepted history/current-UCL evidence or owner reviews. Both conditions cannot be satisfied in the current repository.
+
+**Exact revision required:** separate the two kinds of proof:
+
+- The fixed-root production CLI/readback must assert only the actual first missing reason (`no_accepted_club_history` today), selector absence, and protected-byte preservation.
+- Public boundary validators must exercise the later reason codes using explicitly non-production temporary harnesses/objects that cannot be written under or resolved by production roots.
+- Revise "proves current production blocks independently on missing history/current-UCL/policy/fold authority" and "execute current production and require exact blocked reasons" to this first-real-reason plus isolated-boundary formulation.
+- Keep the prohibition against manufacturing accepted **production** authority. Explicitly allow temporary non-production test parents solely to reach downstream validators, with authority/root checks proving they cannot publish.
+- Change Plan 19-10 success text from "All five requirements have direct automated evidence" to: CLUBMOD-01/02/03/05 have direct automated evidence; CLUBMOD-04 mechanics have automated evidence while its production outcome remains `human_needed` until the roadmap completion gate is satisfied. Likewise mark the CLUBMOD-04 coverage row `MECHANICS COVERED; PRODUCTION PENDING`.
+
+## Final re-review verdict
+
+**REVISION REQUIRED: 2 blockers, 0 warnings.**
+
+The substantive authority architecture is now strong and the roadmap outcome is preserved. Once R1 and R2 are corrected, no other blocker is known and the plans should be ready for execution with an expected post-mechanics status of `human_needed` rather than false completion.
