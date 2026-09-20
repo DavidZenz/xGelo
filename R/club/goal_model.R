@@ -97,9 +97,58 @@ phase19_club_goal_registration <- function(registration, protocol) {
   registration
 }
 
+phase19_club_goal_unavailable_ids <- function(feature_contract) {
+  phase19_validate_feature_contract(feature_contract)
+  as.character(feature_contract$feature_id[
+    feature_contract$availability_status != "available" |
+      !feature_contract$active_in_model |
+      feature_contract$imputation_policy == "forbidden"
+  ])
+}
+
+phase19_club_goal_reject_unavailable_columns <- function(data, feature_contract,
+                                                         label) {
+  forbidden <- intersect(names(data), phase19_club_goal_unavailable_ids(feature_contract))
+  if (length(forbidden)) {
+    phase19_club_goal_model_abort(
+      "unavailable_feature_active",
+      paste0(label, " contains unavailable club enrichment fields: ",
+             paste(sort(forbidden, method = "radix"), collapse = ", "))
+    )
+  }
+  invisible(TRUE)
+}
+
+#' Return exactly the frozen goal-comparable promotion models.
+#'
+#' @export
+phase19_club_goal_comparable_ids <- function(protocol) {
+  if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
+      !identical(protocol$status, "ready") ||
+      !identical(protocol$forecast_domain, "club")) {
+    phase19_club_goal_model_abort(
+      "protocol_not_ready", "A ready club evaluation protocol is required"
+    )
+  }
+  registry <- phase19_validate_candidate_registry(
+    protocol$candidate_registry, protocol$feature_contract
+  )
+  ids <- as.character(registry$model_id[
+    registry$release_selectable & registry$goal_distribution_declared
+  ])
+  expected <- c("club_venue_nb", "club_elo_nb")
+  if (!identical(ids, expected)) {
+    phase19_club_goal_model_abort(
+      "candidate_not_registered", "Goal-comparable model inventory drifted"
+    )
+  }
+  ids
+}
+
 phase19_club_goal_validate_rating_evidence <- function(rating_evidence,
                                                        training_snapshot,
-                                                       authority_mode) {
+                                                       authority_mode,
+                                                       feature_contract) {
   if (!inherits(rating_evidence, "phase19_club_rating_replay") ||
       !identical(rating_evidence$status, "ready") ||
       !identical(rating_evidence$forecast_domain, "club") ||
@@ -126,6 +175,9 @@ phase19_club_goal_validate_rating_evidence <- function(rating_evidence,
       "rating_evidence_invalid", "Rating prediction evidence is incomplete, duplicate, or mixed-domain"
     )
   }
+  phase19_club_goal_reject_unavailable_columns(
+    rating_evidence$predictions, feature_contract, "Rating evidence"
+  )
   invisible(TRUE)
 }
 
@@ -305,7 +357,7 @@ phase19_club_goal_fit_hash <- function(fit) {
     "authority_mode", "fixture_authority", "promotion_eligible", "model_id",
     "registry_role", "selection_role", "model_family", "formula",
     "output_capability", "goal_distribution_declared", "support_min",
-    "support_max", "tail_policy", "cutoff_utc", "fit_row_count",
+    "support_max", "promotion_comparable", "tail_policy", "cutoff_utc", "fit_row_count",
     "max_completion_not_before_utc", "max_evidence_available_at_utc",
     "active_features_text", "dropped_features_text", "converged",
     "convergence_status", "fallback_status", "theta_text",
@@ -313,7 +365,8 @@ phase19_club_goal_fit_hash <- function(fit) {
     "rating_parameter_sha256", "rating_evidence_sha256",
     "candidate_registry_sha256", "feature_contract_sha256",
     "protocol_sha256", "training_rows_sha256", "coefficient_sha256",
-    "empirical_grid_sha256", "mass_package_version"
+    "empirical_grid_sha256", "mass_package_version",
+    "unavailable_feature_ids_text"
   )
   phase19_club_goal_hash_scalars(
     unname(fit[fields]) |> setNames(fields), "phase19-club-goal-fit-v1"
@@ -337,7 +390,10 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
     )
   }
   phase19_club_goal_validate_rating_evidence(
-    rating_evidence, training_snapshot, authority_mode
+    rating_evidence, training_snapshot, authority_mode, protocol$feature_contract
+  )
+  phase19_club_goal_reject_unavailable_columns(
+    training_snapshot$matches, protocol$feature_contract, "Training snapshot"
   )
   eligible <- phase19_club_goal_eligible_history(training_snapshot, cutoff_utc)
   history <- eligible$rows
@@ -430,6 +486,9 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
     formula = as.character(registration$formula[[1L]]),
     output_capability = as.character(registration$output_capability[[1L]]),
     goal_distribution_declared = isTRUE(registration$goal_distribution_declared[[1L]]),
+    promotion_comparable = isTRUE(registration$release_selectable[[1L]]) &&
+      isTRUE(registration$goal_distribution_declared[[1L]]) &&
+      model_id %in% c("club_venue_nb", "club_elo_nb"),
     support_min = if (is.na(registration$score_support_min[[1L]])) NA_integer_ else 0L,
     support_max = support_max,
     tail_policy = if (is.na(support_max)) {
@@ -462,6 +521,10 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
     coefficient_sha256 = coefficient_hash,
     empirical_grid_sha256 = empirical_hash,
     mass_package_version = as.character(utils::packageVersion("MASS")),
+    unavailable_feature_ids = phase19_club_goal_unavailable_ids(protocol$feature_contract),
+    unavailable_feature_ids_text = paste(
+      phase19_club_goal_unavailable_ids(protocol$feature_contract), collapse = "|"
+    ),
     registration = registration,
     model = model, coefficients = coefficients,
     empirical_grid = empirical_grid,
@@ -478,11 +541,36 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
   structure(fit, class = c("phase19_club_goal_fit", "list"))
 }
 
-phase19_club_goal_fixture_rows <- function(fit, fixtures, declared_fixture_ids) {
+phase19_validate_club_goal_fit <- function(fit) {
   if (!inherits(fit, "phase19_club_goal_fit") ||
-      !identical(fit$fit_sha256, phase19_club_goal_fit_hash(fit))) {
+      !identical(fit$forecast_domain, "club") ||
+      !identical(fit$fit_sha256, phase19_club_goal_fit_hash(fit)) ||
+      !identical(fit$fallback_status, "none")) {
     phase19_club_goal_model_abort("invalid_fit", "Club goal fit identity is invalid")
   }
+  if (identical(fit$model_family, "negative_binomial")) {
+    if (is.null(fit$model) || !inherits(fit$model, "negbin") ||
+        !isTRUE(fit$converged) || !isTRUE(fit$model$converged) ||
+        length(fit$theta) != 1L || !is.finite(fit$theta) || fit$theta <= 0 ||
+        length(fit$model$theta) != 1L || !is.finite(fit$model$theta) ||
+        fit$model$theta <= 0 || !identical(as.numeric(fit$theta),
+                                           as.numeric(fit$model$theta)) ||
+        !identical(names(stats::coef(fit$model)), fit$coefficients$term) ||
+        !isTRUE(all.equal(
+          as.numeric(stats::coef(fit$model)), fit$coefficients$estimate,
+          tolerance = 0, check.attributes = FALSE
+        )) || any(!is.finite(stats::coef(fit$model)))) {
+      phase19_club_goal_model_abort(
+        "negative_binomial_not_converged",
+        "Club negative-binomial fit object, coefficients, or theta drifted"
+      )
+    }
+  }
+  invisible(fit)
+}
+
+phase19_club_goal_fixture_rows <- function(fit, fixtures, declared_fixture_ids) {
+  phase19_validate_club_goal_fit(fit)
   required <- c(
     "fixture_id", "forecast_domain", "authority_mode", "boundary_id",
     "kickoff_utc", "evidence_cutoff_exclusive", "home_club_id", "away_club_id",
@@ -496,6 +584,14 @@ phase19_club_goal_fixture_rows <- function(fit, fixtures, declared_fixture_ids) 
       any(as.character(fixtures$authority_mode) != fit$authority_mode)) {
     phase19_club_goal_model_abort(
       "invalid_fixture_inventory", "Prediction fixtures are incomplete, duplicate, or mixed-domain"
+    )
+  }
+  forbidden <- intersect(names(fixtures), fit$unavailable_feature_ids)
+  if (length(forbidden)) {
+    phase19_club_goal_model_abort(
+      "unavailable_feature_active",
+      paste0("Prediction fixtures contain unavailable club enrichment fields: ",
+             paste(sort(forbidden, method = "radix"), collapse = ", "))
     )
   }
   declared_fixture_ids <- as.character(declared_fixture_ids)
@@ -568,7 +664,7 @@ phase19_club_goal_distribution <- function(fit, fixture_id, home_mean, away_mean
   away <- stats::dnbinom(goals, size = fit$theta, mu = away_mean)
   raw <- outer(home, away)
   raw_mass <- sum(raw)
-  if (!is.finite(raw_mass) || raw_mass <= 0 || raw_mass > 1 + 1e-12) {
+  if (!is.finite(raw_mass) || raw_mass <= 0 || raw_mass > 1 + 1e-8) {
     phase19_club_goal_model_abort(
       "invalid_probability_mass", "Negative-binomial grid has invalid raw mass"
     )
@@ -687,6 +783,7 @@ phase19_predict_club_goal_model <- function(fit, fixtures, declared_fixture_ids)
       authority_mode = fit$authority_mode,
       fixture_authority = fit$fixture_authority,
       promotion_eligible = fit$promotion_eligible,
+      promotion_comparable = fit$promotion_comparable,
       model_id = fit$model_id, model_family = fit$model_family,
       output_capability = fit$output_capability,
       goal_distribution_declared = fit$goal_distribution_declared,
@@ -709,6 +806,7 @@ phase19_predict_club_goal_model <- function(fit, fixtures, declared_fixture_ids)
       training_snapshot_sha256 = fit$training_snapshot_sha256,
       current_snapshot_sha256 = fit$current_snapshot_sha256,
       protocol_sha256 = fit$protocol_sha256,
+      fallback_status = fit$fallback_status,
       distribution_sha256 = distribution_sha256,
       prediction_sha256 = "",
       stringsAsFactors = FALSE, check.names = FALSE
@@ -747,6 +845,7 @@ phase19_predict_club_goal_model <- function(fit, fixtures, declared_fixture_ids)
     forecast_domain = "club", authority_mode = fit$authority_mode,
     fixture_authority = fit$fixture_authority,
     promotion_eligible = fit$promotion_eligible,
+    promotion_comparable = fit$promotion_comparable,
     model_id = fit$model_id, output_capability = fit$output_capability,
     goal_distribution_declared = fit$goal_distribution_declared,
     declared_fixture_ids = as.character(declared_fixture_ids),
