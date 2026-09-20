@@ -5,15 +5,15 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: club-and-ucl-source-contracts
 status: executing
-stopped_at: Completed 18-14-PLAN.md
-last_updated: "2026-09-20T11:45:00.114Z"
+stopped_at: Completed 18-08-PLAN.md
+last_updated: "2026-09-20T12:29:54.841Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 18 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 8
+  completed_plans: 9
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (club-and-ucl-source-contracts) — EXECUTING
-Plan: 3 of 14
+Plan: 4 of 14
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 18 execution started
 
-Progress: [██████░░░░] 57%
+Progress: [██████░░░░] 64%
 
 ## Milestone Progress
 
@@ -66,6 +66,7 @@ Progress: [██████░░░░] 57%
 | Phase 18 P04 | 18min | 3 tasks | 5 files |
 | Phase 18 P07 | 4min | 2 tasks | 2 files |
 | Phase 18 P14 | 7min | 2 tasks | 10 files |
+| Phase 18 P08 | 45min | 3 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,9 @@ Progress: [██████░░░░] 57%
 - [Phase 18]: Canonical tables permit duplicate stable keys but reject missing or blank key components. — Multiplicity remains represented while deterministic v2 row bytes provide tie-breakers.
 - [Phase 18]: Every Phase 18 loader sources the canonical hash module immediately after trusted-root resolution and before consumers.
 - [Phase 18]: Dynamic Phase 18 test loaders source mandatory dependencies unconditionally so missing modules fail closed.
+- [Phase 18]: Production acceptance readers preserve stored canonical-v2 hashes and validators independently recompute exact owner, edition, capability, and fingerprint authority.
+- [Phase 18]: Acceptance publication selects a validated immutable generation through one hash-bound atomic current.json replacement.
+- [Phase 18]: The provider CLI is fixed to football_data_org_v4/ucl_2026_27 and uses tagged results with stable success, blocked, rejected, usage, and runtime exits.
 
 ### Pending Todos
 
@@ -115,6 +119,6 @@ Progress: [██████░░░░] 57%
 
 ## Session Continuity
 
-Last session: 2026-09-20T11:45:00.103Z
-Stopped at: Completed 18-14-PLAN.md
+Last session: 2026-09-20T12:29:54.832Z
+Stopped at: Completed 18-08-PLAN.md
 Resume file: None
