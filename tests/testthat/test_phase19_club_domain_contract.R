@@ -202,3 +202,168 @@ test_that("focused runner rejects warning skip failure error empty and missing t
     expect_gt(run(path)$status, 0L)
   }
 })
+
+phase19_test_feature_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain", "feature_id",
+    "availability_status", "reason_code", "source_contract_id",
+    "source_contract_sha256", "value_type", "value", "observed_at_utc",
+    "cutoff_status", "required_by_model", "active_in_model",
+    "imputation_policy", "row_sha256"
+  )
+}
+
+phase19_test_rehash_feature_contract <- function(contract) {
+  contract$row_sha256 <- phase19_feature_row_sha256(contract)
+  contract
+}
+
+phase19_test_accepted_source_contract <- function(feature_id = "injury") {
+  contract <- data.frame(
+    schema_version = "phase19-club-feature-source-contract-v1",
+    hash_encoding_version = "phase18-canonical-v2",
+    forecast_domain = "club",
+    feature_id = feature_id,
+    source_contract_id = paste0("accepted_", feature_id, "_v1"),
+    decision = "accepted",
+    accepted_at_utc = "2026-09-20T00:00:00Z",
+    contract_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  contract$contract_sha256 <- phase18_hash_row_v2(
+    contract,
+    schema_tag = "phase19-club-feature-source-contract-v1"
+  )
+  contract
+}
+
+test_that("committed enrichment registry is exact unavailable club evidence", {
+  phase19_test_load()
+  phase19_test_require(c(
+    "phase19_load_feature_contract", "phase19_validate_feature_contract",
+    "phase19_feature_contract_sha256", "phase19_feature_row_sha256"
+  ))
+  contract <- phase19_load_feature_contract()
+
+  expect_identical(names(contract), phase19_test_feature_schema())
+  expect_identical(
+    as.character(contract$feature_id),
+    c("current_xg", "injury", "lineup", "suspension", "player")
+  )
+  expect_identical(anyDuplicated(contract$feature_id), 0L)
+  expect_true(all(contract$schema_version == "phase19-club-feature-v1"))
+  expect_true(all(contract$hash_encoding_version == "phase18-canonical-v2"))
+  expect_true(all(contract$forecast_domain == "club"))
+  expect_true(all(contract$availability_status == "unavailable"))
+  expect_true(all(contract$reason_code == "no_accepted_source_contract"))
+  expect_true(all(contract$source_contract_id == ""))
+  expect_true(all(contract$source_contract_sha256 == ""))
+  expect_true(all(contract$value_type == "unavailable"))
+  expect_true(all(contract$value == ""))
+  expect_true(all(contract$observed_at_utc == ""))
+  expect_true(all(contract$cutoff_status == "not_applicable"))
+  expect_true(all(!contract$required_by_model))
+  expect_true(all(!contract$active_in_model))
+  expect_true(all(contract$imputation_policy == "forbidden"))
+  expect_identical(contract$row_sha256, phase19_feature_row_sha256(contract))
+  expect_true(grepl("^[0-9a-f]{64}$", phase19_feature_contract_sha256(contract)))
+  expect_silent(phase19_validate_feature_contract(contract))
+})
+
+test_that("unavailable enrichment omission mutation activation and formula attacks fail", {
+  phase19_test_load()
+  contract <- phase19_load_feature_contract()
+  attacks <- list(
+    omission = contract[-1L, , drop = FALSE],
+    duplication = rbind(contract, contract[1L, , drop = FALSE]),
+    unknown = transform(contract, feature_id = replace(feature_id, 1L, "weather")),
+    reorder = contract[rev(seq_len(nrow(contract))), , drop = FALSE],
+    zero_fill = transform(contract, value = replace(value, 1L, "0")),
+    activated = transform(contract, active_in_model = replace(active_in_model, 1L, TRUE)),
+    unsupported_source = transform(
+      contract,
+      source_contract_id = replace(source_contract_id, 1L, "claimed-current-xg-v1"),
+      source_contract_sha256 = replace(source_contract_sha256, 1L, paste(rep("a", 64L), collapse = ""))
+    ),
+    row_hash_drift = transform(contract, row_sha256 = replace(row_sha256, 1L, paste(rep("b", 64L), collapse = "")))
+  )
+  attacks$unknown <- phase19_test_rehash_feature_contract(attacks$unknown)
+  attacks$zero_fill <- phase19_test_rehash_feature_contract(attacks$zero_fill)
+  attacks$activated <- phase19_test_rehash_feature_contract(attacks$activated)
+  attacks$unsupported_source <- phase19_test_rehash_feature_contract(attacks$unsupported_source)
+
+  for (name in names(attacks)) {
+    expect_error(
+      phase19_validate_feature_contract(attacks[[name]]),
+      class = "phase19_feature_contract_error",
+      info = name
+    )
+  }
+  expect_error(
+    phase19_validate_feature_formula(~ elo_diff + injury, contract),
+    class = "phase19_feature_contract_error"
+  )
+  expect_silent(phase19_validate_feature_formula(~ elo_diff + competition_form, contract))
+})
+
+test_that("only a separately accepted hash-valid source contract can activate a feature", {
+  phase19_test_load()
+  contract <- phase19_load_feature_contract()
+  source_contract <- phase19_test_accepted_source_contract("injury")
+  row <- match("injury", contract$feature_id)
+  contract$availability_status[[row]] <- "available"
+  contract$reason_code[[row]] <- "accepted_source_contract"
+  contract$source_contract_id[[row]] <- source_contract$source_contract_id[[1L]]
+  contract$source_contract_sha256[[row]] <- source_contract$contract_sha256[[1L]]
+  contract$value_type[[row]] <- "numeric"
+  contract$value[[row]] <- "1"
+  contract$observed_at_utc[[row]] <- "2026-09-19T12:00:00Z"
+  contract$cutoff_status[[row]] <- "before_cutoff"
+  contract$required_by_model[[row]] <- TRUE
+  contract$active_in_model[[row]] <- TRUE
+  contract <- phase19_test_rehash_feature_contract(contract)
+
+  expect_silent(phase19_validate_feature_contract(
+    contract,
+    accepted_source_contracts = list(source_contract)
+  ))
+  expect_silent(phase19_validate_feature_formula(~ elo_diff + injury, contract))
+
+  forged <- source_contract
+  forged$accepted_at_utc[[1L]] <- "2026-09-21T00:00:00Z"
+  expect_error(
+    phase19_validate_feature_contract(contract, list(forged)),
+    class = "phase19_feature_contract_error"
+  )
+})
+
+test_that("fixture projections carry every typed unavailable row without numeric invention", {
+  phase19_test_load()
+  contract <- phase19_load_feature_contract()
+  fixtures <- data.frame(
+    fixture_id = c("ucl_2026_27-league-0001", "ucl_2026_27-league-0002"),
+    forecast_domain = "club",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  projected <- phase19_project_feature_evidence(fixtures, contract)
+
+  expect_equal(nrow(projected), 10L)
+  expect_identical(names(projected), c("fixture_id", phase19_test_feature_schema()))
+  expect_identical(
+    split(as.character(projected$feature_id), projected$fixture_id),
+    setNames(rep(list(as.character(contract$feature_id)), 2L), fixtures$fixture_id)
+  )
+  expect_true(all(projected$availability_status == "unavailable"))
+  expect_true(all(projected$value_type == "unavailable"))
+  expect_true(all(projected$value == ""))
+  expect_false(any(vapply(projected, is.numeric, logical(1))))
+
+  bad_fixtures <- fixtures
+  bad_fixtures$forecast_domain[[1L]] <- "national_team"
+  expect_error(
+    phase19_project_feature_evidence(bad_fixtures, contract),
+    class = "phase19_domain_mismatch"
+  )
+})
