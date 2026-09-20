@@ -5,6 +5,8 @@ phase18_identity_test_root <- normalizePath(file.path(getwd(), "../.."), mustWor
 phase18_identity_test_load <- function() {
   source(file.path(phase18_identity_test_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
   source(file.path(phase18_identity_test_root, "R/club/identity.R"), local = .GlobalEnv)
+  bootstrap <- file.path(phase18_identity_test_root, "R/club/identity_bootstrap.R")
+  if (file.exists(bootstrap)) source(bootstrap, local = .GlobalEnv)
 }
 
 phase18_identity_test_empty <- function() {
@@ -182,4 +184,124 @@ testthat::test_that("registry hash and resolution are invariant to row order", {
   one <- phase18_resolve_club_identity(registries, "provider", "202", "Beta FC", "2026-09-19T12:00:00Z")
   two <- phase18_resolve_club_identity(reversed, "provider", "202", "Beta FC", "2026-09-19T12:00:00Z")
   testthat::expect_identical(one, two)
+})
+
+phase18_identity_test_tokens <- function() {
+  current <- data.frame(
+    source_system = "provider", source_club_id = c("101", "202"),
+    display_name = c("Alpha FC", "Beta FC"),
+    event_at_utc = c("2026-09-19T12:00:00Z", "2026-09-19T12:00:00Z"),
+    source_row = c("clubs:1", "clubs:2"), stringsAsFactors = FALSE
+  )
+  history <- data.frame(
+    source_system = "openfootball", source_row = "history:1",
+    event_at_utc = "2020-01-01T00:00:00Z",
+    home_name = "Alpha FC", away_name = "Beta FC", stringsAsFactors = FALSE
+  )
+  phase18_extract_club_tokens(current, history)
+}
+
+phase18_identity_test_review <- function(tokens) {
+  data.frame(
+    corpus = tokens$corpus,
+    source_system = tokens$source_system,
+    source_row = tokens$source_row,
+    source_club_id = tokens$source_club_id,
+    display_value = tokens$display_value,
+    evidence_sha256 = tokens$evidence_sha256,
+    club_id = ifelse(grepl("alpha", tokens$normalized_display), "club_alpha", "club_beta"),
+    entity_kind = "club",
+    canonical_name = ifelse(grepl("alpha", tokens$normalized_display), "Alpha FC", "Beta FC"),
+    association_code = "AUT",
+    valid_from_utc = "2000-01-01T00:00:00Z", valid_to_utc = "",
+    reviewer = "owner", reviewed_at_utc = "2026-09-19T00:00:00Z",
+    review_state = "approved", source_bundle_id = "review-fixture-v1",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+testthat::test_that("current and historical extraction emits stable evidence without identity suggestions", {
+  phase18_identity_test_load()
+  tokens <- phase18_identity_test_tokens()
+  testthat::expect_equal(nrow(tokens), 4L)
+  testthat::expect_setequal(tokens$corpus, c("current_ucl", "historical_inventory"))
+  testthat::expect_true(all(grepl("^[0-9a-f]{64}$", tokens$evidence_sha256)))
+  testthat::expect_false("club_id" %in% names(tokens))
+  reversed <- phase18_extract_club_tokens(
+    data.frame(
+      source_system = "provider", source_club_id = c("202", "101"),
+      display_name = c("Beta FC", "Alpha FC"),
+      event_at_utc = "2026-09-19T12:00:00Z", source_row = c("clubs:2", "clubs:1")
+    ),
+    data.frame(
+      source_system = "openfootball", source_row = "history:1",
+      event_at_utc = "2020-01-01T00:00:00Z", home_name = "Alpha FC", away_name = "Beta FC"
+    )
+  )
+  testthat::expect_identical(tokens, reversed)
+})
+
+testthat::test_that("only complete approved owner mappings update registries", {
+  phase18_identity_test_load()
+  tokens <- phase18_identity_test_tokens()
+  review <- phase18_identity_test_review(tokens)
+  empty <- phase18_identity_test_empty()
+  applied <- phase18_apply_club_identity_review(tokens, review, empty)
+  testthat::expect_equal(nrow(applied$registries$clubs), 2L)
+  testthat::expect_equal(nrow(applied$unresolved), 0L)
+  testthat::expect_silent(phase18_validate_club_registries(applied$registries))
+
+  partial <- review[-1L, , drop = FALSE]
+  blocked <- phase18_apply_club_identity_review(tokens, partial, empty)
+  testthat::expect_equal(nrow(blocked$unresolved), 1L)
+  testthat::expect_identical(blocked$unresolved$blocked_reason[[1L]], "missing_owner_review")
+
+  cross_domain <- review
+  cross_domain$club_id[[1L]] <- "team_alpha"
+  testthat::expect_error(
+    phase18_apply_club_identity_review(tokens, cross_domain, empty),
+    class = "cross_domain_club_identity"
+  )
+})
+
+testthat::test_that("review application is replay-safe and conflicting updates are atomic", {
+  phase18_identity_test_load()
+  tokens <- phase18_identity_test_tokens()
+  review <- phase18_identity_test_review(tokens)
+  first <- phase18_apply_club_identity_review(tokens, review, phase18_identity_test_empty())
+  replay <- phase18_apply_club_identity_review(tokens, review, first$registries)
+  testthat::expect_identical(
+    phase18_club_registry_hash(first$registries),
+    phase18_club_registry_hash(replay$registries)
+  )
+  conflict <- review
+  conflict$club_id[conflict$source_club_id == "101"] <- "club_beta"
+  testthat::expect_error(
+    phase18_apply_club_identity_review(tokens, conflict, first$registries),
+    class = "club_identity_review_conflict"
+  )
+  testthat::expect_identical(first$registries, first$registries)
+})
+
+testthat::test_that("current and historical coverage gates block independently", {
+  phase18_identity_test_load()
+  tokens <- phase18_identity_test_tokens()
+  review <- phase18_identity_test_review(tokens)
+  complete <- phase18_apply_club_identity_review(tokens, review, phase18_identity_test_empty())
+  report <- phase18_validate_identity_bootstrap(
+    complete,
+    current_expectations = list(required = TRUE, expected_tokens = 2L),
+    history_expectations = list(required = TRUE, expected_tokens = 2L)
+  )
+  testthat::expect_true(all(report$status == "complete"))
+
+  partial <- phase18_apply_club_identity_review(tokens, review[-1L, , drop = FALSE], phase18_identity_test_empty())
+  testthat::expect_error(
+    phase18_validate_identity_bootstrap(
+      partial,
+      current_expectations = list(required = TRUE, expected_tokens = 2L),
+      history_expectations = list(required = TRUE, expected_tokens = 2L)
+    ),
+    class = "club_identity_bootstrap_blocked"
+  )
 })
