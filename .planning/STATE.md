@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: Club and UCL Source Contracts
 status: executing
-stopped_at: Completed 18-02-PLAN.md
-last_updated: "2026-09-20T09:08:40.821Z"
+stopped_at: Completed 18-03-PLAN.md
+last_updated: "2026-09-20T09:23:46.557Z"
 last_activity: 2026-09-20
-last_activity_desc: Completed Plan 18-01 provider acceptance contract
+last_activity_desc: Completed Plan 18-03 current UCL provider adapter
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
-  percent: 0
+  completed_plans: 3
+  percent: 50
 ---
 
 # xGelo Project State
@@ -29,17 +29,17 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (Club and UCL Source Contracts) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
-Last activity: 2026-09-20 — Completed Plan 18-01 provider acceptance contract
+Last activity: 2026-09-20 — Completed Plan 18-03 current UCL provider adapter
 
-Progress: [███░░░░░░░] 33%
+Progress: [█████░░░░░] 50%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 18 | Club and UCL Source Contracts | 6 | In progress (1/6) |
+| 18 | Club and UCL Source Contracts | 6 | In progress (3/6) |
 | 19 | Independent Club Forecast Authority | 5 | Not started |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
@@ -49,9 +49,9 @@ Progress: [███░░░░░░░] 33%
 
 **Current milestone:**
 
-- Total plans completed: 1
-- Average duration: 14 min
-- Total execution time: 14 min
+- Total plans completed: 3
+- Average duration: 11 min
+- Total execution time: 33 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`.
 **Per-Plan Metrics:**
@@ -60,6 +60,7 @@ Progress: [███░░░░░░░] 33%
 |------|----------|-------|-------|
 | Phase 18 P01 | 14 min | 3 tasks | 10 files |
 | Phase 18 P02 | 10 min | 3 tasks | 10 files |
+| Phase 18 P03 | 9 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -74,6 +75,8 @@ Progress: [███░░░░░░░] 33%
 - [Phase 18]: First provider acceptance requires the four-resource live probe bound to exact 36-club and 144-match expectations. — Fixtures, offline checks, partial coverage, and ordinary provider-live mode cannot bootstrap authority.
 - [Phase 18]: Club identity uses a project-owned club_ namespace and never reuses national-team or FIFA identity as authority. — Prevents cross-domain collisions and keeps source-ID/alias validity semantics explicit.
 - [Phase 18]: Production club registries remain empty until explicit owner mappings exist. — Missing history stays hash-bound blocked evidence and an absent live probe remains not-run rather than inferred.
+- [Phase 18]: The current UCL adapter accepts only the exact four fixed CL/2026 endpoints; no caller-supplied host, path, or per-ID traversal is available.
+- [Phase 18]: Synthetic provider evidence remains offline-only; only explicit live_acceptance_probe may invoke atomic provider acceptance after owner and identity review.
 
 ### Pending Todos
 
@@ -96,6 +99,6 @@ Progress: [███░░░░░░░] 33%
 
 ## Session Continuity
 
-Last session: 2026-09-20T09:08:40.813Z
-Stopped at: Completed 18-02-PLAN.md
+Last session: 2026-09-20T09:23:46.549Z
+Stopped at: Completed 18-03-PLAN.md
 Resume file: None
