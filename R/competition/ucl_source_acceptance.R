@@ -110,7 +110,14 @@ phase18_hash_terms_review <- function(review) {
   review
 }
 
-phase18_validate_terms_review <- function(review) {
+phase18_trusted_provider_id <- function() "football_data_org_v4"
+
+phase18_trusted_application_id <- function() "xgelo_ucl_dashboard"
+
+phase18_validate_terms_review <- function(
+    review,
+    expected_provider_id = phase18_trusted_provider_id(),
+    expected_application_id = phase18_trusted_application_id()) {
   rejected <- function(decision = "manual_only", reason_code = "terms", message = "Owner review is incomplete") {
     list(valid = FALSE, decision = decision, reason_code = reason_code, message = message, review_sha256 = "")
   }
@@ -1164,7 +1171,10 @@ phase18_hash_terms_review <- function(review) {
   review
 }
 
-phase18_validate_terms_review <- function(review) {
+phase18_validate_terms_review <- function(
+    review,
+    expected_provider_id = phase18_trusted_provider_id(),
+    expected_application_id = phase18_trusted_application_id()) {
   rejected <- function(decision = "manual_only", reason_code = "terms", message = "Owner review is incomplete", review_sha256 = "") {
     list(valid = FALSE, decision = decision, reason_code = reason_code, message = message, review_sha256 = review_sha256)
   }
@@ -1184,6 +1194,22 @@ phase18_validate_terms_review <- function(review) {
     if (any(vapply(review[scoped], function(column) length(unique(as.character(column))) != 1L, logical(1)))) {
       phase18_acceptance_abort("integrity", "owner review scope is inconsistent")
     }
+    expected_provider_id <- phase18_acceptance_scalar(expected_provider_id, "expected_provider_id")
+    expected_application_id <- phase18_acceptance_scalar(expected_application_id, "expected_application_id")
+    if (any(as.character(review$provider_id) != expected_provider_id) ||
+        any(as.character(review$application_id) != expected_application_id)) {
+      return(rejected("manual_only", "application_scope", "Owner review is outside the trusted provider/application scope"))
+    }
+    required_text <- c(
+      "review_id", "provider_id", "application_id", "dimension", "status",
+      "terms_url", "terms_sha256", "reviewer", "reviewed_at_utc",
+      "requirement", "disposition"
+    )
+    if (any(vapply(review[required_text], function(column) {
+      any(is.na(column) | !nzchar(trimws(as.character(column))))
+    }, logical(1)))) {
+      return(rejected("manual_only", "terms", "Owner review contains blank required authority evidence"))
+    }
     if (any(!grepl("^[0-9a-fA-F]{64}$", as.character(review$terms_sha256)))) {
       phase18_acceptance_abort("integrity", "owner review terms hash is invalid")
     }
@@ -1197,7 +1223,7 @@ phase18_validate_terms_review <- function(review) {
     if (any(!statuses %in% c("approved", "pending", "rejected"))) phase18_acceptance_abort("integrity", "owner review status is unsupported")
     if (any(statuses == "rejected")) return(rejected("rejected", "terms", "Owner review rejected", hash))
     if (any(statuses != "approved")) return(rejected("manual_only", "terms", "Owner review is pending", hash))
-    placeholders <- c("pending_owner_review", "fixture-reviewer", "unknown", "todo", "tbd")
+    placeholders <- c("pending_owner_review", "fixture-reviewer", "unknown", "todo", "tbd", "none", "n/a")
     if (any(tolower(trimws(as.character(review$reviewer))) %in% placeholders)) {
       return(rejected("manual_only", "terms", "Owner review requires a non-placeholder reviewer", hash))
     }
@@ -1548,7 +1574,7 @@ phase18_build_acceptance_manifest <- function(
   } else {
     decision <- "rejected"; reason_code <- if (!machine_result$valid) machine_result$reason_code else "coverage"
   }
-  provider_id <- if (nrow(owner_review)) as.character(owner_review$provider_id[[1L]]) else "football_data_org_v4"
+  provider_id <- phase18_trusted_provider_id()
   edition_id <- if (nrow(edition_expectations)) as.character(edition_expectations$edition_id[[1L]]) else "ucl_2026_27"
   parser_commit_sha <- if (is.null(parser_commit_sha)) phase18_parser_commit_sha(project_root) else tolower(phase18_acceptance_scalar(parser_commit_sha, "parser_commit_sha"))
   manifest <- data.frame(

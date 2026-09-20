@@ -192,6 +192,24 @@ test_that("owner review validation is typed for approved pending rejected and ma
   expect_true(malformed$decision %in% c("manual_only", "rejected"))
 })
 
+test_that("owner terms authority rejects blank reviewers and foreign application scope", {
+  phase18_test_load()
+  blank <- phase18_test_review("approved")
+  blank$reviewer <- "   "
+  blank <- phase18_hash_terms_review(blank)
+  expect_false(phase18_validate_terms_review(blank)$valid)
+
+  foreign_provider <- phase18_test_review("approved")
+  foreign_provider$provider_id <- "other_provider"
+  foreign_provider <- phase18_hash_terms_review(foreign_provider)
+  expect_false(phase18_validate_terms_review(foreign_provider)$valid)
+
+  foreign_app <- phase18_test_review("approved")
+  foreign_app$application_id <- "other_app"
+  foreign_app <- phase18_hash_terms_review(foreign_app)
+  expect_false(phase18_validate_terms_review(foreign_app)$valid)
+})
+
 test_that("production evidence enumerates every reviewed dimension and coverage capability", {
   phase18_test_load()
   root <- file.path(
