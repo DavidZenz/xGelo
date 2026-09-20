@@ -104,7 +104,7 @@ phase18_refresh_test_candidate <- function(id, suffix = id, authority = "manual"
   if (identical(authority, "manual")) {
     review <- data.frame(schema_version = "phase18-ucl-manual-source-review-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
       manual_review_id = paste0("manual-", id), edition_id = "ucl_2026_27", decision = "accepted",
-      source_url = "https://manual.example/ucl.json", license_id = "fixture-test-only", reviewer = "fixture-reviewer",
+      source_url = "https://manual.example/ucl.json", license_id = "fixture-test-only", reviewer = "manual-owner",
       reviewed_at_utc = "2026-09-19T12:00:00Z", aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(fetched),
       manual_review_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE)
     review$manual_review_sha256 <- phase18_ucl_manual_review_hash(review); review$row_sha256 <- phase18_ucl_row_hash(review)

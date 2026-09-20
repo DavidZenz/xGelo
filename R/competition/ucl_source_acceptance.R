@@ -1126,6 +1126,32 @@ phase18_acceptance_utc <- function(value, name) {
   value
 }
 
+phase18_validate_human_authority <- function(
+    reviewer,
+    reviewed_at_utc,
+    label = "human authority",
+    reject_future = FALSE,
+    now = Sys.time()) {
+  reviewer <- phase18_acceptance_scalar(reviewer, paste0(label, " reviewer"))
+  reviewer_key <- tolower(trimws(reviewer))
+  placeholders <- c(
+    "pending_owner_review", "fixture-reviewer", "unknown", "todo", "tbd",
+    "none", "n/a", "na"
+  )
+  if (!nzchar(reviewer_key) || reviewer_key %in% placeholders) {
+    phase18_acceptance_abort("integrity", paste0(label, " requires a non-placeholder reviewer"))
+  }
+  reviewed_at_utc <- phase18_acceptance_utc(reviewed_at_utc, paste0(label, " reviewed_at_utc"))
+  if (isTRUE(reject_future)) {
+    reviewed <- as.POSIXct(reviewed_at_utc, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    now <- as.POSIXct(now, tz = "UTC")
+    if (is.na(now) || reviewed > now) {
+      phase18_acceptance_abort("integrity", paste0(label, " review time is in the future"))
+    }
+  }
+  invisible(TRUE)
+}
+
 phase18_acceptance_require_schema <- function(data, schema_version, required, label) {
   if (!is.data.frame(data) || !nrow(data)) phase18_acceptance_abort("schema", paste0(label, " is absent"))
   if (!identical(names(data), required)) {
@@ -1213,7 +1239,11 @@ phase18_validate_terms_review <- function(
     if (any(!grepl("^[0-9a-fA-F]{64}$", as.character(review$terms_sha256)))) {
       phase18_acceptance_abort("integrity", "owner review terms hash is invalid")
     }
-    invisible(lapply(as.character(review$reviewed_at_utc), phase18_acceptance_utc, name = "reviewed_at_utc"))
+    invisible(mapply(
+      phase18_validate_human_authority,
+      as.character(review$reviewer), as.character(review$reviewed_at_utc),
+      MoreArgs = list(label = "owner review"), SIMPLIFY = FALSE
+    ))
     expected <- phase18_acceptance_hash_rows(review, "phase18-provider-terms-review-row-v2")
     if (!identical(tolower(as.character(review$row_sha256)), expected)) {
       phase18_acceptance_abort("integrity", "owner review row hash mismatch")
@@ -1223,10 +1253,6 @@ phase18_validate_terms_review <- function(
     if (any(!statuses %in% c("approved", "pending", "rejected"))) phase18_acceptance_abort("integrity", "owner review status is unsupported")
     if (any(statuses == "rejected")) return(rejected("rejected", "terms", "Owner review rejected", hash))
     if (any(statuses != "approved")) return(rejected("manual_only", "terms", "Owner review is pending", hash))
-    placeholders <- c("pending_owner_review", "fixture-reviewer", "unknown", "todo", "tbd", "none", "n/a")
-    if (any(tolower(trimws(as.character(review$reviewer))) %in% placeholders)) {
-      return(rejected("manual_only", "terms", "Owner review requires a non-placeholder reviewer", hash))
-    }
     list(valid = TRUE, decision = "accepted", reason_code = "accepted", message = "Owner review approved", review_sha256 = hash)
   }, error = function(error) error)
   if (inherits(result, "error")) {
@@ -1305,7 +1331,10 @@ phase18_validate_edition_expectations <- function(expectations, observed = NULL,
     if (!identical(tolower(as.character(expectations$row_sha256)), expected_rows)) phase18_acceptance_abort("integrity", "edition expectation row hash mismatch")
     aggregate <- phase18_acceptance_hash_table(expectations, c("edition_id", "lifecycle"), "phase18-edition-expectation-table-v2", exclude = "expectation_sha256")
     if (any(tolower(as.character(expectations$expectation_sha256)) != aggregate)) phase18_acceptance_abort("integrity", "edition expectation aggregate hash mismatch")
-    phase18_acceptance_utc(expectations$reviewed_at_utc[[1L]], "reviewed_at_utc")
+    phase18_validate_human_authority(
+      expectations$reviewer[[1L]], expectations$reviewed_at_utc[[1L]],
+      label = "edition expectation"
+    )
     list(aggregate = aggregate)
   }, error = function(error) error)
   if (inherits(checked, "error")) return(fail("schema", conditionMessage(checked)))
@@ -1317,8 +1346,7 @@ phase18_validate_edition_expectations <- function(expectations, observed = NULL,
     isTRUE(as.logical(expectations$standings_required[[1L]])) &&
     identical(as.integer(expectations$expected_standings_rows[[1L]]), 36L)
   if (!exact) return(fail("cardinality", "Only the exact supported UCL 2026/27 league-phase expectation is authoritative", aggregate))
-  placeholder <- tolower(trimws(as.character(expectations$reviewer[[1L]]))) %in% c("pending_owner_review", "fixture-reviewer", "unknown", "todo", "tbd", "")
-  if (!identical(as.character(expectations$review_state[[1L]]), "approved") || placeholder) {
+  if (!identical(as.character(expectations$review_state[[1L]]), "approved")) {
     return(fail("terms", "Edition expectations require explicit non-placeholder owner approval", aggregate))
   }
   if (!is.null(lifecycle) && !identical(phase18_acceptance_scalar(lifecycle, "lifecycle"), "league_phase")) return(fail("cardinality", "Requested lifecycle expectation is missing", aggregate))

@@ -331,6 +331,13 @@ phase18_validate_source_authority <- function(
     if (!identical(as.character(review$decision[[1L]]), "accepted")) {
       phase18_ucl_bundle_abort("blocked_authority", "Manual source review is not accepted")
     }
+    tryCatch(
+      phase18_validate_human_authority(
+        review$reviewer[[1L]], review$reviewed_at_utc[[1L]],
+        label = "manual source review", reject_future = TRUE
+      ),
+      error = function(error) phase18_ucl_bundle_abort("blocked_authority", conditionMessage(error))
+    )
     raw_hash <- phase18_ucl_require_hash(review$aggregate_raw_sha256, "manual aggregate raw hash")
     if (!identical(as.character(review$edition_id[[1L]]), candidate_edition_id) ||
         !identical(raw_hash, aggregate_raw_sha256)) {

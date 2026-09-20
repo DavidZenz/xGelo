@@ -510,7 +510,15 @@ phase18_validate_ucl_provider_exit_review <- function(review) {
   if (!grepl("^[0-9a-f]{64}$", tolower(as.character(review$terms_sha256[[1L]])))) {
     phase18_ucl_refresh_abort("owner_review_required", "Provider exit terms hash is invalid", "compliance")
   }
-  phase18_ucl_refresh_validate_utc(review$reviewed_at_utc[[1L]], "reviewed_at_utc")
+  tryCatch(
+    phase18_validate_human_authority(
+      review$reviewer[[1L]], review$reviewed_at_utc[[1L]],
+      label = "provider exit review"
+    ),
+    error = function(error) phase18_ucl_refresh_abort(
+      "owner_review_required", conditionMessage(error), "compliance"
+    )
+  )
   if (!is.logical(review$retention_permitted) || length(review$retention_permitted) != 1L ||
       is.na(review$retention_permitted[[1L]]) || !is.logical(review$display_permitted) ||
       length(review$display_permitted) != 1L || is.na(review$display_permitted[[1L]])) {

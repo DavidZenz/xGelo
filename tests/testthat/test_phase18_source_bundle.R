@@ -152,7 +152,7 @@ phase18_bundle_test_manual_review <- function(fetched = phase18_bundle_test_fetc
     hash_encoding_version = phase18_canonical_encoding_v2(),
     manual_review_id = "manual-ucl-fixture-001", edition_id = "ucl_2026_27",
     decision = decision, source_url = "https://manual.example/ucl-2026-27.json",
-    license_id = "fixture-test-only", reviewer = "fixture-reviewer",
+    license_id = "fixture-test-only", reviewer = "manual-owner",
     reviewed_at_utc = "2026-09-19T12:00:00Z",
     aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(fetched),
     manual_review_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE,
@@ -162,6 +162,32 @@ phase18_bundle_test_manual_review <- function(fetched = phase18_bundle_test_fetc
   review$row_sha256 <- phase18_ucl_row_hash(review)
   review
 }
+
+test_that("manual authority rejects placeholder reviewers and invalid or future review times", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+  baseline <- phase18_bundle_test_manual_review(fetched)
+  variants <- list(
+    placeholder = function(x) { x$reviewer <- "fixture-reviewer"; x },
+    invalid_time = function(x) { x$reviewed_at_utc <- "not-a-time"; x },
+    future_time = function(x) { x$reviewed_at_utc <- "2999-01-01T00:00:00Z"; x }
+  )
+  for (mutate in variants) {
+    review <- mutate(baseline)
+    review$manual_review_sha256 <- phase18_ucl_manual_review_hash(review)
+    review$row_sha256 <- phase18_ucl_row_hash(review)
+    expect_error(
+      phase18_build_ucl_source_bundle(
+        projected, fetched,
+        list(authority_type = "manual_source_review", manual_source_review = review),
+        evidence$edition_expectations, "manual-authority-rejected"
+      ),
+      class = "blocked_authority"
+    )
+  }
+})
 
 phase18_bundle_test_fixture_contract <- function(fetched = phase18_bundle_test_fetched()) {
   contract <- data.frame(
