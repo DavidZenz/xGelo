@@ -640,3 +640,582 @@ phase19_apply_club_calibrator <- function(calibrator, predictions, fold) {
     primary_probability_view = "not_selected", predictions = result
   ), class = c("phase19_club_calibrated_view", "list"))
 }
+
+phase19_club_calibrated_view_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "production_eligible",
+    "candidate_id", "fold_id", "calibrator_sha256",
+    "source_prediction_table_sha256", "calibrated_view_sha256",
+    "source_distribution_sha256", "distribution_unchanged",
+    "primary_probability_view", "predictions"
+  )
+}
+
+phase19_club_calibration_added_prediction_fields <- function(predictions) {
+  fixed <- c(
+    "p_home_raw", "p_draw_raw", "p_away_raw", "p_home_calibrated",
+    "p_draw_calibrated", "p_away_calibrated", "source_distribution_sha256",
+    "distribution_unchanged", "calibrator_sha256", "probability_view_status"
+  )
+  raw_copies <- grep(
+    "^(p_over_2_5|p_btts|expected_home_goals|expected_away_goals|likely_home_goals|likely_away_goals|raw_tail_mass)_raw$",
+    names(predictions), value = TRUE
+  )
+  unique(c(fixed, raw_copies))
+}
+
+#' Validate raw/calibrated view integrity independently of gate evidence.
+#' @export
+phase19_validate_club_calibrated_view <- function(view, fold) {
+  phase19_club_calibration_require_dependencies()
+  if (!inherits(view, "phase19_club_calibrated_view") ||
+      !is.list(view) ||
+      !identical(names(view), phase19_club_calibrated_view_schema()) ||
+      !identical(view$schema_version, "phase19-club-calibrated-view-v1") ||
+      !identical(view$hash_encoding_version, phase18_canonical_encoding_v2()) ||
+      !identical(view$forecast_domain, "club") ||
+      !identical(view$primary_probability_view, "not_selected") ||
+      !isTRUE(view$distribution_unchanged) ||
+      !phase19_is_sha256(view$calibrator_sha256) ||
+      !is.data.frame(view$predictions) || !nrow(view$predictions)) {
+    phase19_club_calibration_abort(
+      "calibrated_view_invalid", "Raw/calibrated club view structure is invalid"
+    )
+  }
+  if (!is.data.frame(fold) || nrow(fold) != 1L ||
+      !identical(as.character(fold$fold_id), view$fold_id)) {
+    phase19_club_calibration_abort(
+      "fold_identity_invalid", "Calibrated view belongs to another fold"
+    )
+  }
+  predictions <- view$predictions
+  required <- c(
+    "fixture_id", "candidate_id", "evidence_cutoff_exclusive",
+    "p_home", "p_draw", "p_away", "p_home_raw", "p_draw_raw", "p_away_raw",
+    "p_home_calibrated", "p_draw_calibrated", "p_away_calibrated",
+    "distribution_sha256", "source_distribution_sha256",
+    "distribution_unchanged", "calibrator_sha256", "probability_view_status"
+  )
+  if (length(setdiff(required, names(predictions))) ||
+      anyNA(predictions[required]) ||
+      any(as.character(predictions$candidate_id) != view$candidate_id) ||
+      any(as.character(predictions$calibrator_sha256) != view$calibrator_sha256) ||
+      any(!predictions$distribution_unchanged) ||
+      any(predictions$probability_view_status != "raw_and_calibrated_unselected") ||
+      !identical(as.character(predictions$distribution_sha256),
+                 as.character(predictions$source_distribution_sha256)) ||
+      any(abs(predictions$p_home - predictions$p_home_raw) > 1e-15) ||
+      any(abs(predictions$p_draw - predictions$p_draw_raw) > 1e-15) ||
+      any(abs(predictions$p_away - predictions$p_away_raw) > 1e-15)) {
+    phase19_club_calibration_abort(
+      "calibrated_view_invalid", "Raw/calibrated rows or distribution identity drifted"
+    )
+  }
+  phase19_validate_fold_prediction_coverage(fold, predictions$fixture_id)
+  for (index in seq_len(nrow(predictions))) {
+    validate_probability_vector(
+      c(home = predictions$p_home_raw[[index]],
+        draw = predictions$p_draw_raw[[index]],
+        away = predictions$p_away_raw[[index]]),
+      tolerance = 1e-10, name = "raw club 1X2 view"
+    )
+    validate_probability_vector(
+      c(home = predictions$p_home_calibrated[[index]],
+        draw = predictions$p_draw_calibrated[[index]],
+        away = predictions$p_away_calibrated[[index]]),
+      tolerance = 1e-10, name = "calibrated club 1X2 view"
+    )
+  }
+  preserved <- intersect(
+    c("p_over_2_5", "p_btts", "expected_home_goals", "expected_away_goals",
+      "likely_home_goals", "likely_away_goals", "raw_tail_mass"),
+    names(predictions)
+  )
+  for (field in preserved) {
+    copy <- paste0(field, "_raw")
+    if (!copy %in% names(predictions) ||
+        !identical(predictions[[field]], predictions[[copy]])) {
+      phase19_club_calibration_abort(
+        "distribution_market_drift", "Calibration changed a non-1X2 derived market"
+      )
+    }
+  }
+  raw_input <- predictions[
+    , setdiff(names(predictions), phase19_club_calibration_added_prediction_fields(predictions)),
+    drop = FALSE
+  ]
+  if (!identical(
+    view$source_prediction_table_sha256,
+    phase19_club_calibration_prediction_hash(
+      raw_input, "raw-assessment-predictions"
+    )
+  ) || !identical(
+    view$calibrated_view_sha256,
+    phase19_club_calibration_prediction_hash(
+      predictions, "calibrated-assessment-view"
+    )
+  )) {
+    phase19_club_calibration_abort(
+      "calibrated_view_hash_mismatch", "Raw or calibrated prediction table identity drifted"
+    )
+  }
+  ordered <- predictions[order(predictions$fixture_id, method = "radix"), , drop = FALSE]
+  expected_distribution_hash <- phase19_club_calibration_hash_values(
+    as.list(ordered$source_distribution_sha256) |>
+      setNames(paste0("fixture_", ordered$fixture_id)),
+    "phase19-club-calibration-assessment-grids-v1"
+  )
+  if (!identical(view$source_distribution_sha256, expected_distribution_hash)) {
+    phase19_club_calibration_abort(
+      "source_grid_identity_invalid", "Assessment distribution aggregate identity drifted"
+    )
+  }
+  invisible(view)
+}
+
+phase19_club_calibration_outcome_sha256 <- function(outcomes) {
+  if (!is.data.frame(outcomes) ||
+      !identical(names(outcomes), c("fixture_id", "observed_class")) ||
+      !nrow(outcomes) || anyNA(outcomes) ||
+      any(!vapply(outcomes, is.character, logical(1))) ||
+      anyDuplicated(outcomes$fixture_id) || any(!nzchar(outcomes$fixture_id)) ||
+      any(!outcomes$observed_class %in% c("home", "draw", "away"))) {
+    phase19_club_calibration_abort(
+      "assessment_outcomes_invalid", "Assessment outcomes are not one exact typed class per fixture"
+    )
+  }
+  phase18_hash_table_v2(
+    outcomes, key = "fixture_id",
+    schema_tag = "phase19-club-calibration-assessment-outcomes-v1"
+  )
+}
+
+phase19_club_calibration_fixed_bins <- function(predictions, outcomes) {
+  views <- list(
+    raw_1x2 = c("p_home_raw", "p_draw_raw", "p_away_raw"),
+    calibrated_1x2 = c(
+      "p_home_calibrated", "p_draw_calibrated", "p_away_calibrated"
+    )
+  )
+  classes <- c("home", "draw", "away")
+  result <- list()
+  cursor <- 0L
+  for (view_name in names(views)) {
+    for (class_index in seq_along(classes)) {
+      probability <- as.numeric(predictions[[views[[view_name]][[class_index]]]])
+      observed <- as.numeric(outcomes$observed_class == classes[[class_index]])
+      assigned <- pmin(floor(probability * 10), 9L) + 1L
+      for (bin_id in seq_len(10L)) {
+        keep <- assigned == bin_id
+        cursor <- cursor + 1L
+        result[[cursor]] <- data.frame(
+          probability_view = view_name, class = classes[[class_index]],
+          bin_id = as.integer(bin_id), bin_lower = (bin_id - 1) / 10,
+          bin_upper = bin_id / 10, n = as.integer(sum(keep)),
+          mean_probability = if (any(keep)) mean(probability[keep]) else NA_real_,
+          observed_frequency = if (any(keep)) mean(observed[keep]) else NA_real_,
+          absolute_gap = if (any(keep)) {
+            abs(mean(probability[keep]) - mean(observed[keep]))
+          } else NA_real_, stringsAsFactors = FALSE, check.names = FALSE
+        )
+      }
+    }
+  }
+  bins <- do.call(rbind, result)
+  rownames(bins) <- NULL
+  bins
+}
+
+phase19_club_calibration_error_from_bins <- function(bins, view) {
+  rows <- bins[bins$probability_view == view & bins$n > 0L, , drop = FALSE]
+  class_error <- vapply(c("home", "draw", "away"), function(class) {
+    selected <- rows[rows$class == class, , drop = FALSE]
+    sum(selected$n * selected$absolute_gap) / sum(selected$n)
+  }, numeric(1))
+  mean(class_error)
+}
+
+phase19_club_calibration_fixture_scores <- function(predictions, outcomes, fold) {
+  rows <- vector("list", nrow(predictions))
+  for (index in seq_len(nrow(predictions))) {
+    observed <- outcomes$observed_class[[index]]
+    raw <- c(
+      home = predictions$p_home_raw[[index]],
+      draw = predictions$p_draw_raw[[index]],
+      away = predictions$p_away_raw[[index]]
+    )
+    calibrated <- c(
+      home = predictions$p_home_calibrated[[index]],
+      draw = predictions$p_draw_calibrated[[index]],
+      away = predictions$p_away_calibrated[[index]]
+    )
+    rows[[index]] <- data.frame(
+      fixture_id = as.character(predictions$fixture_id[[index]]),
+      fold_id = as.character(fold$fold_id[[1L]]),
+      fold_family = as.character(fold$fold_family[[1L]]),
+      assessment_competition_id = as.character(fold$assessment_competition_id[[1L]]),
+      assessment_season_id = as.character(fold$assessment_season_id[[1L]]),
+      observed_class = observed,
+      raw_rps = ranked_probability_score(raw, observed),
+      calibrated_rps = ranked_probability_score(calibrated, observed),
+      raw_brier = multiclass_brier(raw, observed),
+      calibrated_brier = multiclass_brier(calibrated, observed),
+      raw_log_loss = log_score(raw, observed),
+      calibrated_log_loss = log_score(calibrated, observed),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  }
+  result <- do.call(rbind, rows)
+  result$rps_delta <- result$calibrated_rps - result$raw_rps
+  result$brier_delta <- result$calibrated_brier - result$raw_brier
+  result$log_loss_delta <- result$calibrated_log_loss - result$raw_log_loss
+  rownames(result) <- NULL
+  result
+}
+
+phase19_club_calibration_evidence_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "production_eligible",
+    "candidate_id", "fold_id", "fixture_ids", "calibrator_sha256",
+    "gate_registry_sha256", "source_prediction_table_sha256",
+    "calibrated_view_sha256", "source_distribution_sha256",
+    "outcome_table_sha256", "fixture_score_table_sha256",
+    "calibration_bins_sha256", "summary_sha256", "fixture_scores",
+    "calibration_bins", "summary", "evidence_sha256"
+  )
+}
+
+phase19_club_calibration_evidence_sha256 <- function(evidence) {
+  schema <- phase19_club_calibration_evidence_schema()
+  if (!is.list(evidence) || !identical(names(evidence), schema)) {
+    phase19_club_calibration_abort(
+      "calibration_evidence_schema_invalid", "Calibration evidence schema is not exact"
+    )
+  }
+  fixture_hash <- phase19_club_calibration_hash_values(
+    as.list(evidence$fixture_ids) |>
+      setNames(sprintf("fixture_%05d", seq_along(evidence$fixture_ids))),
+    "phase19-club-calibration-evidence-fixtures-v1"
+  )
+  fields <- c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "production_eligible",
+    "candidate_id", "fold_id", "calibrator_sha256", "gate_registry_sha256",
+    "source_prediction_table_sha256", "calibrated_view_sha256",
+    "source_distribution_sha256", "outcome_table_sha256",
+    "fixture_score_table_sha256", "calibration_bins_sha256", "summary_sha256"
+  )
+  values <- evidence[fields]
+  values$fixture_ids_sha256 <- fixture_hash
+  phase19_club_calibration_hash_values(
+    values, "phase19-club-calibration-evidence-v1"
+  )
+}
+
+#' Score exact paired raw/calibrated views with fixed probability bins.
+#' @export
+phase19_compare_club_calibration <- function(view, outcomes, fold, protocol) {
+  phase19_validate_club_calibrated_view(view, fold)
+  if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
+      !identical(protocol$status, "ready") ||
+      !identical(protocol$forecast_domain, "club") ||
+      !identical(protocol$authority_mode, view$authority_mode) ||
+      !identical(isTRUE(protocol$fixture_authority), isTRUE(view$fixture_authority))) {
+    phase19_club_calibration_abort(
+      "protocol_authority_invalid", "Calibration comparison requires matching ready protocol"
+    )
+  }
+  phase19_validate_gate_registry(protocol$gate_registry)
+  outcome_hash <- phase19_club_calibration_outcome_sha256(outcomes)
+  expected_ids <- sort(as.character(view$predictions$fixture_id), method = "radix")
+  if (!identical(sort(as.character(outcomes$fixture_id), method = "radix"),
+                 expected_ids)) {
+    phase19_club_calibration_abort(
+      "paired_fixture_mismatch", "Raw, calibrated, and observed rows must share the exact fixture set"
+    )
+  }
+  predictions <- view$predictions[match(expected_ids, view$predictions$fixture_id), , drop = FALSE]
+  outcomes <- outcomes[match(expected_ids, outcomes$fixture_id), , drop = FALSE]
+  rownames(predictions) <- NULL
+  rownames(outcomes) <- NULL
+  scores <- phase19_club_calibration_fixture_scores(predictions, outcomes, fold)
+  bins <- phase19_club_calibration_fixed_bins(predictions, outcomes)
+  safe_relative <- function(calibrated, raw) {
+    if (raw == 0) if (calibrated <= raw) 0 else Inf else calibrated / raw - 1
+  }
+  raw_rps <- mean(scores$raw_rps)
+  calibrated_rps <- mean(scores$calibrated_rps)
+  raw_brier <- mean(scores$raw_brier)
+  calibrated_brier <- mean(scores$calibrated_brier)
+  raw_log <- mean(scores$raw_log_loss)
+  calibrated_log <- mean(scores$calibrated_log_loss)
+  raw_calibration <- phase19_club_calibration_error_from_bins(bins, "raw_1x2")
+  calibrated_calibration <- phase19_club_calibration_error_from_bins(
+    bins, "calibrated_1x2"
+  )
+  summary <- data.frame(
+    fold_id = as.character(fold$fold_id[[1L]]),
+    fold_family = as.character(fold$fold_family[[1L]]),
+    assessment_competition_id = as.character(fold$assessment_competition_id[[1L]]),
+    assessment_season_id = as.character(fold$assessment_season_id[[1L]]),
+    candidate_id = view$candidate_id, fixture_count = as.integer(length(expected_ids)),
+    raw_rps = raw_rps, calibrated_rps = calibrated_rps,
+    rps_delta = calibrated_rps - raw_rps,
+    raw_brier = raw_brier, calibrated_brier = calibrated_brier,
+    brier_relative_regression = safe_relative(calibrated_brier, raw_brier),
+    raw_log_loss = raw_log, calibrated_log_loss = calibrated_log,
+    log_loss_relative_regression = safe_relative(calibrated_log, raw_log),
+    raw_calibration_error = raw_calibration,
+    calibrated_calibration_error = calibrated_calibration,
+    calibration_delta = calibrated_calibration - raw_calibration,
+    declared_fixture_coverage = nrow(predictions) / length(expected_ids),
+    probability_integrity = TRUE,
+    distribution_integrity = isTRUE(view$distribution_unchanged),
+    cutoff_integrity = all(
+      phase19_fold_parse_utc(
+        predictions$evidence_cutoff_exclusive, "assessment evidence cutoff"
+      ) >= phase19_fold_parse_utc(
+        fold$calibration_cutoff_exclusive, "calibration cutoff"
+      )[[1L]]
+    ), stringsAsFactors = FALSE, check.names = FALSE
+  )
+  score_hash <- phase18_hash_table_v2(
+    scores, key = "fixture_id",
+    schema_tag = "phase19-club-calibration-fixture-scores-v1"
+  )
+  bin_hash <- phase18_hash_table_v2(
+    bins, key = c("probability_view", "class", "bin_id"),
+    schema_tag = "phase19-club-calibration-fixed-bins-v1"
+  )
+  summary_hash <- phase18_hash_table_v2(
+    summary, key = "fold_id",
+    schema_tag = "phase19-club-calibration-summary-v1"
+  )
+  result <- list(
+    schema_version = "phase19-club-calibration-evidence-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", authority_mode = view$authority_mode,
+    fixture_authority = view$fixture_authority, production_eligible = FALSE,
+    candidate_id = view$candidate_id, fold_id = view$fold_id,
+    fixture_ids = expected_ids, calibrator_sha256 = view$calibrator_sha256,
+    gate_registry_sha256 = protocol$gate_registry_sha256,
+    source_prediction_table_sha256 = view$source_prediction_table_sha256,
+    calibrated_view_sha256 = view$calibrated_view_sha256,
+    source_distribution_sha256 = view$source_distribution_sha256,
+    outcome_table_sha256 = outcome_hash,
+    fixture_score_table_sha256 = score_hash,
+    calibration_bins_sha256 = bin_hash, summary_sha256 = summary_hash,
+    fixture_scores = scores, calibration_bins = bins, summary = summary,
+    evidence_sha256 = ""
+  )
+  result$evidence_sha256 <- phase19_club_calibration_evidence_sha256(result)
+  structure(result, class = c("phase19_club_calibration_evidence", "list"))
+}
+
+#' Independently validate calibration evidence against its exact source rows.
+#' @export
+phase19_validate_club_calibration_evidence <- function(
+    evidence, view, outcomes, fold, protocol
+) {
+  if (!inherits(evidence, "phase19_club_calibration_evidence") ||
+      !identical(names(evidence), phase19_club_calibration_evidence_schema())) {
+    phase19_club_calibration_abort(
+      "calibration_evidence_schema_invalid", "Calibration evidence is not a typed exact object"
+    )
+  }
+  score_hash <- phase18_hash_table_v2(
+    evidence$fixture_scores, key = "fixture_id",
+    schema_tag = "phase19-club-calibration-fixture-scores-v1"
+  )
+  bin_hash <- phase18_hash_table_v2(
+    evidence$calibration_bins,
+    key = c("probability_view", "class", "bin_id"),
+    schema_tag = "phase19-club-calibration-fixed-bins-v1"
+  )
+  summary_hash <- phase18_hash_table_v2(
+    evidence$summary, key = "fold_id",
+    schema_tag = "phase19-club-calibration-summary-v1"
+  )
+  if (!identical(evidence$fixture_score_table_sha256, score_hash) ||
+      !identical(evidence$calibration_bins_sha256, bin_hash) ||
+      !identical(evidence$summary_sha256, summary_hash) ||
+      !identical(evidence$evidence_sha256,
+                 phase19_club_calibration_evidence_sha256(evidence))) {
+    phase19_club_calibration_abort(
+      "calibration_evidence_hash_mismatch", "Calibration evidence or manifest identity drifted"
+    )
+  }
+  expected <- phase19_compare_club_calibration(view, outcomes, fold, protocol)
+  if (!identical(evidence$evidence_sha256, expected$evidence_sha256)) {
+    phase19_club_calibration_abort(
+      "calibration_evidence_source_mismatch",
+      "Calibration evidence does not derive from the supplied paired source rows"
+    )
+  }
+  invisible(evidence)
+}
+
+phase19_club_calibration_gate_row <- function(protocol, gate_id) {
+  row <- protocol$gate_registry[protocol$gate_registry$gate_id == gate_id, , drop = FALSE]
+  if (nrow(row) != 1L) {
+    phase19_club_calibration_abort(
+      "calibration_gate_missing", paste0("Frozen calibration gate is missing: ", gate_id)
+    )
+  }
+  row
+}
+
+#' Evaluate only the frozen gates relevant to raw/calibrated view selection.
+#' @export
+phase19_club_calibration_gate_decision <- function(metrics, protocol) {
+  required <- c(
+    "rps_delta", "brier_relative_regression", "log_loss_relative_regression",
+    "calibration_delta", "declared_fixture_coverage", "probability_integrity",
+    "distribution_integrity", "cutoff_integrity"
+  )
+  if (!is.list(metrics) || !setequal(names(metrics), required) ||
+      !inherits(protocol, "phase19_club_evaluation_protocol") ||
+      !identical(protocol$status, "ready")) {
+    phase19_club_calibration_abort(
+      "calibration_gate_input_invalid", "Calibration gate inputs are incomplete or unauthorized"
+    )
+  }
+  phase19_validate_gate_registry(protocol$gate_registry)
+  mapping <- list(
+    worst_fold_rps_regression = list(value = metrics$rps_delta,
+                                     expected_operator = "<="),
+    equal_fold_brier_relative_regression = list(
+      value = metrics$brier_relative_regression, expected_operator = "<="
+    ),
+    equal_fold_log_loss_relative_regression = list(
+      value = metrics$log_loss_relative_regression, expected_operator = "<="
+    ),
+    fixed_bin_calibration_delta = list(
+      value = metrics$calibration_delta, expected_operator = "<="
+    ),
+    declared_fixture_coverage = list(
+      value = metrics$declared_fixture_coverage, expected_operator = "=="
+    ),
+    probability_integrity = list(
+      value = as.numeric(isTRUE(metrics$probability_integrity)), expected_operator = "=="
+    ),
+    distribution_integrity = list(
+      value = as.numeric(isTRUE(metrics$distribution_integrity)), expected_operator = "=="
+    ),
+    cutoff_integrity = list(
+      value = as.numeric(isTRUE(metrics$cutoff_integrity)), expected_operator = "=="
+    )
+  )
+  gates <- lapply(names(mapping), function(gate_id) {
+    row <- phase19_club_calibration_gate_row(protocol, gate_id)
+    item <- mapping[[gate_id]]
+    value <- as.numeric(item$value)
+    threshold <- as.numeric(row$threshold[[1L]])
+    operator <- as.character(row$operator[[1L]])
+    if (!identical(operator, item$expected_operator) ||
+        length(value) != 1L || !is.finite(value) || !is.finite(threshold)) {
+      passed <- FALSE
+    } else if (identical(operator, "<=")) {
+      passed <- value <= threshold
+    } else if (identical(operator, "==")) {
+      passed <- identical(value, threshold)
+    } else passed <- FALSE
+    data.frame(
+      gate_order = as.integer(row$gate_order[[1L]]), gate_id = gate_id,
+      value = value, operator = operator, threshold = threshold,
+      passed = passed,
+      failure_reason_code = as.character(row$failure_reason_code[[1L]]),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  })
+  gates <- do.call(rbind, gates)
+  gates <- gates[order(gates$gate_order), , drop = FALSE]
+  rownames(gates) <- NULL
+  reasons <- as.character(gates$failure_reason_code[!gates$passed])
+  list(
+    passed = !length(reasons),
+    primary_probability_view = if (!length(reasons)) "calibrated_1x2" else "raw_1x2",
+    reason_codes = if (length(reasons)) reasons else "", gates = gates
+  )
+}
+
+phase19_club_calibration_decision_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "production_eligible",
+    "candidate_id", "fold_id", "primary_probability_view", "reason_codes",
+    "calibrator_sha256", "gate_registry_sha256", "fixture_set_sha256",
+    "source_prediction_table_sha256", "calibrated_view_sha256",
+    "source_distribution_sha256", "outcome_table_sha256",
+    "calibration_evidence_sha256", "gate_results_sha256", "decision_sha256"
+  )
+}
+
+phase19_club_calibration_decision_sha256 <- function(decision) {
+  schema <- phase19_club_calibration_decision_schema()
+  if (!is.list(decision) || !identical(names(decision), schema)) {
+    phase19_club_calibration_abort(
+      "calibration_decision_schema_invalid", "Calibration decision schema is not exact"
+    )
+  }
+  values <- decision[setdiff(schema, "decision_sha256")]
+  values$reason_codes <- paste(as.character(values$reason_codes), collapse = "|")
+  phase19_club_calibration_hash_values(
+    values, "phase19-club-calibration-primary-view-decision-v1"
+  )
+}
+
+#' Select raw or calibrated 1X2 only through the frozen gate subset.
+#' @export
+phase19_select_club_primary_view <- function(
+    evidence, view, outcomes, fold, protocol
+) {
+  phase19_validate_club_calibration_evidence(
+    evidence, view, outcomes, fold, protocol
+  )
+  row <- evidence$summary[1L, , drop = FALSE]
+  gate <- phase19_club_calibration_gate_decision(list(
+    rps_delta = row$rps_delta,
+    brier_relative_regression = row$brier_relative_regression,
+    log_loss_relative_regression = row$log_loss_relative_regression,
+    calibration_delta = row$calibration_delta,
+    declared_fixture_coverage = row$declared_fixture_coverage,
+    probability_integrity = row$probability_integrity,
+    distribution_integrity = row$distribution_integrity,
+    cutoff_integrity = row$cutoff_integrity
+  ), protocol)
+  fixture_hash <- phase19_club_calibration_hash_values(
+    as.list(evidence$fixture_ids) |>
+      setNames(sprintf("fixture_%05d", seq_along(evidence$fixture_ids))),
+    "phase19-club-calibration-decision-fixtures-v1"
+  )
+  gate_hash <- phase18_hash_table_v2(
+    gate$gates, key = "gate_order",
+    schema_tag = "phase19-club-calibration-gate-results-v1"
+  )
+  result <- list(
+    schema_version = "phase19-club-calibration-decision-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", authority_mode = view$authority_mode,
+    fixture_authority = view$fixture_authority,
+    production_eligible = isTRUE(gate$passed) &&
+      identical(view$authority_mode, "production") &&
+      !isTRUE(view$fixture_authority),
+    candidate_id = evidence$candidate_id, fold_id = evidence$fold_id,
+    primary_probability_view = gate$primary_probability_view,
+    reason_codes = gate$reason_codes,
+    calibrator_sha256 = evidence$calibrator_sha256,
+    gate_registry_sha256 = evidence$gate_registry_sha256,
+    fixture_set_sha256 = fixture_hash,
+    source_prediction_table_sha256 = evidence$source_prediction_table_sha256,
+    calibrated_view_sha256 = evidence$calibrated_view_sha256,
+    source_distribution_sha256 = evidence$source_distribution_sha256,
+    outcome_table_sha256 = evidence$outcome_table_sha256,
+    calibration_evidence_sha256 = evidence$evidence_sha256,
+    gate_results_sha256 = gate_hash, decision_sha256 = ""
+  )
+  result$decision_sha256 <- phase19_club_calibration_decision_sha256(result)
+  structure(result, class = c("phase19_club_calibration_decision", "list"))
+}
