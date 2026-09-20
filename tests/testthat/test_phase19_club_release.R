@@ -233,3 +233,53 @@ test_that("lock and validation failures preserve the prior selector and bytes", 
   expect_true(calls >= 3L)
   expect_identical(readBin(installed$selector_path, "raw", file.info(installed$selector_path)$size), selector_before)
 })
+
+test_that("national boundaries project national_team and reject club authority", {
+  phase19_release_test_load(require_release = TRUE)
+  phase19_release_test_source("R/release/release_bundle.R")
+  phase19_release_test_source("R/release/release_install.R")
+  phase19_release_test_source("R/release/release_contract.R")
+  phase19_release_test_source("R/competition/forecast_layer.R")
+  phase19_release_test_require(c(
+    "phase12_release_assert_expected_domain", "phase12_release_project_domain",
+    "phase14_forecast_assert_expected_domain"
+  ))
+  expect_identical(
+    phase12_release_project_domain(list(release_id = "national"))$forecast_domain,
+    "national_team"
+  )
+  expect_silent(phase12_release_assert_expected_domain(list(forecast_domain = "national_team")))
+  expect_error(
+    phase12_release_assert_expected_domain(list(forecast_domain = "club")),
+    class = "phase19_domain_error"
+  )
+  expect_silent(phase14_forecast_assert_expected_domain(list(forecast_domain = "national_team")))
+  expect_error(
+    phase14_forecast_assert_expected_domain(list(forecast_domain = "club")),
+    class = "phase19_domain_error"
+  )
+})
+
+test_that("club production publication stays blocked before root creation", {
+  phase19_release_test_load(require_release = TRUE)
+  production <- phase19_release_test_minimal_decision()
+  production$authority_mode <- "production"
+  production$fixture_authority <- FALSE
+  production$authority_eligibility <- "production"
+  production$promotion_status <- "promoted"
+  production$decision_sha256 <- paste0(substr(production$decision_sha256, 1L, 63L), "6")
+  output_root <- file.path(tempdir(), paste0("phase19-production-blocked-", Sys.getpid()))
+  if (dir.exists(output_root)) unlink(output_root, recursive = TRUE)
+  expect_error(
+    phase19_stage_production_club_release(
+      decision = production, model = phase19_release_test_model(),
+      calibrator = phase19_release_test_calibrator(), output_root = output_root
+    ),
+    class = "phase19_club_release_error"
+  )
+  expect_false(dir.exists(output_root))
+  expect_identical(
+    phase19_club_production_block_reason("blocked", "blocked", "blocked", "blocked"),
+    "no_accepted_club_history"
+  )
+})
