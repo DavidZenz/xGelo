@@ -46,6 +46,19 @@ phase18_fd_test_registries <- function() {
   phase18_hash_club_registry_rows(registries)
 }
 
+phase18_fd_test_expectations <- function() {
+  phase18_hash_edition_expectations(data.frame(
+    schema_version = "phase18-edition-expectation-v1",
+    edition_id = "ucl_2026_27", lifecycle = "league_phase",
+    expected_club_count = 36L, expected_league_phase_match_count = 144L,
+    allowed_stages = "LEAGUE_STAGE|PLAYOFFS|LAST_16|QUARTER_FINALS|SEMI_FINALS|FINAL",
+    standings_required = TRUE, expected_standings_rows = 36L,
+    reviewer = "fixture-reviewer", reviewed_at_utc = "2026-09-19T10:00:00Z",
+    row_sha256 = "", expectation_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  ))
+}
+
 phase18_fd_test_payloads <- function() {
   ids <- 1000L + seq_len(36L)
   club_names <- sprintf("Fixture Club %02d", seq_len(36L))
@@ -171,7 +184,7 @@ test_that("complete fictional UCL window projects deterministic canonical tables
   phase18_fd_test_load()
   projected <- phase18_fd_project_resources(
     phase18_fd_test_fetch(), "ucl_2026_27", phase18_fd_test_registries(),
-    phase18_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
+    phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
   )
   expect_equal(nrow(projected$competition), 1L)
   expect_equal(nrow(projected$clubs), 36L)
@@ -192,7 +205,7 @@ test_that("semantic shortfall excess enum pagination freshness and identity fail
   expect_reason <- function(payloads, expected) {
     actual <- phase18_fd_test_reason(phase18_fd_project_resources(
       phase18_fd_test_fetch(payloads), "ucl_2026_27", phase18_fd_test_registries(),
-      phase18_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
+      phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
     ))
     expect_identical(actual, expected)
   }

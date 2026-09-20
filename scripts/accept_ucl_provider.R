@@ -27,9 +27,13 @@ if (is.na(phase18_accept_script) || !nzchar(phase18_accept_script)) {
 phase18_accept_script <- normalizePath(phase18_accept_script, winslash = "/", mustWork = TRUE)
 phase18_accept_project_root <- normalizePath(file.path(dirname(phase18_accept_script), ".."), winslash = "/", mustWork = TRUE)
 source(file.path(phase18_accept_project_root, "R/competition/ucl_source_acceptance.R"), local = TRUE)
+source(file.path(phase18_accept_project_root, "R/club/identity.R"), local = TRUE)
+source(file.path(phase18_accept_project_root, "R/club/identity_bootstrap.R"), local = TRUE)
+source(file.path(phase18_accept_project_root, "R/competition/football_data_org_adapter.R"), local = TRUE)
 
 phase18_accept_parse_args <- function(args) {
-  allowed <- c("provider-id", "edition-id", "review-path", "evidence-root")
+  required <- c("provider-id", "edition-id", "review-path", "evidence-root")
+  allowed <- c(required, "mode", "club-registry-root")
   output <- list()
   index <- 1L
   while (index <= length(args)) {
@@ -41,9 +45,16 @@ phase18_accept_parse_args <- function(args) {
     output[[key]] <- args[[index + 1L]]
     index <- index + 2L
   }
-  missing <- allowed[!vapply(allowed, function(key) !is.null(output[[key]]) && nzchar(output[[key]]), logical(1))]
+  missing <- required[!vapply(required, function(key) !is.null(output[[key]]) && nzchar(output[[key]]), logical(1))]
   if (length(missing)) stop("Phase 18 acceptance is missing options: ", paste(missing, collapse = ", "), call. = FALSE)
   if (!identical(output[["provider-id"]], "football_data_org_v4")) stop("Phase 18 provider ID is fixed to football_data_org_v4", call. = FALSE)
+  if (is.null(output$mode)) output$mode <- "preflight"
+  if (!output$mode %in% c("preflight", "offline_contract_test", "live_acceptance_probe")) {
+    stop("Phase 18 acceptance mode must be preflight, offline_contract_test, or live_acceptance_probe", call. = FALSE)
+  }
+  if (!identical(output$mode, "preflight") && (is.null(output[["club-registry-root"]]) || !nzchar(output[["club-registry-root"]]))) {
+    stop("Phase 18 adapter modes require --club-registry-root", call. = FALSE)
+  }
   output
 }
 
@@ -61,6 +72,11 @@ phase18_accept_ucl_provider_main <- function(
     args = commandArgs(trailingOnly = TRUE),
     token_present = nzchar(Sys.getenv("FOOTBALL_DATA_API_TOKEN", unset = "")),
     transport_fn = NULL,
+    perform_request = NULL,
+    fetch_window_fn = phase18_fd_fetch_window,
+    project_resources_fn = phase18_fd_project_resources,
+    clock_fn = Sys.time,
+    sleep_fn = Sys.sleep,
     now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     parser_commit_sha = NULL) {
   options <- phase18_accept_parse_args(args)
@@ -76,18 +92,101 @@ phase18_accept_ucl_provider_main <- function(
   }
   machine_checks <- phase18_default_machine_checks(expectations, now_utc, preflight$reason_code[[1L]])
   schema_fingerprint <- phase18_default_schema_fingerprint(now_utc)
-  if (isTRUE(token_present)) {
-    if (!is.function(transport_fn)) {
-      stop("Phase 18 live acceptance requires the injected bounded probe transport", call. = FALSE)
+  adapter_mode <- options$mode %in% c("offline_contract_test", "live_acceptance_probe")
+  if (adapter_mode) {
+    if (identical(options$mode, "live_acceptance_probe") && !isTRUE(token_present)) {
+      stop("Phase 18 live_acceptance_probe requires FOOTBALL_DATA_API_TOKEN", call. = FALSE)
     }
-    return(invisible(phase18_run_live_acceptance_probe(
+    if (!is.function(perform_request)) {
+      if (identical(options$mode, "live_acceptance_probe")) {
+        perform_request <- phase18_fd_live_performer()
+      } else {
+        stop("Phase 18 offline adapter contract requires an injected performer", call. = FALSE)
+      }
+    }
+    review_result <- phase18_validate_terms_review(review)
+    if (!review_result$valid) {
+      stop("Phase 18 adapter probe requires a complete owner review: ", review_result$message, call. = FALSE)
+    }
+    request_plan <- phase18_fd_request_plan()
+    fetched <- fetch_window_fn(request_plan, perform_request, clock_fn, sleep_fn)
+    registries <- phase18_load_club_registries(options[["club-registry-root"]])
+    projected <- project_resources_fn(
+      fetched, options[["edition-id"]], registries, expectations, now_utc = now_utc
+    )
+    current_resources <- data.frame(
+      source_system = "football_data_org_v4",
+      source_row = paste0("teams:", projected$clubs$provider_club_id),
+      source_club_id = projected$clubs$provider_club_id,
+      display_name = projected$clubs$display_name,
+      event_at_utc = projected$clubs$last_updated_utc,
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+    current_tokens <- phase18_extract_club_tokens(current_resources = current_resources)
+    if (nrow(current_tokens) != nrow(projected$clubs)) {
+      stop("Phase 18 current club-token evidence is incomplete", call. = FALSE)
+    }
+    for (index in seq_len(nrow(current_tokens))) {
+      phase18_resolve_club_identity(
+        registries, current_tokens$source_system[[index]], current_tokens$source_club_id[[index]],
+        current_tokens$display_value[[index]], current_tokens$event_at_utc[[index]]
+      )
+    }
+    secret <- if (isTRUE(token_present)) Sys.getenv("FOOTBALL_DATA_API_TOKEN", unset = "") else ""
+    phase18_fd_assert_secret_absent(list(fetched = fetched, projected = projected, tokens = current_tokens), secret)
+    resource_counts <- c(
+      competition_metadata = nrow(projected$competition), teams = nrow(projected$clubs),
+      matches = nrow(projected$matches), standings = nrow(projected$standings)
+    )
+    fingerprints <- setNames(projected$schema_fingerprint$fingerprint_sha256, projected$schema_fingerprint$resource)
+    probe_transport <- function(endpoint, attempt, cache = FALSE) {
+      list(
+        count = as.integer(resource_counts[[endpoint]]),
+        stages = if (identical(endpoint, "matches")) paste(projected$coverage$stages, collapse = "|") else "",
+        freshness_passed = isTRUE(projected$coverage$freshness_passed),
+        identity_passed = isTRUE(projected$coverage$identity_passed),
+        pagination_complete = isTRUE(projected$coverage$pagination_complete),
+        secret_scan_passed = TRUE,
+        fingerprint_sha256 = unname(fingerprints[[endpoint]]),
+        retryable = FALSE
+      )
+    }
+    decision_id <- paste0(options$mode, "_", options[["edition-id"]], "_", gsub("[^0-9]", "", now_utc))
+    if (identical(options$mode, "live_acceptance_probe")) {
+      result <- phase18_run_live_acceptance_probe(
       evidence_root = target_root,
       owner_review = review,
       edition_expectations = expectations,
-      transport_fn = transport_fn,
-      decision_id = paste0("live_acceptance_probe_", options[["edition-id"]], "_", gsub("[^0-9]", "", now_utc)),
+      transport_fn = probe_transport,
+      decision_id = decision_id,
       now_utc = now_utc,
       parser_commit_sha = parser_commit_sha
+      )
+      result$projected <- projected
+      result$current_club_tokens <- current_tokens
+      return(invisible(result))
+    }
+    offline_checks <- phase18_default_machine_checks(expectations, now_utc, "offline_only")
+    offline_checks$execution_mode <- "offline_contract_test"
+    offline_checks$passed <- TRUE
+    offline_checks$freshness_passed <- TRUE
+    offline_checks$identity_passed <- TRUE
+    offline_checks$pagination_complete <- TRUE
+    offline_checks$secret_scan_passed <- TRUE
+    offline_checks$observed_count[match(names(resource_counts), offline_checks$capability)] <- unname(resource_counts)
+    offline_checks$observed_stages[offline_checks$capability == "matches"] <- paste(projected$coverage$stages, collapse = "|")
+    offline_checks$row_sha256 <- ""
+    offline_checks <- phase18_hash_machine_checks(offline_checks)
+    offline_manifest <- phase18_build_acceptance_manifest(
+      offline_checks, review, expectations,
+      list(schema_fingerprint_sha256 = phase18_canonical_sha256(projected$schema_fingerprint, key = "resource")),
+      decision_id, now_utc, parser_commit_sha = parser_commit_sha,
+      project_root = phase18_accept_project_root
+    )
+    return(invisible(list(
+      manifest = offline_manifest, machine_checks = offline_checks,
+      projected = projected, current_club_tokens = current_tokens,
+      evidence_root = target_root
     )))
   }
   schema_hash <- phase18_canonical_sha256(schema_fingerprint, key = "resource")

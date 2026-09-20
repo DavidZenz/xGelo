@@ -327,6 +327,116 @@ phase18_test_probe_transport <- function(overrides = list(), fingerprint_seed = 
   transport
 }
 
+phase18_test_adapter_registries <- function() {
+  ids <- sprintf("club_%03d", seq_len(36L))
+  provider_ids <- as.character(1000L + seq_len(36L))
+  display <- sprintf("Fixture Club %02d", seq_len(36L))
+  phase18_hash_club_registry_rows(list(
+    clubs = data.frame(
+      schema_version = phase18_club_identity_schema_version(), club_id = ids,
+      entity_kind = "club", canonical_name = display, association_code = "FX",
+      valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
+      club_status = "active", row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+    ),
+    source_ids = data.frame(
+      schema_version = phase18_club_identity_schema_version(), club_id = ids,
+      source_system = "football_data_org_v4", source_club_id = provider_ids,
+      valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
+      review_state = "approved", source_bundle_id = "fixture-review-v1",
+      row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+    ),
+    aliases = data.frame(
+      schema_version = phase18_club_identity_schema_version(), club_id = ids,
+      source_system = "football_data_org_v4", alias = display,
+      normalized_alias = phase18_normalize_club_name(display),
+      valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
+      review_state = "approved", reviewed_by = "fixture-reviewer",
+      reviewed_at_utc = "2026-09-19T10:00:00Z", row_sha256 = "",
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  ))
+}
+
+phase18_test_projected_adapter <- function() {
+  ids <- sprintf("club_%03d", seq_len(36L))
+  provider_ids <- as.character(1000L + seq_len(36L))
+  display <- sprintf("Fixture Club %02d", seq_len(36L))
+  list(
+    competition = data.frame(edition_id = "ucl_2026_27"),
+    clubs = data.frame(
+      provider_club_id = provider_ids, club_id = ids, display_name = display,
+      last_updated_utc = "2026-09-19T11:00:00Z", stringsAsFactors = FALSE
+    ),
+    matches = data.frame(stage = rep("LEAGUE_STAGE", 144L)),
+    standings = data.frame(club_id = ids),
+    coverage = list(
+      stages = "LEAGUE_STAGE", freshness_passed = TRUE,
+      identity_passed = TRUE, pagination_complete = TRUE
+    ),
+    schema_fingerprint = data.frame(
+      resource = c("competition_metadata", "teams", "matches", "standings"),
+      fingerprint_sha256 = vapply(
+        c("competition_metadata", "teams", "matches", "standings"),
+        function(value) phase18_sha256_text(paste0("fixture|", value)), character(1)
+      ),
+      raw_sha256 = vapply(
+        c("competition_metadata", "teams", "matches", "standings"),
+        function(value) phase18_sha256_text(paste0("raw|", value)), character(1)
+      ), stringsAsFactors = FALSE, check.names = FALSE
+    )
+  )
+}
+
+test_that("operator CLI routes offline and live modes only through the fixed adapter seams", {
+  phase18_test_load()
+  registry_root <- tempfile("phase18-cli-club-registry-")
+  phase18_write_club_registries_atomic(phase18_test_adapter_registries(), registry_root)
+  review_path <- tempfile("phase18-cli-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("approved"), review_path, row.names = FALSE, na = "", quote = TRUE)
+  evidence_root <- tempfile("phase18-cli-evidence-")
+  observed_plan <- NULL
+  fetch_stub <- function(request_plan, perform_request, clock_fn, sleep_fn) {
+    observed_plan <<- request_plan
+    setNames(lapply(request_plan$resource, function(resource) list(resource = resource)), request_plan$resource)
+  }
+  project_stub <- function(fetched, edition_id, club_registries, edition_expectations, now_utc) {
+    phase18_test_projected_adapter()
+  }
+  args <- c(
+    "--provider-id", "football_data_org_v4", "--edition-id", "ucl_2026_27",
+    "--review-path", review_path, "--evidence-root", evidence_root,
+    "--club-registry-root", registry_root
+  )
+  offline <- phase18_accept_ucl_provider_main(
+    c(args, "--mode", "offline_contract_test"), token_present = FALSE,
+    perform_request = function(...) stop("fetch stub owns the offline seam"),
+    fetch_window_fn = fetch_stub, project_resources_fn = project_stub,
+    now_utc = "2026-09-19T12:30:00Z"
+  )
+  expect_identical(observed_plan, phase18_fd_request_plan())
+  expect_identical(offline$manifest$execution_mode, "offline_contract_test")
+  expect_false(offline$manifest$automation_enabled)
+  expect_identical(offline$manifest$reason_code, "offline_only")
+
+  phase18_accept_ucl_provider_main(
+    args, token_present = FALSE, now_utc = "2026-09-19T12:30:00Z"
+  )
+  old <- Sys.getenv("FOOTBALL_DATA_API_TOKEN", unset = NA_character_)
+  on.exit(if (is.na(old)) Sys.unsetenv("FOOTBALL_DATA_API_TOKEN") else Sys.setenv(FOOTBALL_DATA_API_TOKEN = old), add = TRUE)
+  Sys.setenv(FOOTBALL_DATA_API_TOKEN = "phase18-cli-sentinel-secret")
+  live <- phase18_accept_ucl_provider_main(
+    c(args, "--mode", "live_acceptance_probe"), token_present = TRUE,
+    perform_request = function(...) stop("fetch stub owns the live seam"),
+    fetch_window_fn = fetch_stub, project_resources_fn = project_stub,
+    now_utc = "2026-09-19T13:00:00Z"
+  )
+  expect_identical(live$reason_code, "accepted")
+  expect_true(live$manifest$automation_enabled)
+  expect_true(phase18_validate_provider_live_authority(file.path(evidence_root, "football_data_org_v4", "ucl_2026_27"))$authorized)
+  expect_error(phase18_accept_parse_args(c(args, "--token", "forbidden")), "Unsupported")
+  expect_error(phase18_accept_parse_args(c(args, "--host", "https://evil.example")), "Unsupported")
+})
+
 `%||%` <- function(value, fallback) if (is.null(value)) fallback else value
 
 test_that("live acceptance probe is the only first-acceptance path and uses four fixed calls", {
