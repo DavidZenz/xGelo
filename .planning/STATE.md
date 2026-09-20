@@ -4,9 +4,9 @@ milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: club-and-ucl-source-contracts
-status: verifying
-stopped_at: Completed 18-13-PLAN.md
-last_updated: "2026-09-20T15:09:09.351Z"
+status: human_needed
+stopped_at: Phase 18 automated verification passed; external evidence pending
+last_updated: "2026-09-20T17:10:00Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 18 execution completed; adversarial verification gate passed
 progress:
@@ -24,14 +24,14 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 **Core value:** Accurate, calibrated football forecasting without dependence on paid data feeds.
-**Current focus:** Phase 18 — club-and-ucl-source-contracts
+**Current focus:** Phase 18 — external provider, identity, and history evidence
 
 ## Current Position
 
-Phase: 18 (club-and-ucl-source-contracts) — VERIFYING
+Phase: 18 (club-and-ucl-source-contracts) — HUMAN CHECK REQUIRED
 Plan: 14 of 14
-Status: Ready for phase verification
-Last activity: 2026-09-20 — Phase 18 adversarial contract gate passed
+Status: Automated verification passed; real-world evidence remains fail-closed
+Last activity: 2026-09-20 — Phase 18 verified 5/5 with 142 tests and 840 assertions; human evidence pending
 
 Progress: [██████████] 100%
 
@@ -39,7 +39,7 @@ Progress: [██████████] 100%
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 18 | Club and UCL Source Contracts | 6 | Implementation complete (6/6); verification pending |
+| 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
 | 19 | Independent Club Forecast Authority | 5 | Not started |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
@@ -116,7 +116,10 @@ Progress: [██████████] 100%
 
 ### Pending Todos
 
-- Run final Phase 18 goal verification, then advance to Phase 19 planning.
+- Complete real provider terms/key acceptance for `football_data_org_v4`.
+- Approve real club identity mappings for the supported UCL edition.
+- Supply and approve pinned/licensed historical club sources before Phase 19 model training.
+- Re-run Phase 18 verification and completion, then advance to Phase 19 planning.
 
 ### Blockers/Concerns
 
@@ -136,5 +139,5 @@ Progress: [██████████] 100%
 ## Session Continuity
 
 Last session: 2026-09-20T15:08:59.639Z
-Stopped at: Completed 18-13-PLAN.md
+Stopped at: Phase 18 automated verification passed; external evidence pending
 Resume file: None
