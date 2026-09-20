@@ -263,6 +263,10 @@ test_that("the Phase 19 prohibition inventory is exact and executable", {
   phase19_adversarial_hit("P29")
 })
 
+test_that("the aggregate Phase 19 contract verifier is present", {
+  expect_true(file.exists(file.path(phase19_adversarial_root, "scripts", "verify_phase19_contracts.R")))
+})
+
 test_that("authority, enrichment, and fixture escalation probes use public validators", {
   phase19_adversarial_load()
   phase19_adversarial_error(phase19_load_club_training_snapshot(untrusted_path = "audit.csv"))
