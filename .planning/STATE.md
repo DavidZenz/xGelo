@@ -5,15 +5,15 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: club-and-ucl-source-contracts
 status: executing
-stopped_at: Completed 18-07-PLAN.md
-last_updated: "2026-09-20T11:35:30.927Z"
+stopped_at: Completed 18-14-PLAN.md
+last_updated: "2026-09-20T11:45:00.114Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 18 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 7
+  completed_plans: 8
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (club-and-ucl-source-contracts) — EXECUTING
-Plan: 2 of 14
+Plan: 3 of 14
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 18 execution started
 
-Progress: [█████░░░░░] 50%
+Progress: [██████░░░░] 57%
 
 ## Milestone Progress
 
@@ -65,6 +65,7 @@ Progress: [█████░░░░░] 50%
 | Phase 18 P06 | 15min | 2 tasks | 4 files |
 | Phase 18 P04 | 18min | 3 tasks | 5 files |
 | Phase 18 P07 | 4min | 2 tasks | 2 files |
+| Phase 18 P14 | 7min | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -90,6 +91,8 @@ Progress: [█████░░░░░] 50%
 - [Phase 18]: Production UCL current state remains missing-credential, automation-disabled, and no-incumbent until real accepted authority exists.
 - [Phase 18]: Canonical v2 preserves exact UTF-8 bytes without Unicode normalization. — Byte-distinct normalization forms remain auditable and deterministic.
 - [Phase 18]: Canonical tables permit duplicate stable keys but reject missing or blank key components. — Multiplicity remains represented while deterministic v2 row bytes provide tie-breakers.
+- [Phase 18]: Every Phase 18 loader sources the canonical hash module immediately after trusted-root resolution and before consumers.
+- [Phase 18]: Dynamic Phase 18 test loaders source mandatory dependencies unconditionally so missing modules fail closed.
 
 ### Pending Todos
 
@@ -112,6 +115,6 @@ Progress: [█████░░░░░] 50%
 
 ## Session Continuity
 
-Last session: 2026-09-20T11:35:30.917Z
-Stopped at: Completed 18-07-PLAN.md
+Last session: 2026-09-20T11:45:00.103Z
+Stopped at: Completed 18-14-PLAN.md
 Resume file: None

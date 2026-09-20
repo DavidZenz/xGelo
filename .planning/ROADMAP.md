@@ -32,7 +32,7 @@ Publish a trustworthy, automatically refreshed UEFA Champions League dashboard f
 4. Every current and historical club record resolves through a stable, validity-aware identity contract that rejects ambiguous aliases and national-team identities.
 5. The historical club corpus is pinned and auditable for licensing, point-in-time availability, coverage, duplicates, and regulation/extra-time/shootout score semantics before model training can consume it.
 
-**Plans:** 7/14 plans executed
+**Plans:** 8/14 plans executed
 
 Plans:
 
@@ -43,7 +43,7 @@ Plans:
 - [ ] 18-11-PLAN.md
 - [ ] 18-12-PLAN.md
 - [ ] 18-13-PLAN.md
-- [ ] 18-14-PLAN.md
+- [x] 18-14-PLAN.md
 
 **Wave 1**
 
@@ -128,7 +128,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 18. Club and UCL Source Contracts | 7/14 | In Progress|  |
+| 18. Club and UCL Source Contracts | 8/14 | In Progress|  |
 | 19. Independent Club Forecast Authority | 0/TBD | Not started | - |
 | 20. UCL Rules, State, and Tournament Outcomes | 0/TBD | Not started | - |
 | 21. N-Edition Dashboard and Atomic Publication | 0/TBD | Not started | - |
