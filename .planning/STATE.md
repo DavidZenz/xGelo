@@ -5,15 +5,15 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: club-and-ucl-source-contracts
 status: executing
-stopped_at: Completed 18-09-PLAN.md
-last_updated: "2026-09-20T12:49:07.425Z"
+stopped_at: Completed 18-10-PLAN.md
+last_updated: "2026-09-20T13:19:44.381Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 18 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 10
+  completed_plans: 11
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (club-and-ucl-source-contracts) — EXECUTING
-Plan: 5 of 14
+Plan: 6 of 14
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 18 execution started
 
-Progress: [███████░░░] 71%
+Progress: [████████░░] 79%
 
 ## Milestone Progress
 
@@ -68,6 +68,7 @@ Progress: [███████░░░] 71%
 | Phase 18 P14 | 7min | 2 tasks | 10 files |
 | Phase 18 P08 | 45min | 3 tasks | 10 files |
 | Phase 18 P09 | 16min | 2 tasks | 11 files |
+| Phase 18 P10 | 28min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -100,6 +101,8 @@ Progress: [███████░░░] 71%
 - [Phase 18]: The provider CLI is fixed to football_data_org_v4/ucl_2026_27 and uses tagged results with stable success, blocked, rejected, usage, and runtime exits.
 - [Phase 18]: Club identity authority requires canonical-v2 durability plus active status at the event instant.
 - [Phase 18]: Freshness authority is the conjunction of competition, team-row, match-row, and standings-resource evidence.
+- [Phase 18]: UCL source authority binds exact edition and ordered raw-byte aggregate into one canonical-v2 bundle graph.
+- [Phase 18]: Candidate paths are checked lexically before resolution and parsed only from drift-checked in-memory snapshots.
 
 ### Pending Todos
 
@@ -110,6 +113,7 @@ Progress: [███████░░░] 71%
 - Production automation is conditional on provider rights, retention, attribution, quota, schema, completeness, and freshness acceptance.
 - Historical club coverage and cross-league connectivity must be measured before model promotion thresholds are frozen.
 - Late UEFA tie-break evidence needs either a permitted source or an explicit unresolved-rank release tolerance.
+- Plan 18-13 must migrate `phase18_test_adapter_registries()` to the Plan 18-09 club-registry schema; two source-acceptance CLI cases currently stop in fixture setup before bundle validation.
 
 ## Deferred Items
 
@@ -122,6 +126,6 @@ Progress: [███████░░░] 71%
 
 ## Session Continuity
 
-Last session: 2026-09-20T12:49:07.415Z
-Stopped at: Completed 18-09-PLAN.md
+Last session: 2026-09-20T13:19:44.372Z
+Stopped at: Completed 18-10-PLAN.md
 Resume file: None
