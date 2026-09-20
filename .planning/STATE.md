@@ -5,15 +5,15 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: club-and-ucl-source-contracts
 status: executing
-stopped_at: Completed 18-10-PLAN.md
-last_updated: "2026-09-20T13:19:44.381Z"
+stopped_at: Completed 18-12-PLAN.md
+last_updated: "2026-09-20T13:42:34.953Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 18 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 11
+  completed_plans: 12
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (club-and-ucl-source-contracts) — EXECUTING
-Plan: 6 of 14
+Plan: 7 of 14
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 18 execution started
 
-Progress: [████████░░] 79%
+Progress: [█████████░] 86%
 
 ## Milestone Progress
 
@@ -69,6 +69,7 @@ Progress: [████████░░] 79%
 | Phase 18 P08 | 45min | 3 tasks | 10 files |
 | Phase 18 P09 | 16min | 2 tasks | 11 files |
 | Phase 18 P10 | 28min | 2 tasks | 4 files |
+| Phase 18 P12 | 19min | 3 tasks | 24 files |
 
 ## Accumulated Context
 
@@ -103,6 +104,9 @@ Progress: [████████░░] 79%
 - [Phase 18]: Freshness authority is the conjunction of competition, team-row, match-row, and standings-resource evidence.
 - [Phase 18]: UCL source authority binds exact edition and ordered raw-byte aggregate into one canonical-v2 bundle graph.
 - [Phase 18]: Candidate paths are checked lexically before resolution and parsed only from drift-checked in-memory snapshots.
+- [Phase 18]: Completed history evidence is eligible only after method-specific conservative completion and strictly before cutoff.
+- [Phase 18]: Historical corpus authority is independently recomputed from exact source, match, registry, review, and unresolved snapshots.
+- [Phase 18]: History readers trust only one canonical-v2 atomic descriptor selecting immutable audit and accepted generations.
 
 ### Pending Todos
 
@@ -126,6 +130,6 @@ Progress: [████████░░] 79%
 
 ## Session Continuity
 
-Last session: 2026-09-20T13:19:44.372Z
-Stopped at: Completed 18-10-PLAN.md
+Last session: 2026-09-20T13:42:34.944Z
+Stopped at: Completed 18-12-PLAN.md
 Resume file: None
