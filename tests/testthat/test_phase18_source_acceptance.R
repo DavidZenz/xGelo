@@ -675,6 +675,7 @@ test_that("all Phase 18 production CLIs bootstrap the canonical hash module firs
 })
 
 test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", {
+  phase18_test_load()
   durable_roots <- file.path(phase18_test_root, c(
     "data/competition/provider_acceptance",
     "data/competition/accepted",
@@ -694,6 +695,10 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
   )
   dir.create(club_scratch, recursive = TRUE)
   on.exit(unlink(club_scratch, recursive = TRUE, force = TRUE), add = TRUE)
+  production_acceptance <- phase18_read_acceptance_set(file.path(
+    phase18_test_root,
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27"
+  ))
 
   acceptance <- phase18_loader_run_cli(
     "scripts/accept_ucl_provider.R",
@@ -701,8 +706,8 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
       "--provider-id", "football_data_org_v4",
       "--edition-id", "ucl_2026_27",
       "--review-path", shQuote(file.path(
-        phase18_test_root,
-        "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/provider_terms_review.csv"
+        production_acceptance$generation_root,
+        "provider_terms_review.csv"
       )),
       "--evidence-root", shQuote(file.path(scratch, "provider_acceptance"))
     ),
@@ -1108,4 +1113,90 @@ test_that("a concurrent subprocess reader observes only complete old or new deci
   )
   expect_true(all(tuples %in% allowed))
   expect_setequal(unique(tuples), allowed)
+})
+
+phase18_gap08_cli_args <- function(evidence_root, review_path, edition_id = "ucl_2026_27", mode = "preflight") {
+  c(
+    "--provider-id", "football_data_org_v4",
+    "--edition-id", edition_id,
+    "--review-path", review_path,
+    "--evidence-root", evidence_root,
+    "--mode", mode
+  )
+}
+
+test_that("unsafe and unknown edition IDs fail before any filesystem mutation", {
+  phase18_test_load()
+  sandbox <- tempfile("phase18-edition-sandbox-")
+  dir.create(sandbox, recursive = TRUE)
+  review_path <- tempfile("phase18-edition-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("pending"), review_path, row.names = FALSE, na = "", quote = TRUE)
+  before <- phase18_test_tree_sha(sandbox)
+  unsafe <- c(
+    "../ucl_2026_27", "ucl_2026_27/escape", "ucl_2026_27\\escape",
+    ".", "..", "%2e%2e%2fucl_2026_27", normalizePath(tempdir(), winslash = "/"),
+    "ucl_2025_26"
+  )
+  for (edition_id in unsafe) {
+    expect_error(
+      phase18_accept_parse_args(phase18_gap08_cli_args(sandbox, review_path, edition_id)),
+      "edition|supported|unsafe"
+    )
+    expect_identical(phase18_test_tree_sha(sandbox), before)
+  }
+})
+
+test_that("every CLI main result uses the tagged decision or bundle union", {
+  phase18_test_load()
+  evidence_root <- tempfile("phase18-result-union-")
+  review_path <- tempfile("phase18-result-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("pending"), review_path, row.names = FALSE, na = "", quote = TRUE)
+  result <- phase18_accept_ucl_provider_main(
+    phase18_gap08_cli_args(evidence_root, review_path),
+    token_present = FALSE,
+    now_utc = "2026-09-19T15:00:00Z"
+  )
+  expect_identical(result$result_type, "decision")
+  expect_identical(result$mode, "preflight")
+  expect_identical(result$status, "blocked")
+  expect_identical(result$reason_code, "missing_credential")
+  expect_true(isTRUE(result$durable_mutation))
+  expect_named(result$decision, c("decision_id", "decision", "automation_enabled"))
+  expect_null(result$bundle)
+})
+
+test_that("CLI render and exit contracts distinguish success blocked rejected and errors", {
+  phase18_test_load()
+  phase18_test_require(c("phase18_accept_cli_exit_code", "phase18_accept_render_result"))
+  decision <- list(
+    result_type = "decision", mode = "preflight", status = "blocked",
+    reason_code = "missing_credential", durable_mutation = TRUE,
+    decision = list(decision_id = "missing-key", decision = "not_run", automation_enabled = FALSE),
+    bundle = NULL
+  )
+  rendered <- phase18_accept_render_result(decision)
+  expect_match(rendered, "type=decision")
+  expect_match(rendered, "status=blocked")
+  expect_false(grepl("bundle_sha256", rendered, fixed = TRUE))
+  expect_equal(phase18_accept_cli_exit_code(decision), 2L)
+  expect_equal(phase18_accept_cli_exit_code(transform(decision, status = "rejected")), 3L)
+  expect_equal(phase18_accept_cli_exit_code(transform(decision, status = "success")), 0L)
+})
+
+test_that("executable CLI rejects traversal without creating paths", {
+  phase18_test_load()
+  sandbox <- tempfile("phase18-cli-traversal-")
+  dir.create(sandbox, recursive = TRUE)
+  review_path <- tempfile("phase18-cli-traversal-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("pending"), review_path, row.names = FALSE, na = "", quote = TRUE)
+  before <- phase18_test_tree_sha(sandbox)
+  args <- c(
+    file.path(phase18_test_root, "scripts/accept_ucl_provider.R"),
+    phase18_gap08_cli_args(sandbox, review_path, "../escape")
+  )
+  output <- system2("Rscript", c("--vanilla", shQuote(args)), stdout = TRUE, stderr = TRUE)
+  status <- attr(output, "status") %||% 0L
+  expect_equal(status, 64L, info = paste(output, collapse = "\n"))
+  expect_match(paste(output, collapse = "\n"), "edition|supported|unsafe")
+  expect_identical(phase18_test_tree_sha(sandbox), before)
 })
