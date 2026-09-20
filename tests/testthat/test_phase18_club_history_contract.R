@@ -396,3 +396,67 @@ test_that("source byte verification rejects hash mismatch and symlinks", {
     expect_error(phase18_verify_history_source_file(linked, sandbox), class = "unsafe_history_source_symlink")
   }
 })
+
+test_that("one immutable generation pointer advances audit and accepted state together", {
+  phase18_history_test_load()
+  phase18_history_test_require(c(
+    "phase18_publish_club_history_generation",
+    "phase18_read_club_history_current"
+  ))
+  sandbox <- tempfile("phase18-history-generations-")
+  generations <- file.path(sandbox, "generations")
+  current <- file.path(sandbox, "history_current.json")
+  accepted <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "accepted-generation", identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  first <- phase18_publish_club_history_generation(accepted, generations, current)
+  expect_identical(first$acceptance_state, "accepted")
+  expect_identical(first$audit_generation_id, first$accepted_generation_id)
+  expect_silent(phase18_read_club_history_current(current, generations))
+
+  pending <- phase18_history_test_source(1L, "blocked_pending_review")
+  pending$commit_sha <- ""; pending$license_review_state <- "pending"
+  pending$blocked_reason <- "missing_verified_pin_and_owner_license_review"
+  pending$row_sha256 <- phase18_history_row_sha256(pending)
+  blocked <- phase18_audit_club_history(
+    phase18_history_empty(phase18_normalized_club_match_schema()), pending,
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "blocked-generation", identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  second <- phase18_publish_club_history_generation(blocked, generations, current)
+  expect_identical(second$acceptance_state, "blocked")
+  expect_false(identical(second$audit_generation_id, first$audit_generation_id))
+  expect_identical(second$accepted_generation_id, first$accepted_generation_id)
+  expect_silent(phase18_read_club_history_current(current, generations))
+})
+
+test_that("writer failures before pointer replacement preserve the prior descriptor", {
+  phase18_history_test_load()
+  sandbox <- tempfile("phase18-history-pointer-failure-")
+  generations <- file.path(sandbox, "generations")
+  current <- file.path(sandbox, "history_current.json")
+  audit <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    corpus_id = "pointer-incumbent", identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  phase18_publish_club_history_generation(audit, generations, current)
+  incumbent <- readBin(current, "raw", n = file.info(current)$size)
+  replacement <- audit
+  replacement$corpus_manifest$corpus_id <- "pointer-replacement"
+  replacement$corpus_manifest$manifest_sha256 <- phase18_history_row_sha256(replacement$corpus_manifest, "manifest_sha256")
+  fail_before_pointer <- function(boundary, ...) {
+    if (identical(boundary, "before_pointer_replace")) stop("injected pointer failure", call. = FALSE)
+  }
+  expect_error(
+    phase18_publish_club_history_generation(replacement, generations, current, writer_hook = fail_before_pointer),
+    "injected pointer failure"
+  )
+  expect_identical(readBin(current, "raw", n = file.info(current)$size), incumbent)
+  expect_silent(phase18_read_club_history_current(current, generations))
+})
