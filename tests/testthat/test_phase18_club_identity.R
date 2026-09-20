@@ -21,20 +21,23 @@ phase18_identity_test_empty <- function() {
 phase18_identity_test_registry <- function() {
   registries <- phase18_identity_test_empty()
   registries$clubs <- data.frame(
-    schema_version = "phase18-club-identity-1", club_id = "club_alpha",
+    schema_version = phase18_club_identity_schema_version(),
+    hash_encoding_version = phase18_canonical_encoding_v2(), club_id = "club_alpha",
     entity_kind = "club", canonical_name = "Alpha FC", association_code = "AUT",
     valid_from_utc = "2000-01-01T00:00:00Z", valid_to_utc = "",
     club_status = "active", row_sha256 = "", stringsAsFactors = FALSE
   )
   registries$source_ids <- data.frame(
-    schema_version = "phase18-club-identity-1", club_id = "club_alpha",
+    schema_version = phase18_club_identity_schema_version(),
+    hash_encoding_version = phase18_canonical_encoding_v2(), club_id = "club_alpha",
     source_system = "provider", source_club_id = "101",
     valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
     review_state = "approved", source_bundle_id = "bundle-1", row_sha256 = "",
     stringsAsFactors = FALSE
   )
   registries$aliases <- data.frame(
-    schema_version = "phase18-club-identity-1", club_id = "club_alpha",
+    schema_version = phase18_club_identity_schema_version(),
+    hash_encoding_version = phase18_canonical_encoding_v2(), club_id = "club_alpha",
     source_system = "provider", alias = "Alpha FC", normalized_alias = "alpha fc",
     valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
     review_state = "approved", reviewed_by = "owner",
@@ -52,6 +55,51 @@ testthat::test_that("club registries expose exact separate schemas", {
   testthat::expect_true(all(c("source_system", "source_club_id") %in% schemas$source_ids))
   testthat::expect_true(all(c("normalized_alias", "reviewed_by") %in% schemas$aliases))
   testthat::expect_false(any(grepl("team_id|fifa_code", unlist(schemas))))
+  testthat::expect_true(all(vapply(schemas, function(x) "hash_encoding_version" %in% x, logical(1))))
+})
+
+testthat::test_that("registry durability is canonical-v2 only and validates stored bytes", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  testthat::expect_true(all(vapply(registries, function(x) {
+    all(x$hash_encoding_version == phase18_canonical_encoding_v2())
+  }, logical(1))))
+  tampered <- registries
+  tampered$clubs$canonical_name[[1L]] <- "Tampered FC"
+  testthat::expect_error(
+    phase18_validate_club_registries(tampered), class = "club_registry_hash_mismatch"
+  )
+  legacy <- registries
+  legacy$clubs$hash_encoding_version[[1L]] <- "phase18-canonical-v1"
+  legacy$clubs$row_sha256 <- phase18_hash_row_v2(
+    legacy$clubs, exclude = "row_sha256", schema_tag = phase18_club_identity_schema_version()
+  )
+  testthat::expect_error(
+    phase18_validate_club_registries(legacy), class = "invalid_club_registry_schema"
+  )
+})
+
+testthat::test_that("club status and validity are closed and active at the event instant", {
+  phase18_identity_test_load()
+  registries <- phase18_identity_test_registry()
+  for (status in c("inactive", "dissolved", "merged")) {
+    candidate <- registries
+    candidate$clubs$club_status[[1L]] <- status
+    candidate <- phase18_hash_club_registry_rows(candidate)
+    testthat::expect_silent(phase18_validate_club_registries(candidate))
+    testthat::expect_error(
+      phase18_resolve_club_identity(candidate, "provider", "101", "Alpha FC", "2026-09-19T12:00:00Z"),
+      class = "inactive_club_identity"
+    )
+  }
+  unknown <- registries
+  unknown$clubs$club_status[[1L]] <- "retired"
+  unknown <- phase18_hash_club_registry_rows(unknown)
+  testthat::expect_error(phase18_validate_club_registries(unknown), class = "invalid_club_status")
+  empty <- registries
+  empty$clubs$valid_to_utc[[1L]] <- empty$clubs$valid_from_utc[[1L]]
+  empty <- phase18_hash_club_registry_rows(empty)
+  testthat::expect_error(phase18_validate_club_registries(empty), class = "invalid_club_validity")
 })
 
 testthat::test_that("source scoped club ID resolves with provider display evidence", {

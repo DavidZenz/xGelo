@@ -21,21 +21,24 @@ phase18_fd_test_registries <- function() {
   names <- sprintf("Fixture Club %02d", seq_len(36L))
   registries <- list(
     clubs = data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = club_ids,
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = club_ids,
       entity_kind = "club", canonical_name = names, association_code = "FX",
       valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
       club_status = "active", row_sha256 = "", stringsAsFactors = FALSE,
       check.names = FALSE
     ),
     source_ids = data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = club_ids,
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = club_ids,
       source_system = "football_data_org_v4", source_club_id = source_ids,
       valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
       review_state = "approved", source_bundle_id = "fixture-club-review-v1",
       row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
     ),
     aliases = data.frame(
-      schema_version = phase18_club_identity_schema_version(), club_id = club_ids,
+      schema_version = phase18_club_identity_schema_version(),
+      hash_encoding_version = phase18_canonical_encoding_v2(), club_id = club_ids,
       source_system = "football_data_org_v4", alias = names,
       normalized_alias = phase18_normalize_club_name(names),
       valid_from_utc = "2020-01-01T00:00:00Z", valid_to_utc = "",
@@ -107,6 +110,7 @@ phase18_fd_test_payloads <- function() {
       competition = competition[c("id", "name", "code", "type")], matches = matches),
     standings = list(filters = list(season = "2026"), competition = competition[c("id", "name", "code", "type")],
       season = competition$currentSeason,
+      lastUpdated = "2026-09-19T11:15:00Z",
       standings = list(list(stage = "LEAGUE_STAGE", type = "TOTAL", group = NULL, table = table)))
   )
 }
@@ -199,6 +203,26 @@ test_that("complete fictional UCL window projects deterministic canonical tables
   expect_identical(projected$coverage$league_phase_match_count, 144L)
   expect_true(projected$coverage$identity_passed)
   expect_true(projected$coverage$pagination_complete)
+  expect_true(projected$coverage$freshness_passed)
+  expect_equal(nrow(projected$freshness_evidence), 4L)
+  expect_setequal(projected$freshness_evidence$resource,
+    c("competition_metadata", "teams", "matches", "standings"))
+  expect_true(all(projected$freshness_evidence$verdict == "pass"))
+  expect_true(all(projected$freshness_evidence$hash_encoding_version == phase18_canonical_encoding_v2()))
+  expect_true(all(grepl("^[0-9a-f]{64}$", projected$freshness_evidence$row_sha256)))
+})
+
+test_that("missing independent standings freshness blocks projection", {
+  phase18_fd_test_load()
+  payloads <- phase18_fd_test_payloads()
+  payloads$standings$lastUpdated <- NULL
+  expect_identical(
+    phase18_fd_test_reason(phase18_fd_project_resources(
+      phase18_fd_test_fetch(payloads), "ucl_2026_27", phase18_fd_test_registries(),
+      phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
+    )),
+    "blocked_freshness_unavailable"
+  )
 })
 
 test_that("semantic shortfall excess enum pagination freshness and identity failures are typed", {
