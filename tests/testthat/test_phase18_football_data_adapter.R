@@ -381,6 +381,34 @@ test_that("unknown acquisition failures are sanitized into one closed blocked re
   expect_false(grepl(sentinel, conditionMessage(condition), fixed = TRUE))
 })
 
+test_that("trusted transient transport exceptions retain bounded retry semantics", {
+  phase18_fd_test_load()
+  calls <- setNames(integer(4L), phase18_fd_request_plan()$resource)
+  performer <- function(request, attempt) {
+    resource <- as.character(request$resource[[1L]])
+    calls[[resource]] <<- calls[[resource]] + 1L
+    if (attempt < 3L) {
+      condition <- structure(
+        list(message = "secret transient transport detail", call = NULL),
+        class = c("timeout_error", "error", "condition")
+      )
+      stop(condition)
+    }
+    list(
+      status = 200L, content_type = "application/json",
+      final_url = as.character(request$url[[1L]]),
+      body = charToRaw("{}"), headers = list(), retryable = FALSE
+    )
+  }
+  fetched <- phase18_fd_fetch_window(
+    phase18_fd_request_plan(), performer,
+    clock_fn = function() as.POSIXct("2026-09-19T12:00:00Z", tz = "UTC"),
+    sleep_fn = function(...) invisible(NULL), max_attempts = 3L
+  )
+  expect_identical(unname(calls), rep(3L, 4L))
+  expect_true(all(vapply(fetched, `[[`, integer(1), "attempt_count") == 3L))
+})
+
 test_that("schema fingerprints bind node types, array cardinality, and every element", {
   phase18_fd_test_load()
   baseline <- list(id = "1", rows = list(list(a = 1L)))

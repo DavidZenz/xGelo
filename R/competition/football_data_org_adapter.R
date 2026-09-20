@@ -28,9 +28,11 @@ phase18_fd_classify_acquisition_error <- function(error) {
     return(error)
   }
   if (inherits(error, c("httr2_error", "curl_error", "timeout_error", "connection_error"))) {
+    retryable <- inherits(error, c("curl_error", "timeout_error", "connection_error", "httr2_failure"))
     return(structure(
       list(message = "Provider transport failed", call = NULL, reason_code = "blocked_transport"),
-      class = c("blocked_transport", "phase18_fd_error", "error", "condition")
+      class = c("blocked_transport", "phase18_fd_error", "error", "condition"),
+      retryable = retryable
     ))
   }
   structure(
@@ -180,6 +182,7 @@ phase18_fd_fetch_window <- function(
         error = function(error) {
           if (!isTRUE(attr(error, "retryable")) || attempt == max_attempts) stop(error)
           last_error <<- error
+          sleep_fn(min(2^(attempt - 1L), 4))
           NULL
         }
       )
