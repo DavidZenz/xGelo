@@ -5,15 +5,15 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
 current_phase_name: club-and-ucl-source-contracts
 status: executing
-stopped_at: Completed 18-12-PLAN.md
-last_updated: "2026-09-20T13:42:34.953Z"
+stopped_at: Completed 18-11-PLAN.md
+last_updated: "2026-09-20T14:32:54.779Z"
 last_activity: 2026-09-20
 last_activity_desc: Phase 18 execution started
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 14
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 18 (club-and-ucl-source-contracts) — EXECUTING
-Plan: 7 of 14
+Plan: 8 of 14
 Status: Ready to execute
 Last activity: 2026-09-20 — Phase 18 execution started
 
-Progress: [█████████░] 86%
+Progress: [█████████░] 93%
 
 ## Milestone Progress
 
@@ -70,6 +70,7 @@ Progress: [█████████░] 86%
 | Phase 18 P09 | 16min | 2 tasks | 11 files |
 | Phase 18 P10 | 28min | 2 tasks | 4 files |
 | Phase 18 P12 | 19min | 3 tasks | 24 files |
+| Phase 18 P11 | 62min | 3 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -107,6 +108,8 @@ Progress: [█████████░] 86%
 - [Phase 18]: Completed history evidence is eligible only after method-specific conservative completion and strictly before cutoff.
 - [Phase 18]: Historical corpus authority is independently recomputed from exact source, match, registry, review, and unresolved snapshots.
 - [Phase 18]: History readers trust only one canonical-v2 atomic descriptor selecting immutable audit and accepted generations.
+- [Phase 18]: Refresh visibility changes only through one canonical-v2 pointer selecting immutable accepted and transaction generations. — Readers must observe a complete old or complete new bundle/evidence tuple under crashes and concurrency.
+- [Phase 18]: Provider exit is authorized only for the exact provider, edition, decision, bundle, and reviewed inventory of the current generation. — Compliance review must never affect unrelated, manual, fixture, stale, unreadable, or no-incumbent state.
 
 ### Pending Todos
 
@@ -130,6 +133,6 @@ Progress: [█████████░] 86%
 
 ## Session Continuity
 
-Last session: 2026-09-20T13:42:34.944Z
-Stopped at: Completed 18-12-PLAN.md
+Last session: 2026-09-20T14:32:43.763Z
+Stopped at: Completed 18-11-PLAN.md
 Resume file: None
