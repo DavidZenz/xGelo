@@ -437,6 +437,38 @@ test_that("operator CLI routes offline and live modes only through the fixed ada
   expect_error(phase18_accept_parse_args(c(args, "--host", "https://evil.example")), "Unsupported")
 })
 
+test_that("missing-key pending-review and non-live decisions preserve incumbent bytes", {
+  phase18_test_load()
+  evidence_root <- tempfile("phase18-cli-preserve-")
+  approved_path <- tempfile("phase18-approved-review-", fileext = ".csv")
+  pending_path <- tempfile("phase18-pending-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("approved"), approved_path, row.names = FALSE, na = "", quote = TRUE)
+  utils::write.csv(phase18_test_review("pending"), pending_path, row.names = FALSE, na = "", quote = TRUE)
+  args <- c(
+    "--provider-id", "football_data_org_v4", "--edition-id", "ucl_2026_27",
+    "--review-path", approved_path, "--evidence-root", evidence_root
+  )
+  seeded <- phase18_accept_ucl_provider_main(args, token_present = FALSE, now_utc = "2026-09-19T12:00:00Z")
+  root <- seeded$evidence_root
+  before <- phase18_test_tree_sha(root)
+
+  phase18_accept_ucl_provider_main(args, token_present = FALSE, now_utc = "2026-09-19T12:05:00Z")
+  expect_identical(phase18_test_tree_sha(root), before)
+  phase18_accept_ucl_provider_main(
+    replace(args, match(approved_path, args), pending_path),
+    token_present = TRUE, now_utc = "2026-09-19T12:10:00Z"
+  )
+  expect_identical(phase18_test_tree_sha(root), before)
+
+  registry_root <- tempfile("phase18-unused-registry-")
+  live_args <- c(args, "--mode", "live_acceptance_probe", "--club-registry-root", registry_root)
+  expect_error(
+    phase18_accept_ucl_provider_main(live_args, token_present = FALSE, now_utc = "2026-09-19T12:15:00Z"),
+    "requires FOOTBALL_DATA_API_TOKEN"
+  )
+  expect_identical(phase18_test_tree_sha(root), before)
+})
+
 `%||%` <- function(value, fallback) if (is.null(value)) fallback else value
 
 test_that("live acceptance probe is the only first-acceptance path and uses four fixed calls", {
