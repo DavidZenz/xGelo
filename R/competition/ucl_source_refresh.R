@@ -134,6 +134,19 @@ phase18_ucl_refresh_run_hook <- function(hooks, name, reason_code, failure_phase
   invisible(NULL)
 }
 
+phase18_ucl_refresh_run_post_commit_hook <- function(hooks, name, ...) {
+  hook <- hooks[[name]]
+  if (is.null(hook)) return("")
+  if (!is.function(hook)) return(paste0(name, "_invalid"))
+  tryCatch(
+    {
+      hook(...)
+      ""
+    },
+    error = function(error) paste0(name, "_failed")
+  )
+}
+
 phase18_ucl_refresh_copy_tree <- function(source, target, hooks = list()) {
   source <- normalizePath(source, winslash = "/", mustWork = TRUE); phase18_ucl_assert_no_symlink(source, source)
   files <- sort(list.files(source, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE)); files <- files[!file.info(files)$isdir]
@@ -417,10 +430,13 @@ phase18_refresh_ucl_source <- function(candidate_root, accepted_root = "data/com
     phase18_ucl_refresh_run_hook(writer_hooks, "interrupt", "interrupted", "commit")
     phase18_ucl_refresh_run_hook(writer_hooks, "before_readback", "read_back_failure", "read_back")
     pointer <- phase18_ucl_refresh_commit_pointer(roots, transaction, accepted_ref, now_utc)
-    phase18_ucl_refresh_run_hook(writer_hooks, "after_pointer_commit", "promotion_failure", "commit")
+    notification_warning <- phase18_ucl_refresh_run_post_commit_hook(
+      writer_hooks, "after_pointer_commit", pointer
+    )
     list(status = "accepted", reason_code = "accepted", refresh_batch_id = batch_id,
       candidate_bundle_id = as.character(candidate$bundle$bundle_id[[1L]]), incumbent_status = incumbent$status,
-      pointer_sha256 = pointer$pointer_sha256, recorded = TRUE)
+      pointer_sha256 = pointer$pointer_sha256, recorded = TRUE,
+      notification_warning = notification_warning)
   }, error = function(error) error)
   if (!inherits(result, "error")) return(invisible(result))
   classified <- phase18_classify_ucl_refresh_failure(result)
@@ -572,7 +588,10 @@ phase18_apply_provider_exit <- function(exit_review, accepted_root = "data/compe
   tx <- phase18_ucl_refresh_append(current, row, NULL, new_ref, roots, writer_hooks)
   phase18_ucl_refresh_run_hook(writer_hooks, "before_provider_exit_swap", "promotion_failure", "compliance")
   phase18_ucl_refresh_commit_pointer(roots, tx, new_ref, now_utc)
-  phase18_ucl_refresh_run_hook(writer_hooks, "after_provider_exit_swap", "promotion_failure", "compliance")
+  notification_warning <- phase18_ucl_refresh_run_post_commit_hook(
+    writer_hooks, "after_provider_exit_swap", new_ref
+  )
   invisible(list(status = "source_unavailable", disposition = "withdraw", automation_enabled = FALSE,
-    refresh_batch_id = batch_id, tombstone_path = file.path(new_ref$root, "source_unavailable.json"), recorded = TRUE))
+    refresh_batch_id = batch_id, tombstone_path = file.path(new_ref$root, "source_unavailable.json"),
+    recorded = TRUE, notification_warning = notification_warning))
 }

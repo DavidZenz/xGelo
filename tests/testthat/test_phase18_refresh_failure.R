@@ -164,6 +164,20 @@ test_that("every pre-commit interruption leaves the prior pointer authoritative"
   }
 })
 
+test_that("post-pointer notification failure cannot contradict a committed refresh", {
+  phase18_refresh_test_load(); x <- phase18_refresh_test_sandbox(); on.exit(unlink(x$root, recursive = TRUE), add = TRUE)
+  result <- phase18_refresh_ucl_source(
+    x$candidate_root, x$accepted_root, x$registry_root, x$acceptance_root,
+    writer_hooks = list(after_pointer_commit = function(...) stop("notification unavailable")),
+    now_utc = "2026-09-20T18:05:30Z"
+  )
+  expect_identical(result$status, "accepted")
+  expect_true(result$recorded)
+  expect_identical(result$notification_warning, "after_pointer_commit_failed")
+  current <- phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)
+  expect_identical(current$accepted$bundle$bundle_id[[1L]], "ucl-refresh-candidate-v2")
+})
+
 test_that("concurrent readers observe only complete old or new generations", {
   skip_on_os("windows")
   phase18_refresh_test_load(); x <- phase18_refresh_test_sandbox(); on.exit(unlink(x$root, recursive = TRUE), add = TRUE)
@@ -334,6 +348,35 @@ test_that("provider exit is bound to exact provider incumbent and inventory", {
   final <- phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)
   expect_identical(final$pointer$accepted_status, "unavailable_tombstone")
   expect_silent(phase18_validate_ucl_unavailable_tombstone(result$tombstone_path))
+})
+
+test_that("post-swap notification failure cannot contradict committed provider exit", {
+  phase18_refresh_test_load(); x <- phase18_refresh_test_sandbox(); on.exit(unlink(x$root, recursive = TRUE), add = TRUE)
+  evidence_root <- file.path(x$acceptance_root, "football_data_org_v4", "ucl_2026_27")
+  evidence <- phase18_refresh_test_provider_evidence(evidence_root)
+  unlink(x$candidate_root, recursive = TRUE)
+  phase18_write_ucl_candidate(
+    x$candidate_root,
+    phase18_refresh_test_candidate("ucl-provider-post-swap-v2", authority = "provider", provider_evidence = evidence)
+  )
+  phase18_refresh_ucl_source(
+    x$candidate_root, x$accepted_root, x$registry_root, x$acceptance_root,
+    now_utc = "2026-09-20T18:24:00Z"
+  )
+  current <- phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)
+  review <- phase18_refresh_test_exit_review(current, "withdraw")
+  result <- phase18_apply_provider_exit(
+    review, x$accepted_root, x$registry_root,
+    writer_hooks = list(after_provider_exit_swap = function(...) stop("notification unavailable")),
+    now_utc = "2026-09-20T18:25:00Z"
+  )
+  expect_identical(result$status, "source_unavailable")
+  expect_true(result$recorded)
+  expect_identical(result$notification_warning, "after_provider_exit_swap_failed")
+  expect_identical(
+    phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)$pointer$accepted_status,
+    "unavailable_tombstone"
+  )
 })
 
 test_that("technical reason vocabulary is closed and sanitized", {
