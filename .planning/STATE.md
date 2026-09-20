@@ -3,18 +3,18 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 18
-current_phase_name: Club and UCL Source Contracts
+current_phase_name: club-and-ucl-source-contracts
 status: executing
-stopped_at: Completed 18-04-PLAN.md
-last_updated: "2026-09-20T11:28:06.268Z"
+stopped_at: Completed 18-07-PLAN.md
+last_updated: "2026-09-20T11:35:30.927Z"
 last_activity: 2026-09-20
-last_activity_desc: Completed Plan 18-04 last-known-good refresh transaction
+last_activity_desc: Phase 18 execution started
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 14
-  completed_plans: 6
-  percent: 20
+  completed_plans: 7
+  percent: 0
 ---
 
 # xGelo Project State
@@ -24,16 +24,16 @@ progress:
 See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 **Core value:** Accurate, calibrated football forecasting without dependence on paid data feeds.
-**Current focus:** Phase 18 — Club and UCL Source Contracts
+**Current focus:** Phase 18 — club-and-ucl-source-contracts
 
 ## Current Position
 
-Phase: 18 (Club and UCL Source Contracts) — EXECUTING
-Plan: 6 of 6
+Phase: 18 (club-and-ucl-source-contracts) — EXECUTING
+Plan: 2 of 14
 Status: Ready to execute
-Last activity: 2026-09-20 — Completed Plan 18-04 last-known-good refresh transaction
+Last activity: 2026-09-20 — Phase 18 execution started
 
-Progress: [██████████] 100%
+Progress: [█████░░░░░] 50%
 
 ## Milestone Progress
 
@@ -64,6 +64,7 @@ Progress: [██████████] 100%
 | Phase 18 P05 | 15min | 3 tasks | 14 files |
 | Phase 18 P06 | 15min | 2 tasks | 4 files |
 | Phase 18 P04 | 18min | 3 tasks | 5 files |
+| Phase 18 P07 | 4min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -87,6 +88,8 @@ Progress: [██████████] 100%
 - [Phase 18]: Technical refresh rollback is separate from reviewed provider-exit retain or withdraw compliance authority.
 - [Phase 18]: Blocked refresh history and sidecars are hash-linked, field-consistent, and metadata-writer failures durably self-report.
 - [Phase 18]: Production UCL current state remains missing-credential, automation-disabled, and no-incumbent until real accepted authority exists.
+- [Phase 18]: Canonical v2 preserves exact UTF-8 bytes without Unicode normalization. — Byte-distinct normalization forms remain auditable and deterministic.
+- [Phase 18]: Canonical tables permit duplicate stable keys but reject missing or blank key components. — Multiplicity remains represented while deterministic v2 row bytes provide tie-breakers.
 
 ### Pending Todos
 
@@ -109,6 +112,6 @@ Progress: [██████████] 100%
 
 ## Session Continuity
 
-Last session: 2026-09-20T10:17:26.344Z
-Stopped at: Completed 18-04-PLAN.md
+Last session: 2026-09-20T11:35:30.917Z
+Stopped at: Completed 18-07-PLAN.md
 Resume file: None
