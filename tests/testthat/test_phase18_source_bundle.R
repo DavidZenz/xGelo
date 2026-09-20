@@ -178,6 +178,28 @@ phase18_bundle_test_fixture_contract <- function(fetched = phase18_bundle_test_f
   contract
 }
 
+phase18_bundle_test_candidate <- function(bundle_id = "ucl-2026-27-filesystem-fixture-v1") {
+  evidence <- phase18_bundle_test_provider_evidence()
+  fetched <- phase18_bundle_test_fetched()
+  phase18_build_ucl_source_bundle(
+    phase18_bundle_test_projected(evidence), fetched,
+    list(
+      authority_type = "fixture_contract",
+      fixture_contract = phase18_bundle_test_fixture_contract(fetched)
+    ),
+    evidence$edition_expectations, bundle_id
+  )
+}
+
+phase18_bundle_test_candidate_tree <- function(label) {
+  root <- tempfile(paste0("phase18-ucl-", label, "-"))
+  phase18_write_ucl_candidate(
+    root,
+    phase18_bundle_test_candidate(paste0("ucl-2026-27-", label, "-v1"))
+  )
+  root
+}
+
 test_that("authority is inseparable from exact candidate edition raw bytes and fingerprints", {
   phase18_bundle_test_load()
   evidence <- phase18_bundle_test_provider_evidence()
@@ -520,4 +542,123 @@ test_that("bundle schemas expose the complete provenance graph and reject incomp
   phase18_write_ucl_candidate(root, candidate)
   writeLines("surplus", file.path(root, "surplus.txt"))
   expect_error(phase18_read_ucl_candidate(root), "inventory")
+})
+
+test_that("candidate reader rejects every lexical symlink shape before resolution", {
+  phase18_bundle_test_load()
+
+  file_root <- phase18_bundle_test_candidate_tree("file-symlink")
+  file_path <- file.path(file_root, "raw", "teams.json")
+  unlink(file_path)
+  expect_true(file.symlink(file.path(file_root, "raw", "competition_metadata.json"), file_path))
+  expect_error(phase18_read_ucl_candidate(file_root), class = "blocked_symlink")
+
+  directory_root <- phase18_bundle_test_candidate_tree("directory-symlink")
+  raw_target <- tempfile("phase18-ucl-raw-target-")
+  expect_true(file.rename(file.path(directory_root, "raw"), raw_target))
+  expect_true(file.symlink(raw_target, file.path(directory_root, "raw")))
+  expect_error(phase18_read_ucl_candidate(directory_root), class = "blocked_symlink")
+
+  broken_root <- phase18_bundle_test_candidate_tree("broken-symlink")
+  expect_true(file.symlink(file.path(broken_root, "missing-target"), file.path(broken_root, ".broken")))
+  expect_error(phase18_read_ucl_candidate(broken_root), class = "blocked_symlink")
+
+  trusted_root <- phase18_bundle_test_candidate_tree("trusted-root-symlink")
+  trusted_alias <- tempfile("phase18-ucl-trusted-alias-")
+  expect_true(file.symlink(trusted_root, trusted_alias))
+  expect_error(phase18_read_ucl_candidate(trusted_alias), class = "blocked_symlink")
+})
+
+test_that("authority inventories include hidden entries and are exact recursively", {
+  phase18_bundle_test_load()
+
+  hidden_root <- phase18_bundle_test_candidate_tree("hidden-inventory")
+  writeLines("hidden", file.path(hidden_root, ".secret"))
+  expect_error(phase18_read_ucl_candidate(hidden_root), class = "blocked_inventory")
+
+  surplus_root <- phase18_bundle_test_candidate_tree("surplus-evidence")
+  writeLines("surplus", file.path(surplus_root, "authority_evidence", "surplus.csv"))
+  expect_error(phase18_read_ucl_candidate(surplus_root), class = "blocked_inventory")
+
+  nested_root <- phase18_bundle_test_candidate_tree("nested-evidence")
+  dir.create(file.path(nested_root, "authority_evidence", "nested"))
+  expect_error(phase18_read_ucl_candidate(nested_root), class = "blocked_inventory")
+})
+
+test_that("candidate snapshots abort when a validated path drifts after its one read", {
+  phase18_bundle_test_load()
+  root <- phase18_bundle_test_candidate_tree("snapshot-drift")
+  mutated <- FALSE
+  previous <- options(phase18.ucl.snapshot_hook = function(path, bytes) {
+    if (!mutated && identical(basename(path), "authority.csv")) {
+      mutated <<- TRUE
+      writeBin(c(bytes, charToRaw("\n")), path)
+    }
+  })
+  on.exit(options(previous), add = TRUE)
+
+  expect_error(phase18_read_ucl_candidate(root), class = "blocked_path_drift")
+  expect_true(mutated)
+})
+
+test_that("empty null adjacent and equal-key resource outcomes are explicit", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+
+  empty <- fetched
+  empty$teams$body <- raw()
+  empty$teams$raw_sha256 <- phase18_ucl_hash(empty$teams$body)
+  expect_error(
+    phase18_build_ucl_source_bundle(
+      projected, empty,
+      list(authority_type = "fixture_contract", fixture_contract = phase18_bundle_test_fixture_contract(empty)),
+      evidence$edition_expectations, "ucl-2026-27-empty-raw-v1"
+    ),
+    class = "blocked_empty_resource"
+  )
+
+  null <- fetched
+  null$matches$body <- NULL
+  expect_error(
+    phase18_build_ucl_source_bundle(
+      projected, null,
+      list(authority_type = "fixture_contract", fixture_contract = phase18_bundle_test_fixture_contract(null)),
+      evidence$edition_expectations, "ucl-2026-27-null-raw-v1"
+    ),
+    class = "blocked_empty_resource"
+  )
+
+  adjacent <- projected
+  old_ids <- adjacent$clubs$club_id[1:2]
+  new_ids <- c("edge_01", "edge_010")
+  adjacent$clubs$club_id[1:2] <- new_ids
+  adjacent$standings$club_id[match(old_ids, adjacent$standings$club_id)] <- new_ids
+  for (index in seq_along(old_ids)) {
+    adjacent$matches$home_club_id[adjacent$matches$home_club_id == old_ids[[index]]] <- new_ids[[index]]
+    adjacent$matches$away_club_id[adjacent$matches$away_club_id == old_ids[[index]]] <- new_ids[[index]]
+  }
+  for (name in c("clubs", "matches", "standings")) {
+    adjacent[[name]]$row_sha256 <- phase18_ucl_projected_row_hash(adjacent[[name]])
+  }
+  adjacent_candidate <- phase18_build_ucl_source_bundle(
+    adjacent, fetched,
+    list(authority_type = "fixture_contract", fixture_contract = phase18_bundle_test_fixture_contract(fetched)),
+    evidence$edition_expectations, "ucl-2026-27-adjacent-ids-v1"
+  )
+  expect_silent(phase18_validate_ucl_source_bundle(adjacent_candidate))
+  expect_true(all(new_ids %in% adjacent_candidate$tables$clubs$club_id))
+
+  equal <- adjacent
+  equal$clubs$club_id[[2L]] <- equal$clubs$club_id[[1L]]
+  equal$clubs$row_sha256 <- phase18_ucl_projected_row_hash(equal$clubs)
+  expect_error(
+    phase18_build_ucl_source_bundle(
+      equal, fetched,
+      list(authority_type = "fixture_contract", fixture_contract = phase18_bundle_test_fixture_contract(fetched)),
+      evidence$edition_expectations, "ucl-2026-27-equal-ids-v1"
+    ),
+    "duplicate"
+  )
 })
