@@ -332,3 +332,207 @@ test_that("fold evaluation replay is canonical under source row permutation", {
   expect_identical(first$evaluation_sha256, second$evaluation_sha256)
   expect_identical(first$fixture_scores_sha256, second$fixture_scores_sha256)
 })
+
+phase19_evaluation_test_clone_fold <- function(evidence, family, ordinal) {
+  clone <- evidence
+  clone$fold_id <- sprintf("club__%s__league-%02d__2025-%02d", family, ordinal, ordinal)
+  clone$fold_family <- family
+  clone$assessment_competition_id <- sprintf("league-%02d", ordinal)
+  clone$assessment_season_id <- sprintf("2025-%02d", ordinal)
+  clone$fold_row_sha256 <- digest::digest(
+    paste("fold", family, ordinal), algo = "sha256", serialize = FALSE
+  )
+  clone$fixture_scores$fold_id <- clone$fold_id
+  clone$fixture_scores$fold_family <- clone$fold_family
+  clone$fixture_scores$competition_id <- clone$assessment_competition_id
+  clone$fixture_scores$season_id <- clone$assessment_season_id
+  clone$fold_summary$fold_id <- clone$fold_id
+  clone$fold_summary$fold_family <- clone$fold_family
+  clone$fold_summary$competition_id <- clone$assessment_competition_id
+  clone$fold_summary$season_id <- clone$assessment_season_id
+  clone$fixture_scores_sha256 <- phase18_hash_table_v2(
+    clone$fixture_scores, key = c("model_id", "fixture_id", "metric"),
+    schema_tag = "phase19-club-evaluation-fixture-scores-v1"
+  )
+  clone$fold_summary_sha256 <- phase18_hash_table_v2(
+    clone$fold_summary, key = "fold_id",
+    schema_tag = "phase19-club-evaluation-fold-summary-v1"
+  )
+  clone$evaluation_sha256 <- phase19_club_fold_evaluation_sha256(clone)
+  clone
+}
+
+phase19_evaluation_test_evaluations <- local({
+  cache <- NULL
+  function() {
+    if (is.null(cache)) {
+      context <- phase19_evaluation_test_context()
+      base <- phase19_evaluation_test_score(context)
+      families <- rep(
+        c("rolling_origin_league_season", "heldout_league_transport"), each = 3L
+      )
+      cache <<- lapply(seq_along(families), function(index) {
+        phase19_evaluation_test_clone_fold(base, families[[index]], index)
+      })
+    }
+    unserialize(serialize(cache, NULL))
+  }
+})
+
+phase19_evaluation_test_integrity <- function() {
+  stats::setNames(
+    as.list(rep(TRUE, 11L)),
+    c(
+      "probability_integrity", "distribution_integrity", "cutoff_integrity",
+      "identity_integrity", "source_integrity", "license_integrity",
+      "feature_integrity", "seed_integrity", "checksum_integrity",
+      "domain_integrity", "model_card_integrity"
+    )
+  )
+}
+
+phase19_evaluation_test_promotion <- function(evaluations = phase19_evaluation_test_evaluations()) {
+  protocol <- phase19_load_fixture_club_evaluation_protocol()
+  aggregate <- phase19_aggregate_club_evaluations(evaluations, protocol)
+  replay <- phase19_club_reproducibility_evidence(
+    evaluations, rev(evaluations), protocol
+  )
+  authority <- phase19_fixture_evaluation_authority(aggregate, protocol)
+  list(
+    protocol = protocol, evaluations = evaluations, aggregate = aggregate,
+    replay = replay, authority = authority,
+    decision = phase19_evaluate_club_promotion(
+      aggregate, protocol, replay, phase19_evaluation_test_integrity(), authority
+    )
+  )
+}
+
+test_that("fixture diagnostics pass while promotion remains fixture-ineligible", {
+  result <- phase19_evaluation_test_promotion()
+  decision <- result$decision
+
+  expect_s3_class(result$aggregate, "phase19_club_evaluation_set")
+  expect_identical(nrow(result$aggregate$fold_summaries), 6L)
+  expect_identical(nrow(result$aggregate$family_summaries), 2L)
+  expect_identical(nrow(result$aggregate$league_season_summaries), 6L)
+  expect_identical(result$aggregate$paired_bootstrap$replicates, 10000L)
+  expect_true(result$replay$reproducible)
+  expect_identical(decision$diagnostic_gate_outcome, "pass")
+  expect_identical(decision$authority_eligibility, "fixture_ineligible")
+  expect_identical(decision$promotion_status, "ineligible_fixture")
+  expect_identical(decision$selected_model_id, "club_elo_nb")
+  expect_identical(decision$incumbent_id, "club_venue_nb")
+  expect_identical(decision$gate_results$gate_id,
+                   result$protocol$gate_registry$gate_id)
+  expect_true(all(decision$gate_results$passed))
+  expect_false(any(decision$gate_results$required[
+    decision$gate_results$gate_id %in%
+      c("current_ucl_club_coverage", "common_rating_component_coverage")
+  ]))
+  expect_match(decision$decision_sha256, "^[0-9a-f]{64}$")
+  expect_silent(phase19_validate_club_promotion_decision(
+    decision, result$aggregate, result$protocol, result$replay,
+    phase19_evaluation_test_integrity(), result$authority
+  ))
+})
+
+test_that("frozen threshold boundaries and breadth gates are exact", {
+  result <- phase19_evaluation_test_promotion()
+  metrics <- result$aggregate$metrics
+  metrics$equal_fold_rps_delta <- -0.003
+  metrics$paired_rps_ci_upper <- -1e-12
+  metrics$rolling_origin_fold_breadth <- 2 / 3
+  metrics$heldout_league_fold_breadth <- 2 / 3
+  metrics$worst_fold_rps_regression <- 0.015
+  metrics$equal_fold_brier_relative_regression <- 0.01
+  metrics$equal_fold_log_loss_relative_regression <- 0.01
+  metrics$fixed_bin_calibration_delta <- 0.01
+  passing <- phase19_apply_club_promotion_gates(
+    metrics, result$protocol, "fixture"
+  )
+  expect_true(all(passing$passed))
+
+  attacks <- list(
+    equal_fold_rps_delta = -0.003 + 1e-12,
+    paired_rps_ci_upper = 0,
+    rolling_origin_fold_breadth = 2 / 3 - 1e-12,
+    heldout_league_fold_breadth = 2 / 3 - 1e-12,
+    worst_fold_rps_regression = 0.015 + 1e-12,
+    equal_fold_brier_relative_regression = 0.01 + 1e-12,
+    equal_fold_log_loss_relative_regression = 0.01 + 1e-12,
+    fixed_bin_calibration_delta = 0.01 + 1e-12
+  )
+  for (field in names(attacks)) {
+    changed <- metrics
+    changed[[field]] <- attacks[[field]]
+    gates <- phase19_apply_club_promotion_gates(changed, result$protocol, "fixture")
+    expect_false(all(gates$passed), info = field)
+  }
+})
+
+test_that("ties failures and every production prerequisite retain or block", {
+  result <- phase19_evaluation_test_promotion()
+  tied <- result$aggregate
+  tied$metrics$equal_fold_rps_delta <- 0
+  tied$metrics_sha256 <- phase19_club_evaluation_metrics_sha256(tied$metrics)
+  tied$evaluation_set_sha256 <- phase19_club_evaluation_set_sha256(tied)
+  tied_replay <- phase19_club_reproducibility_evidence(tied, tied, result$protocol)
+  tied_authority <- phase19_fixture_evaluation_authority(tied, result$protocol)
+  decision <- phase19_evaluate_club_promotion(
+    tied, result$protocol, tied_replay, phase19_evaluation_test_integrity(),
+    tied_authority
+  )
+  expect_identical(decision$diagnostic_gate_outcome, "fail")
+  expect_identical(decision$promotion_status, "retained")
+  expect_identical(decision$selected_model_id, "club_venue_nb")
+
+  expect_identical(
+    phase19_club_production_block_reason("blocked", "blocked", "blocked", "blocked"),
+    "no_accepted_club_history"
+  )
+  expect_identical(
+    phase19_club_production_block_reason("ready", "blocked", "blocked", "blocked"),
+    "no_accepted_current_ucl"
+  )
+  expect_identical(
+    phase19_club_production_block_reason("ready", "ready", "blocked", "blocked"),
+    "protocol_policy_not_approved"
+  )
+  expect_identical(
+    phase19_club_production_block_reason("ready", "ready", "ready", "blocked"),
+    "fold_inventory_not_approved"
+  )
+})
+
+test_that("replay drift and decision relabeling cannot become promotion authority", {
+  result <- phase19_evaluation_test_promotion()
+  drift <- result$evaluations
+  drift[[1L]]$fold_summary$rps_delta <-
+    drift[[1L]]$fold_summary$rps_delta + 0.001
+  drift[[1L]]$fold_summary_sha256 <- phase18_hash_table_v2(
+    drift[[1L]]$fold_summary, key = "fold_id",
+    schema_tag = "phase19-club-evaluation-fold-summary-v1"
+  )
+  drift[[1L]]$evaluation_sha256 <- phase19_club_fold_evaluation_sha256(drift[[1L]])
+  replay <- phase19_club_reproducibility_evidence(
+    result$evaluations, drift, result$protocol
+  )
+  expect_false(replay$reproducible)
+  decision <- phase19_evaluate_club_promotion(
+    result$aggregate, result$protocol, replay,
+    phase19_evaluation_test_integrity(), result$authority
+  )
+  expect_identical(decision$diagnostic_gate_outcome, "fail")
+  expect_true("byte_reproducibility_failed" %in% decision$reason_codes)
+
+  forged <- result$decision
+  forged$authority_eligibility <- "production"
+  forged$promotion_status <- "promoted"
+  forged$decision_sha256 <- phase19_club_promotion_decision_sha256(forged)
+  expect_error(
+    phase19_validate_club_promotion_decision(
+      forged, result$aggregate, result$protocol, result$replay,
+      phase19_evaluation_test_integrity(), result$authority
+    ), class = "phase19_club_evaluation_error"
+  )
+})
