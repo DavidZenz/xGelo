@@ -76,6 +76,8 @@ Plans:
 4. Consumers can resolve one immutable, model-card-backed club release, while cross-domain attempts to use club and national-team releases are rejected in both directions.
 5. Current xG, injury, lineup, suspension, and player inputs appear as typed unavailable evidence unless a separate lawful source contract has been accepted.
 
+**Completion gate:** Fixture-backed execution may complete the implementation and verification mechanics, but Phase 19 remains `human_needed` and CLUBMOD-04 remains incomplete until real accepted Phase 18 history plus current-UCL/identity generations exist, the exact candidate/gate and fold inventories receive explicit owner review, a production candidate is promoted, and the atomic production club selector resolves the immutable release.
+
 **Plans:** 10 plans
 
 Plans:

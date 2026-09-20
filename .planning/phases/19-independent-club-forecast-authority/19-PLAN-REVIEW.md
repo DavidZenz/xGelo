@@ -177,3 +177,20 @@ Return this plan set for execution only when:
 - focused test and RTK command handling are documented or revised (W2/W3).
 
 Until then, the plans can implement valuable mechanics but cannot truthfully satisfy the Roadmap phase goal.
+
+## Revision resolution — 2026-09-20
+
+All five blockers and three warnings were addressed in commit-ready plan revisions:
+
+| Finding | Resolution |
+|---|---|
+| B1 completion semantics | Roadmap and Plans 19-08..19-10 now distinguish executable fixture capability from phase completion. Verification remains `human_needed`; CLUBMOD-04 cannot complete until a real reviewed production release is promoted, selector-published, and resolver-read back. |
+| B2 owner policy/fold authority | Plans 19-03/19-04 add self-hashed `policy_review.json` and `fold_review.json`. Research values are reviewable candidates, accepted history produces `pending_review`, and production scoring requires exact accepted reviews or returns `protocol_policy_not_approved` / `fold_inventory_not_approved`. |
+| B3 current-UCL coverage producer | Plan 19-01 now resolves `phase18_read_ucl_refresh_current()` plus the fixed identity `current.json`, requires accepted non-tombstone state, canonicalizes the exact edition roster, and binds refresh/bundle/source/identity/registry/roster hashes. Plans 19-02/07/08/09/10 consume and attack this parent. |
+| B4 fixture decision conflict | Plans 19-07..19-10 use separate `diagnostic_gate_outcome`, `authority_eligibility`, and `promotion_status`. A fixture diagnostic pass may stage only a fixture release as `fixture_ineligible` / `ineligible_fixture`; production requires `production` / `promoted`. |
+| B5 Nyquist artifact | `19-VALIDATION.md` now exists before execution with all 20 task commands, Wave 0 gaps, strict feedback policy, requirements, and the separate production human-needed completion gate. Plan 19-10 updates/finalizes it rather than creating it. |
+| W1 national regressions | Plan 19-08 and the final inventory now include Phase 14 forecast layer, Phase 14 state bundle, and Phase 15 Nations League tests in addition to release regressions. |
+| W2 warning/skip handling | Plan 19-01 creates `scripts/run_phase19_focused_test.R`; every focused plan command uses it and must fail on failure, error, warning, skip, empty, or missing tests. |
+| W3 RTK convention | Every executable plan verification segment is prefixed with `rtk`, including commands after shell control operators. |
+
+**Resolution status:** ready for re-review; no roadmap requirement was weakened or marked complete from fixture evidence.
