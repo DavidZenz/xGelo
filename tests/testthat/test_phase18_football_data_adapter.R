@@ -231,12 +231,26 @@ test_that("semantic shortfall excess enum pagination freshness and identity fail
   expect_reason(payloads, "blocked_duplicate_id")
   payloads <- phase18_fd_test_payloads(); payloads$matches$matches[[1L]]$homeTeam <- NULL
   expect_reason(payloads, "blocked_missing_team")
+  payloads <- phase18_fd_test_payloads(); payloads$teams$teams <- list(); payloads$teams$count <- 0L
+  expect_reason(payloads, "blocked_empty_resource")
   payloads <- phase18_fd_test_payloads(); payloads$matches$pagination <- list(currentPage = 1L, totalPages = 2L)
   expect_reason(payloads, "blocked_incomplete_pagination")
   payloads <- phase18_fd_test_payloads(); payloads$competition_metadata$lastUpdated <- "2026-09-10T00:00:00Z"
   expect_reason(payloads, "blocked_stale_resource")
   payloads <- phase18_fd_test_payloads(); payloads$competition_metadata$code <- "PL"
   expect_reason(payloads, "blocked_edition_identity")
+  payloads <- phase18_fd_test_payloads(); payloads$competition_metadata$currentSeason$startDate <- "2025-07-01"
+  expect_reason(payloads, "blocked_edition_identity")
+  payloads <- phase18_fd_test_payloads(); payloads$teams$teams[[1L]]$id <- 9999L
+  expect_reason(payloads, "blocked_unresolved_club")
+  for (count in c(35L, 37L)) {
+    payloads <- phase18_fd_test_payloads()
+    table <- payloads$standings$standings[[1L]]$table
+    if (count == 35L) table <- table[-36L]
+    if (count == 37L) table[[37L]] <- within(table[[1L]], { position <- 37L; team$id <- 9999L })
+    payloads$standings$standings[[1L]]$table <- table
+    expect_reason(payloads, "blocked_standings")
+  }
 })
 
 test_that("sentinel token cannot escape the live performer boundary or fetched projection", {
