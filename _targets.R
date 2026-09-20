@@ -13,7 +13,36 @@ target_library_paths <- unique(c(
 
 library(targets)
 
+# Keep target import hashing in a clean child environment.  The legacy release
+# helpers remain available through the global parent, while their historical
+# mutual references cannot contaminate the independent club graph's import
+# validation.
+phase19_target_runtime_envir <- new.env(parent = globalenv())
+
+# Phase 19 club authority is intentionally sourced before the legacy national
+# pipeline.  Its targets below form a closed club-domain graph and never
+# consume national benchmark or release targets.
+source("R/common/phase18_canonical_hash.R")
+source("R/release/domain_contract.R")
+source("R/competition/source_contracts.R")
+source("R/competition/ucl_source_acceptance.R")
+source("R/competition/edition_registry.R")
+source("R/club/identity.R")
+source("R/club/identity_bootstrap.R")
+source("R/competition/football_data_org_adapter.R")
+source("R/competition/ucl_source_bundle.R")
+source("R/competition/ucl_source_refresh.R")
+source("R/club/history_contract.R")
+source("R/club/model_contract.R")
+source("R/club/evaluation_protocol.R")
+source("R/club/rating.R")
+source("R/club/goal_model.R")
+source("R/club/calibration.R")
+source("R/club/evaluation.R")
+source("R/club/release.R")
+
 tar_option_set(
+  envir = phase19_target_runtime_envir,
   library = target_library_paths,
   packages = c(
     "dplyr",
@@ -127,6 +156,122 @@ xgelo_model_training_cutoff_date <- function(default = Sys.Date()) {
     stop("XGELO_MODEL_TRAINING_CUTOFF_DATE must parse as an ISO date, for example 2026-06-12", call. = FALSE)
   }
   parsed
+}
+
+# Phase 19 targets carry typed status objects through every edge.  A blocked
+# prerequisite is data, not an exception: downstream targets preserve its
+# stable reason and must not fit, publish, or advance a selector.
+phase19_targets_blocked <- function(reason_code, upstream = NULL) {
+  list(
+    schema_version = "phase19-club-target-state-v1",
+    forecast_domain = "club", authority_mode = "production",
+    fixture_authority = FALSE, production_eligible = FALSE,
+    status = "blocked", reason_code = as.character(reason_code),
+    upstream_reason = if (is.null(upstream)) "" else {
+      value <- upstream$reason_code
+      if (is.null(value) || !length(value)) "" else as.character(value[[1L]])
+    }
+  )
+}
+
+phase19_targets_state <- function(loader, fallback_reason) {
+  result <- tryCatch(loader(), error = function(error) NULL)
+  if (is.null(result) || !is.list(result)) {
+    return(phase19_targets_blocked(fallback_reason))
+  }
+  status <- if (!is.null(result$status) && length(result$status)) {
+    as.character(result$status[[1L]])
+  } else "blocked"
+  if (!identical(status, "ready")) {
+    reason <- result$reason_code
+    if (is.null(reason) || !length(reason) || !nzchar(as.character(reason[[1L]]))) {
+      reason <- fallback_reason
+    }
+    return(phase19_targets_blocked(reason, result))
+  }
+  list(
+    schema_version = "phase19-club-target-state-v1",
+    forecast_domain = "club", authority_mode = "production",
+    fixture_authority = FALSE, production_eligible = TRUE,
+    status = "ready", reason_code = "", authority = result
+  )
+}
+
+phase19_targets_first_blocked <- function(...) {
+  states <- list(...)
+  for (state in states) {
+    if (is.list(state) && identical(as.character(state$status[[1L]]), "blocked")) {
+      reason <- state$reason_code
+      if (!is.null(reason) && length(reason) && nzchar(as.character(reason[[1L]]))) {
+        return(as.character(reason[[1L]]))
+      }
+    }
+  }
+  ""
+}
+
+phase19_targets_file_inventory <- function(root, filenames = character()) {
+  paths <- file.path(root, filenames)
+  if (!length(paths) || any(!file.exists(paths)) || any(dir.exists(paths))) {
+    stop("Phase 19 immutable authority file inventory is incomplete", call. = FALSE)
+  }
+  unname(paths)
+}
+
+phase19_targets_identity_state <- function(current) {
+  reason <- phase19_targets_first_blocked(current)
+  if (nzchar(reason)) return(phase19_targets_blocked(reason, current))
+  list(
+    schema_version = "phase19-club-target-state-v1",
+    forecast_domain = "club", authority_mode = "production",
+    fixture_authority = FALSE, production_eligible = TRUE,
+    status = "ready", reason_code = "", authority = current$authority
+  )
+}
+
+phase19_targets_protocol_state <- function(history, current, identity, files) {
+  reason <- phase19_targets_first_blocked(history, current, identity)
+  if (nzchar(reason)) return(phase19_targets_blocked(reason))
+  phase19_targets_state(phase19_load_club_evaluation_protocol,
+                        "protocol_policy_not_approved")
+}
+
+phase19_targets_fold_state <- function(history, current, identity, protocol,
+                                       registry_file, review_file) {
+  reason <- phase19_targets_first_blocked(history, current, identity, protocol)
+  if (nzchar(reason)) return(phase19_targets_blocked(reason))
+  registry <- tryCatch(
+    utils::read.csv(registry_file, stringsAsFactors = FALSE, check.names = FALSE),
+    error = function(error) NULL
+  )
+  review <- tryCatch(
+    phase19_protocol_read_review(review_file), error = function(error) NULL
+  )
+  if (is.null(registry) || is.null(review)) {
+    return(phase19_targets_blocked("fold_inventory_not_approved"))
+  }
+  valid <- tryCatch({
+    phase19_validate_fold_registry(
+      registry, history$authority, protocol$authority, "production"
+    )
+    phase19_validate_fold_review(review, protocol$authority, registry,
+                                 history$authority, "production")
+    TRUE
+  }, error = function(error) FALSE)
+  if (!isTRUE(valid)) return(phase19_targets_blocked("fold_inventory_not_approved"))
+  list(
+    schema_version = "phase19-club-target-state-v1",
+    forecast_domain = "club", authority_mode = "production",
+    fixture_authority = FALSE, production_eligible = TRUE,
+    status = "ready", reason_code = "", registry = registry, review = review
+  )
+}
+
+phase19_targets_passthrough_block <- function(...) {
+  reason <- phase19_targets_first_blocked(...)
+  if (nzchar(reason)) phase19_targets_blocked(reason) else {
+    phase19_targets_blocked("fold_inventory_not_approved")
+  }
 }
 
 list(
@@ -1131,6 +1276,276 @@ list(
         envir = new.env(parent = globalenv()), quiet = TRUE
       )
       output_path
+    },
+    format = "file"
+  ),
+  tar_target(
+    club_history_pointer_file,
+    "data/club/history_current.json",
+    format = "file"
+  ),
+  tar_target(
+    club_history_generation_files,
+    phase19_targets_file_inventory(
+      "data/club/history_generations",
+      list.files("data/club/history_generations", recursive = TRUE,
+                 full.names = FALSE)
+    ),
+    format = "file"
+  ),
+  tar_target(
+    club_history_authority,
+    {
+      club_history_pointer_file
+      club_history_generation_files
+      phase19_targets_state(
+        phase19_load_club_training_snapshot,
+        "no_accepted_club_history"
+      )
+    }
+  ),
+  tar_target(
+    club_current_ucl_source_file,
+    "data/competition/registries/ucl_source_current.json",
+    format = "file"
+  ),
+  tar_target(
+    club_identity_registry_files,
+    phase19_targets_file_inventory(
+      "data/club/registries",
+      list.files("data/club/registries", full.names = FALSE)
+    ),
+    format = "file"
+  ),
+  tar_target(
+    club_current_ucl_authority,
+    {
+      club_current_ucl_source_file
+      club_identity_registry_files
+      phase19_targets_state(
+        phase19_load_current_ucl_club_snapshot,
+        "no_accepted_current_ucl"
+      )
+    }
+  ),
+  tar_target(
+    club_identity_authority,
+    {
+      club_current_ucl_authority
+      phase19_targets_identity_state(club_current_ucl_authority)
+    }
+  ),
+  tar_target(
+    club_policy_review_files,
+    phase19_targets_file_inventory(
+      "data/club/model_protocol",
+      c("policy_review.json", "calibration_recipe.json", "candidate_registry.csv",
+        "feature_contract.csv", "gate_registry.csv", "seed_registry.csv")
+    ),
+    format = "file"
+  ),
+  tar_target(
+    club_fold_registry_file,
+    "data/club/model_protocol/fold_registry.csv",
+    format = "file"
+  ),
+  tar_target(
+    club_fold_review_file,
+    "data/club/model_protocol/fold_review.json",
+    format = "file"
+  ),
+  tar_target(
+    club_protocol_authority,
+    {
+      club_history_authority
+      club_current_ucl_authority
+      club_identity_authority
+      club_policy_review_files
+      club_fold_registry_file
+      club_fold_review_file
+      phase19_targets_protocol_state(
+        club_history_authority, club_current_ucl_authority,
+        club_identity_authority, club_policy_review_files
+      )
+    }
+  ),
+  tar_target(
+    club_fold_authority,
+    {
+      club_history_authority
+      club_current_ucl_authority
+      club_identity_authority
+      club_protocol_authority
+      club_fold_registry_file
+      club_fold_review_file
+      phase19_targets_fold_state(
+        club_history_authority, club_current_ucl_authority,
+        club_identity_authority, club_protocol_authority,
+        club_fold_registry_file, club_fold_review_file
+      )
+    }
+  ),
+  tar_target(
+    club_rating_replay,
+    {
+      club_history_authority
+      club_current_ucl_authority
+      club_protocol_authority
+      club_fold_authority
+      reason <- phase19_targets_first_blocked(
+        club_history_authority, club_current_ucl_authority,
+        club_protocol_authority, club_fold_authority
+      )
+      if (nzchar(reason)) phase19_targets_blocked(reason) else {
+        phase19_targets_state(
+          function() phase19_replay_club_ratings(
+            club_history_authority$authority,
+            club_current_ucl_authority$authority,
+            phase19_club_rating_parameters(),
+            cutoff_utc = club_history_authority$authority$cutoff_utc
+          ),
+          "fold_inventory_not_approved"
+        )
+      }
+    }
+  ),
+  tar_target(
+    club_model_candidates,
+    {
+      club_history_authority
+      club_current_ucl_authority
+      club_protocol_authority
+      club_rating_replay
+      reason <- phase19_targets_first_blocked(
+        club_history_authority, club_current_ucl_authority,
+        club_protocol_authority, club_rating_replay
+      )
+      if (nzchar(reason)) phase19_targets_blocked(reason) else {
+        registrations <- club_protocol_authority$authority$candidate_registry[
+          club_protocol_authority$authority$candidate_registry$model_id %in%
+            c("club_venue_nb", "club_elo_nb"), , drop = FALSE
+        ]
+        fits <- lapply(seq_len(nrow(registrations)), function(index) {
+          phase19_fit_club_goal_model(
+            registrations[index, , drop = FALSE],
+            club_history_authority$authority,
+            club_rating_replay$authority,
+            club_protocol_authority$authority,
+            club_history_authority$authority$cutoff_utc
+          )
+        })
+        names(fits) <- as.character(registrations$model_id)
+        list(status = "ready", forecast_domain = "club", models = fits)
+      }
+    }
+  ),
+  tar_target(
+    club_fold_predictions,
+    {
+      club_model_candidates
+      club_fold_authority
+      club_protocol_authority
+      phase19_targets_passthrough_block(
+        club_model_candidates, club_fold_authority, club_protocol_authority
+      )
+    }
+  ),
+  tar_target(
+    club_fold_scores,
+    {
+      club_fold_predictions
+      club_fold_authority
+      phase19_targets_passthrough_block(club_fold_predictions, club_fold_authority)
+    }
+  ),
+  tar_target(
+    club_evaluation_set,
+    {
+      club_fold_scores
+      phase19_targets_passthrough_block(club_fold_scores)
+    }
+  ),
+  tar_target(
+    club_promotion_decision,
+    {
+      club_evaluation_set
+      club_protocol_authority
+      club_current_ucl_authority
+      reason <- phase19_targets_first_blocked(
+        club_evaluation_set, club_protocol_authority,
+        club_current_ucl_authority
+      )
+      if (nzchar(reason)) phase19_targets_blocked(reason) else {
+        phase19_targets_blocked("fold_inventory_not_approved")
+      }
+    }
+  ),
+  tar_target(
+    club_release_state,
+    {
+      club_promotion_decision
+      club_model_candidates
+      club_evaluation_set
+      club_protocol_authority
+      reason <- phase19_targets_first_blocked(
+        club_promotion_decision, club_model_candidates,
+        club_evaluation_set, club_protocol_authority
+      )
+      if (nzchar(reason)) phase19_targets_blocked(reason) else {
+        phase19_targets_blocked("fold_inventory_not_approved")
+      }
+    }
+  ),
+  tar_target(
+    club_selector_state,
+    {
+      club_release_state
+      if (identical(club_release_state$status, "blocked")) {
+        phase19_targets_blocked(club_release_state$reason_code, club_release_state)
+      } else {
+        phase19_targets_blocked("fold_inventory_not_approved")
+      }
+    }
+  ),
+  tar_target(
+    club_protocol_artifact_file,
+    {
+      club_protocol_authority
+      club_protocol_state_path <- "data/club/model_protocol/protocol_state.json"
+      if (!file.exists(club_protocol_state_path)) {
+        stop("Phase 19 protocol artifact is missing", call. = FALSE)
+      }
+      club_protocol_state_path
+    },
+    format = "file"
+  ),
+  tar_target(
+    club_evaluation_artifact_files,
+    {
+      club_evaluation_set
+      if (identical(club_evaluation_set$status, "blocked")) character() else {
+        unname(club_evaluation_set$artifact_files)
+      }
+    },
+    format = "file"
+  ),
+  tar_target(
+    club_release_artifact_files,
+    {
+      club_release_state
+      if (identical(club_release_state$status, "blocked")) character() else {
+        unname(club_release_state$artifact_files)
+      }
+    },
+    format = "file"
+  ),
+  tar_target(
+    club_selector_file,
+    {
+      club_selector_state
+      if (identical(club_selector_state$status, "blocked")) character() else {
+        club_selector_state$selector_path
+      }
     },
     format = "file"
   )

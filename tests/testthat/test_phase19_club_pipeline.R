@@ -123,9 +123,10 @@ test_that("repeated fixture and blocked executions are deterministic and credent
 })
 
 phase19_pipeline_manifest <- function() {
+  withr::local_dir(phase19_pipeline_root)
   targets::tar_manifest(
     fields = c(name, command, format), callr_function = NULL,
-    script = file.path(phase19_pipeline_root, "_targets.R")
+    script = "_targets.R"
   )
 }
 
@@ -154,9 +155,10 @@ test_that("the target manifest contains a validated club-only authority chain", 
 
 test_that("blocked club targets complete truthfully without release or selector files", {
   skip_if_not_installed("targets")
+  withr::local_dir(phase19_pipeline_root)
   targets::tar_make(
     names = c("club_release_state", "club_selector_state"),
-    callr_function = NULL, script = file.path(phase19_pipeline_root, "_targets.R"),
+    callr_function = NULL, script = "_targets.R",
     reporter = "silent"
   )
   decision <- targets::tar_read(club_promotion_decision, store = file.path(phase19_pipeline_root, "_targets"))
