@@ -752,3 +752,116 @@ test_that("Phase 18 loader inventory is canonical-first in every parent and chil
     phase18_expect_canonical_first_block(block, paste(entry[[1L]], "fresh process"))
   }
 })
+
+phase18_gap08_approved_expectations <- function() {
+  phase18_hash_edition_expectations(data.frame(
+    schema_version = "phase18-edition-expectation-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
+    lifecycle = "league_phase",
+    expected_club_count = 36L,
+    expected_league_phase_match_count = 144L,
+    allowed_stages = "LEAGUE_STAGE|PLAYOFFS|LAST_16|QUARTER_FINALS|SEMI_FINALS|FINAL",
+    standings_required = TRUE,
+    expected_standings_rows = 36L,
+    review_state = "approved",
+    reviewer = "fixture-owner",
+    reviewed_at_utc = "2026-09-19T12:00:00Z",
+    row_sha256 = "",
+    expectation_sha256 = "",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  ))
+}
+
+test_that("durable review loading never rehashes tampering or multiplexes review sets", {
+  phase18_test_load()
+  path <- tempfile("phase18-gap08-review-", fileext = ".csv")
+  approved <- phase18_test_review("approved")
+  utils::write.csv(approved, path, row.names = FALSE, na = "", quote = TRUE)
+  loaded <- phase18_read_terms_review(path)
+  expect_identical(loaded$row_sha256, approved$row_sha256)
+
+  tampered <- approved
+  tampered$reviewer[[1L]] <- "attacker"
+  utils::write.csv(tampered, path, row.names = FALSE, na = "", quote = TRUE)
+  expect_error(phase18_read_terms_review(path), "integrity")
+
+  multiplexed <- rbind(
+    transform(approved, review_set = "approved"),
+    transform(approved, review_set = "second")
+  )
+  utils::write.csv(multiplexed, path, row.names = FALSE, na = "", quote = TRUE)
+  expect_error(phase18_read_terms_review(path), "review sets|schema")
+})
+
+test_that("edition authority is exact reviewed v2 evidence", {
+  phase18_test_load()
+  approved <- phase18_gap08_approved_expectations()
+  expect_true(phase18_validate_edition_expectations(approved)$valid)
+
+  pending <- phase18_default_edition_expectations("ucl_2026_27", "2026-09-19T12:00:00Z")
+  expect_false(phase18_validate_edition_expectations(pending)$valid)
+  expect_identical(phase18_validate_edition_expectations(pending)$reason_code, "terms")
+
+  bad_reviewer <- approved
+  bad_reviewer$reviewer <- "pending_owner_review"
+  bad_reviewer <- phase18_hash_edition_expectations(bad_reviewer)
+  expect_false(phase18_validate_edition_expectations(bad_reviewer)$valid)
+
+  wrong_edition <- approved
+  wrong_edition$edition_id <- "ucl_2025_26"
+  wrong_edition <- phase18_hash_edition_expectations(wrong_edition)
+  expect_false(phase18_validate_edition_expectations(wrong_edition)$valid)
+})
+
+test_that("machine authority requires the exact sixteen capability evidence contracts", {
+  phase18_test_load()
+  expectations <- phase18_gap08_approved_expectations()
+  checks <- phase18_default_machine_checks(expectations, "2026-09-19T12:00:00Z", "missing_credential")
+  expect_equal(nrow(checks), 16L)
+  expect_setequal(checks$capability, names(phase18_capability_decisions()))
+  expect_true(phase18_validate_machine_checks(checks)$valid)
+
+  expect_false(phase18_validate_machine_checks(checks[-1L, , drop = FALSE])$valid)
+  invented <- checks
+  opted_out <- invented$decision == "OPT-OUT"
+  invented$executed[opted_out] <- TRUE
+  invented$freshness_passed[opted_out] <- TRUE
+  invented <- phase18_hash_machine_checks(invented)
+  expect_false(phase18_validate_machine_checks(invented)$valid)
+})
+
+test_that("schema fingerprint rows and aggregate are independently recomputed", {
+  phase18_test_load()
+  fingerprint <- phase18_default_schema_fingerprint("2026-09-19T12:00:00Z")
+  validated <- phase18_validate_schema_fingerprint(fingerprint)
+  expect_true(validated$valid)
+  expect_match(validated$schema_fingerprint_sha256, "^[0-9a-f]{64}$")
+
+  tampered <- fingerprint
+  tampered$endpoint[[1L]] <- "/competitions/evil"
+  expect_error(phase18_validate_schema_fingerprint(tampered), "integrity")
+})
+
+test_that("manifest authority receives and binds the actual fingerprint table", {
+  phase18_test_load()
+  review <- phase18_test_review("approved")
+  expectations <- phase18_gap08_approved_expectations()
+  fingerprint <- phase18_default_schema_fingerprint("2026-09-19T12:00:00Z")
+  machine <- phase18_default_machine_checks(expectations, "2026-09-19T12:00:00Z", "missing_credential")
+  manifest <- phase18_build_acceptance_manifest(
+    machine, review, expectations, fingerprint,
+    "gap08-fingerprint-proof", "2026-09-19T12:00:00Z",
+    parser_commit_sha = "0123456789abcdef0123456789abcdef01234567"
+  )
+  expect_silent(phase18_validate_acceptance_manifest(
+    manifest, machine, review, expectations, fingerprint
+  ))
+  tampered <- fingerprint
+  tampered$fingerprint_sha256[[1L]] <- paste(rep("f", 64L), collapse = "")
+  expect_error(
+    phase18_validate_acceptance_manifest(manifest, machine, review, expectations, tampered),
+    "integrity|fingerprint"
+  )
+})
