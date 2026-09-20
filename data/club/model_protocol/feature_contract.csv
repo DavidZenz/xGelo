@@ -1,0 +1,6 @@
+schema_version,hash_encoding_version,forecast_domain,feature_id,availability_status,reason_code,source_contract_id,source_contract_sha256,value_type,value,observed_at_utc,cutoff_status,required_by_model,active_in_model,imputation_policy,row_sha256
+phase19-club-feature-v1,phase18-canonical-v2,club,current_xg,unavailable,no_accepted_source_contract,,,unavailable,,,not_applicable,FALSE,FALSE,forbidden,275fa50db83edc76ddec254daccf6649eb49dc3781e96850e818e8faa34ed613
+phase19-club-feature-v1,phase18-canonical-v2,club,injury,unavailable,no_accepted_source_contract,,,unavailable,,,not_applicable,FALSE,FALSE,forbidden,983bbde4ed5e0ffbd28507f36839731c0fb3d140de5d506908fa28c915a3187a
+phase19-club-feature-v1,phase18-canonical-v2,club,lineup,unavailable,no_accepted_source_contract,,,unavailable,,,not_applicable,FALSE,FALSE,forbidden,aee6b1567b14b7b29e0ead879d67d308636d0ef236044f074b1b342386129616
+phase19-club-feature-v1,phase18-canonical-v2,club,suspension,unavailable,no_accepted_source_contract,,,unavailable,,,not_applicable,FALSE,FALSE,forbidden,4e1e14c24659960c9b1da03f4babe042d1596840c3a623560e8fd8c459f99adc
+phase19-club-feature-v1,phase18-canonical-v2,club,player,unavailable,no_accepted_source_contract,,,unavailable,,,not_applicable,FALSE,FALSE,forbidden,cbbbe208fb93cfbd550f933b42b887445b19b46bad0f32a9971fb41ac1957b0c

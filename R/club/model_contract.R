@@ -27,6 +27,7 @@ phase19_club_abort <- function(reason_code, message, data = list()) {
     arbitrary_authority = "phase19_arbitrary_authority_error",
     domain_mismatch = "phase19_domain_mismatch",
     invalid_snapshot = "phase19_invalid_snapshot",
+    feature_contract = "phase19_feature_contract_error",
     "phase19_club_contract_error"
   )
   stop(structure(
@@ -651,4 +652,227 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
     phase19_club_abort("invalid_snapshot", "Current UCL roster content or identity drifted")
   }
   invisible(snapshot)
+}
+
+phase19_feature_contract_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain", "feature_id",
+    "availability_status", "reason_code", "source_contract_id",
+    "source_contract_sha256", "value_type", "value", "observed_at_utc",
+    "cutoff_status", "required_by_model", "active_in_model",
+    "imputation_policy", "row_sha256"
+  )
+}
+
+phase19_feature_ids <- function() {
+  c("current_xg", "injury", "lineup", "suspension", "player")
+}
+
+phase19_feature_row_sha256 <- function(contract) {
+  phase19_require_canonical_v2()
+  if (!is.data.frame(contract) ||
+      !identical(names(contract), phase19_feature_contract_schema())) {
+    phase19_club_abort("feature_contract", "Feature contract schema is not exact")
+  }
+  phase18_hash_row_v2(
+    contract,
+    exclude = "row_sha256",
+    schema_tag = "phase19-club-feature-contract-row-v1"
+  )
+}
+
+phase19_feature_contract_sha256 <- function(contract) {
+  phase19_validate_feature_contract(contract)
+  phase18_hash_table_v2(
+    contract,
+    key = "feature_id",
+    schema_tag = "phase19-club-feature-contract-table-v1"
+  )
+}
+
+phase19_source_contract_schema <- function() {
+  c(
+    "schema_version", "hash_encoding_version", "forecast_domain", "feature_id",
+    "source_contract_id", "decision", "accepted_at_utc", "contract_sha256"
+  )
+}
+
+phase19_validate_accepted_feature_source_contract <- function(contract) {
+  phase19_require_canonical_v2()
+  if (!is.data.frame(contract) || nrow(contract) != 1L ||
+      !identical(names(contract), phase19_source_contract_schema())) {
+    phase19_club_abort("feature_contract", "Accepted source contract schema is not exact")
+  }
+  if (anyNA(contract) ||
+      !identical(as.character(contract$schema_version),
+                 "phase19-club-feature-source-contract-v1") ||
+      !identical(as.character(contract$hash_encoding_version),
+                 phase18_canonical_encoding_v2()) ||
+      !identical(as.character(contract$forecast_domain), "club") ||
+      !as.character(contract$feature_id) %in% phase19_feature_ids() ||
+      !nzchar(as.character(contract$source_contract_id)) ||
+      !identical(as.character(contract$decision), "accepted") ||
+      !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+             as.character(contract$accepted_at_utc)) ||
+      !phase19_is_sha256(contract$contract_sha256)) {
+    phase19_club_abort("feature_contract", "Accepted source contract metadata is invalid")
+  }
+  expected <- phase18_hash_row_v2(
+    contract,
+    exclude = "contract_sha256",
+    schema_tag = "phase19-club-feature-source-contract-v1"
+  )
+  if (!identical(as.character(contract$contract_sha256), expected)) {
+    phase19_club_abort("feature_contract", "Accepted source contract hash drifted")
+  }
+  invisible(contract)
+}
+
+phase19_feature_contract_error <- function(message) {
+  phase19_club_abort("feature_contract", message)
+}
+
+phase19_validate_feature_contract <- function(contract,
+                                               accepted_source_contracts = list()) {
+  phase19_require_canonical_v2()
+  schema <- phase19_feature_contract_schema()
+  ids <- phase19_feature_ids()
+  if (!is.data.frame(contract) || !identical(names(contract), schema)) {
+    phase19_feature_contract_error("Feature contract schema is not exact")
+  }
+  if (nrow(contract) != length(ids) ||
+      !identical(as.character(contract$feature_id), ids) ||
+      anyDuplicated(contract$feature_id)) {
+    phase19_feature_contract_error("Feature inventory is omitted, duplicated, unknown, or reordered")
+  }
+  character_fields <- setdiff(schema, c("required_by_model", "active_in_model"))
+  if (any(!vapply(contract[character_fields], is.character, logical(1))) ||
+      !is.logical(contract$required_by_model) || !is.logical(contract$active_in_model) ||
+      anyNA(contract)) {
+    phase19_feature_contract_error("Feature contract field types or missingness are invalid")
+  }
+  if (any(contract$schema_version != "phase19-club-feature-v1") ||
+      any(contract$hash_encoding_version != phase18_canonical_encoding_v2()) ||
+      any(contract$forecast_domain != "club") ||
+      any(contract$imputation_policy != "forbidden")) {
+    phase19_feature_contract_error("Feature contract metadata or domain is invalid")
+  }
+  if (!is.list(accepted_source_contracts)) {
+    phase19_feature_contract_error("Accepted source contracts must be supplied as a list")
+  }
+  validated_sources <- lapply(accepted_source_contracts, function(source_contract) {
+    phase19_validate_accepted_feature_source_contract(source_contract)
+    source_contract
+  })
+
+  for (index in seq_len(nrow(contract))) {
+    row <- contract[index, , drop = FALSE]
+    unavailable <- identical(row$availability_status, "unavailable") &&
+      identical(row$reason_code, "no_accepted_source_contract") &&
+      identical(row$source_contract_id, "") &&
+      identical(row$source_contract_sha256, "") &&
+      identical(row$value_type, "unavailable") && identical(row$value, "") &&
+      identical(row$observed_at_utc, "") &&
+      identical(row$cutoff_status, "not_applicable") &&
+      identical(row$required_by_model, FALSE) &&
+      identical(row$active_in_model, FALSE)
+    if (unavailable) next
+
+    active <- identical(row$availability_status, "available") &&
+      identical(row$reason_code, "accepted_source_contract") &&
+      nzchar(row$source_contract_id) && phase19_is_sha256(row$source_contract_sha256) &&
+      !identical(row$value_type, "unavailable") && nzchar(row$value) &&
+      grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+            row$observed_at_utc) && identical(row$cutoff_status, "before_cutoff") &&
+      identical(row$required_by_model, TRUE) && identical(row$active_in_model, TRUE)
+    if (!active) {
+      phase19_feature_contract_error(
+        paste0("Feature evidence is neither typed unavailable nor accepted active: ", row$feature_id)
+      )
+    }
+    matching <- Filter(function(source_contract) {
+      identical(as.character(source_contract$feature_id), row$feature_id) &&
+        identical(as.character(source_contract$source_contract_id), row$source_contract_id) &&
+        identical(as.character(source_contract$contract_sha256), row$source_contract_sha256)
+    }, validated_sources)
+    if (length(matching) != 1L) {
+      phase19_feature_contract_error(
+        paste0("Active feature lacks one separately accepted source contract: ", row$feature_id)
+      )
+    }
+  }
+  expected_rows <- phase19_feature_row_sha256(contract)
+  if (!identical(as.character(contract$row_sha256), expected_rows) ||
+      anyDuplicated(contract$row_sha256) ||
+      any(!vapply(contract$row_sha256, phase19_is_sha256, logical(1)))) {
+    phase19_feature_contract_error("Feature contract canonical row hash drifted or collided")
+  }
+  invisible(contract)
+}
+
+phase19_load_feature_contract <- function() {
+  path <- file.path(
+    .phase19_club_project_root, "data/club/model_protocol/feature_contract.csv"
+  )
+  phase19_assert_regular_file(path, "feature_contract")
+  contract <- utils::read.csv(
+    path,
+    stringsAsFactors = FALSE,
+    check.names = FALSE,
+    na.strings = character(),
+    colClasses = c(
+      rep("character", 12L), "logical", "logical", "character", "character"
+    )
+  )
+  phase19_validate_feature_contract(contract)
+  contract
+}
+
+phase19_validate_feature_formula <- function(formula, contract,
+                                             accepted_source_contracts = list()) {
+  phase19_validate_feature_contract(contract, accepted_source_contracts)
+  variables <- if (inherits(formula, "formula")) {
+    all.vars(formula)
+  } else if (is.character(formula) && length(formula) == 1L) {
+    all.vars(stats::as.formula(formula))
+  } else {
+    phase19_feature_contract_error("Candidate formula must be one formula or formula string")
+  }
+  referenced <- intersect(variables, as.character(contract$feature_id))
+  if (length(referenced)) {
+    rows <- match(referenced, contract$feature_id)
+    unavailable <- referenced[
+      contract$availability_status[rows] != "available" |
+        !contract$active_in_model[rows]
+    ]
+    if (length(unavailable)) {
+      phase19_feature_contract_error(paste0(
+        "Candidate formula references unavailable features: ",
+        paste(unavailable, collapse = ", ")
+      ))
+    }
+  }
+  invisible(TRUE)
+}
+
+phase19_project_feature_evidence <- function(fixtures, contract) {
+  phase19_validate_feature_contract(contract)
+  if (!is.data.frame(fixtures) ||
+      !all(c("fixture_id", "forecast_domain") %in% names(fixtures)) ||
+      !nrow(fixtures) || anyNA(fixtures[c("fixture_id", "forecast_domain")]) ||
+      any(!nzchar(as.character(fixtures$fixture_id))) ||
+      anyDuplicated(fixtures$fixture_id)) {
+    phase19_feature_contract_error("Fixture projection requires unique non-empty fixture IDs")
+  }
+  if (any(as.character(fixtures$forecast_domain) != "club")) {
+    phase19_club_abort("domain_mismatch", "Feature evidence projection requires club fixtures")
+  }
+  projected <- contract[rep(seq_len(nrow(contract)), times = nrow(fixtures)), , drop = FALSE]
+  rownames(projected) <- NULL
+  data.frame(
+    fixture_id = rep(as.character(fixtures$fixture_id), each = nrow(contract)),
+    projected,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
 }

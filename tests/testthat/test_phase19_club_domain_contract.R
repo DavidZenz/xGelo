@@ -233,6 +233,7 @@ phase19_test_accepted_source_contract <- function(feature_id = "injury") {
   )
   contract$contract_sha256 <- phase18_hash_row_v2(
     contract,
+    exclude = "contract_sha256",
     schema_tag = "phase19-club-feature-source-contract-v1"
   )
   contract
@@ -328,7 +329,11 @@ test_that("only a separately accepted hash-valid source contract can activate a 
     contract,
     accepted_source_contracts = list(source_contract)
   ))
-  expect_silent(phase19_validate_feature_formula(~ elo_diff + injury, contract))
+  expect_silent(phase19_validate_feature_formula(
+    ~ elo_diff + injury,
+    contract,
+    accepted_source_contracts = list(source_contract)
+  ))
 
   forged <- source_contract
   forged$accepted_at_utc[[1L]] <- "2026-09-21T00:00:00Z"
