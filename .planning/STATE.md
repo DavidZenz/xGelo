@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-08-PLAN.md
-last_updated: "2026-09-20T20:59:59.012Z"
+stopped_at: Completed 19-09-PLAN.md
+last_updated: "2026-09-20T23:23:00.316Z"
 last_activity: 2026-09-20
 last_activity_desc: Plan 08 immutable club release and bidirectional domain guards verified; national regression awaits a pre-existing model artifact
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 24
-  completed_plans: 22
-  percent: 92
+  completed_plans: 23
+  percent: 96
 ---
 
 # xGelo Project State
@@ -29,11 +29,11 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 ## Current Position
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
-Plan: 9 of 10
-Status: In progress; Plans 01-08 complete
-Last activity: 2026-09-20 — Plan 08 immutable club release and bidirectional domain guards verified; national regression awaits a pre-existing model artifact
+Plan: 10 of 10
+Status: In progress; Plans 01-09 complete
+Last activity: 2026-09-20 — Plan 09 club controller and validated targets chain complete; production remains human_needed and national regression awaits a pre-existing model artifact
 
-Progress: [█████████░] 92%
+Progress: [██████████] 96%
 
 ## Milestone Progress
 
@@ -66,6 +66,7 @@ Progress: [█████████░] 92%
 | Phase 19 P06 | 22min | 2 tasks | 2 files |
 | Phase 19 P07 | 74min | 2 tasks | 2 files |
 | Phase 19 P08 | 48 | 2 tasks | 5 files |
+| Phase 19 P09 | 130 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,7 @@ Progress: [█████████░] 92%
 - [Phase 19]: Legacy national release files remain unchanged; national consumers project absent domain metadata to national_team at their boundary.
 - [Phase 19]: Fixture evidence is accepted only by the explicit fixture resolver and cannot create production authority or a production selector.
 - [Phase 19]: Declared club domains are rejected by national release and forecast boundaries before forecast use.
+- [Phase 19]: Phase 19-09 production has no caller-selectable evidence roots and remains human_needed until genuine accepted Phase 18 history/current-UCL/identity plus owner policy/fold reviews exist.
 
 ### Pending Todos
 
@@ -152,6 +154,6 @@ Progress: [█████████░] 92%
 
 ## Session Continuity
 
-Last session: 2026-09-20T20:59:32.431Z
-Stopped at: Completed 19-08-PLAN.md
+Last session: 2026-09-20T23:23:00.306Z
+Stopped at: Completed 19-09-PLAN.md
 Resume file: None
