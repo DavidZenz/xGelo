@@ -76,7 +76,43 @@ Plans:
 4. Consumers can resolve one immutable, model-card-backed club release, while cross-domain attempts to use club and national-team releases are rejected in both directions.
 5. Current xG, injury, lineup, suspension, and player inputs appear as typed unavailable evidence unless a separate lawful source contract has been accepted.
 
-**Plans**: TBD
+**Plans:** 10 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 19-01-PLAN.md — Establish the accepted-history authority tracer, fixture isolation, and typed unavailable enrichments.
+
+**Wave 2** *(after Wave 1; plans can execute in parallel)*
+
+- [ ] 19-02-PLAN.md — Implement batch-safe club Elo with strict cutoff and same-kickoff invariance.
+- [ ] 19-03-PLAN.md — Freeze club candidates, baselines, deterministic seeds, and promotion gates.
+
+**Wave 3** *(after Wave 2; plans can execute in parallel)*
+
+- [ ] 19-04-PLAN.md — Materialize frozen rolling-origin and held-out-league folds with blocked production state.
+- [ ] 19-05-PLAN.md — Implement fail-closed club negative-binomial models and complete score grids.
+
+**Wave 4** *(after Wave 3)*
+
+- [ ] 19-06-PLAN.md — Fit nested prior-only club calibration and select the gate-eligible probability view.
+
+**Wave 5** *(after Wave 4)*
+
+- [ ] 19-07-PLAN.md — Execute exact paired evaluation and the predeclared promotion decision.
+
+**Wave 6** *(after Wave 5)*
+
+- [ ] 19-08-PLAN.md — Publish immutable club releases and enforce bidirectional club/national rejection.
+
+**Wave 7** *(after Wave 6)*
+
+- [ ] 19-09-PLAN.md — Wire fail-closed CLI and targets orchestration without national authority edges.
+
+**Wave 8** *(after Wave 7)*
+
+- [ ] 19-10-PLAN.md — Gate adversarial regressions, exact prohibition coverage, deterministic replay, and protected production bytes.
 
 ### Phase 20: UCL Rules, State, and Tournament Outcomes
 
@@ -129,7 +165,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 18. Club and UCL Source Contracts | 14/14 | In Progress|  |
-| 19. Independent Club Forecast Authority | 0/TBD | Not started | - |
+| 19. Independent Club Forecast Authority | 0/10 | Planned | - |
 | 20. UCL Rules, State, and Tournament Outcomes | 0/TBD | Not started | - |
 | 21. N-Edition Dashboard and Atomic Publication | 0/TBD | Not started | - |
 | 22. Automated Refresh and Release Hardening | 0/TBD | Not started | - |
