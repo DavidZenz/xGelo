@@ -402,3 +402,48 @@ test_that("schema fingerprints bind node types, array cardinality, and every ele
     phase18_fd_fingerprint(list(rows = list(list(a = 1L), list(a = 1L, late = TRUE))))
   ))
 })
+
+test_that("adapter projection enters bundle builder without fingerprint substitution", {
+  phase18_fd_test_load()
+  source(file.path(phase18_fd_test_root, "R/competition/ucl_source_bundle.R"), local = .GlobalEnv)
+  fetched <- phase18_fd_test_fetch(phase18_fd_test_payloads())
+  expectations <- phase18_fd_test_expectations()
+  projected <- phase18_fd_project_resources(
+    fetched, "ucl_2026_27", phase18_fd_test_registries(), expectations,
+    now_utc = "2026-09-19T12:00:00Z"
+  )
+  expect_identical(
+    names(projected$schema_fingerprint),
+    c(
+      "schema_version", "hash_encoding_version", "resource", "endpoint",
+      "observed", "observed_at_utc", "fingerprint_sha256", "row_sha256"
+    )
+  )
+  expect_silent(phase18_validate_schema_fingerprint(projected$schema_fingerprint))
+
+  review <- data.frame(
+    schema_version = "phase18-ucl-manual-source-review-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    manual_review_id = "adapter-bundle-integration", edition_id = "ucl_2026_27",
+    decision = "accepted", source_url = "https://manual.example/ucl.json",
+    license_id = "fixture-test-only", reviewer = "integration-owner",
+    reviewed_at_utc = "2026-09-19T12:00:00Z",
+    aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(fetched),
+    manual_review_sha256 = "", row_sha256 = "",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  review$manual_review_sha256 <- phase18_ucl_manual_review_hash(review)
+  review$row_sha256 <- phase18_ucl_row_hash(review)
+  candidate <- phase18_build_ucl_source_bundle(
+    projected, fetched,
+    list(authority_type = "manual_source_review", manual_source_review = review),
+    expectations, "adapter-bundle-integration"
+  )
+  expect_silent(phase18_validate_ucl_source_bundle(candidate))
+  expect_identical(
+    candidate$artifacts$schema_fingerprint_sha256,
+    projected$schema_fingerprint$fingerprint_sha256[
+      match(candidate$artifacts$resource_type, projected$schema_fingerprint$resource)
+    ]
+  )
+})

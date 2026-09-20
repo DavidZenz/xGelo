@@ -602,9 +602,18 @@ phase18_fd_project_resources_impl <- function(
     row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
   )
   lifecycle$row_sha256 <- phase18_fd_row_hash(lifecycle)
-  schema_fingerprint <- data.frame(
+  schema_fingerprint <- phase18_hash_schema_fingerprint(data.frame(
+    schema_version = "phase18-schema-fingerprint-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     resource = expected_names,
+    endpoint = unname(phase18_probe_endpoints()[expected_names]),
+    observed = TRUE,
+    observed_at_utc = now_utc,
     fingerprint_sha256 = vapply(payload, phase18_fd_fingerprint, character(1)),
+    stringsAsFactors = FALSE, check.names = FALSE
+  ))
+  raw_resource_hashes <- data.frame(
+    resource = expected_names,
     raw_sha256 = vapply(fetched, `[[`, character(1), "raw_sha256"),
     stringsAsFactors = FALSE, check.names = FALSE
   )
@@ -618,7 +627,9 @@ phase18_fd_project_resources_impl <- function(
   list(
     competition = competition_table, clubs = clubs, matches = matches,
     standings = standings, lifecycle = lifecycle, coverage = coverage,
-    schema_fingerprint = schema_fingerprint, freshness_evidence = freshness_evidence
+    schema_fingerprint = schema_fingerprint,
+    raw_resource_hashes = raw_resource_hashes,
+    freshness_evidence = freshness_evidence
   )
 }
 
