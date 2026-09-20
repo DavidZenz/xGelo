@@ -23,15 +23,18 @@ phase18_bundle_test_provider_evidence <- function() {
     stringsAsFactors = FALSE, check.names = FALSE
   )
   review <- review[review$review_set == "approved", setdiff(names(review), "review_set"), drop = FALSE]
+  review$reviewer <- "bundle-owner-reviewer"
   review <- phase18_hash_terms_review(review)
   expectations <- phase18_hash_edition_expectations(data.frame(
-    schema_version = "phase18-edition-expectation-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-edition-expectation-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = "ucl_2026_27",
     lifecycle = "league_phase", expected_club_count = 36L,
     expected_league_phase_match_count = 144L,
     allowed_stages = "LEAGUE_STAGE|PLAYOFFS|LAST_16|QUARTER_FINALS|SEMI_FINALS|FINAL",
     standings_required = TRUE, expected_standings_rows = 36L,
-    reviewer = "fixture-reviewer", reviewed_at_utc = "2026-09-19T12:00:00Z",
-    row_sha256 = "", expectation_sha256 = "", stringsAsFactors = FALSE,
+    review_state = "approved", reviewer = "fixture-owner",
+    reviewed_at_utc = "2026-09-19T12:00:00Z",
+    stringsAsFactors = FALSE,
     check.names = FALSE
   ))
   transport <- function(endpoint, attempt, cache = FALSE) list(
@@ -40,6 +43,15 @@ phase18_bundle_test_provider_evidence <- function() {
     freshness_passed = TRUE, identity_passed = TRUE, pagination_complete = TRUE,
     secret_scan_passed = TRUE,
     fingerprint_sha256 = digest::digest(paste0("fixture-schema-", endpoint), algo = "sha256", serialize = FALSE),
+    capability_evidence = if (identical(endpoint, "competition_metadata")) list(
+      filters = "fixed competition and season filters observed",
+      pagination = "pagination completion observed",
+      authenticated_headers = "process-local authentication observed",
+      rate_limits = "bounded rate limit handling observed",
+      null_empty_semantics = "null and empty semantics observed",
+      attribution = "reviewed attribution observed",
+      provider_exit = "reviewed provider exit observed"
+    ) else NULL,
     retryable = FALSE
   )
   evidence <- phase18_build_live_probe_evidence(
@@ -47,15 +59,19 @@ phase18_bundle_test_provider_evidence <- function() {
   )
   manifest <- phase18_build_acceptance_manifest(
     evidence$machine_checks, review, expectations,
-    list(schema_fingerprint_sha256 = evidence$schema_fingerprint_sha256),
+    evidence$schema_fingerprint,
     "live-bundle-fixture-001", "2026-09-19T12:30:00Z",
     parser_commit_sha = "0123456789abcdef0123456789abcdef01234567"
   )
-  list(
-    manifest = manifest, machine_checks = evidence$machine_checks,
-    owner_review = review, edition_expectations = expectations,
-    schema_fingerprint = evidence$schema_fingerprint
+  root <- tempfile("phase18-bundle-acceptance-")
+  published <- phase18_publish_acceptance_generation(
+    root, review, expectations, evidence$machine_checks,
+    evidence$schema_fingerprint, manifest, "# Synthetic bundle authority\n"
   )
+  published[c(
+    "manifest", "machine_checks", "owner_review", "edition_expectations",
+    "schema_fingerprint", "pointer", "current_generation", "generation_root"
+  )]
 }
 
 phase18_bundle_test_projected <- function(evidence) {
@@ -125,14 +141,15 @@ phase18_bundle_test_fetched <- function() {
   }), names(urls))
 }
 
-phase18_bundle_test_manual_review <- function(decision = "accepted") {
+phase18_bundle_test_manual_review <- function(fetched = phase18_bundle_test_fetched(), decision = "accepted") {
   review <- data.frame(
-    schema_version = "phase18-ucl-manual-source-review-v1",
+    schema_version = "phase18-ucl-manual-source-review-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     manual_review_id = "manual-ucl-fixture-001", edition_id = "ucl_2026_27",
     decision = decision, source_url = "https://manual.example/ucl-2026-27.json",
     license_id = "fixture-test-only", reviewer = "fixture-reviewer",
     reviewed_at_utc = "2026-09-19T12:00:00Z",
-    aggregate_raw_sha256 = phase18_ucl_hash("fixture aggregate raw bytes"),
+    aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(fetched),
     manual_review_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE,
     check.names = FALSE
   )
@@ -143,9 +160,11 @@ phase18_bundle_test_manual_review <- function(decision = "accepted") {
 
 phase18_bundle_test_fixture_contract <- function() {
   contract <- data.frame(
-    schema_version = "phase18-ucl-fixture-contract-v1",
+    schema_version = "phase18-ucl-fixture-contract-v2",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
     fixture_id = "ucl-contract-fixture-001", edition_id = "ucl_2026_27",
     fixture_purpose = "offline contract tests only",
+    aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(phase18_bundle_test_fetched()),
     fixture_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE,
     check.names = FALSE
   )
@@ -153,6 +172,63 @@ phase18_bundle_test_fixture_contract <- function() {
   contract$row_sha256 <- phase18_row_sha256(contract)
   contract
 }
+
+test_that("authority is inseparable from exact candidate edition raw bytes and fingerprints", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  fetched <- phase18_bundle_test_fetched()
+  aggregate <- phase18_ucl_raw_aggregate_sha256(fetched)
+
+  manual <- phase18_bundle_test_manual_review(fetched)
+  expect_silent(phase18_validate_source_authority(
+    "manual_reviewed",
+    list(authority_type = "manual_source_review", manual_source_review = manual),
+    candidate_edition_id = "ucl_2026_27", aggregate_raw_sha256 = aggregate
+  ))
+  wrong_edition <- manual
+  wrong_edition$edition_id <- "ucl_2025_26"
+  wrong_edition$manual_review_sha256 <- phase18_ucl_manual_review_hash(wrong_edition)
+  wrong_edition$row_sha256 <- phase18_ucl_row_hash(wrong_edition)
+  expect_error(
+    phase18_validate_source_authority(
+      "manual_reviewed",
+      list(authority_type = "manual_source_review", manual_source_review = wrong_edition),
+      candidate_edition_id = "ucl_2026_27", aggregate_raw_sha256 = aggregate
+    ),
+    class = "blocked_authority"
+  )
+  wrong_raw <- manual
+  wrong_raw$aggregate_raw_sha256 <- phase18_hash_sequence_v2(
+    list("competition_metadata", paste(rep("0", 64L), collapse = "")),
+    "phase18-test-wrong-raw-v2", c("resource", "raw_sha256"),
+    c("character", "character")
+  )
+  wrong_raw$manual_review_sha256 <- phase18_ucl_manual_review_hash(wrong_raw)
+  wrong_raw$row_sha256 <- phase18_ucl_row_hash(wrong_raw)
+  expect_error(
+    phase18_validate_source_authority(
+      "manual_reviewed",
+      list(authority_type = "manual_source_review", manual_source_review = wrong_raw),
+      candidate_edition_id = "ucl_2026_27", aggregate_raw_sha256 = aggregate
+    ),
+    class = "blocked_authority"
+  )
+
+  fingerprint_tamper <- evidence
+  fingerprint_tamper$schema_fingerprint$fingerprint_sha256[[1L]] <- paste(rep("a", 64L), collapse = "")
+  fingerprint_tamper$schema_fingerprint$row_sha256 <- phase18_acceptance_hash_rows(
+    fingerprint_tamper$schema_fingerprint, "phase18-schema-fingerprint-row-v2"
+  )
+  expect_error(
+    phase18_validate_source_authority(
+      "provider_live",
+      list(authority_type = "provider_acceptance", provider_acceptance = fingerprint_tamper),
+      candidate_edition_id = "ucl_2026_27", aggregate_raw_sha256 = aggregate
+    ),
+    class = "blocked_authority"
+  )
+})
 
 test_that("provider-live projected resources write and fresh-process validate a candidate bundle", {
   phase18_bundle_test_load()
