@@ -222,6 +222,37 @@ test_that("tampered pointer and prior ledger block before candidate publication"
   expect_identical(phase18_refresh_test_snapshot(x$root), before)
 })
 
+test_that("tampered ledger sidecar and incumbent bytes are never extended", {
+  phase18_refresh_test_load()
+  tamper_case <- function(kind) {
+    x <- phase18_refresh_test_sandbox()
+    phase18_refresh_ucl_source(x$candidate_root, x$accepted_root, x$registry_root, x$acceptance_root,
+      now_utc = "2026-09-20T18:11:30Z")
+    current <- phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)
+    if (identical(kind, "ledger")) {
+      ledger <- file.path(current$transaction_generation_root, "ucl_source_refreshes.csv")
+      value <- phase18_ucl_refresh_read_history(ledger); value$reason_code[[1L]] <- "schema_invalid"
+      utils::write.csv(value, ledger, row.names = FALSE, na = "", quote = TRUE)
+    } else if (identical(kind, "incumbent")) {
+      writeBin(charToRaw("tampered"), file.path(current$accepted_generation_root, "bundle.csv"))
+    } else {
+      unlink(x$candidate_root, recursive = TRUE)
+      phase18_refresh_ucl_source(x$candidate_root, x$accepted_root, x$registry_root, x$acceptance_root,
+        now_utc = "2026-09-20T18:11:31Z")
+      current <- phase18_read_ucl_refresh_current(x$accepted_root, x$registry_root)
+      sidecar <- file.path(current$transaction_generation_root, "ucl_source_blocked_refresh.json")
+      value <- jsonlite::fromJSON(sidecar); value$reason_code <- "http_failure"
+      jsonlite::write_json(value, sidecar, auto_unbox = TRUE)
+    }
+    before <- phase18_refresh_test_snapshot(x$root)
+    result <- phase18_refresh_ucl_source(x$candidate_root, x$accepted_root, x$registry_root, x$acceptance_root)
+    expect_identical(result$status, "blocked", info = kind); expect_false(result$recorded, info = kind)
+    expect_identical(phase18_refresh_test_snapshot(x$root), before, info = kind)
+    unlink(x$root, recursive = TRUE)
+  }
+  for (kind in c("ledger", "sidecar", "incumbent")) tamper_case(kind)
+})
+
 test_that("technical first-refresh failure records explicit no-incumbent without accepted bytes", {
   phase18_refresh_test_load(); x <- phase18_refresh_test_sandbox(); on.exit(unlink(x$root, recursive = TRUE), add = TRUE)
   unlink(x$candidate_root, recursive = TRUE)
