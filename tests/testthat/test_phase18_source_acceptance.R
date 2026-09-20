@@ -278,3 +278,149 @@ test_that("committed no-key decision validates in a fresh process", {
   if (is.null(status)) status <- 0L
   expect_equal(status, 0L, info = paste(output, collapse = "\n"))
 })
+
+phase18_test_seed_probe_root <- function() {
+  evidence_root <- tempfile("phase18-probe-root-")
+  review_path <- tempfile("phase18-approved-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("approved"), review_path, row.names = FALSE, na = "", quote = TRUE)
+  phase18_accept_ucl_provider_main(
+    args = c(
+      "--provider-id", "football_data_org_v4",
+      "--edition-id", "ucl_2026_27",
+      "--review-path", review_path,
+      "--evidence-root", evidence_root
+    ),
+    token_present = FALSE,
+    transport_fn = function(...) stop("no-key seed must not call transport"),
+    now_utc = "2026-09-19T12:30:00Z"
+  )
+  file.path(evidence_root, "football_data_org_v4", "ucl_2026_27")
+}
+
+phase18_test_tree_sha <- function(root) {
+  paths <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = TRUE, no.. = TRUE)
+  paths <- paths[file.exists(paths) & !dir.exists(paths)]
+  relative <- substring(paths, nchar(normalizePath(root, winslash = "/")) + 2L)
+  values <- vapply(paths, function(path) {
+    digest::digest(readBin(path, what = "raw", n = file.info(path)$size), algo = "sha256", serialize = FALSE)
+  }, character(1))
+  setNames(values, relative)
+}
+
+phase18_test_probe_transport <- function(overrides = list(), fingerprint_seed = "fixture-v1") {
+  counts <- c(competition_metadata = 1L, teams = 36L, matches = 144L, standings = 36L)
+  for (name in names(overrides)) counts[[name]] <- overrides[[name]]
+  calls <- character()
+  transport <- function(endpoint, attempt, cache = FALSE) {
+    calls <<- c(calls, endpoint)
+    list(
+      count = unname(counts[[endpoint]]),
+      stages = if (identical(endpoint, "matches")) (overrides$stages %||% "LEAGUE_STAGE") else "",
+      freshness_passed = TRUE,
+      identity_passed = TRUE,
+      pagination_complete = TRUE,
+      secret_scan_passed = TRUE,
+      fingerprint_sha256 = phase18_sha256_text(paste(fingerprint_seed, endpoint, sep = "|"))
+    )
+  }
+  attr(transport, "calls") <- function() calls
+  transport
+}
+
+`%||%` <- function(value, fallback) if (is.null(value)) fallback else value
+
+test_that("live acceptance probe is the only first-acceptance path and uses four fixed calls", {
+  phase18_test_load()
+  root <- phase18_test_seed_probe_root()
+  expect_false(phase18_validate_provider_live_authority(root)$authorized)
+  transport <- phase18_test_probe_transport()
+  result <- phase18_run_live_acceptance_probe(
+    evidence_root = root,
+    owner_review = phase18_test_review("approved"),
+    edition_expectations = phase18_test_expectations(),
+    transport_fn = transport,
+    decision_id = "live-probe-001",
+    now_utc = "2026-09-19T13:00:00Z"
+  )
+  expect_identical(result$reason_code, "accepted")
+  expect_true(result$manifest$automation_enabled)
+  expect_setequal(attr(transport, "calls")(), c("competition_metadata", "teams", "matches", "standings"))
+  expect_equal(length(attr(transport, "calls")()), 4L)
+  expect_true(phase18_validate_provider_live_authority(root)$authorized)
+})
+
+test_that("concurrency and writer interruption preserve incumbent bytes", {
+  phase18_test_load()
+  root <- phase18_test_seed_probe_root()
+  before <- phase18_test_tree_sha(root)
+  lock <- file.path(root, ".phase18-acceptance.lock")
+  dir.create(lock)
+  concurrent <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(), "live-probe-concurrent", "2026-09-19T13:00:00Z"
+  )
+  expect_identical(concurrent$reason_code, "blocked_concurrent_acceptance")
+  unlink(lock, recursive = TRUE, force = TRUE)
+  expect_identical(phase18_test_tree_sha(root), before)
+
+  failed <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(), "live-probe-writer-failure", "2026-09-19T13:00:00Z",
+    failure_injector = function(stage, ...) {
+      if (identical(stage, "after_promote_2")) stop("injected interruption", call. = FALSE)
+    }
+  )
+  expect_identical(failed$reason_code, "interrupted")
+  expect_identical(phase18_test_tree_sha(root), before)
+  residue <- list.files(dirname(root), pattern = "phase18-acceptance-(stage|backup)", all.files = TRUE)
+  expect_length(residue, 0L)
+  expect_false(dir.exists(lock))
+})
+
+test_that("live probe rejects cardinality stage and standings drift without mutation", {
+  phase18_test_load()
+  cases <- list(
+    list(overrides = list(teams = 35L), reason = "cardinality"),
+    list(overrides = list(teams = 37L), reason = "cardinality"),
+    list(overrides = list(matches = 143L), reason = "cardinality"),
+    list(overrides = list(matches = 145L), reason = "cardinality"),
+    list(overrides = list(stages = "INVENTED_STAGE"), reason = "stage"),
+    list(overrides = list(standings = 35L), reason = "standings")
+  )
+  for (index in seq_along(cases)) {
+    root <- phase18_test_seed_probe_root()
+    before <- phase18_test_tree_sha(root)
+    result <- phase18_run_live_acceptance_probe(
+      root, phase18_test_review("approved"), phase18_test_expectations(),
+      phase18_test_probe_transport(cases[[index]]$overrides),
+      paste0("live-probe-invalid-", index), "2026-09-19T13:00:00Z"
+    )
+    expect_identical(result$reason_code, cases[[index]]$reason)
+    expect_identical(phase18_test_tree_sha(root), before)
+  }
+})
+
+test_that("exact replay is idempotent while decision collisions are blocked", {
+  phase18_test_load()
+  root <- phase18_test_seed_probe_root()
+  first <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(), "live-probe-replay", "2026-09-19T13:00:00Z"
+  )
+  expect_identical(first$reason_code, "accepted")
+  accepted_bytes <- phase18_test_tree_sha(root)
+  replay <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(), "live-probe-replay", "2026-09-19T13:00:00Z"
+  )
+  expect_true(replay$idempotent)
+  expect_identical(phase18_test_tree_sha(root), accepted_bytes)
+  collision <- phase18_run_live_acceptance_probe(
+    root, phase18_test_review("approved"), phase18_test_expectations(),
+    phase18_test_probe_transport(fingerprint_seed = "fixture-v2"),
+    "live-probe-replay", "2026-09-19T13:00:00Z"
+  )
+  expect_identical(collision$reason_code, "blocked_decision_collision")
+  expect_identical(phase18_test_tree_sha(root), accepted_bytes)
+  expect_false(any(grepl("phase18-acceptance-(stage|backup|lock)", list.files(dirname(root), all.files = TRUE))))
+})
