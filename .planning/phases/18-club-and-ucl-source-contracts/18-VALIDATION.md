@@ -1,10 +1,11 @@
 ---
 phase: 18
 slug: club-and-ucl-source-contracts
-status: draft
+status: gap_closure_planned
 nyquist_compliant: false
 wave_0_complete: false
 created: 2026-09-19
+updated: 2026-09-20
 ---
 
 # Phase 18 — Validation Strategy
@@ -18,14 +19,14 @@ created: 2026-09-19
 | **Framework** | `testthat` 3.3.2 |
 | **Config file** | `tests/testthat.R` and `tests/testthat/` |
 | **Quick run command** | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` |
-| **Full phase command** | `Rscript --vanilla -e 'files <- list.files("tests/testthat", pattern = "^test_phase18_.*[.]R$", full.names = TRUE); for (f in files) testthat::test_file(f)'` |
+| **Full phase command** | `Rscript --vanilla scripts/verify_phase18_contracts.R` (created by 18-13-02; authoritative only after its inventory and adversarial assertions pass) |
 | **Full suite command** | `Rscript --vanilla -e 'testthat::test_dir("tests/testthat")'` |
-| **Estimated runtime** | Quick: under 30 seconds; phase suite: under 3 minutes |
+| **Estimated runtime** | Quick: under 30 seconds; adversarial phase gate: under 5 minutes |
 
 ## Sampling Rate
 
 - **After every task commit:** Run the focused `test_phase18_*.R` file named by the task.
-- **After every plan wave:** Run the full Phase 18 command.
+- **After every plan wave:** Run all currently implemented focused Phase 18 files; after 18-13-02, run the authoritative full Phase 18 command.
 - **Before `/gsd:verify-work`:** The full `tests/testthat` suite must be green.
 - **Max feedback latency:** 3 minutes for automated phase checks.
 
@@ -33,37 +34,61 @@ created: 2026-09-19
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 18-01-01 | 18-01 | 1 | UCLSRC-01 | T18-01 | Missing key cannot enable automation; credentials never persist | unit/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ❌ RED-first | ⬜ pending |
-| 18-01-02 | 18-01 | 1 | UCLSRC-01 | T18-07 | Owner and edition-expectation matrices are exact, hash-bound, and disabled by default | contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")' &amp;&amp; git diff --check` | ❌ RED-first | ⬜ pending |
-| 18-01-03 | 18-01 | 1 | UCLSRC-01 | T18-08, T18-16 | Only bounded probe evidence can atomically create first acceptance; failures preserve incumbent | failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")' &amp;&amp; git diff --check` | ❌ RED-first | ⬜ pending |
-| 18-02-01 | 18-02 | 1 | CLUBID-01 | T18-05 | Ambiguous, overlapping, or national identities fail closed | unit/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R")'` | ❌ RED-first | ⬜ pending |
-| 18-02-02 | 18-02 | 1 | CLUBID-01 | T18-09, T18-03 | Alias fallback and registry ordering remain exact and hash-stable | unit/metamorphic | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R")' &amp;&amp; git diff --check` | ❌ RED-first | ⬜ pending |
-| 18-02-03 | 18-02 | 1 | CLUBID-01 | T18-17 | Only explicit owner mappings populate registries; unresolved tokens remain blocked evidence | integration/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R")'` | ❌ RED-first | ⬜ pending |
-| 18-03-01 | 18-03 | 2 | UCLSRC-02 | T18-01, T18-02, T18-04 | Fixed provider window traverses the adapter and CLI while fictional evidence remains automation-disabled | tracer integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R"); testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ❌ RED-first | ⬜ pending |
-| 18-03-02 | 18-03 | 2 | UCLSRC-02 | T18-16, T18-01 | Fixed probe emits reviewed identity evidence and atomically creates first acceptance only after all gates pass | CLI integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R"); testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R")'` | ❌ RED-first | ⬜ pending |
-| 18-05-01 | 18-05 | 2 | CLUBHIST-01 | T18-03, T18-06 | Pinned rows preserve score semantics and frozen next-day UTC evidence time | unit/integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ❌ RED-first | ⬜ pending |
-| 18-05-02 | 18-05 | 2 | CLUBHIST-01 | T18-13, T18-17 | Inventory thresholds and owner-reviewed historical identity are exact | contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")' &amp;&amp; test -z "$(git ls-files data/club/local_raw)"` | ❌ RED-first | ⬜ pending |
-| 18-05-03 | 18-05 | 2 | CLUBHIST-01 | T18-06, T18-14 | Only a fully eligible corpus promotes; blocked audit remains durable | integration/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ❌ RED-first | ⬜ pending |
-| 18-06-01 | 18-06 | 3 | UCLSRC-03 | T18-03, T18-18 | One provider resource validates end-to-end through authority and the complete hash graph | tracer integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_bundle.R")'` | ❌ RED-first | ⬜ pending |
-| 18-06-02 | 18-06 | 3 | UCLSRC-03 | T18-03, T18-11, T18-18 | Complete bundles reject tampering and enforce mutually exclusive provider/manual/fixture authority | contract/CLI integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_bundle.R"); testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R"); testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ❌ RED-first | ⬜ pending |
-| 18-04-01 | 18-04 | 4 | UCLSRC-04 | T18-04, T18-18 | Technical failures and invalid candidates preserve the incumbent byte-for-byte | failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ❌ RED-first | ⬜ pending |
-| 18-04-02 | 18-04 | 4 | UCLSRC-04 | T18-07, T18-01 | Reviewed retain preserves permitted bytes; reviewed withdraw atomically installs an unavailable tombstone and preserves lawful manual/open state | integration/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ❌ RED-first | ⬜ pending |
-| 18-04-03 | 18-04 | 4 | UCLSRC-04 | T18-12 | Human review is preceded by the complete technical rollback and provider-exit branch matrix | checkpoint + failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ❌ RED-first | ⬜ pending |
+| 18-01-01 | 18-01 | 1 | UCLSRC-01 | T18-01 | Missing key cannot enable automation; credentials never persist | unit/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ✅ exists | ✅ baseline |
+| 18-01-02 | 18-01 | 1 | UCLSRC-01 | T18-07 | Owner and edition-expectation matrices are exact, hash-bound, and disabled by default | contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")' &amp;&amp; git diff --check` | ✅ exists | ✅ baseline |
+| 18-01-03 | 18-01 | 1 | UCLSRC-01 | T18-08, T18-16 | Only bounded probe evidence can atomically create first acceptance; failures preserve incumbent | failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")' &amp;&amp; git diff --check` | ✅ exists | ✅ baseline |
+| 18-02-01 | 18-02 | 1 | CLUBID-01 | T18-05 | Ambiguous, overlapping, or national identities fail closed | unit/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R")'` | ✅ exists | ✅ baseline |
+| 18-02-02 | 18-02 | 1 | CLUBID-01 | T18-09, T18-03 | Alias fallback and registry ordering remain exact and hash-stable | unit/metamorphic | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R")' &amp;&amp; git diff --check` | ✅ exists | ✅ baseline |
+| 18-02-03 | 18-02 | 1 | CLUBID-01 | T18-17 | Only explicit owner mappings populate registries; unresolved tokens remain blocked evidence | integration/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R")'` | ✅ exists | ✅ baseline |
+| 18-03-01 | 18-03 | 2 | UCLSRC-02 | T18-01, T18-02, T18-04 | Fixed provider window traverses the adapter and CLI while fictional evidence remains automation-disabled | tracer integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R"); testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ✅ exists | ✅ baseline |
+| 18-03-02 | 18-03 | 2 | UCLSRC-02 | T18-16, T18-01 | Fixed probe emits reviewed identity evidence and atomically creates first acceptance only after all gates pass | CLI integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R"); testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R")'` | ✅ exists | ✅ baseline |
+| 18-05-01 | 18-05 | 2 | CLUBHIST-01 | T18-03, T18-06 | Pinned rows preserve score semantics and frozen next-day UTC evidence time | unit/integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ✅ exists | ✅ baseline |
+| 18-05-02 | 18-05 | 2 | CLUBHIST-01 | T18-13, T18-17 | Inventory thresholds and owner-reviewed historical identity are exact | contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")' &amp;&amp; test -z "$(git ls-files data/club/local_raw)"` | ✅ exists | ✅ baseline |
+| 18-05-03 | 18-05 | 2 | CLUBHIST-01 | T18-06, T18-14 | Only a fully eligible corpus promotes; blocked audit remains durable | integration/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ✅ exists | ✅ baseline |
+| 18-06-01 | 18-06 | 3 | UCLSRC-03 | T18-03, T18-18 | One provider resource validates end-to-end through authority and the complete hash graph | tracer integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_bundle.R")'` | ✅ exists | ✅ baseline |
+| 18-06-02 | 18-06 | 3 | UCLSRC-03 | T18-03, T18-11, T18-18 | Complete bundles reject tampering and enforce mutually exclusive provider/manual/fixture authority | contract/CLI integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_bundle.R"); testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R"); testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ✅ exists | ✅ baseline |
+| 18-04-01 | 18-04 | 4 | UCLSRC-04 | T18-04, T18-18 | Technical failures and invalid candidates preserve the incumbent byte-for-byte | failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ✅ exists | ✅ baseline |
+| 18-04-02 | 18-04 | 4 | UCLSRC-04 | T18-07, T18-01 | Reviewed retain preserves permitted bytes; reviewed withdraw atomically installs an unavailable tombstone and preserves lawful manual/open state | integration/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ✅ exists | ✅ baseline |
+| 18-04-03 | 18-04 | 4 | UCLSRC-04 | T18-12 | Human review is preceded by the complete technical rollback and provider-exit branch matrix | checkpoint + failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ✅ exists | ✅ baseline |
+| 18-07-01 | 18-07 | 5 | UCLSRC-01, CLUBID-01 | T18-G07-01 | Canonical typed v2 encoding rejects collision, delimiter, type, missing, and multiplicity ambiguity | adversarial/unit | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_canonical_hash.R")'` | ❌ planned | ⬜ gap pending |
+| 18-07-02 | 18-07 | 5 | UCLSRC-01, CLUBID-01 | T18-G07-02 | Sequence, row, and table v2 semantics are complete while existing consumers remain unchanged and green | adversarial/unit | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_canonical_hash.R"); for (f in sort(list.files("tests/testthat", pattern = "^test_phase18_.*[.]R$", full.names = TRUE))) if (basename(f) != "test_phase18_canonical_hash.R") testthat::test_file(f)'` | ❌ planned | ⬜ gap pending |
+| 18-14-01 | 18-14 | 6 | UCLSRC-01..04, CLUBID-01, CLUBHIST-01 | T18-G14-01, T18-G14-03 | All four production CLIs load the common module first without durable mutation | bootstrap/integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R"); testthat::test_file("tests/testthat/test_phase18_refresh_failure.R"); testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ✅ exists | ⬜ gap pending |
+| 18-14-02 | 18-14 | 6 | UCLSRC-01..04, CLUBID-01, CLUBHIST-01 | T18-G14-01, T18-G14-02 | All six direct loaders, dynamic source vectors, and child-process commands load the common module first | bootstrap/full sampling | `Rscript --vanilla -e 'for (f in sort(list.files("tests/testthat", pattern = "^test_phase18_.*[.]R$", full.names = TRUE))) testthat::test_file(f)' &amp;&amp; git diff --check` | ✅ exists | ⬜ gap pending |
+| 18-08-01 | 18-08 | 7 | UCLSRC-01 | T18-G08-01 | Acceptance hashes migrate to v2 and owner, edition, capability, and schema authority is recomputed from durable evidence | adversarial/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ✅ exists | ⬜ gap pending |
+| 18-08-02 | 18-08 | 7 | UCLSRC-01 | T18-G08-02 | Immutable acceptance generations and one pointer prevent mixed concurrent reads | subprocess/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")'` | ✅ exists | ⬜ gap pending |
+| 18-08-03 | 18-08 | 7 | UCLSRC-01 | T18-G08-03, T18-G08-04 | Edition paths are contained and every CLI mode has truthful exits | CLI/subprocess | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_acceptance.R")' &amp;&amp; git diff --check` | ✅ exists | ⬜ gap pending |
+| 18-09-01 | 18-09 | 7 | UCLSRC-02, CLUBID-01 | T18-G09-01, T18-G09-02 | Identity evidence migrates to v2 and one fresh resource window resolves only active clubs | tracer/integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R"); testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R")'` | ✅ exists | ⬜ gap pending |
+| 18-09-02 | 18-09 | 7 | UCLSRC-02, CLUBID-01 | T18-G09-03, T18-G09-04 | Freshness and acquisition failure matrices are exhaustive and fail closed | adversarial/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_identity.R"); testthat::test_file("tests/testthat/test_phase18_football_data_adapter.R")' &amp;&amp; git diff --check` | ✅ exists | ⬜ gap pending |
+| 18-10-01 | 18-10 | 8 | UCLSRC-03 | T18-G10-01, T18-G10-02 | Candidate authority binds exact edition, bytes, inventory, and recomputed decision | tracer/integration | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_bundle.R")'` | ✅ exists | ⬜ gap pending |
+| 18-10-02 | 18-10 | 8 | UCLSRC-03 | T18-G10-03 | Lexical symlinks and hidden/surplus inventory fail exact candidate validation | filesystem/adversarial | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_source_bundle.R")' &amp;&amp; git diff --check` | ✅ exists | ⬜ gap pending |
+| 18-12-01 | 18-12 | 8 | CLUBHIST-01 | T18-G12-01 | Completion and cutoff precision/tie rules exclude pre-completion evidence | temporal/adversarial | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ✅ exists | ⬜ gap pending |
+| 18-12-02 | 18-12 | 8 | CLUBHIST-01 | T18-G12-02, T18-G12-03 | Every corpus gate is recomputed from bound source and identity snapshots | adversarial/contract | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")'` | ✅ exists | ⬜ gap pending |
+| 18-12-03 | 18-12 | 8 | CLUBHIST-01 | T18-G12-04 | Audit and accepted corpus become visible through one immutable generation pointer | subprocess/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_club_history_contract.R")' &amp;&amp; git diff --check` | ✅ exists | ⬜ gap pending |
+| 18-11-01 | 18-11 | 9 | UCLSRC-04 | T18-G11-01 | Accepted and transaction generations commit through one validating pointer | subprocess/failure injection | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ✅ exists | ⬜ gap pending |
+| 18-11-02 | 18-11 | 9 | UCLSRC-04 | T18-G11-02, T18-G11-03 | Lock losers are silent and prior ledgers validate before append | concurrency/adversarial | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")'` | ✅ exists | ⬜ gap pending |
+| 18-11-03 | 18-11 | 9 | UCLSRC-04 | T18-G11-04 | Provider exit binds exact incumbent authority and CLI exits remain truthful | CLI/adversarial | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_refresh_failure.R")' &amp;&amp; git diff --check` | ✅ exists | ⬜ gap pending |
+| 18-13-01 | 18-13 | 10 | UCLSRC-01..04, CLUBID-01, CLUBHIST-01 | T18-G13-01 | All CR-01..CR-15 and WR-01..WR-04 exploit probes run against production interfaces | adversarial/regression | `Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase18_adversarial_regression.R")'` | ❌ planned | ⬜ gap pending |
+| 18-13-02 | 18-13 | 10 | UCLSRC-01..04, CLUBID-01, CLUBHIST-01 | T18-G13-02, T18-G13-03, T18-G13-04 | One runner enforces probe, prohibition, full-suite, evidence, and validation-state completeness | adversarial/full phase | `Rscript --vanilla scripts/verify_phase18_contracts.R &amp;&amp; git diff --check` | ❌ planned | ⬜ gap pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+*Status: ✅ baseline file/test exists · ⬜ gap pending · ❌ planned asset not yet created · ⚠️ flaky*
 
 ## Wave 0 Requirements
 
-- [ ] `tests/testthat/test_phase18_source_acceptance.R` — created RED-first by 18-01-01; decision states, missing-key path, owner/machine conjunction, concurrency, interruption, and secret hygiene.
-- [ ] `tests/testthat/test_phase18_football_data_adapter.R` — created RED-first by 18-03-01; provider projection, lifecycle, enums, cardinality, pagination, null/empty behavior, and schema drift.
-- [ ] `tests/testthat/test_phase18_source_bundle.R` — created RED-first by 18-06-01; provenance, stable order, collision, authority-union, and complete hash-chain validation.
-- [ ] `tests/testthat/test_phase18_refresh_failure.R` — created RED-first by 18-04-01; technical last-known-good preservation, no-incumbent behavior, interruption/concurrency, and reviewed retain/withdraw provider-exit branches.
-- [ ] `tests/testthat/test_phase18_club_identity.R` — created RED-first by 18-02-01; source IDs, half-open validity intervals, empty/single/null state, alias ordering, ambiguity, and cross-domain rejection.
-- [ ] `tests/testthat/test_phase18_club_history_contract.R` — created RED-first by 18-05-01; source pins, licensing, exact threshold boundaries, duplicates, score semantics, and point-in-time eligibility.
-- [ ] `tests/fixtures/phase18/football_data_org/` — created by 18-03-01; synthetic provider-shaped success and failure fixtures only.
-- [ ] `tests/fixtures/phase18/openfootball/` — created by 18-05-01; synthetic date-only, extra-time, shootout, duplicate, and rename fixtures.
-- [ ] `tests/fixtures/phase18/provider_terms_review.csv` — created by 18-01-01; synthetic review states, never a production legal verdict.
-- [ ] Production `edition_expectations.csv` — created by 18-01-02; reviewed exact club/schedule/stage/standings expectations and aggregate hash.
+- [x] `tests/testthat/test_phase18_source_acceptance.R` — exists; gap tasks 18-14/08 establish canonical-first loading, migrated authority, generation, and subprocess proof.
+- [x] `tests/testthat/test_phase18_football_data_adapter.R` — exists; gap tasks 18-14/09 establish canonical-first loading, freshness, and failure classification.
+- [x] `tests/testthat/test_phase18_source_bundle.R` — exists; gap tasks 18-14/10 establish canonical-first parent/child loading, exact inventory, lexical path, and authority recomputation.
+- [x] `tests/testthat/test_phase18_refresh_failure.R` — exists; gap tasks 18-14/11 establish canonical-first loading, generation/pointer, locking, and provider-exit proof.
+- [x] `tests/testthat/test_phase18_club_identity.R` — exists; gap tasks 18-14/09 establish canonical-first loading, v2 migration, and active-status resolution.
+- [x] `tests/testthat/test_phase18_club_history_contract.R` — exists; gap tasks 18-14/12 establish canonical-first loading, temporal, recomputation, and publication proof.
+- [x] `tests/fixtures/phase18/football_data_org/` — exists; synthetic provider-shaped success and failure fixtures only.
+- [x] `tests/fixtures/phase18/openfootball/` — exists; synthetic date-only, extra-time, shootout, duplicate, and rename fixtures.
+- [x] `tests/fixtures/phase18/provider_terms_review.csv` — exists; synthetic review states, never a production legal verdict.
+- [x] Production `edition_expectations.csv` — exists; reviewed exact club/schedule/stage/standings expectations and aggregate hash.
+- [ ] `tests/testthat/test_phase18_canonical_hash.R` — created RED-first by 18-07-01 for canonical v2 collision and type-domain proof.
+- [ ] `tests/testthat/test_phase18_adversarial_regression.R` — created RED-first by 18-13-01 for exact CR/WR/edge/prohibition inventory.
+- [ ] `scripts/verify_phase18_contracts.R` — created by 18-13-02; becomes the authoritative phase gate only when its full run exits zero.
+
+`wave_0_complete` and `nyquist_compliant` intentionally remain `false` while gap closure is unexecuted. Task 18-13-02 may set both to `true`, change `status` to `complete`, and approve this document only after `Rscript --vanilla scripts/verify_phase18_contracts.R` succeeds with all 35 task rows, exact CR/WR/edge inventories, all 50 prohibitions across Plans 18-01 through 18-14, every Phase 18 test file, and committed evidence validation.
 
 ## Manual-Only Verifications
 
@@ -95,6 +120,8 @@ The valid no-key result is `not_run_missing_credential` with `automation_enabled
 - [ ] Default tests require neither network access nor provider credentials.
 - [ ] No watch-mode flags are used.
 - [ ] Automated feedback latency remains below 3 minutes.
-- [ ] `nyquist_compliant: true` is set after validation coverage is implemented and audited.
+- [ ] All 35 original-plus-gap task rows are present and their file-existence markers match disk.
+- [ ] The exact 50-prohibition bijection and all CR/WR/edge inventories pass in the authoritative runner.
+- [ ] `wave_0_complete: true`, `nyquist_compliant: true`, `status: complete`, and approval are set only after the authoritative runner exits zero.
 
 **Approval:** pending
