@@ -337,9 +337,26 @@ phase18_fd_freshness_evidence <- function(resource, values, evidence_kind, evide
 
 phase18_fd_row_hash <- function(data) {
   phase18_hash_row_v2(
-    data, exclude = "row_sha256",
-    schema_tag = paste0("fd-projection:", paste(setdiff(names(data), "row_sha256"), collapse = ","))
+    data, exclude = intersect(c("row_sha256", "source_raw_sha256"), names(data)),
+    schema_tag = paste0("fd-projection:", paste(setdiff(names(data), c("row_sha256", "source_raw_sha256")), collapse = ","))
   )
+}
+
+phase18_fd_canonical_projection <- function(data, key, label) {
+  if (!is.data.frame(data) || !all(key %in% names(data))) {
+    phase18_fd_abort("blocked_schema", paste0(label, " projection lacks stable keys"))
+  }
+  if (nrow(data) && any(vapply(data[key], function(value) any(is.na(value) | !nzchar(as.character(value))), logical(1)))) {
+    phase18_fd_abort("blocked_schema", paste0(label, " projection has missing stable keys"))
+  }
+  if (nrow(data)) {
+    args <- lapply(data[key], as.character)
+    args[[length(args) + 1L]] <- as.character(data$row_sha256)
+    order_index <- do.call(order, c(args, list(method = "radix")))
+    data <- data[order_index, , drop = FALSE]
+    rownames(data) <- NULL
+  }
+  data
 }
 
 #' Project the four provider resources into edition-scoped canonical tables.
@@ -356,6 +373,7 @@ phase18_fd_project_resources_impl <- function(
   edition_id <- phase18_fd_scalar(edition_id, "edition_id")
   if (!identical(edition_id, "ucl_2026_27")) phase18_fd_abort("blocked_edition_identity", "Only ucl_2026_27 is accepted")
   phase18_validate_club_registries(club_registries)
+  club_registry_sha256 <- phase18_club_registry_hash(club_registries)
   payload <- lapply(fetched, `[[`, "parsed")
   competition <- payload$competition_metadata
   if (!identical(phase18_fd_scalar(competition$code, "competition.code"), "CL")) {
@@ -424,7 +442,8 @@ phase18_fd_project_resources_impl <- function(
     display_name <- phase18_fd_scalar(team$name, "team.name")
     resolution <- tryCatch(
       phase18_resolve_club_identity(
-        club_registries, "football_data_org_v4", provider_id, display_name, event_at
+        club_registries, "football_data_org_v4", provider_id, display_name, event_at,
+        .validated = TRUE, .registry_sha256 = club_registry_sha256
       ),
       error = function(error) phase18_fd_abort("blocked_unresolved_club", conditionMessage(error))
     )
@@ -443,6 +462,7 @@ phase18_fd_project_resources_impl <- function(
   })
   clubs <- do.call(rbind, club_rows)
   clubs$row_sha256 <- phase18_fd_row_hash(clubs)
+  clubs <- phase18_fd_canonical_projection(clubs, "provider_club_id", "clubs")
   provider_to_club <- setNames(clubs$club_id, clubs$provider_club_id)
 
   match_rows <- lapply(seq_along(match_objects), function(index) {
@@ -461,7 +481,8 @@ phase18_fd_project_resources_impl <- function(
       tryCatch(
         phase18_resolve_club_identity(
           club_registries, "football_data_org_v4", phase18_fd_scalar(team$id, paste0("match.", side, ".id")),
-          phase18_fd_scalar(team$name, paste0("match.", side, ".name")), kickoff
+          phase18_fd_scalar(team$name, paste0("match.", side, ".name")), kickoff,
+          .validated = TRUE, .registry_sha256 = club_registry_sha256
         ),
         error = function(error) phase18_fd_abort("blocked_unresolved_club", conditionMessage(error))
       )
@@ -485,6 +506,7 @@ phase18_fd_project_resources_impl <- function(
   })
   matches <- do.call(rbind, match_rows)
   matches$row_sha256 <- phase18_fd_row_hash(matches)
+  matches <- phase18_fd_canonical_projection(matches, "provider_match_id", "matches")
 
   standing_rows <- lapply(seq_along(standing_objects), function(index) {
     row <- standing_objects[[index]]
@@ -508,6 +530,7 @@ phase18_fd_project_resources_impl <- function(
   standings <- do.call(rbind, standing_rows)
   if (anyDuplicated(standings$club_id)) phase18_fd_abort("blocked_duplicate_id", "Standings contain duplicate clubs")
   standings$row_sha256 <- phase18_fd_row_hash(standings)
+  standings <- phase18_fd_canonical_projection(standings, c("position", "club_id"), "standings")
 
   competition_table <- data.frame(
     schema_version = "phase18-fd-competition-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,

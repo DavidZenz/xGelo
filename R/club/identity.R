@@ -257,9 +257,9 @@ phase18_club_at_instant <- function(data, event_at) {
 
 phase18_resolve_club_identity <- function(
   registries, source_system, source_club_id = NA_character_, display_name = NA_character_,
-  event_at_utc
+  event_at_utc, .validated = FALSE, .registry_sha256 = NULL
 ) {
-  phase18_validate_club_registries(registries)
+  if (!isTRUE(.validated)) phase18_validate_club_registries(registries)
   if (!nrow(registries$clubs)) {
     phase18_club_abort("unresolved_empty_registry", "Cannot resolve a club against an empty registry")
   }
@@ -273,6 +273,9 @@ phase18_resolve_club_identity <- function(
   source_system <- as.character(source_system)
   source_club_id <- if (length(source_club_id) == 1L && !is.na(source_club_id) && nzchar(as.character(source_club_id))) as.character(source_club_id) else NA_character_
   display_name <- if (length(display_name) == 1L && !is.na(display_name) && nzchar(as.character(display_name))) as.character(display_name) else NA_character_
+  if (is.na(source_club_id) && is.na(display_name)) {
+    phase18_club_abort("invalid_club_identity_input", "At least one non-empty source club ID or display name is required")
+  }
   normalized <- phase18_normalize_club_name(display_name)
 
   direct <- registries$source_ids[registries$source_ids$source_system == source_system &
@@ -319,7 +322,7 @@ phase18_resolve_club_identity <- function(
     source_club_id = source_club_id, source_display_name = display_name,
     normalized_alias = normalized, resolution_method = method,
     resolution_warning = warning_value,
-    registry_sha256 = phase18_club_registry_hash(registries),
+    registry_sha256 = if (is.null(.registry_sha256)) phase18_club_registry_hash(registries) else as.character(.registry_sha256),
     stringsAsFactors = FALSE, check.names = FALSE
   )
 }

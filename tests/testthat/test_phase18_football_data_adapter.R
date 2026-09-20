@@ -358,7 +358,10 @@ test_that("provider row reordering preserves canonical projection order and hash
     phase18_fd_test_fetch(reversed), "ucl_2026_27", phase18_fd_test_registries(),
     phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z"
   )
-  for (name in c("clubs", "matches", "standings")) expect_identical(one[[name]], two[[name]])
+  for (name in c("clubs", "matches", "standings")) {
+    semantic <- setdiff(names(one[[name]]), "source_raw_sha256")
+    expect_identical(one[[name]][semantic], two[[name]][semantic])
+  }
 })
 
 test_that("unknown acquisition failures are sanitized into one closed blocked reason", {
