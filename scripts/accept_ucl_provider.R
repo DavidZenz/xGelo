@@ -158,7 +158,8 @@ phase18_accept_ucl_provider_main <- function(
     if (!isTRUE(token_present)) stop("Phase 18 provider_live candidate requires FOOTBALL_DATA_API_TOKEN", call. = FALSE)
     accepted <- phase18_read_acceptance_set(target_root)
     phase18_validate_acceptance_manifest(
-      accepted$manifest, accepted$machine_checks, accepted$owner_review, accepted$edition_expectations
+      accepted$manifest, accepted$machine_checks, accepted$owner_review,
+      accepted$edition_expectations, accepted$schema_fingerprint
     )
     if (!isTRUE(accepted$manifest$automation_enabled[[1L]]) ||
         !identical(as.character(accepted$manifest$decision[[1L]]), "accepted") ||
@@ -253,6 +254,15 @@ phase18_accept_ucl_provider_main <- function(
         pagination_complete = isTRUE(projected$coverage$pagination_complete),
         secret_scan_passed = TRUE,
         fingerprint_sha256 = unname(fingerprints[[endpoint]]),
+        capability_evidence = if (identical(endpoint, "competition_metadata")) list(
+          filters = "fixed CL season=2026 request plan observed",
+          pagination = "adapter pagination completion evidence observed",
+          authenticated_headers = "process-local authentication seam observed",
+          rate_limits = "bounded provider rate-limit seam observed",
+          null_empty_semantics = "adapter null and empty semantics observed",
+          attribution = "owner-reviewed attribution evidence bound",
+          provider_exit = "owner-reviewed provider-exit evidence bound"
+        ) else NULL,
         retryable = FALSE
       )
     }
@@ -273,18 +283,43 @@ phase18_accept_ucl_provider_main <- function(
     }
     offline_checks <- phase18_default_machine_checks(expectations, now_utc, "offline_only")
     offline_checks$execution_mode <- "offline_contract_test"
+    integrate <- offline_checks$decision == "INTEGRATE"
+    resources <- offline_checks$capability %in% names(resource_counts)
+    kinds <- phase18_capability_evidence_kinds()
+    offline_checks$executed[integrate] <- TRUE
     offline_checks$passed <- TRUE
-    offline_checks$freshness_passed <- TRUE
-    offline_checks$identity_passed <- TRUE
-    offline_checks$pagination_complete <- TRUE
-    offline_checks$secret_scan_passed <- TRUE
+    offline_checks$evidence_kind <- unname(kinds[offline_checks$capability])
+    offline_checks$evidence_observation[integrate] <- paste0("offline_contract_observed:", offline_checks$capability[integrate])
+    offline_checks$evidence_observation[!integrate] <- "not_executed_not_applicable"
+    offline_checks$applicable_check_count[integrate] <- 1L
+    offline_checks$live_run_id <- decision_id
+    offline_checks$freshness_passed[resources] <- TRUE
+    offline_checks$identity_passed[resources] <- TRUE
+    offline_checks$pagination_complete[resources] <- TRUE
+    offline_checks$secret_scan_passed[resources] <- TRUE
     offline_checks$observed_count[match(names(resource_counts), offline_checks$capability)] <- unname(resource_counts)
     offline_checks$observed_stages[offline_checks$capability == "matches"] <- paste(projected$coverage$stages, collapse = "|")
+    offline_checks$evidence_sha256[integrate] <- mapply(
+      phase18_machine_evidence_hash,
+      offline_checks$capability[integrate], offline_checks$evidence_kind[integrate],
+      offline_checks$evidence_observation[integrate], offline_checks$applicable_check_count[integrate],
+      offline_checks$live_run_id[integrate], USE.NAMES = FALSE
+    )
     offline_checks$row_sha256 <- ""
     offline_checks <- phase18_hash_machine_checks(offline_checks)
+    projected_fingerprint <- phase18_hash_schema_fingerprint(data.frame(
+      schema_version = "phase18-schema-fingerprint-v2",
+      hash_encoding_version = phase18_canonical_encoding_v2(),
+      resource = names(phase18_probe_endpoints()),
+      endpoint = unname(phase18_probe_endpoints()),
+      observed = TRUE,
+      observed_at_utc = now_utc,
+      fingerprint_sha256 = unname(fingerprints[names(phase18_probe_endpoints())]),
+      stringsAsFactors = FALSE, check.names = FALSE
+    ))
     offline_manifest <- phase18_build_acceptance_manifest(
       offline_checks, review, expectations,
-      list(schema_fingerprint_sha256 = phase18_canonical_sha256(projected$schema_fingerprint, key = "resource")),
+      projected_fingerprint,
       decision_id, now_utc, parser_commit_sha = parser_commit_sha,
       project_root = phase18_accept_project_root
     )
@@ -294,12 +329,11 @@ phase18_accept_ucl_provider_main <- function(
       evidence_root = target_root
     )))
   }
-  schema_hash <- phase18_canonical_sha256(schema_fingerprint, key = "resource")
   manifest <- phase18_build_acceptance_manifest(
     machine_checks,
     review,
     expectations,
-    list(schema_fingerprint_sha256 = schema_hash),
+    schema_fingerprint,
     decision_id = paste0("not_run_missing_credential_", options[["edition-id"]]),
     now_utc = now_utc,
     parser_commit_sha = parser_commit_sha,

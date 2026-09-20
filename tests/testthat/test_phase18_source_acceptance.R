@@ -23,12 +23,11 @@ phase18_test_require <- function(functions) {
 }
 
 phase18_test_review <- function(review_set = "approved") {
-  review <- utils::read.csv(
+  review <- phase18_read_terms_review_fixture(
     file.path(phase18_test_root, "tests/fixtures/phase18/provider_terms_review.csv"),
-    stringsAsFactors = FALSE,
-    check.names = FALSE
+    review_set
   )
-  review <- review[review$review_set == review_set, setdiff(names(review), "review_set"), drop = FALSE]
+  review$reviewer <- "fixture-owner"
   phase18_hash_terms_review(review)
 }
 
@@ -42,7 +41,8 @@ phase18_test_expectations <- function() {
     allowed_stages = "LEAGUE_STAGE|PLAYOFFS|LAST_16|QUARTER_FINALS|SEMI_FINALS|FINAL",
     standings_required = TRUE,
     expected_standings_rows = 36L,
-    reviewer = "fixture-reviewer",
+    review_state = "approved",
+    reviewer = "fixture-owner",
     reviewed_at_utc = "2026-09-19T12:00:00Z",
     row_sha256 = "",
     expectation_sha256 = "",
@@ -52,27 +52,46 @@ phase18_test_expectations <- function() {
   phase18_hash_edition_expectations(expectations)
 }
 
+phase18_test_fingerprint <- function(observed = TRUE, now_utc = "2026-09-19T12:30:00Z") {
+  fingerprint <- phase18_default_schema_fingerprint(now_utc)
+  if (isTRUE(observed)) {
+    fingerprint$observed <- TRUE
+    fingerprint$fingerprint_sha256 <- vapply(
+      fingerprint$resource,
+      function(resource) phase18_sha256_text(paste0("fixture-schema|", resource)),
+      character(1)
+    )
+    fingerprint <- phase18_hash_schema_fingerprint(fingerprint)
+  }
+  fingerprint
+}
+
 phase18_test_machine_checks <- function(execution_mode = "offline_contract_test", passed = TRUE) {
-  expectation_sha <- phase18_test_expectations()$expectation_sha256[[1L]]
-  checks <- data.frame(
-    schema_version = "phase18-machine-check-v1",
-    capability = c("competition_metadata", "teams", "matches", "standings"),
-    decision = "INTEGRATE",
-    execution_mode = execution_mode,
-    passed = passed,
-    observed_count = c(1L, 36L, 144L, 36L),
-    observed_stages = c("", "", "LEAGUE_STAGE", ""),
-    expectation_sha256 = expectation_sha,
-    live_run_id = if (identical(execution_mode, "live_acceptance_probe")) "live-fixture-001" else "",
-    real_key_evidence = identical(execution_mode, "live_acceptance_probe"),
-    freshness_passed = passed,
-    identity_passed = passed,
-    pagination_complete = passed,
-    secret_scan_passed = passed,
-    checked_at_utc = "2026-09-19T12:30:00Z",
-    row_sha256 = "",
-    stringsAsFactors = FALSE,
-    check.names = FALSE
+  checks <- phase18_default_machine_checks(phase18_test_expectations(), "2026-09-19T12:30:00Z", "offline_only")
+  decisions <- phase18_capability_decisions()
+  kinds <- phase18_capability_evidence_kinds()
+  integrate <- checks$decision == "INTEGRATE"
+  resources <- checks$capability %in% names(phase18_probe_endpoints())
+  checks$execution_mode <- execution_mode
+  checks$executed[integrate] <- TRUE
+  checks$passed <- passed
+  checks$evidence_kind <- unname(kinds[checks$capability])
+  checks$evidence_observation[integrate] <- paste0("observed:", checks$capability[integrate])
+  checks$evidence_observation[!integrate] <- "not_executed_not_applicable"
+  checks$applicable_check_count[integrate] <- 1L
+  checks$live_run_id <- if (identical(execution_mode, "live_acceptance_probe")) "live-fixture-001" else "offline-fixture-001"
+  checks$real_key_evidence[integrate] <- identical(execution_mode, "live_acceptance_probe")
+  checks$freshness_passed[resources] <- passed
+  checks$identity_passed[resources] <- passed
+  checks$pagination_complete[resources] <- passed
+  checks$secret_scan_passed[resources] <- passed
+  checks$observed_count[match(names(phase18_probe_endpoints()), checks$capability)] <- c(1L, 36L, 144L, 36L)
+  checks$observed_stages[checks$capability == "matches"] <- "LEAGUE_STAGE"
+  checks$evidence_sha256[integrate] <- mapply(
+    phase18_machine_evidence_hash,
+    checks$capability[integrate], checks$evidence_kind[integrate],
+    checks$evidence_observation[integrate], checks$applicable_check_count[integrate],
+    checks$live_run_id[integrate], USE.NAMES = FALSE
   )
   phase18_hash_machine_checks(checks)
 }
@@ -103,7 +122,8 @@ test_that("missing credential preflight is a durable fail-closed decision", {
 test_that("no-key operator path never calls transport and emits a validating manifest", {
   phase18_test_load()
   evidence_root <- tempfile("phase18-no-key-")
-  review_path <- file.path(phase18_test_root, "tests/fixtures/phase18/provider_terms_review.csv")
+  review_path <- tempfile("phase18-no-key-review-", fileext = ".csv")
+  utils::write.csv(phase18_test_review("pending"), review_path, row.names = FALSE, na = "", quote = TRUE)
   transport_calls <- 0L
   result <- phase18_accept_ucl_provider_main(
     args = c(
@@ -130,7 +150,8 @@ test_that("no-key operator path never calls transport and emits a validating man
     persisted,
     result$machine_checks,
     result$owner_review,
-    result$edition_expectations
+    result$edition_expectations,
+    result$schema_fingerprint
   ))
   expect_false(any(grepl("token|authorization|header|request", names(persisted), ignore.case = TRUE)))
 })
@@ -144,7 +165,7 @@ test_that("offline evidence cannot bootstrap automation", {
     machine_checks = machine,
     owner_review = review,
     edition_expectations = expectations,
-    evidence_hashes = list(schema_fingerprint_sha256 = paste(rep("d", 64L), collapse = "")),
+    schema_fingerprint = phase18_test_fingerprint(FALSE),
     decision_id = "offline-proof-001",
     now_utc = "2026-09-19T12:30:00Z"
   )
@@ -152,7 +173,7 @@ test_that("offline evidence cannot bootstrap automation", {
   expect_identical(manifest$decision, "not_run")
   expect_identical(manifest$live_provider_decision, "not_run")
   expect_true(manifest$offline_contract_tests_passed)
-  expect_silent(phase18_validate_acceptance_manifest(manifest, machine, review, expectations))
+  expect_silent(phase18_validate_acceptance_manifest(manifest, machine, review, expectations, phase18_test_fingerprint(FALSE)))
 })
 
 test_that("owner review validation is typed for approved pending rejected and malformed input", {
@@ -200,11 +221,7 @@ test_that("production evidence enumerates every reviewed dimension and coverage 
 
 test_that("reviewed league-phase expectations reject every shortfall excess and unknown stage", {
   phase18_test_load()
-  expectations_path <- file.path(
-    phase18_test_root,
-    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/edition_expectations.csv"
-  )
-  expectations <- utils::read.csv(expectations_path, stringsAsFactors = FALSE, check.names = FALSE)
+  expectations <- phase18_test_expectations()
   baseline <- list(
     club_count = 36L,
     league_phase_match_count = 144L,
@@ -235,30 +252,31 @@ test_that("only exact live owner and machine conjunction can enable automation",
   review <- phase18_test_review("approved")
   expectations <- phase18_test_expectations()
   machine <- phase18_test_machine_checks("live_acceptance_probe", TRUE)
-  schema_hash <- paste(rep("e", 64L), collapse = "")
+  fingerprint <- phase18_test_fingerprint(TRUE)
   accepted <- phase18_build_acceptance_manifest(
     machine, review, expectations,
-    list(schema_fingerprint_sha256 = schema_hash),
+    fingerprint,
     "live-proof-001", "2026-09-19T12:30:00Z"
   )
   expect_true(accepted$automation_enabled)
   expect_identical(accepted$decision, "accepted")
-  expect_silent(phase18_validate_acceptance_manifest(accepted, machine, review, expectations))
+  expect_silent(phase18_validate_acceptance_manifest(accepted, machine, review, expectations, fingerprint))
 
   stale_review <- review
   stale_review$terms_sha256 <- paste(rep("f", 64L), collapse = "")
   stale_review <- phase18_hash_terms_review(stale_review)
   expect_error(
-    phase18_validate_acceptance_manifest(accepted, machine, stale_review, expectations),
+    phase18_validate_acceptance_manifest(accepted, machine, stale_review, expectations, fingerprint),
     "recomputed evidence|review"
   )
   missing_owner_row <- review[-1L, , drop = FALSE]
-  blocked <- phase18_build_acceptance_manifest(
-    machine, missing_owner_row, expectations,
-    list(schema_fingerprint_sha256 = schema_hash),
-    "live-proof-002", "2026-09-19T12:30:00Z"
+  expect_error(
+    phase18_build_acceptance_manifest(
+      machine, missing_owner_row, expectations, fingerprint,
+      "live-proof-002", "2026-09-19T12:30:00Z"
+    ),
+    "dimensions are not exact"
   )
-  expect_false(blocked$automation_enabled)
 })
 
 test_that("committed no-key decision validates in a fresh process", {
@@ -272,8 +290,9 @@ test_that("committed no-key decision validates in a fresh process", {
     "r<-read.csv('", file.path(root, "provider_terms_review.csv"), "',check.names=FALSE);",
     "e<-read.csv('", file.path(root, "edition_expectations.csv"), "',check.names=FALSE);",
     "m<-read.csv('", file.path(root, "coverage_matrix.csv"), "',check.names=FALSE);",
+    "s<-read.csv('", file.path(root, "schema_fingerprint.csv"), "',check.names=FALSE);",
     "a<-read.csv('", file.path(root, "acceptance_manifest.csv"), "',check.names=FALSE);",
-    "phase18_validate_acceptance_manifest(a,m,r,e);",
+    "phase18_validate_acceptance_manifest(a,m,r,e,s);",
     "stopifnot(!a$automation_enabled[[1]], a$reason_code[[1]]=='missing_credential')"
   )
   output <- system2("Rscript", c("--vanilla", "-e", shQuote(command)), stdout = TRUE, stderr = TRUE)
@@ -323,7 +342,16 @@ phase18_test_probe_transport <- function(overrides = list(), fingerprint_seed = 
       identity_passed = TRUE,
       pagination_complete = TRUE,
       secret_scan_passed = TRUE,
-      fingerprint_sha256 = phase18_sha256_text(paste(fingerprint_seed, endpoint, sep = "|"))
+      fingerprint_sha256 = phase18_sha256_text(paste(fingerprint_seed, endpoint, sep = "|")),
+      capability_evidence = if (identical(endpoint, "competition_metadata")) list(
+        filters = "season=2026 and competition=CL request plan observed",
+        pagination = "all four resource pagination windows completed",
+        authenticated_headers = "process-local authentication header was applied",
+        rate_limits = "provider rate-limit metadata and bounded retry path observed",
+        null_empty_semantics = "null and empty resource semantics checked",
+        attribution = "reviewed attribution contract bound to response",
+        provider_exit = "reviewed provider-exit contract bound to response"
+      ) else NULL
     )
   }
   attr(transport, "calls") <- function() calls
@@ -397,6 +425,12 @@ test_that("operator CLI routes offline and live modes only through the fixed ada
   review_path <- tempfile("phase18-cli-review-", fileext = ".csv")
   utils::write.csv(phase18_test_review("approved"), review_path, row.names = FALSE, na = "", quote = TRUE)
   evidence_root <- tempfile("phase18-cli-evidence-")
+  target_root <- file.path(evidence_root, "football_data_org_v4", "ucl_2026_27")
+  dir.create(target_root, recursive = TRUE)
+  utils::write.csv(
+    phase18_test_expectations(), file.path(target_root, "edition_expectations.csv"),
+    row.names = FALSE, na = "", quote = TRUE
+  )
   observed_plan <- NULL
   fetch_stub <- function(request_plan, perform_request, clock_fn, sleep_fn) {
     observed_plan <<- request_plan
@@ -653,7 +687,10 @@ test_that("credential-free CLI smoke paths preserve durable Phase 18 evidence", 
     c(
       "--provider-id", "football_data_org_v4",
       "--edition-id", "ucl_2026_27",
-      "--review-path", shQuote(file.path(phase18_test_root, "tests/fixtures/phase18/provider_terms_review.csv")),
+      "--review-path", shQuote(file.path(
+        phase18_test_root,
+        "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/provider_terms_review.csv"
+      )),
       "--evidence-root", shQuote(file.path(scratch, "provider_acceptance"))
     ),
     env = "FOOTBALL_DATA_API_TOKEN="
