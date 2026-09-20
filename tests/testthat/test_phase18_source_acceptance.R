@@ -109,6 +109,21 @@ test_that("Phase 18 source-acceptance API seam exists", {
   expect_true(TRUE)
 })
 
+test_that("acceptance module has exactly one top-level runtime definition per symbol", {
+  expressions <- parse(
+    file.path(phase18_test_root, "R/competition/ucl_source_acceptance.R"),
+    keep.source = FALSE
+  )
+  assigned <- vapply(expressions, function(expression) {
+    if (is.call(expression) && identical(expression[[1L]], as.name("<-"))) {
+      return(as.character(expression[[2L]]))
+    }
+    ""
+  }, character(1))
+  assigned <- assigned[nzchar(assigned) & grepl("^phase18_", assigned)]
+  expect_identical(names(which(table(assigned) > 1L)), character())
+})
+
 test_that("missing credential preflight is a durable fail-closed decision", {
   phase18_test_load()
   preflight <- phase18_provider_preflight(FALSE, "2026-09-19T12:00:00Z")

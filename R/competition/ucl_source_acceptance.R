@@ -4,7 +4,7 @@
 #' request objects, and authentication headers must never cross into these
 #' durable evidence contracts.
 
-phase18_acceptance_schema_version <- function() "phase18-provider-acceptance-v1"
+phase18_legacy_v1_acceptance_schema_version <- function() "phase18-provider-acceptance-v1"
 
 phase18_owner_review_dimensions <- function() {
   c(
@@ -99,7 +99,7 @@ phase18_parser_commit_sha <- function(project_root = ".") {
   sha
 }
 
-phase18_hash_terms_review <- function(review) {
+phase18_legacy_v1_hash_terms_review <- function(review) {
   if (!is.data.frame(review)) stop("Phase 18 terms review must be a data frame", call. = FALSE)
   if (!"schema_version" %in% names(review)) review$schema_version <- "phase18-provider-terms-review-v1"
   if (!"review_id" %in% names(review)) {
@@ -114,7 +114,7 @@ phase18_trusted_provider_id <- function() "football_data_org_v4"
 
 phase18_trusted_application_id <- function() "xgelo_ucl_dashboard"
 
-phase18_validate_terms_review <- function(
+phase18_legacy_v1_validate_terms_review <- function(
     review,
     expected_provider_id = phase18_trusted_provider_id(),
     expected_application_id = phase18_trusted_application_id()) {
@@ -167,7 +167,7 @@ phase18_validate_terms_review <- function(
   list(valid = TRUE, decision = "accepted", reason_code = "accepted", message = "Owner review approved", review_sha256 = review_hash)
 }
 
-phase18_hash_edition_expectations <- function(expectations) {
+phase18_legacy_v1_hash_edition_expectations <- function(expectations) {
   if (!is.data.frame(expectations)) stop("Phase 18 edition expectations must be a data frame", call. = FALSE)
   if (!"schema_version" %in% names(expectations)) expectations$schema_version <- "phase18-edition-expectation-v1"
   expectations$row_sha256 <- phase18_row_sha256(expectations, exclude = c("row_sha256", "expectation_sha256"))
@@ -176,7 +176,7 @@ phase18_hash_edition_expectations <- function(expectations) {
   expectations
 }
 
-phase18_validate_edition_expectations <- function(expectations, observed = NULL, lifecycle = NULL) {
+phase18_legacy_v1_validate_edition_expectations <- function(expectations, observed = NULL, lifecycle = NULL) {
   fail <- function(reason_code, message) list(valid = FALSE, decision = "rejected", reason_code = reason_code, message = message, expectation_sha256 = "")
   if (!is.data.frame(expectations) || !nrow(expectations)) return(fail("cardinality", "Edition expectations are absent"))
   required <- c(
@@ -228,13 +228,13 @@ phase18_validate_edition_expectations <- function(expectations, observed = NULL,
   list(valid = TRUE, decision = "accepted", reason_code = "accepted", message = "Edition expectations validated", expectation_sha256 = aggregate)
 }
 
-phase18_hash_machine_checks <- function(machine_checks) {
+phase18_legacy_v1_hash_machine_checks <- function(machine_checks) {
   if (!is.data.frame(machine_checks)) stop("Phase 18 machine checks must be a data frame", call. = FALSE)
   machine_checks$row_sha256 <- phase18_row_sha256(machine_checks)
   machine_checks
 }
 
-phase18_validate_machine_checks <- function(machine_checks) {
+phase18_legacy_v1_validate_machine_checks <- function(machine_checks) {
   fail <- function(reason_code, message) list(valid = FALSE, reason_code = reason_code, message = message, machine_evidence_sha256 = "")
   if (!is.data.frame(machine_checks) || !nrow(machine_checks)) return(fail("coverage", "Machine evidence is absent"))
   required <- c(
@@ -274,12 +274,12 @@ phase18_provider_preflight <- function(token_present, now_utc) {
   row
 }
 
-phase18_manifest_self_hash <- function(manifest) {
+phase18_legacy_v1_manifest_self_hash <- function(manifest) {
   phase18_row_sha256(manifest, exclude = "row_sha256")
 }
 
 #' Build the only manifest capable of enabling provider automation.
-phase18_build_acceptance_manifest <- function(
+phase18_legacy_v1_build_acceptance_manifest <- function(
     machine_checks,
     owner_review,
     edition_expectations,
@@ -370,7 +370,7 @@ phase18_build_acceptance_manifest <- function(
 }
 
 #' Recompute every enabling condition and reject stored-boolean tampering.
-phase18_validate_acceptance_manifest <- function(manifest, machine_checks, owner_review, edition_expectations) {
+phase18_legacy_v1_validate_acceptance_manifest <- function(manifest, machine_checks, owner_review, edition_expectations) {
   if (!is.data.frame(manifest) || nrow(manifest) != 1L) stop("Phase 18 acceptance manifest must contain one row", call. = FALSE)
   required <- c(
     "schema_version", "decision_id", "provider_id", "edition_id", "execution_mode",
@@ -401,7 +401,7 @@ phase18_validate_acceptance_manifest <- function(manifest, machine_checks, owner
   invisible(manifest)
 }
 
-phase18_default_edition_expectations <- function(edition_id = "ucl_2026_27", now_utc = "1970-01-01T00:00:00Z") {
+phase18_legacy_v1_default_edition_expectations <- function(edition_id = "ucl_2026_27", now_utc = "1970-01-01T00:00:00Z") {
   phase18_hash_edition_expectations(data.frame(
     schema_version = "phase18-edition-expectation-v1",
     edition_id = edition_id,
@@ -420,7 +420,7 @@ phase18_default_edition_expectations <- function(edition_id = "ucl_2026_27", now
   ))
 }
 
-phase18_default_machine_checks <- function(expectations, now_utc, reason_code = "missing_credential") {
+phase18_legacy_v1_default_machine_checks <- function(expectations, now_utc, reason_code = "missing_credential") {
   decisions <- phase18_capability_decisions()
   capabilities <- names(decisions)
   expectation_hash <- as.character(expectations$expectation_sha256[[1L]])
@@ -469,7 +469,7 @@ phase18_capability_decisions <- function() {
   )
 }
 
-phase18_default_schema_fingerprint <- function(now_utc) {
+phase18_legacy_v1_default_schema_fingerprint <- function(now_utc) {
   resources <- c("competition_metadata", "teams", "matches", "standings")
   rows <- data.frame(
     schema_version = "phase18-schema-fingerprint-v1",
@@ -486,7 +486,7 @@ phase18_default_schema_fingerprint <- function(now_utc) {
   rows
 }
 
-phase18_read_terms_review <- function(path) {
+phase18_legacy_v1_read_terms_review <- function(path) {
   path <- phase18_acceptance_scalar(path, "review_path")
   if (!file.exists(path)) return(NULL)
   review <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
@@ -522,7 +522,7 @@ phase18_acceptance_file_names <- function() {
   )
 }
 
-phase18_read_acceptance_set <- function(evidence_root) {
+phase18_legacy_v1_read_acceptance_set <- function(evidence_root) {
   evidence_root <- normalizePath(evidence_root, winslash = "/", mustWork = TRUE)
   paths <- setNames(file.path(evidence_root, phase18_acceptance_file_names()), phase18_acceptance_file_names())
   missing <- names(paths)[!file.exists(paths)]
@@ -593,7 +593,7 @@ phase18_probe_call <- function(transport_fn, endpoint, max_attempts = 3L) {
   stop("Phase 18 probe exhausted its bounded retry attempts", call. = FALSE)
 }
 
-phase18_build_live_probe_evidence <- function(
+phase18_legacy_v1_build_live_probe_evidence <- function(
     transport_fn,
     owner_review,
     edition_expectations,
@@ -896,7 +896,7 @@ phase18_publish_acceptance_generation <- function(
   phase18_read_acceptance_set(evidence_root)
 }
 
-phase18_run_live_acceptance_probe <- function(
+phase18_legacy_v1_run_live_acceptance_probe_generation <- function(
     evidence_root,
     owner_review,
     edition_expectations,
@@ -1005,7 +1005,7 @@ phase18_probe_result <- function(reason_code, manifest = NULL, idempotent = FALS
 }
 
 #' Run the bounded first-live-acceptance transaction.
-phase18_run_live_acceptance_probe <- function(
+phase18_legacy_v1_run_live_acceptance_probe_transactional <- function(
     evidence_root,
     owner_review,
     edition_expectations,
@@ -1239,11 +1239,6 @@ phase18_validate_terms_review <- function(
     if (any(!grepl("^[0-9a-fA-F]{64}$", as.character(review$terms_sha256)))) {
       phase18_acceptance_abort("integrity", "owner review terms hash is invalid")
     }
-    invisible(mapply(
-      phase18_validate_human_authority,
-      as.character(review$reviewer), as.character(review$reviewed_at_utc),
-      MoreArgs = list(label = "owner review"), SIMPLIFY = FALSE
-    ))
     expected <- phase18_acceptance_hash_rows(review, "phase18-provider-terms-review-row-v2")
     if (!identical(tolower(as.character(review$row_sha256)), expected)) {
       phase18_acceptance_abort("integrity", "owner review row hash mismatch")
@@ -1253,6 +1248,17 @@ phase18_validate_terms_review <- function(
     if (any(!statuses %in% c("approved", "pending", "rejected"))) phase18_acceptance_abort("integrity", "owner review status is unsupported")
     if (any(statuses == "rejected")) return(rejected("rejected", "terms", "Owner review rejected", hash))
     if (any(statuses != "approved")) return(rejected("manual_only", "terms", "Owner review is pending", hash))
+    human <- tryCatch({
+      invisible(mapply(
+        phase18_validate_human_authority,
+        as.character(review$reviewer), as.character(review$reviewed_at_utc),
+        MoreArgs = list(label = "owner review"), SIMPLIFY = FALSE
+      ))
+      NULL
+    }, error = function(error) error)
+    if (inherits(human, "error")) {
+      return(rejected("manual_only", "terms", conditionMessage(human), hash))
+    }
     list(valid = TRUE, decision = "accepted", reason_code = "accepted", message = "Owner review approved", review_sha256 = hash)
   }, error = function(error) error)
   if (inherits(result, "error")) {
@@ -1331,10 +1337,6 @@ phase18_validate_edition_expectations <- function(expectations, observed = NULL,
     if (!identical(tolower(as.character(expectations$row_sha256)), expected_rows)) phase18_acceptance_abort("integrity", "edition expectation row hash mismatch")
     aggregate <- phase18_acceptance_hash_table(expectations, c("edition_id", "lifecycle"), "phase18-edition-expectation-table-v2", exclude = "expectation_sha256")
     if (any(tolower(as.character(expectations$expectation_sha256)) != aggregate)) phase18_acceptance_abort("integrity", "edition expectation aggregate hash mismatch")
-    phase18_validate_human_authority(
-      expectations$reviewer[[1L]], expectations$reviewed_at_utc[[1L]],
-      label = "edition expectation"
-    )
     list(aggregate = aggregate)
   }, error = function(error) error)
   if (inherits(checked, "error")) return(fail("schema", conditionMessage(checked)))
@@ -1346,7 +1348,14 @@ phase18_validate_edition_expectations <- function(expectations, observed = NULL,
     isTRUE(as.logical(expectations$standings_required[[1L]])) &&
     identical(as.integer(expectations$expected_standings_rows[[1L]]), 36L)
   if (!exact) return(fail("cardinality", "Only the exact supported UCL 2026/27 league-phase expectation is authoritative", aggregate))
-  if (!identical(as.character(expectations$review_state[[1L]]), "approved")) {
+  human_valid <- tryCatch({
+    phase18_validate_human_authority(
+      expectations$reviewer[[1L]], expectations$reviewed_at_utc[[1L]],
+      label = "edition expectation"
+    )
+    TRUE
+  }, error = function(error) FALSE)
+  if (!identical(as.character(expectations$review_state[[1L]]), "approved") || !human_valid) {
     return(fail("terms", "Edition expectations require explicit non-placeholder owner approval", aggregate))
   }
   if (!is.null(lifecycle) && !identical(phase18_acceptance_scalar(lifecycle, "lifecycle"), "league_phase")) return(fail("cardinality", "Requested lifecycle expectation is missing", aggregate))
