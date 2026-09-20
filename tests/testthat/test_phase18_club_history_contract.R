@@ -177,6 +177,14 @@ phase18_history_test_good_matches <- function(count = 5L) {
   phase18_normalize_club_history(rows, phase18_history_test_source(count), phase18_history_test_registries(), "2025-06-01T00:00:00Z")
 }
 
+phase18_history_test_review <- function() {
+  phase18_empty_table(phase18_club_review_schema())
+}
+
+phase18_history_test_unresolved <- function() {
+  phase18_empty_table(phase18_unresolved_club_token_schema())
+}
+
 test_that("coverage equality and all zero-tolerance gates fail at one step", {
   phase18_history_test_load()
   phase18_history_test_require("phase18_audit_club_history")
@@ -304,6 +312,70 @@ test_that("eligible corpus promotes atomically and validates while tampering fai
   tampered$final_home_goals[[1L]] <- "99"
   utils::write.csv(tampered, file.path(accepted_root, "matches.csv"), row.names = FALSE, na = "", quote = TRUE)
   expect_error(phase18_validate_club_history_corpus(accepted_root), class = "history_match_hash_mismatch")
+})
+
+test_that("history candidates bind exact registry, review, and unresolved snapshots", {
+  phase18_history_test_load()
+  audit <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  expect_true(all(c(
+    "registry_clubs", "registry_source_ids", "registry_aliases",
+    "identity_review", "unresolved_identity"
+  ) %in% names(audit)))
+  sandbox <- tempfile("phase18-history-snapshots-")
+  phase18_history_write_bundle_candidate(audit, sandbox)
+  expect_silent(phase18_validate_club_history_corpus(sandbox))
+  expect_identical(sort(list.files(sandbox, all.files = TRUE, no.. = TRUE)), sort(unname(phase18_history_bundle_files())))
+
+  writeLines("surplus", file.path(sandbox, ".credential"))
+  expect_error(phase18_validate_club_history_corpus(sandbox), class = "invalid_history_corpus_inventory")
+})
+
+test_that("rehashed stored audit claims cannot authorize semantically invalid matches", {
+  phase18_history_test_load()
+  audit <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  sandbox <- tempfile("phase18-history-forged-")
+  phase18_history_write_bundle_candidate(audit, sandbox)
+
+  matches_path <- file.path(sandbox, "matches.csv")
+  manifest_path <- file.path(sandbox, "corpus_manifest.csv")
+  forged <- phase18_history_read_csv(matches_path)
+  forged$home_club_id[[1L]] <- ""
+  forged$row_sha256 <- phase18_history_row_sha256(forged)
+  phase18_history_write_csv(forged, matches_path)
+  manifest <- phase18_history_read_csv(manifest_path)
+  manifest$matches_sha256 <- phase18_history_table_sha256(forged, c("source_id", "source_match_id", "match_id"))
+  manifest$manifest_sha256 <- phase18_history_row_sha256(manifest, "manifest_sha256")
+  phase18_history_write_csv(manifest, manifest_path)
+
+  expect_error(phase18_validate_club_history_corpus(sandbox), class = "history_recomputed_audit_mismatch")
+})
+
+test_that("changed registry snapshots cannot be blessed by superficial manifest rehashing", {
+  phase18_history_test_load()
+  audit <- phase18_audit_club_history(
+    phase18_history_test_good_matches(5L), phase18_history_test_source(5L),
+    phase18_history_test_registries(), "2025-06-01T00:00:00Z",
+    identity_review = phase18_history_test_review(),
+    unresolved_identity = phase18_history_test_unresolved()
+  )
+  sandbox <- tempfile("phase18-history-registry-forged-")
+  phase18_history_write_bundle_candidate(audit, sandbox)
+  clubs_path <- file.path(sandbox, "registry_clubs.csv")
+  clubs <- phase18_history_read_csv(clubs_path)
+  clubs$canonical_name[[1L]] <- "Attacker FC"
+  clubs$row_sha256 <- phase18_club_row_sha256(clubs)
+  phase18_history_write_csv(clubs, clubs_path)
+  expect_error(phase18_validate_club_history_corpus(sandbox), class = "history_identity_snapshot_mismatch")
 })
 
 test_that("source byte verification rejects hash mismatch and symlinks", {
