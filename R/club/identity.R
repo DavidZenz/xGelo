@@ -317,7 +317,11 @@ phase18_load_club_registries <- function(root = "data/club/registries") {
     path <- file.path(root, files[[name]])
     if (!file.exists(path)) phase18_club_abort("missing_club_registry", paste0("Missing club registry file: ", path))
     data <- utils::read.csv(path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
-    if (!nrow(data)) data[] <- lapply(data, as.character)
+    data[] <- lapply(data, function(value) {
+      value <- as.character(value)
+      value[is.na(value)] <- ""
+      value
+    })
     data
   })
   names(registries) <- names(files)

@@ -305,3 +305,23 @@ testthat::test_that("current and historical coverage gates block independently",
     class = "club_identity_bootstrap_blocked"
   )
 })
+
+testthat::test_that("atomic registry writer preserves incumbent bytes on invalid candidate", {
+  phase18_identity_test_load()
+  root <- tempfile("phase18-club-registry-")
+  dir.create(root, recursive = TRUE)
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+  incumbent <- phase18_identity_test_registry()
+  phase18_write_club_registries_atomic(incumbent, root)
+  paths <- file.path(root, c("clubs.csv", "club_source_ids.csv", "club_aliases.csv"))
+  before <- lapply(paths, readBin, what = "raw", n = 100000L)
+  invalid <- incumbent
+  invalid$aliases$club_id <- "club_unknown"
+  invalid <- phase18_hash_club_registry_rows(invalid)
+  testthat::expect_error(
+    phase18_write_club_registries_atomic(invalid, root),
+    class = "unknown_club_identity"
+  )
+  after <- lapply(paths, readBin, what = "raw", n = 100000L)
+  testthat::expect_identical(after, before)
+})

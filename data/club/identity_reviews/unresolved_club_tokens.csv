@@ -1,0 +1,2 @@
+schema_version,corpus,source_system,source_row,source_club_id,display_value,evidence_sha256,blocked_reason,row_sha256
+phase18-unresolved-club-token-1,historical_inventory,project,data/club/history_sources.csv,,,a879bc4afded27d850d568d54c397e051190bf32942957e818eb8c56ff223f87,missing_history_inventory,056d93606415b1dc661a5d04fe5854414cf8d6566f9b2a2b87a766b2d4304458
