@@ -259,7 +259,11 @@ phase18_accept_ucl_provider_main <- function(
   target <- phase18_accept_resolve_target(options)
   preflight <- phase18_provider_preflight(token_present, now_utc)
   target_root <- target$target_root
-  review <- phase18_read_terms_review(options[["review-path"]])
+  review <- if (options$mode %in% c("manual_reviewed", "fixture_contract")) {
+    data.frame()
+  } else {
+    phase18_read_terms_review(options[["review-path"]])
+  }
   if (is.null(review)) review <- data.frame()
   phase18_accept_assert_target(options, target_root)
   incumbent <- tryCatch(phase18_read_acceptance_set(target_root), error = function(error) NULL)
@@ -287,11 +291,7 @@ phase18_accept_ucl_provider_main <- function(
       fixture_contract <- utils::read.csv(contract_path, stringsAsFactors = FALSE, check.names = FALSE, na.strings = NULL)
       authority <- list(authority_type = "fixture_contract", fixture_contract = fixture_contract)
     }
-    validated_authority <- phase18_validate_source_authority(options$mode, authority)
-    if (!identical(as.character(validated_authority$record$source_mode[[1L]]), options$mode)) {
-      stop("Phase 18 candidate authority mode mismatch", call. = FALSE)
-    }
-    inputs <- candidate_input_fn(options, validated_authority)
+    inputs <- candidate_input_fn(options, authority)
     if (!is.list(inputs) || is.null(inputs$fetched) || is.null(inputs$projected)) {
       stop("Phase 18 candidate input must supply fetched bytes and projected tables", call. = FALSE)
     }

@@ -77,16 +77,18 @@ phase18_bundle_test_provider_evidence <- function() {
 phase18_bundle_test_projected <- function(evidence) {
   club_ids <- sprintf("club_%03d", seq_len(36L))
   clubs <- data.frame(
-    schema_version = "phase18-fd-club-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-club-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     provider_id = "football_data_org_v4", provider_club_id = as.character(1000L + seq_len(36L)),
     club_id = club_ids, display_name = sprintf("Fixture Club %02d", seq_len(36L)),
     canonical_name = sprintf("Fixture Club %02d", seq_len(36L)),
     last_updated_utc = "2026-09-19T11:00:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  clubs$row_sha256 <- phase18_row_sha256(clubs)
+  clubs$row_sha256 <- phase18_ucl_projected_row_hash(clubs)
   matches <- data.frame(
-    schema_version = "phase18-fd-match-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-match-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     provider_match_id = as.character(2000L + seq_len(144L)),
     kickoff_utc = "2026-09-20T18:00:00Z", status = "SCHEDULED", stage = "LEAGUE_STAGE",
     home_club_id = club_ids[((seq_len(144L) - 1L) %% 36L) + 1L],
@@ -94,24 +96,27 @@ phase18_bundle_test_projected <- function(evidence) {
     last_updated_utc = "2026-09-19T11:30:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  matches$row_sha256 <- phase18_row_sha256(matches)
+  matches$row_sha256 <- phase18_ucl_projected_row_hash(matches)
   standings <- data.frame(
-    schema_version = "phase18-fd-standing-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-standing-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     stage = "LEAGUE_STAGE", position = seq_len(36L), club_id = club_ids,
     played = 0L, points = 0L, row_sha256 = "", stringsAsFactors = FALSE,
     check.names = FALSE
   )
-  standings$row_sha256 <- phase18_row_sha256(standings)
+  standings$row_sha256 <- phase18_ucl_projected_row_hash(standings)
   competition <- data.frame(
-    schema_version = "phase18-fd-competition-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-competition-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     provider_id = "football_data_org_v4", provider_competition_id = "2001",
     provider_season_id = "2026", code = "CL", name = "UEFA Champions League",
     last_updated_utc = "2026-09-19T11:45:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  competition$row_sha256 <- phase18_row_sha256(competition)
+  competition$row_sha256 <- phase18_ucl_projected_row_hash(competition)
   lifecycle <- data.frame(
-    schema_version = "phase18-fd-lifecycle-v1", edition_id = "ucl_2026_27",
+    schema_version = "phase18-fd-lifecycle-v2", hash_encoding_version = phase18_canonical_encoding_v2(),
+    edition_id = "ucl_2026_27",
     lifecycle = "league_phase", observed_club_count = 36L,
     observed_match_count = 144L, observed_standings_rows = 36L,
     observed_stages = "LEAGUE_STAGE",
@@ -120,7 +125,7 @@ phase18_bundle_test_projected <- function(evidence) {
     retrieved_at_utc = "2026-09-19T12:00:00Z", row_sha256 = "",
     stringsAsFactors = FALSE, check.names = FALSE
   )
-  lifecycle$row_sha256 <- phase18_row_sha256(lifecycle)
+  lifecycle$row_sha256 <- phase18_ucl_projected_row_hash(lifecycle)
   list(
     competition = competition, clubs = clubs, matches = matches,
     standings = standings, lifecycle = lifecycle,
@@ -154,22 +159,22 @@ phase18_bundle_test_manual_review <- function(fetched = phase18_bundle_test_fetc
     check.names = FALSE
   )
   review$manual_review_sha256 <- phase18_ucl_manual_review_hash(review)
-  review$row_sha256 <- phase18_row_sha256(review)
+  review$row_sha256 <- phase18_ucl_row_hash(review)
   review
 }
 
-phase18_bundle_test_fixture_contract <- function() {
+phase18_bundle_test_fixture_contract <- function(fetched = phase18_bundle_test_fetched()) {
   contract <- data.frame(
     schema_version = "phase18-ucl-fixture-contract-v2",
     hash_encoding_version = phase18_canonical_encoding_v2(),
     fixture_id = "ucl-contract-fixture-001", edition_id = "ucl_2026_27",
     fixture_purpose = "offline contract tests only",
-    aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(phase18_bundle_test_fetched()),
+    aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(fetched),
     fixture_sha256 = "", row_sha256 = "", stringsAsFactors = FALSE,
     check.names = FALSE
   )
   contract$fixture_sha256 <- phase18_ucl_fixture_hash(contract)
-  contract$row_sha256 <- phase18_row_sha256(contract)
+  contract$row_sha256 <- phase18_ucl_row_hash(contract)
   contract
 }
 
@@ -270,7 +275,7 @@ test_that("provider-live projected resources write and fresh-process validate a 
   evidence_parent <- tempfile("phase18-provider-authority-")
   evidence_root <- file.path(evidence_parent, "football_data_org_v4", "ucl_2026_27")
   dir.create(evidence_root, recursive = TRUE)
-  phase18_write_acceptance_stage(
+  phase18_publish_acceptance_generation(
     evidence_root, evidence$owner_review, evidence$edition_expectations,
     evidence$machine_checks, evidence$schema_fingerprint, evidence$manifest,
     "# Fixture accepted provider authority\n"
@@ -278,10 +283,12 @@ test_that("provider-live projected resources write and fresh-process validate a 
   cli_root <- tempfile("phase18-provider-live-cli-")
   registry_root <- tempfile("phase18-club-registry-")
   dir.create(registry_root)
+  review_path <- tempfile("phase18-provider-review-", fileext = ".csv")
+  utils::write.csv(evidence$owner_review, review_path, row.names = FALSE, na = "", quote = TRUE)
   cli <- phase18_accept_ucl_provider_main(
     args = c(
       "--provider-id", "football_data_org_v4", "--edition-id", "ucl_2026_27",
-      "--review-path", file.path(phase18_bundle_test_root, "tests/fixtures/phase18/provider_terms_review.csv"),
+      "--review-path", review_path,
       "--evidence-root", evidence_parent, "--mode", "provider_live",
       "--club-registry-root", registry_root, "--candidate-root", cli_root,
       "--bundle-id", "ucl-2026-27-provider-cli-v1"
@@ -328,14 +335,15 @@ test_that("manual and fixture authorities are closed, recomputed, and source-mod
     phase18_validate_source_authority("fixture_contract", list(
       authority_type = "fixture_contract", fixture_contract = fixture,
       manual_source_review = manual
-    )),
+    ), candidate_edition_id = "ucl_2026_27",
+    aggregate_raw_sha256 = phase18_ucl_raw_aggregate_sha256(fetched)),
     "exactly one|authority"
   )
   forged <- fixture_candidate
   forged$authority$promotion_eligible <- TRUE
-  forged$authority$row_sha256 <- phase18_row_sha256(forged$authority)
+  forged$authority$row_sha256 <- phase18_ucl_row_hash(forged$authority)
   forged$bundle$promotion_eligible <- TRUE
-  forged$bundle$row_sha256 <- phase18_row_sha256(forged$bundle)
+  forged$bundle$row_sha256 <- phase18_ucl_row_hash(forged$bundle)
   expect_error(phase18_validate_ucl_source_bundle(forged), "authority|non-promotable")
 })
 
@@ -365,15 +373,15 @@ test_that("complete bundle hashes are order-stable and every tamper surface fail
   canonical_tamper$tables$clubs$display_name[[1L]] <- "Tampered Club"
   expect_error(phase18_validate_ucl_source_bundle(canonical_tamper), "row hash|[Cc]anonical")
   schema_tamper <- base
-  schema_tamper$artifacts$schema_fingerprint_sha256[[1L]] <- phase18_ucl_hash("drift")
+  schema_tamper$artifacts$schema_fingerprint_sha256[[1L]] <- phase18_ucl_hash(charToRaw("drift"))
   expect_error(phase18_validate_ucl_source_bundle(schema_tamper), "Artifact hash|schema")
   path_tamper <- base
   path_tamper$artifacts$relative_raw_path[[1L]] <- "../outside.json"
-  path_tamper$artifacts$row_sha256 <- phase18_row_sha256(path_tamper$artifacts)
+  path_tamper$artifacts$row_sha256 <- phase18_ucl_row_hash(path_tamper$artifacts)
   expect_error(phase18_validate_ucl_source_bundle(path_tamper), "Unsafe|path")
   manifest_tamper <- base
-  manifest_tamper$bundle$manifest_self_sha256 <- phase18_ucl_hash("forged manifest")
-  manifest_tamper$bundle$row_sha256 <- phase18_row_sha256(manifest_tamper$bundle)
+  manifest_tamper$bundle$manifest_self_sha256 <- phase18_ucl_hash(charToRaw("forged manifest"))
+  manifest_tamper$bundle$row_sha256 <- phase18_ucl_row_hash(manifest_tamper$bundle)
   expect_error(phase18_validate_ucl_source_bundle(manifest_tamper), "manifest|hash")
 
   root <- tempfile("phase18-collision-")
@@ -382,8 +390,13 @@ test_that("complete bundle hashes are order-stable and every tamper surface fail
   changed <- fetched
   changed$teams$body <- c(changed$teams$body, charToRaw(" "))
   changed$teams$raw_sha256 <- phase18_ucl_hash(changed$teams$body)
+  collision_authority <- list(
+    authority_type = "fixture_contract",
+    fixture_contract = phase18_bundle_test_fixture_contract(changed)
+  )
   collision <- phase18_build_ucl_source_bundle(
-    projected, changed, authority, evidence$edition_expectations, "ucl-2026-27-tamper-fixture-v1"
+    projected, changed, collision_authority, evidence$edition_expectations,
+    "ucl-2026-27-tamper-fixture-v1"
   )
   expect_error(phase18_write_ucl_candidate(root, collision), class = "blocked_provenance_collision")
 })
@@ -441,7 +454,8 @@ test_that("committed manual source review is explicit and cannot fabricate appro
   expect_error(
     phase18_validate_source_authority("manual_reviewed", list(
       authority_type = "manual_source_review", manual_source_review = review
-    )),
+    ), candidate_edition_id = "ucl_2026_27",
+    aggregate_raw_sha256 = as.character(review$aggregate_raw_sha256[[1L]])),
     "not accepted"
   )
 })
@@ -492,7 +506,7 @@ test_that("bundle schemas expose the complete provenance graph and reject incomp
   )
   duplicate <- projected
   duplicate$clubs$club_id[[2L]] <- duplicate$clubs$club_id[[1L]]
-  duplicate$clubs$row_sha256 <- phase18_row_sha256(duplicate$clubs)
+  duplicate$clubs$row_sha256 <- phase18_ucl_projected_row_hash(duplicate$clubs)
   expect_error(
     phase18_build_ucl_source_bundle(
       duplicate, fetched,
