@@ -102,6 +102,15 @@ test_that("authority escalation national identity and arbitrary-path attacks fai
     phase19_load_fixture_club_training_snapshot(root, "production"),
     class = "phase19_fixture_authority_error"
   )
+  relabeled <- snapshot
+  relabeled$authority_mode <- "production"
+  relabeled$fixture_authority <- FALSE
+  relabeled$fixture_root_sha256 <- ""
+  relabeled$snapshot_sha256 <- phase19_training_snapshot_sha256(relabeled)
+  expect_error(
+    phase19_validate_club_training_snapshot(relabeled, "production"),
+    class = "phase19_invalid_snapshot"
+  )
   expect_error(
     phase19_load_club_training_snapshot(current_path = file.path(root, "history_current.json")),
     class = "phase19_arbitrary_authority_error"

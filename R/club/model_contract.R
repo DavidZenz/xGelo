@@ -100,6 +100,26 @@ phase19_reject_arbitrary_arguments <- function(arguments) {
   invisible(TRUE)
 }
 
+phase19_club_fixed_history_paths <- function() {
+  list(
+    current = file.path(.phase19_club_project_root, "data/club/history_current.json"),
+    generations = file.path(.phase19_club_project_root, "data/club/history_generations")
+  )
+}
+
+phase19_club_fixed_current_paths <- function() {
+  list(
+    accepted = file.path(.phase19_club_project_root, "data/competition/accepted"),
+    registries = file.path(.phase19_club_project_root, "data/competition/registries"),
+    club_registries = file.path(.phase19_club_project_root, "data/club/registries")
+  )
+}
+
+phase19_club_same_path <- function(left, right) {
+  normalizePath(as.character(left), winslash = "/", mustWork = FALSE) ==
+    normalizePath(as.character(right), winslash = "/", mustWork = FALSE)
+}
+
 phase19_fixture_marker_schema <- function() c(
   "schema_version", "hash_encoding_version", "authority_mode",
   "fixture_authority", "fixture_id", "fixture_root_sha256", "marker_sha256"
@@ -246,6 +266,30 @@ phase19_validate_training_matches <- function(matches, manifest) {
 
 phase19_build_training_snapshot <- function(current_path, generations_root,
                                             authority_mode, fixture_root_sha256 = "") {
+  authority_mode <- phase19_scalar(authority_mode, "authority_mode")
+  if (!authority_mode %in% c("production", "fixture")) {
+    phase19_club_abort("invalid_snapshot", "Training snapshot authority mode is not recognised")
+  }
+  fixed <- phase19_club_fixed_history_paths()
+  if (identical(authority_mode, "production")) {
+    if (!phase19_club_same_path(current_path, fixed$current) ||
+        !phase19_club_same_path(generations_root, fixed$generations) ||
+        nzchar(as.character(fixture_root_sha256))) {
+      phase19_club_abort(
+        "arbitrary_authority",
+        "Production training authority can only use the fixed Phase 18 history roots"
+      )
+    }
+  } else {
+    fixture_root <- dirname(normalizePath(current_path, winslash = "/", mustWork = FALSE))
+    if (!phase19_club_same_path(generations_root, file.path(fixture_root, "history_generations"))) {
+      phase19_club_abort("fixture_authority", "Fixture history paths must share one marked fixture root")
+    }
+    marker <- phase19_validate_fixture_root(fixture_root)
+    if (!identical(as.character(fixture_root_sha256), as.character(marker$marker$fixture_root_sha256))) {
+      phase19_club_abort("fixture_authority", "Fixture history is not bound to its authority marker")
+    }
+  }
   pointer <- tryCatch(
     phase18_read_club_history_current(current_path, generations_root),
     error = function(error) error
@@ -337,11 +381,8 @@ phase19_load_club_training_snapshot <- function(fit_callback = NULL, ...) {
   if (!is.null(fit_callback) && !is.function(fit_callback)) {
     phase19_club_abort("invalid_snapshot", "fit_callback must be NULL or a function")
   }
-  snapshot <- phase19_build_training_snapshot(
-    file.path(.phase19_club_project_root, "data/club/history_current.json"),
-    file.path(.phase19_club_project_root, "data/club/history_generations"),
-    "production"
-  )
+  fixed <- phase19_club_fixed_history_paths()
+  snapshot <- phase19_build_training_snapshot(fixed$current, fixed$generations, "production")
   if (identical(snapshot$status, "ready") && !is.null(fit_callback)) fit_callback(snapshot)
   snapshot
 }
@@ -371,6 +412,59 @@ phase19_validate_club_training_snapshot <- function(snapshot,
   }
   if (!identical(snapshot$model_domain, "club") || !identical(snapshot$entity_kind, "club")) {
     phase19_club_abort("domain_mismatch", "Training snapshot is not club-domain authority")
+  }
+  if (identical(expected_authority_mode, "production")) {
+    fixed <- phase19_club_fixed_history_paths()
+    pointer <- tryCatch(
+      phase18_read_club_history_current(fixed$current, fixed$generations),
+      error = function(error) error
+    )
+    if (inherits(pointer, "error") ||
+        !identical(as.character(pointer$acceptance_state), "accepted") ||
+        !identical(as.character(pointer$accepted_generation_id),
+                   as.character(snapshot$accepted_generation_id))) {
+      phase19_club_abort(
+        "invalid_snapshot",
+        "Production training snapshot is not bound to the fixed accepted Phase 18 pointer"
+      )
+    }
+    generation_root <- file.path(fixed$generations, as.character(pointer$accepted_generation_id))
+    generation <- tryCatch(phase18_history_validate_generation(generation_root),
+                           error = function(error) error)
+    accepted <- tryCatch(
+      phase18_validate_club_history_corpus(file.path(generation_root, "accepted")),
+      error = function(error) error
+    )
+    if (inherits(generation, "error") || inherits(accepted, "error") ||
+        !isTRUE(accepted$accepted_for_training)) {
+      phase19_club_abort(
+        "invalid_snapshot",
+        "Production training snapshot is not bound to an accepted Phase 18 generation"
+      )
+    }
+    manifest <- accepted$tables$corpus_manifest
+    canonical <- phase18_history_canonical_table(
+      accepted$tables$matches, c("source_id", "source_match_id", "match_id")
+    )
+    expected_match_hash <- phase18_hash_table_v2(
+      canonical, key = c("source_id", "source_match_id", "match_id"),
+      schema_tag = "phase19-club-training-matches-v1"
+    )
+    expected_corpus <- as.character(manifest$manifest_sha256[[1L]])
+    expected_registry <- as.character(manifest$club_registry_sha256[[1L]])
+    if (!identical(as.character(snapshot$pointer_sha256), as.character(pointer$pointer_sha256)) ||
+        !identical(as.character(snapshot$generation_manifest_sha256),
+                   as.character(pointer$generation_manifest_sha256)) ||
+        !identical(as.character(snapshot$corpus_manifest_sha256), expected_corpus) ||
+        !identical(as.character(snapshot$club_registry_sha256), expected_registry) ||
+        !identical(as.character(snapshot$cutoff_utc), as.character(manifest$cutoff_utc[[1L]])) ||
+        !identical(as.character(snapshot$phase19_matches_sha256), expected_match_hash) ||
+        !identical(snapshot$matches, canonical)) {
+      phase19_club_abort(
+        "invalid_snapshot",
+        "Production training snapshot content or Phase 18 source identity drifted"
+      )
+    }
   }
   if (!identical(isTRUE(snapshot$fixture_authority), identical(expected_authority_mode, "fixture")) ||
       (identical(expected_authority_mode, "fixture") && !phase19_is_sha256(snapshot$fixture_root_sha256)) ||
@@ -466,6 +560,29 @@ phase19_read_identity_pointer <- function(registry_root) {
 
 phase19_build_current_snapshot <- function(candidate, registry_root, authority_mode,
                                            source_ref, fixture_root_sha256 = "") {
+  authority_mode <- phase19_scalar(authority_mode, "authority_mode")
+  if (!authority_mode %in% c("production", "fixture")) {
+    phase19_club_abort("invalid_snapshot", "Current UCL authority mode is not recognised")
+  }
+  fixed <- phase19_club_fixed_current_paths()
+  if (identical(authority_mode, "production")) {
+    if (!phase19_club_same_path(registry_root, fixed$club_registries) ||
+        nzchar(as.character(fixture_root_sha256))) {
+      phase19_club_abort(
+        "arbitrary_authority",
+        "Production current-UCL authority can only use the fixed Phase 18 club registry root"
+      )
+    }
+  } else {
+    fixture_root <- dirname(normalizePath(registry_root, winslash = "/", mustWork = FALSE))
+    if (!phase19_club_same_path(registry_root, file.path(fixture_root, "club_registries"))) {
+      phase19_club_abort("fixture_authority", "Fixture current-UCL paths must share one marked fixture root")
+    }
+    marker <- phase19_validate_fixture_root(fixture_root)
+    if (!identical(as.character(fixture_root_sha256), as.character(marker$marker$fixture_root_sha256))) {
+      phase19_club_abort("fixture_authority", "Fixture current-UCL source is not bound to its authority marker")
+    }
+  }
   valid <- tryCatch({
     phase18_validate_ucl_source_bundle(candidate)
     TRUE
@@ -622,6 +739,56 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
   is_fixture <- identical(expected_authority_mode, "fixture")
   if (!identical(snapshot$model_domain, "club") || !identical(snapshot$entity_kind, "club")) {
     phase19_club_abort("domain_mismatch", "Current UCL snapshot is not club-domain authority")
+  }
+  if (!is_fixture) {
+    fixed <- phase19_club_fixed_current_paths()
+    accepted <- tryCatch(
+      phase18_read_ucl_refresh_current(fixed$accepted, fixed$registries),
+      error = function(error) error
+    )
+    if (inherits(accepted, "error") || is.null(accepted) ||
+        is.null(accepted$accepted) || is.null(accepted$accepted$bundle)) {
+      phase19_club_abort(
+        "invalid_snapshot",
+        "Production current-UCL snapshot is not bound to an accepted fixed Phase 18 bundle"
+      )
+    }
+    pointer <- accepted$pointer
+    source_bundle <- accepted$accepted$bundle
+    source_authority <- accepted$accepted$authority
+    identity <- tryCatch({
+      pointer <- phase19_read_identity_pointer(fixed$club_registries)
+      registries <- phase18_load_club_registries(fixed$club_registries)
+      list(pointer = pointer, registries = registries)
+    }, error = function(error) error)
+    if (inherits(identity, "error") ||
+        identical(as.character(source_authority$authority_type[[1L]]), "fixture_contract") ||
+        !isTRUE(phase18_ucl_bool(source_bundle$promotion_eligible[[1L]], "promotion_eligible"))) {
+      phase19_club_abort(
+        "invalid_snapshot",
+        "Production current-UCL source authority is not accepted or promotable"
+      )
+    }
+    if (!identical(as.character(snapshot$accepted_generation_id),
+                   as.character(pointer$accepted_generation_id)) ||
+        !identical(as.character(snapshot$accepted_generation_sha256),
+                   as.character(pointer$accepted_generation_sha256)) ||
+        !identical(as.character(snapshot$source_generation_id),
+                   as.character(pointer$accepted_generation_id)) ||
+        !identical(as.character(snapshot$bundle_id), as.character(source_bundle$bundle_id[[1L]])) ||
+        !identical(as.character(snapshot$bundle_sha256), as.character(source_bundle$bundle_sha256[[1L]])) ||
+        !identical(as.character(snapshot$source_authority_sha256),
+                   as.character(source_authority$authority_sha256[[1L]])) ||
+        !identical(as.character(snapshot$identity_generation), as.character(identity$pointer$generation)) ||
+        !identical(as.character(snapshot$identity_pointer_sha256),
+                   as.character(identity$pointer$pointer_sha256)) ||
+        !identical(as.character(snapshot$identity_registry_sha256),
+                   as.character(identity$pointer$registry_sha256))) {
+      phase19_club_abort(
+        "invalid_snapshot",
+        "Production current-UCL snapshot content or Phase 18 parent identity drifted"
+      )
+    }
   }
   if (!identical(isTRUE(snapshot$fixture_authority), is_fixture) ||
       !identical(isTRUE(snapshot$promotion_eligible), !is_fixture) ||
