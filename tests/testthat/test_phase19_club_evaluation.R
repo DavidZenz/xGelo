@@ -379,18 +379,6 @@ phase19_evaluation_test_evaluations <- local({
   }
 })
 
-phase19_evaluation_test_integrity <- function() {
-  stats::setNames(
-    as.list(rep(TRUE, 11L)),
-    c(
-      "probability_integrity", "distribution_integrity", "cutoff_integrity",
-      "identity_integrity", "source_integrity", "license_integrity",
-      "feature_integrity", "seed_integrity", "checksum_integrity",
-      "domain_integrity", "model_card_integrity"
-    )
-  )
-}
-
 phase19_evaluation_test_promotion <- function(evaluations = phase19_evaluation_test_evaluations()) {
   if (!exists("phase19_load_fixture_club_evaluation_protocol", mode = "function")) {
     phase19_evaluation_test_load()
@@ -401,11 +389,14 @@ phase19_evaluation_test_promotion <- function(evaluations = phase19_evaluation_t
     evaluations, rev(evaluations), protocol
   )
   authority <- phase19_fixture_evaluation_authority(aggregate, protocol)
+  integrity <- phase19_derive_club_integrity_evidence(
+    aggregate, protocol, replay, authority
+  )
   list(
     protocol = protocol, evaluations = evaluations, aggregate = aggregate,
-    replay = replay, authority = authority,
+    replay = replay, authority = authority, integrity = integrity,
     decision = phase19_evaluate_club_promotion(
-      aggregate, protocol, replay, phase19_evaluation_test_integrity(), authority
+      aggregate, protocol, replay, integrity, authority
     )
   )
 }
@@ -435,7 +426,7 @@ test_that("fixture diagnostics pass while promotion remains fixture-ineligible",
   expect_match(decision$decision_sha256, "^[0-9a-f]{64}$")
   expect_silent(phase19_validate_club_promotion_decision(
     decision, result$aggregate, result$protocol, result$replay,
-    phase19_evaluation_test_integrity(), result$authority
+    result$integrity, result$authority
   ))
 })
 
@@ -506,7 +497,9 @@ test_that("ties failures and every production prerequisite retain or block", {
   tied_replay <- phase19_club_reproducibility_evidence(tied, tied, result$protocol)
   tied_authority <- phase19_fixture_evaluation_authority(tied, result$protocol)
   decision <- phase19_evaluate_club_promotion(
-    tied, result$protocol, tied_replay, phase19_evaluation_test_integrity(),
+    tied, result$protocol, tied_replay,
+    phase19_derive_club_integrity_evidence(tied, result$protocol, tied_replay,
+                                           tied_authority),
     tied_authority
   )
   expect_identical(decision$diagnostic_gate_outcome, "fail")
@@ -543,7 +536,9 @@ test_that("replay drift and decision relabeling cannot become promotion authorit
   expect_false(replay$reproducible)
   decision <- phase19_evaluate_club_promotion(
     result$aggregate, result$protocol, replay,
-    phase19_evaluation_test_integrity(), result$authority
+    phase19_derive_club_integrity_evidence(
+      result$aggregate, result$protocol, replay, result$authority
+    ), result$authority
   )
   expect_identical(decision$diagnostic_gate_outcome, "fail")
   expect_true("byte_reproducibility_failed" %in% decision$reason_codes)
@@ -555,7 +550,7 @@ test_that("replay drift and decision relabeling cannot become promotion authorit
   expect_error(
     phase19_validate_club_promotion_decision(
       forged, result$aggregate, result$protocol, result$replay,
-      phase19_evaluation_test_integrity(), result$authority
+      result$integrity, result$authority
     ), class = "phase19_club_evaluation_error"
   )
 
@@ -576,7 +571,35 @@ test_that("replay drift and decision relabeling cannot become promotion authorit
   expect_error(
     phase19_evaluate_club_promotion(
       result$aggregate, result$protocol, result$replay,
-      phase19_evaluation_test_integrity(), forged_authority
+      result$integrity, forged_authority
     ), class = "phase19_club_evaluation_error"
+  )
+})
+
+test_that("production evaluation validation requires exact fold source evidence", {
+  result <- phase19_evaluation_test_promotion()
+  production <- result$protocol
+  production$authority_mode <- "production"
+  production$fixture_authority <- FALSE
+  production$production_eligible <- TRUE
+  expect_error(
+    phase19_validate_club_evaluation_set(result$aggregate, production),
+    class = "phase19_club_evaluation_error"
+  )
+  named_but_opaque <- setNames(
+    replicate(length(result$aggregate$fold_evaluations), list(), simplify = FALSE),
+    vapply(result$aggregate$fold_evaluations, `[[`, character(1), "fold_id")
+  )
+  expect_error(
+    phase19_validate_club_evaluation_set(result$aggregate, production, named_but_opaque),
+    class = "phase19_club_evaluation_error"
+  )
+})
+
+test_that("promotion integrity rejects caller-asserted logical lists", {
+  bare <- stats::setNames(as.list(rep(TRUE, 11L)), phase19_club_integrity_names())
+  expect_error(
+    phase19_club_integrity_sha256(bare),
+    class = "phase19_club_evaluation_error"
   )
 })

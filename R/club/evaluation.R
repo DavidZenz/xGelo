@@ -329,7 +329,15 @@ phase19_club_evaluation_calibration_error <- function(bins, model_id) {
   rows <- bins[bins$model_id == model_id & bins$n > 0L, , drop = FALSE]
   mean(vapply(c("home", "draw", "away"), function(class) {
     selected <- rows[rows$class == class, , drop = FALSE]
-    sum(selected$n * selected$absolute_gap) / sum(selected$n)
+    support <- sum(selected$n)
+    if (!length(selected$n) || !is.finite(support) || support <= 0L ||
+        any(!is.finite(selected$absolute_gap))) {
+      phase19_club_evaluation_abort(
+        "insufficient_class_support",
+        paste0("Evaluation calibration error requires positive support for class ", class)
+      )
+    }
+    sum(selected$n * selected$absolute_gap) / support
   }, numeric(1)))
 }
 
@@ -722,13 +730,67 @@ phase19_club_evaluation_fold_self_check <- function(evidence) {
   invisible(evidence)
 }
 
-phase19_club_evaluation_list_identity <- function(evaluations) {
+phase19_club_fold_source_evidence_schema <- function() {
+  c(
+    "candidate_predictions", "incumbent_predictions", "outcomes", "fold",
+    "protocol", "model_support", "role_provenance"
+  )
+}
+
+phase19_validate_club_fold_source_evidence <- function(evidence, source) {
+  if (!is.list(source) ||
+      !identical(names(source), phase19_club_fold_source_evidence_schema())) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      "Production fold source evidence must include exact predictions, labels, fold, protocol, and support objects"
+    )
+  }
+  if (!identical(as.character(source$fold$fold_id), as.character(evidence$fold_id)) ||
+      !inherits(source$protocol, "phase19_club_evaluation_protocol")) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid", "Production fold source evidence is bound to another fold or protocol"
+    )
+  }
+  phase19_validate_club_fold_evaluation(
+    evidence, source$candidate_predictions, source$incumbent_predictions,
+    source$outcomes, source$fold, source$protocol,
+    source$model_support, source$role_provenance
+  )
+  invisible(source)
+}
+
+phase19_club_evaluation_source_by_fold <- function(source_evidence, evaluations,
+                                                   protocol) {
+  if (!identical(protocol$authority_mode, "production")) return(NULL)
+  fold_ids <- vapply(evaluations, `[[`, character(1), "fold_id")
+  if (!is.list(source_evidence) || is.null(names(source_evidence)) ||
+      !setequal(names(source_evidence), fold_ids)) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      "Production evaluation requires one exact source-evidence bundle per registered fold"
+    )
+  }
+  source_evidence[fold_ids]
+}
+
+phase19_club_evaluation_list_identity <- function(evaluations, source_evidence = NULL,
+                                                  protocol = NULL) {
   if (!is.list(evaluations) || length(evaluations) < 2L) {
     phase19_club_evaluation_abort(
       "evaluation_set_invalid", "Evaluation set requires multiple canonical folds"
     )
   }
-  invisible(lapply(evaluations, phase19_club_evaluation_fold_self_check))
+  source_by_fold <- if (!is.null(protocol)) {
+    phase19_club_evaluation_source_by_fold(source_evidence, evaluations, protocol)
+  } else NULL
+  invisible(lapply(seq_along(evaluations), function(index) {
+    phase19_club_evaluation_fold_self_check(evaluations[[index]])
+    if (!is.null(source_by_fold)) {
+      phase19_validate_club_fold_source_evidence(
+        evaluations[[index]], source_by_fold[[evaluations[[index]]$fold_id]]
+      )
+    }
+  }))
   fold_ids <- vapply(evaluations, `[[`, character(1), "fold_id")
   if (anyDuplicated(fold_ids)) {
     phase19_club_evaluation_abort(
@@ -863,7 +925,8 @@ phase19_club_evaluation_metrics_from_summaries <- function(fold_summaries,
 #' Aggregate validated club folds before applying promotion rules.
 #'
 #' @export
-phase19_aggregate_club_evaluations <- function(evaluations, protocol) {
+phase19_aggregate_club_evaluations <- function(evaluations, protocol,
+                                               source_evidence = NULL) {
   phase19_club_evaluation_require_dependencies()
   if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
       !identical(protocol$status, "ready") || !identical(protocol$forecast_domain, "club")) {
@@ -872,7 +935,9 @@ phase19_aggregate_club_evaluations <- function(evaluations, protocol) {
     )
   }
   phase19_validate_gate_registry(protocol$gate_registry)
-  member_hash <- phase19_club_evaluation_list_identity(evaluations)
+  member_hash <- phase19_club_evaluation_list_identity(
+    evaluations, source_evidence, protocol
+  )
   families <- vapply(evaluations, `[[`, character(1), "fold_family")
   required_families <- c("rolling_origin_league_season", "heldout_league_transport")
   if (!setequal(unique(families), required_families) ||
@@ -967,7 +1032,19 @@ phase19_aggregate_club_evaluations <- function(evaluations, protocol) {
   result
 }
 
-phase19_validate_club_evaluation_set <- function(evidence, protocol) {
+phase19_validate_club_evaluation_set <- function(evidence, protocol,
+                                                 source_evidence = NULL) {
+  if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
+      !identical(protocol$status, "ready")) {
+    phase19_club_evaluation_abort(
+      "evaluation_protocol_invalid", "Evaluation-set validation requires one ready protocol"
+    )
+  }
+  if (identical(protocol$authority_mode, "production")) {
+    phase19_club_evaluation_source_by_fold(
+      source_evidence, evidence$fold_evaluations, protocol
+    )
+  }
   cache_key <- phase19_club_evaluation_cache_key(evidence, "set")
   if (exists(cache_key, envir = .phase19_club_evaluation_validation_cache,
              inherits = FALSE)) {
@@ -976,6 +1053,15 @@ phase19_validate_club_evaluation_set <- function(evidence, protocol) {
                    protocol$policy_review$review_sha256)) {
       phase19_club_evaluation_abort(
         "evaluation_set_source_mismatch", "Cached evaluation parents differ from protocol"
+      )
+    }
+    if (identical(protocol$authority_mode, "production")) {
+      # A cached aggregate is only a performance optimization. Re-run the
+      # exact fold-source replay on every production validation so a caller
+      # cannot satisfy the gate with a correctly named but unrelated source
+      # bundle.
+      phase19_club_evaluation_list_identity(
+        evidence$fold_evaluations, source_evidence, protocol
       )
     }
     return(invisible(evidence))
@@ -988,7 +1074,9 @@ phase19_validate_club_evaluation_set <- function(evidence, protocol) {
       "evaluation_set_hash_mismatch", "Club evaluation-set identity drifted"
     )
   }
-  expected <- phase19_aggregate_club_evaluations(evidence$fold_evaluations, protocol)
+  expected <- phase19_aggregate_club_evaluations(
+    evidence$fold_evaluations, protocol, source_evidence
+  )
   if (!identical(evidence$evaluation_set_sha256, expected$evaluation_set_sha256)) {
     phase19_club_evaluation_abort(
       "evaluation_set_source_mismatch", "Evaluation set does not derive from its exact folds"
@@ -1072,7 +1160,8 @@ phase19_club_production_source_schema <- function() {
 }
 
 phase19_club_validate_production_sources <- function(source_evidence, evaluation,
-                                                     protocol) {
+                                                     protocol,
+                                                     fold_source_evidence = NULL) {
   if (!is.list(source_evidence) ||
       !identical(names(source_evidence), phase19_club_production_source_schema())) {
     phase19_club_evaluation_abort(
@@ -1118,6 +1207,9 @@ phase19_club_validate_production_sources <- function(source_evidence, evaluation
       "Production evaluation does not cover the accepted fold inventory"
     )
   }
+  phase19_club_evaluation_source_by_fold(
+    fold_source_evidence, evaluation$fold_evaluations, protocol
+  )
   list(
     history_snapshot_sha256 = as.character(history$snapshot_sha256),
     current_snapshot_sha256 = as.character(current$snapshot_sha256),
@@ -1167,9 +1259,11 @@ phase19_fixture_evaluation_authority <- function(evaluation, protocol) {
 #' @export
 phase19_production_evaluation_authority <- function(
     evaluation, protocol, history_snapshot, current_snapshot,
-    fold_protocol, rating_replay
+    fold_protocol, rating_replay, fold_source_evidence = NULL
 ) {
-  phase19_validate_club_evaluation_set(evaluation, protocol)
+  phase19_validate_club_evaluation_set(
+    evaluation, protocol, fold_source_evidence
+  )
   if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
       !identical(protocol$status, "ready") ||
       !identical(protocol$authority_mode, "production") ||
@@ -1183,7 +1277,9 @@ phase19_production_evaluation_authority <- function(
     history_snapshot = history_snapshot, current_snapshot = current_snapshot,
     fold_protocol = fold_protocol, rating_replay = rating_replay
   )
-  resolved <- phase19_club_validate_production_sources(sources, evaluation, protocol)
+  resolved <- phase19_club_validate_production_sources(
+    sources, evaluation, protocol, fold_source_evidence
+  )
   result <- list(
     schema_version = "phase19-club-evaluation-authority-v1",
     hash_encoding_version = phase18_canonical_encoding_v2(), forecast_domain = "club",
@@ -1314,17 +1410,161 @@ phase19_club_integrity_names <- function() {
   )
 }
 
-phase19_club_integrity_sha256 <- function(integrity) {
-  expected <- phase19_club_integrity_names()
-  if (!is.list(integrity) || !identical(names(integrity), expected) ||
-      any(!vapply(integrity, is.logical, logical(1))) || any(lengths(integrity) != 1L)) {
+phase19_club_integrity_artifact_names <- function() {
+  c(
+    "evaluation_set_sha256", "protocol_sha256", "replay_sha256",
+    "authority_sha256", "fold_members_sha256", "source_evidence_sha256"
+  )
+}
+
+phase19_club_integrity_evidence_schema <- function() {
+  c("schema_version", "hash_encoding_version", "checks", "artifact_hashes",
+    "evidence_sha256")
+}
+
+phase19_club_integrity_evidence_sha256 <- function(evidence) {
+  checks <- evidence$checks
+  artifacts <- evidence$artifact_hashes
+  values <- c(
+    list(schema_version = evidence$schema_version,
+         hash_encoding_version = evidence$hash_encoding_version),
+    stats::setNames(as.list(checks), paste0("check_", names(checks))),
+    stats::setNames(as.list(artifacts), paste0("artifact_", names(artifacts)))
+  )
+  phase19_club_evaluation_hash_values(
+    values, "phase19-club-promotion-integrity-evidence-v1"
+  )
+}
+
+phase19_validate_club_integrity_evidence <- function(
+    evidence, evaluation, protocol, replay, authority, source_evidence = NULL
+) {
+  if (!inherits(evidence, "phase19_club_integrity_evidence") ||
+      !identical(names(evidence), phase19_club_integrity_evidence_schema()) ||
+      !identical(names(evidence$checks), phase19_club_integrity_names()) ||
+      !identical(names(evidence$artifact_hashes), phase19_club_integrity_artifact_names()) ||
+      any(!vapply(evidence$checks, is.logical, logical(1))) ||
+      any(lengths(evidence$checks) != 1L) ||
+      any(!vapply(evidence$artifact_hashes, phase19_is_sha256, logical(1))) ||
+      !identical(evidence$evidence_sha256,
+                 phase19_club_integrity_evidence_sha256(evidence))) {
     phase19_club_evaluation_abort(
-      "promotion_integrity_invalid", "Promotion integrity evidence is incomplete"
+      "promotion_integrity_invalid",
+      "Promotion integrity evidence must be one exact typed artifact-bound object"
     )
   }
-  phase19_club_evaluation_hash_values(
-    integrity, "phase19-club-promotion-integrity-v1"
+  expected <- phase19_derive_club_integrity_evidence(
+    evaluation, protocol, replay, authority, source_evidence
   )
+  if (!identical(evidence$evidence_sha256, expected$evidence_sha256)) {
+    phase19_club_evaluation_abort(
+      "promotion_integrity_source_mismatch",
+      "Promotion integrity evidence does not derive from validated artifacts"
+    )
+  }
+  invisible(evidence)
+}
+
+phase19_derive_club_integrity_evidence <- function(
+    evaluation, protocol, replay, authority, source_evidence = NULL
+) {
+  phase19_validate_club_evaluation_set(evaluation, protocol, source_evidence)
+  phase19_club_validate_reproducibility(replay, protocol)
+  phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
+  folds <- evaluation$fold_evaluations
+  probabilities <- all(vapply(folds, function(fold) {
+    fields <- c("p_home", "p_draw", "p_away")
+    rows <- fold$predictions[fold$predictions$model_id %in%
+      c("club_elo_nb", "club_venue_nb"), fields, drop = FALSE]
+    nrow(rows) > 0L && all(vapply(rows, function(column) {
+      values <- as.numeric(column)
+      all(is.finite(values)) && all(values >= 0) && all(values <= 1)
+    }, logical(1)))
+  }, logical(1)))
+  distributions <- all(vapply(folds, function(fold) {
+    all(fold$coverage$fixture_coverage == 1) &&
+      all(fold$coverage$score_grid_coverage == 1)
+  }, logical(1)))
+  cutoffs <- all(vapply(folds, function(fold) all(fold$cutoff_evidence$cutoff_passed), logical(1)))
+  identities <- identical(evaluation$protocol_sha256, protocol$protocol_sha256) &&
+    identical(evaluation$authority_mode, authority$authority_mode) &&
+    identical(authority$evaluation_set_sha256, evaluation$evaluation_set_sha256)
+  sources <- if (identical(protocol$authority_mode, "production")) {
+    !is.null(source_evidence)
+  } else {
+    identical(authority$status, "fixture_ineligible") &&
+      isTRUE(authority$fixture_authority)
+  }
+  license <- if (identical(protocol$authority_mode, "production")) {
+    length(authority$source_evidence) > 0L
+  } else sources
+  feature <- isTRUE(identical(protocol$feature_contract_sha256,
+                              phase19_feature_contract_sha256(protocol$feature_contract)))
+  seed <- isTRUE(identical(protocol$seed_registry_sha256,
+                            phase19_seed_registry_sha256(protocol$seed_registry)))
+  checksum <- isTRUE(identical(evaluation$evaluation_set_sha256,
+                               phase19_club_evaluation_set_sha256(evaluation))) &&
+    isTRUE(identical(authority$authority_sha256,
+                     phase19_club_authority_sha256(authority)))
+  domain <- all(vapply(folds, function(fold) identical(fold$forecast_domain, "club"), logical(1))) &&
+    identical(protocol$forecast_domain, "club")
+  model_card <- all(vapply(folds, function(fold) {
+    all(vapply(fold$convergence$fit_sha256, phase19_is_sha256, logical(1))) &&
+      all(fold$convergence$fit_status == "converged")
+  }, logical(1)))
+  checks <- c(
+    probability_integrity = probabilities,
+    distribution_integrity = distributions,
+    cutoff_integrity = cutoffs,
+    identity_integrity = identities,
+    source_integrity = sources,
+    license_integrity = license,
+    feature_integrity = feature,
+    seed_integrity = seed,
+    checksum_integrity = checksum,
+    domain_integrity = domain,
+    model_card_integrity = model_card
+  )
+  source_hash <- if (!is.null(source_evidence)) {
+    digest::digest(source_evidence, algo = "sha256", serialize = TRUE)
+  } else {
+    digest::digest(list(authority_mode = protocol$authority_mode,
+                        fixture_authority = isTRUE(protocol$fixture_authority)),
+                   algo = "sha256", serialize = TRUE)
+  }
+  artifacts <- c(
+    evaluation_set_sha256 = evaluation$evaluation_set_sha256,
+    protocol_sha256 = protocol$protocol_sha256,
+    replay_sha256 = replay$evidence_sha256,
+    authority_sha256 = authority$authority_sha256,
+    fold_members_sha256 = evaluation$evaluation_member_sha256,
+    source_evidence_sha256 = source_hash
+  )
+  result <- list(
+    schema_version = "phase19-club-promotion-integrity-evidence-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    checks = as.list(checks), artifact_hashes = as.list(artifacts),
+    evidence_sha256 = ""
+  )
+  result$evidence_sha256 <- phase19_club_integrity_evidence_sha256(result)
+  structure(result, class = c("phase19_club_integrity_evidence", "list"))
+}
+
+phase19_club_integrity_sha256 <- function(integrity) {
+  if (!inherits(integrity, "phase19_club_integrity_evidence") ||
+      !identical(names(integrity), phase19_club_integrity_evidence_schema()) ||
+      !identical(names(integrity$checks), phase19_club_integrity_names()) ||
+      !identical(names(integrity$artifact_hashes), phase19_club_integrity_artifact_names()) ||
+      any(!vapply(integrity$checks, is.logical, logical(1))) ||
+      any(lengths(integrity$checks) != 1L) ||
+      any(!vapply(integrity$artifact_hashes, phase19_is_sha256, logical(1))) ||
+      !identical(integrity$evidence_sha256,
+                 phase19_club_integrity_evidence_sha256(integrity))) {
+    phase19_club_evaluation_abort(
+      "promotion_integrity_invalid", "Promotion integrity evidence is not a typed artifact-bound object"
+    )
+  }
+  integrity$evidence_sha256
 }
 
 phase19_club_validate_reproducibility <- function(replay, protocol) {
@@ -1342,7 +1582,8 @@ phase19_club_validate_reproducibility <- function(replay, protocol) {
   invisible(replay)
 }
 
-phase19_club_validate_authority <- function(authority, evaluation, protocol) {
+phase19_club_validate_authority <- function(authority, evaluation, protocol,
+                                            source_evidence = NULL) {
   if (!inherits(authority, "phase19_club_evaluation_authority") ||
       !identical(names(authority), phase19_club_authority_schema()) ||
       !identical(authority$authority_sha256,
@@ -1377,7 +1618,8 @@ phase19_club_validate_authority <- function(authority, evaluation, protocol) {
       )
     }
     resolved <- phase19_club_validate_production_sources(
-      authority$source_evidence, evaluation, protocol
+      authority$source_evidence, evaluation, protocol,
+      fold_source_evidence = source_evidence
     )
     compared <- c(
       "history_snapshot_sha256", "current_snapshot_sha256",
@@ -1397,17 +1639,21 @@ phase19_club_validate_authority <- function(authority, evaluation, protocol) {
 #'
 #' @export
 phase19_evaluate_club_promotion <- function(evaluation, protocol, replay,
-                                            integrity, authority) {
-  phase19_validate_club_evaluation_set(evaluation, protocol)
+                                            integrity, authority,
+                                            source_evidence = NULL) {
+  phase19_validate_club_evaluation_set(evaluation, protocol, source_evidence)
   phase19_club_validate_reproducibility(replay, protocol)
-  phase19_club_validate_authority(authority, evaluation, protocol)
+  phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
+  phase19_validate_club_integrity_evidence(
+    integrity, evaluation, protocol, replay, authority, source_evidence
+  )
   integrity_hash <- phase19_club_integrity_sha256(integrity)
   metrics <- evaluation$metrics
   metrics$current_ucl_club_coverage <- authority$current_ucl_club_coverage
   metrics$common_rating_component_coverage <- authority$common_component_coverage
   metrics$byte_reproducibility <- as.numeric(isTRUE(replay$reproducible))
   for (name in phase19_club_integrity_names()) {
-    metrics[[name]] <- as.numeric(isTRUE(integrity[[name]]))
+    metrics[[name]] <- as.numeric(isTRUE(integrity$checks[[name]]))
   }
   metrics_hash <- phase19_club_evaluation_metrics_sha256(metrics)
   gates <- phase19_apply_club_promotion_gates(
@@ -1465,7 +1711,8 @@ phase19_evaluate_club_promotion <- function(evaluation, protocol, replay,
 #'
 #' @export
 phase19_validate_club_promotion_decision <- function(
-    decision, evaluation, protocol, replay, integrity, authority
+    decision, evaluation, protocol, replay, integrity, authority,
+    source_evidence = NULL
 ) {
   if (!inherits(decision, "phase19_club_promotion_decision") ||
       !identical(names(decision), phase19_club_promotion_decision_schema()) ||
@@ -1476,7 +1723,7 @@ phase19_validate_club_promotion_decision <- function(
     )
   }
   expected <- phase19_evaluate_club_promotion(
-    evaluation, protocol, replay, integrity, authority
+    evaluation, protocol, replay, integrity, authority, source_evidence
   )
   if (!identical(decision$decision_sha256, expected$decision_sha256)) {
     phase19_club_evaluation_abort(
