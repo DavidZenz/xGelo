@@ -1445,23 +1445,16 @@ phase19_club_evaluation_identity <- function(value, protocol = NULL,
   phase19_club_evaluation_list_identity(value)
 }
 
-#' Build typed reproducibility evidence after the caller has selected an
-#' authority mode.  Production callers must use the fixed-source wrapper
-#' below; this internal escape hatch is deliberately not exported.
-phase19_club_reproducibility_evidence_build <- function(
+# Build reproducibility evidence from two already-controlled executions.  The
+# production boundary below is the only caller that may use this helper with a
+# production protocol; the public builder remains fixture-only.
+phase19_club_reproducibility_evidence_from_runs <- function(
     first, second, protocol, accepted_evaluation = NULL,
-    source_evidence = NULL, accepted_fold_protocol = NULL,
-    allow_production = FALSE
+    source_evidence = NULL, accepted_fold_protocol = NULL
 ) {
   seed <- phase19_club_evaluation_seed(protocol, "club_isolated_replay_v1")
   accepted_hash <- NULL
   if (identical(protocol$authority_mode, "production")) {
-    if (!isTRUE(allow_production)) {
-      phase19_club_evaluation_abort(
-        "reproducibility_source_invalid",
-        "Production reproducibility requires the fixed-source production wrapper"
-      )
-    }
     if (is.null(accepted_evaluation) || is.null(source_evidence) ||
         is.null(accepted_fold_protocol)) {
       phase19_club_evaluation_abort(
@@ -1495,11 +1488,29 @@ phase19_club_reproducibility_evidence_build <- function(
       (is.null(accepted_hash) || identical(first_hash, accepted_hash)), evidence_sha256 = ""
   )
   result$evidence_sha256 <- phase19_club_reproducibility_sha256(result)
-  classes <- c("phase19_club_reproducibility_evidence", "list")
-  if (isTRUE(allow_production) && identical(protocol$authority_mode, "production")) {
-    classes <- c("phase19_club_production_reproducibility_evidence", classes)
+  structure(result, class = c("phase19_club_reproducibility_evidence", "list"))
+}
+
+#' Build typed fixture reproducibility evidence.
+#'
+#' Production callers must use the fixed-source wrapper below.  The
+#' allow_production argument remains for compatibility with older callers but
+#' is deliberately rejected so this builder cannot mint production authority.
+phase19_club_reproducibility_evidence_build <- function(
+    first, second, protocol, accepted_evaluation = NULL,
+    source_evidence = NULL, accepted_fold_protocol = NULL,
+    allow_production = FALSE
+) {
+  if (isTRUE(allow_production) || identical(protocol$authority_mode, "production")) {
+    phase19_club_evaluation_abort(
+      "reproducibility_source_invalid",
+      "Production reproducibility requires the fixed-source production wrapper"
+    )
   }
-  structure(result, class = classes)
+  phase19_club_reproducibility_evidence_from_runs(
+    first, second, protocol, accepted_evaluation,
+    source_evidence, accepted_fold_protocol
+  )
 }
 
 #' Compare two isolated fixture club evaluation executions canonically.
@@ -1603,10 +1614,10 @@ phase19_production_club_reproducibility_evidence <- function(
   }
   first <- replay_once()
   second <- replay_once()
-  phase19_club_reproducibility_evidence_build(
+  phase19_club_reproducibility_evidence_from_runs(
     first, second, fixed$protocol, accepted_evaluation = evaluation,
     source_evidence = source_authority$fold_source_evidence,
-    accepted_fold_protocol = fixed$fold_protocol, allow_production = TRUE
+    accepted_fold_protocol = fixed$fold_protocol
   )
 }
 
@@ -2078,7 +2089,8 @@ phase19_club_integrity_evidence_sha256 <- function(evidence) {
 }
 
 phase19_validate_club_integrity_evidence <- function(
-    evidence, evaluation, protocol, replay, authority, source_evidence = NULL
+    evidence, evaluation, protocol, replay, authority, source_evidence = NULL,
+    production_source_authority = NULL
 ) {
   if (!inherits(evidence, "phase19_club_integrity_evidence") ||
       !identical(names(evidence), phase19_club_integrity_evidence_schema()) ||
@@ -2095,7 +2107,8 @@ phase19_validate_club_integrity_evidence <- function(
     )
   }
   expected <- phase19_derive_club_integrity_evidence(
-    evaluation, protocol, replay, authority, source_evidence
+    evaluation, protocol, replay, authority, source_evidence,
+    production_source_authority
   )
   if (!identical(evidence$evidence_sha256, expected$evidence_sha256)) {
     phase19_club_evaluation_abort(
@@ -2107,7 +2120,8 @@ phase19_validate_club_integrity_evidence <- function(
 }
 
 phase19_derive_club_integrity_evidence <- function(
-    evaluation, protocol, replay, authority, source_evidence = NULL
+    evaluation, protocol, replay, authority, source_evidence = NULL,
+    production_source_authority = NULL
 ) {
   accepted_fold_protocol <- if (identical(protocol$authority_mode, "production") &&
                                 inherits(authority$source_evidence, "list")) {
@@ -2116,10 +2130,11 @@ phase19_derive_club_integrity_evidence <- function(
   phase19_validate_club_evaluation_set(
     evaluation, protocol, source_evidence, accepted_fold_protocol
   )
-  phase19_club_validate_reproducibility(
+  replay <- phase19_club_validate_reproducibility(
     replay, protocol, evaluation = evaluation,
     source_evidence = source_evidence,
-    accepted_fold_protocol = accepted_fold_protocol
+    accepted_fold_protocol = accepted_fold_protocol,
+    production_source_authority = production_source_authority
   )
   phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
   folds <- evaluation$fold_evaluations
@@ -2218,12 +2233,13 @@ phase19_club_integrity_sha256 <- function(integrity) {
   integrity$evidence_sha256
 }
 
-phase19_club_validate_reproducibility <- function(
-    replay, protocol, evaluation = NULL, source_evidence = NULL,
-    accepted_fold_protocol = NULL
+phase19_club_validate_reproducibility_shape <- function(
+    replay, protocol, require_fixture_class = FALSE
 ) {
   seed <- phase19_club_evaluation_seed(protocol, "club_isolated_replay_v1")
-  if (!inherits(replay, "phase19_club_reproducibility_evidence") ||
+  if ((isTRUE(require_fixture_class) &&
+       !inherits(replay, "phase19_club_reproducibility_evidence")) ||
+      !is.list(replay) ||
       !identical(names(replay), phase19_club_reproducibility_schema()) ||
       !identical(replay$evidence_sha256,
                  phase19_club_reproducibility_sha256(replay)) ||
@@ -2233,33 +2249,54 @@ phase19_club_validate_reproducibility <- function(
       "reproducibility_evidence_invalid", "Reproducibility evidence or seed drifted"
     )
   }
+  invisible(replay)
+}
+
+phase19_club_validate_reproducibility <- function(
+    replay, protocol, evaluation = NULL, source_evidence = NULL,
+    accepted_fold_protocol = NULL, production_source_authority = NULL
+) {
   if (identical(protocol$authority_mode, "production")) {
-    if (!inherits(replay, "phase19_club_production_reproducibility_evidence")) {
+    required <- c(
+      "history_snapshot", "current_snapshot", "protocol", "evaluation",
+      "authority", "fold_protocol", "rating_replay", "integrity", "decision",
+      "fold_source_evidence"
+    )
+    if (is.null(production_source_authority) ||
+        !is.list(production_source_authority) ||
+        !identical(names(production_source_authority), required) ||
+        is.null(evaluation) || is.null(source_evidence) ||
+        is.null(accepted_fold_protocol) ||
+        !identical(production_source_authority$protocol, protocol) ||
+        !identical(production_source_authority$evaluation, evaluation) ||
+        !identical(production_source_authority$fold_protocol, accepted_fold_protocol) ||
+        !identical(production_source_authority$fold_source_evidence, source_evidence)) {
       phase19_club_evaluation_abort(
         "reproducibility_source_invalid",
-        "Production reproducibility evidence must come from the fixed-source wrapper"
+        "Production reproducibility requires the complete bound source graph"
       )
     }
-    if (is.null(evaluation) || is.null(source_evidence) ||
-        is.null(accepted_fold_protocol)) {
-      phase19_club_evaluation_abort(
-        "reproducibility_evidence_invalid",
-        "Production reproducibility validation requires the accepted evaluation source graph"
-      )
-    }
+    regenerated <- phase19_production_club_reproducibility_evidence(
+      production_source_authority$evaluation, production_source_authority
+    )
+    phase19_club_validate_reproducibility_shape(regenerated, protocol)
     phase19_validate_club_evaluation_set(
       evaluation, protocol, source_evidence, accepted_fold_protocol
     )
     expected <- phase19_club_evaluation_complete_output_sha256(evaluation)
-    if (!isTRUE(replay$reproducible) ||
-        !identical(as.character(replay$first_evaluation_sha256), expected) ||
-        !identical(as.character(replay$second_evaluation_sha256), expected)) {
+    if (!isTRUE(regenerated$reproducible) ||
+        !identical(as.character(regenerated$first_evaluation_sha256), expected) ||
+        !identical(as.character(regenerated$second_evaluation_sha256), expected)) {
       phase19_club_evaluation_abort(
         "reproducibility_source_mismatch",
         "Production reproducibility evidence does not match the accepted complete evaluation output"
       )
     }
+    return(regenerated)
   }
+  phase19_club_validate_reproducibility_shape(
+    replay, protocol, require_fixture_class = TRUE
+  )
   invisible(replay)
 }
 
@@ -2330,23 +2367,22 @@ phase19_evaluate_club_promotion <- function(evaluation, protocol, replay,
   phase19_validate_club_evaluation_set(
     evaluation, protocol, source_evidence, accepted_fold_protocol
   )
-  effective_replay <- if (identical(protocol$authority_mode, "production")) {
-    source_authority <- phase19_club_production_promotion_source_authority(
+  source_authority <- if (identical(protocol$authority_mode, "production")) {
+    phase19_club_production_promotion_source_authority(
       evaluation, protocol, integrity, authority, source_evidence,
       production_source_authority
     )
-    phase19_production_club_reproducibility_evidence(
-      evaluation, source_authority
-    )
-  } else replay
-  phase19_club_validate_reproducibility(
-    effective_replay, protocol, evaluation = evaluation,
+  } else NULL
+  effective_replay <- phase19_club_validate_reproducibility(
+    replay, protocol, evaluation = evaluation,
     source_evidence = source_evidence,
-    accepted_fold_protocol = accepted_fold_protocol
+    accepted_fold_protocol = accepted_fold_protocol,
+    production_source_authority = source_authority
   )
   phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
   phase19_validate_club_integrity_evidence(
-    integrity, evaluation, protocol, effective_replay, authority, source_evidence
+    integrity, evaluation, protocol, effective_replay, authority, source_evidence,
+    production_source_authority = source_authority
   )
   integrity_hash <- phase19_club_integrity_sha256(integrity)
   metrics <- evaluation$metrics
