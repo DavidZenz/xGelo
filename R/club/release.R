@@ -315,6 +315,120 @@ phase19_club_release_assert_parent_evidence <- function(
   invisible(TRUE)
 }
 
+phase19_club_release_production_parent_schema <- function() {
+  c(
+    "history_snapshot", "current_snapshot", "protocol", "evaluation",
+    "authority", "fold_protocol", "rating_replay", "integrity", "decision",
+    "fold_source_evidence"
+  )
+}
+
+#' Validate the complete typed authority graph before production installation.
+#'
+#' A release directory is only a serialized transport.  Its self-hashes and
+#' contract strings cannot establish Phase 18/19 authority, so production
+#' installation requires the accepted source graph in memory before any
+#' rename or selector write is permitted.
+phase19_club_release_validate_production_parent_graph <- function(
+    source_authority, model, calibrator
+) {
+  phase19_club_release_source_dependencies()
+  schema <- phase19_club_release_production_parent_schema()
+  if (!is.list(source_authority) || !identical(names(source_authority), schema)) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      "Production installation requires the complete typed Phase 18/19 parent graph"
+    )
+  }
+  required <- c(
+    "phase19_validate_club_training_snapshot",
+    "phase19_validate_current_ucl_club_snapshot",
+    "phase19_validate_club_rating_replay",
+    "phase19_validate_club_evaluation_set",
+    "phase19_club_validate_authority",
+    "phase19_validate_club_integrity_evidence",
+    "phase19_validate_club_promotion_decision",
+    "phase19_validate_club_goal_fit",
+    "phase19_validate_club_calibrator"
+  )
+  if (any(!vapply(required, exists, logical(1), mode = "function"))) {
+    phase19_club_release_abort(
+      "release_dependency_missing",
+      "Production authority validators must be loaded before installation"
+    )
+  }
+  history <- source_authority$history_snapshot
+  current <- source_authority$current_snapshot
+  protocol <- source_authority$protocol
+  evaluation <- source_authority$evaluation
+  authority <- source_authority$authority
+  folds <- source_authority$fold_protocol
+  replay <- source_authority$rating_replay
+  integrity <- source_authority$integrity
+  decision <- source_authority$decision
+  source_folds <- source_authority$fold_source_evidence
+  checked <- tryCatch({
+    phase19_validate_club_training_snapshot(history, "production")
+    phase19_validate_current_ucl_club_snapshot(current, "production")
+    if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
+        !identical(protocol$authority_mode, "production") ||
+        isTRUE(protocol$fixture_authority) || !isTRUE(protocol$production_eligible)) {
+      phase19_club_release_abort(
+        "production_authority_invalid",
+        "Production installation requires the accepted production protocol"
+      )
+    }
+    phase19_assert_production_fold_protocol(folds)
+    phase19_validate_club_rating_replay(
+      replay, history, current_snapshot = current,
+      parameters = replay$parameters, cutoff_utc = replay$cutoff_utc
+    )
+    phase19_validate_club_evaluation_set(
+      evaluation, protocol, source_folds, folds
+    )
+    phase19_club_validate_authority(
+      authority, evaluation, protocol, source_folds
+    )
+    phase19_validate_club_integrity_evidence(
+      integrity, evaluation, protocol, replay, authority, source_folds
+    )
+    phase19_club_release_decision_check(decision, "production")
+    phase19_validate_club_promotion_decision(
+      decision, evaluation, protocol, replay, integrity, authority, source_folds
+    )
+    phase19_validate_club_goal_fit(model)
+    phase19_validate_club_calibrator(calibrator, require_fitted = TRUE)
+    if (!isTRUE(model$production_eligible) ||
+        !isTRUE(calibrator$production_eligible) ||
+        isTRUE(model$fixture_authority) || isTRUE(calibrator$fixture_authority) ||
+        !identical(model$authority_mode, "production") ||
+        !identical(calibrator$authority_mode, "production") ||
+        !identical(as.character(model$model_id), as.character(decision$selected_model_id)) ||
+        !identical(as.character(calibrator$candidate_id), as.character(decision$selected_model_id)) ||
+        !identical(as.character(model$training_snapshot_sha256),
+                   as.character(history$snapshot_sha256)) ||
+        !identical(as.character(model$current_snapshot_sha256),
+                   as.character(current$snapshot_sha256)) ||
+        !identical(as.character(model$protocol_sha256),
+                   as.character(protocol$protocol_sha256)) ||
+        !identical(as.character(calibrator$protocol_sha256),
+                   as.character(protocol$protocol_sha256))) {
+      phase19_club_release_abort(
+        "production_authority_invalid",
+        "Production model and calibrator must be source-backed and production-eligible"
+      )
+    }
+    TRUE
+  }, error = function(error) error)
+  if (inherits(checked, "error")) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      paste0("Production authority graph validation failed: ", conditionMessage(checked))
+    )
+  }
+  invisible(TRUE)
+}
+
 phase19_club_release_decision_check <- function(decision, mode = c("fixture", "production")) {
   mode <- match.arg(mode)
   if (!is.list(decision)) phase19_club_release_abort("release_decision_invalid", "Club release decision is not a list")
@@ -929,6 +1043,15 @@ phase19_validate_club_release <- function(
         "release_object_invalid", paste0("Club release calibrator is invalid: ", conditionMessage(error))
       )
     )
+    if (identical(expected_authority_mode, "production") &&
+        (!isTRUE(model$production_eligible) ||
+         !isTRUE(calibrator$production_eligible) ||
+         isTRUE(model$fixture_authority) || isTRUE(calibrator$fixture_authority))) {
+      phase19_club_release_abort(
+        "production_authority_invalid",
+        "Production release objects must both claim validated production eligibility"
+      )
+    }
     if (!identical(as.character(model$model_id), as.character(contract$selected_model_id)) || !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id))) phase19_club_release_abort("release_object_identity_mismatch", "Club release model/calibrator object identity drifted")
     if (!identical(as.character(model$authority_mode), as.character(contract$authority_mode)) || !identical(isTRUE(model$fixture_authority), isTRUE(contract$fixture_authority)) || !identical(as.character(calibrator$authority_mode), as.character(contract$authority_mode))) phase19_club_release_abort("release_object_identity_mismatch", "Club release object authority identity drifted")
     result$model <- model; result$calibrator <- calibrator
@@ -970,10 +1093,9 @@ phase19_club_release_write_selector <- function(root, release_id, manifest_path,
 #' @export
 phase19_install_club_release <- function(
     staged_root, output_root, validator = NULL,
-    authority_mode = c("fixture", "production")
+    authority_mode = c("fixture", "production"), source_authority = NULL
 ) {
   staged_root <- phase19_club_release_real_root(staged_root)
-  output_root <- phase19_club_release_real_root(output_root, create = TRUE)
   authority_mode <- match.arg(authority_mode)
   if (!is.null(validator)) {
     phase19_club_release_abort(
@@ -981,24 +1103,56 @@ phase19_install_club_release <- function(
       "Club release publication does not accept caller-supplied validators"
     )
   }
+  if (identical(authority_mode, "production") && is.null(source_authority)) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      "Production installation requires the complete accepted Phase 18/19 parent graph"
+    )
+  }
+  if (identical(authority_mode, "fixture") && !is.null(source_authority)) {
+    phase19_club_release_abort(
+      "release_argument_invalid",
+      "Fixture installation cannot accept production authority parents"
+    )
+  }
   if (identical(authority_mode, "fixture")) {
+    output_root <- phase19_club_release_real_root(output_root, create = TRUE)
     if (!isTRUE(phase19_club_release_is_temporary_root(output_root))) {
       phase19_club_release_abort(
         "fixture_root_invalid",
         "Fixture installation must target a process-temporary root"
       )
     }
-  } else if (!identical(output_root, phase19_club_release_production_root())) {
-    phase19_club_release_abort(
-      "production_root_invalid",
-      "Production installation must target the fixed production club root"
+  } else {
+    # Do not create the production root until the source-backed staged bundle
+    # has passed metadata, object, and parent-graph validation.
+    output_root <- normalizePath(
+      as.character(output_root), winslash = "/", mustWork = FALSE
     )
+    if (!identical(output_root, phase19_club_release_production_root())) {
+      phase19_club_release_abort(
+        "production_root_invalid",
+        "Production installation must target the fixed production club root"
+      )
+    }
   }
   # Metadata preflight is deliberately performed before any rename or RDS load.
   preflight <- phase19_validate_club_release(
     staged_root, load_models = FALSE, expected_domain = "club",
     expected_authority_mode = authority_mode
   )
+  staged_full <- if (identical(authority_mode, "production")) {
+    phase19_validate_club_release(
+      staged_root, load_models = TRUE, expected_domain = "club",
+      expected_authority_mode = authority_mode
+    )
+  } else NULL
+  if (identical(authority_mode, "production")) {
+    phase19_club_release_validate_production_parent_graph(
+      source_authority, staged_full$model, staged_full$calibrator
+    )
+    output_root <- phase19_club_release_real_root(output_root, create = TRUE)
+  }
   release_id <- phase19_club_release_safe_id(preflight$model_contract$release_id)
   target <- file.path(output_root, release_id)
   if (file.exists(target)) phase19_club_release_abort("release_immutable", paste0("Club release target already exists: ", release_id))
@@ -1031,8 +1185,14 @@ phase19_install_fixture_club_release <- function(staged_root, output_root) {
   phase19_install_club_release(staged_root, output_root, authority_mode = "fixture")
 }
 
-phase19_install_production_club_release <- function(staged_root, output_root = phase19_club_release_production_root()) {
-  phase19_install_club_release(staged_root, output_root, authority_mode = "production")
+phase19_install_production_club_release <- function(
+    staged_root, output_root = phase19_club_release_production_root(),
+    source_authority = NULL
+) {
+  phase19_install_club_release(
+    staged_root, output_root, authority_mode = "production",
+    source_authority = source_authority
+  )
 }
 
 install_phase19_club_release <- phase19_install_club_release
@@ -1137,16 +1297,46 @@ phase19_resolve_production_club_release <- function(
 resolve_phase19_approved_club_release <- phase19_resolve_club_release
 resolve_phase19_club_release <- phase19_resolve_club_release
 
-preflight_phase19_club_release <- function(trusted_root, release_manifest_path = NULL) {
+preflight_phase19_club_release <- function(
+    trusted_root, release_manifest_path = NULL, authority_mode
+) {
+  if (missing(authority_mode) || is.null(authority_mode) ||
+      length(authority_mode) != 1L || is.na(authority_mode) ||
+      !nzchar(as.character(authority_mode))) {
+    phase19_club_release_abort(
+      "release_authority_invalid",
+      "Club release preflight requires an explicit authority_mode"
+    )
+  }
+  authority_mode <- match.arg(authority_mode, c("fixture", "production"))
   trusted_root <- phase19_club_release_real_root(trusted_root)
   if (is.null(release_manifest_path)) {
     selected <- phase19_read_club_selector(file.path(trusted_root, "approved_release.csv"), trusted_root, "club")
     release_manifest_path <- selected$release_manifest_path
   }
-  phase19_validate_club_release(dirname(release_manifest_path), load_models = FALSE, expected_domain = "club")
+  phase19_validate_club_release(
+    dirname(release_manifest_path), load_models = FALSE,
+    expected_domain = "club", expected_authority_mode = authority_mode
+  )
 }
 
 phase19_preflight_club_release <- preflight_phase19_club_release
+
+phase19_preflight_fixture_club_release <- function(
+    trusted_root, release_manifest_path = NULL
+) {
+  preflight_phase19_club_release(
+    trusted_root, release_manifest_path, authority_mode = "fixture"
+  )
+}
+
+phase19_preflight_production_club_release <- function(
+    trusted_root = phase19_club_release_production_root(), release_manifest_path = NULL
+) {
+  preflight_phase19_club_release(
+    trusted_root, release_manifest_path, authority_mode = "production"
+  )
+}
 
 #' Validate the production publication gate before touching any output root.
 #'

@@ -543,6 +543,15 @@ test_that("fixture release rejects traversal, surplus, missing, symlink, and has
 test_that("preflight is metadata-first and object/selector identities are checked", {
   phase19_release_test_load(require_release = TRUE)
   fixture <- phase19_release_test_stage("identity")
+  expect_error(
+    preflight_phase19_club_release(fixture$staged$release_root),
+    class = "phase19_club_release_error"
+  )
+  expect_silent(preflight_phase19_club_release(
+    fixture$staged$release_root,
+    release_manifest_path = fixture$staged$release_manifest_path,
+    authority_mode = "fixture"
+  ))
   expect_silent(phase19_validate_club_release(fixture$staged$release_root, FALSE))
   installed <- phase19_install_club_release(fixture$staged$release_root,
                                             file.path(fixture$root, "approved"))
@@ -638,6 +647,14 @@ test_that("club production publication stays blocked before root creation", {
     ),
     class = "phase19_club_release_error"
   )
+  staged <- phase19_release_test_stage("production-installer-graph")
+  output_root <- file.path(tempdir(), paste0("phase19-production-installer-", Sys.getpid()))
+  if (dir.exists(output_root)) unlink(output_root, recursive = TRUE)
+  expect_error(
+    phase19_install_production_club_release(staged$staged$release_root, output_root),
+    class = "phase19_club_release_error"
+  )
+  expect_false(dir.exists(output_root))
   expect_false(dir.exists(output_root))
   expect_identical(
     phase19_club_production_block_reason("blocked", "blocked", "blocked", "blocked"),
