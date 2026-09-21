@@ -404,3 +404,33 @@ test_that("postponed rows do not update and inactivity regresses only rating dif
   expect_identical(decayed$clubs$prior_match_count,
                    completed$clubs$prior_match_count)
 })
+
+test_that("rating batches reject unknown status, coercive flags, and forged boundaries", {
+  rating_test_require()
+  state <- rating_test_state()
+  unknown <- rating_test_batch()
+  unknown$status <- "mystery"
+  expect_error(
+    phase19_forecast_club_rating_batch(state, unknown),
+    class = "phase19_club_rating_error"
+  )
+  coercive <- rating_test_batch()
+  coercive$counts_for_model <- "TRUE"
+  expect_error(
+    phase19_forecast_club_rating_batch(state, coercive),
+    class = "phase19_club_rating_error"
+  )
+  forged_boundary <- rating_test_batch()
+  forged_boundary$boundary_id <- "kickoff:2025-05-01T19:00:00Z"
+  expect_error(
+    phase19_forecast_club_rating_batch(state, forged_boundary),
+    class = "phase19_club_rating_error"
+  )
+  completed_missing_goals <- rating_test_batch()
+  completed_missing_goals$counts_for_model <- FALSE
+  completed_missing_goals$regulation_home_goals <- NA_integer_
+  expect_error(
+    phase19_forecast_club_rating_batch(state, completed_missing_goals),
+    class = "phase19_club_rating_error"
+  )
+})

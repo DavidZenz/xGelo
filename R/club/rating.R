@@ -370,8 +370,48 @@ phase19_club_rating_validate_batch <- function(state, fixtures) {
     phase19_club_rating_abort("invalid_batch", "One call must contain exactly one rating boundary")
   }
   phase19_club_rating_parse_utc(kickoffs, "kickoff_utc")
-  counts <- as.logical(fixtures$counts_for_model)
-  completed <- as.character(fixtures$status) == "completed" & !is.na(counts) & counts
+  if (!is.character(fixtures$status) ||
+      anyNA(fixtures$status) ||
+      any(!fixtures$status %in% c("scheduled", "completed", "postponed",
+                                  "cancelled", "abandoned"))) {
+    phase19_club_rating_abort(
+      "invalid_batch", "Rating batch status must use the closed match-status vocabulary"
+    )
+  }
+  if (!is.logical(fixtures$counts_for_model) || anyNA(fixtures$counts_for_model)) {
+    phase19_club_rating_abort(
+      "invalid_batch", "counts_for_model must be a complete logical column"
+    )
+  }
+  boundary <- boundaries[[1L]]
+  kickoff <- kickoffs[[1L]]
+  if (startsWith(boundary, "kickoff:")) {
+    if (!identical(sub("^kickoff:", "", boundary), kickoff)) {
+      phase19_club_rating_abort(
+        "invalid_batch", "Kickoff boundary ID must equal the batch kickoff"
+      )
+    }
+  } else if (startsWith(boundary, "date:")) {
+    date <- sub("^date:", "", boundary)
+    if (!grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", date) ||
+        !identical(kickoff, paste0(date, "T00:00:00Z"))) {
+      phase19_club_rating_abort(
+        "invalid_batch", "Date-only boundary IDs must use the UTC midnight convention"
+      )
+    }
+  } else if (startsWith(boundary, "evidence:")) {
+    if (!identical(sub("^evidence:", "", boundary), kickoff)) {
+      phase19_club_rating_abort(
+        "invalid_batch", "Evidence boundary ID must equal the batch kickoff"
+      )
+    }
+  } else {
+    phase19_club_rating_abort(
+      "invalid_batch", "Rating boundary ID must use kickoff:<UTC>, date:<YYYY-MM-DD>, or evidence:<UTC>"
+    )
+  }
+  counts <- fixtures$counts_for_model
+  completed <- fixtures$status == "completed"
   home_goals <- suppressWarnings(as.numeric(fixtures$regulation_home_goals))
   away_goals <- suppressWarnings(as.numeric(fixtures$regulation_away_goals))
   if (any(completed & (!is.finite(home_goals) | home_goals < 0 |
@@ -448,8 +488,8 @@ phase19_forecast_club_rating_batch <- function(state, fixtures) {
   )
 
   updated <- pre_state
-  counts <- as.logical(fixtures$counts_for_model)
-  completed <- as.character(fixtures$status) == "completed" & !is.na(counts) & counts
+  counts <- fixtures$counts_for_model
+  completed <- fixtures$status == "completed" & counts
   if (any(completed)) {
     outcomes <- ifelse(
       fixtures$regulation_home_goals > fixtures$regulation_away_goals, 1,
