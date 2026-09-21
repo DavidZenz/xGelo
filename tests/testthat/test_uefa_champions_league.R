@@ -369,3 +369,131 @@ test_that("The module registry contains exactly the 19 declared public seams", {
   exported <- sort(ls(module_env, pattern = "^(ucl|ucl20|phase20)_"), method = "radix")
   expect_setequal(exported, sort(phase20_expected_public_symbols, method = "radix"))
 })
+
+test_that("UCLRULE-02 exposes the complete Article 18 trace and separate presentation order", {
+  standings <- data.frame(
+    club_id = c("club-b", "club-a", "club-c"),
+    points = c(7L, 7L, 7L),
+    goal_difference = c(0L, 0L, 0L),
+    goals_for = c(0L, 0L, 0L),
+    away_goals_scored = c(0L, 0L, 0L),
+    wins = c(0L, 0L, 0L),
+    away_wins = c(0L, 0L, 0L),
+    opponent_points = c(0L, 0L, 0L),
+    opponent_goal_difference = c(0L, 0L, 0L),
+    opponent_goals_scored = c(0L, 0L, 0L),
+    disciplinary_points = c(0L, 0L, 0L),
+    club_coefficient = c(2, 1, 3),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  ranking <- ucl_apply_article18(standings, phase = "final")
+  trace <- attr(ranking, "trace")
+  expect_true(all(c(
+    "edition_id", "tie_group_id", "criterion_order", "criterion_id",
+    "subset_before", "subset_after", "evidence_status", "source_artifact_ids",
+    "decisive", "rank_interval_min", "rank_interval_max", "ruleset_version",
+    "ruleset_sha256", "row_sha256"
+  ) %in% names(trace)))
+  expect_identical(sort(unique(trace$criterion_order)), 1:10)
+  expect_identical(as.character(trace$criterion_id[trace$criterion_order == 10L]), "club_coefficient")
+  expect_true(any(trace$decisive))
+  expect_true(all(ranking$rank_status == "resolved"))
+  expect_true(all(!is.na(ranking$decisive_trace_id)))
+  expect_true(all(c("presentation_rank", "presentation_order") %in% names(ranking)))
+  expect_false(identical(ranking$rank, ranking$presentation_rank))
+})
+
+test_that("Interim Article 18 stops after criterion five without closing qualification rank", {
+  standings <- data.frame(
+    club_id = c("club-b", "club-a", "club-c"),
+    points = c(7L, 7L, 7L),
+    goal_difference = c(0L, 0L, 0L),
+    goals_for = c(0L, 0L, 0L),
+    away_goals_scored = c(0L, 0L, 0L),
+    wins = c(0L, 0L, 0L),
+    away_wins = c(0L, 0L, 0L),
+    opponent_points = c(0L, 0L, 0L),
+    opponent_goal_difference = c(0L, 0L, 0L),
+    opponent_goals_scored = c(0L, 0L, 0L),
+    disciplinary_points = c(0L, 0L, 0L),
+    club_coefficient = c(2, 1, 3),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  ranking <- ucl_apply_article18(standings, phase = "interim")
+  trace <- attr(ranking, "trace")
+  expect_true(all(ranking$ranking_phase == "interim"))
+  expect_true(all(is.na(ranking$rank)))
+  expect_true(all(ranking$rank_status == "unresolved"))
+  expect_true(all(trace$criterion_order <= 5L))
+  expect_true(all(ranking$presentation_order %in% seq_len(nrow(ranking))))
+  expect_true(all(ranking$presentation_rank == rank(ranking$presentation_order, ties.method = "first")))
+})
+
+test_that("Rank intervals touching 8 or 24 suppress the affected qualification band", {
+  make_tie <- function(boundary, tie_size = 2L) {
+    ids <- sprintf("club-%02d", seq_len(36L))
+    start <- if (boundary == 8L) 7L else 24L
+    points <- if (boundary == 8L) {
+      c(seq(100L, 95L), rep(90L, tie_size), seq(89L, 62L))
+    } else {
+      c(seq(100L, 78L), rep(70L, tie_size), seq(69L, 59L))
+    }
+    points <- points[seq_len(36L)]
+    data.frame(club_id = ids, points = points, stringsAsFactors = FALSE)
+  }
+  rank8 <- ucl_apply_article18(make_tie(8L), phase = "final")
+  rank24 <- ucl_apply_article18(make_tie(24L), phase = "final")
+  expect_true(all(rank8$qualification_band[rank8$club_id %in% c("club-07", "club-08")] == "unresolved"))
+  expect_true(all(rank24$qualification_band[rank24$club_id %in% c("club-24", "club-25")] == "unresolved"))
+  expect_true(all(is.na(rank8$rank[rank8$club_id %in% c("club-07", "club-08")])) )
+  expect_true(all(is.na(rank24$rank[rank24$club_id %in% c("club-24", "club-25")])) )
+})
+
+test_that("Schedule validation rejects missing lineage hashes, mixed bundles, and score contradictions", {
+  graph <- phase20_fixture_graph_36x144()
+  no_hash <- graph
+  no_hash$fixtures$source_row_sha256 <- NULL
+  mixed_bundle <- graph
+  mixed_bundle$fixtures$source_bundle_id[1L] <- "foreign-source-bundle"
+  contradictory <- phase20_test_completed_fixture_graph(graph)
+  contradictory$fixtures$final_home_goals[1L] <- contradictory$fixtures$regulation_home_goals[1L] + 1L
+  for (candidate in list(no_hash, mixed_bundle, contradictory)) {
+    result <- ucl_validate_schedule(candidate)
+    expect_s3_class(result, "ucl_blocked_state")
+    expect_identical(result$status, "blocked")
+  }
+})
+
+test_that("Forecast ledger enforces strict cutoff equality and release lineage", {
+  graph <- phase20_fixture_graph_36x144()
+  state <- ucl_build_state(graph, state_cutoff_utc = "2026-09-01T00:00:00Z")
+  release <- phase20_approved_release_fixture(graph)
+  at_kickoff <- release
+  at_kickoff$forecast_rows$feature_cutoff_utc[1L] <- graph$fixtures$kickoff_utc[1L]
+  at_kickoff$forecast_rows$xg_home[2L] <- Inf
+  at_kickoff$forecast_rows$source_bundle_id[3L] <- "foreign-source-bundle"
+  ledger <- ucl_build_forecast_ledger(state, release = at_kickoff, state_cutoff_utc = "2026-09-01T00:00:00Z")
+  expect_identical(nrow(ledger$ledger), 144L)
+  expect_identical(ledger$ledger$suppression_reason[1L], "cutoff_violation")
+  expect_identical(ledger$ledger$suppression_reason[2L], "insufficient_model_evidence")
+  expect_identical(ledger$ledger$suppression_reason[3L], "lineage_mismatch")
+  expect_true(all(c("prob_home", "prob_draw", "prob_away", "xg_home", "xg_away", "likely_score") %in% names(ledger$ledger)))
+  repeat_ledger <- ucl_build_forecast_ledger(state, release = at_kickoff, prior_ledger = ledger$ledger, state_cutoff_utc = "2026-09-01T00:00:00Z")
+  expect_identical(ledger$ledger, repeat_ledger$ledger)
+})
+
+test_that("CR-01 through CR-05 probes reject forged or unbacked parent evidence", {
+  probes <- list(
+    phase20_probe_cr01_forged_roster_rejected,
+    phase20_probe_cr02_rating_replay_tamper_rejected,
+    phase20_probe_cr03_forged_fold_rejected,
+    phase20_probe_cr04_forged_probability_calibrator_rejected,
+    phase20_probe_cr05_unbacked_installer_rejected
+  )
+  results <- lapply(probes, function(probe) probe())
+  expect_true(all(vapply(results, is.list, logical(1))))
+  expect_true(all(vapply(results, function(result) identical(result$status, "rejected"), logical(1))))
+  expect_true(all(vapply(results, function(result) nzchar(result$original_parent_reason), logical(1))))
+})
