@@ -248,11 +248,12 @@ phase19_club_release_production_root <- function() {
 
 phase19_club_release_assert_parent_evidence <- function(
     decision, model, calibrator, history_snapshot, current_snapshot,
-    protocol, evaluation, authority
+    protocol, evaluation, authority, replay, integrity, source_evidence = NULL
 ) {
   required <- list(
     history_snapshot = history_snapshot, current_snapshot = current_snapshot,
-    protocol = protocol, evaluation = evaluation, authority = authority
+    protocol = protocol, evaluation = evaluation, authority = authority,
+    replay = replay, integrity = integrity
   )
   missing <- names(required)[vapply(required, is.null, logical(1))]
   if (length(missing)) {
@@ -268,7 +269,8 @@ phase19_club_release_assert_parent_evidence <- function(
     "phase19_validate_club_calibrator",
     "phase19_validate_club_evaluation_set",
     "phase19_club_validate_authority",
-    "phase19_club_promotion_decision_sha256"
+    "phase19_validate_club_integrity_evidence",
+    "phase19_validate_club_promotion_decision"
   )
   if (any(!vapply(validators, exists, logical(1), mode = "function"))) {
     phase19_club_release_abort(
@@ -281,15 +283,14 @@ phase19_club_release_assert_parent_evidence <- function(
     phase19_validate_current_ucl_club_snapshot(current_snapshot, "fixture")
     phase19_validate_club_goal_fit(model)
     phase19_validate_club_calibrator(calibrator, require_fitted = TRUE)
-    phase19_validate_club_evaluation_set(evaluation, protocol)
-    phase19_club_validate_authority(authority, evaluation, protocol)
-    if (!inherits(decision, "phase19_club_promotion_decision") ||
-        !identical(decision$decision_sha256,
-                   phase19_club_promotion_decision_sha256(decision))) {
-      phase19_club_release_abort(
-        "release_parent_invalid", "Promotion decision is not a canonical typed decision"
-      )
-    }
+    phase19_validate_club_evaluation_set(evaluation, protocol, source_evidence)
+    phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
+    phase19_validate_club_integrity_evidence(
+      integrity, evaluation, protocol, replay, authority, source_evidence
+    )
+    phase19_validate_club_promotion_decision(
+      decision, evaluation, protocol, replay, integrity, authority, source_evidence
+    )
     TRUE
   }, error = function(error) error)
   if (inherits(checked, "error")) {
@@ -313,10 +314,10 @@ phase19_club_release_decision_check <- function(decision, mode = c("fixture", "p
   if (!grepl("^[0-9a-fA-F]{64}$", as.character(decision$decision_sha256))) phase19_club_release_abort("release_decision_invalid", "Club release decision hash is invalid")
   if (mode == "fixture") {
     if (!identical(as.character(decision$authority_mode), "fixture") || !isTRUE(decision$fixture_authority) ||
-        !identical(as.character(decision$diagnostic_gate_outcome), "pass") ||
+        !as.character(decision$diagnostic_gate_outcome) %in% c("pass", "fail") ||
         !identical(as.character(decision$authority_eligibility), "fixture_ineligible") ||
-        !identical(as.character(decision$promotion_status), "ineligible_fixture")) {
-      phase19_club_release_abort("fixture_authority_invalid", "Fixture release requires pass / fixture_ineligible / ineligible_fixture authority")
+        !as.character(decision$promotion_status) %in% c("ineligible_fixture", "retained")) {
+      phase19_club_release_abort("fixture_authority_invalid", "Fixture release requires fixture_ineligible authority and a closed non-production promotion status")
     }
   } else if (!identical(as.character(decision$authority_mode), "production") ||
              isTRUE(decision$fixture_authority) ||
@@ -338,10 +339,10 @@ phase19_club_release_snapshot_fields <- function(history_snapshot = NULL, curren
     history_snapshot_sha256 = hash(history_snapshot, c("snapshot_sha256", "history_snapshot_sha256")),
     corpus_manifest_sha256 = hash(history_snapshot, c("corpus_manifest_sha256", "corpus_sha256")),
     club_registry_sha256 = hash(history_snapshot, c("club_registry_sha256", "registry_sha256")),
-    current_ucl_generation_id = phase19_club_release_first(current_snapshot, c("generation_id", "accepted_generation_id", "current_ucl_generation_id"), ""),
+    current_ucl_generation_id = phase19_club_release_first(current_snapshot, c("generation_id", "accepted_generation_id", "current_ucl_generation_id", "source_generation_id"), ""),
     current_ucl_snapshot_sha256 = hash(current_snapshot, c("snapshot_sha256", "current_snapshot_sha256")),
     current_ucl_bundle_sha256 = hash(current_snapshot, c("bundle_sha256", "source_bundle_sha256")),
-    current_ucl_source_authority = phase19_club_release_first(current_snapshot, c("source_authority", "authority_type"), ""),
+    current_ucl_source_authority = phase19_club_release_first(current_snapshot, c("source_authority", "authority_type", "source_authority_type"), ""),
     current_ucl_identity_generation_id = phase19_club_release_first(current_snapshot, c("identity_generation_id", "registry_generation_id", "identity_generation"), ""),
     current_ucl_roster_sha256 = hash(current_snapshot, c("roster_sha256", "club_roster_sha256")),
     model_data_cutoff_utc = phase19_club_release_first(model, c("cutoff_utc", "model_data_cutoff_utc"), ""),
@@ -490,8 +491,8 @@ phase19_club_release_contract_fields <- function(
   )
 }
 
-phase19_club_release_model_card <- function(contract) {
-  fields <- c(
+phase19_club_release_model_card_fields <- function() {
+  c(
     "forecast_domain", "entity_kind", "authority_mode", "fixture_authority", "production_eligible",
     "release_id", "selected_model_id", "candidate_id", "incumbent_id", "history_generation_id",
     "history_snapshot_sha256", "current_ucl_generation_id", "current_ucl_snapshot_sha256",
@@ -500,10 +501,23 @@ phase19_club_release_model_card <- function(contract) {
     "calibration_data_cutoff_utc", "score_support_g", "primary_probability_view", "feature_contract_sha256",
     "unavailable_feature_ids", "labels_embedded"
   )
+}
+
+phase19_club_release_model_card_value <- function(value) {
+  if (is.logical(value) && length(value) == 1L) {
+    ifelse(isTRUE(value), "TRUE", "FALSE")
+  } else {
+    as.character(value)
+  }
+}
+
+phase19_club_release_model_card <- function(contract) {
+  fields <- phase19_club_release_model_card_fields()
   c(
     "# Phase 19 Club Model Card", "",
-    vapply(fields, function(field) paste0("- ", field, ": ",
-      if (is.logical(contract[[field]])) ifelse(isTRUE(contract[[field]]), "TRUE", "FALSE") else as.character(contract[[field]])), character(1)),
+    vapply(fields, function(field) paste0(
+      "- ", field, ": ", phase19_club_release_model_card_value(contract[[field]])
+    ), character(1)),
     "", "This card is generated from the validated club release contract.",
     "Fixture authority is diagnostic-only and cannot become production authority.",
     "All unavailable enrichment features remain value-less and non-imputable.", ""
@@ -533,7 +547,8 @@ phase19_club_release_benchmark_report <- function(decision, evaluation = NULL) {
 phase19_stage_fixture_club_release <- function(
     decision, model, calibrator, output_root, release_id = NULL,
     history_snapshot = NULL, current_snapshot = NULL, protocol = NULL,
-    evaluation = NULL, authority = NULL, model_card = NULL
+    evaluation = NULL, authority = NULL, replay = NULL, integrity = NULL,
+    source_evidence = NULL, model_card = NULL
 ) {
   phase19_club_release_decision_check(decision, "fixture")
   phase19_club_release_source_dependencies()
@@ -545,12 +560,12 @@ phase19_stage_fixture_club_release <- function(
   }
   phase19_club_release_assert_parent_evidence(
     decision, model, calibrator, history_snapshot, current_snapshot,
-    protocol, evaluation, authority
+    protocol, evaluation, authority, replay, integrity, source_evidence
   )
   assert_forecast_domain(model, "club")
   assert_forecast_domain(calibrator, "club")
   if (!identical(as.character(model$model_id), as.character(decision$selected_model_id)) ||
-      !identical(as.character(calibrator$model_id), as.character(decision$selected_model_id))) {
+      !identical(as.character(calibrator$candidate_id), as.character(decision$selected_model_id))) {
     phase19_club_release_abort("release_object_invalid", "Fixture model/calibrator IDs do not match promotion decision")
   }
   release_id <- phase19_club_release_safe_id(
@@ -744,9 +759,22 @@ phase19_club_release_bool <- function(value) {
 
 phase19_club_release_validate_model_card <- function(path, contract) {
   card <- phase19_club_release_parse_model_card(path)
-  fields <- c("forecast_domain", "entity_kind", "release_id", "selected_model_id", "protocol_sha256", "promotion_decision_sha256", "model_sha256", "calibrator_sha256")
-  if (length(setdiff(fields, names(card)))) phase19_club_release_abort("release_model_card_invalid", "Club model card identity projection is incomplete")
-  for (field in fields) if (!identical(as.character(card[[field]]), as.character(contract[[field]]))) phase19_club_release_abort("release_model_card_invalid", paste0("Club model card field drifted: ", field))
+  fields <- phase19_club_release_model_card_fields()
+  if (!identical(names(card), fields)) {
+    phase19_club_release_abort(
+      "release_model_card_invalid",
+      "Club model card must contain the exact complete contract projection"
+    )
+  }
+  for (field in fields) {
+    expected <- phase19_club_release_model_card_value(contract[[field]])
+    if (!identical(as.character(card[[field]]), expected)) {
+      phase19_club_release_abort(
+        "release_model_card_invalid",
+        paste0("Club model card field drifted: ", field)
+      )
+    }
+  }
   assert_forecast_domain(card, "club")
   invisible(card)
 }
@@ -815,9 +843,9 @@ phase19_validate_club_release <- function(
   if (identical(expected_authority_mode, "fixture")) {
     if (!identical(as.character(contract$authority_mode), "fixture") ||
         !isTRUE(contract$fixture_authority) || isTRUE(contract$production_eligible) ||
-        !identical(as.character(contract$diagnostic_gate_outcome), "pass") ||
+        !as.character(contract$diagnostic_gate_outcome) %in% c("pass", "fail") ||
         !identical(as.character(contract$authority_eligibility), "fixture_ineligible") ||
-        !identical(as.character(contract$promotion_status), "ineligible_fixture")) {
+        !as.character(contract$promotion_status) %in% c("ineligible_fixture", "retained")) {
       phase19_club_release_abort("fixture_authority_invalid", "Fixture release contract is not permanently fixture-ineligible")
     }
   } else if (!identical(as.character(contract$authority_mode), "production") ||
@@ -841,8 +869,9 @@ phase19_validate_club_release <- function(
   promotion_path <- phase19_club_release_path_under_root(root, "manifests/promotion_manifest.csv", must_work = TRUE)
   promotion <- utils::read.csv(promotion_path, stringsAsFactors = FALSE, check.names = FALSE, colClasses = "character", na.strings = character())
   expected_promotion <- if (identical(expected_authority_mode, "fixture")) {
-    c(diagnostic_gate_outcome = "pass", authority_eligibility = "fixture_ineligible",
-      promotion_status = "ineligible_fixture")
+    c(diagnostic_gate_outcome = as.character(contract$diagnostic_gate_outcome),
+      authority_eligibility = as.character(contract$authority_eligibility),
+      promotion_status = as.character(contract$promotion_status))
   } else {
     c(diagnostic_gate_outcome = "pass", authority_eligibility = "production",
       promotion_status = "promoted")
@@ -886,7 +915,7 @@ phase19_validate_club_release <- function(
         "release_object_invalid", paste0("Club release calibrator is invalid: ", conditionMessage(error))
       )
     )
-    if (!identical(as.character(model$model_id), as.character(contract$selected_model_id)) || !identical(as.character(calibrator$model_id), as.character(contract$selected_model_id)) || !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id))) phase19_club_release_abort("release_object_identity_mismatch", "Club release model/calibrator object identity drifted")
+    if (!identical(as.character(model$model_id), as.character(contract$selected_model_id)) || !identical(as.character(calibrator$candidate_id), as.character(contract$selected_model_id))) phase19_club_release_abort("release_object_identity_mismatch", "Club release model/calibrator object identity drifted")
     if (!identical(as.character(model$authority_mode), as.character(contract$authority_mode)) || !identical(isTRUE(model$fixture_authority), isTRUE(contract$fixture_authority)) || !identical(as.character(calibrator$authority_mode), as.character(contract$authority_mode))) phase19_club_release_abort("release_object_identity_mismatch", "Club release object authority identity drifted")
     result$model <- model; result$calibrator <- calibrator
   }

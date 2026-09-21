@@ -386,7 +386,8 @@ phase19_release_test_stage <- function(label = "fixture") {
     decision = bundle$decision, model = bundle$model, calibrator = bundle$calibrator,
     output_root = root, release_id = paste0("fixture-", label),
     history_snapshot = bundle$training, current_snapshot = bundle$current,
-    protocol = bundle$protocol, evaluation = bundle$aggregate, authority = bundle$authority
+    protocol = bundle$protocol, evaluation = bundle$aggregate, authority = bundle$authority,
+    replay = bundle$replay, integrity = bundle$integrity
   )
   list(root = root, staged = staged)
 }
@@ -430,7 +431,33 @@ test_that("fixture publication rejects untyped parents, missing authority, and c
     decision = bundle$decision, model = bundle$model, calibrator = bundle$calibrator,
     output_root = output, release_id = "typed-parents", history_snapshot = bundle$training,
     current_snapshot = bundle$current, protocol = bundle$protocol,
-    evaluation = bundle$aggregate, authority = bundle$authority
+    evaluation = bundle$aggregate, authority = bundle$authority,
+    replay = bundle$replay, integrity = bundle$integrity
+  )
+  card_path <- file.path(staged$release_root, "reports/model_card.md")
+  card_before <- readLines(card_path, warn = FALSE)
+  card_tampered <- sub(
+    "^- authority_mode: fixture$", "- authority_mode: production",
+    card_before
+  )
+  writeLines(card_tampered, card_path, useBytes = TRUE)
+  expect_error(
+    phase19_club_release_validate_model_card(card_path, staged$model_contract),
+    class = "phase19_club_release_error"
+  )
+  writeLines(card_before, card_path, useBytes = TRUE)
+  tampered <- bundle$decision
+  tampered$metrics_sha256 <- strrep("0", 64L)
+  tampered$decision_sha256 <- phase19_club_promotion_decision_sha256(tampered)
+  expect_error(
+    phase19_stage_fixture_club_release(
+      decision = tampered, model = bundle$model, calibrator = bundle$calibrator,
+      output_root = output, release_id = "tampered-decision",
+      history_snapshot = bundle$training, current_snapshot = bundle$current,
+      protocol = bundle$protocol, evaluation = bundle$aggregate,
+      authority = bundle$authority, replay = bundle$replay,
+      integrity = bundle$integrity
+    ), class = "phase19_club_release_error"
   )
   expect_error(
     phase19_install_club_release(
@@ -460,7 +487,7 @@ test_that("fixture release round trip validates before and after object load", {
   expect_identical(selector$forecast_domain, "club")
   resolved <- phase19_resolve_club_release(file.path(root, "approved"))
   expect_identical(resolved$model$model_id, "club_elo_nb")
-  expect_identical(resolved$calibrator$model_id, "club_elo_nb")
+  expect_identical(resolved$calibrator$candidate_id, "club_elo_nb")
 })
 
 test_that("fixture authority cannot be staged through the production writer", {
