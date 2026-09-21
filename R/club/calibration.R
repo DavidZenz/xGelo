@@ -831,7 +831,15 @@ phase19_club_calibration_error_from_bins <- function(bins, view) {
   rows <- bins[bins$probability_view == view & bins$n > 0L, , drop = FALSE]
   class_error <- vapply(c("home", "draw", "away"), function(class) {
     selected <- rows[rows$class == class, , drop = FALSE]
-    sum(selected$n * selected$absolute_gap) / sum(selected$n)
+    support <- sum(selected$n)
+    if (!length(selected$n) || !is.finite(support) || support <= 0L ||
+        any(!is.finite(selected$absolute_gap))) {
+      phase19_club_calibration_abort(
+        "insufficient_class_support",
+        paste0("Calibration error requires positive support for class ", class)
+      )
+    }
+    sum(selected$n * selected$absolute_gap) / support
   }, numeric(1))
   mean(class_error)
 }

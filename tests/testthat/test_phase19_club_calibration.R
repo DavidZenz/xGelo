@@ -406,3 +406,17 @@ test_that("decision identity replays under reorder and changes on evidence drift
   expect_false(identical(evidence$evidence_sha256, changed_evidence$evidence_sha256))
   expect_false(identical(decision$decision_sha256, changed_decision$decision_sha256))
 })
+
+test_that("calibration error rejects zero-support classes before producing NaN", {
+  bins <- data.frame(
+    probability_view = rep("raw_1x2", 10L), class = rep("home", 10L),
+    bin_id = seq_len(10L), bin_lower = 0:9 / 10, bin_upper = 1:10 / 10,
+    n = c(2L, rep(0L, 9L)), mean_probability = c(0.5, rep(NA_real_, 9L)),
+    observed_frequency = c(0.5, rep(NA_real_, 9L)),
+    absolute_gap = c(0, rep(NA_real_, 9L)), stringsAsFactors = FALSE
+  )
+  expect_error(
+    phase19_club_calibration_error_from_bins(bins, "raw_1x2"),
+    class = "phase19_club_calibration_error"
+  )
+})
