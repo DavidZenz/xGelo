@@ -1069,6 +1069,88 @@ phase19_validate_club_goal_predictions <- function(result,
   invisible(result)
 }
 
+#' Rebuild and compare a typed goal-prediction source from its fitted model.
+#'
+#' A prediction table can be internally self-consistent while still being
+#' unrelated to the fit that it advertises.  Production evaluation therefore
+#' carries the fit and the exact fixture inventory alongside the prediction
+#' table and uses this helper to regenerate every prediction and score grid.
+#' @export
+phase19_validate_club_goal_prediction_source <- function(
+    result, fit, fixtures, declared_fixture_ids = NULL, require_production = FALSE
+) {
+  phase19_club_goal_require_dependencies()
+  if (!inherits(fit, "phase19_club_goal_fit")) {
+    phase19_club_goal_model_abort(
+      "prediction_source_invalid", "Goal prediction source does not carry a typed fit"
+    )
+  }
+  phase19_validate_club_goal_fit(fit)
+  if (isTRUE(require_production) &&
+      (!identical(fit$authority_mode, "production") ||
+       isTRUE(fit$fixture_authority) || !isTRUE(fit$promotion_eligible))) {
+    phase19_club_goal_model_abort(
+      "prediction_source_invalid",
+      "Production goal prediction source requires a production-eligible fit"
+    )
+  }
+  if (!inherits(result, "phase19_club_goal_predictions")) {
+    phase19_club_goal_model_abort(
+      "prediction_source_invalid", "Goal prediction source is not a typed prediction set"
+    )
+  }
+  if (is.null(declared_fixture_ids)) declared_fixture_ids <- result$declared_fixture_ids
+  declared_fixture_ids <- as.character(declared_fixture_ids)
+  expected <- tryCatch(
+    phase19_predict_club_goal_model(fit, fixtures, declared_fixture_ids),
+    error = function(error) error
+  )
+  if (inherits(expected, "error")) {
+    phase19_club_goal_model_abort(
+      "prediction_source_invalid", conditionMessage(expected)
+    )
+  }
+  scalar_fields <- c(
+    "schema_version", "hash_encoding_version", "forecast_domain",
+    "authority_mode", "fixture_authority", "promotion_eligible",
+    "promotion_comparable", "model_id", "output_capability",
+    "goal_distribution_declared", "declared_fixture_ids", "fit_sha256",
+    "prediction_table_sha256", "distribution_table_sha256"
+  )
+  if (!identical(result[scalar_fields], expected[scalar_fields]) ||
+      !identical(result$predictions, expected$predictions) ||
+      !identical(result$distributions, expected$distributions)) {
+    phase19_club_goal_model_abort(
+      "prediction_source_mismatch",
+      "Goal prediction rows or score grids do not regenerate from the supplied fit"
+    )
+  }
+  invisible(result)
+}
+
+#' Derive the exact raw assessment view consumed by the club calibrator.
+#'
+#' Keeping this conversion in one place prevents a caller from substituting a
+#' second, self-described probability table between fit prediction and
+#' calibration.  The full prediction columns are retained so the calibrated
+#' view's source-table digest binds the complete generated row.
+#' @export
+phase19_club_goal_calibration_input <- function(result) {
+  phase19_club_goal_require_dependencies()
+  phase19_validate_club_goal_predictions(
+    result, result$declared_fixture_ids,
+    require_goal_grid = isTRUE(result$goal_distribution_declared)
+  )
+  input <- result$predictions
+  input$candidate_id <- as.character(input$model_id)
+  input <- input[, c(
+    "fixture_id", "candidate_id",
+    setdiff(names(input), c("fixture_id", "candidate_id"))
+  ), drop = FALSE]
+  rownames(input) <- NULL
+  input
+}
+
 #' Fit and predict one frozen club registry row at one boundary.
 #'
 #' @export

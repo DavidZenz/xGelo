@@ -157,6 +157,51 @@ test_that("nested prior-only evidence fits and applies one club calibrator", {
   expect_identical(applied$primary_probability_view, "not_selected")
 })
 
+test_that("calibrator and view source replay rejects rehashed OOF and calibrated rows", {
+  context <- phase19_calibration_test_context()
+  calibrator <- phase19_fit_club_calibrator(
+    context$rows, context$fold, context$candidate, context$protocol
+  )
+  expect_silent(phase19_validate_club_calibrator_source(
+    calibrator, context$rows, context$fold, context$candidate, context$protocol
+  ))
+
+  forged_rows <- context$rows
+  forged_rows$p_home_raw[[1L]] <- forged_rows$p_home_raw[[1L]] + 0.01
+  forged_rows$source_prediction_sha256 <- phase19_club_calibration_source_row_sha256(
+    forged_rows
+  )
+  expect_error(
+    phase19_validate_club_calibrator_source(
+      calibrator, forged_rows, context$fold, context$candidate, context$protocol
+    ), class = "phase19_club_calibration_error"
+  )
+
+  predictions <- data.frame(
+    fixture_id = c("assessment_b", "assessment_a"), candidate_id = "club_elo_nb",
+    evidence_cutoff_exclusive = "2025-03-01T00:00:00Z",
+    p_home = c(0.31, 0.62), p_draw = c(0.29, 0.23), p_away = c(0.40, 0.15),
+    distribution_sha256 = vapply(
+      c("assessment_b", "assessment_a"),
+      function(id) digest::digest(paste0("assessment-grid-", id),
+                                   algo = "sha256", serialize = FALSE),
+      character(1)
+    ), stringsAsFactors = FALSE, check.names = FALSE
+  )
+  view <- phase19_apply_club_calibrator(calibrator, predictions, context$fold)
+  expect_silent(phase19_validate_club_calibrated_view_source(
+    view, calibrator, predictions, context$fold
+  ))
+  forged_view <- view
+  forged_view$predictions$p_home_calibrated[[1L]] <-
+    forged_view$predictions$p_home_calibrated[[1L]] + 0.01
+  expect_error(
+    phase19_validate_club_calibrated_view_source(
+      forged_view, calibrator, predictions, context$fold
+    ), class = "phase19_club_calibration_error"
+  )
+})
+
 test_that("all four frozen candidate roles accept the same prior-only mechanism", {
   phase19_calibration_test_load()
   protocol <- phase19_load_fixture_club_evaluation_protocol()

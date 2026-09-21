@@ -21,7 +21,13 @@ phase19_club_evaluation_require_dependencies <- function() {
     "phase19_fold_parse_id_text", "phase19_fold_parse_utc",
     "phase19_validate_fold_prediction_coverage",
     "phase19_validate_gate_registry", "phase19_gate_registry_sha256",
-    "phase19_validate_club_goal_predictions", "phase19_validate_club_rating_replay",
+    "phase19_validate_club_goal_predictions",
+    "phase19_validate_club_goal_prediction_source",
+    "phase19_club_goal_calibration_input",
+    "phase19_validate_club_rating_replay",
+    "phase19_validate_club_calibrator_source",
+    "phase19_validate_club_calibrated_view_source",
+    "phase19_validate_club_calibration_decision_source",
     "score_benchmark_fixtures",
     "ranked_probability_score", "multiclass_brier", "log_score"
   )
@@ -738,11 +744,199 @@ phase19_club_fold_source_evidence_schema <- function() {
   )
 }
 
+phase19_club_production_fold_source_evidence_schema <- function() {
+  c(
+    phase19_club_fold_source_evidence_schema(),
+    "candidate_fit", "candidate_fixtures", "candidate_calibration_fold",
+    "candidate_calibration_source", "candidate_calibration_input",
+    "candidate_calibrator", "candidate_calibrated_view",
+    "candidate_calibration_evidence", "candidate_calibration_decision",
+    "incumbent_fit", "incumbent_fixtures", "incumbent_calibration_fold",
+    "incumbent_calibration_source", "incumbent_calibration_input",
+    "incumbent_calibrator", "incumbent_calibrated_view",
+    "incumbent_calibration_evidence", "incumbent_calibration_decision"
+  )
+}
+
+phase19_club_evaluation_calibration_outcomes <- function(outcomes, input) {
+  if (!is.data.frame(input) || !"fixture_id" %in% names(input) ||
+      anyDuplicated(as.character(input$fixture_id)) ||
+      !setequal(as.character(input$fixture_id), as.character(outcomes$fixture_id))) {
+    phase19_club_evaluation_abort(
+      "evaluation_calibration_source_invalid",
+      "Calibration source input must cover the exact held-out fixture inventory"
+    )
+  }
+  ordered <- outcomes[match(as.character(input$fixture_id), outcomes$fixture_id), , drop = FALSE]
+  if (anyNA(ordered$regulation_home_goals) || anyNA(ordered$regulation_away_goals)) {
+    phase19_club_evaluation_abort(
+      "evaluation_calibration_source_invalid",
+      "Calibration source outcomes contain incomplete labels"
+    )
+  }
+  data.frame(
+    fixture_id = as.character(input$fixture_id),
+    observed_class = ifelse(
+      ordered$regulation_home_goals > ordered$regulation_away_goals, "home",
+      ifelse(ordered$regulation_home_goals == ordered$regulation_away_goals,
+             "draw", "away")
+    ), stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+phase19_club_evaluation_source_artifacts <- function(source, label, fold,
+                                                     protocol, outcomes) {
+  prefix <- paste0(label, "_")
+  predictions <- source[[paste0(prefix, "predictions")]]
+  fit <- source[[paste0(prefix, "fit")]]
+  fixtures <- source[[paste0(prefix, "fixtures")]]
+  calibration_fold <- source[[paste0(prefix, "calibration_fold")]]
+  calibration_source <- source[[paste0(prefix, "calibration_source")]]
+  calibration_input <- source[[paste0(prefix, "calibration_input")]]
+  calibrator <- source[[paste0(prefix, "calibrator")]]
+  calibrated_view <- source[[paste0(prefix, "calibrated_view")]]
+  calibration_evidence <- source[[paste0(prefix, "calibration_evidence")]]
+  calibration_decision <- source[[paste0(prefix, "calibration_decision")]]
+  if (!inherits(fit, "phase19_club_goal_fit") ||
+      !inherits(calibrator, "phase19_club_calibrator") ||
+      !inherits(calibrated_view, "phase19_club_calibrated_view") ||
+      !inherits(calibration_evidence, "phase19_club_calibration_evidence") ||
+      !inherits(calibration_decision, "phase19_club_calibration_decision")) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      paste0("Production ", label, " source is missing typed fit/calibration artifacts")
+    )
+  }
+  declared <- phase19_fold_parse_id_text(
+    fold$declared_fixture_ids[[1L]], "declared_fixture_ids"
+  )
+  phase19_club_evaluation_capture(
+    phase19_validate_club_goal_prediction_source(
+      predictions, fit, fixtures, declared, require_production = TRUE
+    ), "evaluation_source_invalid"
+  )
+  if (!identical(as.character(fit$protocol_sha256),
+                 as.character(protocol$protocol_sha256)) ||
+      !identical(as.character(fit$training_snapshot_sha256),
+                 as.character(fold$snapshot_sha256)) ||
+      any(as.character(predictions$model_id) != as.character(fit$model_id)) ||
+      any(as.character(predictions$protocol_sha256) != protocol$protocol_sha256)) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      paste0("Production ", label, " fit is not bound to the accepted fold/protocol")
+    )
+  }
+  if (!is.data.frame(calibration_fold) || nrow(calibration_fold) != 1L) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      paste0("Production ", label, " calibration fold is missing")
+    )
+  }
+  phase19_club_evaluation_capture(
+    phase19_club_evaluation_validate_fold(calibration_fold, protocol),
+    "evaluation_source_invalid"
+  )
+  phase19_club_evaluation_capture(
+    phase19_validate_club_calibrator_source(
+      calibrator, calibration_source, calibration_fold,
+      fit$registration, protocol, require_production = TRUE
+    ), "evaluation_source_invalid"
+  )
+  expected_input <- phase19_club_goal_calibration_input(predictions)
+  if (!is.data.frame(calibration_input) || !identical(calibration_input, expected_input)) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      paste0("Production ", label, " calibration input is not the generated prediction view")
+    )
+  }
+  phase19_club_evaluation_capture(
+    phase19_validate_club_calibrated_view_source(
+      calibrated_view, calibrator, calibration_input, calibration_fold,
+      require_production = TRUE
+    ), "evaluation_source_invalid"
+  )
+  calibration_outcomes <- phase19_club_evaluation_calibration_outcomes(
+    outcomes, calibration_input
+  )
+  phase19_club_evaluation_capture(
+    phase19_validate_club_calibration_decision_source(
+      calibration_evidence, calibration_decision, calibrated_view,
+      calibration_outcomes, calibration_fold, protocol
+    ), "evaluation_source_invalid"
+  )
+  list(
+    fit = fit, calibrator = calibrator, calibrated_view = calibrated_view,
+    calibration_evidence = calibration_evidence,
+    calibration_decision = calibration_decision
+  )
+}
+
+phase19_validate_club_fold_source_artifacts <- function(source, fold, protocol,
+                                                        outcomes) {
+  artifacts <- lapply(c("candidate", "incumbent"), function(label) {
+    phase19_club_evaluation_source_artifacts(
+      source, label, fold, protocol, outcomes
+    )
+  })
+  names(artifacts) <- c("candidate", "incumbent")
+  expected <- data.frame(
+    model_id = c(artifacts$incumbent$fit$model_id,
+                 artifacts$candidate$fit$model_id),
+    fit_status = "converged", fallback_status = c(
+      artifacts$incumbent$fit$fallback_status,
+      artifacts$candidate$fit$fallback_status
+    ), fit_sha256 = c(
+      artifacts$incumbent$fit$fit_sha256, artifacts$candidate$fit$fit_sha256
+    ), calibrator_status = "fitted",
+    primary_probability_view = c(
+      artifacts$incumbent$calibration_decision$primary_probability_view,
+      artifacts$candidate$calibration_decision$primary_probability_view
+    ), calibrator_sha256 = c(
+      artifacts$incumbent$calibrator$calibrator_sha256,
+      artifacts$candidate$calibrator$calibrator_sha256
+    ), calibration_evidence_sha256 = c(
+      artifacts$incumbent$calibration_evidence$evidence_sha256,
+      artifacts$candidate$calibration_evidence$evidence_sha256
+    ), calibration_decision_sha256 = c(
+      artifacts$incumbent$calibration_decision$decision_sha256,
+      artifacts$candidate$calibration_decision$decision_sha256
+    ), stringsAsFactors = FALSE, check.names = FALSE
+  )
+  expected <- expected[order(expected$model_id, method = "radix"), , drop = FALSE]
+  observed <- source$model_support
+  if (!is.data.frame(observed) || !identical(names(observed), names(expected)) ||
+      nrow(observed) != nrow(expected)) {
+    phase19_club_evaluation_abort(
+      "evaluation_model_support_invalid",
+      "Production model support must bind typed fit, calibrator, evidence, and decision artifacts"
+    )
+  }
+  observed <- observed[match(expected$model_id, observed$model_id), , drop = FALSE]
+  rownames(observed) <- NULL
+  rownames(expected) <- NULL
+  if (!identical(observed, expected)) {
+    phase19_club_evaluation_abort(
+      "evaluation_model_support_invalid",
+      "Production model support contains an opaque or mismatched artifact identity"
+    )
+  }
+  artifacts
+}
+
 phase19_validate_club_fold_source_evidence <- function(evidence, source,
                                                        accepted_fold = NULL,
                                                        accepted_protocol = NULL) {
-  if (!is.list(source) ||
-      !identical(names(source), phase19_club_fold_source_evidence_schema())) {
+  production_source <- (
+    !is.null(accepted_protocol) &&
+      identical(as.character(accepted_protocol$authority_mode), "production")
+  ) || (
+    is.list(source) && !is.null(source$protocol) &&
+      identical(as.character(source$protocol$authority_mode), "production")
+  )
+  expected_schema <- if (production_source) {
+    phase19_club_production_fold_source_evidence_schema()
+  } else phase19_club_fold_source_evidence_schema()
+  if (!is.list(source) || !identical(names(source), expected_schema)) {
     phase19_club_evaluation_abort(
       "evaluation_source_invalid",
       "Production fold source evidence must include exact predictions, labels, fold, protocol, and support objects"
@@ -775,6 +969,11 @@ phase19_validate_club_fold_source_evidence <- function(evidence, source,
     phase19_club_evaluation_abort(
       "evaluation_source_invalid",
       "Production fold source evidence uses a protocol other than the accepted protocol"
+    )
+  }
+  if (production_source) {
+    phase19_validate_club_fold_source_artifacts(
+      source, source$fold, source$protocol, source$outcomes
     )
   }
   phase19_validate_club_fold_evaluation(

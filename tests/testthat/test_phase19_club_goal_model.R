@@ -270,6 +270,34 @@ test_that("club goal authority rejects domain, rating, feature, and grid attacks
   )
 })
 
+test_that("prediction source replay rejects self-rehashed grids and fixture features", {
+  context <- goal_model_test_context()
+  fit <- goal_model_test_fit(context)
+  fixtures <- goal_model_test_fixtures(context)
+  declared <- sort(fixtures$fixture_id, method = "radix")
+  result <- phase19_predict_club_goal_model(fit, fixtures, declared)
+  expect_silent(phase19_validate_club_goal_prediction_source(
+    result, fit, fixtures, declared
+  ))
+
+  forged_grid <- result
+  forged_grid$distributions$probability[[1L]] <-
+    forged_grid$distributions$probability[[1L]] + 1e-6
+  expect_error(
+    phase19_validate_club_goal_prediction_source(
+      forged_grid, fit, fixtures, declared
+    ), class = "phase19_club_goal_model_error"
+  )
+
+  forged_fixture <- fixtures
+  forged_fixture$rating_difference[[1L]] <- forged_fixture$rating_difference[[1L]] + 1
+  expect_error(
+    phase19_validate_club_goal_prediction_source(
+      result, fit, forged_fixture, declared
+    ), class = "phase19_club_goal_model_error"
+  )
+})
+
 test_that("nested fitted-model mutations invalidate the advertised fit identity", {
   context <- goal_model_test_context()
   fit <- goal_model_test_fit(context)

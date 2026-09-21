@@ -530,6 +530,40 @@ phase19_validate_club_calibrator <- function(calibrator, require_fitted = FALSE)
   invisible(calibrator)
 }
 
+#' Refit and compare a durable calibrator with its persisted OOF source rows.
+#'
+#' The scalar temperature and its self-hash are not sufficient provenance: a
+#' caller could choose a different source table and simply rehash the result.
+#' Re-running the frozen optimizer from the typed rows closes that gap.
+#' @export
+phase19_validate_club_calibrator_source <- function(
+    calibrator, source_rows, fold, candidate, protocol, require_production = FALSE
+) {
+  phase19_validate_club_calibrator(calibrator, require_fitted = TRUE)
+  if (isTRUE(require_production) &&
+      (!identical(calibrator$authority_mode, "production") ||
+       isTRUE(calibrator$fixture_authority) ||
+       !isTRUE(calibrator$production_eligible))) {
+    phase19_club_calibration_abort(
+      "calibrator_source_invalid",
+      "Production calibration source requires a production-eligible calibrator"
+    )
+  }
+  expected <- tryCatch(
+    phase19_fit_club_calibrator(source_rows, fold, candidate, protocol),
+    error = function(error) error
+  )
+  if (inherits(expected, "error") ||
+      !identical(calibrator, expected)) {
+    phase19_club_calibration_abort(
+      "calibrator_source_mismatch",
+      if (inherits(expected, "error")) conditionMessage(expected) else
+        "Calibrator does not regenerate from its persisted source rows"
+    )
+  }
+  invisible(calibrator)
+}
+
 phase19_club_calibration_prediction_hash <- function(predictions, tag) {
   phase18_hash_table_v2(
     predictions, key = "fixture_id",
@@ -627,7 +661,8 @@ phase19_apply_club_calibrator <- function(calibrator, predictions, fold) {
     hash_encoding_version = phase18_canonical_encoding_v2(),
     forecast_domain = "club", authority_mode = calibrator$authority_mode,
     fixture_authority = calibrator$fixture_authority,
-    production_eligible = FALSE, candidate_id = calibrator$candidate_id,
+    production_eligible = isTRUE(calibrator$production_eligible),
+    candidate_id = calibrator$candidate_id,
     fold_id = calibrator$fold_id, calibrator_sha256 = calibrator$calibrator_sha256,
     source_prediction_table_sha256 = raw_hash,
     calibrated_view_sha256 = calibrated_hash,
@@ -772,6 +807,74 @@ phase19_validate_club_calibrated_view <- function(view, fold) {
     )
   }
   invisible(view)
+}
+
+#' Reapply a typed calibrator and compare the complete calibrated view.
+#' @export
+phase19_validate_club_calibrated_view_source <- function(
+    view, calibrator, predictions, fold, require_production = FALSE
+) {
+  validated <- tryCatch(
+    phase19_validate_club_calibrated_view(view, fold),
+    error = function(error) error
+  )
+  if (inherits(validated, "error")) {
+    phase19_club_calibration_abort(
+      "calibrated_view_source_invalid", conditionMessage(validated)
+    )
+  }
+  validated <- tryCatch(
+    phase19_validate_club_calibrator(calibrator, require_fitted = TRUE),
+    error = function(error) error
+  )
+  if (inherits(validated, "error")) {
+    phase19_club_calibration_abort(
+      "calibrated_view_source_invalid", conditionMessage(validated)
+    )
+  }
+  if (isTRUE(require_production) &&
+      (!identical(view$authority_mode, "production") ||
+       isTRUE(view$fixture_authority) || !isTRUE(view$production_eligible) ||
+       !isTRUE(calibrator$production_eligible))) {
+    phase19_club_calibration_abort(
+      "calibrated_view_source_invalid",
+      "Production calibrated view requires production-eligible fit artifacts"
+    )
+  }
+  expected <- tryCatch(
+    phase19_apply_club_calibrator(calibrator, predictions, fold),
+    error = function(error) error
+  )
+  if (inherits(expected, "error") || !identical(view, expected)) {
+    phase19_club_calibration_abort(
+      "calibrated_view_source_mismatch",
+      if (inherits(expected, "error")) conditionMessage(expected) else
+        "Calibrated view does not regenerate from its calibrator and source predictions"
+    )
+  }
+  invisible(view)
+}
+
+#' Recompute calibration evidence and the primary-view decision from source.
+#' @export
+phase19_validate_club_calibration_decision_source <- function(
+    evidence, decision, view, outcomes, fold, protocol
+) {
+  phase19_validate_club_calibration_evidence(
+    evidence, view, outcomes, fold, protocol
+  )
+  expected <- tryCatch(
+    phase19_select_club_primary_view(evidence, view, outcomes, fold, protocol),
+    error = function(error) error
+  )
+  if (inherits(expected, "error") || !identical(decision, expected)) {
+    phase19_club_calibration_abort(
+      "calibration_decision_source_mismatch",
+      if (inherits(expected, "error")) conditionMessage(expected) else
+        "Calibration decision does not regenerate from typed evidence and gates"
+    )
+  }
+  invisible(decision)
 }
 
 phase19_club_calibration_outcome_sha256 <- function(outcomes) {
