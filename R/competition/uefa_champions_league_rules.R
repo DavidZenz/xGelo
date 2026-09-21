@@ -149,6 +149,36 @@
     evidence_document_id = c(rep("article_18", 9L), "annex_b"),
     stringsAsFactors = FALSE, check.names = FALSE
   )
+  playoff_families <- data.frame(
+    family_id = c("playoff-09-10-v-23-24", "playoff-11-12-v-21-22", "playoff-13-14-v-19-20", "playoff-15-16-v-17-18"),
+    seed_rank_min = c(9L, 11L, 13L, 15L),
+    seed_rank_max = c(10L, 12L, 14L, 16L),
+    opponent_rank_min = c(23L, 21L, 19L, 17L),
+    opponent_rank_max = c(24L, 22L, 20L, 18L),
+    bracket_position = c("playoff-family-09-10-v-23-24", "playoff-family-11-12-v-21-22", "playoff-family-13-14-v-19-20", "playoff-family-15-16-v-17-18"),
+    leg_order = "seeded_return_leg",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  round_of_16_seed_pairs <- data.frame(
+    seed_pair_id = c("r16-seeds-01-02", "r16-seeds-03-04", "r16-seeds-05-06", "r16-seeds-07-08"),
+    seed_rank_min = c(1L, 3L, 5L, 7L),
+    seed_rank_max = c(2L, 4L, 6L, 8L),
+    bracket_position_a = c("r16-bracket-a", "r16-bracket-c", "r16-bracket-e", "r16-bracket-g"),
+    bracket_position_b = c("r16-bracket-b", "r16-bracket-d", "r16-bracket-f", "r16-bracket-h"),
+    leg_order = "seeded_return_leg",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  draw_policy <- list(
+    policy_id = "ucl-2026-27-article19-annexb-v1",
+    article19 = "article_19",
+    annex_b = "annex_b",
+    playoff_pair_families = playoff_families,
+    round_of_16_seed_pairs = round_of_16_seed_pairs,
+    bracket_positions = unique(c(round_of_16_seed_pairs$bracket_position_a, round_of_16_seed_pairs$bracket_position_b)),
+    legal_leg_orders = "seeded_return_leg",
+    bounded_enumeration_limit = 4096L,
+    missing_procedure_reason = "missing_edition_draw_procedure"
+  )
   contract <- list(
     edition_id = "ucl_2026_27",
     ruleset_version = "ucl-2026-27-rules-v1",
@@ -160,6 +190,9 @@
       stringsAsFactors = FALSE, check.names = FALSE
     ),
     draw_policy_id = "ucl-2026-27-article19-annexb-v1",
+    draw_policy = draw_policy,
+    article19 = draw_policy[c("policy_id", "playoff_pair_families", "round_of_16_seed_pairs", "legal_leg_orders")],
+    annex_b = draw_policy[c("policy_id", "bracket_positions", "round_of_16_seed_pairs")],
     draw_evidence_id = "draw_procedure_2026_27",
     two_leg_policy = "aggregate_regulation_then_second_leg_extra_time_then_penalties_no_away_goals",
     final_policy = "single_neutral_match_extra_time_then_penalties",
@@ -167,6 +200,11 @@
   )
   contract$ruleset_sha256 <- .ucl_rule_hash(contract[names(contract) != "ruleset_sha256"])
   contract
+}
+
+.ucl_rule_draw_policy <- function(rules = NULL) {
+  if (!is.null(rules) && is.list(rules) && is.list(rules$draw_policy)) return(rules$draw_policy)
+  .ucl_rule_contract()$draw_policy
 }
 
 `%||%` <- if (exists("%||%", mode = "function", inherits = TRUE)) get("%||%") else function(left, right) if (!is.null(left)) left else right

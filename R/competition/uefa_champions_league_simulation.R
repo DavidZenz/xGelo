@@ -23,8 +23,33 @@
   callback()
 }
 
+.ucl_sim_seed_for <- function(seed, ...) {
+  digest <- .ucl_sim_hash(c(seed, ...))
+  value <- suppressWarnings(strtoi(substr(digest, 1L, 7L), base = 16L))
+  if (is.na(value)) value <- 1L
+  as.integer((as.numeric(value) %% (.Machine$integer.max - 1)) + 1)
+}
+
 .ucl_sim_status_completed <- function(value) {
-  tolower(trimws(as.character(value))) %in% c("completed", "complete", "finished", "full_time", "full-time", "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded")
+  tolower(trimws(as.character(value))) %in% c(
+    "completed", "complete", "finished", "full_time", "full-time",
+    "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded"
+  )
+}
+
+.ucl_sim_status_fixed <- function(value) {
+  status <- tolower(trimws(as.character(value)))
+  .ucl_sim_status_completed(status) || status %in% c("postponed", "cancelled", "canceled", "abandoned")
+}
+
+.ucl_sim_open_status <- function(value) {
+  status <- tolower(trimws(as.character(value)))
+  is.na(status) || !nzchar(status) || status %in% c("scheduled", "not_started", "not-started", "upcoming", "fixture", "open")
+}
+
+.ucl_sim_before <- function(left, right) {
+  if (is.null(left) || is.null(right) || !length(left) || !length(right) || is.na(left[[1L]]) || is.na(right[[1L]])) return(FALSE)
+  as.character(left[[1L]]) < as.character(right[[1L]])
 }
 
 .ucl_sim_probability <- function(row) {
@@ -36,37 +61,115 @@
   p
 }
 
-.ucl_sim_sample_score <- function(row) {
-  p <- .ucl_sim_probability(row)
-  if (anyNA(p)) return(list(home = NA_integer_, away = NA_integer_, status = "suppressed", reason = "insufficient_model_evidence"))
-  outcome <- sample(c("home", "draw", "away"), size = 1L, prob = p)
-  if (outcome == "home") return(list(home = 1L, away = 0L, status = "sampled", reason = "none"))
-  if (outcome == "away") return(list(home = 0L, away = 1L, status = "sampled", reason = "none"))
-  list(home = 1L, away = 1L, status = "sampled", reason = "none")
+.ucl_sim_score_grid <- function(row) {
+  grid <- NULL
+  for (field in c("score_grid", "score_distribution", "score_grid_json")) {
+    if (!field %in% names(row)) next
+    candidate <- row[[field]][[1L]]
+    if (is.character(candidate) && length(candidate) == 1L && nzchar(candidate) && requireNamespace("jsonlite", quietly = TRUE)) {
+      candidate <- tryCatch(jsonlite::fromJSON(candidate), error = function(error) NULL)
+    }
+    if (!is.null(candidate)) {
+      grid <- candidate
+      break
+    }
+  }
+  if (is.null(grid)) return(NULL)
+  if (is.list(grid) && !is.data.frame(grid) && !is.null(grid$home_goals)) grid <- as.data.frame(grid, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!is.data.frame(grid) || !all(c("home_goals", "away_goals", "probability") %in% names(grid)) || !nrow(grid)) return(NULL)
+  home <- suppressWarnings(as.numeric(grid$home_goals)); away <- suppressWarnings(as.numeric(grid$away_goals)); probability <- suppressWarnings(as.numeric(grid$probability))
+  if (any(!is.finite(c(home, away, probability))) || any(home < 0 | away < 0) || any(home != floor(home) | away != floor(away)) || any(probability < 0) || abs(sum(probability) - 1) > 1e-8 || anyDuplicated(paste(home, away, sep = ":"))) return(NULL)
+  grid <- data.frame(home_goals = as.integer(home), away_goals = as.integer(away), probability = probability, stringsAsFactors = FALSE, check.names = FALSE)
+  grid[order(grid$home_goals, grid$away_goals, method = "radix"), , drop = FALSE]
 }
 
-.ucl_sim_iteration_graph <- function(graph, ledger) {
-  output <- graph
-  fixtures <- output$fixtures
-  for (index in seq_len(nrow(fixtures))) {
-    completed <- .ucl_sim_status_completed(fixtures$match_status[[index]])
-    if (completed) next
-    fixture_id <- as.character(fixtures$fixture_id[[index]])
-    row <- ledger[as.character(ledger$fixture_id) == fixture_id, , drop = FALSE]
-    if (nrow(row) != 1L || !as.character(row$forecast_status[[1L]]) %in% c("available", "eligible_fixture", "eligible_production")) next
-    sampled <- .ucl_sim_sample_score(row)
-    if (!identical(sampled$status, "sampled")) next
+.ucl_sim_sample_score <- function(row) {
+  grid <- .ucl_sim_score_grid(row)
+  if (is.null(grid)) return(list(home = NA_integer_, away = NA_integer_, status = "suppressed", reason = "insufficient_model_evidence"))
+  index <- sample.int(nrow(grid), size = 1L, prob = grid$probability)
+  list(home = grid$home_goals[[index]], away = grid$away_goals[[index]], status = "sampled", reason = "none")
+}
+
+# Normalize lifecycle rows before sampling. Settled rows and postponed rows are
+# immutable; only open rows with a valid score grid can be sampled.
+.ucl_prepare_iteration_matches <- function(fixtures, cutoff_utc = NULL) {
+  fixtures <- as.data.frame(fixtures, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!"fixture_id" %in% names(fixtures)) stop("UCL iteration matches require fixture_id", call. = FALSE)
+  status <- if ("match_status" %in% names(fixtures)) as.character(fixtures$match_status) else rep("scheduled", nrow(fixtures))
+  fixed <- vapply(status, .ucl_sim_status_fixed, logical(1))
+  open <- !fixed & vapply(status, .ucl_sim_open_status, logical(1))
+  fixture_ids <- as.character(fixtures$fixture_id)
+  if (anyDuplicated(fixture_ids)) stop("UCL iteration matches require unique fixture ids", call. = FALSE)
+  list(
+    matches = fixtures,
+    fixed_fixture_ids = sort(fixture_ids[fixed], method = "radix"),
+    open_fixture_ids = sort(fixture_ids[open], method = "radix"),
+    eligible_open_fixture_ids = sort(fixture_ids[open], method = "radix"),
+    suppressed_fixture_ids = character(),
+    cutoff_utc = cutoff_utc %||% NA_character_
+  )
+}
+
+.ucl_sample_open_fixtures <- function(prepared, ledger, seed = 20260921L, cutoff_utc = NULL) {
+  if (is.data.frame(prepared)) prepared <- .ucl_prepare_iteration_matches(prepared, cutoff_utc = cutoff_utc)
+  if (!is.list(prepared) || !is.data.frame(prepared$matches)) stop("UCL prepared iteration matches are invalid", call. = FALSE)
+  table <- if (is.list(ledger) && is.data.frame(ledger$ledger)) ledger$ledger else as.data.frame(ledger, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!"fixture_id" %in% names(table)) stop("UCL forecast ledger requires fixture_id", call. = FALSE)
+  fixtures <- prepared$matches
+  sampled <- character(); suppressed <- character(); records <- list(); record_index <- 0L
+  ids <- sort(as.character(fixtures$fixture_id), method = "radix")
+  for (fixture_id in ids) {
+    index <- match(fixture_id, as.character(fixtures$fixture_id))
+    if (!fixture_id %in% prepared$open_fixture_ids) next
+    row <- table[as.character(table$fixture_id) == fixture_id, , drop = FALSE]
+    reason <- NULL
+    if (nrow(row) != 1L) reason <- "forecast_row_missing"
+    if (is.null(reason) && (!"forecast_status" %in% names(row) || !as.character(row$forecast_status[[1L]]) %in% c("available", "eligible_fixture", "eligible_production"))) reason <- as.character(row$suppression_reason[[1L]] %||% "forecast_suppressed")
+    kickoff <- if ("kickoff_utc" %in% names(fixtures)) fixtures$kickoff_utc[[index]] else NA_character_
+    feature_cutoff <- if (nrow(row) && "feature_cutoff_utc" %in% names(row)) row$feature_cutoff_utc[[1L]] else NA_character_
+    if (is.null(reason) && !.ucl_sim_before(feature_cutoff, kickoff)) reason <- "cutoff_violation"
+    if (is.null(reason) && is.null(.ucl_sim_score_grid(row))) reason <- "insufficient_model_evidence"
+    if (!is.null(reason)) {
+      suppressed <- c(suppressed, fixture_id)
+      record_index <- record_index + 1L
+      records[[record_index]] <- data.frame(fixture_id = fixture_id, sampling_status = "suppressed", suppression_reason = reason, sampled_home_goals = NA_integer_, sampled_away_goals = NA_integer_, stringsAsFactors = FALSE, check.names = FALSE)
+      next
+    }
+    sampled_score <- .ucl_sim_with_seed(.ucl_sim_seed_for(seed, "fixture", fixture_id), function() .ucl_sim_sample_score(row))
+    if (!identical(sampled_score$status, "sampled")) {
+      suppressed <- c(suppressed, fixture_id)
+      next
+    }
     fixtures$source_status[[index]] <- "completed"
     fixtures$match_status[[index]] <- "completed"
     fixtures$completion_method[[index]] <- "regulation"
-    fixtures$regulation_home_goals[[index]] <- sampled$home
-    fixtures$regulation_away_goals[[index]] <- sampled$away
-    fixtures$final_home_goals[[index]] <- sampled$home
-    fixtures$final_away_goals[[index]] <- sampled$away
+    fixtures$regulation_home_goals[[index]] <- sampled_score$home
+    fixtures$regulation_away_goals[[index]] <- sampled_score$away
+    fixtures$final_home_goals[[index]] <- sampled_score$home
+    fixtures$final_away_goals[[index]] <- sampled_score$away
     fixtures$counts_for_standings[[index]] <- TRUE
-    fixtures$winner_club_id[[index]] <- if (sampled$home > sampled$away) fixtures$home_club_id[[index]] else if (sampled$away > sampled$home) fixtures$away_club_id[[index]] else NA_character_
+    fixtures$winner_club_id[[index]] <- if (sampled_score$home > sampled_score$away) fixtures$home_club_id[[index]] else if (sampled_score$away > sampled_score$home) fixtures$away_club_id[[index]] else NA_character_
+    sampled <- c(sampled, fixture_id)
+    record_index <- record_index + 1L
+    records[[record_index]] <- data.frame(fixture_id = fixture_id, sampling_status = "sampled", suppression_reason = NA_character_, sampled_home_goals = sampled_score$home, sampled_away_goals = sampled_score$away, stringsAsFactors = FALSE, check.names = FALSE)
   }
-  output$fixtures <- fixtures
+  list(
+    matches = fixtures,
+    fixed_fixture_ids = prepared$fixed_fixture_ids,
+    sampled_fixture_ids = sort(sampled, method = "radix"),
+    suppressed_fixture_ids = sort(unique(suppressed), method = "radix"),
+    eligible_open_fixture_ids = prepared$eligible_open_fixture_ids,
+    records = if (length(records)) do.call(rbind, records) else data.frame(),
+    cutoff_utc = cutoff_utc %||% prepared$cutoff_utc
+  )
+}
+
+.ucl_sim_iteration_graph <- function(graph, ledger, seed = 20260921L, cutoff_utc = NULL, iteration = 1L) {
+  output <- graph
+  prepared <- .ucl_prepare_iteration_matches(output$fixtures, cutoff_utc = cutoff_utc)
+  sampled <- .ucl_sample_open_fixtures(prepared, ledger = ledger, seed = .ucl_sim_seed_for(seed, "iteration", iteration), cutoff_utc = cutoff_utc)
+  output$fixtures <- sampled$matches
+  attr(output, "ucl_sampling") <- sampled
   output
 }
 
@@ -88,79 +191,118 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
   graph <- if (is.list(state) && !is.data.frame(state) && !is.null(state$graph)) state$graph else state
   validation <- ucl_validate_schedule(graph, rules = rules)
   if (!identical(validation$status, "ready")) return(list(status = "blocked", reason = validation$reason_code, simulations = data.frame(), metadata = list()))
-  ledger <- if (is.list(ledger) && is.data.frame(ledger$ledger)) ledger$ledger else ledger
-  if (is.null(ledger)) {
-    ledger <- data.frame(fixture_id = validation$graph$fixtures$fixture_id, forecast_status = "suppressed", stringsAsFactors = FALSE)
-  }
+  ledger_authority <- if (is.list(ledger) && !is.null(ledger$authority)) ledger$authority else list()
+  ledger_table <- if (is.list(ledger) && is.data.frame(ledger$ledger)) ledger$ledger else ledger
+  if (is.null(ledger_table)) ledger_table <- data.frame(fixture_id = validation$graph$fixtures$fixture_id, forecast_status = "suppressed", stringsAsFactors = FALSE)
   simulations <- as.integer(simulations)
   if (length(simulations) != 1L || is.na(simulations) || simulations < 1L || simulations > 100000L) stop("UCL simulation count must be between 1 and 100000", call. = FALSE)
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else NULL
   source_bundle_id <- source_bundle_id %||% validation$graph$source_bundle_id
   run_id <- .ucl_sim_hash(c(validation$graph$graph_sha256, if (is.null(rules)) "" else rules$ruleset_sha256, source_bundle_id, seed, simulations, information_cutoff_utc %||% ""))
-  rows <- .ucl_sim_with_seed(seed, function() {
-    output <- lapply(seq_len(simulations), function(iteration) {
-      graph_i <- .ucl_sim_iteration_graph(validation$graph, ledger)
-      built <- if (exists("ucl_build_state", mode = "function")) ucl_build_state(graph_i, rules = rules, state_cutoff_utc = "2099-12-31T23:59:59Z") else NULL
-      if (is.null(built) || !identical(built$status, "ready")) return(data.frame())
-      .ucl_sim_rank_rows(built$standings, iteration, run_id)
-    })
-    do.call(rbind, output)
+  iteration_results <- lapply(seq_len(simulations), function(iteration) {
+    graph_i <- .ucl_sim_iteration_graph(validation$graph, ledger_table, seed = seed, cutoff_utc = information_cutoff_utc, iteration = iteration)
+    built <- if (exists("ucl_build_state", mode = "function")) ucl_build_state(graph_i, rules = rules, state_cutoff_utc = information_cutoff_utc %||% "2099-12-31T23:59:59Z") else NULL
+    list(graph = graph_i, rows = if (is.null(built) || !identical(built$status, "ready")) data.frame() else .ucl_sim_rank_rows(built$standings, iteration, run_id))
   })
-  row.names(rows) <- NULL
-  path_state <- ucl_enumerate_legal_knockout_paths(
-    if (nrow(rows)) rows[rows$iteration == max(rows$iteration), , drop = FALSE] else data.frame(),
-    draw_artifact = draw_artifact, rules = rules, source_bundle_id = source_bundle_id
-  )
+  rows <- do.call(rbind, lapply(iteration_results, `[[`, "rows")); if (is.null(rows)) rows <- data.frame(); row.names(rows) <- NULL
+  path_state <- ucl_enumerate_legal_knockout_paths(if (nrow(rows)) rows[rows$iteration == max(rows$iteration), , drop = FALSE] else data.frame(), draw_artifact = draw_artifact, rules = rules, source_bundle_id = source_bundle_id, seed = seed)
+  draw <- ucl_validate_draw_artifact(draw_artifact, rules = rules, source_bundle_id = source_bundle_id)
+  sampling <- lapply(iteration_results, function(result) attr(result$graph, "ucl_sampling"))
+  path_statuses <- if (is.data.frame(path_state) && nrow(path_state)) as.character(path_state$path_status) else character()
+  unresolved_draw <- !identical(draw$status, "accepted") && (length(path_statuses) == 0L || any(path_statuses %in% c("pre_draw_legal", "unresolved")))
   metadata <- list(
     run_id = run_id, edition_id = validation$graph$edition_id, source_bundle_id = source_bundle_id,
     ruleset_version = if (is.null(rules)) NA_character_ else rules$ruleset_version,
     ruleset_sha256 = if (is.null(rules)) NA_character_ else rules$ruleset_sha256,
     draw_policy_id = if (is.null(rules)) "ucl-2026-27-article19-annexb-v1" else rules$draw_policy_id,
-    draw_artifact_id = if (is.null(draw_artifact)) NA_character_ else as.character(draw_artifact$draw_artifact_id %||% NA_character_),
-    draw_artifact_sha256 = if (is.null(draw_artifact)) NA_character_ else as.character(draw_artifact$draw_artifact_sha256 %||% NA_character_),
-    information_cutoff_utc = information_cutoff_utc %||% NA_character_, algorithm_version = "ucl-conditional-league-v1",
-    simulation_count = simulations, seed = as.integer(seed), path_policy_id = "ucl-rank-constrained-pre-draw-v1",
+    draw_artifact_id = if (identical(draw$status, "accepted")) draw$draw_artifact_id else NA_character_,
+    draw_artifact_sha256 = if (identical(draw$status, "accepted")) draw$draw_artifact_sha256 else NA_character_,
+    information_cutoff_utc = information_cutoff_utc %||% NA_character_, algorithm_version = "ucl-conditional-league-v2",
+    simulation_count = simulations, seed = as.integer(seed), path_policy_id = attr(path_state, "path_policy")$policy_id %||% "ucl-2026-27-article19-annexb-v1",
     path_policy_count = if (is.data.frame(path_state)) nrow(path_state) else 0L,
+    path_policy_mode = attr(path_state, "path_policy")$mode %||% "unresolved",
+    path_policy_seed = as.integer(seed), legality_checks = TRUE,
     authority_mode = as.character(validation$graph$authority_mode), production_eligible = FALSE,
-    status = if (is.data.frame(path_state) && nrow(path_state) && any(path_state$path_status == "unresolved")) "unresolved_draw_procedure" else "ready"
+    original_parent_reason = as.character(ledger_authority$original_parent_reason %||% ledger_authority$parent_reason %||% NA_character_),
+    human_needed_reason = as.character(ledger_authority$human_needed_reason %||% NA_character_),
+    status = if (unresolved_draw) "unresolved_draw_procedure" else "ready"
   )
   structure(list(status = metadata$status, run_id = run_id, rank_rows = rows, simulations = rows,
                  knockout_paths = path_state, metadata = metadata, graph = validation$graph,
-                 ledger = ledger, fixture_authority = isTRUE(validation$graph$fixture_authority), production_eligible = FALSE),
+                 ledger = ledger_table, fixture_sampling = sampling,
+                 fixture_authority = isTRUE(validation$graph$fixture_authority), production_eligible = FALSE),
             class = c("ucl_simulation_run", "list"))
 }
 
 #' Aggregate rank, band, and cut-line probabilities from simulation rows.
 ucl_aggregate_rank_distributions <- function(simulation, rules = NULL) {
   rows <- if (is.list(simulation) && is.data.frame(simulation$rank_rows)) simulation$rank_rows else simulation
-  if (!is.data.frame(rows) || !nrow(rows)) return(list(status = "unresolved", rank_distribution = data.frame(), band_probabilities = data.frame(), cutline = data.frame()))
-  total <- length(unique(rows$iteration)); clubs <- sort(unique(as.character(rows$club_id)), method = "radix")
+  if (!is.data.frame(rows) || !nrow(rows)) return(list(status = "unresolved", rank_distribution = data.frame(), band_probabilities = data.frame(), cutline_distributions = list(), cutline = data.frame()))
+  rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(cardinality = list(clubs = max(36L, length(unique(rows$club_id)))))
+  club_count <- as.integer(rules$cardinality$clubs %||% length(unique(rows$club_id))); total <- length(unique(rows$iteration)); clubs <- sort(unique(as.character(rows$club_id)), method = "radix")
+  band_levels <- c("direct_round_of_16", "knockout_play_off", "eliminated")
   rank_distribution <- do.call(rbind, lapply(clubs, function(club) {
     values <- rows[as.character(rows$club_id) == club, , drop = FALSE]
-    ranks <- sort(unique(as.integer(values$rank)), method = "radix", na.last = TRUE)
-    out <- data.frame(club_id = club, rank = ranks, probability = vapply(ranks, function(rank) if (is.na(rank)) mean(is.na(values$rank)) else mean(values$rank == rank, na.rm = TRUE), numeric(1)), stringsAsFactors = FALSE, check.names = FALSE)
-    out
+    unresolved <- nrow(values) != total || any(is.na(values$rank) | as.character(values$rank_status) == "unresolved" | is.na(values$qualification_band))
+    probability <- if (unresolved) rep(NA_real_, club_count) else vapply(seq_len(club_count), function(rank) mean(as.integer(values$rank) == rank), numeric(1))
+    data.frame(edition_id = as.character(values$edition_id[[1L]] %||% NA_character_), club_id = club, rank = seq_len(club_count), probability = probability, status = if (unresolved) "unresolved" else "resolved", stringsAsFactors = FALSE, check.names = FALSE)
   }))
-  band_levels <- c("direct_round_of_16", "knockout_play_off", "eliminated")
   band_probabilities <- do.call(rbind, lapply(clubs, function(club) {
     values <- rows[as.character(rows$club_id) == club, , drop = FALSE]
-    data.frame(club_id = club, qualification_band = band_levels, probability = vapply(band_levels, function(band) mean(as.character(values$qualification_band) == band), numeric(1)), status = ifelse(any(as.character(values$rank_status) == "unresolved"), "unresolved", "resolved"), stringsAsFactors = FALSE, check.names = FALSE)
+    unresolved <- nrow(values) != total || any(is.na(values$rank) | as.character(values$rank_status) == "unresolved" | is.na(values$qualification_band))
+    probability <- if (unresolved) rep(NA_real_, length(band_levels)) else vapply(band_levels, function(band) mean(as.character(values$qualification_band) == band), numeric(1))
+    data.frame(club_id = club, qualification_band = band_levels, probability = probability, status = if (unresolved) "unresolved" else "resolved", stringsAsFactors = FALSE, check.names = FALSE)
   }))
-  cutline <- do.call(rbind, lapply(c(8L, 24L), function(boundary) {
-    data.frame(cutline = boundary, rank = sort(unique(as.integer(rows$rank))), probability = vapply(sort(unique(as.integer(rows$rank))), function(rank) mean(rows$rank == rank), numeric(1)), stringsAsFactors = FALSE, check.names = FALSE)
-  }))
-  list(status = if (any(is.na(rows$rank))) "unresolved" else "ready", rank_distribution = rank_distribution,
-       band_probabilities = band_probabilities, cutline = cutline, simulation_count = total,
+  cutline_distributions <- setNames(lapply(c(8L, 24L), function(boundary) {
+    data.frame(cutline = boundary, club_id = clubs, probability = vapply(clubs, function(club) {
+      values <- rows[as.character(rows$club_id) == club, , drop = FALSE]
+      if (nrow(values) != total || any(is.na(values$rank) | as.character(values$rank_status) == "unresolved" | is.na(values$qualification_band))) return(NA_real_)
+      mean(as.integer(values$rank) == boundary)
+    }, numeric(1)), status = vapply(clubs, function(club) {
+      values <- rows[as.character(rows$club_id) == club, , drop = FALSE]
+      if (nrow(values) != total || any(is.na(values$rank) | as.character(values$rank_status) == "unresolved" | is.na(values$qualification_band))) "unresolved" else "resolved"
+    }, character(1)), stringsAsFactors = FALSE, check.names = FALSE)
+  }), c("rank_8", "rank_24"))
+  cutline <- do.call(rbind, cutline_distributions)
+  list(status = if (any(is.na(rows$rank) | as.character(rows$rank_status) == "unresolved" | is.na(rows$qualification_band))) "unresolved" else "ready", rank_distribution = rank_distribution,
+       band_probabilities = band_probabilities, cutline_distributions = cutline_distributions, cutline = cutline, simulation_count = total,
        run_id = if (is.list(simulation)) simulation$run_id %||% NA_character_ else NA_character_)
 }
 
 .ucl_sim_rank_value <- function(rankings, club_id) {
   row <- rankings[as.character(rankings$club_id) == as.character(club_id), , drop = FALSE]
   if (nrow(row) != 1L) return(NA_integer_)
-  if (!is.na(row$rank[[1L]])) return(as.integer(row$rank[[1L]]))
+  status <- as.character(row$rank_status[[1L]] %||% "resolved")
+  if (!is.na(row$rank[[1L]]) && status != "unresolved") return(as.integer(row$rank[[1L]]))
   lo <- as.integer(row$rank_interval_min[[1L]]); hi <- as.integer(row$rank_interval_max[[1L]])
-  if (is.na(lo) || is.na(hi) || lo != hi) return(NA_integer_)
+  if (is.na(lo) || is.na(hi) || lo != hi || status == "unresolved") return(NA_integer_)
   lo
+}
+
+.ucl_unresolved_path <- function(rules, source_bundle_id, reason = "unresolved_rank_interval") {
+  data.frame(edition_id = rules$edition_id, path_id = "pre-draw-unresolved", stage_id = "knockout_play_off", seed_slot_id = NA_character_, bracket_position = NA_character_, participant_a = NA_character_, participant_b = NA_character_, seed_rank = NA_integer_, opponent_rank = NA_integer_, leg_order = NA_character_, draw_policy_id = rules$draw_policy_id, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, path_status = "unresolved", unresolved_reason = reason, source_bundle_id = source_bundle_id %||% NA_character_, ruleset_sha256 = rules$ruleset_sha256, stringsAsFactors = FALSE, check.names = FALSE)
+}
+
+.ucl_validate_legal_path <- function(path, rules = NULL, rank_lookup = NULL) {
+  rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(edition_id = "ucl_2026_27", draw_policy_id = "ucl-2026-27-article19-annexb-v1", ruleset_sha256 = NA_character_)
+  if (!is.data.frame(path) || nrow(path) != 1L || !all(c("stage_id", "participant_a", "participant_b", "leg_order", "bracket_position") %in% names(path))) return(FALSE)
+  path_status <- if ("path_status" %in% names(path)) as.character(path$path_status[[1L]]) else "accepted_draw"
+  if (path_status == "unresolved") return(FALSE)
+  if (as.character(path$leg_order[[1L]]) != "seeded_return_leg") return(FALSE)
+  stage <- as.character(path$stage_id[[1L]]); seed_rank <- suppressWarnings(as.integer(path$seed_rank[[1L]])); opponent_rank <- suppressWarnings(as.integer(path$opponent_rank[[1L]]))
+  if (stage == "knockout_play_off") {
+    policy <- .ucl_rule_draw_policy(rules); families <- policy$playoff_pair_families
+    valid_family <- nrow(families) == 4L && any(seed_rank >= families$seed_rank_min & seed_rank <= families$seed_rank_max & opponent_rank >= families$opponent_rank_min & opponent_rank <= families$opponent_rank_max & as.character(path$bracket_position[[1L]]) == as.character(families$bracket_position))
+    if (!is.null(rank_lookup) && (is.null(names(rank_lookup)) || is.na(rank_lookup[[as.character(path$participant_a[[1L]])]]) || is.na(rank_lookup[[as.character(path$participant_b[[1L]])]]) || rank_lookup[[as.character(path$participant_a[[1L]])]] != seed_rank || rank_lookup[[as.character(path$participant_b[[1L]])]] != opponent_rank)) return(FALSE)
+    return(isTRUE(valid_family) && nzchar(as.character(path$participant_a[[1L]])) && nzchar(as.character(path$participant_b[[1L]])) && !identical(as.character(path$participant_a[[1L]]), as.character(path$participant_b[[1L]])))
+  }
+  if (stage == "round_of_16") {
+    policy <- .ucl_rule_draw_policy(rules); pairs <- policy$round_of_16_seed_pairs
+    valid_position <- as.character(path$bracket_position[[1L]]) %in% c(as.character(pairs$bracket_position_a), as.character(pairs$bracket_position_b))
+    if (!is.null(rank_lookup) && (is.null(names(rank_lookup)) || is.na(rank_lookup[[as.character(path$participant_a[[1L]])]]) || rank_lookup[[as.character(path$participant_a[[1L]])]] != seed_rank)) return(FALSE)
+    return(seed_rank %in% 1:8 && is.na(opponent_rank) && valid_position && grepl("^winner:", as.character(path$participant_b[[1L]])) && nzchar(as.character(path$participant_a[[1L]])))
+  }
+  FALSE
 }
 
 #' Enumerate only rank-compatible play-off and round-of-16 path families.
@@ -168,51 +310,69 @@ ucl_enumerate_legal_knockout_paths <- function(rankings, draw_artifact = NULL, r
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(edition_id = "ucl_2026_27", ruleset_sha256 = NA_character_, draw_policy_id = "ucl-2026-27-article19-annexb-v1")
   draw <- ucl_validate_draw_artifact(draw_artifact, rules = rules, source_bundle_id = source_bundle_id)
   if (identical(draw$status, "accepted")) {
-    pairs <- draw$pairings
-    if (!is.data.frame(pairs) || !nrow(pairs)) return(data.frame(path_id = character(), path_status = character(), unresolved_reason = character(), stringsAsFactors = FALSE))
-    output <- pairs
-    output$edition_id <- rules$edition_id; output$draw_policy_id <- rules$draw_policy_id; output$draw_artifact_id <- draw$draw_artifact_id; output$draw_artifact_sha256 <- draw$draw_artifact_sha256; output$path_status <- "accepted_draw"; output$unresolved_reason <- NA_character_; output$source_bundle_id <- source_bundle_id %||% NA_character_; output$ruleset_sha256 <- rules$ruleset_sha256
+    if (is.data.frame(rankings) && nrow(rankings) && all(c("club_id", "rank") %in% names(rankings))) {
+      passed <- setNames(vapply(as.character(rankings$club_id), function(club) .ucl_sim_rank_value(rankings, club), integer(1)), as.character(rankings$club_id))
+      expected <- setNames(as.integer(draw$rank_inputs$rank), as.character(draw$rank_inputs$club_id))
+      common <- intersect(names(passed), names(expected))
+      if (!length(common) || anyNA(passed[common]) || any(passed[common] != expected[common])) return(.ucl_unresolved_path(rules, source_bundle_id, "draw_rank_input_mismatch"))
+    }
+    output <- draw$pairings
+    output$edition_id <- rules$edition_id; output$draw_policy_id <- rules$draw_policy_id; output$draw_artifact_id <- draw$draw_artifact_id; output$draw_artifact_sha256 <- draw$draw_artifact_sha256; output$path_status <- "accepted_draw"; output$unresolved_reason <- NA_character_; output$source_bundle_id <- source_bundle_id %||% draw$source_bundle_id %||% NA_character_; output$ruleset_sha256 <- rules$ruleset_sha256
+    attr(output, "path_policy") <- list(policy_id = rules$draw_policy_id, mode = "accepted_draw_conditioning", count = nrow(output), seed = seed %||% NA_integer_)
     return(output)
   }
-  if (!is.data.frame(rankings) || !nrow(rankings)) {
-    return(data.frame(edition_id = rules$edition_id, path_id = "pre-draw-unresolved", stage_id = "knockout_play_off", participant_a = NA_character_, participant_b = NA_character_, leg_order = NA_character_, draw_policy_id = rules$draw_policy_id, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, path_status = "unresolved", unresolved_reason = draw$reason %||% "unresolved_rank_interval", source_bundle_id = source_bundle_id %||% NA_character_, ruleset_sha256 = rules$ruleset_sha256, stringsAsFactors = FALSE, check.names = FALSE))
-  }
-  rows <- list(); index <- 0L
-  add_family <- function(seed_range, opponent_range, stage_id) {
-    for (a in seed_range) for (b in opponent_range) {
-      if (a > b) next
-      if (is.na(a) || is.na(b)) next
-      index <<- index + 1L
-      rows[[index]] <<- data.frame(edition_id = rules$edition_id, path_id = paste0(stage_id, "-", index), stage_id = stage_id, participant_a = as.character(a), participant_b = as.character(b), leg_order = "seeded_return_leg", draw_policy_id = rules$draw_policy_id, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, path_status = "pre_draw_legal", unresolved_reason = "missing_edition_draw_procedure", source_bundle_id = source_bundle_id %||% NA_character_, ruleset_sha256 = rules$ruleset_sha256, stringsAsFactors = FALSE, check.names = FALSE)
+  if (!is.data.frame(rankings) || !nrow(rankings) || !all(c("club_id", "rank") %in% names(rankings))) return(.ucl_unresolved_path(rules, source_bundle_id, draw$reason %||% "unresolved_rank_interval"))
+  club_rank <- setNames(vapply(as.character(rankings$club_id), function(club) .ucl_sim_rank_value(rankings, club), integer(1)), as.character(rankings$club_id))
+  if (anyNA(club_rank) || anyDuplicated(club_rank) || !identical(sort(as.integer(club_rank)), seq_len(36L))) return(.ucl_unresolved_path(rules, source_bundle_id, if (identical(draw$reason, "missing_edition_draw_procedure")) "unresolved_rank_interval" else draw$reason %||% "unresolved_rank_interval"))
+  by_rank <- setNames(names(club_rank), as.character(club_rank)); policy <- .ucl_rule_draw_policy(rules); rows <- list(); index <- 0L
+  families <- policy$playoff_pair_families
+  for (family_index in seq_len(nrow(families))) {
+    family <- families[family_index, , drop = FALSE]
+    for (seed_rank in family$seed_rank_min:family$seed_rank_max) for (opponent_rank in family$opponent_rank_min:family$opponent_rank_max) {
+      index <- index + 1L
+      rows[[index]] <- data.frame(edition_id = rules$edition_id, path_id = sprintf("playoff-%02d", index), stage_id = "knockout_play_off", seed_slot_id = paste0("playoff-seed-", sprintf("%02d", seed_rank)), bracket_position = as.character(family$bracket_position), participant_a = by_rank[[as.character(seed_rank)]], participant_b = by_rank[[as.character(opponent_rank)]], seed_rank = as.integer(seed_rank), opponent_rank = as.integer(opponent_rank), leg_order = "seeded_return_leg", draw_policy_id = rules$draw_policy_id, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, path_status = "pre_draw_legal", unresolved_reason = "missing_edition_draw_procedure", source_bundle_id = source_bundle_id %||% NA_character_, ruleset_sha256 = rules$ruleset_sha256, stringsAsFactors = FALSE, check.names = FALSE)
     }
   }
-  rank_values <- vapply(seq_len(nrow(rankings)), function(i) .ucl_sim_rank_value(rankings, rankings$club_id[[i]]), integer(1))
-  unresolved <- any(is.na(rank_values))
-  if (unresolved) return(data.frame(edition_id = rules$edition_id, path_id = "pre-draw-unresolved", stage_id = "knockout_play_off", participant_a = NA_character_, participant_b = NA_character_, leg_order = NA_character_, draw_policy_id = rules$draw_policy_id, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, path_status = "unresolved", unresolved_reason = "unresolved_rank_interval", source_bundle_id = source_bundle_id %||% NA_character_, ruleset_sha256 = rules$ruleset_sha256, stringsAsFactors = FALSE, check.names = FALSE))
-  add_family(9:10, 23:24, "knockout_play_off"); add_family(11:12, 21:22, "knockout_play_off"); add_family(13:14, 19:20, "knockout_play_off"); add_family(15:16, 17:18, "knockout_play_off")
-  if (!length(rows)) return(data.frame())
-  do.call(rbind, rows)
+  pairs <- policy$round_of_16_seed_pairs
+  for (pair_index in seq_len(nrow(pairs))) {
+    pair <- pairs[pair_index, , drop = FALSE]
+    for (position_index in 1:2) {
+      seed_rank <- if (position_index == 1L) pair$seed_rank_min else pair$seed_rank_max
+      bracket <- if (position_index == 1L) pair$bracket_position_a else pair$bracket_position_b
+      index <- index + 1L
+      rows[[index]] <- data.frame(edition_id = rules$edition_id, path_id = sprintf("r16-%02d", index - 16L), stage_id = "round_of_16", seed_slot_id = as.character(pair$seed_pair_id), bracket_position = as.character(bracket), participant_a = by_rank[[as.character(seed_rank)]], participant_b = paste0("winner:playoff-", sprintf("%02d", ((pair_index - 1L) * 4L) + position_index)), seed_rank = as.integer(seed_rank), opponent_rank = NA_integer_, leg_order = "seeded_return_leg", draw_policy_id = rules$draw_policy_id, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, path_status = "pre_draw_legal", unresolved_reason = "missing_edition_draw_procedure", source_bundle_id = source_bundle_id %||% NA_character_, ruleset_sha256 = rules$ruleset_sha256, stringsAsFactors = FALSE, check.names = FALSE)
+    }
+  }
+  output <- do.call(rbind, rows); row.names(output) <- NULL
+  attr(output, "path_policy") <- list(policy_id = rules$draw_policy_id, mode = "deterministic_pre_draw_enumeration", count = nrow(output), seed = seed %||% NA_integer_, legality_checks = TRUE)
+  output
 }
 
 #' Validate a same-edition accepted draw or return a typed unresolved state.
 ucl_validate_draw_artifact <- function(draw_artifact = NULL, rules = NULL, source_bundle_id = NULL) {
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(edition_id = "ucl_2026_27")
   if (is.null(draw_artifact)) return(list(status = "unresolved", reason = "missing_edition_draw_procedure", draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
-  if (is.list(draw_artifact) && identical(as.character(draw_artifact$status %||% ""), "unresolved") && !is.null(draw_artifact$reason)) {
-    return(list(status = "unresolved", reason = as.character(draw_artifact$reason), draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
+  if (is.list(draw_artifact) && identical(as.character(draw_artifact$status %||% ""), "unresolved") && !is.null(draw_artifact$reason)) return(list(status = "unresolved", reason = as.character(draw_artifact$reason), draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
+  if (!is.list(draw_artifact) || !is.data.frame(draw_artifact$pairings)) return(list(status = "unresolved", reason = "partial_draw_artifact"))
+  artifact <- draw_artifact; pairings <- artifact$pairings
+  required <- c("path_id", "stage_id", "seed_slot_id", "bracket_position", "participant_a", "participant_b", "seed_rank", "opponent_rank", "leg_order", "source_artifact_ids")
+  if (!all(required %in% names(pairings)) || !nrow(pairings) || anyNA(pairings$path_id) || anyDuplicated(as.character(pairings$path_id))) return(list(status = "unresolved", reason = "partial_draw_artifact"))
+  if (!identical(as.character(artifact$edition_id %||% ""), as.character(rules$edition_id)) || (!is.null(source_bundle_id) && !identical(as.character(artifact$source_bundle_id %||% ""), as.character(source_bundle_id)))) return(list(status = "unresolved", reason = "foreign_lineage"))
+  if (!isTRUE(artifact$accepted) || !isTRUE(artifact$complete)) return(list(status = "unresolved", reason = "partial_draw_artifact"))
+  draw_id <- as.character(artifact$draw_artifact_id %||% artifact$artifact_id %||% ""); hash <- as.character(artifact$draw_artifact_sha256 %||% artifact$artifact_sha256 %||% "")
+  if (!nzchar(draw_id) || !grepl("^[0-9a-f]{64}$", hash)) return(list(status = "unresolved", reason = "stale_draw_artifact"))
+  rank_inputs <- artifact$rank_inputs
+  if (!is.data.frame(rank_inputs) || !all(c("club_id", "rank") %in% names(rank_inputs)) || nrow(rank_inputs) != 36L || anyNA(rank_inputs$rank) || anyDuplicated(as.integer(rank_inputs$rank)) || !identical(sort(as.integer(rank_inputs$rank)), seq_len(36L)) || !grepl("^[0-9a-f]{64}$", as.character(artifact$rank_input_sha256 %||% ""))) return(list(status = "unresolved", reason = "partial_draw_artifact"))
+  rank_map <- setNames(as.integer(rank_inputs$rank), as.character(rank_inputs$club_id))
+  for (index in seq_len(nrow(pairings))) {
+    row <- pairings[index, , drop = FALSE]
+    if (!.ucl_validate_legal_path(row, rules = rules, rank_lookup = rank_map)) return(list(status = "unresolved", reason = "contradictory_draw_artifact"))
+    a <- as.character(row$participant_a[[1L]]); b <- as.character(row$participant_b[[1L]])
+    if (grepl("^winner:", b)) next
+    if (!a %in% names(rank_map) || !b %in% names(rank_map)) return(list(status = "unresolved", reason = "foreign_lineage"))
+    if (identical(a, b)) return(list(status = "unresolved", reason = "contradictory_draw_artifact"))
   }
-  artifact <- if (is.list(draw_artifact) && is.data.frame(draw_artifact$pairings)) draw_artifact else list(pairings = as.data.frame(draw_artifact, stringsAsFactors = FALSE, check.names = FALSE))
-  pairings <- artifact$pairings
-  required <- c("participant_a", "participant_b")
-  if (!all(required %in% names(pairings))) return(list(status = "unresolved", reason = "partial_draw_artifact"))
-  if (!is.null(artifact$edition_id) && !identical(as.character(artifact$edition_id), as.character(rules$edition_id))) return(list(status = "unresolved", reason = "foreign_lineage"))
-  if (!is.null(artifact$source_bundle_id) && !is.null(source_bundle_id) && !identical(as.character(artifact$source_bundle_id), as.character(source_bundle_id))) return(list(status = "unresolved", reason = "foreign_lineage"))
-  if (!isTRUE(artifact$accepted) || !isTRUE(artifact$complete)) return(list(status = "unresolved", reason = "missing_edition_draw_procedure"))
-  draw_id <- as.character(artifact$draw_artifact_id %||% artifact$artifact_id %||% "")
-  if (!nzchar(draw_id)) return(list(status = "unresolved", reason = "partial_draw_artifact"))
-  hash <- as.character(artifact$draw_artifact_sha256 %||% artifact$artifact_sha256 %||% .ucl_sim_hash(pairings))
-  if (!grepl("^[0-9a-f]{64}$", hash)) return(list(status = "unresolved", reason = "stale_draw_artifact"))
-  list(status = "accepted", reason = NA_character_, draw_artifact_id = draw_id, draw_artifact_sha256 = hash, pairings = pairings, edition_id = rules$edition_id)
+  list(status = "accepted", reason = NA_character_, draw_artifact_id = draw_id, draw_artifact_sha256 = hash, pairings = pairings, edition_id = rules$edition_id, source_bundle_id = as.character(artifact$source_bundle_id), rank_inputs = rank_inputs)
 }
 
 .ucl_sim_score <- function(row, names) {

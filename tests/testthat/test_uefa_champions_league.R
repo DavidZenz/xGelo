@@ -264,19 +264,14 @@ test_that("Draw evidence gates legal paths and accepted same-edition conditionin
   unresolved <- ucl_validate_draw_artifact()
   expect_identical(unresolved$status, "unresolved")
   expect_identical(unresolved$reason, "missing_edition_draw_procedure")
-  rankings <- data.frame(club_id = sprintf("club-%02d", 1:36), rank = 1:36,
-                         rank_interval_min = 1:36, rank_interval_max = 1:36,
-                         rank_status = "resolved", stringsAsFactors = FALSE)
-  pairings <- data.frame(participant_a = "club-09", participant_b = "club-24", stringsAsFactors = FALSE)
-  draw <- list(edition_id = phase20_test_edition_id, source_bundle_id = fixture$state$source_bundle_id,
-               accepted = TRUE, complete = TRUE, draw_artifact_id = "draw-2026-27",
-               draw_artifact_sha256 = strrep("a", 64L), pairings = pairings)
+  rankings <- phase20_fixture_resolved_rankings()
+  draw <- phase20_fixture_accepted_draw(source_bundle_id = fixture$state$source_bundle_id)
   accepted <- ucl_validate_draw_artifact(draw, source_bundle_id = fixture$state$source_bundle_id)
   expect_identical(accepted$status, "accepted")
   paths <- ucl_enumerate_legal_knockout_paths(rankings, draw_artifact = draw, source_bundle_id = fixture$state$source_bundle_id)
-  expect_identical(nrow(paths), 1L)
-  expect_identical(paths$path_status, "accepted_draw")
-  expect_identical(paths$draw_artifact_id, "draw-2026-27")
+  expect_identical(nrow(paths), nrow(draw$pairings))
+  expect_true(all(paths$path_status == "accepted_draw"))
+  expect_identical(as.character(paths$draw_artifact_id), rep(draw$draw_artifact_id, nrow(draw$pairings)))
 })
 
 test_that("Two-leg and final resolvers apply no-away-goals and neutral-final rules", {
