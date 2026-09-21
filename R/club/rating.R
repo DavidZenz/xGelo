@@ -628,6 +628,99 @@ phase19_club_rating_component_audit <- function(training_snapshot,
   audit
 }
 
+phase19_club_rating_prediction_schema <- function() c(
+  "fixture_id", "forecast_domain", "authority_mode", "fixture_authority",
+  "promotion_eligible", "boundary_id", "kickoff_utc", "evidence_cutoff_exclusive",
+  "home_club_id", "away_club_id", "home_pre_match_rating", "away_pre_match_rating",
+  "rating_difference", "home_adjustment", "expected_home_result",
+  "home_prior_count", "away_prior_count", "cold_start",
+  "max_prior_evidence_available_at_utc", "pre_batch_state_sha256", "batch_sha256",
+  "parameter_sha256", "training_snapshot_sha256", "current_snapshot_sha256"
+)
+
+phase19_club_rating_prediction_table_sha256 <- function(predictions) {
+  if (!is.data.frame(predictions)) {
+    phase19_club_rating_abort("invalid_replay", "Rating replay predictions must be a data frame")
+  }
+  if (!nrow(predictions)) {
+    return(phase18_hash_sequence_v2(
+      character(), domain = "phase19-club-rating-replay-predictions-empty-v1",
+      names = character(), types = character()
+    ))
+  }
+  if (!identical(names(predictions), phase19_club_rating_prediction_schema()) ||
+      anyDuplicated(as.character(predictions$fixture_id)) ||
+      anyNA(predictions$fixture_id)) {
+    phase19_club_rating_abort(
+      "invalid_replay", "Rating replay prediction schema or fixture identity is invalid"
+    )
+  }
+  canonical <- predictions[order(as.character(predictions$fixture_id), method = "radix"), , drop = FALSE]
+  rownames(canonical) <- NULL
+  phase18_hash_table_v2(
+    canonical, key = "fixture_id", schema_tag = "phase19-club-rating-replay-predictions-v1"
+  )
+}
+
+phase19_club_rating_canonical_predictions <- function(predictions) {
+  phase19_club_rating_prediction_table_sha256(predictions)
+  if (!nrow(predictions)) return(predictions)
+  canonical <- predictions[order(as.character(predictions$fixture_id), method = "radix"), , drop = FALSE]
+  rownames(canonical) <- NULL
+  canonical
+}
+
+phase19_club_rating_batch_hashes_sha256 <- function(predictions) {
+  if (!is.data.frame(predictions) || !nrow(predictions)) {
+    return(phase18_hash_sequence_v2(
+      character(), domain = "phase19-club-rating-replay-batches-empty-v1",
+      names = character(), types = character()
+    ))
+  }
+  hashes <- sort(unique(as.character(predictions$batch_sha256)), method = "radix")
+  if (any(!vapply(hashes, phase19_is_sha256, logical(1)))) {
+    phase19_club_rating_abort("invalid_replay", "Rating replay batch identity is invalid")
+  }
+  phase18_hash_sequence_v2(
+    hashes, domain = "phase19-club-rating-replay-batches-v1",
+    names = paste0("batch_", seq_along(hashes)), types = rep("character", length(hashes))
+  )
+}
+
+phase19_club_rating_replay_digest <- function(parameters, cutoff_utc, predictions,
+                                              state, component_audit,
+                                              applied_batch_count,
+                                              excluded_batch_count) {
+  phase19_club_rating_require_dependencies()
+  phase19_validate_club_rating_parameters(parameters)
+  phase19_validate_club_rating_state(state)
+  if (!is.list(component_audit) ||
+      !phase19_is_sha256(component_audit$component_audit_sha256)) {
+    phase19_club_rating_abort("invalid_replay", "Rating component audit identity is invalid")
+  }
+  cutoff <- phase19_club_rating_parse_utc(cutoff_utc, "replay cutoff_utc")[[1L]]
+  cutoff_text <- format(cutoff, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  prediction_sha256 <- phase19_club_rating_prediction_table_sha256(predictions)
+  batch_sha256 <- phase19_club_rating_batch_hashes_sha256(predictions)
+  values <- list(
+    parameter_sha256 = as.character(parameters$parameter_sha256),
+    cutoff_utc = cutoff_text,
+    training_snapshot_sha256 = as.character(state$training_snapshot_sha256),
+    current_snapshot_sha256 = as.character(state$current_snapshot_sha256),
+    prediction_table_sha256 = prediction_sha256,
+    batch_sha256 = batch_sha256,
+    state_sha256 = as.character(state$state_sha256),
+    last_batch_sha256 = as.character(state$last_batch_sha256),
+    component_audit_sha256 = as.character(component_audit$component_audit_sha256),
+    applied_batch_count = as.integer(applied_batch_count),
+    excluded_batch_count = as.integer(excluded_batch_count)
+  )
+  phase18_hash_sequence_v2(
+    values, domain = "phase19-club-rating-replay-v1", names = names(values),
+    types = vapply(values, phase18_v2_type_tag, character(1))
+  )
+}
+
 phase19_club_rating_history_boundaries <- function(history) {
   precision <- as.character(history$kickoff_precision)
   exact <- precision == "instant" & nzchar(as.character(history$kickoff_utc))
@@ -866,12 +959,82 @@ phase19_replay_club_ratings <- function(
   }
   phase19_club_rating_replay_result(
     "ready", "", training_snapshot, current_snapshot, component_audit,
-    list(
-      cutoff_utc = cutoff_text,
-      predictions = predictions,
-      state = state,
-      applied_batch_count = as.integer(sum(pending$applied)),
-      excluded_batch_count = as.integer(length(batches) - sum(pending$applied))
-    )
+    {
+      applied_batch_count <- as.integer(sum(pending$applied))
+      excluded_batch_count <- as.integer(length(batches) - sum(pending$applied))
+      details <- list(
+        cutoff_utc = cutoff_text,
+        parameters = parameters,
+        current_snapshot = current_snapshot,
+        predictions = predictions,
+        state = state,
+        applied_batch_count = applied_batch_count,
+        excluded_batch_count = excluded_batch_count
+      )
+      details$parameter_sha256 <- as.character(parameters$parameter_sha256)
+      details$replay_digest_sha256 <- phase19_club_rating_replay_digest(
+        parameters, cutoff_text, predictions, state, component_audit,
+        applied_batch_count, excluded_batch_count
+      )
+      details
+    }
   )
+}
+
+phase19_validate_club_rating_replay <- function(replay, training_snapshot,
+                                                current_snapshot = NULL,
+                                                parameters = NULL,
+                                                cutoff_utc = NULL,
+                                                history = training_snapshot$matches) {
+  phase19_club_rating_require_dependencies()
+  if (!inherits(replay, "phase19_club_rating_replay") ||
+      !identical(replay$status, "ready") ||
+      !identical(replay$forecast_domain, "club")) {
+    phase19_club_rating_abort("invalid_replay", "A ready club rating replay is required")
+  }
+  if (is.null(current_snapshot)) current_snapshot <- replay$current_snapshot
+  if (is.null(parameters)) parameters <- replay$parameters
+  if (is.null(cutoff_utc)) cutoff_utc <- replay$cutoff_utc
+  if (is.null(current_snapshot) || is.null(parameters) || is.null(cutoff_utc) ||
+      !inherits(current_snapshot, "phase19_current_ucl_authority_result") ||
+      !inherits(parameters, "phase19_club_rating_parameters")) {
+    phase19_club_rating_abort(
+      "invalid_replay", "Rating replay must retain typed current snapshot, parameters, and cutoff"
+    )
+  }
+  authority_mode <- as.character(training_snapshot$authority_mode)
+  phase19_validate_club_training_snapshot(training_snapshot, authority_mode)
+  phase19_validate_current_ucl_club_snapshot(current_snapshot, authority_mode)
+  if (!identical(as.character(replay$training_snapshot_sha256),
+                 as.character(training_snapshot$snapshot_sha256)) ||
+      !identical(as.character(replay$current_snapshot_sha256),
+                 as.character(current_snapshot$snapshot_sha256)) ||
+      !identical(as.character(replay$parameter_sha256),
+                 as.character(parameters$parameter_sha256)) ||
+      !identical(as.character(replay$cutoff_utc), as.character(cutoff_utc))) {
+    phase19_club_rating_abort(
+      "invalid_replay", "Rating replay parent identity or cutoff drifted"
+    )
+  }
+  expected <- tryCatch(
+    phase19_replay_club_ratings(
+      training_snapshot, current_snapshot, parameters,
+      cutoff_utc = cutoff_utc, history = history
+    ),
+    error = function(error) error
+  )
+  if (inherits(expected, "error") ||
+      !identical(
+        phase19_club_rating_canonical_predictions(replay$predictions),
+        phase19_club_rating_canonical_predictions(expected$predictions)
+      ) ||
+      !identical(replay$state, expected$state) ||
+      !identical(replay$component_audit, expected$component_audit) ||
+      !identical(as.character(replay$replay_digest_sha256),
+                 as.character(expected$replay_digest_sha256))) {
+    phase19_club_rating_abort(
+      "invalid_replay", "Rating replay output does not match deterministic accepted-history replay"
+    )
+  }
+  invisible(replay)
 }

@@ -288,6 +288,12 @@ test_that("replay uses regulation outcomes and is byte-stable under history perm
   )
   expect_identical(serialize(first, NULL, version = 3),
                    serialize(shuffled, NULL, version = 3))
+  expect_match(first$replay_digest_sha256, "^[0-9a-f]{64}$")
+  expect_silent(phase19_validate_club_rating_replay(
+    first, authority$training, current,
+    parameters = rating_test_parameters(), cutoff_utc = authority$training$cutoff_utc
+  ))
+  expect_identical(first$replay_digest_sha256, shuffled$replay_digest_sha256)
 
   extra_time <- rating_test_training_variant(authority$training, function(rows) {
     rows$extra_time_home_goals <- "99"

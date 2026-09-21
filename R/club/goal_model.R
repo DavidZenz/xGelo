@@ -19,6 +19,7 @@ phase19_club_goal_require_dependencies <- function() {
     "phase18_canonical_encoding_v2", "phase18_hash_sequence_v2",
     "phase18_hash_row_v2", "phase18_hash_table_v2",
     "phase19_validate_club_training_snapshot",
+    "phase19_validate_club_rating_replay",
     "phase19_validate_candidate_registry", "phase19_validate_feature_contract",
     "validate_scoreline_distribution", "derive_binary_markets"
   )
@@ -148,7 +149,8 @@ phase19_club_goal_comparable_ids <- function(protocol) {
 phase19_club_goal_validate_rating_evidence <- function(rating_evidence,
                                                        training_snapshot,
                                                        authority_mode,
-                                                       feature_contract) {
+                                                       feature_contract,
+                                                       current_snapshot = NULL) {
   if (!inherits(rating_evidence, "phase19_club_rating_replay") ||
       !identical(rating_evidence$status, "ready") ||
       !identical(rating_evidence$forecast_domain, "club") ||
@@ -159,6 +161,23 @@ phase19_club_goal_validate_rating_evidence <- function(rating_evidence,
     phase19_club_goal_model_abort(
       "rating_evidence_invalid",
       "Rating evidence is not one ready club replay over the training snapshot"
+    )
+  }
+  if (is.null(current_snapshot)) current_snapshot <- rating_evidence$current_snapshot
+  replay_valid <- tryCatch(
+    phase19_validate_club_rating_replay(
+      rating_evidence, training_snapshot, current_snapshot = current_snapshot,
+      parameters = rating_evidence$parameters,
+      cutoff_utc = rating_evidence$cutoff_utc
+    ),
+    error = function(error) error
+  )
+  if (inherits(replay_valid, "error")) {
+    phase19_club_goal_model_abort(
+      "rating_evidence_invalid", conditionMessage(replay_valid),
+      list(upstream_reason = if (is.null(replay_valid$reason_code)) {
+        class(replay_valid)[[1L]]
+      } else replay_valid$reason_code)
     )
   }
   required <- c(

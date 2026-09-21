@@ -21,7 +21,8 @@ phase19_club_evaluation_require_dependencies <- function() {
     "phase19_fold_parse_id_text", "phase19_fold_parse_utc",
     "phase19_validate_fold_prediction_coverage",
     "phase19_validate_gate_registry", "phase19_gate_registry_sha256",
-    "phase19_validate_club_goal_predictions", "score_benchmark_fixtures",
+    "phase19_validate_club_goal_predictions", "phase19_validate_club_rating_replay",
+    "score_benchmark_fixtures",
     "ranked_probability_score", "multiclass_brier", "log_score"
   )
   missing <- required[!vapply(required, exists, logical(1), mode = "function")]
@@ -1178,8 +1179,16 @@ phase19_club_validate_production_sources <- function(source_evidence, evaluation
   phase19_validate_policy_review(protocol$policy_review, protocol, require_accepted = TRUE)
   phase19_assert_production_fold_protocol(folds)
   phase19_validate_fold_review(folds$fold_review, folds, require_accepted = TRUE)
+  replay_valid <- tryCatch(
+    phase19_validate_club_rating_replay(
+      replay, history, current_snapshot = current,
+      parameters = replay$parameters, cutoff_utc = replay$cutoff_utc
+    ),
+    error = function(error) error
+  )
   expected_audit <- phase19_club_rating_component_audit(history, current, history$matches)
-  if (!inherits(replay, "phase19_club_rating_replay") ||
+  if (inherits(replay_valid, "error") ||
+      !inherits(replay, "phase19_club_rating_replay") ||
       !identical(replay$status, "ready") ||
       !identical(replay$authority_mode, "production") ||
       isTRUE(replay$fixture_authority) || !isTRUE(replay$promotion_eligible) ||

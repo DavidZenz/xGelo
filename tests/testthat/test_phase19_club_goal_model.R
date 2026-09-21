@@ -190,9 +190,10 @@ test_that("club goal fitting excludes equal-cutoff and same-batch results", {
     contemporaneous$predictions$fixture_id ==
       context$training$matches$match_id[[nrow(context$training$matches)]]
   ] <- 1e9
-  refit <- goal_model_test_fit(context, cutoff_utc = cutoff,
-                               rating = contemporaneous)
-  expect_identical(fit$fit_sha256, refit$fit_sha256)
+  expect_error(
+    goal_model_test_fit(context, cutoff_utc = cutoff, rating = contemporaneous),
+    class = "phase19_club_goal_model_error"
+  )
 })
 
 test_that("club goal fit and predictions are canonical under evidence and fixture reorder", {
@@ -238,6 +239,11 @@ test_that("club goal authority rejects domain, rating, feature, and grid attacks
   missing_rating <- context$rating
   missing_rating$predictions$rating_difference[[1L]] <- NA_real_
   expect_error(goal_model_test_fit(context, rating = missing_rating),
+               class = "phase19_club_goal_model_error")
+  forged_rating <- context$rating
+  forged_rating$predictions$rating_difference[[1L]] <-
+    forged_rating$predictions$rating_difference[[1L]] + 1
+  expect_error(goal_model_test_fit(context, rating = forged_rating),
                class = "phase19_club_goal_model_error")
 
   fit <- goal_model_test_fit(context)
