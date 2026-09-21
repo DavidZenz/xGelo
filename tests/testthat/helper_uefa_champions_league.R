@@ -460,6 +460,129 @@ phase20_fixture_draw_evidence_states <- function() {
   )
 }
 
+# Task 20-03 mechanics fixtures.  These helpers deliberately keep all
+# forecast/draw evidence process-local and non-promotable; they are used to
+# exercise the simulator's conditional-state and draw-lineage boundaries.
+phase20_fixture_score_grid <- function(fixture_id = NA_character_) {
+  data.frame(
+    fixture_id = as.character(fixture_id),
+    home_goals = c(0L, 1L, 0L),
+    away_goals = c(0L, 0L, 1L),
+    probability = c(0.25, 0.50, 0.25),
+    normalized = TRUE,
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase20_fixture_conditional_ledger <- function(
+    graph = phase20_fixture_graph_36x144(),
+    score_grid_ids = graph$fixtures$fixture_id[!tolower(graph$fixtures$match_status) %in% c("completed", "after_extra_time", "after_penalties", "awarded", "postponed")],
+    suppressed_ids = character()) {
+  ledger <- phase20_approved_release_fixture(graph)$forecast_rows
+  ledger$score_grid <- lapply(as.character(ledger$fixture_id), function(id) {
+    if (id %in% as.character(score_grid_ids)) phase20_fixture_score_grid(id) else NULL
+  })
+  ledger$forecast_status[ledger$fixture_id %in% suppressed_ids] <- "suppressed"
+  ledger$suppression_reason[ledger$fixture_id %in% suppressed_ids] <- "insufficient_model_evidence"
+  ledger
+}
+
+phase20_fixture_settled_lifecycle_graph <- function(graph = phase20_fixture_graph_36x144()) {
+  graph <- phase20_test_completed_fixture_graph(graph, index = 1L, home_goals = 2L, away_goals = 1L)
+  graph <- phase20_test_completed_fixture_graph(graph, index = 2L, home_goals = 1L, away_goals = 1L)
+  graph$fixtures$completion_method[2L] <- "extra_time"
+  graph$fixtures$final_home_goals[2L] <- 2L
+  graph$fixtures$final_away_goals[2L] <- 1L
+  graph$fixtures$winner_club_id[2L] <- graph$fixtures$home_club_id[2L]
+  graph <- phase20_test_completed_fixture_graph(graph, index = 3L, home_goals = 0L, away_goals = 0L)
+  graph$fixtures$completion_method[3L] <- "penalties"
+  graph$fixtures$shootout_home_goals[3L] <- 4L
+  graph$fixtures$shootout_away_goals[3L] <- 3L
+  graph$fixtures$winner_club_id[3L] <- graph$fixtures$home_club_id[3L]
+  graph <- phase20_test_completed_fixture_graph(graph, index = 4L, home_goals = 1L, away_goals = 0L)
+  graph$fixtures$completion_method[4L] <- "awarded"
+  graph$fixtures$regulation_home_goals[4L] <- NA_integer_
+  graph$fixtures$regulation_away_goals[4L] <- NA_integer_
+  graph$fixtures$final_home_goals[4L] <- 1L
+  graph$fixtures$final_away_goals[4L] <- 0L
+  graph$fixtures$winner_club_id[4L] <- graph$fixtures$home_club_id[4L]
+  graph$fixtures$source_status[5L] <- "postponed"
+  graph$fixtures$match_status[5L] <- "postponed"
+  graph$fixtures$completion_method[5L] <- "not_completed"
+  graph
+}
+
+phase20_fixture_resolved_rankings <- function() {
+  clubs <- phase20_test_fixture_club_ids()
+  data.frame(
+    edition_id = phase20_test_edition_id,
+    club_id = clubs,
+    rank = seq_along(clubs),
+    rank_interval_min = seq_along(clubs),
+    rank_interval_max = seq_along(clubs),
+    rank_status = "resolved",
+    qualification_band = c(rep("direct_round_of_16", 8L), rep("knockout_play_off", 16L), rep("eliminated", 12L)),
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+}
+
+phase20_fixture_unresolved_rankings <- function(boundary = 8L) {
+  rankings <- phase20_fixture_resolved_rankings()
+  ids <- if (boundary == 8L) c("ucl-club-07", "ucl-club-08") else c("ucl-club-24", "ucl-club-25")
+  rankings$rank[rankings$club_id %in% ids] <- NA_integer_
+  rankings$rank_interval_min[rankings$club_id %in% ids] <- boundary - 1L
+  rankings$rank_interval_max[rankings$club_id %in% ids] <- boundary + 1L
+  rankings$rank_status[rankings$club_id %in% ids] <- "unresolved"
+  rankings$qualification_band[rankings$club_id %in% ids] <- "unresolved"
+  rankings
+}
+
+phase20_fixture_accepted_draw <- function(
+    source_bundle_id = phase20_test_source_bundle_id,
+    edition_id = phase20_test_edition_id) {
+  pairings <- data.frame(
+    path_id = c("playoff-01", "r16-01"),
+    stage_id = c("knockout_play_off", "round_of_16"),
+    seed_slot_id = c("playoff-seed-09", "r16-seed-01"),
+    bracket_position = c("playoff-family-09-10-v-23-24", "r16-bracket-a"),
+    participant_a = c("ucl-club-09", "ucl-club-01"),
+    participant_b = c("ucl-club-24", "winner:playoff-01"),
+    seed_rank = c(9L, 1L),
+    opponent_rank = c(24L, NA_integer_),
+    leg_order = c("seeded_return_leg", "seeded_return_leg"),
+    leg_1_venue_id = c("venue-ucl-club-24", "winner:playoff-01-home"),
+    leg_2_venue_id = c("venue-ucl-club-09", "venue-ucl-club-01"),
+    source_artifact_ids = "ucl20-draw-source-2026-27",
+    stringsAsFactors = FALSE,
+    check.names = FALSE
+  )
+  list(
+    edition_id = edition_id,
+    source_bundle_id = source_bundle_id,
+    accepted = TRUE,
+    complete = TRUE,
+    draw_artifact_id = "ucl20-draw-2026-27-v1",
+    draw_artifact_sha256 = phase20_test_hash("ucl20-draw-2026-27-v1-content"),
+    source_artifact_ids = "ucl20-draw-source-2026-27",
+    rank_inputs = phase20_fixture_resolved_rankings()[, c("club_id", "rank"), drop = FALSE],
+    rank_input_sha256 = phase20_test_hash(phase20_fixture_resolved_rankings()[, c("club_id", "rank"), drop = FALSE]),
+    pairings = pairings
+  )
+}
+
+phase20_fixture_draw_variant <- function(kind = c("missing", "stale", "partial", "foreign", "contradictory")) {
+  kind <- match.arg(kind)
+  draw <- phase20_fixture_accepted_draw()
+  if (kind == "missing") return(NULL)
+  if (kind == "stale") draw$draw_artifact_sha256 <- "stale"
+  if (kind == "partial") draw$pairings <- draw$pairings[, c("participant_a", "participant_b"), drop = FALSE]
+  if (kind == "foreign") draw$edition_id <- "ucl_foreign_2026_27"
+  if (kind == "contradictory") draw$pairings$participant_b[2L] <- draw$pairings$participant_a[1L]
+  draw
+}
+
 phase20_fixture_knockout_matrix <- function() {
   data.frame(
     case_id = c("aggregate_winner", "no_away_goals", "second_leg_extra_time",

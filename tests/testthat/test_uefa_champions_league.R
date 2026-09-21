@@ -497,3 +497,114 @@ test_that("CR-01 through CR-05 probes reject forged or unbacked parent evidence"
   expect_true(all(vapply(results, function(result) identical(result$status, "rejected"), logical(1))))
   expect_true(all(vapply(results, function(result) nzchar(result$original_parent_reason), logical(1))))
 })
+
+# -------------------------------------------------------------------------
+# Plan 20-03 RED contracts.  These cases intentionally name the simulator
+# seams before they are implemented; the first fresh-process run must fail.
+# -------------------------------------------------------------------------
+
+test_that("UCLOUT-02 fixes every settled lifecycle and samples only eligible open rows", {
+  required <- c(".ucl_prepare_iteration_matches", ".ucl_sample_open_fixtures")
+  missing <- required[!vapply(required, exists, logical(1), mode = "function", inherits = TRUE)]
+  if (length(missing)) stop(phase20_test_missing_entrypoint_condition(missing, "20-03 conditional sampling"))
+  graph <- phase20_fixture_settled_lifecycle_graph()
+  ledger <- phase20_fixture_conditional_ledger(graph, score_grid_ids = graph$fixtures$fixture_id[6:144], suppressed_ids = graph$fixtures$fixture_id[7L])
+  prepared <- .ucl_prepare_iteration_matches(graph$fixtures, cutoff_utc = phase20_test_information_cutoff_utc)
+  expect_setequal(prepared$fixed_fixture_ids, graph$fixtures$fixture_id[1:5])
+  sampled <- .ucl_sample_open_fixtures(prepared, ledger = ledger, seed = 20260921L, cutoff_utc = phase20_test_information_cutoff_utc)
+  expect_true(all(graph$fixtures$fixture_id[1:5] %in% sampled$fixed_fixture_ids))
+  expect_false(graph$fixtures$fixture_id[5L] %in% sampled$sampled_fixture_ids)
+  expect_true(graph$fixtures$fixture_id[7L] %in% sampled$suppressed_fixture_ids)
+  for (fixture_id in graph$fixtures$fixture_id[1:4]) {
+    before <- graph$fixtures[graph$fixtures$fixture_id == fixture_id, , drop = FALSE]
+    after <- sampled$matches[sampled$matches$fixture_id == fixture_id, , drop = FALSE]
+    expect_identical(after$final_home_goals, before$final_home_goals)
+    expect_identical(after$final_away_goals, before$final_away_goals)
+  }
+})
+
+test_that("UCLOUT-02 emits conserved full-rank, band, and cut-line distributions", {
+  required <- c("ucl_aggregate_rank_distributions")
+  missing <- required[!vapply(required, exists, logical(1), mode = "function", inherits = TRUE)]
+  if (length(missing)) stop(phase20_test_missing_entrypoint_condition(missing, "20-03 distribution aggregation"))
+  clubs <- phase20_test_fixture_club_ids()
+  rows <- do.call(rbind, lapply(seq_len(4L), function(iteration) {
+    data.frame(
+      run_id = "run-20-03", iteration = iteration, edition_id = phase20_test_edition_id,
+      club_id = clubs, rank = seq_along(clubs), rank_interval_min = seq_along(clubs),
+      rank_interval_max = seq_along(clubs), rank_status = "resolved",
+      qualification_band = c(rep("direct_round_of_16", 8L), rep("knockout_play_off", 16L), rep("eliminated", 12L)),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  }))
+  aggregate <- ucl_aggregate_rank_distributions(list(rank_rows = rows, run_id = "run-20-03"))
+  expect_identical(aggregate$status, "ready")
+  expect_identical(nrow(aggregate$rank_distribution), 36L * 36L)
+  rank_sums <- tapply(aggregate$rank_distribution$probability, aggregate$rank_distribution$club_id, sum)
+  expect_true(all(abs(as.numeric(rank_sums) - 1) < 1e-12))
+  band_sums <- tapply(aggregate$band_probabilities$probability, aggregate$band_probabilities$club_id, sum)
+  expect_true(all(abs(as.numeric(band_sums) - 1) < 1e-12))
+  expect_true(all(c("rank_8", "rank_24") %in% names(aggregate$cutline_distributions)))
+  expect_true(all(vapply(aggregate$cutline_distributions, function(value) abs(sum(value$probability) - 1) < 1e-12, logical(1))))
+  unresolved <- ucl_aggregate_rank_distributions(list(rank_rows = rbind(rows[rows$club_id != clubs[[8L]], ], data.frame(
+    run_id = "run-20-03", iteration = 1L, edition_id = phase20_test_edition_id, club_id = clubs[[8L]],
+    rank = NA_integer_, rank_interval_min = 7L, rank_interval_max = 9L,
+    rank_status = "unresolved", qualification_band = "unresolved", stringsAsFactors = FALSE
+  ))))
+  expect_identical(unresolved$status, "unresolved")
+  expect_true(all(is.na(unresolved$band_probabilities$probability[unresolved$band_probabilities$club_id == clubs[[8L]]])))
+})
+
+test_that("UCLOUT-03 enumerates only Article 19/Annex B legal paths", {
+  rankings <- phase20_fixture_resolved_rankings()
+  paths <- ucl_enumerate_legal_knockout_paths(rankings, source_bundle_id = phase20_test_source_bundle_id)
+  expect_true(nrow(paths) >= 24L)
+  expect_true(all(paths$path_status == "pre_draw_legal"))
+  expect_true(all(paths$unresolved_reason == "missing_edition_draw_procedure"))
+  expect_true(all(paths$leg_order == "seeded_return_leg"))
+  playoff <- paths[paths$stage_id == "knockout_play_off", , drop = FALSE]
+  expect_true(all(paste(playoff$seed_rank, playoff$opponent_rank, sep = "-") %in% c(
+    "9-23", "9-24", "10-23", "10-24", "11-21", "11-22", "12-21", "12-22",
+    "13-19", "13-20", "14-19", "14-20", "15-17", "15-18", "16-17", "16-18"
+  )))
+  expect_true(all(!is.na(playoff$bracket_position)))
+  expect_true(all(vapply(seq_len(nrow(paths)), function(index) isTRUE(.ucl_validate_legal_path(paths[index, , drop = FALSE])), logical(1))))
+})
+
+test_that("UCLOUT-03 suppresses rank-boundary paths and conditions exactly on accepted draw lineage", {
+  boundary <- ucl_enumerate_legal_knockout_paths(phase20_fixture_unresolved_rankings(8L), source_bundle_id = phase20_test_source_bundle_id)
+  expect_true(all(boundary$path_status == "unresolved"))
+  expect_true(all(boundary$unresolved_reason %in% c("unresolved_rank_interval", "unresolved_rank_boundary")))
+  draw <- phase20_fixture_accepted_draw()
+  accepted <- ucl_validate_draw_artifact(draw, source_bundle_id = phase20_test_source_bundle_id)
+  expect_identical(accepted$status, "accepted")
+  paths <- ucl_enumerate_legal_knockout_paths(phase20_fixture_resolved_rankings(), draw_artifact = draw, source_bundle_id = phase20_test_source_bundle_id)
+  expect_identical(nrow(paths), nrow(draw$pairings))
+  expect_true(all(paths$path_status == "accepted_draw"))
+  expect_identical(as.character(paths$draw_artifact_id), rep(draw$draw_artifact_id, nrow(draw$pairings)))
+  expect_identical(as.character(paths$participant_a), as.character(draw$pairings$participant_a))
+  for (kind in c("stale", "partial", "foreign", "contradictory")) {
+    invalid <- ucl_validate_draw_artifact(phase20_fixture_draw_variant(kind), source_bundle_id = phase20_test_source_bundle_id)
+    expect_identical(invalid$status, "unresolved")
+    expect_true(nzchar(invalid$reason))
+  }
+  suppressed <- ucl_enumerate_legal_knockout_paths(phase20_fixture_resolved_rankings(), draw_artifact = NULL, source_bundle_id = phase20_test_source_bundle_id)
+  expect_true(all(suppressed$path_status == "pre_draw_legal"))
+  expect_true(all(suppressed$draw_artifact_id %in% NA_character_))
+})
+
+test_that("UCLOUT-02/03 preserve replay identity and parent authority diagnostics", {
+  graph <- phase20_test_completed_fixture_graph()
+  state <- ucl_build_state(graph, state_cutoff_utc = phase20_test_information_cutoff_utc)
+  ledger <- ucl_build_forecast_ledger(state)
+  ledger$authority$original_parent_reason <- "no_accepted_club_history"
+  before <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv) else NULL
+  first <- ucl_run_simulation(state, ledger = ledger, simulations = 2L, seed = 20260921L)
+  after <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv) else NULL
+  second <- ucl_run_simulation(phase20_fixture_reverse_order(graph), ledger = ledger, simulations = 2L, seed = 20260921L)
+  expect_identical(before, after)
+  expect_identical(first$run_id, second$run_id)
+  expect_identical(first$rank_rows, second$rank_rows)
+  expect_identical(first$metadata$original_parent_reason, "no_accepted_club_history")
+  expect_false(isTRUE(first$metadata$production_eligible))
+})
