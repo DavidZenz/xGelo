@@ -132,11 +132,25 @@ Plans:
 **Plans**: 6 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 20-00-PLAN.md — Establish Wave 0 fixtures, evidence schema, and focused/adversarial validation contracts
 - [ ] 20-01-PLAN.md — Trace one accepted UCL fixture path through rules, state, simulation, and outcomes
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 20-02-PLAN.md — Validate complete league state, Article 18 traces, bands, and immutable forecast ledger
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 20-03-PLAN.md — Simulate conditioned league outcomes and legal rank-constrained draw paths
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 20-04-PLAN.md — Resolve knockout stages and publish reconciled replayable outcome artifacts
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
 - [ ] 20-05-PLAN.md — Wire fixed CLI/targets and aggregate adversarial/replay verification
 
 ### Phase 21: N-Edition Dashboard and Atomic Publication
