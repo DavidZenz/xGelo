@@ -653,6 +653,17 @@ phase20_test_protected_incumbent_bytes <- function(...) {
 }
 phase20_verify_protected_incumbent_bytes <- phase20_test_protected_incumbent_bytes
 
+phase20_test_protected_root_snapshot <- function() {
+  root <- file.path(phase20_test_project_root, phase20_test_fixed_root)
+  files <- if (dir.exists(root)) list.files(root, recursive = TRUE, all.files = TRUE, no.. = TRUE) else character()
+  bytes <- if (length(files)) {
+    paths <- file.path(root, files)
+    files <- files[!file.info(paths)$isdir]
+    if (length(files)) vapply(files, function(relative) phase20_test_hash(readBin(file.path(root, relative), "raw", n = file.info(file.path(root, relative))$size)), character(1)) else character()
+  } else character()
+  list(root = root, files = sort(files, method = "radix"), bytes = bytes)
+}
+
 phase20_probe_cr01_forged_roster_rejected <- function(...) {
   phase20_test_require_ucl_entrypoints("ucl_build_state", "CR-01")
 }
