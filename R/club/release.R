@@ -13,10 +13,24 @@ phase19_club_release_abort <- function(reason_code, message, data = list()) {
 }
 
 phase19_club_release_source_dependencies <- function() {
+  roots <- c(getwd(), file.path(getwd(), "../.."), file.path(getwd(), "../../.."))
+  root <- roots[vapply(roots, function(path) file.exists(file.path(path, "R/release/domain_contract.R")), logical(1))][1L]
+  if (is.na(root) || !nzchar(root)) return(invisible(FALSE))
   if (!exists("assert_forecast_domain", mode = "function")) {
-    roots <- c(getwd(), file.path(getwd(), "../.."), file.path(getwd(), "../../.."))
-    root <- roots[vapply(roots, function(path) file.exists(file.path(path, "R/release/domain_contract.R")), logical(1))][1L]
-    if (!is.na(root) && nzchar(root)) source(file.path(root, "R/release/domain_contract.R"), local = .GlobalEnv)
+    source(file.path(root, "R/release/domain_contract.R"), local = .GlobalEnv)
+  }
+  if (!exists("phase19_validate_club_goal_fit", mode = "function")) {
+    dependencies <- c(
+      "R/common/phase18_canonical_hash.R", "R/club/history_contract.R",
+      "R/club/model_contract.R", "R/evaluation/proper_scores.R",
+      "R/evaluation/benchmark_scores.R", "R/club/evaluation_protocol.R",
+      "R/club/rating.R", "R/club/goal_model.R", "R/club/calibration.R",
+      "R/club/evaluation.R"
+    )
+    for (dependency in dependencies) {
+      path <- file.path(root, dependency)
+      if (file.exists(path)) source(path, local = .GlobalEnv)
+    }
   }
   invisible(TRUE)
 }
