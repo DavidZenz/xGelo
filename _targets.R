@@ -290,7 +290,17 @@ for (ucl20_target_dependency in c(
   "R/competition/uefa_champions_league_rules.R",
   "R/competition/uefa_champions_league_state.R",
   "R/competition/uefa_champions_league_simulation.R",
-  "R/competition/uefa_champions_league_outcomes.R"
+  "R/competition/uefa_champions_league_outcomes.R",
+  "R/club/identity.R",
+  "R/club/identity_bootstrap.R",
+  "R/club/history_contract.R",
+  "R/club/model_contract.R",
+  "R/club/evaluation_protocol.R",
+  "R/club/rating.R",
+  "R/club/goal_model.R",
+  "R/club/calibration.R",
+  "R/club/evaluation.R",
+  "R/club/release.R"
 )) {
   sys.source(ucl20_target_dependency, envir = ucl20_target_runtime_envir)
 }
@@ -328,6 +338,17 @@ phase20_ucl_target_first_issue <- function(...) {
   }
   NULL
 }
+
+phase20_ucl_target_first_blocker <- function(...) {
+  values <- list(...)
+  for (value in values) {
+    if (is.list(value) && identical(as.character(value$status), "blocked")) return(value)
+    if (is.list(value) && identical(as.character(value$status), "production_human_needed")) return(value)
+  }
+  NULL
+}
+
+phase20_ucl_target_cutoff <- function() "2026-09-21T00:00:00Z"
 
 phase20_ucl_target_source <- function() {
   accepted_root <- file.path(getwd(), "data/competition/accepted")
@@ -381,7 +402,7 @@ phase20_ucl_target_parent_reason <- function(error) {
 }
 
 phase20_ucl_target_state <- function(source, rules_evidence) {
-  issue <- phase20_ucl_target_first_issue(source, rules_evidence)
+  issue <- phase20_ucl_target_first_blocker(source, rules_evidence)
   if (!is.null(issue)) return(issue)
   accepted <- source$accepted
   tables <- accepted$tables %||% accepted$artifacts
@@ -389,21 +410,136 @@ phase20_ucl_target_state <- function(source, rules_evidence) {
   clubs <- tables$clubs %||% tables$teams
   fixtures <- tables$matches %||% tables$fixtures
   if (!is.data.frame(clubs) || !is.data.frame(fixtures)) return(phase20_ucl_target_blocked("accepted_source_schema_invalid"))
-  resolver <- if (exists("phase19_resolve_production_club_release", mode = "function", inherits = TRUE)) phase19_resolve_production_club_release else NULL
-  if (is.null(resolver)) return(phase20_ucl_target_blocked("no_accepted_club_history"))
-  release <- tryCatch(resolver(), error = function(error) list(error = phase20_ucl_target_parent_reason(error)))
-  if (!is.null(release$error)) return(phase20_ucl_target_blocked(release$error))
   graph <- list(
     edition_id = "ucl_2026_27", source_bundle_id = as.character(accepted$bundle$bundle_id[[1L]]),
     authority_mode = "production", fixture_authority = FALSE, production_eligible = TRUE,
     selector_path = NULL, production_root = NULL, clubs = clubs, fixtures = fixtures
   )
   state <- tryCatch(
-    phase20_ucl_target_get("ucl_build_state")(graph, rules = rules_evidence$rules, evidence = rules_evidence$evidence),
+    phase20_ucl_target_get("ucl_build_state")(graph, rules = rules_evidence$rules, evidence = rules_evidence$evidence,
+                                               state_cutoff_utc = phase20_ucl_target_cutoff()),
     error = function(error) phase20_ucl_target_blocked("state_build_failed", conditionMessage(error))
   )
   if (is.list(state) && identical(as.character(state$status), "blocked")) return(state)
   state
+}
+
+phase20_ucl_target_forecast_ledger <- function(state) {
+  issue <- phase20_ucl_target_first_blocker(state)
+  if (!is.null(issue)) return(issue)
+  resolver <- tryCatch(phase20_ucl_target_get("phase19_resolve_production_club_release"), error = function(error) NULL)
+  if (is.null(resolver)) return(phase20_ucl_target_blocked("no_accepted_club_history"))
+  release <- tryCatch(resolver(), error = function(error) list(error = phase20_ucl_target_parent_reason(error)))
+  if (!is.null(release$error)) return(phase20_ucl_target_blocked(release$error))
+  ledger <- tryCatch(
+    phase20_ucl_target_get("ucl_build_forecast_ledger")(state, release = release, state_cutoff_utc = phase20_ucl_target_cutoff()),
+    error = function(error) phase20_ucl_target_blocked("ledger_build_failed", conditionMessage(error))
+  )
+  if (!inherits(ledger, "ucl_forecast_ledger")) return(phase20_ucl_target_blocked("ledger_contract_invalid"))
+  phase20_ucl_target_get(".ucl_out_prepare_simulation_ledger")(
+    ledger, graph = state$graph, release = release, cutoff = phase20_ucl_target_cutoff()
+  )
+}
+
+phase20_ucl_target_simulation <- function(state, ledger, rules_evidence) {
+  issue <- phase20_ucl_target_first_blocker(state, ledger, rules_evidence)
+  if (!is.null(issue)) return(issue)
+  simulation <- tryCatch(
+    phase20_ucl_target_get("ucl_run_simulation")(
+      state, ledger = ledger, simulations = 1L, seed = 20260921L,
+      rules = rules_evidence$rules, information_cutoff_utc = phase20_ucl_target_cutoff()
+    ),
+    error = function(error) phase20_ucl_target_blocked("simulation_failed", conditionMessage(error))
+  )
+  if (identical(as.character(simulation$status), "blocked")) return(phase20_ucl_target_blocked(simulation$reason %||% "simulation_blocked"))
+  list(schema_version = "phase20-ucl-target-simulation-v1", status = simulation$status,
+       state = state, ledger = ledger, simulation = simulation, rules = rules_evidence$rules,
+       authority_mode = state$authority_mode %||% "production",
+       fixture_authority = isTRUE(state$fixture_authority), production_eligible = FALSE)
+}
+
+phase20_ucl_target_paths <- function(simulation, rules_evidence) {
+  issue <- phase20_ucl_target_first_blocker(simulation, rules_evidence)
+  if (!is.null(issue)) return(issue)
+  run <- simulation$simulation
+  rows <- if (is.data.frame(run$rank_rows) && nrow(run$rank_rows)) run$rank_rows[run$rank_rows$iteration == max(run$rank_rows$iteration), , drop = FALSE] else data.frame()
+  paths <- tryCatch(
+    phase20_ucl_target_get("ucl_enumerate_legal_knockout_paths")(
+      rows, draw_artifact = NULL, rules = rules_evidence$rules,
+      source_bundle_id = simulation$state$source_bundle_id, seed = 20260921L
+    ),
+    error = function(error) data.frame()
+  )
+  list(schema_version = "phase20-ucl-target-paths-v1", status = simulation$status,
+       paths = paths, simulation = run, state = simulation$state, ledger = simulation$ledger,
+       rules = rules_evidence$rules, authority_mode = simulation$authority_mode,
+       fixture_authority = simulation$fixture_authority, production_eligible = FALSE)
+}
+
+phase20_ucl_target_stage_events <- function(paths, rules_evidence) {
+  issue <- phase20_ucl_target_first_blocker(paths, rules_evidence)
+  if (!is.null(issue)) return(issue)
+  run <- paths$simulation
+  events <- if (is.data.frame(run$stage_events)) run$stage_events else data.frame()
+  aggregate <- tryCatch(
+    phase20_ucl_target_get("ucl_aggregate_stage_events")(
+      events, rules = rules_evidence$rules,
+      stage_inputs = c(knockout_play_off = 8L, round_of_16 = 8L, quarter_final = 4L,
+                       semi_final = 2L, final = 1L, champion = 1L),
+      league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
+      required_stage_ids = c("knockout_play_off", "round_of_16", "quarter_final", "semi_final", "final", "champion")
+    ),
+    error = function(error) data.frame()
+  )
+  list(schema_version = "phase20-ucl-target-stage-events-v1", status = paths$status,
+       events = events, stage_events = events, stage_reconciliation = aggregate,
+       paths = paths, state = paths$state, ledger = paths$ledger %||% NULL,
+       rules = rules_evidence$rules, authority_mode = paths$authority_mode,
+       fixture_authority = paths$fixture_authority, production_eligible = FALSE)
+}
+
+phase20_ucl_target_candidate <- function(stage, ledger, simulation) {
+  issue <- phase20_ucl_target_first_blocker(stage, ledger, simulation)
+  if (!is.null(issue)) return(issue)
+  run <- simulation$simulation
+  if (is.data.frame(stage$stage_events)) {
+    run$stage_events <- stage$stage_events
+    run$stage_reconciliation <- stage$stage_reconciliation
+  }
+  candidate <- tryCatch(
+    phase20_ucl_target_get("ucl_validate_outcome_candidate")(
+      list(state = simulation$state, ledger = ledger, simulation = run),
+      rules = simulation$rules, information_cutoff_utc = phase20_ucl_target_cutoff()
+    ),
+    error = function(error) list(valid = FALSE, status = "production_blocked", failures = conditionMessage(error))
+  )
+  candidate
+}
+
+phase20_ucl_target_manifest <- function(candidate) {
+  issue <- phase20_ucl_target_first_blocker(candidate)
+  if (!is.null(issue)) return(issue)
+  manifest <- tryCatch(phase20_ucl_target_get("ucl_outcomes_manifest")(candidate), error = function(error) data.frame())
+  if (!is.data.frame(manifest) || nrow(manifest) != 10L) return(phase20_ucl_target_blocked("outcome_manifest_invalid"))
+  list(schema_version = "phase20-ucl-target-manifest-v1", status = candidate$status,
+       candidate = candidate, manifest = manifest, artifact_hashes = candidate$artifact_hashes,
+       artifacts = candidate$artifacts, authority_mode = candidate$authority_mode,
+       fixture_authority = candidate$fixture_authority, production_eligible = FALSE)
+}
+
+phase20_ucl_target_status <- function(manifest) {
+  issue <- phase20_ucl_target_first_blocker(manifest)
+  if (!is.null(issue)) return(issue)
+  candidate <- manifest$candidate
+  phase20_ucl_target_get("phase20_result_contract")(
+    status = candidate$status, mechanics_complete = candidate$mechanics_complete,
+    original_parent_reason = candidate$original_parent_reason,
+    production_blocked_reason = candidate$production_blocked_reason,
+    normalization_error = candidate$normalization_error, unresolved = candidate$unresolved,
+    artifact_hashes = manifest$artifact_hashes, artifacts = manifest$artifacts,
+    information_cutoff_utc = candidate$information_cutoff_utc,
+    mapped_threat_ids = c("T20-03-01", "T20-03-03", "T20-04-01", "T20-04-02")
+  )
 }
 
 phase20_ucl_target_passthrough <- function(value) {
@@ -1711,7 +1847,7 @@ list(
     ucl20_forecast_ledger,
     {
       ucl20_state
-      phase20_ucl_target_passthrough(ucl20_state)
+      phase20_ucl_target_forecast_ledger(ucl20_state)
     }
   ),
   tar_target(
@@ -1720,10 +1856,9 @@ list(
       ucl20_state
       ucl20_forecast_ledger
       ucl20_rules_evidence
-      issue <- phase20_ucl_target_first_issue(
+      phase20_ucl_target_simulation(
         ucl20_state, ucl20_forecast_ledger, ucl20_rules_evidence
       )
-      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_state)
     }
   ),
   tar_target(
@@ -1731,10 +1866,7 @@ list(
     {
       ucl20_league_simulation
       ucl20_rules_evidence
-      issue <- phase20_ucl_target_first_issue(
-        ucl20_league_simulation, ucl20_rules_evidence
-      )
-      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_league_simulation)
+      phase20_ucl_target_paths(ucl20_league_simulation, ucl20_rules_evidence)
     }
   ),
   tar_target(
@@ -1742,10 +1874,7 @@ list(
     {
       ucl20_knockout_paths
       ucl20_rules_evidence
-      issue <- phase20_ucl_target_first_issue(
-        ucl20_knockout_paths, ucl20_rules_evidence
-      )
-      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_knockout_paths)
+      phase20_ucl_target_stage_events(ucl20_knockout_paths, ucl20_rules_evidence)
     }
   ),
   tar_target(
@@ -1754,25 +1883,23 @@ list(
       ucl20_stage_events
       ucl20_forecast_ledger
       ucl20_league_simulation
-      issue <- phase20_ucl_target_first_issue(
+      phase20_ucl_target_candidate(
         ucl20_stage_events, ucl20_forecast_ledger, ucl20_league_simulation
       )
-      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_stage_events)
     }
   ),
   tar_target(
     ucl20_outcome_manifest,
     {
       ucl20_outcome_candidate
-      phase20_ucl_target_passthrough(ucl20_outcome_candidate)
+      phase20_ucl_target_manifest(ucl20_outcome_candidate)
     }
   ),
   tar_target(
     ucl20_build_status,
     {
       ucl20_outcome_manifest
-      issue <- phase20_ucl_target_first_issue(ucl20_outcome_manifest)
-      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_outcome_manifest)
+      phase20_ucl_target_status(ucl20_outcome_manifest)
     }
   )
 )

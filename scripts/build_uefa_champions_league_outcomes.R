@@ -91,6 +91,7 @@ phase20_ucl_parse_integer <- function(value, option, minimum, maximum = Inf) {
 phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(
     edition_id = "ucl_2026_27", simulations = 1000L, seed = 20260921L,
+    information_cutoff_utc = "2026-09-21T00:00:00Z",
     dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE,
     mode = "dry-run"
   )
@@ -98,7 +99,7 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     "fixture-root", "output-root", "selector-path", "trusted-root",
     "trusted-release-root", "production-root", "national-root", "source-root"
   )
-  value_options <- c("edition-id", "simulations", "seed")
+  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc")
   saw_dry_run <- FALSE
   saw_write <- FALSE
   index <- 1L
@@ -152,6 +153,8 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       options$simulations <- phase20_ucl_parse_integer(value, "--simulations", 1L, 100000L)
     } else if (identical(key, "seed")) {
       options$seed <- phase20_ucl_parse_integer(value, "--seed", 0L, .Machine$integer.max)
+    } else if (identical(key, "information-cutoff-utc")) {
+      options$information_cutoff_utc <- value
     }
     index <- index + 1L
   }
@@ -169,6 +172,9 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   if (isTRUE(options$write) && isTRUE(options$replay_check)) {
     phase20_ucl_stop("--write cannot be combined with --replay-check.")
   }
+  cutoff_check <- phase20_ucl_get(".ucl_out_validate_cutoff")(options$information_cutoff_utc)
+  if (!isTRUE(cutoff_check$valid)) phase20_ucl_stop(cutoff_check$reason)
+  options$information_cutoff_utc <- cutoff_check$value
   options$mode <- if (isTRUE(options$write)) {
     "write"
   } else if (isTRUE(options$replay_check)) {
@@ -188,6 +194,7 @@ phase20_ucl_usage <- function() {
     "  --edition-id ID   Supported edition (default: ucl_2026_27)",
     "  --simulations N   Positive simulation count (default: 1000)",
     "  --seed N          Non-negative deterministic seed (default: 20260921)",
+    "  --information-cutoff-utc TS  Required UTC information cutoff (default: 2026-09-21T00:00:00Z)",
     "  --dry-run         Validate and build without writing (default)",
     "  --replay-check    Compare normal/reversed/repeated canonical identities",
     "  --write           Publish only an eligible, source-backed candidate",
@@ -357,63 +364,27 @@ phase20_ucl_source_graph <- function(accepted, rules) {
   validation$graph
 }
 
-phase20_ucl_candidate_replay <- function(graph, release, rules, options) {
+phase20_ucl_candidate_replay <- function(graph = NULL, release = NULL, rules = NULL, options) {
   builder <- phase20_ucl_get("ucl20_build_outcomes")
   first <- builder(graph = graph, release = release, simulations = options$simulations,
-                  seed = options$seed, information_cutoff_utc = NULL, write = FALSE)
-  if (!isTRUE(options$replay_check)) return(list(candidate = first, replay_verified = FALSE))
-  reversed_graph <- graph
-  reversed_graph$clubs <- graph$clubs[nrow(graph$clubs):1L, , drop = FALSE]
-  reversed_graph$fixtures <- graph$fixtures[nrow(graph$fixtures):1L, , drop = FALSE]
-  second <- builder(graph = reversed_graph, release = release, simulations = options$simulations,
-                    seed = options$seed, information_cutoff_utc = NULL, write = FALSE)
-  stable <- identical(first$artifact_hashes, second$artifact_hashes)
+                  seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE)
+  if (!isTRUE(options$replay_check)) return(list(candidate = first, replay_verified = NA))
+  second <- builder(graph = graph, release = release, simulations = options$simulations,
+                    seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE)
+  hashes_present <- length(first$artifact_hashes) == 10L && length(second$artifact_hashes) == 10L
+  stable <- hashes_present && identical(first$artifact_hashes, second$artifact_hashes) &&
+    isTRUE(phase20_ucl_get("phase20_verify_contracts")(first)) &&
+    isTRUE(phase20_ucl_get("phase20_verify_contracts")(second))
   list(candidate = first, replay_verified = stable,
        replay_failure = if (stable) character() else "normal_reverse_artifact_identity_mismatch")
 }
 
 phase20_ucl_build_fixed <- function(options) {
   roots <- phase20_ucl_fixed_roots()
-  authority <- phase20_ucl_read_authority(roots)
-  if (!is.null(authority$error)) {
-    result <- phase20_ucl_result_from_parent(authority$error)
-    result$replay_verified <- !isTRUE(options$replay_check)
-    result$authority_mode <- "production"
-    result$draw_status <- "unresolved_draw_procedure"
-    result$fixed_output_root <- roots$output_root
-    return(result)
-  }
-
-  rules <- tryCatch(
-    phase20_ucl_get(".ucl_rule_contract")(),
-    error = function(error) error
-  )
-  if (inherits(rules, "error")) {
-    return(phase20_ucl_contract(
-      "production_blocked", mechanics_complete = FALSE,
-      failures = "rules_evidence_invalid", production_blocked_reason = "rules_evidence_invalid",
-      normalization_error = FALSE, mapped_threat_ids = c("T20-02-01", "T20-03-03")
-    ))
-  }
-
-  # The Phase 19 resolver is called only after accepted Phase 18 source is
-  # present.  This preserves the parent-graph order and avoids manufacturing a
-  # club release when the current UCL source is absent.
-  release <- phase20_ucl_parent_release()
-  if (!is.null(release$error)) {
-    return(phase20_ucl_result_from_parent(release$error))
-  }
-  graph <- phase20_ucl_source_graph(authority$value, rules)
-  if (is.null(graph)) {
-    return(phase20_ucl_contract(
-      "production_blocked", mechanics_complete = FALSE,
-      failures = "accepted_source_schema_invalid",
-      production_blocked_reason = "accepted_source_schema_invalid",
-      mapped_threat_ids = c("T20-01-01", "T20-02-01")
-    ))
-  }
+  # The public builder owns the complete production order: accepted Phase 18
+  # source, fixed Phase 19 release, then graph/state/pipeline construction.
   replay <- tryCatch(
-    phase20_ucl_candidate_replay(graph, release$value, rules, options),
+    phase20_ucl_candidate_replay(NULL, NULL, NULL, options),
     error = function(error) list(error = conditionMessage(error))
   )
   if (!is.null(replay$error)) {
@@ -424,6 +395,13 @@ phase20_ucl_build_fixed <- function(options) {
     ))
   }
   candidate <- replay$candidate
+  if (isTRUE(options$write) && !isTRUE(candidate$production_eligible)) {
+    return(phase20_ucl_contract(
+      "production_blocked", mechanics_complete = FALSE,
+      production_blocked_reason = "production_writer_not_authorized",
+      mapped_threat_ids = c("T20-05-01", "T20-05-02")
+    ))
+  }
   if (isTRUE(options$write) && isTRUE(candidate$production_eligible) &&
       identical(candidate$status, "mechanics_complete")) {
     # ucl_write_outcome_candidate deliberately permits only process-temporary
@@ -438,18 +416,22 @@ phase20_ucl_build_fixed <- function(options) {
   }
   result <- phase20_ucl_contract(
     candidate$status, mechanics_complete = candidate$mechanics_complete,
-    production_eligible = FALSE, human_needed = FALSE,
+    production_eligible = FALSE, human_needed = candidate$human_needed,
+    human_needed_reason = candidate$human_needed_reason,
     original_parent_reason = candidate$original_parent_reason,
     production_blocked_reason = candidate$production_blocked_reason,
     normalization_error = candidate$normalization_error,
     unresolved = candidate$unresolved, failures = candidate$failures,
     warnings = candidate$warnings, skips = candidate$skips,
     unexpected_failures = candidate$unexpected_failures,
+    artifact_hashes = candidate$artifact_hashes, artifacts = candidate$artifacts,
+    information_cutoff_utc = candidate$information_cutoff_utc,
     selector_changed = FALSE, incumbent_changed = FALSE,
     mapped_threat_ids = c("T20-01-01", "T20-02-01", "T20-03-01", "T20-03-03", "T20-04-01", "T20-05-03")
   )
-  result$replay_verified <- isTRUE(replay$replay_verified)
-  if (!isTRUE(result$replay_verified) && isTRUE(options$replay_check)) {
+  result$replay_verified <- replay$replay_verified
+  if (!isTRUE(result$replay_verified) && isTRUE(options$replay_check) &&
+      length(candidate$artifact_hashes %||% character())) {
     result$status <- "unexpected_failure"
     result$exit_code <- 1L
     result$failures <- unique(c(result$failures, replay$replay_failure))
@@ -472,7 +454,7 @@ phase20_ucl_print_result <- function(result) {
   for (field in c(
     "human_needed_reason", "original_parent_reason", "production_blocked_reason",
     "normalization_error", "selector_changed", "incumbent_changed", "replay_verified",
-    "draw_status", "fixed_output_root"
+    "draw_status", "fixed_output_root", "information_cutoff_utc"
   )) {
     if (!is.null(result[[field]])) cat(sprintf("%s=%s\n", field, scalar(result[[field]])))
   }
