@@ -451,12 +451,20 @@ phase19_validate_club_training_snapshot <- function(snapshot,
       schema_tag = "phase19-club-training-matches-v1"
     )
     expected_corpus <- as.character(manifest$manifest_sha256[[1L]])
+    expected_corpus_id <- as.character(manifest$corpus_id[[1L]])
+    expected_manifest_matches <- as.character(manifest$matches_sha256[[1L]])
     expected_registry <- as.character(manifest$club_registry_sha256[[1L]])
+    expected_source_manifest <- as.character(manifest$source_manifest_sha256[[1L]])
+    expected_row_count <- as.integer(nrow(canonical))
     if (!identical(as.character(snapshot$pointer_sha256), as.character(pointer$pointer_sha256)) ||
         !identical(as.character(snapshot$generation_manifest_sha256),
                    as.character(pointer$generation_manifest_sha256)) ||
+        !identical(as.character(snapshot$corpus_id), expected_corpus_id) ||
         !identical(as.character(snapshot$corpus_manifest_sha256), expected_corpus) ||
+        !identical(as.character(snapshot$matches_sha256), expected_manifest_matches) ||
         !identical(as.character(snapshot$club_registry_sha256), expected_registry) ||
+        !identical(as.character(snapshot$source_manifest_sha256), expected_source_manifest) ||
+        !identical(as.integer(snapshot$row_count), expected_row_count) ||
         !identical(as.character(snapshot$cutoff_utc), as.character(manifest$cutoff_utc[[1L]])) ||
         !identical(as.character(snapshot$phase19_matches_sha256), expected_match_hash) ||
         !identical(snapshot$matches, canonical)) {
