@@ -13,6 +13,7 @@ phase19_evaluation_test_load <- function(require_module = TRUE) {
     "R/evaluation/proper_scores.R",
     "R/evaluation/benchmark_scores.R",
     "R/club/evaluation_protocol.R",
+    "R/club/rating.R",
     "R/club/goal_model.R",
     "R/club/calibration.R"
   )
@@ -266,6 +267,44 @@ test_that("one frozen rolling fold yields complete paired club evidence", {
     evidence, context$candidate, context$incumbent, context$outcomes,
     context$fold, context$protocol, context$support, context$provenance
   ))
+})
+
+test_that("source folds are bound to the exact accepted row and protocol", {
+  context <- phase19_evaluation_test_context()
+  evidence <- phase19_evaluation_test_score(context)
+  source <- list(
+    candidate_predictions = context$candidate,
+    incumbent_predictions = context$incumbent,
+    outcomes = context$outcomes,
+    fold = context$fold,
+    protocol = context$protocol,
+    model_support = context$support,
+    role_provenance = context$provenance
+  )
+  expect_silent(phase19_validate_club_fold_source_evidence(
+    evidence, source, accepted_fold = context$fold,
+    accepted_protocol = context$protocol
+  ))
+
+  forged_fold <- source
+  forged_fold$fold$declared_fixture_count <-
+    forged_fold$fold$declared_fixture_count + 1L
+  forged_fold$fold$row_sha256 <- phase19_fold_row_sha256(forged_fold$fold)
+  expect_error(
+    phase19_validate_club_fold_source_evidence(
+      evidence, forged_fold, accepted_fold = context$fold,
+      accepted_protocol = context$protocol
+    ), class = "phase19_club_evaluation_error"
+  )
+
+  forged_protocol <- source
+  forged_protocol$protocol$protocol_sha256 <- strrep("f", 64L)
+  expect_error(
+    phase19_validate_club_fold_source_evidence(
+      evidence, forged_protocol, accepted_fold = context$fold,
+      accepted_protocol = context$protocol
+    ), class = "phase19_club_evaluation_error"
+  )
 })
 
 test_that("held-out provenance is excluded from fit tune and calibration", {

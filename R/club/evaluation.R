@@ -738,7 +738,9 @@ phase19_club_fold_source_evidence_schema <- function() {
   )
 }
 
-phase19_validate_club_fold_source_evidence <- function(evidence, source) {
+phase19_validate_club_fold_source_evidence <- function(evidence, source,
+                                                       accepted_fold = NULL,
+                                                       accepted_protocol = NULL) {
   if (!is.list(source) ||
       !identical(names(source), phase19_club_fold_source_evidence_schema())) {
     phase19_club_evaluation_abort(
@@ -752,6 +754,29 @@ phase19_validate_club_fold_source_evidence <- function(evidence, source) {
       "evaluation_source_invalid", "Production fold source evidence is bound to another fold or protocol"
     )
   }
+  if (!is.null(accepted_fold)) {
+    if (!is.data.frame(accepted_fold) || nrow(accepted_fold) != 1L ||
+        !identical(names(accepted_fold), phase19_fold_registry_schema())) {
+      phase19_club_evaluation_abort(
+        "evaluation_source_invalid", "Accepted fold identity is not one exact registry row"
+      )
+    }
+    observed_fold <- source$fold
+    rownames(observed_fold) <- NULL
+    rownames(accepted_fold) <- NULL
+    if (!identical(observed_fold, accepted_fold)) {
+      phase19_club_evaluation_abort(
+        "evaluation_source_invalid",
+        "Production fold source evidence differs from the accepted registry row"
+      )
+    }
+  }
+  if (!is.null(accepted_protocol) && !identical(source$protocol, accepted_protocol)) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      "Production fold source evidence uses a protocol other than the accepted protocol"
+    )
+  }
   phase19_validate_club_fold_evaluation(
     evidence, source$candidate_predictions, source$incumbent_predictions,
     source$outcomes, source$fold, source$protocol,
@@ -761,28 +786,64 @@ phase19_validate_club_fold_source_evidence <- function(evidence, source) {
 }
 
 phase19_club_evaluation_source_by_fold <- function(source_evidence, evaluations,
-                                                   protocol) {
+                                                   protocol,
+                                                   accepted_fold_registry = NULL,
+                                                   accepted_protocol = NULL) {
   if (!identical(protocol$authority_mode, "production")) return(NULL)
   fold_ids <- vapply(evaluations, `[[`, character(1), "fold_id")
   if (!is.list(source_evidence) || is.null(names(source_evidence)) ||
+      anyDuplicated(names(source_evidence)) || anyDuplicated(fold_ids) ||
       !setequal(names(source_evidence), fold_ids)) {
     phase19_club_evaluation_abort(
       "evaluation_source_invalid",
       "Production evaluation requires one exact source-evidence bundle per registered fold"
     )
   }
-  source_evidence[fold_ids]
+  if (!is.data.frame(accepted_fold_registry) ||
+      !identical(names(accepted_fold_registry), phase19_fold_registry_schema()) ||
+      anyDuplicated(as.character(accepted_fold_registry$fold_id)) ||
+      is.null(accepted_protocol) ||
+      !inherits(accepted_protocol, "phase19_club_evaluation_protocol")) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      "Production evaluation requires the accepted fold registry and protocol identity"
+    )
+  }
+  accepted_ids <- as.character(accepted_fold_registry$fold_id)
+  if (!identical(sort(names(source_evidence), method = "radix"),
+                 sort(accepted_ids, method = "radix")) ||
+      !identical(sort(fold_ids, method = "radix"), sort(accepted_ids, method = "radix"))) {
+    phase19_club_evaluation_abort(
+      "evaluation_source_invalid",
+      "Production source fold names do not cover the accepted registry exactly"
+    )
+  }
+  resolved <- source_evidence[fold_ids]
+  for (index in seq_along(evaluations)) {
+    accepted_fold <- accepted_fold_registry[
+      accepted_fold_registry$fold_id == fold_ids[[index]], , drop = FALSE
+    ]
+    phase19_validate_club_fold_source_evidence(
+      evaluations[[index]], resolved[[index]], accepted_fold, accepted_protocol
+    )
+  }
+  resolved
 }
 
 phase19_club_evaluation_list_identity <- function(evaluations, source_evidence = NULL,
-                                                  protocol = NULL) {
+                                                  protocol = NULL,
+                                                  accepted_fold_registry = NULL,
+                                                  accepted_protocol = NULL) {
   if (!is.list(evaluations) || length(evaluations) < 2L) {
     phase19_club_evaluation_abort(
       "evaluation_set_invalid", "Evaluation set requires multiple canonical folds"
     )
   }
   source_by_fold <- if (!is.null(protocol)) {
-    phase19_club_evaluation_source_by_fold(source_evidence, evaluations, protocol)
+    phase19_club_evaluation_source_by_fold(
+      source_evidence, evaluations, protocol,
+      accepted_fold_registry, accepted_protocol
+    )
   } else NULL
   invisible(lapply(seq_along(evaluations), function(index) {
     phase19_club_evaluation_fold_self_check(evaluations[[index]])
@@ -927,7 +988,8 @@ phase19_club_evaluation_metrics_from_summaries <- function(fold_summaries,
 #'
 #' @export
 phase19_aggregate_club_evaluations <- function(evaluations, protocol,
-                                               source_evidence = NULL) {
+                                               source_evidence = NULL,
+                                               accepted_fold_protocol = NULL) {
   phase19_club_evaluation_require_dependencies()
   if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
       !identical(protocol$status, "ready") || !identical(protocol$forecast_domain, "club")) {
@@ -937,7 +999,9 @@ phase19_aggregate_club_evaluations <- function(evaluations, protocol,
   }
   phase19_validate_gate_registry(protocol$gate_registry)
   member_hash <- phase19_club_evaluation_list_identity(
-    evaluations, source_evidence, protocol
+    evaluations, source_evidence, protocol,
+    if (is.null(accepted_fold_protocol)) NULL else accepted_fold_protocol$fold_registry,
+    if (is.null(accepted_fold_protocol)) NULL else accepted_fold_protocol$protocol
   )
   families <- vapply(evaluations, `[[`, character(1), "fold_family")
   required_families <- c("rolling_origin_league_season", "heldout_league_transport")
@@ -1034,7 +1098,8 @@ phase19_aggregate_club_evaluations <- function(evaluations, protocol,
 }
 
 phase19_validate_club_evaluation_set <- function(evidence, protocol,
-                                                 source_evidence = NULL) {
+                                                 source_evidence = NULL,
+                                                 accepted_fold_protocol = NULL) {
   if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
       !identical(protocol$status, "ready")) {
     phase19_club_evaluation_abort(
@@ -1042,8 +1107,19 @@ phase19_validate_club_evaluation_set <- function(evidence, protocol,
     )
   }
   if (identical(protocol$authority_mode, "production")) {
+    if (!inherits(accepted_fold_protocol, "phase19_club_fold_protocol") ||
+        !identical(accepted_fold_protocol$authority_mode, "production") ||
+        !isTRUE(accepted_fold_protocol$production_eligible) ||
+        !inherits(accepted_fold_protocol$protocol, "phase19_club_evaluation_protocol") ||
+        !identical(accepted_fold_protocol$protocol, protocol)) {
+      phase19_club_evaluation_abort(
+        "evaluation_source_invalid",
+        "Production evaluation requires the accepted fold protocol identity"
+      )
+    }
     phase19_club_evaluation_source_by_fold(
-      source_evidence, evidence$fold_evaluations, protocol
+      source_evidence, evidence$fold_evaluations, protocol,
+      accepted_fold_protocol$fold_registry, accepted_fold_protocol$protocol
     )
   }
   cache_key <- phase19_club_evaluation_cache_key(evidence, "set")
@@ -1062,7 +1138,8 @@ phase19_validate_club_evaluation_set <- function(evidence, protocol,
       # cannot satisfy the gate with a correctly named but unrelated source
       # bundle.
       phase19_club_evaluation_list_identity(
-        evidence$fold_evaluations, source_evidence, protocol
+        evidence$fold_evaluations, source_evidence, protocol,
+        accepted_fold_protocol$fold_registry, accepted_fold_protocol$protocol
       )
     }
     return(invisible(evidence))
@@ -1076,7 +1153,8 @@ phase19_validate_club_evaluation_set <- function(evidence, protocol,
     )
   }
   expected <- phase19_aggregate_club_evaluations(
-    evidence$fold_evaluations, protocol, source_evidence
+    evidence$fold_evaluations, protocol, source_evidence,
+    accepted_fold_protocol
   )
   if (!identical(evidence$evaluation_set_sha256, expected$evaluation_set_sha256)) {
     phase19_club_evaluation_abort(
@@ -1178,7 +1256,21 @@ phase19_club_validate_production_sources <- function(source_evidence, evaluation
   phase19_validate_current_ucl_club_snapshot(current, "production")
   phase19_validate_policy_review(protocol$policy_review, protocol, require_accepted = TRUE)
   phase19_assert_production_fold_protocol(folds)
+  accepted_fold_registry <- tryCatch(
+    phase19_validate_fold_registry(
+      folds$fold_registry, history, protocol, authority_mode = "production"
+    ),
+    error = function(error) error
+  )
   phase19_validate_fold_review(folds$fold_review, folds, require_accepted = TRUE)
+  if (inherits(accepted_fold_registry, "error") ||
+      !inherits(folds$protocol, "phase19_club_evaluation_protocol") ||
+      !identical(folds$protocol, protocol)) {
+    phase19_club_evaluation_abort(
+      "evaluation_authority_invalid",
+      "Production fold protocol is not the exact accepted registry/protocol graph"
+    )
+  }
   replay_valid <- tryCatch(
     phase19_validate_club_rating_replay(
       replay, history, current_snapshot = current,
@@ -1217,7 +1309,8 @@ phase19_club_validate_production_sources <- function(source_evidence, evaluation
     )
   }
   phase19_club_evaluation_source_by_fold(
-    fold_source_evidence, evaluation$fold_evaluations, protocol
+    fold_source_evidence, evaluation$fold_evaluations, protocol,
+    folds$fold_registry, folds$protocol
   )
   list(
     history_snapshot_sha256 = as.character(history$snapshot_sha256),
@@ -1271,7 +1364,7 @@ phase19_production_evaluation_authority <- function(
     fold_protocol, rating_replay, fold_source_evidence = NULL
 ) {
   phase19_validate_club_evaluation_set(
-    evaluation, protocol, fold_source_evidence
+    evaluation, protocol, fold_source_evidence, fold_protocol
   )
   if (!inherits(protocol, "phase19_club_evaluation_protocol") ||
       !identical(protocol$status, "ready") ||
@@ -1477,7 +1570,13 @@ phase19_validate_club_integrity_evidence <- function(
 phase19_derive_club_integrity_evidence <- function(
     evaluation, protocol, replay, authority, source_evidence = NULL
 ) {
-  phase19_validate_club_evaluation_set(evaluation, protocol, source_evidence)
+  accepted_fold_protocol <- if (identical(protocol$authority_mode, "production") &&
+                                inherits(authority$source_evidence, "list")) {
+    authority$source_evidence$fold_protocol
+  } else NULL
+  phase19_validate_club_evaluation_set(
+    evaluation, protocol, source_evidence, accepted_fold_protocol
+  )
   phase19_club_validate_reproducibility(replay, protocol)
   phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
   folds <- evaluation$fold_evaluations
@@ -1650,7 +1749,13 @@ phase19_club_validate_authority <- function(authority, evaluation, protocol,
 phase19_evaluate_club_promotion <- function(evaluation, protocol, replay,
                                             integrity, authority,
                                             source_evidence = NULL) {
-  phase19_validate_club_evaluation_set(evaluation, protocol, source_evidence)
+  accepted_fold_protocol <- if (identical(protocol$authority_mode, "production") &&
+                                inherits(authority$source_evidence, "list")) {
+    authority$source_evidence$fold_protocol
+  } else NULL
+  phase19_validate_club_evaluation_set(
+    evaluation, protocol, source_evidence, accepted_fold_protocol
+  )
   phase19_club_validate_reproducibility(replay, protocol)
   phase19_club_validate_authority(authority, evaluation, protocol, source_evidence)
   phase19_validate_club_integrity_evidence(
