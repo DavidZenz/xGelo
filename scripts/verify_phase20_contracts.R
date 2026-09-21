@@ -53,7 +53,17 @@ phase20_gate_source_runtime <- function() {
     "R/competition/uefa_champions_league_rules.R",
     "R/competition/uefa_champions_league_state.R",
     "R/competition/uefa_champions_league_simulation.R",
-    "R/competition/uefa_champions_league_outcomes.R"
+    "R/competition/uefa_champions_league_outcomes.R",
+    "R/club/identity.R",
+    "R/club/identity_bootstrap.R",
+    "R/club/history_contract.R",
+    "R/club/model_contract.R",
+    "R/club/evaluation_protocol.R",
+    "R/club/rating.R",
+    "R/club/goal_model.R",
+    "R/club/calibration.R",
+    "R/club/evaluation.R",
+    "R/club/release.R"
   )) {
     path <- file.path(phase20_gate_root, relative)
     if (!file.exists(path)) phase20_gate_abort("missing UCL runtime dependency: ", relative)
@@ -285,6 +295,29 @@ phase20_gate_validate_result <- function(result, label) {
       isTRUE(result$selector_changed) || isTRUE(result$incumbent_changed)) {
     phase20_gate_abort(label, " returned an invalid or unsafe typed result")
   }
+  if (identical(as.character(result$status), "unexpected_failure")) {
+    if (identical(as.integer(result$exit_code), 0L) ||
+        (!length(result$failures) && !length(result$unexpected_failures))) {
+      phase20_gate_abort(label, " returned an empty or zero-exit unexpected failure")
+    }
+  } else if (!identical(as.integer(result$exit_code), 0L)) {
+    phase20_gate_abort(label, " returned a nonzero exit code")
+  }
+  raw_hashes <- result$artifact_hashes %||% character()
+  hashes <- as.character(raw_hashes)
+  names(hashes) <- names(raw_hashes)
+  if (result$status %in% c("mechanics_complete", "unresolved_draw_procedure")) {
+    if (length(hashes) != 10L || is.null(names(hashes)) || anyNA(hashes) ||
+        any(!grepl("^[0-9a-fA-F]{64}$", hashes))) {
+      phase20_gate_abort(label, " did not preserve all ten artifact hashes")
+    }
+    if (is.list(result$artifacts) && length(result$artifacts)) {
+      actual <- vapply(result$artifacts, .ucl_out_artifact_hash, character(1))
+      if (!identical(names(hashes), names(actual)) || !identical(tolower(hashes), tolower(actual))) {
+        phase20_gate_abort(label, " artifact hashes do not bind actual artifact bytes")
+      }
+    }
+  }
   if (identical(result$status, "production_human_needed") &&
       !as.character(result$human_needed_reason) %in% c("phase18_authority_missing", "phase19_cr01_cr05_repair_pending", "phase19_selector_not_accepted")) {
     phase20_gate_abort(label, " returned an unrecognized human-needed reason")
@@ -299,7 +332,7 @@ phase20_gate_validate_result <- function(result, label) {
 phase20_gate_run_production <- function() {
   before <- phase20_gate_snapshot(phase20_gate_protected_paths)
   script <- file.path(phase20_gate_root, "scripts/build_uefa_champions_league_outcomes.R")
-  result <- phase20_gate_run(phase20_gate_rscript, c("--vanilla", script, "--edition-id=ucl_2026_27", "--simulations=1", "--seed=20260921", "--dry-run"))
+  result <- phase20_gate_run(phase20_gate_rscript, c("--vanilla", script, "--edition-id=ucl_2026_27", "--simulations=1", "--seed=20260921", "--information-cutoff-utc=2026-09-21T00:00:00Z", "--dry-run"))
   line <- result$output[grepl("^PHASE20_RESULT ", result$output)]
   if (result$status != 0L || length(line) != 1L ||
       !grepl("status=production_human_needed|status=production_blocked|status=unresolved_draw_procedure", line)) {
@@ -333,6 +366,12 @@ phase20_gate_run_root_rejections <- function() {
 phase20_gate_fixture_replay <- function() {
   graph <- phase20_fixture_graph_36x144()
   release <- phase20_approved_release_fixture(graph)
+  # The fixture release is mechanics evidence only.  Attach the explicit
+  # process-local score-grid fixture so the strict simulator can sample open
+  # rows without manufacturing model evidence.
+  release$forecast_rows$score_grid <- lapply(
+    as.character(release$forecast_rows$fixture_id), phase20_fixture_score_grid
+  )
   builder <- get("ucl20_build_outcomes", envir = .GlobalEnv)
   runs <- lapply(list(FALSE, TRUE, FALSE), function(reverse) {
     input <- graph
@@ -340,7 +379,8 @@ phase20_gate_fixture_replay <- function() {
       input$clubs <- input$clubs[nrow(input$clubs):1L, , drop = FALSE]
       input$fixtures <- input$fixtures[nrow(input$fixtures):1L, , drop = FALSE]
     }
-    builder(graph = input, release = release, simulations = 1L, seed = 20260921L, write = FALSE)
+    builder(graph = input, release = release, simulations = 1L, seed = 20260921L,
+            information_cutoff_utc = phase20_test_information_cutoff_utc, write = FALSE)
   })
   for (run in runs) {
     phase20_gate_validate_result(run, "fixture replay")
@@ -367,36 +407,32 @@ phase20_gate_run_regressions <- function() {
     "tests/testthat/test_phase15_nations_league.R",
     "tests/testthat/test_phase16_euro_qualifying.R"
   )
-  # These historical suites are intentionally large and include known
-  # pre-existing artifact assertions outside Phase 20 ownership.  Keep the
-  # aggregate gate bounded by checking each regression file in a fresh process
-  # for parseability and required testthat declarations; the focused Phase 20
-  # suites above remain the executable behavior gate.
+  # Execute each selected suite in a fresh process.  A declaration/parse smoke
+  # is not a regression result and must never be reported as green.
+  regression_failures <- character()
   for (relative in selected) {
     path <- file.path(phase20_gate_root, relative)
     if (!file.exists(path)) phase20_gate_abort("missing regression file: ", relative)
-    expression <- paste0(
-      "parse(", deparse(normalizePath(path, winslash = "/", mustWork = TRUE)), ");",
-      "lines<-readLines(", deparse(normalizePath(path, winslash = "/", mustWork = TRUE)), ");",
-      "if(!any(startsWith(trimws(lines),'test_that(')))quit(save='no',status=94L);",
-      "cat('PHASE20_REGRESSION_SMOKE file=", basename(path), " parse=true tests_declared=true\\n')"
-    )
+    expression <- phase20_gate_test_expression(path, paste0("regression-", basename(path)))
     result <- phase20_gate_run(phase20_gate_rscript, c("--vanilla", "-e", shQuote(expression)))
-    if (result$status != 0L || !any(grepl("^PHASE20_REGRESSION_SMOKE ", result$output))) {
-      phase20_gate_abort("regression smoke failed: ", relative, "\n", phase20_gate_tail(result$output))
+    line <- result$output[grepl("^PHASE20_TEST_RESULT ", result$output)]
+    passed <- result$status == 0L && length(line) == 1L &&
+      grepl("failed=0 errors=0 warnings=0 skips=0", line, fixed = TRUE)
+    if (isTRUE(passed)) {
+      cat("PHASE20_REGRESSION_RESULT file=", relative, " status=passed\n", sep = "")
+    } else {
+      regression_failures <- c(regression_failures, relative)
+      cat("PHASE20_REGRESSION_RESULT file=", relative, " status=failed\n", sep = "")
+      cat(phase20_gate_tail(result$output), "\n", sep = "")
     }
-    cat(result$output[grepl("^PHASE20_REGRESSION_SMOKE ", result$output)], "\n", sep = "")
   }
   phase18 <- phase20_gate_run(phase20_gate_rscript, c(
-    "--vanilla", "-e", shQuote(paste0(
-      "parse(", deparse(file.path(phase20_gate_root, "scripts/verify_phase18_contracts.R")), ");",
-      "cat('PHASE20_REGRESSION_SMOKE file=verify_phase18_contracts.R parse=true tests_declared=true\\n')"
-    ))
+    "--vanilla", file.path(phase20_gate_root, "scripts/verify_phase18_contracts.R")
   ))
-  if (phase18$status != 0L || !any(grepl("verify_phase18_contracts.R", phase18$output, fixed = TRUE))) {
-    phase20_gate_abort("Phase 18 verifier smoke failed\n", phase20_gate_tail(phase18$output))
+  if (phase18$status != 0L || !any(grepl("PHASE18_GATE_OK|PHASE18_GATE_BLOCKED", phase18$output))) {
+    phase20_gate_abort("Phase 18 verifier failed\n", phase20_gate_tail(phase18$output))
   }
-  cat(phase18$output[grepl("^PHASE20_REGRESSION_SMOKE ", phase18$output)], "\n", sep = "")
+  cat("PHASE20_REGRESSION_PHASE18 status=executed\n")
   phase19_path <- file.path(phase20_gate_root, "scripts/verify_phase19_contracts.R")
   phase19_lines <- readLines(phase19_path, warn = FALSE, encoding = "UTF-8")
   if (!any(grepl("PHASE19_GATE_BLOCKED", phase19_lines, fixed = TRUE)) ||
@@ -404,7 +440,11 @@ phase20_gate_run_regressions <- function() {
     phase20_gate_abort("Phase 19 known repair blocker is not explicitly isolated in its verifier")
   }
   cat("PHASE20_REGRESSION_SMOKE file=verify_phase19_contracts.R parse=true known_blocker_isolated=true\n")
-  cat("PHASE20_REGRESSIONS phase14_15_16=true phase18=true phase19=known_preexisting_repair_blocker bounded=true\n")
+  if (length(regression_failures)) {
+    cat("PHASE20_REGRESSIONS phase14_15_16=executed_with_failures phase18=executed phase19=known_preexisting_repair_blocker bounded=true\n")
+    phase20_gate_abort("bounded historical regressions failed: ", paste(regression_failures, collapse = ", "))
+  }
+  cat("PHASE20_REGRESSIONS phase14_15_16=executed phase18=executed phase19=known_preexisting_repair_blocker bounded=true\n")
   invisible(TRUE)
 }
 
@@ -414,8 +454,8 @@ phase20_gate_validate_public_symbols()
 phase20_gate_validate_target_graph()
 phase20_gate_validate_evidence()
 phase20_gate_validate_cr_probes()
-phase20_gate_run_test_file("tests/testthat/test_uefa_champions_league.R")
-phase20_gate_run_test_file("tests/testthat/test_phase20_adversarial_regression.R")
+phase20_gate_run_test_file("tests/testthat/test_phase20_outcomes_wiring_review.R")
+phase20_gate_run_test_file("tests/testthat/test_phase20_simulation_review.R")
 phase20_gate_run_production()
 phase20_gate_run_root_rejections()
 phase20_gate_fixture_replay()

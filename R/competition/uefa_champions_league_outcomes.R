@@ -1,8 +1,39 @@
 # Deterministic, fail-closed UCL outcome candidate and result-contract boundary.
 
+# Outcomes is sourced directly by focused tests and by the targets verifier, so
+# keep the Phase 18 canonical-v2 primitives private to this module.  Outcome
+# identities must not depend on delimiter-separated text: a source identifier
+# containing a delimiter is still a distinct byte sequence.
+.ucl_out_canonical_env <- local({
+  env <- new.env(parent = baseenv())
+  root <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+  repeat {
+    candidate <- file.path(root, "R", "common", "phase18_canonical_hash.R")
+    if (file.exists(candidate)) {
+      try(sys.source(candidate, envir = env), silent = TRUE)
+      break
+    }
+    parent <- dirname(root)
+    if (identical(parent, root)) break
+    root <- parent
+  }
+  env
+})
+
 .ucl_out_hash <- function(value) {
+  fn <- if (exists("phase18_hash_sequence_v2", envir = .ucl_out_canonical_env, inherits = FALSE)) {
+    get("phase18_hash_sequence_v2", envir = .ucl_out_canonical_env, inherits = FALSE)
+  } else NULL
+  values <- lapply(value, function(item) {
+    if (is.null(item) || !length(item) || is.na(item[[1L]])) NA_character_ else as.character(item[[1L]])
+  })
+  if (is.function(fn)) {
+    return(fn(values, domain = "ucl20-outcome-sequence-v2",
+              names = paste0("value_", seq_along(values)),
+              types = rep("character", length(values))))
+  }
   if (!requireNamespace("digest", quietly = TRUE)) stop("UCL outcomes require digest", call. = FALSE)
-  digest::digest(charToRaw(enc2utf8(paste(as.character(value), collapse = "\x1f"))), algo = "sha256", serialize = FALSE)
+  digest::digest(charToRaw(enc2utf8(paste(values, collapse = "\x1f"))), algo = "sha256", serialize = FALSE)
 }
 
 .ucl_out_scalar <- function(value) {
@@ -13,9 +44,38 @@
   as.character(value[[1L]])
 }
 
+.ucl_out_hashable_table <- function(data) {
+  data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
+  for (field in names(data)) {
+    if (is.list(data[[field]]) && !is.data.frame(data[[field]])) {
+      data[[field]] <- vapply(data[[field]], function(value) {
+        if (is.null(value) || !length(value)) return(NA_character_)
+        if (is.data.frame(value)) return(.ucl_out_canonical_hash(value))
+        if (is.list(value)) return(.ucl_out_hash(unlist(value, use.names = FALSE)))
+        as.character(value[[1L]])
+      }, character(1))
+    }
+  }
+  data
+}
+
 .ucl_out_canonical_hash <- function(data) {
   if (is.null(data)) return(.ucl_out_hash(""))
   if (is.data.frame(data)) {
+    data <- .ucl_out_hashable_table(data)
+    table_fn <- if (exists("phase18_hash_table_v2", envir = .ucl_out_canonical_env, inherits = FALSE)) {
+      get("phase18_hash_table_v2", envir = .ucl_out_canonical_env, inherits = FALSE)
+    } else NULL
+    key_candidates <- c("artifact_path", "fixture_id", "path_id", "stage_event_id", "club_id",
+                        "tie_group_id", "run_id", "manifest_id", "slot_id", "edition_id")
+    key_candidates <- key_candidates[key_candidates %in% names(data)]
+    key_candidates <- key_candidates[vapply(key_candidates, function(field) {
+      values <- data[[field]]
+      !length(values) || (!anyNA(values) && all(nzchar(trimws(as.character(values)))))
+    }, logical(1))]
+    if (is.function(table_fn) && length(key_candidates)) {
+      return(table_fn(data, key = key_candidates[[1L]], schema_tag = "ucl20-outcome-table-v2"))
+    }
     fields <- sort(names(data), method = "radix")
     ordered <- data[, fields, drop = FALSE]
     if (nrow(ordered)) {
@@ -28,8 +88,8 @@
     return(.ucl_out_hash(c(paste(fields, collapse = "\x1f"), rows)))
   }
   if (is.list(data)) {
-    values <- data[sort(names(data))]
-    return(.ucl_out_hash(paste(names(values), vapply(values, .ucl_out_canonical_hash, character(1)), sep = "=", collapse = "\x1e")))
+    values <- data[sort(names(data), method = "radix")]
+    return(.ucl_out_hash(c(names(values), vapply(values, .ucl_out_canonical_hash, character(1)))))
   }
   .ucl_out_hash(.ucl_out_scalar(data))
 }
@@ -48,6 +108,91 @@
     data[[field]] <- rep(value, length.out = nrow(data))
   }
   data[, fields, drop = FALSE]
+}
+
+.ucl_out_first <- function(value, default = NA_character_) {
+  if (is.null(value) || !length(value)) return(default)
+  usable <- !is.na(value)
+  if (is.character(value)) usable <- usable & nzchar(trimws(value))
+  index <- which(usable)[1L]
+  if (is.na(index)) default else value[[index]]
+}
+
+.ucl_out_validate_cutoff <- function(value) {
+  if (length(value) != 1L || is.null(value) || is.na(value) ||
+      !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", as.character(value))) {
+    return(list(valid = FALSE, reason = "information_cutoff_invalid", value = NA_character_))
+  }
+  text <- as.character(value[[1L]])
+  parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  if (is.na(parsed)) return(list(valid = FALSE, reason = "information_cutoff_invalid", value = text))
+  if (parsed >= as.POSIXct("2099-01-01T00:00:00Z", format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")) {
+    return(list(valid = FALSE, reason = "information_cutoff_sentinel", value = text))
+  }
+  list(valid = TRUE, reason = NA_character_, value = text)
+}
+
+.ucl_out_table <- function(ledger) {
+  if (is.data.frame(ledger)) return(ledger)
+  if (is.list(ledger) && is.data.frame(ledger$ledger)) return(ledger$ledger)
+  NULL
+}
+
+.ucl_out_validate_ledger_lineage <- function(ledger) {
+  table <- .ucl_out_table(ledger)
+  if (is.null(table) || !nrow(table)) return(list(valid = TRUE, errors = character()))
+  available <- if ("forecast_status" %in% names(table)) {
+    as.character(table$forecast_status) %in% c("available", "eligible", "eligible_fixture", "eligible_production", "forecast_available")
+  } else rep(TRUE, nrow(table))
+  errors <- character()
+  one_identity <- function(field, required = FALSE) {
+    if (!field %in% names(table)) return(if (required) "missing" else character())
+    values <- as.character(table[[field]][available])
+    values <- values[!is.na(values) & nzchar(trimws(values))]
+    if (required && !length(values)) return("empty")
+    if (length(unique(values)) > 1L) return("mixed")
+    character()
+  }
+  if (length(one_identity("model_release_id", required = TRUE))) errors <- c(errors, "ledger_release_lineage_mixed")
+  if (length(one_identity("model_sha256", required = TRUE)) ||
+      length(one_identity("calibrator_sha256", required = TRUE))) errors <- c(errors, "ledger_model_lineage_mixed")
+  list(valid = !length(errors), errors = unique(errors))
+}
+
+# The state authority owns the immutable fixture rows.  Simulation additionally
+# requires the Phase 18 framing/table metadata and (when available) the source
+# release's score-grid column.  Preserve those source bytes while adapting the
+# object shape; never manufacture a score distribution from three-way odds.
+.ucl_out_prepare_simulation_ledger <- function(ledger, graph, release, cutoff) {
+  if (!is.list(ledger) || !is.data.frame(ledger$ledger)) return(ledger)
+  table <- ledger$ledger
+  release_rows <- if (is.list(release) && is.data.frame(release$forecast_rows)) release$forecast_rows else NULL
+  if (!is.null(release_rows) && "score_grid" %in% names(release_rows)) {
+    grids <- release_rows$score_grid[match(as.character(table$fixture_id), as.character(release_rows$fixture_id))]
+    table$score_grid <- grids
+  }
+  row_fn <- if (exists(".ucl_sim_canonical_row_hash", mode = "function")) get(".ucl_sim_canonical_row_hash") else NULL
+  table_fn <- if (exists(".ucl_sim_canonical_table_hash", mode = "function")) get(".ucl_sim_canonical_table_hash") else NULL
+  if (is.function(row_fn)) {
+    table$row_sha256 <- vapply(seq_len(nrow(table)), function(index) {
+      row_fn(table[index, , drop = FALSE], schema_tag = "ucl20-forecast-ledger-row-v1")
+    }, character(1))
+  }
+  if (is.function(table_fn)) {
+    ledger$table_sha256 <- table_fn(table, key = "fixture_id", schema_tag = "ucl20-forecast-ledger-v1")
+    ledger$canonical_hash_version <- "phase18-canonical-v2"
+  }
+  ledger$ledger <- table
+  ledger$forecast_rows <- table
+  graph_hash_fn <- if (exists(".ucl_sim_graph_content_hash", mode = "function")) get(".ucl_sim_graph_content_hash") else NULL
+  ledger$graph_sha256 <- if (is.function(graph_hash_fn)) as.character(graph_hash_fn(graph)) else as.character(graph$graph_sha256 %||% NA_character_)
+  ledger$source_bundle_id <- as.character(graph$source_bundle_id %||% ledger$source_bundle_id %||% NA_character_)
+  ledger$state_cutoff_utc <- cutoff
+  ledger$information_cutoff_utc <- cutoff
+  if (is.null(ledger$model_release_id) && nrow(table)) ledger$model_release_id <- .ucl_out_first(table$model_release_id)
+  if (is.null(ledger$model_sha256) && nrow(table)) ledger$model_sha256 <- .ucl_out_first(table$model_sha256)
+  if (is.null(ledger$calibrator_sha256) && nrow(table)) ledger$calibrator_sha256 <- .ucl_out_first(table$calibrator_sha256)
+  ledger
 }
 
 .ucl_out_inventory <- c(
@@ -139,6 +284,22 @@
   manifest_check <- .ucl_out_validate_manifest(artifacts$outcomes_manifest, graph = graph)
   errors <- c(errors, manifest_check$errors)
   if (is.data.frame(artifacts$outcomes_manifest) && nrow(artifacts$outcomes_manifest)) {
+    manifest <- artifacts$outcomes_manifest
+    if (length(unique(as.character(manifest$manifest_id))) != 1L ||
+        length(unique(as.character(manifest$edition_id))) != 1L ||
+        length(unique(as.character(manifest$run_id))) != 1L) {
+      errors <- c(errors, "manifest_lineage_identity")
+    }
+    # The manifest is an integrity index, not a second caller-owned claim.
+    # Recompute every table hash from the actual in-memory bytes and compare it
+    # with the matching manifest row.  The self row is checked separately by
+    # .ucl_out_validate_manifest because it commits the manifest's own bytes.
+    for (name in setdiff(.ucl_out_inventory, "outcomes_manifest")) {
+      row <- manifest[as.character(manifest$artifact_path) == paste0(name, ".csv"), , drop = FALSE]
+      if (nrow(row) != 1L || !identical(as.character(row$artifact_sha256[[1L]]), .ucl_out_artifact_hash(artifacts[[name]]))) {
+        errors <- c(errors, paste0("manifest_artifact_hash:", name))
+      }
+    }
     manifest_production <- suppressWarnings(as.logical(artifacts$outcomes_manifest$production_eligible))
     if (any(is.na(manifest_production) | manifest_production)) errors <- c(errors, "manifest_production_promotion")
   }
@@ -167,7 +328,7 @@
 }
 
 .ucl_out_parent_reason <- function(authority = NULL, candidate = NULL) {
-  original <- if (is.list(authority)) authority$original_parent_reason %||% authority$parent_reason else NULL
+  original <- if (is.list(authority)) authority$original_parent_reason %||% authority$parent_reason %||% authority$error else NULL
   if (is.null(original) && is.list(candidate)) original <- candidate$original_parent_reason %||% candidate$parent_reason
   original <- if (length(original) && !is.na(original[[1L]])) as.character(original[[1L]]) else ""
   if (identical(original, "no_accepted_current_ucl")) return(list(status = "production_human_needed", human_needed_reason = "phase18_authority_missing", production_blocked_reason = NA_character_, normalization_error = FALSE, original_parent_reason = original))
@@ -339,12 +500,84 @@
 .ucl_out_metadata <- function(simulation, ledger, graph, rules) {
   fields <- c("run_id", "edition_id", "source_bundle_id", "ruleset_version", "ruleset_sha256", "model_release_id", "model_sha256", "calibrator_sha256", "draw_policy_id", "draw_artifact_id", "draw_artifact_sha256", "information_cutoff_utc", "algorithm_version", "simulation_count", "seed", "path_policy_id", "path_policy_count", "authority_mode", "production_eligible", "status", "run_sha256")
   metadata <- if (is.list(simulation)) simulation$metadata else list()
-  release_id <- if (is.data.frame(ledger) && nrow(ledger)) unique(as.character(ledger$model_release_id))[1L] else NA_character_
-  model_hash <- if (is.data.frame(ledger) && nrow(ledger)) unique(as.character(ledger$model_sha256))[1L] else NA_character_
-  calibrator_hash <- if (is.data.frame(ledger) && nrow(ledger)) unique(as.character(ledger$calibrator_sha256))[1L] else NA_character_
-  data <- data.frame(run_id = as.character(metadata$run_id %||% if (is.list(simulation)) simulation$run_id else NA_character_), edition_id = as.character(metadata$edition_id %||% graph$edition_id), source_bundle_id = as.character(metadata$source_bundle_id %||% graph$source_bundle_id), ruleset_version = as.character(metadata$ruleset_version %||% rules$ruleset_version), ruleset_sha256 = as.character(metadata$ruleset_sha256 %||% rules$ruleset_sha256), model_release_id = release_id, model_sha256 = model_hash, calibrator_sha256 = calibrator_hash, draw_policy_id = as.character(metadata$draw_policy_id %||% rules$draw_policy_id), draw_artifact_id = as.character(metadata$draw_artifact_id %||% NA_character_), draw_artifact_sha256 = as.character(metadata$draw_artifact_sha256 %||% NA_character_), information_cutoff_utc = as.character(metadata$information_cutoff_utc %||% NA_character_), algorithm_version = as.character(metadata$algorithm_version %||% "ucl-conditional-league-v1"), simulation_count = as.integer(metadata$simulation_count %||% NA_integer_), seed = as.integer(metadata$seed %||% NA_integer_), path_policy_id = as.character(metadata$path_policy_id %||% "ucl-rank-constrained-pre-draw-v1"), path_policy_count = as.integer(metadata$path_policy_count %||% 0L), authority_mode = as.character(metadata$authority_mode %||% graph$authority_mode), production_eligible = FALSE, status = as.character(metadata$status %||% "unresolved_draw_procedure"), run_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE)
+  table <- .ucl_out_table(ledger)
+  release_id <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$model_release_id))) else NA_character_
+  model_hash <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$model_sha256))) else NA_character_
+  calibrator_hash <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$calibrator_sha256))) else NA_character_
+  data <- data.frame(
+    run_id = as.character(.ucl_out_first(metadata$run_id %||% if (is.list(simulation)) simulation$run_id else NULL)),
+    edition_id = as.character(.ucl_out_first(metadata$edition_id %||% graph$edition_id)),
+    source_bundle_id = as.character(.ucl_out_first(metadata$source_bundle_id %||% graph$source_bundle_id)),
+    ruleset_version = as.character(.ucl_out_first(metadata$ruleset_version %||% rules$ruleset_version)),
+    ruleset_sha256 = as.character(.ucl_out_first(metadata$ruleset_sha256 %||% rules$ruleset_sha256)),
+    model_release_id = as.character(release_id), model_sha256 = as.character(model_hash), calibrator_sha256 = as.character(calibrator_hash),
+    draw_policy_id = as.character(.ucl_out_first(metadata$draw_policy_id %||% rules$draw_policy_id)),
+    draw_artifact_id = as.character(.ucl_out_first(metadata$draw_artifact_id)),
+    draw_artifact_sha256 = as.character(.ucl_out_first(metadata$draw_artifact_sha256)),
+    information_cutoff_utc = as.character(.ucl_out_first(metadata$information_cutoff_utc)),
+    algorithm_version = as.character(.ucl_out_first(metadata$algorithm_version, "ucl-conditional-league-v1")),
+    simulation_count = as.integer(.ucl_out_first(metadata$simulation_count, NA_integer_)),
+    seed = as.integer(.ucl_out_first(metadata$seed, NA_integer_)),
+    path_policy_id = as.character(.ucl_out_first(metadata$path_policy_id, "ucl-rank-constrained-pre-draw-v1")),
+    path_policy_count = as.integer(.ucl_out_first(metadata$path_policy_count, 0L)),
+    authority_mode = as.character(.ucl_out_first(metadata$authority_mode %||% graph$authority_mode)),
+    production_eligible = FALSE,
+    status = as.character(.ucl_out_first(metadata$status, "unresolved_draw_procedure")),
+    run_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE
+  )
   data$run_sha256 <- .ucl_out_canonical_hash(data[, setdiff(fields, "run_sha256"), drop = FALSE])
   data[, fields, drop = FALSE]
+}
+
+.ucl_out_stage_inventory <- function() {
+  c(knockout_play_off = 8L, round_of_16 = 8L, quarter_final = 4L,
+    semi_final = 2L, final = 1L, champion = 1L)
+}
+
+.ucl_out_validate_stage_events <- function(events, rules) {
+  inventory <- .ucl_out_stage_inventory()
+  if (!is.data.frame(events) || !nrow(events)) return(list(valid = FALSE, errors = "stage_events_missing", aggregate = data.frame()))
+  if (!"stage_id" %in% names(events) || nrow(events) != sum(inventory) ||
+      !setequal(unique(as.character(events$stage_id)), names(inventory))) {
+    return(list(valid = FALSE, errors = "stage_inventory_incomplete", aggregate = data.frame()))
+  }
+  if (!exists("ucl_aggregate_stage_events", mode = "function")) {
+    return(list(valid = FALSE, errors = "stage_event_validator_missing", aggregate = data.frame()))
+  }
+  aggregate <- ucl_aggregate_stage_events(
+    events, rules = rules, stage_inputs = inventory,
+    league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
+    required_stage_ids = names(inventory)
+  )
+  valid <- isTRUE(attr(aggregate, "valid"))
+  errors <- if (valid) character() else as.character(attr(aggregate, "errors") %||% "stage_event_reconciliation_failed")
+  list(valid = valid, errors = unique(errors), aggregate = aggregate)
+}
+
+.ucl_out_validate_progression <- function(progression, graph, simulation) {
+  inventory <- .ucl_out_stage_inventory()
+  required <- c("direct_round_of_16", "knockout_play_off", "eliminated", names(inventory)[-1L])
+  if (!is.data.frame(progression) || !nrow(progression)) return(list(valid = FALSE, errors = "progression_empty", reconciliation = list(valid = FALSE, errors = "progression_empty")))
+  if (!all(c("club_id", "stage_id", "probability", "status") %in% names(progression))) return(list(valid = FALSE, errors = "progression_schema_incomplete", reconciliation = list(valid = FALSE, errors = "progression_schema_incomplete")))
+  clubs <- if (is.data.frame(graph$clubs)) sort(unique(as.character(graph$clubs$club_id)), method = "radix") else character()
+  if (length(clubs) != 36L || anyNA(clubs) || any(!nzchar(clubs))) return(list(valid = FALSE, errors = "progression_club_inventory_invalid", reconciliation = list(valid = FALSE, errors = "progression_club_inventory_invalid")))
+  combinations <- paste(rep(clubs, each = length(required)), rep(required, length(clubs)), sep = "\x1f")
+  observed <- paste(as.character(progression$club_id), as.character(progression$stage_id), sep = "\x1f")
+  errors <- character()
+  if (nrow(progression) != length(combinations) || anyDuplicated(observed) || !setequal(observed, combinations)) errors <- c(errors, "progression_stage_inventory_incomplete")
+  if (any(!as.character(progression$status) %in% c("resolved", "unresolved", "suppressed"))) errors <- c(errors, "progression_status_invalid")
+  values <- suppressWarnings(as.numeric(progression$probability))
+  resolved <- as.character(progression$status) == "resolved"
+  if (any(resolved & (!is.finite(values) | values < 0 | values > 1))) errors <- c(errors, "resolved_probability_invalid")
+  reconciliation <- if (exists("ucl_validate_progression_reconciliation", mode = "function")) {
+    ucl_validate_progression_reconciliation(
+      progression, stage_inputs = inventory,
+      league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
+      required_stage_ids = required
+    )
+  } else list(valid = FALSE, errors = "progression_validator_missing")
+  if (!isTRUE(reconciliation$valid)) errors <- c(errors, reconciliation$errors)
+  list(valid = !length(errors), errors = unique(errors), reconciliation = reconciliation)
 }
 
 #' Validate a deterministic candidate without writing production artifacts.
@@ -365,37 +598,62 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   paths <- .ucl_out_paths(simulation, rules)
   progression <- .ucl_out_progression(simulation, rules)
   forecasts <- .ucl_out_ledger_table(ledger)
-  metadata <- .ucl_out_metadata(simulation, ledger, graph, rules)
+  cutoff_value <- information_cutoff_utc
+  if (is.null(cutoff_value) && is.list(simulation) && is.list(simulation$metadata)) cutoff_value <- simulation$metadata$information_cutoff_utc
+  cutoff <- .ucl_out_validate_cutoff(cutoff_value)
+  simulation_for_metadata <- simulation
+  if (is.list(simulation_for_metadata)) {
+    simulation_for_metadata$metadata <- simulation_for_metadata$metadata %||% list()
+    if (isTRUE(cutoff$valid)) simulation_for_metadata$metadata$information_cutoff_utc <- cutoff$value
+  }
+  metadata <- .ucl_out_metadata(simulation_for_metadata, ledger, graph, rules)
   fixture_authority <- isTRUE(graph$fixture_authority) || identical(as.character(graph$authority_mode), "fixture") || isTRUE(candidate$fixture_authority)
   authority <- if (is.list(candidate$ledger)) candidate$ledger$authority else NULL
   parent <- .ucl_out_parent_reason(authority, candidate)
   expected_artifacts <- list(competition_topology = topology, league_schedule = schedule, tie_break_trace = trace, projected_standings = standings, projected_rankings = rankings, knockout_paths = paths, progression_probabilities = progression, fixture_forecast_ledger = forecasts, simulation_metadata = metadata)
+  expected_artifacts$outcomes_manifest <- .ucl_out_build_manifest(expected_artifacts, graph, simulation_for_metadata, metadata, fixture_authority = fixture_authority)
   supplied <- is.list(candidate$artifacts) && length(candidate$artifacts)
   failures <- character()
+  if (!isTRUE(cutoff$valid)) failures <- c(failures, cutoff$reason)
+  lineage_check <- .ucl_out_validate_ledger_lineage(ledger)
+  if (!isTRUE(lineage_check$valid)) failures <- c(failures, lineage_check$errors)
   if (supplied) {
     artifacts <- candidate$artifacts
+    if (!identical(sort(names(artifacts), method = "radix"), sort(names(expected_artifacts), method = "radix"))) {
+      failures <- c(failures, "artifact_inventory")
+    } else {
+      # A caller may replay a candidate, but cannot replace its freshly
+      # computed bytes.  Compare every supplied table to the expected table
+      # before validating the supplied manifest/self-hash.
+      for (name in names(expected_artifacts)) {
+        supplied_hash <- if (is.data.frame(artifacts[[name]])) .ucl_out_artifact_hash(artifacts[[name]]) else NA_character_
+        expected_hash <- .ucl_out_artifact_hash(expected_artifacts[[name]])
+        if (!identical(supplied_hash, expected_hash)) failures <- c(failures, paste0("artifact_mismatch:", name))
+      }
+    }
   } else {
     artifacts <- expected_artifacts
-    artifacts$outcomes_manifest <- .ucl_out_build_manifest(expected_artifacts, graph, simulation, metadata, fixture_authority = fixture_authority)
   }
   table_check <- .ucl_out_validate_artifact_tables(artifacts, graph = graph, rules = rules, simulation = simulation)
   if (!isTRUE(table_check$valid)) failures <- c(failures, table_check$errors)
   if (nrow(topology) != 36L || nrow(schedule) != 144L) failures <- c(failures, "topology_or_schedule_cardinality")
   if (nrow(forecasts) != 144L) failures <- c(failures, "forecast_ledger_cardinality")
-  progression_for_check <- if (is.data.frame(artifacts$progression_probabilities)) artifacts$progression_probabilities else progression
-  reconciliation <- if (exists("ucl_validate_progression_reconciliation", mode = "function") && nrow(progression_for_check)) ucl_validate_progression_reconciliation(progression_for_check) else list(valid = FALSE, status = "unresolved", errors = "progression_empty")
-  if (!isTRUE(reconciliation$valid) && nrow(progression_for_check)) failures <- c(failures, reconciliation$errors)
-  paths_for_events <- if (is.data.frame(artifacts$knockout_paths)) artifacts$knockout_paths else paths
+  progression_check <- .ucl_out_validate_progression(progression, graph, simulation)
+  reconciliation <- progression_check$reconciliation
+  if (!isTRUE(progression_check$valid)) failures <- c(failures, progression_check$errors)
+  paths_for_events <- paths
   draw_unresolved <- nrow(paths_for_events) > 0L && any(as.character(paths_for_events$path_status) %in% c("unresolved", "pre_draw_legal"))
   draw_unresolved <- draw_unresolved || identical(as.character(simulation$status), "unresolved_draw_procedure")
-  stage_events <- if (exists("ucl_aggregate_stage_events", mode = "function") && nrow(paths_for_events)) ucl_aggregate_stage_events(paths_for_events, rules) else data.frame()
+  stage_events <- if (is.list(simulation) && is.data.frame(simulation$stage_events)) simulation$stage_events else data.frame()
+  stage_check <- .ucl_out_validate_stage_events(stage_events, rules)
+  if (!isTRUE(stage_check$valid)) failures <- c(failures, stage_check$errors)
   status <- if (length(failures)) "production_blocked" else if (draw_unresolved) "unresolved_draw_procedure" else if (fixture_authority) "mechanics_complete" else parent$status
   if (!fixture_authority && status == "mechanics_complete") status <- parent$status
   artifact_hashes <- vapply(artifacts, .ucl_out_canonical_hash, character(1))
   unresolved_reason <- if (draw_unresolved) unique(as.character(paths_for_events$unresolved_reason)) else character()
   unresolved_reason <- unresolved_reason[!is.na(unresolved_reason) & nzchar(unresolved_reason)]
   if (!length(unresolved_reason) && draw_unresolved) unresolved_reason <- "missing_edition_draw_procedure"
-  result <- list(valid = !length(failures), status = status, failures = unique(failures), warnings = character(), skips = character(), unexpected_failures = character(), mechanics_complete = !length(failures), production_eligible = FALSE, fixture_authority = fixture_authority, authority_mode = if (fixture_authority) "fixture" else parent$status, original_parent_reason = parent$original_parent_reason, human_needed = identical(parent$status, "production_human_needed"), human_needed_reason = parent$human_needed_reason, production_blocked_reason = if (identical(status, "production_blocked")) parent$production_blocked_reason else NA_character_, normalization_error = parent$normalization_error, unresolved = unresolved_reason, selector_changed = FALSE, incumbent_changed = FALSE, edition_id = graph$edition_id, source_bundle_id = graph$source_bundle_id, ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256, model_release_id = metadata$model_release_id, model_sha256 = metadata$model_sha256, calibrator_sha256 = metadata$calibrator_sha256, draw_policy_id = metadata$draw_policy_id, draw_artifact_id = metadata$draw_artifact_id, draw_artifact_sha256 = metadata$draw_artifact_sha256, information_cutoff_utc = metadata$information_cutoff_utc, simulation_run_id = simulation$run_id %||% NA_character_, simulation_count = metadata$simulation_count, seed = metadata$seed, artifact_hashes = artifact_hashes, artifacts = artifacts, stage_events = stage_events, progression_reconciliation = reconciliation)
+  result <- list(valid = !length(failures), status = status, failures = unique(failures), warnings = character(), skips = character(), unexpected_failures = character(), mechanics_complete = !length(failures), production_eligible = FALSE, fixture_authority = fixture_authority, authority_mode = if (fixture_authority) "fixture" else parent$status, original_parent_reason = parent$original_parent_reason, human_needed = identical(parent$status, "production_human_needed"), human_needed_reason = parent$human_needed_reason, production_blocked_reason = if (identical(status, "production_blocked")) parent$production_blocked_reason else NA_character_, normalization_error = parent$normalization_error, unresolved = unresolved_reason, selector_changed = FALSE, incumbent_changed = FALSE, edition_id = graph$edition_id, source_bundle_id = graph$source_bundle_id, ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256, model_release_id = metadata$model_release_id, model_sha256 = metadata$model_sha256, calibrator_sha256 = metadata$calibrator_sha256, draw_policy_id = metadata$draw_policy_id, draw_artifact_id = metadata$draw_artifact_id, draw_artifact_sha256 = metadata$draw_artifact_sha256, information_cutoff_utc = metadata$information_cutoff_utc, simulation_run_id = simulation$run_id %||% NA_character_, simulation_count = metadata$simulation_count, seed = metadata$seed, artifact_hashes = artifact_hashes, artifacts = artifacts, stage_events = stage_events, stage_reconciliation = stage_check$aggregate, progression_reconciliation = reconciliation)
   class(result) <- c("ucl_outcome_candidate", "list")
   result
 }
@@ -409,34 +667,85 @@ ucl_outcomes_manifest <- function(candidate, artifact_path = NA_character_, pare
 
 #' Parse the fixed UCL CLI surface without accepting path/authority overrides.
 ucl20_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
-  result <- list(edition_id = "ucl_2026_27", simulations = 1L, seed = 20260921L, dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE)
-  for (arg in as.character(args)) {
-    if (identical(arg, "--help")) { result$help <- TRUE; next }
-    if (identical(arg, "--dry-run")) { result$dry_run <- TRUE; next }
-    if (identical(arg, "--replay-check")) { result$replay_check <- TRUE; next }
-    if (identical(arg, "--write")) { result$write <- TRUE; result$dry_run <- FALSE; next }
-    if (!grepl("^--[A-Za-z0-9_-]+=", arg)) stop(paste0("Unknown UCL argument: ", arg), call. = FALSE)
-    parts <- strsplit(sub("^--", "", arg), "=", fixed = TRUE)[[1L]]
-    key <- parts[[1L]]; value <- paste(parts[-1L], collapse = "=")
-    if (key %in% c("fixture-root", "output-root", "selector-path", "trusted-root", "production-root")) stop("UCL CLI does not accept authority or fixture path overrides", call. = FALSE)
-    if (identical(key, "edition-id")) result$edition_id <- value
-    else if (identical(key, "simulations")) result$simulations <- as.integer(value)
-    else if (identical(key, "seed")) result$seed <- as.integer(value)
-    else stop(paste0("Unknown UCL argument: --", key), call. = FALSE)
+  result <- list(edition_id = "ucl_2026_27", simulations = 1000L, seed = 20260921L,
+                 information_cutoff_utc = "2026-09-21T00:00:00Z",
+                 dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE,
+                 mode = "dry-run")
+  saw_dry_run <- FALSE
+  saw_write <- FALSE
+  forbidden_roots <- c("fixture-root", "output-root", "selector-path", "trusted-root",
+                       "trusted-release-root", "production-root", "national-root", "source-root")
+  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc")
+  parse_integer <- function(value, option, minimum, maximum) {
+    if (!length(value) || !grepl("^-?[0-9]+$", as.character(value))) stop(paste0(option, " must be an integer"), call. = FALSE)
+    parsed <- suppressWarnings(as.integer(value))
+    if (is.na(parsed) || parsed < minimum || parsed > maximum) stop(paste0(option, " is outside the allowed range"), call. = FALSE)
+    parsed
   }
+  arguments <- as.character(args)
+  index <- 1L
+  while (index <= length(arguments)) {
+    arg <- arguments[[index]]
+    if (arg %in% c("--help", "-h")) { result$help <- TRUE; index <- index + 1L; next }
+    if (identical(arg, "--dry-run")) { result$dry_run <- TRUE; saw_dry_run <- TRUE; index <- index + 1L; next }
+    if (identical(arg, "--replay-check")) { result$replay_check <- TRUE; index <- index + 1L; next }
+    if (identical(arg, "--write")) { result$write <- TRUE; result$dry_run <- FALSE; saw_write <- TRUE; index <- index + 1L; next }
+    if (!grepl("^--[A-Za-z0-9_-]+(?:=.*)?$", arg, perl = TRUE)) stop(paste0("Unknown UCL argument: ", arg), call. = FALSE)
+    parts <- strsplit(sub("^--", "", arg), "=", fixed = TRUE)[[1L]]
+    key <- parts[[1L]]
+    if (key %in% forbidden_roots) stop("UCL CLI does not accept authority or fixture path overrides", call. = FALSE)
+    if (!key %in% value_options) stop(paste0("Unknown UCL argument: --", key), call. = FALSE)
+    if (length(parts) == 1L) {
+      if (index == length(arguments)) stop(paste0("Option --", key, " requires one value"), call. = FALSE)
+      index <- index + 1L
+      value <- arguments[[index]]
+    } else value <- paste(parts[-1L], collapse = "=")
+    if (identical(key, "edition-id")) result$edition_id <- value
+    else if (identical(key, "simulations")) result$simulations <- parse_integer(value, "--simulations", 1L, 100000L)
+    else if (identical(key, "seed")) result$seed <- parse_integer(value, "--seed", 0L, .Machine$integer.max)
+    else if (identical(key, "information-cutoff-utc")) result$information_cutoff_utc <- value
+    else stop(paste0("Unknown UCL argument: --", key), call. = FALSE)
+    index <- index + 1L
+  }
+  if (isTRUE(result$help)) return(result)
   if (!identical(result$edition_id, "ucl_2026_27")) stop("UCL CLI edition is not supported", call. = FALSE)
   if (length(result$simulations) != 1L || is.na(result$simulations) || result$simulations < 1L || result$simulations > 100000L) stop("UCL simulations must be between 1 and 100000", call. = FALSE)
-  if (length(result$seed) != 1L || is.na(result$seed)) stop("UCL seed must be an integer", call. = FALSE)
+  if (length(result$seed) != 1L || is.na(result$seed) || result$seed < 0L) stop("UCL seed must be a non-negative integer", call. = FALSE)
+  cutoff <- .ucl_out_validate_cutoff(result$information_cutoff_utc)
+  if (!isTRUE(cutoff$valid)) stop(cutoff$reason, call. = FALSE)
+  if (isTRUE(saw_write) && isTRUE(saw_dry_run)) stop("--write cannot be combined with --dry-run", call. = FALSE)
+  if (isTRUE(result$write) && isTRUE(result$replay_check)) stop("--write cannot be combined with --replay-check", call. = FALSE)
+  result$information_cutoff_utc <- cutoff$value
+  result$mode <- if (isTRUE(result$write)) "write" else if (isTRUE(result$replay_check)) "replay" else "dry-run"
   result
 }
 
 #' Return the machine-readable Phase 20 result contract.
-phase20_result_contract <- function(status = "mechanics_complete", exit_code = 0L, mechanics_complete = NULL, production_eligible = FALSE, human_needed = NULL, human_needed_reason = NA_character_, original_parent_reason = NA_character_, production_blocked_reason = NA_character_, normalization_error = FALSE, unresolved = character(), failures = character(), warnings = character(), skips = character(), unexpected_failures = character(), mapped_threat_ids = character(), selector_changed = FALSE, incumbent_changed = FALSE, ...) {
+phase20_result_contract <- function(status = "mechanics_complete", exit_code = 0L, mechanics_complete = NULL, production_eligible = FALSE, human_needed = NULL, human_needed_reason = NA_character_, original_parent_reason = NA_character_, production_blocked_reason = NA_character_, normalization_error = FALSE, unresolved = character(), failures = character(), warnings = character(), skips = character(), unexpected_failures = character(), mapped_threat_ids = character(), selector_changed = FALSE, incumbent_changed = FALSE, artifact_hashes = character(), artifacts = NULL, information_cutoff_utc = NA_character_, ...) {
   allowed <- c("mechanics_complete", "production_human_needed", "production_blocked", "unresolved_draw_procedure", "unexpected_failure")
   if (!status %in% allowed) { failures <- c(failures, "invalid_status"); status <- "unexpected_failure"; exit_code <- 1L }
+  failures <- unique(as.character(failures[!is.na(failures) & nzchar(as.character(failures))]))
+  unexpected_failures <- unique(as.character(unexpected_failures[!is.na(unexpected_failures) & nzchar(as.character(unexpected_failures))]))
+  if (identical(status, "unexpected_failure")) {
+    if (length(failures) + length(unexpected_failures) == 0L) unexpected_failures <- "unexpected_failure_without_reason"
+    exit_code <- max(1L, as.integer(exit_code %||% 0L))
+    mechanics_complete <- FALSE
+  }
   if (is.null(mechanics_complete)) mechanics_complete <- status %in% c("mechanics_complete", "production_human_needed", "unresolved_draw_procedure") && !length(failures)
   if (is.null(human_needed)) human_needed <- identical(status, "production_human_needed")
-  list(status = status, exit_code = as.integer(exit_code), mechanics_complete = isTRUE(mechanics_complete), production_eligible = isTRUE(production_eligible), human_needed = isTRUE(human_needed), human_needed_reason = as.character(human_needed_reason %||% NA_character_), original_parent_reason = as.character(original_parent_reason %||% NA_character_), production_blocked_reason = as.character(production_blocked_reason %||% NA_character_), normalization_error = isTRUE(normalization_error), unresolved = as.character(unresolved), failures = as.character(failures), warnings = as.character(warnings), skips = as.character(skips), unexpected_failures = as.character(unexpected_failures), mapped_threat_ids = as.character(mapped_threat_ids), selector_changed = isTRUE(selector_changed), incumbent_changed = isTRUE(incumbent_changed))
+  supplied_hashes <- as.character(artifact_hashes %||% character())
+  names(supplied_hashes) <- names(artifact_hashes %||% supplied_hashes)
+  list(status = status, exit_code = as.integer(exit_code), mechanics_complete = isTRUE(mechanics_complete),
+       production_eligible = FALSE, human_needed = isTRUE(human_needed),
+       human_needed_reason = as.character(human_needed_reason %||% NA_character_),
+       original_parent_reason = as.character(original_parent_reason %||% NA_character_),
+       production_blocked_reason = as.character(production_blocked_reason %||% NA_character_),
+       normalization_error = isTRUE(normalization_error), unresolved = as.character(unresolved),
+       failures = failures, warnings = as.character(warnings), skips = as.character(skips),
+       unexpected_failures = unexpected_failures, mapped_threat_ids = as.character(mapped_threat_ids),
+       selector_changed = FALSE, incumbent_changed = FALSE,
+       artifact_hashes = supplied_hashes, artifacts = artifacts,
+       information_cutoff_utc = as.character(information_cutoff_utc %||% NA_character_))
 }
 
 #' Verify the zero-failure typed result contract.
@@ -444,32 +753,177 @@ phase20_verify_contracts <- function(result) {
   if (!is.list(result)) return(FALSE)
   allowed <- c("mechanics_complete", "production_human_needed", "production_blocked", "unresolved_draw_procedure", "unexpected_failure")
   if (!identical(as.character(result$status), result$status) || !result$status %in% allowed) return(FALSE)
-  if (!identical(as.integer(result$exit_code), 0L) && result$status != "unexpected_failure") return(FALSE)
-  if (length(result$failures) || length(result$warnings) || length(result$skips) || length(result$unexpected_failures)) return(FALSE)
+  if (identical(result$status, "unexpected_failure")) {
+    if (identical(as.integer(result$exit_code), 0L) || (!length(result$failures) && !length(result$unexpected_failures))) return(FALSE)
+  } else {
+    if (!identical(as.integer(result$exit_code), 0L)) return(FALSE)
+    if (length(result$failures) || length(result$warnings) || length(result$skips) || length(result$unexpected_failures)) return(FALSE)
+  }
   if (isTRUE(result$production_eligible) || isTRUE(result$selector_changed) || isTRUE(result$incumbent_changed)) return(FALSE)
   if (identical(result$status, "production_human_needed") && !as.character(result$human_needed_reason) %in% c("phase18_authority_missing", "phase19_cr01_cr05_repair_pending", "phase19_selector_not_accepted")) return(FALSE)
   if (identical(result$status, "production_blocked") && !isTRUE(result$normalization_error) && !nzchar(as.character(result$production_blocked_reason))) return(FALSE)
+  raw_hashes <- result$artifact_hashes %||% character()
+  hashes <- as.character(raw_hashes)
+  names(hashes) <- names(raw_hashes)
+  if (length(hashes)) {
+    if (is.null(names(hashes)) || any(!nzchar(names(hashes))) || anyNA(hashes) || any(!grepl("^[0-9a-fA-F]{64}$", hashes))) return(FALSE)
+    if (is.list(result$artifacts) && length(result$artifacts)) {
+      actual <- vapply(result$artifacts, .ucl_out_artifact_hash, character(1))
+      if (!identical(names(hashes), names(actual)) || !identical(tolower(hashes), tolower(actual))) return(FALSE)
+    }
+  }
+  if (result$status %in% c("mechanics_complete", "unresolved_draw_procedure") && !length(hashes)) return(FALSE)
   TRUE
+}
+
+.ucl_out_project_root <- function() {
+  root <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+  repeat {
+    if (file.exists(file.path(root, "R", "competition", "uefa_champions_league_state.R"))) return(root)
+    parent <- dirname(root)
+    if (identical(parent, root)) return(normalizePath(getwd(), winslash = "/", mustWork = TRUE))
+    root <- parent
+  }
+}
+
+.ucl_out_blocked_result <- function(reason, original_parent_reason = NA_character_,
+                                    human_needed = FALSE, human_needed_reason = NA_character_,
+                                    normalization_error = FALSE, mapped_threat_ids = character(),
+                                    information_cutoff_utc = NA_character_) {
+  phase20_result_contract(
+    status = if (isTRUE(human_needed)) "production_human_needed" else "production_blocked",
+    mechanics_complete = FALSE, human_needed = human_needed,
+    human_needed_reason = human_needed_reason,
+    original_parent_reason = original_parent_reason,
+    production_blocked_reason = if (isTRUE(human_needed)) NA_character_ else as.character(reason),
+    normalization_error = normalization_error, mapped_threat_ids = mapped_threat_ids,
+    information_cutoff_utc = information_cutoff_utc
+  )
+}
+
+.ucl_out_production_authority <- function() {
+  root <- .ucl_out_project_root()
+  accepted_root <- file.path(root, "data", "competition", "accepted")
+  registry_root <- file.path(root, "data", "competition", "registries")
+  reader <- if (exists("phase18_read_ucl_refresh_current", mode = "function")) get("phase18_read_ucl_refresh_current") else NULL
+  if (!is.function(reader)) return(list(error = "no_accepted_current_ucl"))
+  current <- tryCatch(reader(accepted_root = accepted_root, registry_root = registry_root),
+                      error = function(error) list(error = "no_accepted_current_ucl", message = conditionMessage(error)))
+  if (is.null(current) || !is.null(current$error) ||
+      !identical(as.character(current$pointer$accepted_status %||% ""), "accepted") ||
+      !is.list(current$accepted) || is.null(current$accepted$bundle)) {
+    return(list(error = if (is.list(current) && !is.null(current$error)) as.character(current$error[[1L]]) else "no_accepted_current_ucl"))
+  }
+  accepted <- current$accepted
+  rules <- tryCatch(if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else NULL,
+                    error = function(error) error)
+  if (inherits(rules, "error") || is.null(rules)) return(list(error = "rules_evidence_invalid"))
+  tables <- accepted$tables %||% accepted$artifacts
+  if (!is.list(tables)) return(list(error = "accepted_source_schema_invalid"))
+  clubs <- tables$clubs %||% tables$teams
+  fixtures <- tables$matches %||% tables$fixtures
+  if (!is.data.frame(clubs) || !is.data.frame(fixtures)) return(list(error = "accepted_source_schema_invalid"))
+  graph <- list(
+    edition_id = as.character(accepted$bundle$edition_id[[1L]]),
+    source_bundle_id = as.character(accepted$bundle$bundle_id[[1L]]),
+    authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = TRUE, selector_path = NULL, production_root = NULL,
+    clubs = clubs, fixtures = fixtures
+  )
+  validation <- tryCatch(ucl_validate_schedule(graph, rules = rules, require_authority = TRUE),
+                         error = function(error) list(status = "blocked", reason_code = "accepted_source_schema_invalid"))
+  if (!identical(validation$status, "ready")) return(list(error = validation$reason_code %||% "accepted_source_schema_invalid"))
+  resolver <- if (exists("phase19_resolve_production_club_release", mode = "function")) get("phase19_resolve_production_club_release") else NULL
+  if (!is.function(resolver)) return(list(error = "no_accepted_club_history"))
+  resolved <- tryCatch(list(value = resolver()), error = function(error) {
+    reason <- if (!is.null(error$reason_code)) as.character(error$reason_code[[1L]]) else "phase19_selector_not_accepted"
+    if (reason %in% c("release_root_invalid", "release_artifact_missing", "release_dependency_missing", "release_preflight_stale")) reason <- "no_accepted_club_history"
+    list(error = reason, message = conditionMessage(error))
+  })
+  if (!is.null(resolved$error)) return(list(error = as.character(resolved$error[[1L]])))
+  release <- resolved$value
+  release_rows <- if (is.list(release) && is.data.frame(release$forecast_rows)) release$forecast_rows else if (is.list(release) && is.data.frame(release$forecasts)) release$forecasts else NULL
+  if (is.null(release_rows) || !nrow(release_rows)) return(list(error = "phase19_forecast_rows_missing"))
+  list(graph = validation$graph, rules = rules, release = release, current = current)
+}
+
+.ucl_out_build_pipeline <- function(graph, release, rules, simulations, seed, draw_artifact,
+                                    information_cutoff_utc, write = FALSE, output_root = NULL) {
+  cutoff <- .ucl_out_validate_cutoff(information_cutoff_utc)
+  if (!isTRUE(cutoff$valid)) return(.ucl_out_blocked_result(cutoff$reason, mapped_threat_ids = "T20-03-01", information_cutoff_utc = cutoff$value))
+  state <- tryCatch(ucl_build_state(graph, rules = rules, state_cutoff_utc = cutoff$value),
+                    error = function(error) list(status = "blocked", reason_code = "state_build_failed", message = conditionMessage(error)))
+  if (!identical(state$status, "ready")) return(.ucl_out_blocked_result(state$reason_code %||% "state_blocked", mapped_threat_ids = "T20-01-01", information_cutoff_utc = cutoff$value))
+  ledger <- tryCatch(ucl_build_forecast_ledger(state, release = release, state_cutoff_utc = cutoff$value),
+                     error = function(error) list(status = "blocked", reason_code = "ledger_build_failed", message = conditionMessage(error)))
+  if (!inherits(ledger, "ucl_forecast_ledger") || !is.data.frame(ledger$ledger)) return(.ucl_out_blocked_result(ledger$reason_code %||% "ledger_contract_invalid", mapped_threat_ids = "T20-03-01", information_cutoff_utc = cutoff$value))
+  ledger <- .ucl_out_prepare_simulation_ledger(ledger, graph = state$graph, release = release, cutoff = cutoff$value)
+  required_ledger_fields <- c("graph_sha256", "source_bundle_id", "state_cutoff_utc", "table_sha256", "model_release_id", "model_sha256", "calibrator_sha256")
+  if (any(!vapply(required_ledger_fields, function(field) length(ledger[[field]]) == 1L && !is.na(ledger[[field]]) && nzchar(as.character(ledger[[field]])), logical(1)))) {
+    return(.ucl_out_blocked_result("ledger_metadata_incomplete", mapped_threat_ids = "T20-03-01", information_cutoff_utc = cutoff$value))
+  }
+  simulation <- tryCatch(ucl_run_simulation(state, ledger = ledger, simulations = simulations, seed = seed,
+                                             rules = rules, draw_artifact = draw_artifact,
+                                             information_cutoff_utc = cutoff$value),
+                         error = function(error) list(status = "blocked", reason = "simulation_failed", message = conditionMessage(error)))
+  if (identical(as.character(simulation$status), "blocked")) return(.ucl_out_blocked_result(simulation$reason %||% "simulation_blocked", mapped_threat_ids = "T20-03-03", information_cutoff_utc = cutoff$value))
+  candidate <- tryCatch(ucl_validate_outcome_candidate(list(state = state, ledger = ledger, simulation = simulation),
+                                                        rules = rules, information_cutoff_utc = cutoff$value),
+                        error = function(error) list(valid = FALSE, failures = conditionMessage(error), status = "production_blocked"))
+  if (!isTRUE(candidate$valid)) {
+    reason <- paste(unique(as.character(candidate$failures %||% "outcome_validation_failed")), collapse = ";")
+    return(.ucl_out_blocked_result(reason, mapped_threat_ids = c("T20-04-01", "T20-04-02"), information_cutoff_utc = cutoff$value))
+  }
+  if (isTRUE(write)) {
+    if (is.null(output_root)) return(.ucl_out_blocked_result("production_writer_not_authorized", mapped_threat_ids = "T20-05-01", information_cutoff_utc = cutoff$value))
+    tryCatch(ucl_write_outcome_candidate(candidate, output_root = output_root),
+             error = function(error) stop(error))
+  }
+  phase20_result_contract(
+    status = candidate$status, mechanics_complete = candidate$mechanics_complete,
+    production_eligible = FALSE, human_needed = FALSE,
+    original_parent_reason = candidate$original_parent_reason,
+    production_blocked_reason = candidate$production_blocked_reason,
+    normalization_error = candidate$normalization_error, unresolved = candidate$unresolved,
+    warnings = candidate$warnings, skips = candidate$skips,
+    artifact_hashes = candidate$artifact_hashes, artifacts = candidate$artifacts,
+    information_cutoff_utc = cutoff$value,
+    mapped_threat_ids = c("T20-01-01", "T20-03-01", "T20-03-03", "T20-04-01", "T20-04-02")
+  )
 }
 
 #' Build the fixed production outcome contract or a mechanics-only fixture candidate.
 ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L, seed = 20260921L, draw_artifact = NULL, information_cutoff_utc = NULL, write = FALSE, output_root = NULL) {
   if (is.null(graph)) {
-    authority <- if (exists(".ucl_state_production_release", mode = "function")) .ucl_state_production_release() else list(error = "no_accepted_club_history")
-    parent <- .ucl_out_parent_reason(list(original_parent_reason = authority$error))
-    return(phase20_result_contract(status = parent$status, human_needed = TRUE, human_needed_reason = parent$human_needed_reason, original_parent_reason = parent$original_parent_reason, production_blocked_reason = parent$production_blocked_reason, normalization_error = parent$normalization_error, mapped_threat_ids = c("T20-01-02", "T20-05-02")))
+    authority <- .ucl_out_production_authority()
+    if (!is.null(authority$error)) {
+      parent <- .ucl_out_parent_reason(list(original_parent_reason = authority$error))
+      if (identical(authority$error, "phase19_forecast_rows_missing")) {
+        return(.ucl_out_blocked_result(authority$error, normalization_error = FALSE, mapped_threat_ids = "T20-05-02", information_cutoff_utc = information_cutoff_utc %||% NA_character_))
+      }
+      return(.ucl_out_blocked_result(parent$production_blocked_reason %||% authority$error,
+                                     original_parent_reason = parent$original_parent_reason,
+                                     human_needed = identical(parent$status, "production_human_needed"),
+                                     human_needed_reason = parent$human_needed_reason,
+                                     normalization_error = parent$normalization_error,
+                                     mapped_threat_ids = c("T20-01-02", "T20-05-02"),
+                                     information_cutoff_utc = information_cutoff_utc %||% NA_character_))
+    }
+    cutoff <- information_cutoff_utc
+    if (is.null(cutoff)) return(.ucl_out_blocked_result("information_cutoff_missing", mapped_threat_ids = "T20-03-01"))
+    return(.ucl_out_build_pipeline(authority$graph, authority$release, authority$rules, simulations, seed,
+                                   draw_artifact, cutoff, write = write, output_root = output_root))
   }
+  fixture <- isTRUE(graph$fixture_authority) && identical(as.character(graph$authority_mode %||% ""), "fixture") && !isTRUE(graph$production_eligible)
+  if (!fixture) return(.ucl_out_blocked_result("graph_injection_requires_fixture_authority", mapped_threat_ids = "T20-01-01", information_cutoff_utc = information_cutoff_utc %||% NA_character_))
+  if (is.null(release) || !isTRUE(release$fixture_authority) || isTRUE(release$production_eligible)) {
+    return(.ucl_out_blocked_result("fixture_release_missing_or_promotable", mapped_threat_ids = "T20-03-01", information_cutoff_utc = information_cutoff_utc %||% NA_character_))
+  }
+  cutoff <- information_cutoff_utc %||% "2026-09-21T00:00:00Z"
   rules <- if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else NULL
-  state <- ucl_build_state(graph, rules = rules, state_cutoff_utc = information_cutoff_utc %||% "2099-12-31T23:59:59Z")
-  if (!identical(state$status, "ready")) return(phase20_result_contract(status = "production_blocked", exit_code = 0L, mechanics_complete = FALSE, failures = state$reason_code %||% "state_blocked", production_blocked_reason = state$reason_code %||% "state_blocked"))
-  ledger <- ucl_build_forecast_ledger(state, release = release, state_cutoff_utc = information_cutoff_utc)
-  simulation <- ucl_run_simulation(state, ledger = ledger, simulations = simulations, seed = seed, rules = rules, draw_artifact = draw_artifact, information_cutoff_utc = information_cutoff_utc)
-  candidate <- ucl_validate_outcome_candidate(list(state = state, ledger = ledger, simulation = simulation), rules = rules, information_cutoff_utc = information_cutoff_utc)
-  manifest <- ucl_outcomes_manifest(candidate)
-  candidate$artifacts$outcomes_manifest <- manifest
-  candidate$artifact_hashes <- vapply(candidate$artifacts, .ucl_out_canonical_hash, character(1))
-  if (isTRUE(write)) ucl_write_outcome_candidate(candidate, output_root = output_root)
-  phase20_result_contract(status = candidate$status, mechanics_complete = candidate$mechanics_complete, production_eligible = candidate$production_eligible, human_needed = FALSE, original_parent_reason = candidate$original_parent_reason, production_blocked_reason = candidate$production_blocked_reason, normalization_error = candidate$normalization_error, unresolved = candidate$unresolved, failures = candidate$failures, warnings = candidate$warnings, skips = candidate$skips, unexpected_failures = candidate$unexpected_failures, selector_changed = candidate$selector_changed, incumbent_changed = candidate$incumbent_changed, mapped_threat_ids = c("T20-01-01", "T20-01-02", "T20-03-01", "T20-03-02", "T20-03-03", "T20-04-01", "T20-04-02", "T20-04-03"))
+  if (is.null(rules)) return(.ucl_out_blocked_result("rules_evidence_invalid", mapped_threat_ids = "T20-02-01", information_cutoff_utc = information_cutoff_utc %||% "2026-09-21T00:00:00Z"))
+  .ucl_out_build_pipeline(graph, release, rules, simulations, seed, draw_artifact, cutoff,
+                          write = write, output_root = output_root)
 }
 
 #' Write only a validated sibling candidate under a process-temporary root.
