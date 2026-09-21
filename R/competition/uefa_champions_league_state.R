@@ -789,6 +789,14 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   if (any(is.na(rows$row_sha256) | !grepl("^[0-9a-fA-F]{64}$", as.character(rows$row_sha256)))) {
     return("forecast_rows_hash_missing")
   }
+  if (isTRUE(descriptor$production_eligible)) {
+    invalid <- vapply(expected_ids, function(fixture_id) {
+      fixture <- fixtures[as.character(fixtures$fixture_id) == fixture_id, , drop = FALSE]
+      candidate <- rows[as.character(rows$fixture_id) == fixture_id, , drop = FALSE]
+      !is.null(.ucl_state_candidate_issue(fixture, candidate, cutoff = NULL, expected = descriptor))
+    }, logical(1))
+    if (any(invalid)) return("forecast_rows_content_invalid")
+  }
   NULL
 }
 
@@ -837,7 +845,10 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   if (!.ucl_state_row_hash_matches(candidate, fixture_authority = fixture_authority)) {
     return("insufficient_model_evidence")
   }
-  if (!as.character(candidate$forecast_status[[1L]]) %in% c("available", "eligible", "eligible_fixture", "forecast_available")) {
+  if (!as.character(candidate$forecast_status[[1L]]) %in% c(
+    "available", "eligible", "eligible_fixture", "eligible_production",
+    "forecast_available"
+  )) {
     return("insufficient_model_evidence")
   }
   suppression <- as.character(candidate$suppression_reason[[1L]])
