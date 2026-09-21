@@ -5,16 +5,16 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Completed 19-09-PLAN.md
-last_updated: "2026-09-20T23:23:00.316Z"
-last_activity: 2026-09-20
-last_activity_desc: Plan 08 immutable club release and bidirectional domain guards verified; national regression awaits a pre-existing model artifact
+stopped_at: Completed 19-10-PLAN.md
+last_updated: "2026-09-21T03:48:36.108Z"
+last_activity: 2026-09-21
+last_activity_desc: Plan 10 aggregate adversarial gate complete; production remains human_needed and national regression awaits a pre-existing model artifact
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 24
-  completed_plans: 23
-  percent: 96
+  completed_plans: 24
+  percent: 40
 ---
 
 # xGelo Project State
@@ -30,17 +30,17 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
 Plan: 10 of 10
-Status: In progress; Plans 01-09 complete
-Last activity: 2026-09-20 — Plan 09 club controller and validated targets chain complete; production remains human_needed and national regression awaits a pre-existing model artifact
+Status: Mechanics complete; production human_needed; Plans 01-10 complete
+Last activity: 2026-09-21 — Plan 10 aggregate adversarial gate complete; production remains human_needed and national regression awaits a pre-existing model artifact
 
-Progress: [██████████] 96%
+Progress: [██████████] 100%
 
 ## Milestone Progress
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (8/10 plans) |
+| 19 | Independent Club Forecast Authority | 5 | In progress (10/10 plans; production gate pending) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -49,9 +49,9 @@ Progress: [██████████] 96%
 
 **Current milestone:**
 
-- Total plans completed: 22
-- Average duration: 23 min
-- Total execution time: 504 min
+- Total plans completed: 24
+- Average duration: 32 min
+- Total execution time: 764 min
 
 **Previous milestone:** v3.0 completed 52 formal plans across Phases 13-17; details remain in `.planning/milestones/v3.0-phases/` and `.planning/milestones/v3.0-ROADMAP.md`. **Per-Plan Metrics:**
 
@@ -67,6 +67,7 @@ Progress: [██████████] 96%
 | Phase 19 P07 | 74min | 2 tasks | 2 files |
 | Phase 19 P08 | 48 | 2 tasks | 5 files |
 | Phase 19 P09 | 130 | 2 tasks | 3 files |
+| Phase 19 P10 | 260 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -128,6 +129,8 @@ Progress: [██████████] 96%
 - [Phase 19]: Fixture evidence is accepted only by the explicit fixture resolver and cannot create production authority or a production selector.
 - [Phase 19]: Declared club domains are rejected by national release and forecast boundaries before forecast use.
 - [Phase 19]: Phase 19-09 production has no caller-selectable evidence roots and remains human_needed until genuine accepted Phase 18 history/current-UCL/identity plus owner policy/fold reviews exist.
+- [Phase 19]: Phase 19 aggregate verification requires exact 30-prohibition/30-probe bijection, fresh-process suites, and protected production-byte snapshots.
+- [Phase 19]: Fixture replay compares canonical artifacts from one shared materialized fixture root while validating the runtime-timestamped selector semantically.
 
 ### Pending Todos
 
@@ -154,6 +157,6 @@ Progress: [██████████] 96%
 
 ## Session Continuity
 
-Last session: 2026-09-20T23:23:00.306Z
-Stopped at: Completed 19-09-PLAN.md
+Last session: 2026-09-21T03:48:36.098Z
+Stopped at: Completed 19-10-PLAN.md
 Resume file: None
