@@ -742,3 +742,82 @@ test_that("20-04 RED: knockout paths and outcome inventory persist complete line
   expect_identical(fixture$candidate$artifacts$outcomes_manifest,
                    reversed$candidate$artifacts$outcomes_manifest)
 })
+
+# -------------------------------------------------------------------------
+# Plan 20-05 RED contracts.  These tests intentionally exercise the fixed
+# orchestration and aggregate verification boundaries before their production
+# entrypoints are added.  The public-boundary assertions below must fail with
+# red_missing_ucl_entrypoints until Task 2 implements the CLI, targets, and
+# aggregate gate.
+# -------------------------------------------------------------------------
+
+test_that("20-05 RED: fixed CLI modes and production result are public contracts", {
+  phase20_test_require_ucl_entrypoints(
+    c("ucl20_parse_args", "ucl20_build_outcomes", "phase20_result_contract"),
+    "20-05 fixed-cli-production-boundary"
+  )
+
+  parsed <- ucl20_parse_args(c(
+    "--edition-id=ucl_2026_27", "--simulations=2", "--seed=20260921",
+    "--dry-run"
+  ))
+  expect_identical(parsed$edition_id, "ucl_2026_27")
+  expect_identical(parsed$simulations, 2L)
+  expect_identical(parsed$seed, 20260921L)
+  expect_true(isTRUE(parsed$dry_run))
+  expect_error(ucl20_parse_args("--edition-id=uefa_nations_league_2026_27"), "not supported|Unsupported")
+  expect_error(ucl20_parse_args("--unknown-option=value"), "Unknown|Unsupported")
+  for (argument in c(
+    "--fixture-root=/tmp/fixture", "--output-root=/tmp/output",
+    "--selector-path=/tmp/selector", "--trusted-release-root=/tmp/release",
+    "--national-root=/tmp/national", "--source-root=/tmp/source"
+  )) {
+    expect_error(ucl20_parse_args(argument), "does not accept|Unsupported|authority")
+  }
+
+  protected_before <- phase20_test_protected_root_snapshot()
+  result <- ucl20_build_outcomes(simulations = 1L, seed = 20260921L)
+  expect_true(is.list(result))
+  expect_true(result$status %in% c(
+    "production_human_needed", "production_blocked", "unresolved_draw_procedure"
+  ))
+  expect_false(isTRUE(result$production_eligible))
+  expect_false(isTRUE(result$selector_changed))
+  expect_false(isTRUE(result$incumbent_changed))
+  expect_identical(phase20_test_protected_root_snapshot(), protected_before)
+})
+
+test_that("20-05 RED: fixture mechanics remain non-promotable at the public boundary", {
+  phase20_test_require_ucl_entrypoints(
+    c("ucl20_build_outcomes", "phase20_result_contract"),
+    "20-05 fixture-authority-boundary"
+  )
+  graph <- phase20_fixture_graph_36x144()
+  release <- phase20_approved_release_fixture(graph)
+  protected_before <- phase20_test_protected_root_snapshot()
+  result <- ucl20_build_outcomes(
+    graph = graph, release = release, simulations = 1L,
+    seed = 20260921L, write = FALSE
+  )
+  expect_true(result$status %in% c("mechanics_complete", "unresolved_draw_procedure"))
+  expect_false(isTRUE(result$production_eligible))
+  expect_identical(phase20_test_protected_root_snapshot(), protected_before)
+})
+
+test_that("20-05 RED: aggregate verifier entrypoint and exact target graph are explicit", {
+  verifier <- file.path(phase20_test_project_root, "scripts", "verify_phase20_contracts.R")
+  if (!file.exists(verifier)) {
+    stop(phase20_test_missing_entrypoint_condition(
+      "scripts/verify_phase20_contracts.R", "20-05 aggregate verifier"
+    ))
+  }
+  phase20_test_require_ucl_entrypoints("phase20_verify_contracts", "20-05 aggregate result contract")
+
+  target_source <- paste(readLines(file.path(phase20_test_project_root, "_targets.R"), warn = FALSE), collapse = "\n")
+  expect_true(all(vapply(
+    phase20_expected_target_names,
+    function(name) grepl(paste0("tar_target\\s*\\(\\s*", name, "\\b"), target_source),
+    logical(1)
+  )))
+  expect_false(grepl("phase14_resolve_approved_release|resolve_phase12_approved_release", target_source))
+})

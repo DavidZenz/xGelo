@@ -188,3 +188,60 @@ test_that("fixture releases, draw states, and protected roots stay non-promotabl
 
   phase20_test_protected_incumbent_bytes("protected-incumbent-regression")
 })
+
+test_that("20-05 RED: CLI rejects every caller-selected authority or output root", {
+  phase20_test_require_ucl_entrypoints(
+    c("ucl20_parse_args", "ucl20_build_outcomes"),
+    "20-05 fixed-root adversarial boundary"
+  )
+  for (argument in c(
+    "--fixture-root=/tmp/fixture", "--output-root=/tmp/output",
+    "--selector-path=/tmp/selector", "--trusted-release-root=/tmp/release",
+    "--national-root=/tmp/national", "--source-root=/tmp/source"
+  )) {
+    expect_error(ucl20_parse_args(argument), "does not accept|Unsupported|authority")
+  }
+  expect_error(ucl20_parse_args("--edition-id=foreign_edition"), "not supported|Unsupported")
+  expect_error(ucl20_parse_args(c("--write", "--replay-check", "--edition-id=ucl_2026_27")), "combined|cannot")
+})
+
+test_that("20-05 RED: typed production and fixture result contracts preserve bytes", {
+  phase20_test_require_ucl_entrypoints(
+    c("ucl20_build_outcomes", "phase20_result_contract", "phase20_verify_contracts"),
+    "20-05 typed result/protected incumbent boundary"
+  )
+  before <- phase20_test_protected_root_snapshot()
+  production <- ucl20_build_outcomes(simulations = 1L, seed = 20260921L)
+  expect_true(production$status %in% c(
+    "production_human_needed", "production_blocked", "unresolved_draw_procedure"
+  ))
+  expect_true(isTRUE(phase20_verify_contracts(production)))
+  expect_false(isTRUE(production$production_eligible))
+  expect_false(isTRUE(production$selector_changed))
+  expect_false(isTRUE(production$incumbent_changed))
+  expect_identical(phase20_test_protected_root_snapshot(), before)
+
+  graph <- phase20_fixture_graph_36x144()
+  fixture <- ucl20_build_outcomes(
+    graph = graph, release = phase20_approved_release_fixture(graph),
+    simulations = 1L, seed = 20260921L, write = FALSE
+  )
+  expect_true(fixture$status %in% c("mechanics_complete", "unresolved_draw_procedure"))
+  expect_false(isTRUE(fixture$production_eligible))
+  expect_identical(phase20_test_protected_root_snapshot(), before)
+})
+
+test_that("20-05 RED: verifier script and exact target graph are executable boundaries", {
+  verifier <- file.path(phase20_test_project_root, "scripts", "verify_phase20_contracts.R")
+  if (!file.exists(verifier)) {
+    stop(phase20_test_missing_entrypoint_condition(
+      "scripts/verify_phase20_contracts.R", "20-05 executable aggregate verifier"
+    ))
+  }
+  target_source <- paste(readLines(file.path(phase20_test_project_root, "_targets.R"), warn = FALSE), collapse = "\n")
+  expected_edges <- apply(phase20_expected_target_edges, 1L, function(edge) {
+    grepl(edge[[1L]], target_source, fixed = TRUE) && grepl(edge[[2L]], target_source, fixed = TRUE)
+  })
+  expect_true(all(expected_edges))
+  expect_false(grepl("phase14_resolve_approved_release|resolve_phase12_approved_release", target_source))
+})
