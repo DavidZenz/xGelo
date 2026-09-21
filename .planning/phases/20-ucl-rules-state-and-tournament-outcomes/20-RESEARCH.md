@@ -536,38 +536,25 @@ The production implementation must additionally compare immutable IDs, source/mo
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | The suggested four-module R structure and ten-file UCL outcome inventory are the most maintainable Phase 20 decomposition. | Recommended Project Structure; Pattern 7 | Planner may need to align names with an existing uninspected target or Phase 21 adapter; changing names later could require migration. |
-| A2 | Deterministic legal draw enumeration is feasible for the supported pre-draw state; if not, seeded legal sampling is acceptable under D-10. | Pattern 5 | An underestimated path space could make exact enumeration too slow or force a different sampling policy. |
-| A3 | A complete 2026/27 knockout draw-procedure artifact was not located during this research session, so Article 19/Annex B plus a later accepted draw artifact are the interim authority. | Open Questions; State of the Art | An edition-specific procedure or UEFA exception could add constraints that must be incorporated before publication. |
+| A2 | The legal-path policy is resolved as measured deterministic enumeration when the bounded-state probe passes, otherwise a seeded legal sampler with recorded policy/count/seed; neither policy emits a path that fails Article 19/Annex B validation. | Pattern 5; Validation contract | A failed measurement returns typed unresolved paths and does not claim exact probabilities. |
+| A3 | The missing 2026/27 organiser draw-procedure artifact is resolved as an explicit evidence record with `accepted=false`, `complete=false`, and `unresolved_reason=missing_edition_draw_procedure`; Article 19/Annex B constrain only pre-draw legal families until a complete accepted artifact exists. | Open Questions; State of the Art | Exact draw-conditioned outputs remain suppressed until same-edition evidence is reviewed. |
 | A4 | The Phase 15 penalty-resolution mechanics are a suitable implementation seam for UCL projections once the UCL rules object supplies its explicit penalty policy. | Pattern 6; Code Examples | Penalty calibration or edition-specific policy could require a new resolver or an owner decision. |
 | A5 | The accepted provider schedule will need an explicit venue field or a manually reviewed venue enrichment to satisfy UCLRULE-03. | Pattern 2 | Without venue evidence, schedule acceptance and correct second-leg simulation must remain blocked. |
 | A6 | A focused test_uefa_champions_league.R suite can cover the complete 36/144 contract using smaller fixture tables plus one full-cardinality fixture. | Validation Architecture | Tests could become slow or fail to expose cardinality-specific bugs if the full fixture is omitted. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Which accepted production source bundle and owner evidence will supply the 36 clubs, 144 fixtures, venue, and late tie-break inputs?** [VERIFIED: codebase grep]
-   - What we know: Phase 18 fixes the provider/edition contract but current production acceptance is still missing credential/owner evidence and has no incumbent. [VERIFIED: codebase grep]
-   - What is unclear: Whether the accepted match resource contains venue and all Article 18 late-evidence fields, and which licensed/manual artifacts can fill gaps. [ASSUMED]
-   - Recommendation: Keep production blocked until the Phase 18 acceptance gate and explicit owner mappings pass; make source artifact IDs required inputs to the schedule and trace validators. [VERIFIED: codebase grep]
+The five research questions are closed as fail-closed planning contracts. They do not authorize guessed production data or silently deferred behavior.
 
-2. **What is the exact 2026/27 knockout draw-procedure artifact and accepted Annex B bracket representation?** [ASSUMED]
-   - What we know: Article 19 gives rank pair families and bracket/leg-order rules, and Annex B is the referenced competition-system bracket. [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-19-Draw-system-knockout-phase-Online] [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Annex-B-UEFA-Champions-League-Competition-System-Online]
-   - What is unclear: The exact edition-specific procedure, software constraints, and any organiser adaptations for the actual draw were not available as a pinned artifact in this session. [ASSUMED]
-   - Recommendation: Add a manual accepted draw-evidence artifact with edition, publication/source URL, content hash, pairings, bracket positions, leg order, and reviewer; until present, publish unresolved knockout paths. [VERIFIED: codebase grep]
+1. **Production source bundle and owner evidence — RESOLVED: `phase18_authority_missing` / `phase19_cr01_cr05_repair_pending`.** Phase 18 remains the only source authority and Phase 19 remains the only forecast authority. Until Phase 18 accepted owner/credential/current-state evidence proves the 36-club/144-fixture graph, venue, and late criteria, and Phase 19 CR-01 through CR-05 plus selector evidence are source-backed, the Phase 20 production result is typed `production_human_needed` or `production_blocked`; fixture rows can exercise mechanics only. Every accepted schedule and Article 18 trace row carries the Phase 18 source artifact ID and hash, and every forecast row carries the Phase 19 parent-graph status.
 
-3. **How should late Article 18 evidence be represented when it is only partially available?** [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-18-Equality-of-points-league-phase-Online]
-   - What we know: Criteria 6–10 need opponent aggregates, discipline, and club-coefficient evidence; D-02 requires stopping at the last provable criterion. [CITED: https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-18-Equality-of-points-league-phase-Online]
-   - What is unclear: Which source can legally and reproducibly provide every late criterion at the state cutoff. [ASSUMED]
-   - Recommendation: Store criterion-level evidence status and subset IDs; do not fill absent values with zero, provider rank, alphabetical order, or a random tie. [VERIFIED: codebase grep]
+2. **Exact 2026/27 draw procedure — RESOLVED: typed unresolved evidence.** The sidecar contains one record for each of Article 17, Article 18, Article 19, Article 20, Article 21, Article 22, and Annex B with `document_id`, `article_or_annex`, `edition_id`, `source_url`, `reviewer`, `reviewed_at_utc`, `raw_sha256`, `canonical_sha256`, `accepted`, `complete`, and `unresolved_reason`. The edition-specific draw-procedure record is `accepted=false`, `complete=false`, and `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths are suppressed until a same-edition accepted artifact is complete and lineage-valid.
 
-4. **Should pre-draw legal paths be exactly enumerated or sampled?** [ASSUMED]
-   - What we know: D-10 permits either deterministic enumeration or seeded sampling; Phase 15 already records draw policy and seed. [VERIFIED: codebase grep]
-   - What is unclear: The worst-case path count after rank distributions, unresolved intervals, pair-family constraints, and bracket inheritance. [ASSUMED]
-   - Recommendation: Prototype the legal-path generator on focused fixtures, measure the full 36-club state, and select the smallest exact or seeded policy that remains auditable; store the decision in draw_policy_id and metadata. [ASSUMED]
+3. **Partially available late Article 18 evidence — RESOLVED: shared intervals.** Each criterion 1–10 has an evidence status and source artifact IDs. The resolver stops at the last provable criterion, emits one shared `rank_interval_min`/`rank_interval_max` for the tied subset, and returns typed unresolved status whenever the interval crosses rank 8 or 24. Provider order, alphabetical presentation order, zero-fill, and random closure are not rank evidence.
 
-5. **Which forecast score distribution is acceptable for missing or incomplete club-model evidence?** [VERIFIED: codebase grep]
-   - What we know: Phase 19 requires a selector-authorized release; missing model evidence is typed unavailable and cannot be imputed. [VERIFIED: codebase grep]
-   - What is unclear: Whether the accepted release will expose a complete score grid for every UCL fixture or only calibrated 1X2 probabilities. [ASSUMED]
-   - Recommendation: Preserve the fixture ledger row with an explicit suppression reason and suppress any probability requiring a missing score distribution; never invent a neutral or uniform fallback. [VERIFIED: codebase grep]
+4. **Pre-draw legal-path policy — RESOLVED: measured policy selection.** The Wave 0/full-state probe measures legal state cardinality. If it is within the declared bound, the implementation uses deterministic enumeration; otherwise it uses a seeded legal sampler. Both paths record `draw_policy_id`, `path_policy_id`, `path_policy_count`, `seed`, legality checks, and canonical hashes. A failed measurement or illegal/ambiguous rank interval returns typed unresolved paths and suppresses exact path probabilities.
+
+5. **Missing or incomplete score grids — RESOLVED: suppress dependent outputs.** The Phase 19 production resolver is the only forecast authority. A ledger still emits one row per fixture, but missing or incomplete score grids produce `suppression_reason=insufficient_model_evidence` (or the precise closed reason) and suppress every probability that requires the grid. No neutral, uniform, zero-filled, or hindsight-derived forecast is substituted.
 
 ## Environment Availability
 
@@ -600,8 +587,8 @@ The production implementation must additionally compare immutable IDs, source/mo
 |----------|-------|
 | Framework | testthat 3.3.2 |
 | Config file | No dedicated testthat config detected; tests live in tests/testthat and are run with testthat::test_dir. [VERIFIED: environment probe] |
-| Quick run command | Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_uefa_champions_league.R", reporter="summary")' |
-| Full suite command | Rscript --vanilla -e 'testthat::test_dir("tests/testthat", reporter="summary")' |
+| Quick run command | `rtk Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_uefa_champions_league.R", reporter="summary")'` |
+| Full suite command | `rtk Rscript --vanilla -e 'testthat::test_dir("tests/testthat", reporter="summary")'` |
 
 ### Phase Requirements → Test Map
 

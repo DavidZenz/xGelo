@@ -129,9 +129,10 @@ Plans:
 4. Knockout projections use only legal rank-constrained and accepted draw-conditioned paths, correctly resolving two legs, aggregate scores, extra time, penalties, leg order, no away-goals rule, and the neutral final.
 5. Each club's stage probabilities reconcile and remain monotone through champion, and rerunning identical source, rules, model, and seed inputs produces byte-equivalent outcome artifacts.
 
-**Plans**: 5 plans
+**Plans**: 6 plans
 
 Plans:
+- [ ] 20-00-PLAN.md — Establish Wave 0 fixtures, evidence schema, and focused/adversarial validation contracts
 - [ ] 20-01-PLAN.md — Trace one accepted UCL fixture path through rules, state, simulation, and outcomes
 - [ ] 20-02-PLAN.md — Validate complete league state, Article 18 traces, bands, and immutable forecast ledger
 - [ ] 20-03-PLAN.md — Simulate conditioned league outcomes and legal rank-constrained draw paths
