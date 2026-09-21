@@ -274,6 +274,144 @@ phase19_targets_passthrough_block <- function(...) {
   }
 }
 
+# Phase 20 UCL target namespace.  This child environment deliberately has only
+# base R plus the UCL/Phase 18 readers as parents; national target helpers are
+# never imported into it.  The target bodies below carry typed blocked and
+# unresolved values instead of manufacturing a schedule, release, or output.
+ucl20_target_runtime_envir <- new.env(parent = baseenv())
+for (ucl20_target_dependency in c(
+  "R/common/phase18_canonical_hash.R",
+  "R/competition/source_contracts.R",
+  "R/competition/ucl_source_acceptance.R",
+  "R/competition/ucl_source_bundle.R",
+  "R/competition/ucl_source_refresh.R",
+  "R/competition/match_state.R",
+  "R/competition/standings.R",
+  "R/competition/uefa_champions_league_rules.R",
+  "R/competition/uefa_champions_league_state.R",
+  "R/competition/uefa_champions_league_simulation.R",
+  "R/competition/uefa_champions_league_outcomes.R"
+)) {
+  sys.source(ucl20_target_dependency, envir = ucl20_target_runtime_envir)
+}
+
+phase20_ucl_target_get <- function(name) {
+  get(name, envir = ucl20_target_runtime_envir, inherits = TRUE)
+}
+
+phase20_ucl_target_blocked <- function(reason_code, message = "") {
+  list(
+    schema_version = "phase20-ucl-target-state-v1",
+    edition_id = "ucl_2026_27", status = "blocked",
+    reason_code = as.character(reason_code), message = as.character(message),
+    authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = FALSE
+  )
+}
+
+phase20_ucl_target_unresolved <- function(reason_code, message = "") {
+  list(
+    schema_version = "phase20-ucl-target-state-v1",
+    edition_id = "ucl_2026_27", status = "unresolved",
+    reason_code = as.character(reason_code), message = as.character(message),
+    authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = FALSE
+  )
+}
+
+phase20_ucl_target_first_issue <- function(...) {
+  values <- list(...)
+  for (value in values) {
+    if (is.list(value) && identical(as.character(value$status), "blocked")) return(value)
+    if (is.list(value) && identical(as.character(value$status), "unresolved")) return(value)
+    if (is.list(value) && identical(as.character(value$status), "production_human_needed")) return(value)
+  }
+  NULL
+}
+
+phase20_ucl_target_source <- function() {
+  accepted_root <- file.path(getwd(), "data/competition/accepted")
+  registry_root <- file.path(getwd(), "data/competition/registries")
+  reader <- phase20_ucl_target_get("phase18_read_ucl_refresh_current")
+  current <- tryCatch(
+    reader(accepted_root = accepted_root, registry_root = registry_root),
+    error = function(error) list(error = if (!is.null(error$reason_code)) as.character(error$reason_code) else "no_accepted_current_ucl")
+  )
+  if (is.null(current)) return(phase20_ucl_target_blocked("no_accepted_current_ucl"))
+  if (!is.null(current$error)) return(phase20_ucl_target_blocked(current$error))
+  if (!identical(as.character(current$pointer$accepted_status), "accepted") ||
+      is.null(current$accepted) || is.null(current$accepted$bundle)) {
+    return(phase20_ucl_target_blocked("no_accepted_current_ucl"))
+  }
+  list(
+    schema_version = "phase20-ucl-target-source-v1", edition_id = "ucl_2026_27",
+    status = "ready", authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = TRUE, accepted = current$accepted, pointer = current$pointer
+  )
+}
+
+phase20_ucl_target_rules <- function() {
+  contract <- tryCatch(phase20_ucl_target_get(".ucl_rule_contract")(), error = function(error) error)
+  if (inherits(contract, "error")) return(phase20_ucl_target_blocked("rules_evidence_invalid", conditionMessage(contract)))
+  evidence <- contract$evidence
+  draw <- evidence[as.character(evidence$document_id) == "draw_procedure_2026_27", , drop = FALSE]
+  if (nrow(draw) == 1L && !isTRUE(draw$accepted[[1L]])) {
+    return(list(
+      schema_version = "phase20-ucl-target-rules-v1", edition_id = "ucl_2026_27",
+      status = "unresolved", reason_code = "missing_edition_draw_procedure",
+      message = "Edition draw procedure is not accepted; draw-conditioned paths remain suppressed.",
+      evidence = evidence, rules = contract, authority_mode = "production",
+      fixture_authority = FALSE, production_eligible = FALSE
+    ))
+  }
+  list(
+    schema_version = "phase20-ucl-target-rules-v1", edition_id = "ucl_2026_27",
+    status = "ready", evidence = evidence, rules = contract,
+    authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = TRUE
+  )
+}
+
+phase20_ucl_target_parent_reason <- function(error) {
+  reason <- if (is.list(error) && !is.null(error$reason_code)) as.character(error$reason_code[[1L]]) else "phase19_selector_not_accepted"
+  if (reason %in% c("release_root_invalid", "release_artifact_missing", "release_dependency_missing", "release_preflight_stale")) {
+    reason <- "no_accepted_club_history"
+  }
+  reason
+}
+
+phase20_ucl_target_state <- function(source, rules_evidence) {
+  issue <- phase20_ucl_target_first_issue(source, rules_evidence)
+  if (!is.null(issue)) return(issue)
+  accepted <- source$accepted
+  tables <- accepted$tables %||% accepted$artifacts
+  if (!is.list(tables)) return(phase20_ucl_target_blocked("accepted_source_schema_invalid"))
+  clubs <- tables$clubs %||% tables$teams
+  fixtures <- tables$matches %||% tables$fixtures
+  if (!is.data.frame(clubs) || !is.data.frame(fixtures)) return(phase20_ucl_target_blocked("accepted_source_schema_invalid"))
+  resolver <- if (exists("phase19_resolve_production_club_release", mode = "function", inherits = TRUE)) phase19_resolve_production_club_release else NULL
+  if (is.null(resolver)) return(phase20_ucl_target_blocked("no_accepted_club_history"))
+  release <- tryCatch(resolver(), error = function(error) list(error = phase20_ucl_target_parent_reason(error)))
+  if (!is.null(release$error)) return(phase20_ucl_target_blocked(release$error))
+  graph <- list(
+    edition_id = "ucl_2026_27", source_bundle_id = as.character(accepted$bundle$bundle_id[[1L]]),
+    authority_mode = "production", fixture_authority = FALSE, production_eligible = TRUE,
+    selector_path = NULL, production_root = NULL, clubs = clubs, fixtures = fixtures
+  )
+  state <- tryCatch(
+    phase20_ucl_target_get("ucl_build_state")(graph, rules = rules_evidence$rules, evidence = rules_evidence$evidence),
+    error = function(error) phase20_ucl_target_blocked("state_build_failed", conditionMessage(error))
+  )
+  if (is.list(state) && identical(as.character(state$status), "blocked")) return(state)
+  state
+}
+
+phase20_ucl_target_passthrough <- function(value) {
+  issue <- phase20_ucl_target_first_issue(value)
+  if (!is.null(issue)) return(issue)
+  value
+}
+
 list(
   tar_target(
     team_map,
@@ -1548,5 +1686,93 @@ list(
       }
     },
     format = "file"
+  ),
+
+  # Phase 20 UCL target namespace (exact ten targets / fifteen directed edges).
+  # Every downstream expression names its immediate parents explicitly so the
+  # targets graph cannot silently bypass an authority or evidence boundary.
+  tar_target(
+    ucl20_accepted_source,
+    phase20_ucl_target_source()
+  ),
+  tar_target(
+    ucl20_rules_evidence,
+    phase20_ucl_target_rules()
+  ),
+  tar_target(
+    ucl20_state,
+    {
+      ucl20_accepted_source
+      ucl20_rules_evidence
+      phase20_ucl_target_state(ucl20_accepted_source, ucl20_rules_evidence)
+    }
+  ),
+  tar_target(
+    ucl20_forecast_ledger,
+    {
+      ucl20_state
+      phase20_ucl_target_passthrough(ucl20_state)
+    }
+  ),
+  tar_target(
+    ucl20_league_simulation,
+    {
+      ucl20_state
+      ucl20_forecast_ledger
+      ucl20_rules_evidence
+      issue <- phase20_ucl_target_first_issue(
+        ucl20_state, ucl20_forecast_ledger, ucl20_rules_evidence
+      )
+      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_state)
+    }
+  ),
+  tar_target(
+    ucl20_knockout_paths,
+    {
+      ucl20_league_simulation
+      ucl20_rules_evidence
+      issue <- phase20_ucl_target_first_issue(
+        ucl20_league_simulation, ucl20_rules_evidence
+      )
+      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_league_simulation)
+    }
+  ),
+  tar_target(
+    ucl20_stage_events,
+    {
+      ucl20_knockout_paths
+      ucl20_rules_evidence
+      issue <- phase20_ucl_target_first_issue(
+        ucl20_knockout_paths, ucl20_rules_evidence
+      )
+      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_knockout_paths)
+    }
+  ),
+  tar_target(
+    ucl20_outcome_candidate,
+    {
+      ucl20_stage_events
+      ucl20_forecast_ledger
+      ucl20_league_simulation
+      issue <- phase20_ucl_target_first_issue(
+        ucl20_stage_events, ucl20_forecast_ledger, ucl20_league_simulation
+      )
+      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_stage_events)
+    }
+  ),
+  tar_target(
+    ucl20_outcome_manifest,
+    {
+      ucl20_outcome_candidate
+      phase20_ucl_target_passthrough(ucl20_outcome_candidate)
+    }
+  ),
+  tar_target(
+    ucl20_build_status,
+    {
+      ucl20_outcome_manifest
+      issue <- phase20_ucl_target_first_issue(ucl20_outcome_manifest)
+      if (!is.null(issue)) issue else phase20_ucl_target_passthrough(ucl20_outcome_manifest)
+    }
   )
 )

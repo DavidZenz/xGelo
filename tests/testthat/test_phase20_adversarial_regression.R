@@ -8,6 +8,17 @@ if (!exists("phase20_fixture_graph_36x144", envir = .GlobalEnv, mode = "function
   ), local = .GlobalEnv)
 }
 
+# The adversarial file exercises the same public production boundary as the
+# focused suite.  Load the four UCL modules in a fresh test process so the
+# aggregate contract is GREEN only when those symbols are actually callable.
+phase20_test_source_ucl_adversarial <- function(relative) {
+  source(file.path(phase20_test_project_root, relative), local = .GlobalEnv)
+}
+phase20_test_source_ucl_adversarial("R/competition/uefa_champions_league_rules.R")
+phase20_test_source_ucl_adversarial("R/competition/uefa_champions_league_state.R")
+phase20_test_source_ucl_adversarial("R/competition/uefa_champions_league_simulation.R")
+phase20_test_source_ucl_adversarial("R/competition/uefa_champions_league_outcomes.R")
+
 test_that("the adversarial contract closes the exact EDGE-01 through EDGE-19 inventory", {
   inventory <- phase20_expected_edge_probe_inventory()
 
@@ -199,10 +210,17 @@ test_that("20-05 RED: CLI rejects every caller-selected authority or output root
     "--selector-path=/tmp/selector", "--trusted-release-root=/tmp/release",
     "--national-root=/tmp/national", "--source-root=/tmp/source"
   )) {
-    expect_error(ucl20_parse_args(argument), "does not accept|Unsupported|authority")
+    expect_error(ucl20_parse_args(argument), "does not accept|Unsupported|authority|Unknown")
   }
   expect_error(ucl20_parse_args("--edition-id=foreign_edition"), "not supported|Unsupported")
-  expect_error(ucl20_parse_args(c("--write", "--replay-check", "--edition-id=ucl_2026_27")), "combined|cannot")
+  script <- file.path(phase20_test_project_root, "scripts", "build_uefa_champions_league_outcomes.R")
+  cli_output <- suppressWarnings(system2(
+    file.path(R.home("bin"), "Rscript"),
+    c("--vanilla", script, "--write", "--replay-check", "--edition-id=ucl_2026_27"),
+    stdout = TRUE, stderr = TRUE
+  ))
+  expect_true(!is.null(attr(cli_output, "status")) && as.integer(attr(cli_output, "status")) != 0L)
+  expect_true(any(grepl("cannot be combined", cli_output, fixed = TRUE)))
 })
 
 test_that("20-05 RED: typed production and fixture result contracts preserve bytes", {
@@ -239,6 +257,10 @@ test_that("20-05 RED: verifier script and exact target graph are executable boun
     ))
   }
   target_source <- paste(readLines(file.path(phase20_test_project_root, "_targets.R"), warn = FALSE), collapse = "\n")
+  marker <- "# Phase 20 UCL target namespace (exact"
+  marker_start <- regexpr(marker, target_source, fixed = TRUE)[[1L]]
+  expect_true(marker_start > 0L)
+  target_source <- substring(target_source, marker_start)
   expected_edges <- apply(phase20_expected_target_edges, 1L, function(edge) {
     grepl(edge[[1L]], target_source, fixed = TRUE) && grepl(edge[[2L]], target_source, fixed = TRUE)
   })

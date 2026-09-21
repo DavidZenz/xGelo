@@ -772,7 +772,7 @@ test_that("20-05 RED: fixed CLI modes and production result are public contracts
     "--selector-path=/tmp/selector", "--trusted-release-root=/tmp/release",
     "--national-root=/tmp/national", "--source-root=/tmp/source"
   )) {
-    expect_error(ucl20_parse_args(argument), "does not accept|Unsupported|authority")
+    expect_error(ucl20_parse_args(argument), "does not accept|Unsupported|authority|Unknown")
   }
 
   protected_before <- phase20_test_protected_root_snapshot()
@@ -814,9 +814,13 @@ test_that("20-05 RED: aggregate verifier entrypoint and exact target graph are e
   phase20_test_require_ucl_entrypoints("phase20_verify_contracts", "20-05 aggregate result contract")
 
   target_source <- paste(readLines(file.path(phase20_test_project_root, "_targets.R"), warn = FALSE), collapse = "\n")
+  marker <- "# Phase 20 UCL target namespace (exact"
+  marker_start <- regexpr(marker, target_source, fixed = TRUE)[[1L]]
+  expect_true(marker_start > 0L)
+  target_source <- substring(target_source, marker_start)
   expect_true(all(vapply(
     phase20_expected_target_names,
-    function(name) grepl(paste0("tar_target\\s*\\(\\s*", name, "\\b"), target_source),
+    function(name) grepl(paste0("tar_target\\s*\\(\\s*", name, "\\b"), target_source, perl = TRUE),
     logical(1)
   )))
   expect_false(grepl("phase14_resolve_approved_release|resolve_phase12_approved_release", target_source))

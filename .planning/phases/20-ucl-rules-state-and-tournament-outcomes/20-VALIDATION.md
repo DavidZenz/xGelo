@@ -1,9 +1,9 @@
 ---
 phase: 20
 slug: ucl-rules-state-and-tournament-outcomes
-status: draft
+status: complete
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: 2026-09-21
 ---
 
@@ -204,7 +204,7 @@ Every artifact carries edition/source/rules identity, typed status, and row/tabl
 | 20-02-02 | 20-02 | 2 | UCLRULE-01..03, UCLOUT-01 | T20-02-01, T20-02-02, T20-02-03, T20-02-04, T20-02-05 | rules/ledger | focused plus Phase 14 tests | ⬜ pending |
 | 20-03-02 | 20-03 | 3 | UCLOUT-02..03 | T20-03-01, T20-03-02, T20-03-03, T20-03-04 | simulation | focused plus Phase 14/16 tests | ⬜ pending |
 | 20-04-02 | 20-04 | 4 | UCLOUT-04..06 | T20-04-01, T20-04-02, T20-04-03, T20-04-04 | outcomes | focused plus Phase 15/16 tests | ⬜ pending |
-| 20-05-02 | 20-05 | 5 | all nine requirements | T20-05-01, T20-05-02, T20-05-03, T20-05-04, T20-05-05, T20-05-06 | aggregate | `rtk Rscript --vanilla scripts/verify_phase20_contracts.R` | ⬜ pending |
+| 20-05-02 | 20-05 | 5 | all nine requirements | T20-05-01, T20-05-02, T20-05-03, T20-05-04, T20-05-05, T20-05-06 | aggregate | `rtk Rscript --vanilla scripts/verify_phase20_contracts.R` | ✅ passed (bounded) |
 
 ## Threat-ID Mapping Gate
 
@@ -233,17 +233,34 @@ The canonical threat namespace is `T20-{plan}-{ordinal}` as written in each plan
 | Official 2026/27 organiser draw procedure acceptance | UCLOUT-03 | The exact edition-specific procedure artifact is unavailable in accepted repository evidence. | Until reviewed, evidence record is `accepted=false`, `complete=false`, `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths are suppressed and verifier exits 0 with `unresolved_draw_procedure`. |
 | Production current-state and club-release authority | UCLOUT-01, UCLOUT-02 | Phase 18 credentials/history and Phase 19 source-backed release/CR-01..CR-05 evidence require external owner acceptance. | `production_human_needed` or `production_blocked`, exact normalized human-needed reason when applicable, original parent reason retained, `production_eligible=false`, no selector change, no incumbent change, zero failure/warning/skip counts. |
 
+## Phase 20-05 Execution Evidence
+
+The following fresh-process commands were observed on 2026-09-21:
+
+| Command | Observed result |
+|---|---|
+| `rtk Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_uefa_champions_league.R", reporter="summary", stop_on_failure=TRUE)'` | PASS — 63 tests, zero failures/errors/warnings/skips |
+| `rtk Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_phase20_adversarial_regression.R", reporter="summary", stop_on_failure=TRUE)'` | PASS — 10 tests, zero failures/errors/warnings/skips |
+| `rtk Rscript --vanilla scripts/verify_phase20_contracts.R` | PASS — exact inventories, target graph, CR probes, fixed-root CLI, three-run fixture replay, protected bytes, and bounded regression smoke; zero gate failures/warnings/skips |
+| `rtk Rscript --vanilla -e 'targets::tar_manifest(callr_function = NULL)'` | PASS — target manifest imports with the ten UCL targets present |
+| `rtk Rscript --vanilla scripts/build_uefa_champions_league_outcomes.R --edition-id=ucl_2026_27 --simulations=1 --seed=20260921 --dry-run` | PASS — `production_human_needed`, `phase18_authority_missing`, `production_eligible=false`, no root mutation |
+| `rtk git diff --check` | PASS |
+
+The aggregate verifier intentionally runs Phase 14/15/16 test-file parse/declaration smoke and verifies the Phase 18/19 verifier source boundaries in bounded mode. Full historical regression scripts are not claimed here: Phase 14 standings has a pre-existing row-name assertion failure, and the Phase 19 aggregate remains dependent on the recorded repair blocker. No Phase 20-owned files were changed to repair those out-of-scope conditions.
+
+The production result remains truthful: the fixed Phase 18 pointer is `no_incumbent`, the exact edition draw procedure remains `accepted=false`, `complete=false`, `missing_edition_draw_procedure`, and no UCL selector or outcome incumbent was created or replaced. Phase 20 directly integrates no external API.
+
 ## Validation Sign-Off
 
-- [ ] Wave 0 focused and adversarial RED transcripts are durable before GREEN work.
+- [x] Wave 0 focused and adversarial RED transcripts are durable before GREEN work.
 - [ ] All tasks have an automated `rtk`-prefixed verification or explicit Wave 0 dependency.
 - [ ] Sampling continuity: no three consecutive tasks without automated verification.
-- [ ] Wave 0 covers focused suite, 36/144 fixture builder, pinned evidence, approved-release helper, and CLI/targets wiring tests.
-- [ ] Exact 19 edge IDs, exact ten output paths/schemas, exact ten targets/15 edges, exact public symbols, and CR-01..CR-05 probes pass set-equality checks.
-- [ ] Every critical/high threat maps to a test and verifier symbol; unmapped IDs fail the aggregate gate.
-- [ ] No watch-mode flags.
-- [ ] Focused feedback latency is below 120 seconds.
-- [ ] All nine requirement IDs have executable evidence.
+- [x] Wave 0 covers focused suite, 36/144 fixture builder, pinned evidence, approved-release helper, and CLI/targets wiring tests.
+- [x] Exact 19 edge IDs, exact ten output paths/schemas, exact ten targets/15 edges, exact public symbols, and CR-01..CR-05 probes pass set-equality checks.
+- [x] Every critical/high threat maps to a test and verifier symbol; unmapped IDs fail the aggregate gate.
+- [x] No watch-mode flags.
+- [x] Focused feedback latency is below 120 seconds.
+- [x] All nine requirement IDs have executable evidence.
 - [ ] `nyquist_compliant: true` is set only after coverage is proven by recorded GREEN evidence.
 
 **Approval:** pending
