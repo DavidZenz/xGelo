@@ -1445,16 +1445,23 @@ phase19_club_evaluation_identity <- function(value, protocol = NULL,
   phase19_club_evaluation_list_identity(value)
 }
 
-#' Compare two isolated club evaluation executions canonically.
-#'
-#' @export
-phase19_club_reproducibility_evidence <- function(
+#' Build typed reproducibility evidence after the caller has selected an
+#' authority mode.  Production callers must use the fixed-source wrapper
+#' below; this internal escape hatch is deliberately not exported.
+phase19_club_reproducibility_evidence_build <- function(
     first, second, protocol, accepted_evaluation = NULL,
-    source_evidence = NULL, accepted_fold_protocol = NULL
+    source_evidence = NULL, accepted_fold_protocol = NULL,
+    allow_production = FALSE
 ) {
   seed <- phase19_club_evaluation_seed(protocol, "club_isolated_replay_v1")
   accepted_hash <- NULL
   if (identical(protocol$authority_mode, "production")) {
+    if (!isTRUE(allow_production)) {
+      phase19_club_evaluation_abort(
+        "reproducibility_source_invalid",
+        "Production reproducibility requires the fixed-source production wrapper"
+      )
+    }
     if (is.null(accepted_evaluation) || is.null(source_evidence) ||
         is.null(accepted_fold_protocol)) {
       phase19_club_evaluation_abort(
@@ -1489,6 +1496,27 @@ phase19_club_reproducibility_evidence <- function(
   )
   result$evidence_sha256 <- phase19_club_reproducibility_sha256(result)
   structure(result, class = c("phase19_club_reproducibility_evidence", "list"))
+}
+
+#' Compare two isolated fixture club evaluation executions canonically.
+#'
+#' Production callers must use phase19_production_club_reproducibility_evidence,
+#' which resolves the fixed source graph and performs both controlled runs.
+#' @export
+phase19_club_reproducibility_evidence <- function(
+    first, second, protocol, accepted_evaluation = NULL,
+    source_evidence = NULL, accepted_fold_protocol = NULL
+) {
+  if (identical(protocol$authority_mode, "production")) {
+    phase19_club_evaluation_abort(
+      "reproducibility_source_invalid",
+      "Production reproducibility requires the fixed-source production wrapper"
+    )
+  }
+  phase19_club_reproducibility_evidence_build(
+    first, second, protocol, accepted_evaluation,
+    source_evidence, accepted_fold_protocol, allow_production = FALSE
+  )
 }
 
 #' Run two isolated production evaluations from the fixed accepted source graph.
@@ -1550,10 +1578,10 @@ phase19_production_club_reproducibility_evidence <- function(
   }
   first <- replay_once()
   second <- replay_once()
-  phase19_club_reproducibility_evidence(
+  phase19_club_reproducibility_evidence_build(
     first, second, fixed$protocol, accepted_evaluation = evaluation,
     source_evidence = source_authority$fold_source_evidence,
-    accepted_fold_protocol = fixed$fold_protocol
+    accepted_fold_protocol = fixed$fold_protocol, allow_production = TRUE
   )
 }
 
