@@ -23,35 +23,6 @@
   exists("phase18_hash_sequence_v2", mode = "function", inherits = TRUE)
 }
 
-.ucl_rule_scalar <- function(value) {
-  if (inherits(value, "POSIXt")) return(format(value, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
-  if (inherits(value, "Date")) return(format(value, "%Y-%m-%d"))
-  if (is.logical(value)) return(ifelse(is.na(value), "", ifelse(value, "true", "false")))
-  if (!length(value) || is.na(value[[1L]])) return("")
-  as.character(value[[1L]])
-}
-
-.ucl_rule_canonical <- function(value) {
-  if (is.data.frame(value)) {
-    data <- value[, sort(names(value)), drop = FALSE]
-    if (nrow(data)) {
-      keys <- lapply(data, function(column) vapply(column, .ucl_rule_scalar, character(1)))
-      data <- data[do.call(order, c(keys, list(method = "radix", na.last = TRUE))), , drop = FALSE]
-    }
-    rows <- if (!nrow(data)) character() else vapply(seq_len(nrow(data)), function(index) {
-      paste(vapply(data[index, , drop = FALSE], .ucl_rule_scalar, character(1)), collapse = "\x1f")
-    }, character(1))
-    return(paste(c(paste(names(data), collapse = "\x1f"), rows), collapse = "\x1e"))
-  }
-  if (is.list(value)) {
-    if (is.null(names(value))) return(paste(vapply(value, .ucl_rule_canonical, character(1)), collapse = "\x1c"))
-    value <- value[sort(names(value))]
-    return(paste(paste(names(value), vapply(value, .ucl_rule_canonical, character(1)), sep = "="), collapse = "\x1c"))
-  }
-  if (length(value) > 1L) return(paste(vapply(value, .ucl_rule_scalar, character(1)), collapse = "\x1f"))
-  .ucl_rule_scalar(value)
-}
-
 .ucl_rule_hash <- function(value) {
   if (!isTRUE(.ucl_rule_phase18_available())) {
     stop("UCL rules require the Phase 18 canonical-v2 encoder", call. = FALSE)

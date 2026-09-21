@@ -36,6 +36,18 @@
 }
 
 .ucl_state_hash <- function(value) {
+  if (!isTRUE(.ucl_state_phase18_canonical_available())) {
+    stop("UCL state requires the Phase 18 canonical-v2 encoder", call. = FALSE)
+  }
+  values <- as.list(value)
+  phase18_hash_sequence_v2(
+    values, domain = "ucl-state-value-v2",
+    names = paste0("value_", seq_along(values)),
+    types = rep("character", length(values))
+  )
+}
+
+.ucl_state_legacy_hash <- function(value) {
   if (!requireNamespace("digest", quietly = TRUE)) stop("UCL state requires digest", call. = FALSE)
   digest::digest(charToRaw(enc2utf8(paste(as.character(value), collapse = "\x1f"))), algo = "sha256", serialize = FALSE)
 }
@@ -259,7 +271,14 @@
     values <- as.character(fixtures[[field]])
     if (any(is.na(values) | !nzchar(trimws(values)))) return(paste0(field, "_missing"))
   }
-  source_keys <- paste(as.character(fixtures$source_artifact_id), as.character(fixtures$source_row_key), sep = "\x1f")
+  source_keys <- vapply(seq_len(nrow(fixtures)), function(index) {
+    .ucl_state_framed_sequence_hash(
+      list(as.character(fixtures$source_artifact_id[[index]]),
+           as.character(fixtures$source_row_key[[index]])),
+      names = c("source_artifact_id", "source_row_key"),
+      types = c("character", "character"), domain = "ucl-source-key-v2"
+    )
+  }, character(1))
   if (anyDuplicated(source_keys)) return("source_row_key_duplicate")
   if ("source_row_sha256" %in% names(fixtures)) {
     values <- as.character(fixtures$source_row_sha256)
@@ -417,7 +436,16 @@ ucl_validate_schedule <- function(source, clubs = NULL, fixtures = NULL, rules =
   confirmed_time <- .ucl_state_parse_time(fixtures$confirmed_kickoff_at_utc)
   if (any(is.na(kickoff)) || any(is.na(confirmed)) || any(!confirmed) || any(is.na(confirmed_time))) return(.ucl_state_blocked("kickoff_unconfirmed", "UCL fixtures require a confirmed kickoff", graph))
   if (any(as.numeric(kickoff) != as.numeric(confirmed_time))) return(.ucl_state_blocked("kickoff_confirmation_mismatch", "Confirmed kickoff evidence must equal the scheduled kickoff", graph))
-  endpoint_pairs <- paste(pmin(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id)), pmax(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id)), sep = "\x1f")
+  endpoint_pairs <- vapply(seq_len(nrow(fixtures)), function(index) {
+    .ucl_state_framed_sequence_hash(
+      list(
+        pmin(as.character(fixtures$home_club_id[[index]]), as.character(fixtures$away_club_id[[index]])),
+        pmax(as.character(fixtures$home_club_id[[index]]), as.character(fixtures$away_club_id[[index]]))
+      ),
+      names = c("club_low", "club_high"),
+      types = c("character", "character"), domain = "ucl-opponent-pair-v2"
+    )
+  }, character(1))
   if (anyDuplicated(endpoint_pairs)) return(.ucl_state_blocked("duplicate_opponent_pair", "UCL schedule cannot repeat an unordered opponent pair", graph))
   fixture_bundles <- as.character(fixtures$source_bundle_id)
   if (any(is.na(fixture_bundles) | !nzchar(trimws(fixture_bundles)) |
@@ -665,7 +693,7 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
     if (is.na(value[[1L]])) return("NA")
     as.character(value[[1L]])
   }
-  .ucl_state_hash(paste(vapply(row[fields], scalar, character(1)), collapse = "|"))
+  .ucl_state_legacy_hash(paste(vapply(row[fields], scalar, character(1)), collapse = "|"))
 }
 
 .ucl_state_row_hash_matches <- function(row, fixture_authority = FALSE) {
@@ -768,7 +796,7 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   if (!is.data.frame(candidate) || nrow(candidate) != 1L) return("insufficient_model_evidence")
   required <- c(
     "edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc",
-    "forecast_status", "model_release_id", "model_sha256", "calibrator_sha256",
+    "forecast_status", "suppression_reason", "model_release_id", "model_sha256", "calibrator_sha256",
     "feature_cutoff_utc", "prob_home", "prob_draw", "prob_away", "xg_home",
     "xg_away", "likely_score", "source_bundle_id"
   )
@@ -812,6 +840,10 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   if (!as.character(candidate$forecast_status[[1L]]) %in% c("available", "eligible", "eligible_fixture", "forecast_available")) {
     return("insufficient_model_evidence")
   }
+  suppression <- as.character(candidate$suppression_reason[[1L]])
+  if (!is.na(suppression) && nzchar(trimws(suppression))) {
+    return("insufficient_model_evidence")
+  }
   NULL
 }
 
@@ -828,12 +860,11 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   if (!.ucl_state_prior_matches_fixture(prior, fixture)) return("prior_identity_mismatch")
   required <- c(
     "edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc",
-    "forecast_status", "model_release_id", "model_sha256", "calibrator_sha256",
+    "forecast_status", "suppression_reason", "model_release_id", "model_sha256", "calibrator_sha256",
     "feature_cutoff_utc", "prob_home", "prob_draw", "prob_away", "xg_home",
     "xg_away", "likely_score", "source_bundle_id", "row_sha256"
   )
   if (length(setdiff(required, names(prior)))) return("prior_schema_invalid")
-  row_hash <- as.character(prior$row_sha256[[1L]])
   fixture_marker <- if ("fixture_authority" %in% names(fixture)) {
     .ucl_state_bool_column(fixture$fixture_authority, "fixture_authority")
   } else NULL
@@ -920,8 +951,13 @@ ucl_build_forecast_ledger <- function(state, release = NULL, prior_ledger = NULL
   if (is.null(state_cutoff_utc) && is.list(state) && !is.null(state$state_cutoff_utc)) state_cutoff_utc <- state$state_cutoff_utc
   cutoff_validation <- .ucl_state_validate_cutoff(state_cutoff_utc)
   if (!is.null(cutoff_validation$error)) {
+    cutoff_reason <- if (is.null(state_cutoff_utc)) {
+      "information_cutoff_required"
+    } else {
+      cutoff_validation$error
+    }
     return(.ucl_state_ledger_blocked(
-      "information_cutoff_required", "Forecast ledger construction requires one explicit information cutoff",
+      cutoff_reason, "Forecast ledger construction requires one explicit non-sentinel information cutoff",
       validation, cutoff = NULL
     ))
   }
