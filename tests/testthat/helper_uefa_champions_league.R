@@ -595,6 +595,113 @@ phase20_fixture_knockout_matrix <- function() {
   )
 }
 
+# Plan 20-04 fixtures.  These are deliberately small, fully lineage-bound
+# mechanics rows; they never imply accepted production draw or model evidence.
+phase20_fixture_ucl_two_leg <- function(
+    regulation = c(1L, 0L),
+    second_regulation = c(0L, 1L),
+    extra_time = c(1L, 0L),
+    penalties = c(NA_integer_, NA_integer_),
+    participant_a = "ucl-club-09",
+    participant_b = "ucl-club-24") {
+  first <- data.frame(
+    stage_id = "knockout_play_off", leg_number = 1L,
+    leg_order = "seeded_return_leg", participant_a = participant_a,
+    participant_b = participant_b, seed_rank = 9L, opponent_rank = 24L,
+    home_club_id = participant_b, away_club_id = participant_a,
+    venue_id = "venue-ucl-club-24", leg_1_venue_id = "venue-ucl-club-24",
+    leg_2_venue_id = "venue-ucl-club-09",
+    regulation_home_goals = as.integer(regulation[[1L]]),
+    regulation_away_goals = as.integer(regulation[[2L]]),
+    final_home_goals = as.integer(regulation[[1L]]),
+    final_away_goals = as.integer(regulation[[2L]]),
+    extra_time_home_goals = 0L, extra_time_away_goals = 0L,
+    penalty_shootout_home_goals = penalties[[1L]],
+    penalty_shootout_away_goals = penalties[[2L]],
+    draw_policy_id = "ucl-2026-27-article19-annexb-v1",
+    draw_artifact_id = NA_character_,
+    draw_artifact_sha256 = NA_character_,
+    source_artifact_ids = "ucl20-stage-source-0001",
+    source_bundle_id = phase20_test_source_bundle_id,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  second <- data.frame(
+    stage_id = "knockout_play_off", leg_number = 2L,
+    leg_order = "seeded_return_leg", participant_a = participant_a,
+    participant_b = participant_b, seed_rank = 9L, opponent_rank = 24L,
+    home_club_id = participant_a, away_club_id = participant_b,
+    venue_id = "venue-ucl-club-09", leg_1_venue_id = "venue-ucl-club-24",
+    leg_2_venue_id = "venue-ucl-club-09",
+    regulation_home_goals = as.integer(second_regulation[[1L]]),
+    regulation_away_goals = as.integer(second_regulation[[2L]]),
+    final_home_goals = as.integer(second_regulation[[1L]]),
+    final_away_goals = as.integer(second_regulation[[2L]]),
+    extra_time_home_goals = as.integer(extra_time[[1L]]),
+    extra_time_away_goals = as.integer(extra_time[[2L]]),
+    penalty_shootout_home_goals = penalties[[1L]],
+    penalty_shootout_away_goals = penalties[[2L]],
+    draw_policy_id = "ucl-2026-27-article19-annexb-v1",
+    draw_artifact_id = NA_character_,
+    draw_artifact_sha256 = NA_character_,
+    source_artifact_ids = "ucl20-stage-source-0002",
+    source_bundle_id = phase20_test_source_bundle_id,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  list(first = first, second = second)
+}
+
+phase20_fixture_ucl_final <- function(
+    regulation = c(1L, 1L), extra_time = c(1L, 0L),
+    penalties = c(NA_integer_, NA_integer_)) {
+  data.frame(
+    stage_id = "final", stage_event_id = "final-01",
+    home_club_id = "ucl-club-01", away_club_id = "ucl-club-02",
+    venue_id = "neutral-final-venue", neutral = TRUE,
+    regulation_home_goals = as.integer(regulation[[1L]]),
+    regulation_away_goals = as.integer(regulation[[2L]]),
+    final_home_goals = as.integer(regulation[[1L]]),
+    final_away_goals = as.integer(regulation[[2L]]),
+    extra_time_home_goals = as.integer(extra_time[[1L]]),
+    extra_time_away_goals = as.integer(extra_time[[2L]]),
+    penalty_shootout_home_goals = penalties[[1L]],
+    penalty_shootout_away_goals = penalties[[2L]],
+    source_artifact_ids = "ucl20-final-source-0001",
+    source_bundle_id = phase20_test_source_bundle_id,
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+phase20_fixture_stage_events <- function() {
+  data.frame(
+    stage_event_id = sprintf("ucl20-event-%02d", 1:6),
+    stage_id = c("knockout_play_off", "knockout_play_off", "round_of_16",
+                 "quarter_final", "semi_final", "final"),
+    participant_a = c("a", "c", "a", "a", "a", "a"),
+    participant_b = c("b", "d", "c", "d", "e", "f"),
+    status = c("resolved", "unresolved", "resolved", "resolved", "resolved", "resolved"),
+    winner = c("a", NA_character_, "a", "a", "a", "a"),
+    source_bundle_id = phase20_test_source_bundle_id,
+    ruleset_sha256 = phase20_test_hash(phase20_test_ruleset_version),
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
+phase20_fixture_progression_stages <- function() {
+  data.frame(
+    club_id = rep("ucl-club-01", 6L),
+    stage_id = c("knockout_play_off", "round_of_16", "quarter_final",
+                 "semi_final", "final", "champion"),
+    stage_order = 1:6,
+    probability = c(1, 0.9, 0.75, 0.5, 0.25, 0.125),
+    status = "resolved",
+    source_bundle_id = phase20_test_source_bundle_id,
+    ruleset_sha256 = phase20_test_hash(phase20_test_ruleset_version),
+    draw_artifact_sha256 = NA_character_, simulation_count = 1L,
+    seed = 20260921L, run_id = "ucl20-run-0001",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+}
+
 phase20_expected_parent_reason_cases <- function() {
   original <- c(
     "no_accepted_current_ucl", "no_accepted_club_history",

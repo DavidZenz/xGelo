@@ -603,3 +603,142 @@ test_that("UCLOUT-02/03 preserve replay identity and parent authority diagnostic
   expect_identical(first$metadata$original_parent_reason, "no_accepted_club_history")
   expect_false(isTRUE(first$metadata$production_eligible))
 })
+
+# -------------------------------------------------------------------------
+# Plan 20-04 RED contracts.  These tests intentionally exercise the closed
+# knockout/outcome contracts before their implementation is expanded.
+# -------------------------------------------------------------------------
+
+test_that("20-04 RED: two-leg resolution is editioned, aggregate-only, and stage-event complete", {
+  tie <- phase20_fixture_ucl_two_leg(
+    regulation = c(1L, 0L), second_regulation = c(1L, 0L),
+    extra_time = c(1L, 0L)
+  )
+  result <- ucl_resolve_two_leg_tie(tie$first, tie$second)
+  expect_identical(result$status, "resolved")
+  expect_identical(result$participant_a, "ucl-club-09")
+  expect_identical(result$participant_b, "ucl-club-24")
+  expect_identical(result$aggregate_regulation_home, 1L)
+  expect_identical(result$aggregate_regulation_away, 1L)
+  expect_identical(result$aggregate_final_home, 2L)
+  expect_identical(result$aggregate_final_away, 1L)
+  expect_true(isTRUE(result$extra_time_applied))
+  expect_false(isTRUE(result$away_goals_used))
+  expect_identical(result$leg_order, "seeded_return_leg")
+  expect_identical(result$leg_1_venue_id, "venue-ucl-club-24")
+  expect_identical(result$leg_2_venue_id, "venue-ucl-club-09")
+
+  invalid <- tie$second
+  invalid$home_club_id <- "ucl-club-01"
+  invalid$away_club_id <- "ucl-club-02"
+  blocked <- ucl_resolve_two_leg_tie(tie$first, invalid)
+  expect_identical(blocked$status, "blocked")
+  expect_identical(blocked$reason, "invalid_leg_topology")
+
+  event <- .ucl_record_stage_event(
+    result, stage_id = "knockout_play_off", stage_event_id = "playoff-01",
+    seed_slot_id = "playoff-seed-09", draw_policy_id = tie$first$draw_policy_id,
+    draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_,
+    source_artifact_ids = paste(c(tie$first$source_artifact_ids, tie$second$source_artifact_ids), collapse = ";"),
+    source_bundle_id = phase20_test_source_bundle_id, simulation_run_id = "ucl20-run-0001"
+  )
+  expect_true(is.data.frame(event))
+  expect_true(all(c(
+    "stage_event_id", "participant_a", "participant_b", "leg_order",
+    "leg_1_venue_id", "leg_2_venue_id", "aggregate_regulation_home",
+    "aggregate_regulation_away", "aggregate_final_home", "aggregate_final_away",
+    "extra_time_applied", "extra_time_home", "extra_time_away",
+    "penalty_applied", "penalty_home", "penalty_away", "draw_policy_id",
+    "draw_artifact_id", "draw_artifact_sha256", "source_artifact_ids",
+    "source_bundle_id", "ruleset_sha256", "simulation_run_id"
+  ) %in% names(event)))
+})
+
+test_that("20-04 RED: neutral final resolves regulation, extra time, and penalties without home advantage", {
+  final <- phase20_fixture_ucl_final(regulation = c(1L, 1L), extra_time = c(1L, 0L))
+  resolved <- ucl_resolve_final(final)
+  expect_identical(resolved$status, "resolved")
+  expect_identical(resolved$winner, "ucl-club-01")
+  expect_true(isTRUE(resolved$neutral))
+  expect_true(isTRUE(resolved$extra_time_applied))
+  expect_false(isTRUE(resolved$home_advantage))
+  expect_identical(resolved$final_home_goals, 2L)
+  expect_identical(resolved$final_away_goals, 1L)
+  expect_identical(resolved$venue_id, "neutral-final-venue")
+
+  penalties <- phase20_fixture_ucl_final(
+    regulation = c(0L, 0L), extra_time = c(0L, 0L),
+    penalties = c(5L, 4L)
+  )
+  penalty_result <- ucl_resolve_final(penalties)
+  expect_identical(penalty_result$winner, "ucl-club-01")
+  expect_true(isTRUE(penalty_result$penalty_applied))
+  expect_identical(penalty_result$penalty_home, 5L)
+  expect_identical(penalty_result$penalty_away, 4L)
+})
+
+test_that("20-04 RED: stage input/output conservation and progression are exact and monotone", {
+  events <- phase20_fixture_stage_events()
+  counts <- ucl_aggregate_stage_events(
+    events,
+    stage_inputs = c(knockout_play_off = 2L, round_of_16 = 1L,
+                     quarter_final = 1L, semi_final = 1L, final = 1L),
+    league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L)
+  )
+  expect_true(isTRUE(attr(counts, "valid")))
+  expect_true(all(counts$input_count == counts$resolved_count +
+                  counts$unresolved_count + counts$suppressed_count))
+  expect_identical(counts$output_count[counts$stage_id == "knockout_play_off"], 1L)
+
+  progression <- phase20_fixture_progression_stages()
+  checked <- ucl_validate_progression_reconciliation(
+    progression,
+    stage_inputs = c(knockout_play_off = 16L, round_of_16 = 16L,
+                     quarter_final = 8L, semi_final = 4L, final = 2L, champion = 1L),
+    league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L)
+  )
+  expect_true(isTRUE(checked$valid))
+  non_monotone <- progression
+  non_monotone$probability[[3L]] <- 0.95
+  expect_false(isTRUE(ucl_validate_progression_reconciliation(non_monotone)$valid))
+  broken_sum <- progression
+  broken_sum$probability[[6L]] <- 0.2
+  expect_false(isTRUE(ucl_validate_progression_reconciliation(broken_sum)$valid))
+})
+
+test_that("20-04 RED: knockout paths and outcome inventory persist complete lineage", {
+  fixture <- phase20_test_fixture_candidate()
+  manifest <- fixture$candidate$artifacts$outcomes_manifest
+  expected_paths <- paste0(names(phase20_expected_output_schemas), ".csv")
+  expect_identical(nrow(manifest), 10L)
+  expect_setequal(as.character(manifest$artifact_path), expected_paths)
+  expect_true(all(grepl("^[0-9a-f]{64}$", as.character(manifest$artifact_sha256))))
+  expect_true(all(grepl("^[0-9a-f]{64}$", as.character(manifest$parent_sha256))))
+  expect_true(all(grepl("^[0-9a-f]{64}$", as.character(manifest$manifest_sha256))))
+
+  paths <- fixture$candidate$artifacts$knockout_paths
+  expect_true(nrow(paths) > 0L)
+  expect_true(all(c(
+    "stage_event_id", "participant_a", "participant_b", "leg_order",
+    "leg_1_venue_id", "leg_2_venue_id", "aggregate_regulation_home",
+    "aggregate_regulation_away", "aggregate_final_home", "aggregate_final_away",
+    "extra_time_applied", "extra_time_home", "extra_time_away",
+    "penalty_applied", "penalty_home", "penalty_away", "draw_policy_id",
+    "draw_artifact_id", "draw_artifact_sha256", "source_artifact_ids",
+    "source_bundle_id", "ruleset_sha256", "simulation_run_id"
+  ) %in% names(paths)))
+  expect_true(all(nzchar(as.character(paths$stage_event_id))))
+
+  tampered <- fixture$candidate
+  tampered$artifacts$knockout_paths$row_sha256[[1L]] <- "tampered"
+  expect_false(isTRUE(ucl_validate_outcome_candidate(tampered)$valid))
+
+  repeated <- phase20_test_fixture_candidate()
+  reversed <- phase20_test_fixture_candidate(reverse = TRUE)
+  expect_identical(fixture$candidate$artifact_hashes, repeated$candidate$artifact_hashes)
+  expect_identical(fixture$candidate$artifact_hashes, reversed$candidate$artifact_hashes)
+  expect_identical(fixture$candidate$artifacts$outcomes_manifest,
+                   repeated$candidate$artifacts$outcomes_manifest)
+  expect_identical(fixture$candidate$artifacts$outcomes_manifest,
+                   reversed$candidate$artifacts$outcomes_manifest)
+})
