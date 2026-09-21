@@ -475,12 +475,10 @@ phase19_club_release_validate_production_parent_graph <- function(
     phase19_club_validate_authority(
       authority, evaluation, protocol, source_folds
     )
-    phase19_validate_club_integrity_evidence(
-      integrity, evaluation, protocol, replay, authority, source_folds
-    )
     phase19_club_release_decision_check(decision, "production")
     phase19_validate_club_promotion_decision(
-      decision, evaluation, protocol, replay, integrity, authority, source_folds
+      decision, evaluation, protocol, NULL, integrity, authority, source_folds,
+      production_source_authority = source_authority
     )
     phase19_validate_club_goal_fit(model)
     phase19_validate_club_calibrator(calibrator, require_fitted = TRUE)

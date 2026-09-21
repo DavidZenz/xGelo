@@ -623,6 +623,122 @@ test_that("replay drift and decision relabeling cannot become promotion authorit
   )
 })
 
+test_that("production promotion ignores a self-hashed replay copied from accepted output", {
+  result <- phase19_evaluation_test_promotion()
+  production <- result$protocol
+  production$authority_mode <- "production"
+  production$fixture_authority <- FALSE
+  production$production_eligible <- TRUE
+  accepted_output_sha256 <- phase19_club_evaluation_complete_output_sha256(
+    result$aggregate
+  )
+  seed <- phase19_club_evaluation_seed(production, "club_isolated_replay_v1")
+  shell <- list(
+    schema_version = "phase19-club-evaluation-reproducibility-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", seed_id = as.character(seed$seed_id[[1L]]),
+    seed = as.integer(seed$seed[[1L]]),
+    first_evaluation_sha256 = accepted_output_sha256,
+    second_evaluation_sha256 = accepted_output_sha256,
+    reproducible = TRUE, evidence_sha256 = ""
+  )
+  shell$evidence_sha256 <- phase19_club_reproducibility_sha256(shell)
+  shell <- structure(
+    shell, class = c("phase19_club_reproducibility_evidence", "list")
+  )
+  direct_validator <- tryCatch(
+    phase19_club_validate_reproducibility(shell, production),
+    error = function(error) error
+  )
+  expect_s3_class(direct_validator, "phase19_club_evaluation_error")
+  expect_identical(as.character(direct_validator$reason_code),
+                   "reproducibility_source_invalid")
+  rejected <- tryCatch(
+    phase19_evaluate_club_promotion(
+      result$aggregate, production, shell, result$integrity, result$authority
+    ),
+    error = function(error) error
+  )
+  expect_s3_class(rejected, "phase19_club_evaluation_error")
+  expect_true(as.character(rejected$reason_code) %in% c(
+    "evaluation_source_invalid", "evaluation_authority_invalid",
+    "reproducibility_source_invalid"
+  ))
+})
+
+test_that("production promotion obtains replay from its fixed-source boundary", {
+  result <- phase19_evaluation_test_promotion()
+  production <- result$protocol
+  production$authority_mode <- "production"
+  production$fixture_authority <- FALSE
+  production$production_eligible <- TRUE
+  caller_shell <- result$replay
+  caller_shell$reproducible <- FALSE
+  caller_shell$evidence_sha256 <- phase19_club_reproducibility_sha256(caller_shell)
+  wrapper_replay <- result$replay
+  wrapper_replay$reproducible <- TRUE
+  wrapper_replay$evidence_sha256 <- phase19_club_reproducibility_sha256(wrapper_replay)
+  class(wrapper_replay) <- c(
+    "phase19_club_production_reproducibility_evidence",
+    "phase19_club_reproducibility_evidence", "list"
+  )
+  source_graph <- list(
+    history_snapshot = list(), current_snapshot = list(), protocol = production,
+    evaluation = result$aggregate, authority = result$authority,
+    fold_protocol = list(), rating_replay = list(), integrity = result$integrity,
+    decision = NULL, fold_source_evidence = NULL
+  )
+  originals <- mget(c(
+    "phase19_validate_club_evaluation_set",
+    "phase19_club_validate_reproducibility",
+    "phase19_club_validate_authority",
+    "phase19_validate_club_integrity_evidence",
+    "phase19_production_club_reproducibility_evidence",
+    "phase19_club_evaluation_metrics_sha256"
+  ), envir = .GlobalEnv)
+  on.exit(lapply(names(originals), function(name) {
+    assign(name, originals[[name]], envir = .GlobalEnv)
+  }), add = TRUE)
+  wrapper_calls <- 0L
+  source_seen <- NULL
+  integrity_replay <- NULL
+  metrics_seen <- NULL
+  assign("phase19_validate_club_evaluation_set", function(...) invisible(NULL), envir = .GlobalEnv)
+  assign("phase19_club_validate_reproducibility", function(...) invisible(NULL), envir = .GlobalEnv)
+  assign("phase19_club_validate_authority", function(...) invisible(NULL), envir = .GlobalEnv)
+  assign("phase19_validate_club_integrity_evidence", function(
+      evidence, evaluation, protocol, replay, authority, source_evidence = NULL
+  ) {
+    integrity_replay <<- replay
+    invisible(evidence)
+  }, envir = .GlobalEnv)
+  assign("phase19_production_club_reproducibility_evidence", function(
+      evaluation, source_authority
+  ) {
+    wrapper_calls <<- wrapper_calls + 1L
+    source_seen <<- source_authority
+    wrapper_replay
+  }, envir = .GlobalEnv)
+  original_metrics_hash <- originals[["phase19_club_evaluation_metrics_sha256"]]
+  assign("phase19_club_evaluation_metrics_sha256", function(metrics) {
+    metrics_seen <<- metrics
+    original_metrics_hash(metrics)
+  }, envir = .GlobalEnv)
+  decision <- phase19_evaluate_club_promotion(
+    result$aggregate, production, caller_shell, result$integrity, result$authority,
+    production_source_authority = source_graph
+  )
+  expect_identical(wrapper_calls, 1L)
+  expect_identical(source_seen$evaluation, result$aggregate)
+  expect_identical(source_seen$integrity, result$integrity)
+  expect_identical(integrity_replay, wrapper_replay)
+  expect_identical(metrics_seen$byte_reproducibility, 1)
+  expect_identical(decision$reproducibility_evidence_sha256,
+                   wrapper_replay$evidence_sha256)
+  expect_false(identical(decision$reproducibility_evidence_sha256,
+                         caller_shell$evidence_sha256))
+})
+
 test_that("production evaluation validation requires exact fold source evidence", {
   result <- phase19_evaluation_test_promotion()
   production <- result$protocol

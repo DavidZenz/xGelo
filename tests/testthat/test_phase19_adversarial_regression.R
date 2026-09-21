@@ -364,6 +364,78 @@ test_that("production replay rejects hash-only shells and caller source graphs",
   )
 })
 
+test_that("production promotion cannot be satisfied by copied complete-output hashes", {
+  phase19_adversarial_load()
+  old_directory <- getwd()
+  setwd(phase19_adversarial_root)
+  on.exit(setwd(old_directory), add = TRUE)
+  script <- file.path(phase19_adversarial_root, "scripts/run_phase19_club_evaluation.R")
+  lines <- readLines(script, warn = FALSE, encoding = "UTF-8")
+  main <- which(trimws(lines) == "phase19_cli_main()")
+  if (length(main) != 1L) stop("RED: fixture CLI main boundary is not exact", call. = FALSE)
+  eval(parse(text = lines[seq_len(main - 1L)]), envir = .GlobalEnv)
+  fixture_root <- phase19_test_fixture_root("replay-shell")
+  output_root <- tempfile("phase19-replay-shell-output-", tmpdir = tempdir())
+  release_root <- tempfile("phase19-replay-shell-release-", tmpdir = tempdir())
+  dir.create(output_root, recursive = TRUE)
+  dir.create(release_root, recursive = TRUE)
+  on.exit(unlink(c(fixture_root, output_root, release_root), recursive = TRUE, force = TRUE), add = TRUE)
+  original <- get("phase19_evaluate_club_promotion", envir = .GlobalEnv)
+  captured <- NULL
+  assign("phase19_evaluate_club_promotion", function(
+      evaluation, protocol, replay, integrity, authority,
+      source_evidence = NULL, production_source_authority = NULL
+  ) {
+    captured <<- list(
+      evaluation = evaluation, protocol = protocol, replay = replay,
+      integrity = integrity, authority = authority, source_evidence = source_evidence
+    )
+    original(
+      evaluation, protocol, replay, integrity, authority, source_evidence,
+      production_source_authority
+    )
+  }, envir = .GlobalEnv)
+  on.exit(assign("phase19_evaluate_club_promotion", original, envir = .GlobalEnv), add = TRUE)
+  phase19_cli_fixture(list(
+    fixture_root = fixture_root, output_root = output_root, release_root = release_root
+  ))
+  assign("phase19_evaluate_club_promotion", original, envir = .GlobalEnv)
+  expect_true(is.list(captured))
+  accepted_output_sha256 <- phase19_club_evaluation_complete_output_sha256(
+    captured$evaluation
+  )
+  production <- captured$protocol
+  production$authority_mode <- "production"
+  production$fixture_authority <- FALSE
+  production$production_eligible <- TRUE
+  seed <- phase19_club_evaluation_seed(production, "club_isolated_replay_v1")
+  shell <- list(
+    schema_version = "phase19-club-evaluation-reproducibility-v1",
+    hash_encoding_version = phase18_canonical_encoding_v2(),
+    forecast_domain = "club", seed_id = as.character(seed$seed_id[[1L]]),
+    seed = as.integer(seed$seed[[1L]]),
+    first_evaluation_sha256 = accepted_output_sha256,
+    second_evaluation_sha256 = accepted_output_sha256,
+    reproducible = TRUE, evidence_sha256 = ""
+  )
+  shell$evidence_sha256 <- phase19_club_reproducibility_sha256(shell)
+  shell <- structure(
+    shell, class = c("phase19_club_reproducibility_evidence", "list")
+  )
+  rejected <- tryCatch(
+    phase19_evaluate_club_promotion(
+      captured$evaluation, production, shell, captured$integrity,
+      captured$authority, captured$source_evidence
+    ),
+    error = function(error) error
+  )
+  expect_s3_class(rejected, "phase19_club_evaluation_error")
+  expect_true(as.character(rejected$reason_code) %in% c(
+    "evaluation_source_invalid", "evaluation_authority_invalid",
+    "reproducibility_source_invalid"
+  ))
+})
+
 test_that("rating identity, batch, and inactivity probes preserve frozen semantics", {
   context <- phase19_adversarial_rating_context()
   on.exit(unlink(context$root, recursive = TRUE, force = TRUE), add = TRUE)

@@ -523,8 +523,13 @@ phase19_cli_fixture <- function(paths) {
   integrity <- phase19_derive_club_integrity_evidence(
     aggregate, protocol, replay, authority
   )
-  decision <- phase19_evaluate_club_promotion(aggregate, protocol, replay, integrity, authority)
-  phase19_validate_club_promotion_decision(decision, aggregate, protocol, replay, integrity, authority)
+  decision <- phase19_evaluate_club_promotion(
+    aggregate, protocol, replay = replay, integrity = integrity, authority = authority
+  )
+  phase19_validate_club_promotion_decision(
+    decision, aggregate, protocol, replay = replay, integrity = integrity,
+    authority = authority
+  )
   protocol_release <- protocol
   protocol_release$fold_registry_sha256 <- phase19_fold_registry_sha256(folds, training, protocol, "fixture")
   protocol_release$fold_review_sha256 <- ""
