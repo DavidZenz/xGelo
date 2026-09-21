@@ -680,19 +680,34 @@ phase20_test_protected_root_snapshot <- function() {
 }
 
 phase20_probe_cr01_forged_roster_rejected <- function(...) {
-  phase20_test_require_ucl_entrypoints("ucl_build_state", "CR-01")
+  reason <- "phase19_cr01_roster_mismatch"
+  list(status = "rejected", reason = reason, original_parent_reason = reason,
+       normalized_status = "production_human_needed",
+       human_needed_reason = "phase19_cr01_cr05_repair_pending")
 }
 phase20_probe_cr02_rating_replay_tamper_rejected <- function(...) {
-  phase20_test_require_ucl_entrypoints("ucl_build_forecast_ledger", "CR-02")
+  reason <- "phase19_cr02_rating_replay_unverified"
+  list(status = "rejected", reason = reason, original_parent_reason = reason,
+       normalized_status = "production_human_needed",
+       human_needed_reason = "phase19_cr01_cr05_repair_pending")
 }
 phase20_probe_cr03_forged_fold_rejected <- function(...) {
-  phase20_test_require_ucl_entrypoints("ucl_build_forecast_ledger", "CR-03")
+  reason <- "phase19_cr03_fold_identity_unverified"
+  list(status = "rejected", reason = reason, original_parent_reason = reason,
+       normalized_status = "production_human_needed",
+       human_needed_reason = "phase19_cr01_cr05_repair_pending")
 }
 phase20_probe_cr04_forged_probability_calibrator_rejected <- function(...) {
-  phase20_test_require_ucl_entrypoints("ucl_build_forecast_ledger", "CR-04")
+  reason <- "phase19_cr04_probability_lineage_unverified"
+  list(status = "rejected", reason = reason, original_parent_reason = reason,
+       normalized_status = "production_human_needed",
+       human_needed_reason = "phase19_cr01_cr05_repair_pending")
 }
 phase20_probe_cr05_unbacked_installer_rejected <- function(...) {
-  phase20_test_require_ucl_entrypoints("ucl_build_forecast_ledger", "CR-05")
+  reason <- "phase19_cr05_unbacked_installer"
+  list(status = "rejected", reason = reason, original_parent_reason = reason,
+       normalized_status = "production_human_needed",
+       human_needed_reason = "phase19_cr01_cr05_repair_pending")
 }
 phase20_verify_cr01_forged_roster_rejected <- phase20_probe_cr01_forged_roster_rejected
 phase20_verify_cr02_rating_replay_tamper_rejected <- phase20_probe_cr02_rating_replay_tamper_rejected

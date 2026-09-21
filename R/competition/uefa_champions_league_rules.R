@@ -93,10 +93,26 @@
     stop("UCL rules evidence has an invalid document identity or edition", call. = FALSE)
   }
   urls <- .ucl_rule_url_map()
+  expected_kind <- c(
+    article_17 = "article", article_18 = "article", article_19 = "article",
+    article_20 = "article", article_21 = "article", article_22 = "article",
+    annex_b = "annex"
+  )
+  expected_article <- c(
+    article_17 = "Article-17-Match-system-league-phase-Online",
+    article_18 = "Article-18-Equality-of-points-league-phase-Online",
+    article_19 = "Article-19-Draw-system-knockout-phase-Online",
+    article_20 = "Article-20-Match-system-knockout-phase-Online",
+    article_21 = "Article-21-Knockout-system-extra-time-and-penalty-shoot-outs-Online",
+    article_22 = "Article-22-Match-system-final-Online",
+    annex_b = "Annex-B-UEFA-Champions-League-Competition-System-Online"
+  )
   regulations <- as.character(evidence$document_id) != "draw_procedure_2026_27"
   for (id in names(urls)) {
     row <- evidence[evidence$document_id == id, , drop = FALSE]
-    if (nrow(row) != 1L || !identical(as.character(row$source_url[[1L]]), unname(urls[[id]])) ||
+    if (nrow(row) != 1L || !identical(as.character(row$article_or_annex[[1L]]), unname(expected_kind[[id]])) ||
+        !identical(as.character(row$canonical_article[[1L]]), unname(expected_article[[id]])) ||
+        !identical(as.character(row$source_url[[1L]]), unname(urls[[id]])) ||
         !identical(as.character(row$artifact_url[[1L]]), unname(urls[[id]])) ||
         !identical(as.character(row$source_url_role[[1L]]), "canonical_regulation_document") ||
         !isTRUE(row$accepted[[1L]]) || !isTRUE(row$complete[[1L]]) ||
@@ -108,7 +124,8 @@
     }
   }
   draw <- evidence[evidence$document_id == "draw_procedure_2026_27", , drop = FALSE]
-  if (nrow(draw) != 1L || !identical(as.character(draw$canonical_article[[1L]]), "Article-19-Draw-system-knockout-phase-Online") ||
+  if (nrow(draw) != 1L || !identical(as.character(draw$article_or_annex[[1L]]), "draw_procedure") ||
+      !identical(as.character(draw$canonical_article[[1L]]), "Article-19-Draw-system-knockout-phase-Online") ||
       !identical(as.character(draw$source_url[[1L]]), unname(urls[["article_19"]])) ||
       !is.na(draw$artifact_url[[1L]]) || !identical(as.character(draw$source_url_role[[1L]]), "governing_rule_anchor_for_missing_artifact") ||
       !identical(as.character(draw$reviewer[[1L]]), "unreviewed") || !is.na(draw$reviewed_at_utc[[1L]]) ||
@@ -178,8 +195,16 @@
       team <- as.character(standings[[team_field]][index])
       home <- as.character(matches$home_club_id %||% matches$home_team_id) == team
       away <- as.character(matches$away_club_id %||% matches$away_team_id) == team
-      home_score <- suppressWarnings(as.numeric(matches$final_home_goals %||% matches$regulation_home_goals))
-      away_score <- suppressWarnings(as.numeric(matches$final_away_goals %||% matches$regulation_away_goals))
+      home_score <- if ("final_home_goals" %in% names(matches)) suppressWarnings(as.numeric(matches$final_home_goals)) else rep(NA_real_, nrow(matches))
+      away_score <- if ("final_away_goals" %in% names(matches)) suppressWarnings(as.numeric(matches$final_away_goals)) else rep(NA_real_, nrow(matches))
+      if ("regulation_home_goals" %in% names(matches)) {
+        regulation_home <- suppressWarnings(as.numeric(matches$regulation_home_goals))
+        home_score[is.na(home_score)] <- regulation_home[is.na(home_score)]
+      }
+      if ("regulation_away_goals" %in% names(matches)) {
+        regulation_away <- suppressWarnings(as.numeric(matches$regulation_away_goals))
+        away_score[is.na(away_score)] <- regulation_away[is.na(away_score)]
+      }
       if (criterion_id == "away_goals_scored") return(sum(away_score[away], na.rm = TRUE))
       return(sum(away & !is.na(away_score) & !is.na(home_score) & away_score > home_score))
     }
@@ -222,6 +247,23 @@
   vapply(seq_len(nrow(data)), function(index) .ucl_rule_hash(paste(vapply(data[index, fields, drop = FALSE], .ucl_rule_scalar, character(1)), collapse = "|")), character(1))
 }
 
+.ucl_derive_qualification_bands <- function(rank, rank_interval_min, rank_interval_max) {
+  vapply(seq_along(rank_interval_min), function(index) {
+    exact <- !is.na(rank[[index]])
+    lo <- as.integer(rank_interval_min[[index]])
+    hi <- as.integer(rank_interval_max[[index]])
+    if (exact) {
+      if (rank[[index]] <= 8L) return("direct_round_of_16")
+      if (rank[[index]] <= 24L) return("knockout_play_off")
+      return("eliminated")
+    }
+    if ((lo <= 8L && hi >= 8L) || (lo <= 24L && hi >= 24L)) return("unresolved")
+    if (hi <= 8L) return("direct_round_of_16")
+    if (lo >= 25L) return("eliminated")
+    "knockout_play_off"
+  }, character(1))
+}
+
 #' Apply the editioned Article 18 final/interim ranking contract.
 #'
 #' The returned data frame is intentionally rank-incomplete when evidence is
@@ -249,6 +291,7 @@ ucl_apply_article18 <- function(standings, matches = NULL, evidence = NULL,
   names(metric_values) <- rules$article18$criteria$criterion_id
   ordered_groups <- .ucl_rule_groups(ids, as.numeric(data$points), "desc")
   trace_rows <- list()
+  trace_keys <- character()
   trace_index <- 0L
   rank_rows <- list()
   current_rank <- 1L
@@ -256,53 +299,68 @@ ucl_apply_article18 <- function(standings, matches = NULL, evidence = NULL,
   add_trace <- function(...) {
     trace_index <<- trace_index + 1L
     trace_rows[[trace_index]] <<- .ucl_rule_trace_row(rules, ...)
+    key <- paste0("article18-", sprintf("%03d", trace_index))
+    trace_keys[[trace_index]] <<- key
+    key
   }
   resolve_group <- function(group_ids, start_rank, depth = 0L) {
-    if (length(group_ids) <= 1L) return(list(groups = list(group_ids), resolved = TRUE))
+    if (length(group_ids) <= 1L) return(list(groups = list(group_ids), resolved = TRUE, group_resolved = TRUE))
     remaining <- group_ids
     resolved_groups <- list()
     for (criterion_order in seq_len(max_criterion)) {
       criterion_id <- rules$article18$criteria$criterion_id[[criterion_order]]
       values <- metric_values[[criterion_id]][match(remaining, ids)]
       available <- all(!is.na(values) & is.finite(values))
+      counted_ids <- rules$article18$criteria$evidence_document_id[[criterion_order]]
+      if (!is.null(matches) && is.data.frame(matches) && nrow(matches)) {
+        endpoint_fields <- intersect(c("home_club_id", "away_club_id", "home_team_id", "away_team_id"), names(matches))
+        if (length(endpoint_fields) >= 2L) {
+          home_field <- endpoint_fields[grepl("^home_", endpoint_fields)][1L]
+          away_field <- endpoint_fields[grepl("^away_", endpoint_fields)][1L]
+          relevant <- as.character(matches[[home_field]]) %in% remaining |
+            as.character(matches[[away_field]]) %in% remaining
+          id_field <- intersect(c("source_artifact_id", "source_row_key", "fixture_id", "match_id"), names(matches))[1L]
+          if (length(id_field) && !is.na(id_field)) counted_ids <- c(counted_ids, as.character(matches[[id_field]][relevant]))
+        }
+      }
       if (!available) {
         add_trace(paste0("tie-", depth + 1L), criterion_order, criterion_id,
-                  remaining, remaining, "missing", character(), FALSE,
+                  remaining, remaining, "missing", counted_ids, FALSE,
                   start_rank, start_rank + length(group_ids) - 1L)
-        return(list(groups = list(group_ids), resolved = FALSE))
+        return(list(groups = list(group_ids), resolved = FALSE, group_resolved = FALSE))
       }
       groups <- .ucl_rule_groups(remaining, values, rules$article18$criteria$direction[[criterion_order]])
       after <- unlist(groups, use.names = FALSE)
       decisive <- length(groups) > 1L
       add_trace(paste0("tie-", depth + 1L), criterion_order, criterion_id,
-                remaining, after, "available", character(), decisive,
+                remaining, after, "available", counted_ids, decisive,
                 start_rank, start_rank + length(group_ids) - 1L)
       if (length(groups) > 1L) {
         # A criterion that separates values is decisive.  Remaining multi-club
         # subsets still need the subsequent criteria, independently.
         out <- list()
+        out_resolved <- logical()
         offset <- 0L
         all_resolved <- TRUE
         for (subgroup in groups) {
           sub_result <- resolve_group(subgroup, start_rank + offset, depth + 1L)
           out <- c(out, sub_result$groups)
+          out_resolved <- c(out_resolved, sub_result$group_resolved)
           all_resolved <- all_resolved && isTRUE(sub_result$resolved)
           offset <- offset + length(subgroup)
         }
-        return(list(groups = out, resolved = all_resolved))
+        return(list(groups = out, resolved = all_resolved, group_resolved = out_resolved))
       }
     }
-    add_trace(paste0("tie-", depth + 1L), max_criterion, "unresolved_late_criterion",
-              remaining, remaining, "missing", character(), FALSE,
-              start_rank, start_rank + length(group_ids) - 1L)
-    list(groups = list(group_ids), resolved = FALSE)
+    list(groups = list(group_ids), resolved = FALSE, group_resolved = FALSE)
   }
   for (group in ordered_groups) {
     resolved <- resolve_group(group, current_rank)
-    for (subgroup in resolved$groups) {
+    for (subgroup_index in seq_along(resolved$groups)) {
+      subgroup <- resolved$groups[[subgroup_index]]
       rank_min <- current_rank
       rank_max <- current_rank + length(subgroup) - 1L
-      exact <- isTRUE(resolved$resolved) && length(subgroup) == 1L
+      exact <- isTRUE(resolved$group_resolved[[subgroup_index]]) && length(subgroup) == 1L
       for (club_id in subgroup) {
         rank_rows[[length(rank_rows) + 1L]] <- data.frame(
           club_id = club_id, rank = if (exact) as.integer(current_rank) else NA_integer_,
@@ -316,15 +374,9 @@ ucl_apply_article18 <- function(standings, matches = NULL, evidence = NULL,
   }
   rank_data <- do.call(rbind, rank_rows)
   rank_data <- rank_data[order(rank_data$rank_interval_min, rank_data$club_id, method = "radix"), , drop = FALSE]
-  rank_data$qualification_band <- vapply(seq_len(nrow(rank_data)), function(index) {
-    lo <- rank_data$rank_interval_min[[index]]; hi <- rank_data$rank_interval_max[[index]]
-    if (!is.na(rank_data$rank[[index]])) {
-      if (rank_data$rank[[index]] <= 8L) return("direct_round_of_16")
-      if (rank_data$rank[[index]] <= 24L) return("knockout_play_off")
-      return("eliminated")
-    }
-    if (lo <= 8L && hi >= 8L || lo <= 24L && hi >= 24L) "unresolved" else if (hi <= 8L) "direct_round_of_16" else if (lo >= 25L) "eliminated" else "knockout_play_off"
-  }, character(1))
+  rank_data$qualification_band <- .ucl_derive_qualification_bands(
+    rank_data$rank, rank_data$rank_interval_min, rank_data$rank_interval_max
+  )
   result <- data.frame(
     edition_id = rules$edition_id,
     club_id = rank_data$club_id,
@@ -341,8 +393,12 @@ ucl_apply_article18 <- function(standings, matches = NULL, evidence = NULL,
     rank_interval_min = rank_data$rank_interval_min,
     rank_interval_max = rank_data$rank_interval_max,
     rank_status = rank_data$rank_status,
+    decisive_trace_id = NA_character_,
+    presentation_rank = NA_integer_,
+    presentation_order = NA_integer_,
     qualification_band = rank_data$qualification_band,
     qualification_status = ifelse(rank_data$rank_status == "resolved", "resolved", "unresolved"),
+    evidence_status = ifelse(rank_data$rank_status == "resolved", "available", "unresolved"),
     source_bundle_id = if ("source_bundle_id" %in% names(data)) as.character(data$source_bundle_id[match(rank_data$club_id, ids)]) else NA_character_,
     ruleset_version = rules$ruleset_version,
     ruleset_sha256 = rules$ruleset_sha256,
@@ -351,8 +407,25 @@ ucl_apply_article18 <- function(standings, matches = NULL, evidence = NULL,
   trace <- if (length(trace_rows)) do.call(rbind, trace_rows) else data.frame()
   if (nrow(trace)) trace$row_sha256 <- .ucl_rule_hash_rows(trace)
   result <- result[order(result$rank_interval_min, result$club_id, method = "radix"), , drop = FALSE]
+  result$presentation_order <- match(as.character(result$club_id), ids)
+  result$presentation_rank <- rank(result$presentation_order, ties.method = "first")
+  if (nrow(trace)) {
+    decisive <- which(isTRUE(trace$decisive) | trace$decisive %in% TRUE)
+    if (length(decisive)) {
+      result$decisive_trace_id <- vapply(seq_len(nrow(result)), function(index) {
+        club <- as.character(result$club_id[[index]])
+        if (is.na(result$rank[[index]])) return(NA_character_)
+        matching <- decisive[vapply(decisive, function(trace_index) {
+          members <- strsplit(as.character(trace$subset_after[[trace_index]]), ";", fixed = TRUE)[[1L]]
+          club %in% members
+        }, logical(1))]
+        if (!length(matching)) NA_character_ else trace_keys[[matching[[length(matching)]]]]
+      }, character(1))
+    }
+  }
   row.names(result) <- NULL
   attr(result, "trace") <- trace
+  attr(result, "trace_keys") <- trace_keys
   attr(result, "rules") <- rules
   attr(result, "status") <- if (any(result$rank_status == "unresolved")) "unresolved" else "ready"
   attr(result, "provider_reconciliation") <- if ("rank" %in% names(data) || "computed_rank" %in% names(data)) data[, intersect(c("club_id", "team_id", "rank", "computed_rank", "qualification_band"), names(data)), drop = FALSE] else NULL

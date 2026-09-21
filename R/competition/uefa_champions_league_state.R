@@ -47,13 +47,18 @@
 }
 
 .ucl_state_parse_time <- function(value) {
-  suppressWarnings(as.POSIXct(as.character(value), tz = "UTC"))
+  text <- as.character(value)
+  parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
+  missing <- is.na(parsed) & !is.na(text)
+  if (any(missing)) parsed[missing] <- suppressWarnings(as.POSIXct(text[missing], format = "%Y-%m-%dT%H:%M:%OS", tz = "UTC"))
+  parsed
 }
 
 .ucl_state_required_fixture_fields <- function() {
   c("edition_id", "fixture_id", "matchday", "home_club_id", "away_club_id",
     "venue_id", "kickoff_utc", "kickoff_confirmed", "confirmed_kickoff_at_utc",
     "source_artifact_id", "source_row_key", "source_lineage_id", "source_bundle_id",
+    "source_row_sha256",
     "source_status", "match_status", "completion_method",
     "regulation_home_goals", "regulation_away_goals", "final_home_goals",
     "final_away_goals", "shootout_home_goals", "shootout_away_goals",
@@ -68,18 +73,88 @@
 }
 
 .ucl_state_validate_scores <- function(fixtures) {
-  completed <- .ucl_state_status_completed(fixtures$match_status)
+  normalize <- function(value) tolower(trimws(as.character(value)))
+  source_status <- normalize(fixtures$source_status)
+  match_status <- normalize(fixtures$match_status)
+  completion_method <- normalize(fixtures$completion_method)
+  source_map <- rep(NA_character_, length(source_status))
+  source_map[source_status %in% c("scheduled", "not_started", "not-started", "upcoming", "fixture")] <- "scheduled"
+  source_map[source_status %in% c("live", "in_progress", "in-progress", "inplay", "in_play")] <- "in_progress"
+  source_map[source_status %in% c("completed", "complete", "finished", "full_time", "full-time", "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded", "historical_completed")] <- "completed"
+  source_map[source_status %in% c("postponed", "delayed")] <- "postponed"
+  source_map[source_status %in% c("abandoned", "cancelled", "canceled", "suspended")] <- "abandoned"
+  status_map <- rep(NA_character_, length(match_status))
+  status_map[match_status %in% c("scheduled", "not_started", "not-started", "upcoming", "fixture")] <- "scheduled"
+  status_map[match_status %in% c("live", "in_progress", "in-progress", "inplay", "in_play")] <- "in_progress"
+  status_map[match_status %in% c("completed", "complete", "finished", "full_time", "full-time", "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded", "historical_completed")] <- "completed"
+  status_map[match_status %in% c("postponed", "delayed")] <- "postponed"
+  status_map[match_status %in% c("abandoned", "cancelled", "canceled", "suspended")] <- "abandoned"
+  if (any(is.na(source_map) | !nzchar(source_status))) return("source_status_unmapped")
+  if (any(is.na(status_map) | !nzchar(match_status))) return("match_status_unmapped")
+  if (any(source_map != status_map)) return("lifecycle_status_mismatch")
+  if (any(!completion_method %in% c("not_completed", "not_applicable", "regulation", "extra_time", "penalties", "awarded"))) return("completion_method_unmapped")
+  completed <- status_map == "completed"
+  if (any(!completed & !completion_method %in% c("not_completed", "not_applicable"))) return("open_fixture_completion_invalid")
+  if (any(completed & completion_method %in% c("not_completed", "not_applicable"))) return("completed_completion_missing")
+  count_values <- as.character(fixtures$counts_for_standings)
+  if (any(is.na(fixtures$counts_for_standings) | !tolower(count_values) %in% c("true", "false"))) return("counts_for_standings_invalid")
+  winner_field <- intersect(c("winner_club_id", "winner_team_id"), names(fixtures))[1L]
+  winner <- if (length(winner_field) && !is.na(winner_field)) as.character(fixtures[[winner_field]]) else rep(NA_character_, nrow(fixtures))
+  completed <- status_map == "completed"
   score_fields <- c("regulation_home_goals", "regulation_away_goals", "final_home_goals", "final_away_goals", "shootout_home_goals", "shootout_away_goals")
   for (field in score_fields) {
-    values <- fixtures[[field]]
-    if (any(!is.na(values) & (!is.finite(as.numeric(values)) | as.numeric(values) < 0 | as.numeric(values) != floor(as.numeric(values))))) {
+    values <- trimws(as.character(fixtures[[field]]))
+    present <- !is.na(values) & nzchar(values)
+    numeric_values <- suppressWarnings(as.numeric(values))
+    if (any(present & (is.na(numeric_values) | !is.finite(numeric_values) | numeric_values < 0 | numeric_values != floor(numeric_values)))) {
       return("score_not_nonnegative_integer")
     }
   }
-  has_final <- !is.na(fixtures$final_home_goals) & !is.na(fixtures$final_away_goals)
-  has_regulation <- !is.na(fixtures$regulation_home_goals) & !is.na(fixtures$regulation_away_goals)
-  if (any(completed & !(has_final | has_regulation))) return("completed_score_missing")
-  if (any(!completed & (has_final | has_regulation | !is.na(fixtures$shootout_home_goals) | !is.na(fixtures$shootout_away_goals)))) return("open_fixture_has_score")
+  present_score <- function(field) {
+    values <- trimws(as.character(fixtures[[field]]))
+    !is.na(values) & nzchar(values)
+  }
+  regulation_complete <- present_score("regulation_home_goals") & present_score("regulation_away_goals")
+  regulation_partial <- xor(present_score("regulation_home_goals"), present_score("regulation_away_goals"))
+  final_complete <- present_score("final_home_goals") & present_score("final_away_goals")
+  final_partial <- xor(present_score("final_home_goals"), present_score("final_away_goals"))
+  shootout_complete <- present_score("shootout_home_goals") & present_score("shootout_away_goals")
+  shootout_partial <- xor(present_score("shootout_home_goals"), present_score("shootout_away_goals"))
+  if (any(regulation_partial | final_partial | shootout_partial)) return("score_pair_incomplete")
+  if (any(!completed & (regulation_complete | final_complete | shootout_complete | !is.na(winner) & nzchar(trimws(winner))))) return("open_fixture_has_score")
+  if (!any(completed)) return(invisible(NULL))
+  regulation_home <- suppressWarnings(as.numeric(fixtures$regulation_home_goals))
+  regulation_away <- suppressWarnings(as.numeric(fixtures$regulation_away_goals))
+  final_home <- suppressWarnings(as.numeric(fixtures$final_home_goals))
+  final_away <- suppressWarnings(as.numeric(fixtures$final_away_goals))
+  shootout_home <- suppressWarnings(as.numeric(fixtures$shootout_home_goals))
+  shootout_away <- suppressWarnings(as.numeric(fixtures$shootout_away_goals))
+  for (index in which(completed)) {
+    method <- completion_method[[index]]
+    if (method == "regulation") {
+      if (!regulation_complete[[index]] || !final_complete[[index]] || shootout_complete[[index]] ||
+          regulation_home[[index]] != final_home[[index]] || regulation_away[[index]] != final_away[[index]]) return("regulation_score_contradiction")
+      expected <- if (final_home[[index]] > final_away[[index]]) as.character(fixtures$home_club_id[[index]]) else if (final_away[[index]] > final_home[[index]]) as.character(fixtures$away_club_id[[index]]) else NA_character_
+    } else if (method == "extra_time") {
+      if (!regulation_complete[[index]] || !final_complete[[index]] || shootout_complete[[index]] ||
+          final_home[[index]] < regulation_home[[index]] || final_away[[index]] < regulation_away[[index]]) return("extra_time_score_contradiction")
+      expected <- if (final_home[[index]] > final_away[[index]]) as.character(fixtures$home_club_id[[index]]) else if (final_away[[index]] > final_home[[index]]) as.character(fixtures$away_club_id[[index]]) else NA_character_
+    } else if (method == "penalties") {
+      if (!regulation_complete[[index]] || !final_complete[[index]] || !shootout_complete[[index]] || final_home[[index]] != final_away[[index]] || shootout_home[[index]] == shootout_away[[index]]) return("penalty_score_contradiction")
+      expected <- if (shootout_home[[index]] > shootout_away[[index]]) as.character(fixtures$home_club_id[[index]]) else as.character(fixtures$away_club_id[[index]])
+    } else if (method == "awarded") {
+      if (!final_complete[[index]] || regulation_complete[[index]] || shootout_complete[[index]]) return("awarded_score_contradiction")
+      expected <- if (final_home[[index]] > final_away[[index]]) as.character(fixtures$home_club_id[[index]]) else if (final_away[[index]] > final_home[[index]]) as.character(fixtures$away_club_id[[index]]) else NA_character_
+    } else {
+      return("completed_completion_missing")
+    }
+    observed <- winner[[index]]
+    if (is.na(expected)) {
+      if (!is.na(observed) && nzchar(trimws(observed))) return("winner_score_contradiction")
+    } else if (is.na(observed) || !identical(trimws(observed), expected)) {
+      return("winner_score_contradiction")
+    }
+  }
   invisible(NULL)
 }
 
@@ -100,6 +175,8 @@
     values <- as.character(fixtures[[field]])
     if (any(is.na(values) | !nzchar(trimws(values)))) return(paste0(field, "_missing"))
   }
+  source_keys <- paste(as.character(fixtures$source_artifact_id), as.character(fixtures$source_row_key), sep = "\x1f")
+  if (anyDuplicated(source_keys)) return("source_row_key_duplicate")
   if ("source_row_sha256" %in% names(fixtures)) {
     values <- as.character(fixtures$source_row_sha256)
     if (any(is.na(values) | !grepl("^[0-9a-f]{64}$", values))) return("source_row_hash_missing")
@@ -124,7 +201,8 @@ ucl_validate_schedule <- function(source, clubs = NULL, fixtures = NULL, rules =
   club_ids <- as.character(clubs$club_id); fixture_ids <- as.character(fixtures$fixture_id)
   if (any(is.na(club_ids) | !nzchar(club_ids)) || anyDuplicated(club_ids) || any(is.na(fixture_ids) | !nzchar(fixture_ids))) return(.ucl_state_blocked("identity_invalid", "UCL club and fixture identities must be stable and non-empty", graph))
   if (length(unique(as.character(fixtures$edition_id))) != 1L || any(as.character(fixtures$edition_id) != expected_edition)) return(.ucl_state_blocked("foreign_edition", "UCL fixtures must belong to one supported edition", graph))
-  if (length(unique(as.character(clubs$edition_id %||% expected_edition))) > 1L || any(as.character(clubs$edition_id %||% expected_edition) != expected_edition)) return(.ucl_state_blocked("foreign_club_edition", "UCL clubs must belong to the supported edition", graph))
+  club_editions <- if ("edition_id" %in% names(clubs)) as.character(clubs$edition_id) else rep(expected_edition, nrow(clubs))
+  if (any(is.na(club_editions) | !nzchar(club_editions) | club_editions != expected_edition)) return(.ucl_state_blocked("foreign_club_edition", "UCL clubs must belong to the supported edition", graph))
   endpoints <- c(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id))
   if (any(!endpoints %in% club_ids)) return(.ucl_state_blocked("unknown_fixture_endpoint", "UCL fixture references an unknown club", graph))
   if (any(as.character(fixtures$home_club_id) == as.character(fixtures$away_club_id))) return(.ucl_state_blocked("self_fixture", "UCL fixtures cannot contain a club against itself", graph))
@@ -139,7 +217,11 @@ ucl_validate_schedule <- function(source, clubs = NULL, fixtures = NULL, rules =
   kickoff <- .ucl_state_parse_time(fixtures$kickoff_utc); confirmed <- as.logical(fixtures$kickoff_confirmed)
   confirmed_time <- .ucl_state_parse_time(fixtures$confirmed_kickoff_at_utc)
   if (any(is.na(kickoff)) || any(is.na(confirmed)) || any(!confirmed) || any(is.na(confirmed_time))) return(.ucl_state_blocked("kickoff_unconfirmed", "UCL fixtures require a confirmed kickoff", graph))
-  if (any(as.character(fixtures$source_bundle_id) != as.character(fixtures$source_bundle_id[[1L]]))) return(.ucl_state_blocked("lineage_bundle_mismatch", "UCL fixtures must share one source bundle", graph))
+  if (any(as.numeric(kickoff) != as.numeric(confirmed_time))) return(.ucl_state_blocked("kickoff_confirmation_mismatch", "Confirmed kickoff evidence must equal the scheduled kickoff", graph))
+  endpoint_pairs <- paste(pmin(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id)), pmax(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id)), sep = "\x1f")
+  if (anyDuplicated(endpoint_pairs)) return(.ucl_state_blocked("duplicate_opponent_pair", "UCL schedule cannot repeat an unordered opponent pair", graph))
+  if (any(is.na(fixtures$source_bundle_id) | !nzchar(trimws(as.character(fixtures$source_bundle_id))) |
+          as.character(fixtures$source_bundle_id) != as.character(fixtures$source_bundle_id[[1L]]))) return(.ucl_state_blocked("lineage_bundle_mismatch", "UCL fixtures must share one source bundle", graph))
   lineage_error <- .ucl_state_validate_source_lineage(fixtures)
   if (!is.null(lineage_error)) return(.ucl_state_blocked("source_lineage_invalid", lineage_error, graph))
   score_error <- .ucl_state_validate_scores(fixtures)
@@ -226,20 +308,32 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   validation <- ucl_validate_schedule(source, rules = rules)
   if (!identical(validation$status, "ready")) return(validation)
   state_cutoff_utc <- state_cutoff_utc %||% "2099-12-31T23:59:59Z"
+  cutoff <- .ucl_state_parse_time(state_cutoff_utc)
+  if (is.na(cutoff)) return(.ucl_state_blocked("state_cutoff_invalid", "UCL state cutoff must be a valid UTC timestamp", validation$graph))
   graph <- validation$graph
   matches <- .ucl_state_to_phase14_matches(graph$fixtures, state_cutoff_utc)
   .ucl_state_source_phase14()
-  universal <- if (exists("phase14_compute_standings", mode = "function", inherits = TRUE)) {
-    phase14_compute_standings(matches = matches, edition_id = graph$edition_id, group_id = "league_phase", state_cutoff_utc = state_cutoff_utc, source_bundle_id = graph$source_bundle_id, ruleset_adapter = NULL, team_ids = graph$clubs$club_id)
-  } else {
-    .ucl_state_fallback_standings(matches, as.character(graph$clubs$club_id))
-  }
+  universal <- tryCatch(
+    if (exists("phase14_compute_standings", mode = "function", inherits = TRUE)) {
+      phase14_compute_standings(matches = matches, edition_id = graph$edition_id, group_id = "league_phase", state_cutoff_utc = state_cutoff_utc, source_bundle_id = graph$source_bundle_id, ruleset_adapter = NULL, team_ids = graph$clubs$club_id)
+    } else {
+      .ucl_state_fallback_standings(matches, as.character(graph$clubs$club_id))
+    },
+    error = function(error) .ucl_state_blocked("phase14_standings_blocked", conditionMessage(error), graph)
+  )
+  if (inherits(universal, "ucl_blocked_state")) return(universal)
   ranking <- ucl_apply_article18(universal, matches = graph$fixtures, evidence = evidence, rules = rules)
   ranking$source_bundle_id <- graph$source_bundle_id
   ranking$ruleset_sha256 <- rules$ruleset_sha256
   provider <- if (is.null(provider_standings)) NULL else as.data.frame(provider_standings, stringsAsFactors = FALSE, check.names = FALSE)
   if (!is.null(provider)) {
-    provider$reconciliation_status <- if ("club_id" %in% names(provider)) ifelse(provider$club_id %in% ranking$club_id, "same_lineage_candidate", "foreign_identity") else "unusable"
+    provider_ids <- if ("club_id" %in% names(provider)) as.character(provider$club_id) else if ("team_id" %in% names(provider)) as.character(provider$team_id) else rep(NA_character_, nrow(provider))
+    provider_bundle <- if ("source_bundle_id" %in% names(provider)) as.character(provider$source_bundle_id) else rep(NA_character_, nrow(provider))
+    provider$reconciliation_status <- ifelse(
+      is.na(provider_ids) | !nzchar(provider_ids), "unusable",
+      ifelse(!provider_ids %in% as.character(ranking$club_id), "foreign_identity",
+             ifelse(is.na(provider_bundle) | !nzchar(provider_bundle) | provider_bundle != as.character(graph$source_bundle_id), "foreign_lineage", "same_lineage_candidate"))
+    )
   }
   status <- attr(ranking, "status", exact = TRUE) %||% "ready"
   structure(list(
@@ -284,28 +378,77 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   .ucl_state_hash(paste(vapply(row[fields], .ucl_state_scalar, character(1)), collapse = "|"))
 }
 
+.ucl_state_release_hash <- function(value) {
+  length(value) == 1L && !is.na(value) && grepl("^[0-9a-fA-F]{64}$", as.character(value))
+}
+
+.ucl_state_candidate_issue <- function(fixture, candidate, cutoff = NULL) {
+  if (!is.data.frame(candidate) || nrow(candidate) != 1L) return("insufficient_model_evidence")
+  required <- c(
+    "edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc",
+    "forecast_status", "model_release_id", "model_sha256", "calibrator_sha256",
+    "feature_cutoff_utc", "prob_home", "prob_draw", "prob_away", "xg_home",
+    "xg_away", "likely_score", "source_bundle_id"
+  )
+  if (!all(required %in% names(candidate))) return("insufficient_model_evidence")
+  identity_fields <- c("edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc")
+  if (any(vapply(identity_fields, function(field) {
+    !identical(as.character(candidate[[field]][[1L]]), as.character(fixture[[field]][[1L]]))
+  }, logical(1)))) return("identity_unresolved")
+  if (!identical(as.character(candidate$source_bundle_id[[1L]]), as.character(fixture$source_bundle_id[[1L]]))) return("lineage_mismatch")
+  kickoff <- .ucl_state_parse_time(fixture$kickoff_utc[[1L]])
+  feature_cutoff <- .ucl_state_parse_time(candidate$feature_cutoff_utc[[1L]])
+  if (is.na(kickoff) || is.na(feature_cutoff) || !(feature_cutoff < kickoff)) return("cutoff_violation")
+  if (!is.null(cutoff)) {
+    state_cutoff <- .ucl_state_parse_time(cutoff)
+    if (is.na(state_cutoff) || !(state_cutoff < kickoff)) return("cutoff_violation")
+  }
+  probabilities <- suppressWarnings(as.numeric(candidate[c("prob_home", "prob_draw", "prob_away")]))
+  if (any(!is.finite(probabilities)) || any(probabilities < 0 | probabilities > 1) || abs(sum(probabilities) - 1) > 1e-10) {
+    return("insufficient_model_evidence")
+  }
+  xg <- suppressWarnings(as.numeric(candidate[c("xg_home", "xg_away")]))
+  if (any(!is.finite(xg)) || any(xg < 0)) return("insufficient_model_evidence")
+  if (is.na(candidate$likely_score[[1L]]) || !grepl("^[0-9]+-[0-9]+$", as.character(candidate$likely_score[[1L]]))) return("insufficient_model_evidence")
+  if (is.na(candidate$model_release_id[[1L]]) || !nzchar(trimws(as.character(candidate$model_release_id[[1L]]))) ||
+      !.ucl_state_release_hash(candidate$model_sha256[[1L]]) || !.ucl_state_release_hash(candidate$calibrator_sha256[[1L]])) {
+    return("insufficient_model_evidence")
+  }
+  if (!as.character(candidate$forecast_status[[1L]]) %in% c("available", "eligible", "eligible_fixture", "forecast_available")) {
+    return("insufficient_model_evidence")
+  }
+  NULL
+}
+
+.ucl_state_prior_matches_fixture <- function(prior, fixture) {
+  if (!is.data.frame(prior) || nrow(prior) != 1L) return(FALSE)
+  fields <- c("edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc", "source_bundle_id")
+  all(fields %in% names(prior)) && all(vapply(fields, function(field) {
+    identical(as.character(prior[[field]][[1L]]), as.character(fixture[[field]][[1L]]))
+  }, logical(1)))
+}
+
 .ucl_state_forecast_row <- function(fixture, release_rows = NULL, prior = NULL, authority = NULL, cutoff = NULL) {
   fixture_id <- as.character(fixture$fixture_id[[1L]])
   completed <- .ucl_state_status_completed(fixture$match_status[[1L]])
   candidate <- if (!is.null(release_rows) && nrow(release_rows)) release_rows[as.character(release_rows$fixture_id) == fixture_id, , drop = FALSE] else data.frame()
-  valid_candidate <- nrow(candidate) == 1L
-  if (valid_candidate) {
-    cutoff_time <- .ucl_state_parse_time(candidate$feature_cutoff_utc[[1L]])
-    kickoff <- .ucl_state_parse_time(fixture$kickoff_utc[[1L]])
-    probs <- suppressWarnings(as.numeric(candidate[c("prob_home", "prob_draw", "prob_away")]))
-    valid_candidate <- all(is.finite(probs)) && all(probs >= 0) && abs(sum(probs) - 1) <= 1e-10 && !is.na(cutoff_time) && !is.na(kickoff) && cutoff_time < kickoff
-  }
-  if (completed && !is.null(prior) && nrow(prior) == 1L) {
+  candidate_issue <- .ucl_state_candidate_issue(fixture, candidate, cutoff)
+  valid_candidate <- is.null(candidate_issue)
+  if (completed && !is.null(prior) && .ucl_state_prior_matches_fixture(prior, fixture)) {
     # Completed forecast bytes are immutable: reuse every prior field and only
     # check identity.  No post-kickoff model output can replace this row.
     return(prior[1L, , drop = FALSE])
+  }
+  if (completed) {
+    valid_candidate <- FALSE
+    candidate_issue <- if (!is.null(prior) && nrow(prior)) "identity_unresolved" else "insufficient_model_evidence"
   }
   result <- data.frame(
     edition_id = as.character(fixture$edition_id[[1L]]), fixture_id = fixture_id,
     home_club_id = as.character(fixture$home_club_id[[1L]]), away_club_id = as.character(fixture$away_club_id[[1L]]),
     kickoff_utc = as.character(fixture$kickoff_utc[[1L]]),
     forecast_status = if (valid_candidate) as.character(candidate$forecast_status[[1L]] %||% "available") else "suppressed",
-    suppression_reason = if (valid_candidate) NA_character_ else if (!isTRUE(fixture$kickoff_confirmed[[1L]])) "kickoff_unconfirmed" else if (!is.null(cutoff) && isTRUE(.ucl_state_parse_time(cutoff) >= .ucl_state_parse_time(fixture$kickoff_utc[[1L]]))) "cutoff_violation" else if (!is.null(authority) && !is.null(authority$error)) "release_unavailable" else "insufficient_model_evidence",
+    suppression_reason = if (valid_candidate) NA_character_ else if (!isTRUE(fixture$kickoff_confirmed[[1L]])) "kickoff_unconfirmed" else if (!nrow(candidate) && !is.null(authority) && !is.null(authority$error)) "release_unavailable" else if (!is.null(candidate_issue)) candidate_issue else "insufficient_model_evidence",
     model_release_id = if (valid_candidate) as.character(candidate$model_release_id[[1L]]) else NA_character_,
     model_sha256 = if (valid_candidate) as.character(candidate$model_sha256[[1L]]) else NA_character_,
     calibrator_sha256 = if (valid_candidate) as.character(candidate$calibrator_sha256[[1L]]) else NA_character_,
@@ -330,6 +473,7 @@ ucl_build_forecast_ledger <- function(state, release = NULL, prior_ledger = NULL
   graph <- if (is.list(state) && !is.data.frame(state) && !is.null(state$graph)) state$graph else state
   validation <- ucl_validate_schedule(graph)
   if (!identical(validation$status, "ready")) return(validation)
+  if (is.null(state_cutoff_utc) && is.list(state) && !is.null(state$state_cutoff_utc)) state_cutoff_utc <- state$state_cutoff_utc
   production <- if (is.null(production_resolver)) .ucl_state_production_release() else tryCatch(list(value = production_resolver()), error = function(error) list(error = if (!is.null(error$reason_code)) as.character(error$reason_code) else "phase19_selector_not_accepted", message = conditionMessage(error)))
   parent_reason <- if (!is.null(production$error)) production$error else ""
   authority <- .ucl_state_normalize_parent_reason(parent_reason)
