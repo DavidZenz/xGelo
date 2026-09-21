@@ -56,10 +56,12 @@ rating_test_matching_current <- function(current, club_ids = c(
   clubs <- clubs[order(clubs$club_id, method = "radix"), , drop = FALSE]
   rownames(clubs) <- NULL
   current$clubs <- clubs
+  current$source_clubs <- clubs
   current$club_count <- as.integer(nrow(clubs))
   current$roster_sha256 <- phase18_hash_table_v2(
     clubs, key = "club_id", schema_tag = "phase19-current-ucl-club-roster-v1"
   )
+  current$source_club_table_sha256 <- phase19_current_ucl_source_clubs_sha256(clubs)
   current$snapshot_sha256 <- phase19_current_snapshot_sha256(current)
   phase19_validate_current_ucl_club_snapshot(current, "fixture")
   current

@@ -530,7 +530,8 @@ phase19_current_snapshot_hash_fields <- function(snapshot) c(
   "accepted_generation_sha256", "source_generation_id", "bundle_id", "bundle_sha256",
   "edition_id", "source_authority_type", "source_authority_sha256",
   "promotion_eligible", "identity_generation", "identity_pointer_sha256",
-  "identity_registry_sha256", "club_count", "roster_sha256", "fixture_root_sha256"
+  "identity_registry_sha256", "club_count", "roster_sha256",
+  "source_club_table_sha256", "fixture_root_sha256"
 )
 
 phase19_current_snapshot_sha256 <- function(snapshot) {
@@ -541,6 +542,35 @@ phase19_current_snapshot_sha256 <- function(snapshot) {
   }
   phase19_hash_named_scalars(unname(snapshot[fields]) |> setNames(fields),
                              "phase19-current-ucl-club-snapshot-v1")
+}
+
+phase19_current_ucl_canonical_clubs <- function(clubs, edition_id, label) {
+  if (!is.data.frame(clubs) || !nrow(clubs) ||
+      !all(c("schema_version", "hash_encoding_version", "edition_id",
+             "club_id", "row_sha256") %in% names(clubs)) ||
+      any(as.character(clubs$edition_id) != as.character(edition_id)) ||
+      anyDuplicated(as.character(clubs$club_id)) ||
+      any(!grepl("^club_[a-z0-9][a-z0-9_]*$", as.character(clubs$club_id))) ||
+      any(as.character(clubs$hash_encoding_version) != phase18_canonical_encoding_v2()) ||
+      length(unique(as.character(clubs$schema_version))) != 1L ||
+      !grepl("-v2$", as.character(clubs$schema_version[[1L]]))) {
+    phase19_club_abort("invalid_snapshot", paste0(label, " source roster schema or edition is invalid"))
+  }
+  if (!exists("phase18_ucl_projected_row_hash", mode = "function") ||
+      any(!identical(as.character(clubs$row_sha256),
+                     as.character(phase18_ucl_projected_row_hash(clubs))))) {
+    phase19_club_abort("invalid_snapshot", paste0(label, " source roster row identity drifted"))
+  }
+  canonical <- clubs[order(as.character(clubs$club_id), method = "radix"), , drop = FALSE]
+  rownames(canonical) <- NULL
+  canonical
+}
+
+phase19_current_ucl_source_clubs_sha256 <- function(clubs) {
+  if (!exists("phase18_ucl_canonical_hash", mode = "function")) {
+    phase19_club_abort("invalid_snapshot", "Canonical UCL source-table hashing is unavailable")
+  }
+  phase18_ucl_canonical_hash(clubs, key = "club_id")
 }
 
 phase19_read_identity_pointer <- function(registry_root) {
@@ -640,6 +670,10 @@ phase19_build_current_snapshot <- function(candidate, registry_root, authority_m
   }
   clubs <- clubs[order(club_ids, method = "radix"), , drop = FALSE]
   rownames(clubs) <- NULL
+  source_clubs <- phase19_current_ucl_canonical_clubs(
+    clubs, as.character(bundle$edition_id[[1L]]), "Current UCL"
+  )
+  source_club_table_sha256 <- phase19_current_ucl_source_clubs_sha256(source_clubs)
   roster_sha256 <- phase18_hash_table_v2(
     clubs, key = "club_id", schema_tag = "phase19-current-ucl-club-roster-v1"
   )
@@ -660,7 +694,9 @@ phase19_build_current_snapshot <- function(candidate, registry_root, authority_m
     identity_pointer_sha256 = as.character(identity$pointer$pointer_sha256),
     identity_registry_sha256 = as.character(identity$pointer$registry_sha256),
     club_count = as.integer(nrow(clubs)), roster_sha256 = roster_sha256,
-    fixture_root_sha256 = as.character(fixture_root_sha256), clubs = clubs,
+    source_club_table_sha256 = source_club_table_sha256,
+    fixture_root_sha256 = as.character(fixture_root_sha256),
+    source_clubs = source_clubs, clubs = clubs,
     snapshot_sha256 = ""
   )
   snapshot <- phase19_current_result("ready", "", authority_mode, is_fixture, details)
@@ -769,6 +805,10 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
         "Production current-UCL source authority is not accepted or promotable"
       )
     }
+    source_clubs <- phase19_current_ucl_canonical_clubs(
+      source_bundle$tables$clubs, as.character(source_bundle$bundle$edition_id[[1L]]),
+      "Accepted Phase 18 current-UCL"
+    )
     if (!identical(as.character(snapshot$accepted_generation_id),
                    as.character(pointer$accepted_generation_id)) ||
         !identical(as.character(snapshot$accepted_generation_sha256),
@@ -783,7 +823,11 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
         !identical(as.character(snapshot$identity_pointer_sha256),
                    as.character(identity$pointer$pointer_sha256)) ||
         !identical(as.character(snapshot$identity_registry_sha256),
-                   as.character(identity$pointer$registry_sha256))) {
+                   as.character(identity$pointer$registry_sha256)) ||
+        !identical(as.character(snapshot$edition_id),
+                   as.character(source_bundle$bundle$edition_id[[1L]])) ||
+        !identical(as.character(snapshot$source_club_table_sha256),
+                   phase19_current_ucl_source_clubs_sha256(source_clubs))) {
       phase19_club_abort(
         "invalid_snapshot",
         "Production current-UCL snapshot content or Phase 18 parent identity drifted"
@@ -800,8 +844,18 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
       (!is_fixture && nzchar(snapshot$fixture_root_sha256))) {
     phase19_club_abort("fixture_authority", "Current UCL fixture root binding is invalid")
   }
+  source_clubs <- if (is_fixture) {
+    snapshot$source_clubs
+  } else {
+    source_clubs
+  }
+  source_clubs <- phase19_current_ucl_canonical_clubs(
+    source_clubs, as.character(snapshot$edition_id),
+    if (is_fixture) "Fixture current-UCL" else "Accepted Phase 18 current-UCL"
+  )
   hashes <- c("bundle_sha256", "source_authority_sha256", "identity_pointer_sha256",
-              "identity_registry_sha256", "roster_sha256", "snapshot_sha256")
+              "identity_registry_sha256", "roster_sha256",
+              "source_club_table_sha256", "snapshot_sha256")
   if (any(!vapply(snapshot[hashes], phase19_is_sha256, logical(1)))) {
     phase19_club_abort("invalid_snapshot", "Current UCL snapshot contains an invalid hash")
   }
@@ -815,6 +869,9 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
       any(!grepl("^club_[a-z0-9][a-z0-9_]*$", ids)) ||
       !identical(as.integer(snapshot$club_count), as.integer(nrow(canonical))) ||
       !identical(as.character(snapshot$roster_sha256), expected_roster) ||
+      !identical(canonical, source_clubs) ||
+      !identical(as.character(snapshot$source_club_table_sha256),
+                 phase19_current_ucl_source_clubs_sha256(source_clubs)) ||
       !identical(as.character(snapshot$snapshot_sha256), phase19_current_snapshot_sha256(snapshot))) {
     phase19_club_abort("invalid_snapshot", "Current UCL roster content or identity drifted")
   }

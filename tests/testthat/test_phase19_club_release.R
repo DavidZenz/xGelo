@@ -343,10 +343,12 @@ phase19_release_test_bundle <- local({
       current$clubs$row_sha256 <- phase18_ucl_projected_row_hash(current$clubs)
       current$clubs <- current$clubs[order(current$clubs$club_id, method = "radix"), , drop = FALSE]
       rownames(current$clubs) <- NULL
+      current$source_clubs <- current$clubs
       current$club_count <- as.integer(nrow(current$clubs))
       current$roster_sha256 <- phase18_hash_table_v2(
         current$clubs, key = "club_id", schema_tag = "phase19-current-ucl-club-roster-v1"
       )
+      current$source_club_table_sha256 <- phase19_current_ucl_source_clubs_sha256(current$clubs)
       current$snapshot_sha256 <- phase19_current_snapshot_sha256(current)
       phase19_validate_current_ucl_club_snapshot(current, "fixture")
       protocol <- phase19_load_fixture_club_evaluation_protocol()

@@ -87,9 +87,35 @@ test_that("fixture history and current roster use explicit non-promotable author
   expect_true(all(grepl("^[0-9a-f]{64}$", c(
     current$bundle_sha256, current$source_authority_sha256,
     current$identity_registry_sha256, current$roster_sha256,
+    current$source_club_table_sha256,
     current$snapshot_sha256
   ))))
   expect_silent(phase19_validate_current_ucl_club_snapshot(current, "fixture"))
+})
+
+test_that("current-UCL roster bytes remain bound to the accepted source table", {
+  phase19_test_load()
+  phase19_test_require(c(
+    "phase19_load_fixture_current_ucl_club_snapshot",
+    "phase19_validate_current_ucl_club_snapshot",
+    "phase19_current_snapshot_sha256"
+  ))
+  root <- phase19_test_fixture_root("current-roster-byte-binding")
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+
+  current <- phase19_load_fixture_current_ucl_club_snapshot(root, authority_mode = "fixture")
+  forged <- current
+  forged$clubs$display_name[[1L]] <- paste0(forged$clubs$display_name[[1L]], " forged")
+  forged$clubs$row_sha256 <- phase18_ucl_projected_row_hash(forged$clubs)
+  forged$roster_sha256 <- phase18_hash_table_v2(
+    forged$clubs, key = "club_id", schema_tag = "phase19-current-ucl-club-roster-v1"
+  )
+  forged$snapshot_sha256 <- phase19_current_snapshot_sha256(forged)
+
+  expect_error(
+    phase19_validate_current_ucl_club_snapshot(forged, "fixture"),
+    class = "phase19_invalid_snapshot"
+  )
 })
 
 test_that("authority escalation national identity and arbitrary-path attacks fail closed", {
