@@ -22,9 +22,43 @@
   }
 }
 
+.ucl_state_phase18_canonical_available <- function() {
+  if (exists("phase18_hash_table_v2", mode = "function", inherits = TRUE) &&
+      exists("phase18_hash_sequence_v2", mode = "function", inherits = TRUE)) {
+    return(TRUE)
+  }
+  path <- file.path(.ucl_state_root(), "R", "common", "phase18_canonical_hash.R")
+  if (file.exists(path)) {
+    try(source(path, local = .GlobalEnv), silent = TRUE)
+  }
+  exists("phase18_hash_table_v2", mode = "function", inherits = TRUE) &&
+    exists("phase18_hash_sequence_v2", mode = "function", inherits = TRUE)
+}
+
 .ucl_state_hash <- function(value) {
   if (!requireNamespace("digest", quietly = TRUE)) stop("UCL state requires digest", call. = FALSE)
   digest::digest(charToRaw(enc2utf8(paste(as.character(value), collapse = "\x1f"))), algo = "sha256", serialize = FALSE)
+}
+
+.ucl_state_framed_hash <- function(value) {
+  if (!isTRUE(.ucl_state_phase18_canonical_available())) {
+    stop("UCL state requires the Phase 18 canonical-v2 encoder", call. = FALSE)
+  }
+  phase18_v2_hash(value)
+}
+
+.ucl_state_framed_table_hash <- function(data, key, schema_tag, exclude = character()) {
+  if (!isTRUE(.ucl_state_phase18_canonical_available())) {
+    stop("UCL state requires the Phase 18 canonical-v2 table encoder", call. = FALSE)
+  }
+  phase18_hash_table_v2(data, key = key, exclude = exclude, schema_tag = schema_tag)
+}
+
+.ucl_state_framed_sequence_hash <- function(values, names, types, domain) {
+  if (!isTRUE(.ucl_state_phase18_canonical_available())) {
+    stop("UCL state requires the Phase 18 canonical-v2 sequence encoder", call. = FALSE)
+  }
+  phase18_hash_sequence_v2(values, domain = domain, names = names, types = types)
 }
 
 .ucl_state_scalar <- function(value) {
@@ -52,6 +86,25 @@
   missing <- is.na(parsed) & !is.na(text)
   if (any(missing)) parsed[missing] <- suppressWarnings(as.POSIXct(text[missing], format = "%Y-%m-%dT%H:%M:%OS", tz = "UTC"))
   parsed
+}
+
+.ucl_state_validate_cutoff <- function(value, field = "information_cutoff_utc") {
+  if (is.null(value) || length(value) != 1L || is.na(value) ||
+      !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", as.character(value))) {
+    return(list(error = "state_cutoff_invalid"))
+  }
+  parsed <- .ucl_state_parse_time(as.character(value))
+  if (is.na(parsed)) return(list(error = "state_cutoff_invalid"))
+  # A 2099-style sentinel is not an information boundary.  Production callers
+  # must supply the observed cutoff explicitly; fixture callers may use a real
+  # historical timestamp but never this open-ended placeholder.
+  if (as.numeric(parsed) >= as.numeric(as.POSIXct("2099-01-01T00:00:00Z", tz = "UTC"))) {
+    return(list(error = "state_cutoff_sentinel_forbidden"))
+  }
+  list(
+    error = NULL,
+    value = format(parsed, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  )
 }
 
 .ucl_state_required_fixture_fields <- function() {
@@ -163,9 +216,40 @@
 }
 
 .ucl_state_graph_hash <- function(graph) {
+  if (!is.list(graph) || !is.data.frame(graph$clubs) || !is.data.frame(graph$fixtures)) {
+    stop("UCL graph hashing requires validated clubs and fixtures tables", call. = FALSE)
+  }
+  clubs <- graph$clubs[order(as.character(graph$clubs$club_id), method = "radix"), , drop = FALSE]
   fixtures <- .ucl_state_canonical_sort(graph$fixtures)
-  fields <- intersect(c("edition_id", "fixture_id", "matchday", "home_club_id", "away_club_id", "venue_id", "kickoff_utc", "source_artifact_id", "source_row_key", "source_lineage_id", "source_row_sha256"), names(fixtures))
-  .ucl_state_hash(paste(vapply(seq_len(nrow(fixtures)), function(index) paste(vapply(fixtures[index, fields, drop = FALSE], .ucl_state_scalar, character(1)), collapse = "|"), character(1)), collapse = "\x1e"))
+  club_hash <- .ucl_state_framed_table_hash(
+    clubs, key = "club_id", schema_tag = "ucl-state-clubs-v2"
+  )
+  fixture_hash <- .ucl_state_framed_table_hash(
+    fixtures, key = "fixture_id", schema_tag = "ucl-state-fixtures-v2"
+  )
+  metadata_names <- c(
+    "edition_id", "source_bundle_id", "source_lineage_id", "authority_mode",
+    "source_bundle_sha256", "fixture_authority", "production_eligible",
+    "selector_path", "production_root"
+  )
+  metadata_values <- lapply(metadata_names, function(field) {
+    value <- graph[[field]]
+    if (is.null(value) || !length(value)) return(NA_character_)
+    if (is.logical(value)) return(as.logical(value[[1L]]))
+    as.character(value[[1L]])
+  })
+  metadata_types <- vapply(metadata_values, function(value) {
+    if (is.logical(value)) "logical" else "character"
+  }, character(1))
+  metadata_hash <- .ucl_state_framed_sequence_hash(
+    metadata_values, names = metadata_names, types = metadata_types,
+    domain = "ucl-state-graph-metadata-v2"
+  )
+  .ucl_state_framed_sequence_hash(
+    as.list(c(club_hash, fixture_hash, metadata_hash)),
+    names = c("clubs_sha256", "fixtures_sha256", "metadata_sha256"),
+    types = rep("character", 3L), domain = "ucl-state-graph-v2"
+  )
 }
 
 .ucl_state_validate_source_lineage <- function(fixtures) {
@@ -182,6 +266,121 @@
     if (any(is.na(values) | !grepl("^[0-9a-f]{64}$", values))) return("source_row_hash_missing")
   }
   invisible(NULL)
+}
+
+.ucl_state_bool_column <- function(values, field) {
+  if (is.logical(values)) {
+    if (anyNA(values)) return(NULL)
+    return(as.logical(values))
+  }
+  text <- tolower(trimws(as.character(values)))
+  if (any(is.na(text) | !text %in% c("true", "false"))) return(NULL)
+  text == "true"
+}
+
+.ucl_state_source_bundle_candidate <- function(source, graph) {
+  candidates <- list(
+    if (is.list(graph)) graph$source_bundle_evidence else NULL,
+    if (is.list(graph)) graph$accepted_source else NULL,
+    if (is.list(graph)) graph$source_bundle else NULL,
+    if (is.list(source) && !is.data.frame(source)) source$accepted else NULL,
+    if (is.list(source) && !is.data.frame(source)) source$source_bundle_evidence else NULL
+  )
+  for (candidate in candidates) {
+    if (is.list(candidate) && !is.null(candidate$bundle) &&
+        !is.null(candidate$tables) && !is.null(candidate$authority)) return(candidate)
+  }
+  NULL
+}
+
+.ucl_state_validate_authority_evidence <- function(source, graph, fixtures, require_authority = FALSE) {
+  fixture_marker <- NULL
+  if ("fixture_authority" %in% names(fixtures)) {
+    fixture_marker <- .ucl_state_bool_column(fixtures$fixture_authority, "fixture_authority")
+    if (is.null(fixture_marker) || length(unique(fixture_marker)) != 1L) {
+      return(list(error = "fixture_authority_evidence_invalid"))
+    }
+    fixture_marker <- isTRUE(fixture_marker[[1L]])
+  } else {
+    # A graph-level flag is caller metadata, not authority evidence.  It may
+    # never manufacture fixture status when the validated fixture rows do not
+    # carry their own non-promotable marker.
+    if (isTRUE(graph$fixture_authority)) {
+      return(list(error = "fixture_authority_evidence_missing"))
+    }
+    fixture_marker <- FALSE
+  }
+  if (!is.null(graph$fixture_authority) &&
+      !identical(isTRUE(graph$fixture_authority), fixture_marker)) {
+    return(list(error = "fixture_authority_metadata_mismatch"))
+  }
+
+  production_marker <- !fixture_marker
+  if ("production_eligible" %in% names(fixtures)) {
+    eligible <- .ucl_state_bool_column(fixtures$production_eligible, "production_eligible")
+    if (is.null(eligible) || length(unique(eligible)) != 1L ||
+        !identical(isTRUE(eligible[[1L]]), production_marker)) {
+      return(list(error = "production_eligibility_evidence_invalid"))
+    }
+  }
+  if (!is.null(graph$production_eligible) &&
+      !identical(isTRUE(graph$production_eligible), production_marker)) {
+    return(list(error = "production_eligibility_metadata_mismatch"))
+  }
+
+  requested_mode <- if (is.null(graph$authority_mode)) NULL else as.character(graph$authority_mode)
+  if (length(requested_mode) > 1L || (!is.null(requested_mode) &&
+      (is.na(requested_mode) || !nzchar(requested_mode)))) {
+    return(list(error = "authority_mode_invalid"))
+  }
+  if (fixture_marker && !is.null(requested_mode) && !identical(requested_mode, "fixture")) {
+    return(list(error = "authority_mode_metadata_mismatch"))
+  }
+  if (!fixture_marker && !is.null(requested_mode) &&
+      !requested_mode %in% c("production", "accepted")) {
+    return(list(error = "authority_mode_metadata_mismatch"))
+  }
+
+  if (fixture_marker) {
+    return(list(error = NULL, fixture_authority = TRUE,
+                authority_mode = "fixture", production_eligible = FALSE,
+                source_bundle_sha256 = NULL))
+  }
+
+  candidate <- .ucl_state_source_bundle_candidate(source, graph)
+  if (is.null(candidate) ||
+      !exists("phase18_validate_ucl_source_bundle", mode = "function", inherits = TRUE)) {
+    return(list(error = "source_bundle_evidence_missing"))
+  }
+  validated <- tryCatch({
+    phase18_validate_ucl_source_bundle(candidate)
+    TRUE
+  }, error = function(error) error)
+  if (inherits(validated, "error")) {
+    return(list(error = "source_bundle_evidence_invalid", message = conditionMessage(validated)))
+  }
+  bundle <- candidate$bundle
+  if (!is.data.frame(bundle) || nrow(bundle) != 1L ||
+      !all(c("bundle_id", "bundle_sha256", "edition_id") %in% names(bundle))) {
+    return(list(error = "source_bundle_evidence_invalid"))
+  }
+  bundle_id <- as.character(bundle$bundle_id[[1L]])
+  bundle_hash <- tolower(as.character(bundle$bundle_sha256[[1L]]))
+  if (!identical(bundle_id, as.character(fixtures$source_bundle_id[[1L]])) ||
+      !grepl("^[0-9a-f]{64}$", bundle_hash)) {
+    return(list(error = "source_bundle_lineage_mismatch"))
+  }
+  if (!is.null(graph$source_bundle_sha256) &&
+      !identical(tolower(as.character(graph$source_bundle_sha256)), bundle_hash)) {
+    return(list(error = "source_bundle_hash_metadata_mismatch"))
+  }
+  if ("source_bundle_sha256" %in% names(fixtures) &&
+      any(tolower(as.character(fixtures$source_bundle_sha256)) != bundle_hash)) {
+    return(list(error = "source_bundle_hash_mismatch"))
+  }
+  list(error = NULL, fixture_authority = FALSE,
+       authority_mode = if (is.null(requested_mode)) "production" else requested_mode,
+       production_eligible = TRUE, source_bundle_sha256 = bundle_hash)
 }
 
 #' Validate the complete accepted 36-club/144-fixture league graph.
@@ -220,20 +419,59 @@ ucl_validate_schedule <- function(source, clubs = NULL, fixtures = NULL, rules =
   if (any(as.numeric(kickoff) != as.numeric(confirmed_time))) return(.ucl_state_blocked("kickoff_confirmation_mismatch", "Confirmed kickoff evidence must equal the scheduled kickoff", graph))
   endpoint_pairs <- paste(pmin(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id)), pmax(as.character(fixtures$home_club_id), as.character(fixtures$away_club_id)), sep = "\x1f")
   if (anyDuplicated(endpoint_pairs)) return(.ucl_state_blocked("duplicate_opponent_pair", "UCL schedule cannot repeat an unordered opponent pair", graph))
-  if (any(is.na(fixtures$source_bundle_id) | !nzchar(trimws(as.character(fixtures$source_bundle_id))) |
-          as.character(fixtures$source_bundle_id) != as.character(fixtures$source_bundle_id[[1L]]))) return(.ucl_state_blocked("lineage_bundle_mismatch", "UCL fixtures must share one source bundle", graph))
+  fixture_bundles <- as.character(fixtures$source_bundle_id)
+  if (any(is.na(fixture_bundles) | !nzchar(trimws(fixture_bundles)) |
+          fixture_bundles != fixture_bundles[[1L]])) return(.ucl_state_blocked("lineage_bundle_mismatch", "UCL fixtures must share one source bundle", graph))
+  if (!is.null(graph$source_bundle_id) &&
+      (length(graph$source_bundle_id) != 1L || is.na(graph$source_bundle_id) ||
+       !identical(as.character(graph$source_bundle_id), fixture_bundles[[1L]]))) {
+    return(.ucl_state_blocked("lineage_bundle_metadata_mismatch", "Caller graph source bundle disagrees with fixture evidence", graph))
+  }
   lineage_error <- .ucl_state_validate_source_lineage(fixtures)
   if (!is.null(lineage_error)) return(.ucl_state_blocked("source_lineage_invalid", lineage_error, graph))
   score_error <- .ucl_state_validate_scores(fixtures)
   if (!is.null(score_error)) return(.ucl_state_blocked("score_semantics_invalid", score_error, graph))
+  authority <- .ucl_state_validate_authority_evidence(source, graph, fixtures, require_authority)
+  if (!is.null(authority$error)) {
+    return(.ucl_state_blocked(
+      "source_authority_invalid", authority$error, graph,
+      diagnostics = authority[setdiff(names(authority), "error")]
+    ))
+  }
   graph$edition_id <- expected_edition
   graph$clubs <- clubs[order(as.character(clubs$club_id), method = "radix"), , drop = FALSE]
   graph$fixtures <- .ucl_state_canonical_sort(fixtures)
-  graph$source_bundle_id <- as.character(graph$source_bundle_id %||% graph$fixtures$source_bundle_id[[1L]])
-  graph$source_lineage_id <- as.character(graph$source_lineage_id %||% paste(unique(as.character(graph$fixtures$source_lineage_id)), collapse = ";"))
-  graph$authority_mode <- as.character(graph$authority_mode %||% "accepted")
-  graph$fixture_authority <- isTRUE(graph$fixture_authority)
-  graph$production_eligible <- isTRUE(graph$production_eligible) && !graph$fixture_authority
+  graph$source_bundle_id <- fixture_bundles[[1L]]
+  fixture_lineages <- sort(unique(as.character(graph$fixtures$source_lineage_id)), method = "radix")
+  # A source may expose one bundle lineage on the club manifest while each
+  # fixture carries a row lineage.  Both are evidence; arbitrary graph-level
+  # lineage strings are not.
+  manifest_lineages <- character()
+  if ("source_lineage_id" %in% names(graph$clubs)) {
+    manifest_lineages <- c(manifest_lineages, as.character(graph$clubs$source_lineage_id))
+  }
+  if ("source_artifact_id" %in% names(graph$clubs)) {
+    manifest_lineages <- c(manifest_lineages, as.character(graph$clubs$source_artifact_id))
+  }
+  lineage_evidence <- unique(c(fixture_lineages, manifest_lineages))
+  derived_lineage <- paste(fixture_lineages, collapse = ";")
+  if (!is.null(graph$source_lineage_id) &&
+      (length(graph$source_lineage_id) != 1L || is.na(graph$source_lineage_id) ||
+       (!as.character(graph$source_lineage_id) %in% lineage_evidence &&
+        !identical(as.character(graph$source_lineage_id), derived_lineage)))) {
+    return(.ucl_state_blocked(
+      "lineage_metadata_mismatch",
+      "Caller graph source lineage disagrees with fixture evidence",
+      graph
+    ))
+  }
+  graph$source_lineage_id <- derived_lineage
+  graph$authority_mode <- authority$authority_mode
+  graph$fixture_authority <- authority$fixture_authority
+  graph$production_eligible <- authority$production_eligible
+  if (!is.null(authority$source_bundle_sha256)) {
+    graph$source_bundle_sha256 <- authority$source_bundle_sha256
+  }
   graph$selector_path <- graph$selector_path %||% NULL
   graph$production_root <- graph$production_root %||% NULL
   if (isTRUE(require_authority) && identical(graph$authority_mode, "fixture") && !isTRUE(graph$fixture_authority)) return(.ucl_state_blocked("fixture_authority_marker_missing", "Fixture source must carry its non-promotable marker", graph))
@@ -282,9 +520,16 @@ ucl_validate_schedule <- function(source, clubs = NULL, fixtures = NULL, rules =
 .ucl_state_source_phase14 <- function() {
   if (exists("phase14_compute_standings", mode = "function", inherits = TRUE)) return(invisible(TRUE))
   root <- .ucl_state_root()
+  source_errors <- character()
   for (relative in c("R/competition/standings.R", "R/competition/match_state.R")) {
     path <- file.path(root, relative)
-    if (file.exists(path)) try(source(path, local = .GlobalEnv), silent = TRUE)
+    if (file.exists(path)) {
+      result <- tryCatch({
+        source(path, local = .GlobalEnv)
+        NULL
+      }, error = function(error) error)
+      if (inherits(result, "error")) source_errors <- c(source_errors, conditionMessage(result))
+    }
   }
   invisible(exists("phase14_compute_standings", mode = "function", inherits = TRUE))
 }
@@ -307,14 +552,35 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract(evidence, evidence_path) else NULL
   validation <- ucl_validate_schedule(source, rules = rules)
   if (!identical(validation$status, "ready")) return(validation)
-  state_cutoff_utc <- state_cutoff_utc %||% "2099-12-31T23:59:59Z"
+  if (is.null(state_cutoff_utc)) {
+    return(.ucl_state_blocked(
+      "state_cutoff_required",
+      "UCL state construction requires one explicit information cutoff",
+      validation$graph
+    ))
+  }
+  cutoff_validation <- .ucl_state_validate_cutoff(state_cutoff_utc, "state_cutoff_utc")
+  if (!is.null(cutoff_validation$error)) {
+    return(.ucl_state_blocked(
+      cutoff_validation$error,
+      "UCL state cutoff must be an explicit non-sentinel UTC timestamp",
+      validation$graph
+    ))
+  }
+  state_cutoff_utc <- cutoff_validation$value
   cutoff <- .ucl_state_parse_time(state_cutoff_utc)
-  if (is.na(cutoff)) return(.ucl_state_blocked("state_cutoff_invalid", "UCL state cutoff must be a valid UTC timestamp", validation$graph))
   graph <- validation$graph
   matches <- .ucl_state_to_phase14_matches(graph$fixtures, state_cutoff_utc)
-  .ucl_state_source_phase14()
+  phase14_available <- isTRUE(.ucl_state_source_phase14())
+  if (!phase14_available && !isTRUE(graph$fixture_authority)) {
+    return(.ucl_state_blocked(
+      "phase14_authority_missing",
+      "Phase 14 standings authority could not be loaded for a production state",
+      graph
+    ))
+  }
   universal <- tryCatch(
-    if (exists("phase14_compute_standings", mode = "function", inherits = TRUE)) {
+    if (phase14_available && exists("phase14_compute_standings", mode = "function", inherits = TRUE)) {
       phase14_compute_standings(matches = matches, edition_id = graph$edition_id, group_id = "league_phase", state_cutoff_utc = state_cutoff_utc, source_bundle_id = graph$source_bundle_id, ruleset_adapter = NULL, team_ids = graph$clubs$club_id)
     } else {
       .ucl_state_fallback_standings(matches, as.character(graph$clubs$club_id))
@@ -341,6 +607,7 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
     state_cutoff_utc = state_cutoff_utc, source_bundle_id = graph$source_bundle_id,
     source_lineage_id = graph$source_lineage_id, authority_mode = graph$authority_mode,
     fixture_authority = graph$fixture_authority, production_eligible = graph$production_eligible,
+    standings_authority = if (phase14_available) "phase14" else "fixture_fallback_non_promotable",
     graph_sha256 = graph$graph_sha256, graph = graph, clubs = graph$clubs,
     fixtures = graph$fixtures, canonical_matches = matches,
     universal_standings = universal, standings = ranking, projected_standings = ranking,
@@ -374,15 +641,130 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
 }
 
 .ucl_state_ledger_hash <- function(row) {
+  if (!is.data.frame(row) || nrow(row) != 1L) {
+    stop("UCL ledger row hashing requires exactly one data-frame row", call. = FALSE)
+  }
+  .ucl_state_framed_table_hash(
+    row, key = intersect("fixture_id", names(row)), exclude = "row_sha256",
+    schema_tag = "ucl-forecast-ledger-row-v2"
+  )
+}
+
+.ucl_state_legacy_ledger_hash <- function(row) {
+  if (!is.data.frame(row) || nrow(row) != 1L) {
+    stop("UCL legacy ledger row hashing requires exactly one data-frame row", call. = FALSE)
+  }
   fields <- setdiff(names(row), "row_sha256")
-  .ucl_state_hash(paste(vapply(row[fields], .ucl_state_scalar, character(1)), collapse = "|"))
+  scalar <- function(value) {
+    if (inherits(value, "POSIXt")) return(format(value, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+    if (inherits(value, "Date")) return(format(value, "%Y-%m-%d"))
+    if (!length(value)) return("")
+    # Phase 20 fixture rows were issued before the framed-v2 migration.  The
+    # compatibility check below is restricted to explicitly marked fixture
+    # evidence and is never accepted for production release rows.
+    if (is.na(value[[1L]])) return("NA")
+    as.character(value[[1L]])
+  }
+  .ucl_state_hash(paste(vapply(row[fields], scalar, character(1)), collapse = "|"))
+}
+
+.ucl_state_row_hash_matches <- function(row, fixture_authority = FALSE) {
+  if (!is.data.frame(row) || nrow(row) != 1L || !"row_sha256" %in% names(row)) return(FALSE)
+  actual <- tolower(as.character(row$row_sha256[[1L]]))
+  if (!grepl("^[0-9a-f]{64}$", actual)) return(FALSE)
+  if (identical(actual, tolower(.ucl_state_ledger_hash(row)))) return(TRUE)
+  isTRUE(fixture_authority) && identical(actual, tolower(.ucl_state_legacy_ledger_hash(row)))
 }
 
 .ucl_state_release_hash <- function(value) {
   length(value) == 1L && !is.na(value) && grepl("^[0-9a-fA-F]{64}$", as.character(value))
 }
 
-.ucl_state_candidate_issue <- function(fixture, candidate, cutoff = NULL) {
+.ucl_state_first_release_value <- function(release, fields, fallback = NULL) {
+  for (field in fields) {
+    value <- if (is.list(release) && !is.null(release[[field]])) release[[field]] else NULL
+    if (is.list(value) && !is.data.frame(value)) value <- value[[1L]] %||% NULL
+    if (!is.null(value) && length(value) == 1L && !is.na(value) && nzchar(as.character(value))) {
+      return(as.character(value))
+    }
+  }
+  fallback
+}
+
+.ucl_state_release_descriptor <- function(release) {
+  if (!is.list(release) || is.data.frame(release)) {
+    return(list(error = "release_schema_invalid"))
+  }
+  metadata <- release$model_contract %||% release$metadata
+  if (!is.null(metadata) && !is.list(metadata) && !is.data.frame(metadata)) metadata <- NULL
+  authority_mode <- .ucl_state_first_release_value(
+    release, c("authority_mode"),
+    fallback = .ucl_state_first_release_value(metadata, c("authority_mode"), "")
+  )
+  fixture_authority <- isTRUE(release$fixture_authority) ||
+    identical(authority_mode, "fixture") || identical(as.character(release$root_scope %||% ""), "process_temporary")
+  production_eligible <- isTRUE(release$production_eligible) ||
+    isTRUE(if (is.list(metadata)) metadata$production_eligible else FALSE)
+  rows <- if (is.data.frame(release$forecast_rows)) release$forecast_rows else if (is.data.frame(release$forecasts)) release$forecasts else NULL
+  if (fixture_authority) {
+    if (!identical(authority_mode, "fixture") || production_eligible ||
+        isTRUE(release$selector_authorized)) {
+      return(list(error = "fixture_release_promotable"))
+    }
+    if (is.null(rows)) return(list(error = "forecast_rows_missing"))
+    release_id <- .ucl_state_first_release_value(release, c("release_id"))
+    model_sha <- .ucl_state_first_release_value(release, c("model_sha256"))
+    calibrator_sha <- .ucl_state_first_release_value(release, c("calibrator_sha256"))
+  } else {
+    if (!identical(authority_mode, "production") || !production_eligible || isTRUE(release$fixture_authority)) {
+      return(list(error = "production_release_not_authorized"))
+    }
+    release_id <- .ucl_state_first_release_value(release, c("release_id"), .ucl_state_first_release_value(metadata, c("release_id")))
+    model_sha <- .ucl_state_first_release_value(release, c("model_sha256"), .ucl_state_first_release_value(metadata, c("model_sha256")))
+    calibrator_sha <- .ucl_state_first_release_value(release, c("calibrator_sha256"), .ucl_state_first_release_value(metadata, c("calibrator_sha256")))
+    if (is.null(rows)) return(list(error = "phase19_forecast_rows_missing", release_id = release_id))
+  }
+  if (is.null(release_id) || !nzchar(release_id) ||
+      !.ucl_state_release_hash(model_sha) || !.ucl_state_release_hash(calibrator_sha)) {
+    return(list(error = "release_lineage_invalid"))
+  }
+  list(
+    error = NULL, release = release, rows = rows,
+    release_id = release_id, model_sha256 = tolower(model_sha),
+    calibrator_sha256 = tolower(calibrator_sha),
+    fixture_authority = fixture_authority,
+    authority_mode = if (fixture_authority) "fixture" else "production",
+    production_eligible = !fixture_authority && production_eligible
+  )
+}
+
+.ucl_state_validate_release_rows <- function(rows, fixtures, descriptor) {
+  if (!is.data.frame(rows) || !nrow(rows)) return("forecast_rows_missing")
+  required <- c("fixture_id", "model_release_id", "model_sha256", "calibrator_sha256", "row_sha256")
+  if (length(setdiff(required, names(rows)))) return("forecast_rows_schema_invalid")
+  ids <- as.character(rows$fixture_id)
+  expected_ids <- as.character(fixtures$fixture_id)
+  if (any(is.na(ids) | !nzchar(ids)) || anyDuplicated(ids) || !setequal(ids, expected_ids)) {
+    return("forecast_rows_coverage_invalid")
+  }
+  for (field in c("model_release_id", "model_sha256", "calibrator_sha256")) {
+    values <- as.character(rows[[field]])
+    if (any(is.na(values) | !nzchar(values)) || length(unique(values)) != 1L) {
+      return("release_lineage_mixed")
+    }
+  }
+  if (!identical(as.character(rows$model_release_id[[1L]]), as.character(descriptor$release_id)) ||
+      !identical(tolower(as.character(rows$model_sha256[[1L]])), descriptor$model_sha256) ||
+      !identical(tolower(as.character(rows$calibrator_sha256[[1L]])), descriptor$calibrator_sha256)) {
+    return("release_lineage_mismatch")
+  }
+  if (any(is.na(rows$row_sha256) | !grepl("^[0-9a-fA-F]{64}$", as.character(rows$row_sha256)))) {
+    return("forecast_rows_hash_missing")
+  }
+  NULL
+}
+
+.ucl_state_candidate_issue <- function(fixture, candidate, cutoff = NULL, expected = NULL) {
   if (!is.data.frame(candidate) || nrow(candidate) != 1L) return("insufficient_model_evidence")
   required <- c(
     "edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc",
@@ -414,6 +796,19 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
       !.ucl_state_release_hash(candidate$model_sha256[[1L]]) || !.ucl_state_release_hash(candidate$calibrator_sha256[[1L]])) {
     return("insufficient_model_evidence")
   }
+  if (!is.null(expected) &&
+      (!identical(as.character(candidate$model_release_id[[1L]]), as.character(expected$release_id)) ||
+       !identical(tolower(as.character(candidate$model_sha256[[1L]])), expected$model_sha256) ||
+       !identical(tolower(as.character(candidate$calibrator_sha256[[1L]])), expected$calibrator_sha256))) {
+    return("release_lineage_mismatch")
+  }
+  fixture_marker <- if ("fixture_authority" %in% names(fixture)) {
+    .ucl_state_bool_column(fixture$fixture_authority, "fixture_authority")
+  } else NULL
+  fixture_authority <- isTRUE(length(fixture_marker) == 1L && fixture_marker[[1L]])
+  if (!.ucl_state_row_hash_matches(candidate, fixture_authority = fixture_authority)) {
+    return("insufficient_model_evidence")
+  }
   if (!as.character(candidate$forecast_status[[1L]]) %in% c("available", "eligible", "eligible_fixture", "forecast_available")) {
     return("insufficient_model_evidence")
   }
@@ -428,20 +823,53 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   }, logical(1)))
 }
 
-.ucl_state_forecast_row <- function(fixture, release_rows = NULL, prior = NULL, authority = NULL, cutoff = NULL) {
+.ucl_state_validate_prior_row <- function(prior, fixture, expected = NULL) {
+  if (!is.data.frame(prior) || nrow(prior) != 1L) return("prior_schema_invalid")
+  if (!.ucl_state_prior_matches_fixture(prior, fixture)) return("prior_identity_mismatch")
+  required <- c(
+    "edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc",
+    "forecast_status", "model_release_id", "model_sha256", "calibrator_sha256",
+    "feature_cutoff_utc", "prob_home", "prob_draw", "prob_away", "xg_home",
+    "xg_away", "likely_score", "source_bundle_id", "row_sha256"
+  )
+  if (length(setdiff(required, names(prior)))) return("prior_schema_invalid")
+  row_hash <- as.character(prior$row_sha256[[1L]])
+  fixture_marker <- if ("fixture_authority" %in% names(fixture)) {
+    .ucl_state_bool_column(fixture$fixture_authority, "fixture_authority")
+  } else NULL
+  fixture_authority <- isTRUE(length(fixture_marker) == 1L && fixture_marker[[1L]])
+  if (!.ucl_state_row_hash_matches(prior, fixture_authority = fixture_authority)) {
+    return("prior_row_hash_mismatch")
+  }
+  issue <- .ucl_state_candidate_issue(fixture, prior, cutoff = NULL, expected = expected)
+  if (!is.null(issue)) return(paste0("prior_", issue))
+  NULL
+}
+
+.ucl_state_forecast_row <- function(fixture, release_rows = NULL, prior = NULL,
+                                    authority = NULL, cutoff = NULL, expected = NULL) {
   fixture_id <- as.character(fixture$fixture_id[[1L]])
   completed <- .ucl_state_status_completed(fixture$match_status[[1L]])
   candidate <- if (!is.null(release_rows) && nrow(release_rows)) release_rows[as.character(release_rows$fixture_id) == fixture_id, , drop = FALSE] else data.frame()
-  candidate_issue <- .ucl_state_candidate_issue(fixture, candidate, cutoff)
+  candidate_issue <- .ucl_state_candidate_issue(fixture, candidate, cutoff, expected = expected)
   valid_candidate <- is.null(candidate_issue)
   if (completed && !is.null(prior) && .ucl_state_prior_matches_fixture(prior, fixture)) {
-    # Completed forecast bytes are immutable: reuse every prior field and only
-    # check identity.  No post-kickoff model output can replace this row.
-    return(prior[1L, , drop = FALSE])
+    prior_issue <- .ucl_state_validate_prior_row(prior, fixture, expected = expected)
+    if (is.null(prior_issue)) {
+      # Completed forecast bytes are immutable, but only after the complete
+      # prior row schema, canonical row hash, cutoff, and release lineage pass.
+      return(prior[1L, , drop = FALSE])
+    }
+    candidate_issue <- prior_issue
+  } else if (completed && !is.null(prior) && nrow(prior)) {
+    # Do not let a release candidate replace a completed row when the supplied
+    # prior failed the immutable identity boundary.  The completed fixture is
+    # suppressed until a caller supplies the exact fixture row again.
+    candidate_issue <- "prior_identity_mismatch"
   }
   if (completed) {
     valid_candidate <- FALSE
-    candidate_issue <- if (!is.null(prior) && nrow(prior)) "identity_unresolved" else "insufficient_model_evidence"
+    candidate_issue <- candidate_issue %||% if (!is.null(prior) && nrow(prior)) "prior_identity_mismatch" else "insufficient_model_evidence"
   }
   result <- data.frame(
     edition_id = as.character(fixture$edition_id[[1L]]), fixture_id = fixture_id,
@@ -466,6 +894,22 @@ ucl_build_state <- function(source, rules = NULL, state_cutoff_utc = NULL, provi
   result
 }
 
+.ucl_state_ledger_blocked <- function(reason_code, message, validation,
+                                      authority = list(), cutoff = NULL) {
+  result <- list(
+    status = "production_blocked", reason_code = as.character(reason_code),
+    message = as.character(message), ledger = NULL, forecast_rows = NULL,
+    authority = authority, original_parent_reason = authority$original_parent_reason %||% NA_character_,
+    authority_mode = "production", fixture_authority = FALSE,
+    production_eligible = FALSE, selector_authorized = FALSE,
+    source_bundle_id = validation$graph$source_bundle_id,
+    graph_sha256 = validation$graph$graph_sha256,
+    information_cutoff_utc = cutoff, state_cutoff_utc = cutoff
+  )
+  class(result) <- c("ucl_forecast_ledger", "ucl_blocked_state", "list")
+  result
+}
+
 #' Build one immutable, typed forecast row for every accepted UCL fixture.
 ucl_build_forecast_ledger <- function(state, release = NULL, prior_ledger = NULL,
                                       state_cutoff_utc = NULL, authority_mode = NULL,
@@ -474,23 +918,78 @@ ucl_build_forecast_ledger <- function(state, release = NULL, prior_ledger = NULL
   validation <- ucl_validate_schedule(graph)
   if (!identical(validation$status, "ready")) return(validation)
   if (is.null(state_cutoff_utc) && is.list(state) && !is.null(state$state_cutoff_utc)) state_cutoff_utc <- state$state_cutoff_utc
+  cutoff_validation <- .ucl_state_validate_cutoff(state_cutoff_utc)
+  if (!is.null(cutoff_validation$error)) {
+    return(.ucl_state_ledger_blocked(
+      "information_cutoff_required", "Forecast ledger construction requires one explicit information cutoff",
+      validation, cutoff = NULL
+    ))
+  }
+  state_cutoff_utc <- cutoff_validation$value
   production <- if (is.null(production_resolver)) .ucl_state_production_release() else tryCatch(list(value = production_resolver()), error = function(error) list(error = if (!is.null(error$reason_code)) as.character(error$reason_code) else "phase19_selector_not_accepted", message = conditionMessage(error)))
   parent_reason <- if (!is.null(production$error)) production$error else ""
   authority <- .ucl_state_normalize_parent_reason(parent_reason)
   chosen <- release
-  if (is.null(chosen) && is.null(production$error)) chosen <- production$value
-  is_fixture <- is.list(chosen) && isTRUE(chosen$fixture_authority)
-  if (is_fixture) {
-    chosen$production_eligible <- FALSE
-    chosen$selector_authorized <- FALSE
-    chosen$authority_mode <- "fixture"
+  explicit_fixture <- is.list(chosen) && (isTRUE(chosen$fixture_authority) || identical(as.character(chosen$authority_mode %||% ""), "fixture"))
+  # A caller may use the explicit release argument only for process-local
+  # fixture mechanics.  Production rows must come from the selector-authorized
+  # Phase 19 resolver invoked above; a forged release is never promoted.
+  if (!is.null(chosen) && !explicit_fixture) {
+    if (!is.null(production$error)) {
+      return(.ucl_state_ledger_blocked(
+        "phase19_release_not_authorized",
+        "Caller-supplied production release cannot bypass the Phase 19 resolver",
+        validation, authority = authority, cutoff = state_cutoff_utc
+      ))
+    }
+    chosen <- production$value
   }
-  release_rows <- if (is.list(chosen) && is.data.frame(chosen$forecast_rows)) chosen$forecast_rows else if (is.list(chosen) && is.data.frame(chosen$forecasts)) chosen$forecasts else NULL
+  if (is.null(chosen) && is.null(production$error)) chosen <- production$value
+  is_fixture <- is.list(chosen) && (isTRUE(chosen$fixture_authority) || identical(as.character(chosen$authority_mode %||% ""), "fixture"))
+  if (is_fixture) {
+    # The descriptor below must see the original marker values.  In
+    # particular, never coerce a forged promotable fixture into a seemingly
+    # safe fixture contract.
+    chosen$authority_mode <- as.character(chosen$authority_mode %||% "fixture")
+  }
+  descriptor <- if (is.null(chosen)) NULL else .ucl_state_release_descriptor(chosen)
+  if (!is.null(descriptor) && !is.null(descriptor$error)) {
+    if (!is_fixture || !identical(descriptor$error, "forecast_rows_missing")) {
+      return(.ucl_state_ledger_blocked(
+        descriptor$error,
+        "Trusted Phase 19 release did not provide a validated forecast-row seam",
+        validation, authority = authority, cutoff = state_cutoff_utc
+      ))
+    }
+  }
+  if (!is.null(descriptor) && is.null(descriptor$error)) {
+    row_error <- .ucl_state_validate_release_rows(
+      descriptor$rows, validation$graph$fixtures, descriptor
+    )
+    if (!is.null(row_error)) {
+      return(.ucl_state_ledger_blocked(
+        row_error,
+        "Phase 19 release forecast rows are incomplete or mix model lineage",
+        validation, authority = authority, cutoff = state_cutoff_utc
+      ))
+    }
+  }
+  if (!is.null(descriptor) && is.null(descriptor$error) && !is_fixture) {
+    authority <- list(
+      status = "production_ready", human_needed_reason = NA_character_,
+      production_blocked_reason = NA_character_, normalization_error = FALSE,
+      original_parent_reason = NA_character_
+    )
+  }
+  release_rows <- if (!is.null(descriptor) && is.null(descriptor$error)) descriptor$rows else NULL
   previous <- if (is.data.frame(prior_ledger)) prior_ledger else if (is.list(prior_ledger) && is.data.frame(prior_ledger$ledger)) prior_ledger$ledger else NULL
   rows <- lapply(seq_len(nrow(validation$graph$fixtures)), function(index) {
     fixture <- validation$graph$fixtures[index, , drop = FALSE]
     prior <- if (!is.null(previous)) previous[as.character(previous$fixture_id) == as.character(fixture$fixture_id), , drop = FALSE] else NULL
-    .ucl_state_forecast_row(fixture, release_rows, prior, if (is_fixture) NULL else production, state_cutoff_utc)
+    .ucl_state_forecast_row(
+      fixture, release_rows, prior, if (is_fixture) NULL else production,
+      state_cutoff_utc, expected = if (!is.null(descriptor) && is.null(descriptor$error)) descriptor else NULL
+    )
   })
   ledger <- do.call(rbind, rows)
   ledger <- ledger[order(as.character(ledger$fixture_id), method = "radix"), , drop = FALSE]
@@ -502,9 +1001,18 @@ ucl_build_forecast_ledger <- function(state, release = NULL, prior_ledger = NULL
     ledger = ledger, forecast_rows = ledger, authority = authority,
     original_parent_reason = authority$original_parent_reason,
     authority_mode = if (fixture_authority) "fixture" else "production",
-    fixture_authority = fixture_authority, production_eligible = FALSE,
-    selector_authorized = FALSE, source_bundle_id = validation$graph$source_bundle_id,
-    graph_sha256 = validation$graph$graph_sha256
+    fixture_authority = fixture_authority,
+    production_eligible = !fixture_authority && !is.null(descriptor) &&
+      is.null(descriptor$error) && isTRUE(descriptor$production_eligible),
+    selector_authorized = !fixture_authority && !is.null(chosen$selector),
+    source_bundle_id = validation$graph$source_bundle_id,
+    graph_sha256 = validation$graph$graph_sha256,
+    information_cutoff_utc = state_cutoff_utc,
+    state_cutoff_utc = state_cutoff_utc,
+    release_id = if (!is.null(descriptor) && is.null(descriptor$error)) descriptor$release_id else NA_character_,
+    model_sha256 = if (!is.null(descriptor) && is.null(descriptor$error)) descriptor$model_sha256 else NA_character_,
+    calibrator_sha256 = if (!is.null(descriptor) && is.null(descriptor$error)) descriptor$calibrator_sha256 else NA_character_,
+    forecast_row_seam = if (!is.null(descriptor) && is.null(descriptor$error)) "phase19_release_forecast_rows" else "suppressed"
   )
   class(result) <- c("ucl_forecast_ledger", "list")
   result

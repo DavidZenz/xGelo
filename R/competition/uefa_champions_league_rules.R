@@ -16,6 +16,13 @@
   }
 }
 
+.ucl_rule_phase18_available <- function() {
+  if (exists("phase18_hash_sequence_v2", mode = "function", inherits = TRUE)) return(TRUE)
+  path <- file.path(.ucl_rule_root(), "R", "common", "phase18_canonical_hash.R")
+  if (file.exists(path)) try(source(path, local = .GlobalEnv), silent = TRUE)
+  exists("phase18_hash_sequence_v2", mode = "function", inherits = TRUE)
+}
+
 .ucl_rule_scalar <- function(value) {
   if (inherits(value, "POSIXt")) return(format(value, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
   if (inherits(value, "Date")) return(format(value, "%Y-%m-%d"))
@@ -46,8 +53,37 @@
 }
 
 .ucl_rule_hash <- function(value) {
+  if (!isTRUE(.ucl_rule_phase18_available())) {
+    stop("UCL rules require the Phase 18 canonical-v2 encoder", call. = FALSE)
+  }
+  # R's versioned serialization is only the payload.  The outer Phase 18
+  # sequence adds an explicit domain, field name, type, and length frame, so
+  # values containing former delimiter bytes cannot collide.
+  payload <- serialize(value, connection = NULL, version = 3L)
+  phase18_hash_sequence_v2(
+    list(phase18_v2_hex(payload)), domain = "ucl-rules-value-v2",
+    names = "serialized_value_hex", types = "character"
+  )
+}
+
+.ucl_rule_pinned_evidence_sha256 <- function() {
+  # This is the digest of the checked-in JSON bytes, not a claim read from the
+  # JSON itself.  A changed sidecar must be reviewed and repinned explicitly.
+  "5a77b6b5a7c97d35a8afa49d35e120ccba880a833b31b2f022e667a3291ffbf8"
+}
+
+.ucl_rule_verify_evidence_sidecar <- function(path) {
+  if (!file.exists(path) || !identical(as.logical(file.info(path)$isdir), FALSE)) {
+    stop("UCL rules evidence sidecar is missing", call. = FALSE)
+  }
   if (!requireNamespace("digest", quietly = TRUE)) stop("UCL rules require digest", call. = FALSE)
-  digest::digest(charToRaw(enc2utf8(.ucl_rule_canonical(value))), algo = "sha256", serialize = FALSE)
+  bytes <- readBin(path, what = "raw", n = file.info(path)$size)
+  actual <- digest::digest(bytes, algo = "sha256", serialize = FALSE)
+  expected <- .ucl_rule_pinned_evidence_sha256()
+  if (!identical(tolower(actual), tolower(expected))) {
+    stop("UCL rules evidence sidecar digest is not the pinned reviewed artifact", call. = FALSE)
+  }
+  invisible(actual)
 }
 
 .ucl_rule_url_map <- function() {
@@ -68,7 +104,7 @@
       .ucl_rule_root(), "data", "competition", "rules",
       "ucl_2026_27_rules_and_draw_evidence.json"
     )
-    if (!file.exists(evidence_path)) stop("UCL rules evidence sidecar is missing", call. = FALSE)
+    .ucl_rule_verify_evidence_sidecar(evidence_path)
     if (!requireNamespace("jsonlite", quietly = TRUE)) stop("UCL rules require jsonlite", call. = FALSE)
     evidence <- jsonlite::fromJSON(evidence_path, simplifyDataFrame = TRUE)
   }
@@ -194,6 +230,7 @@
     article19 = draw_policy[c("policy_id", "playoff_pair_families", "round_of_16_seed_pairs", "legal_leg_orders")],
     annex_b = draw_policy[c("policy_id", "bracket_positions", "round_of_16_seed_pairs")],
     draw_evidence_id = "draw_procedure_2026_27",
+    evidence_sidecar_sha256 = .ucl_rule_pinned_evidence_sha256(),
     two_leg_policy = "aggregate_regulation_then_second_leg_extra_time_then_penalties_no_away_goals",
     final_policy = "single_neutral_match_extra_time_then_penalties",
     evidence = evidence
@@ -281,8 +318,13 @@
 
 .ucl_rule_hash_rows <- function(data) {
   if (!nrow(data)) return(character())
-  fields <- setdiff(names(data), "row_sha256")
-  vapply(seq_len(nrow(data)), function(index) .ucl_rule_hash(paste(vapply(data[index, fields, drop = FALSE], .ucl_rule_scalar, character(1)), collapse = "|")), character(1))
+  if (!isTRUE(.ucl_rule_phase18_available())) {
+    stop("UCL rules require the Phase 18 canonical-v2 encoder", call. = FALSE)
+  }
+  phase18_hash_row_v2(
+    data, exclude = intersect("row_sha256", names(data)),
+    schema_tag = "ucl-rules-trace-v2"
+  )
 }
 
 .ucl_derive_qualification_bands <- function(rank, rank_interval_min, rank_interval_max) {
