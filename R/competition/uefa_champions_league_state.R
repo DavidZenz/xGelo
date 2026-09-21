@@ -39,7 +39,7 @@
   if (!isTRUE(.ucl_state_phase18_canonical_available())) {
     stop("UCL state requires the Phase 18 canonical-v2 encoder", call. = FALSE)
   }
-  values <- as.list(value)
+  values <- as.list(as.character(value))
   phase18_hash_sequence_v2(
     values, domain = "ucl-state-value-v2",
     names = paste0("value_", seq_along(values)),
