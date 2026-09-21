@@ -548,7 +548,7 @@ The five research questions are closed as fail-closed planning contracts. They d
 
 1. **Production source bundle and owner evidence — RESOLVED: `phase18_authority_missing` / `phase19_cr01_cr05_repair_pending`.** Phase 18 remains the only source authority and Phase 19 remains the only forecast authority. Until Phase 18 accepted owner/credential/current-state evidence proves the 36-club/144-fixture graph, venue, and late criteria, and Phase 19 CR-01 through CR-05 plus selector evidence are source-backed, the Phase 20 production result is typed `production_human_needed` or `production_blocked`; fixture rows can exercise mechanics only. Every accepted schedule and Article 18 trace row carries the Phase 18 source artifact ID and hash, and every forecast row carries the Phase 19 parent-graph status.
 
-2. **Exact 2026/27 draw procedure — RESOLVED: typed unresolved evidence.** The sidecar contains one record for each of Article 17, Article 18, Article 19, Article 20, Article 21, Article 22, and Annex B with `document_id`, `article_or_annex`, `edition_id`, `source_url`, `reviewer`, `reviewed_at_utc`, `raw_sha256`, `canonical_sha256`, `accepted`, `complete`, and `unresolved_reason`. The edition-specific draw-procedure record is `accepted=false`, `complete=false`, and `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths are suppressed until a same-edition accepted artifact is complete and lineage-valid.
+2. **Exact 2026/27 draw procedure — RESOLVED: typed unresolved evidence.** The sidecar contains exactly eight records: one for each of Article 17, Article 18, Article 19, Article 20, Article 21, Article 22, and Annex B, plus `document_id=draw_procedure_2026_27`. Each row uses the closed schema `document_id`, `article_or_annex`, `edition_id`, `canonical_domain`, `canonical_article`, `source_url`, `artifact_url`, `source_url_role`, `reviewer`, `reviewed_at_utc`, `raw_sha256`, `canonical_sha256`, `accepted`, `complete`, and `unresolved_reason`. The edition-specific draw-procedure record is `accepted=false`, `complete=false`, and `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths are suppressed until a same-edition accepted artifact is complete and lineage-valid.
 
 3. **Partially available late Article 18 evidence — RESOLVED: shared intervals.** Each criterion 1–10 has an evidence status and source artifact IDs. The resolver stops at the last provable criterion, emits one shared `rank_interval_min`/`rank_interval_max` for the tied subset, and returns typed unresolved status whenever the interval crosses rank 8 or 24. Provider order, alphabetical presentation order, zero-fill, and random closure are not rank evidence.
 
@@ -674,6 +674,24 @@ Security enforcement is enabled because .planning/config.json does not set secur
 ### Secondary / prior-edition caution
 
 - [CITED: https://editorial.uefa.com/resources/02a2-20061b95428f-e1fe64f9637a-1000/ucl_round_of_16_draw_procedure_-_final.pdf] — 2025/26 round-of-16 draw-procedure PDF found as a prior-edition analogue; not accepted as 2026/27 authority. [ASSUMED]
+
+### Canonical official evidence identity
+
+The implementation must materialize exactly eight evidence rows/objects: seven accepted regulation documents and one unresolved edition-specific procedure slot. The seven regulation rows use the exact canonical `documents.uefa.com` URLs below as both `source_url` and `artifact_url`, bind the URL host and article slug separately, and require non-null reviewer, review timestamp, raw SHA-256, canonical SHA-256, `accepted=true`, and `complete=true`.
+
+| `document_id` | `article_or_annex` | Canonical URL |
+|---|---|---|
+| `article_17` | `article` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-17-Match-system-league-phase-Online` |
+| `article_18` | `article` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-18-Equality-of-points-league-phase-Online` |
+| `article_19` | `article` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-19-Draw-system-knockout-phase-Online` |
+| `article_20` | `article` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-20-Match-system-knockout-phase-Online` |
+| `article_21` | `article` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-21-Knockout-system-extra-time-and-penalty-shoot-outs-Online` |
+| `article_22` | `article` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-22-Match-system-final-Online` |
+| `annex_b` | `annex` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Annex-B-UEFA-Champions-League-Competition-System-Online` |
+
+The eighth row is exactly `document_id=draw_procedure_2026_27`, `article_or_annex=draw_procedure`, `edition_id=ucl_2026_27`, `canonical_domain=documents.uefa.com`, `canonical_article=Article-19-Draw-system-knockout-phase-Online`, and `source_url` equal to the Article 19 governing-rule anchor above with `source_url_role=governing_rule_anchor_for_missing_artifact`; its `artifact_url`, review timestamp, raw/canonical hashes are null, `reviewer=unreviewed`, `accepted=false`, `complete=false`, and `unresolved_reason=missing_edition_draw_procedure`. This anchor identifies the official document/domain/article that governs the missing artifact without pretending that an edition-specific draw-procedure URL exists. Exact draw-conditioned paths remain suppressed until this row is replaced by a complete same-edition artifact with its own canonical URL and hashes.
+
+The same sidecar schema and mapping are repeated in `20-VALIDATION.md`; tests must assert exact row count/set equality, edition, domain, canonical article, URL role, artifact URL state, reviewer, raw/canonical hashes, accepted/complete flags, and unresolved reason.
 
 ## Metadata
 

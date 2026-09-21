@@ -26,22 +26,55 @@ created: 2026-09-21
 
 ## Typed Result and Zero-Failure Contract
 
-The fixed CLI and aggregate verifier return a machine-readable `phase20_result_contract` with these fields: `status`, `exit_code`, `mechanics_complete`, `production_eligible`, `human_needed`, `unresolved`, `failures`, `warnings`, `skips`, `unexpected_failures`, `mapped_threat_ids`, `selector_changed`, and `incumbent_changed`.
+The fixed CLI and aggregate verifier return a machine-readable `phase20_result_contract` with these fields: `status`, `exit_code`, `mechanics_complete`, `production_eligible`, `human_needed`, `human_needed_reason`, `original_parent_reason`, `production_blocked_reason`, `normalization_error`, `unresolved`, `failures`, `warnings`, `skips`, `unexpected_failures`, `mapped_threat_ids`, `selector_changed`, and `incumbent_changed`.
 
 Allowed successful result classes are:
 
 | Status | Conditions | Exit |
 |---|---|---:|
 | `mechanics_complete` | Focused mechanics and artifact checks pass; no unresolved production dependency is in scope. | 0 |
-| `production_human_needed` | Mechanics pass; `human_needed` is a non-empty allowlist containing only `phase18_authority_missing`, `phase19_cr01_cr05_repair_pending`, or `phase19_selector_not_accepted`; `production_eligible=false`; selector/incumbent unchanged. | 0 |
-| `production_blocked` | Fixed authority validation returns a typed blocked reason from the accepted Phase 18/19 parent graph; no candidate write, selector change, or incumbent change. | 0 |
+| `production_human_needed` | Mechanics pass; `human_needed_reason` is exactly one of `phase18_authority_missing`, `phase19_cr01_cr05_repair_pending`, or `phase19_selector_not_accepted`; `original_parent_reason` is retained; `production_eligible=false`; selector/incumbent unchanged. | 0 |
+| `production_blocked` | Fixed authority validation returns a typed blocked reason from the accepted Phase 18/19 parent graph, or `production_blocked_reason=unrecognized_parent_reason` with `normalization_error=true`; no candidate write, selector change, or incumbent change. | 0 |
 | `unresolved_draw_procedure` | Rules evidence is valid for Articles 17–22/Annex B, but the edition-specific draw procedure record has `accepted=false`, `complete=false`, and `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths are suppressed. | 0 |
 
 `unexpected_failure` is the only failure class for the expected blocker path. Any non-empty `failures`, `warnings`, `skips`, `unexpected_failures`, `selector_changed=true`, `incumbent_changed=true`, unmapped critical/high threat ID, or `production_eligible=true` for fixture/blocked evidence exits non-zero. The verifier must emit the successful blocked/human-needed result above with zero failures, warnings, and skips; a known human-needed blocker is evidence, not a test failure.
 
+### Phase 19 parent-reason normalization
+
+The production consumer normalizes parent diagnostics through one closed mapping before constructing `phase20_result_contract`. It always retains the unmodified parent value in `original_parent_reason`; `human_needed_reason` is never populated with a Phase 19 implementation reason.
+
+| Original parent reason | Normalized status | Normalized field/value | Required disposition |
+|---|---|---|---|
+| `no_accepted_current_ucl` | `production_human_needed` | `human_needed_reason=phase18_authority_missing` | No forecast/output/selector mutation; preserve the original reason. |
+| `no_accepted_club_history` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | No forecast/output/selector mutation; preserve the original reason. |
+| `protocol_policy_not_approved` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | No forecast/output/selector mutation; preserve the original reason. |
+| `fold_inventory_not_approved` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | No forecast/output/selector mutation; preserve the original reason. |
+| `phase19_cr01_roster_mismatch` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | CR-01 probe must reject the forged roster. |
+| `phase19_cr02_rating_replay_unverified` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | CR-02 probe must reject tampered replay evidence. |
+| `phase19_cr03_fold_identity_unverified` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | CR-03 probe must reject the forged fold. |
+| `phase19_cr04_probability_lineage_unverified` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | CR-04 probe must reject the forged probability/calibrator lineage. |
+| `phase19_cr05_unbacked_installer` | `production_human_needed` | `human_needed_reason=phase19_cr01_cr05_repair_pending` | CR-05 probe must reject the unbacked installer. |
+| `phase19_selector_not_accepted` | `production_human_needed` | `human_needed_reason=phase19_selector_not_accepted` | No selector-authorized release may be consumed. |
+| `NA`, empty, or any unlisted value | `production_blocked` | `production_blocked_reason=unrecognized_parent_reason`, `normalization_error=true` | Preserve the original value, emit a diagnostic/error, and never classify it as `human_needed`. |
+
+The five CR probes must exercise both their exact failure reasons and the current `no_accepted_club_history` production state. The aggregate verifier asserts that only the three normalized `human_needed_reason` values above are allowed; every other parent reason is `production_blocked` or an explicit error.
+
 ## Official Evidence Schema
 
-The pinned rules sidecar uses one row/object per official document and exact field equality. The required fields are `document_id`, `article_or_annex`, `edition_id`, `source_url`, `reviewer`, `reviewed_at_utc`, `raw_sha256`, `canonical_sha256`, `accepted`, `complete`, and `unresolved_reason`. The exact document IDs are `article_17`, `article_18`, `article_19`, `article_20`, `article_21`, `article_22`, and `annex_b`; no missing, foreign-edition, stale-hash, or partial record may be accepted. The edition-specific draw-procedure record remains `accepted=false`, `complete=false`, `unresolved_reason=missing_edition_draw_procedure` until same-edition review succeeds, and all exact draw-conditioned paths are suppressed in that state.
+The pinned rules sidecar is exactly eight rows/objects: seven regulation documents plus one separate edition-specific draw-procedure evidence row. Every row has exactly these fields: `document_id`, `article_or_annex`, `edition_id`, `canonical_domain`, `canonical_article`, `source_url`, `artifact_url`, `source_url_role`, `reviewer`, `reviewed_at_utc`, `raw_sha256`, `canonical_sha256`, `accepted`, `complete`, and `unresolved_reason`. For the seven regulations, `source_url=artifact_url` is the canonical official UEFA document URL; for the unresolved draw row, `source_url` is the Article 19 governing-rule anchor, `artifact_url=null`, and `source_url_role=governing_rule_anchor_for_missing_artifact`.
+
+| `document_id` | `article_or_annex` | `edition_id` | `canonical_domain` | `canonical_article` | `source_url` / `artifact_url` |
+|---|---|---|---|---|---|
+| `article_17` | `article` | `ucl_2026_27` | `documents.uefa.com` | `Article-17-Match-system-league-phase-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-17-Match-system-league-phase-Online` |
+| `article_18` | `article` | `ucl_2026_27` | `documents.uefa.com` | `Article-18-Equality-of-points-league-phase-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-18-Equality-of-points-league-phase-Online` |
+| `article_19` | `article` | `ucl_2026_27` | `documents.uefa.com` | `Article-19-Draw-system-knockout-phase-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-19-Draw-system-knockout-phase-Online` |
+| `article_20` | `article` | `ucl_2026_27` | `documents.uefa.com` | `Article-20-Match-system-knockout-phase-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-20-Match-system-knockout-phase-Online` |
+| `article_21` | `article` | `ucl_2026_27` | `documents.uefa.com` | `Article-21-Knockout-system-extra-time-and-penalty-shoot-outs-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-21-Knockout-system-extra-time-and-penalty-shoot-outs-Online` |
+| `article_22` | `article` | `ucl_2026_27` | `documents.uefa.com` | `Article-22-Match-system-final-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-22-Match-system-final-Online` |
+| `annex_b` | `annex` | `ucl_2026_27` | `documents.uefa.com` | `Annex-B-UEFA-Champions-League-Competition-System-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Annex-B-UEFA-Champions-League-Competition-System-Online` |
+| `draw_procedure_2026_27` | `draw_procedure` | `ucl_2026_27` | `documents.uefa.com` | `Article-19-Draw-system-knockout-phase-Online` | `https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Article-19-Draw-system-knockout-phase-Online` (governing-rule anchor; `artifact_url=null`) |
+
+The exact document IDs are `article_17`, `article_18`, `article_19`, `article_20`, `article_21`, `article_22`, `annex_b`, and `draw_procedure_2026_27`; no missing, foreign-edition, stale-hash, or partial regulation record may be accepted. The seven regulation rows require non-empty reviewer/timestamp and 64-hex raw/canonical hashes with `accepted=true`, `complete=true`, and `unresolved_reason=null`. The draw-procedure row is exactly `accepted=false`, `complete=false`, `reviewer=unreviewed`, `reviewed_at_utc=null`, `raw_sha256=null`, `canonical_sha256=null`, and `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths remain suppressed in that state.
 
 ## Wave 0 Requirements
 
@@ -127,9 +160,11 @@ The verifier asserts exact set equality, no duplicate target names, no national/
 
 ## Exact Public Symbol Contract
 
-The aggregate verifier asserts this exact set (no missing or extra public entrypoint):
+The production export registry is exactly this set (no missing or extra public entrypoint):
 
 `ucl_validate_schedule`, `ucl_build_state`, `ucl_apply_article18`, `ucl_build_forecast_ledger`, `ucl_run_simulation`, `ucl_aggregate_rank_distributions`, `ucl_enumerate_legal_knockout_paths`, `ucl_validate_draw_artifact`, `ucl_resolve_two_leg_tie`, `ucl_resolve_final`, `ucl_aggregate_stage_events`, `ucl_validate_progression_reconciliation`, `ucl_validate_outcome_candidate`, `ucl_write_outcome_candidate`, `ucl_outcomes_manifest`, `ucl20_parse_args`, `ucl20_build_outcomes`, `phase20_result_contract`, `phase20_verify_contracts`.
+
+All non-exported helpers use the demonstrable private convention `.ucl_*` (or are local closures); names beginning `ucl_` that are not in the registry are verifier failures. The test-only CR probes and EDGE test/verifier symbols live under `tests/` or the aggregate verifier inventory and are not production exports. The aggregate verifier first reads the explicit registry, then enumerates top-level functions and excludes only `.ucl_*` names and local closures; it must not use a broad prefix filter or silently omit another `ucl_*` symbol.
 
 ## Exact Ten-File Outcome Registry
 
@@ -142,13 +177,15 @@ The fixed output root is `outputs/competition/ucl_2026_27/outcomes`. The aggrega
 | `tie_break_trace.csv` | `edition_id,tie_group_id,criterion_order,criterion_id,subset_before,subset_after,evidence_status,source_artifact_ids,decisive,rank_interval_min,rank_interval_max,ruleset_version,ruleset_sha256,row_sha256` |
 | `projected_standings.csv` | `edition_id,club_id,played,wins,draws,losses,goals_for,goals_against,goal_difference,points,ranking_phase,rank_interval_min,rank_interval_max,qualification_band,evidence_status,source_bundle_id,ruleset_sha256,row_sha256` |
 | `projected_rankings.csv` | `edition_id,club_id,rank,rank_interval_min,rank_interval_max,rank_status,decisive_trace_id,qualification_band,source_bundle_id,ruleset_sha256,row_sha256` |
-| `knockout_paths.csv` | `edition_id,path_id,stage_id,seed_slot_id,participant_a,participant_b,leg_order,draw_policy_id,draw_artifact_id,draw_artifact_sha256,path_status,unresolved_reason,source_bundle_id,ruleset_sha256,simulation_run_id,row_sha256` |
+| `knockout_paths.csv` | `edition_id,path_id,stage_event_id,stage_id,seed_slot_id,participant_a,participant_b,leg_order,leg_1_venue_id,leg_2_venue_id,aggregate_regulation_home,aggregate_regulation_away,aggregate_final_home,aggregate_final_away,extra_time_applied,extra_time_home,extra_time_away,penalty_applied,penalty_home,penalty_away,draw_policy_id,draw_artifact_id,draw_artifact_sha256,path_status,unresolved_reason,source_artifact_ids,source_bundle_id,ruleset_sha256,simulation_run_id,row_sha256` |
 | `progression_probabilities.csv` | `edition_id,club_id,stage_id,probability,status,source_bundle_id,ruleset_sha256,draw_artifact_sha256,simulation_count,seed,run_id,row_sha256` |
 | `fixture_forecast_ledger.csv` | `edition_id,fixture_id,home_club_id,away_club_id,kickoff_utc,forecast_status,suppression_reason,model_release_id,model_sha256,calibrator_sha256,feature_cutoff_utc,prob_home,prob_draw,prob_away,xg_home,xg_away,likely_score,source_bundle_id,row_sha256` |
 | `simulation_metadata.csv` | `run_id,edition_id,source_bundle_id,ruleset_version,ruleset_sha256,model_release_id,model_sha256,calibrator_sha256,draw_policy_id,draw_artifact_id,draw_artifact_sha256,information_cutoff_utc,algorithm_version,simulation_count,seed,path_policy_id,path_policy_count,authority_mode,production_eligible,status,run_sha256` |
 | `outcomes_manifest.csv` | `manifest_id,edition_id,run_id,artifact_path,artifact_schema_version,artifact_sha256,parent_id,parent_sha256,authority_mode,production_eligible,information_cutoff_utc,canonical_hash_version,manifest_sha256` |
 
 Every artifact carries edition/source/rules identity, typed status, and row/table hashes as appropriate; timestamps and filesystem order are excluded from canonical identity. The manifest lists exactly the ten relative paths above and binds every artifact hash plus source/rules/model/draw/cutoff/seed parents.
+
+`knockout_paths.csv` is the durable carrier for stage-event detail; no eleventh `stage_events.csv` is added. `participant_a`/`participant_b` carry participants, `leg_order` plus `leg_1_venue_id`/`leg_2_venue_id` carry leg and venue, the four aggregate columns carry regulation/final totals, the `extra_time_*` and `penalty_*` fields carry ET/penalty application and scores, `draw_*` fields carry draw identity, and `source_artifact_ids`/`source_bundle_id`/`ruleset_sha256`/`simulation_run_id` carry source lineage. The stage-event and outcome tests assert exact column-set equality, typed values for every field, and row hashes over those fields before any manifest can be accepted.
 
 ## Per-Task Verification Map
 
@@ -194,7 +231,7 @@ The canonical threat namespace is `T20-{plan}-{ordinal}` as written in each plan
 | Behavior | Requirement | Why manual | Required typed result |
 |---|---|---|---|
 | Official 2026/27 organiser draw procedure acceptance | UCLOUT-03 | The exact edition-specific procedure artifact is unavailable in accepted repository evidence. | Until reviewed, evidence record is `accepted=false`, `complete=false`, `unresolved_reason=missing_edition_draw_procedure`; exact draw-conditioned paths are suppressed and verifier exits 0 with `unresolved_draw_procedure`. |
-| Production current-state and club-release authority | UCLOUT-01, UCLOUT-02 | Phase 18 credentials/history and Phase 19 source-backed release/CR-01..CR-05 evidence require external owner acceptance. | `production_human_needed` or `production_blocked`, `production_eligible=false`, no selector change, no incumbent change, zero failure/warning/skip counts. |
+| Production current-state and club-release authority | UCLOUT-01, UCLOUT-02 | Phase 18 credentials/history and Phase 19 source-backed release/CR-01..CR-05 evidence require external owner acceptance. | `production_human_needed` or `production_blocked`, exact normalized human-needed reason when applicable, original parent reason retained, `production_eligible=false`, no selector change, no incumbent change, zero failure/warning/skip counts. |
 
 ## Validation Sign-Off
 
