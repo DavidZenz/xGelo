@@ -43,7 +43,9 @@ findings:
   warning: 2
   info: 0
   total: 7
-status: issues_found
+status: resolved
+fix_iteration: 2
+fix_report: .planning/phases/19-independent-club-forecast-authority/19-REREVIEW-FIX-2.md
 ---
 
 # Phase 19: Independent Code Re-Review
@@ -51,13 +53,27 @@ status: issues_found
 **Reviewed:** 2026-09-21T09:27:41Z  
 **Depth:** deep  
 **Files Reviewed:** 34  
-**Status:** issues_found
+**Status:** resolved after review-fix iteration 2
 
 ## Summary
 
 The 11 prior findings are fixed in their original fixture, test, and fail-closed controller paths. Fresh focused suites pass (85 tests, 739 assertions), and production still reports `human_needed / no_accepted_club_history / blocked`. That blocked state is correct and is not counted as a defect.
 
-The re-review nevertheless found five production-authority blockers. Several validators now bind parent IDs and self-hashes, but still trust caller-supplied roster rows, rating predictions, fold definitions, probability views, or release metadata. Those gaps allow a self-consistent forged artifact to reach production publication once an accepted source is available.
+The re-review found five production-authority blockers and two warnings. All seven findings are addressed in the seven atomic review-fix commits listed in `19-REREVIEW-FIX-2.md`. The production path remains fail-closed without genuine accepted Phase 18/19 evidence. The aggregate verifier reached the six changed Phase 19 contract suites successfully, then stopped at the pre-existing/slow pipeline target regression; it did not establish a full aggregate-gate pass.
+
+## Review-Fix Iteration 2
+
+| Finding | Status | Fix commit | Evidence |
+|---|---|---|---|
+| CR-01 | Fixed | `203d80d` | Canonical accepted Phase 18 UCL roster is byte-compared and hashed into current-snapshot identity; domain suite 10/105 and roster mutation probe pass. |
+| CR-02 | Fixed | `c05e2d0` | Rating replay digest binds parameters, cutoff, predictions, batches, state, and audit; accepted snapshots are replayed before fit/evaluation; rating suite 11/65 and forged-prediction probe pass. |
+| CR-03 | Fixed | `56c6ff1` | Every production source fold is exact-matched to the accepted registry row and protocol object; evaluation suite 11/69 and forged-row/protocol probes pass. |
+| CR-04 | Fixed | `190f8b8` | Goal predictions, calibration inputs, calibrators, views, evidence, and decisions are regenerated from typed parents; goal suite 10/94 and calibration suite 10/102 pass. |
+| CR-05 | Fixed | `f4c0a1f` | Production install requires the complete typed source-backed parent graph, production eligibility, and accepted authority; release installer missing-graph attack passes. |
+| WR-01 | Fixed | `81b08ba` | Production training snapshots now compare every accepted manifest identity field, including corpus, source-manifest, match hash, and row count; domain suite 10/105 passes. |
+| WR-02 | Fixed | `f4c0a1f`, `e5aef5a` | Generic preflight requires explicit authority mode and has explicit fixture/production wrappers; missing-mode and production-mode attacks pass. |
+
+See `19-REREVIEW-FIX-2.md` for the complete commit and verification record.
 
 ## Prior Finding Verification
 
