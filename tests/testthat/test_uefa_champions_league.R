@@ -202,13 +202,7 @@ test_that("UCLRULE-01/UCLRULE-03 validate the complete accepted schedule", {
 })
 
 test_that("Schedule mutations are typed blocked states and never repaired", {
-  mutations <- list(
-    empty = phase20_fixture_empty_source(), missing_club = phase20_fixture_missing_club(),
-    missing_fixture = phase20_fixture_missing_fixture(), duplicate = phase20_fixture_duplicate_fixture(),
-    endpoint = phase20_fixture_endpoint_integrity(), degree = phase20_fixture_degree_split(),
-    venue = phase20_fixture_missing_venue(), kickoff = phase20_fixture_kickoff_cutoff(),
-    lifecycle = phase20_fixture_lifecycle_score(), foreign = phase20_fixture_foreign_lineage()
-  )
+  mutations <- phase20_fixture_mutation_catalog()
   results <- lapply(mutations, ucl_validate_schedule)
   expect_true(all(vapply(results, function(value) inherits(value, "ucl_blocked_state"), logical(1))))
   expect_true(all(vapply(results, function(value) identical(value$status, "blocked"), logical(1))))

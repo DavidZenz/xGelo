@@ -391,6 +391,21 @@ phase20_fixture_foreign_lineage <- function(graph = phase20_fixture_graph_36x144
   graph
 }
 
+phase20_fixture_mutation_catalog <- function(graph = phase20_fixture_graph_36x144()) {
+  list(
+    empty = phase20_fixture_empty_source(graph),
+    missing_club = phase20_fixture_missing_club(graph),
+    missing_fixture = phase20_fixture_missing_fixture(graph),
+    duplicate = phase20_fixture_duplicate_fixture(graph),
+    endpoint = phase20_fixture_endpoint_integrity(graph),
+    degree = phase20_fixture_degree_split(graph),
+    venue = phase20_fixture_missing_venue(graph),
+    kickoff = phase20_fixture_kickoff_cutoff(graph),
+    lifecycle = phase20_fixture_lifecycle_score(graph),
+    foreign = phase20_fixture_foreign_lineage(graph)
+  )
+}
+
 phase20_fixture_reverse_order <- function(graph = phase20_fixture_graph_36x144()) {
   graph$fixtures <- graph$fixtures[rev(seq_len(nrow(graph$fixtures))), , drop = FALSE]
   graph
