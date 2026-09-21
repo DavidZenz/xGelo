@@ -185,8 +185,15 @@ phase20_test_fixture_candidate <- function(reverse = FALSE, completed = FALSE) {
   state <- ucl_build_state(graph, state_cutoff_utc = "2026-09-21T00:00:00Z")
   release <- phase20_approved_release_fixture(graph)
   ledger <- ucl_build_forecast_ledger(state, release = release, state_cutoff_utc = "2026-09-21T00:00:00Z")
-  simulation <- ucl_run_simulation(state, ledger = ledger, simulations = 1L, seed = 20260921L)
-  candidate <- ucl_validate_outcome_candidate(list(state = state, ledger = ledger, simulation = simulation))
+  ledger <- phase20_fixture_strict_ledger(ledger, graph = state$graph, cutoff = "2026-09-21T00:00:00Z")
+  simulation <- ucl_run_simulation(
+    state, ledger = ledger, simulations = 1L, seed = 20260921L,
+    information_cutoff_utc = "2026-09-21T00:00:00Z"
+  )
+  candidate <- ucl_validate_outcome_candidate(
+    list(state = state, ledger = ledger, simulation = simulation),
+    information_cutoff_utc = "2026-09-21T00:00:00Z"
+  )
   list(graph = graph, state = state, release = release, ledger = ledger, simulation = simulation, candidate = candidate)
 }
 
@@ -248,7 +255,10 @@ test_that("Completed forecast rows remain byte-identical when state is rebuilt",
 
 test_that("Conditional simulation fixes settled rows, samples eligible opens, and is reproducible", {
   fixture <- phase20_test_fixture_candidate(completed = TRUE)
-  repeat_run <- ucl_run_simulation(fixture$state, fixture$ledger, simulations = 1L, seed = 20260921L)
+  repeat_run <- ucl_run_simulation(
+    fixture$state, fixture$ledger, simulations = 1L, seed = 20260921L,
+    information_cutoff_utc = phase20_test_information_cutoff_utc
+  )
   expect_identical(fixture$simulation$run_id, repeat_run$run_id)
   expect_identical(fixture$simulation$rank_rows, repeat_run$rank_rows)
   expect_identical(nrow(fixture$simulation$rank_rows), 36L)
@@ -268,6 +278,7 @@ test_that("Draw evidence gates legal paths and accepted same-edition conditionin
   draw <- phase20_fixture_accepted_draw(source_bundle_id = fixture$state$source_bundle_id)
   accepted <- ucl_validate_draw_artifact(draw, source_bundle_id = fixture$state$source_bundle_id)
   expect_identical(accepted$status, "accepted")
+  expect_identical(nrow(draw$pairings), 16L)
   paths <- ucl_enumerate_legal_knockout_paths(rankings, draw_artifact = draw, source_bundle_id = fixture$state$source_bundle_id)
   expect_identical(nrow(paths), nrow(draw$pairings))
   expect_true(all(paths$path_status == "accepted_draw"))
@@ -532,7 +543,7 @@ test_that("UCLOUT-02 emits conserved full-rank, band, and cut-line distributions
       stringsAsFactors = FALSE, check.names = FALSE
     )
   }))
-  aggregate <- ucl_aggregate_rank_distributions(list(rank_rows = rows, run_id = "run-20-03"))
+  aggregate <- ucl_aggregate_rank_distributions(list(rank_rows = rows, run_id = "run-20-03"), club_ids = clubs)
   expect_identical(aggregate$status, "ready")
   expect_identical(nrow(aggregate$rank_distribution), 36L * 36L)
   rank_sums <- tapply(aggregate$rank_distribution$probability, aggregate$rank_distribution$club_id, sum)
@@ -545,7 +556,7 @@ test_that("UCLOUT-02 emits conserved full-rank, band, and cut-line distributions
     run_id = "run-20-03", iteration = 1L, edition_id = phase20_test_edition_id, club_id = clubs[[8L]],
     rank = NA_integer_, rank_interval_min = 7L, rank_interval_max = 9L,
     rank_status = "unresolved", qualification_band = "unresolved", stringsAsFactors = FALSE
-  ))))
+  ))), club_ids = clubs)
   expect_identical(unresolved$status, "unresolved")
   expect_true(all(is.na(unresolved$band_probabilities$probability[unresolved$band_probabilities$club_id == clubs[[8L]]])))
 })
@@ -573,6 +584,7 @@ test_that("UCLOUT-03 suppresses rank-boundary paths and conditions exactly on ac
   draw <- phase20_fixture_accepted_draw()
   accepted <- ucl_validate_draw_artifact(draw, source_bundle_id = phase20_test_source_bundle_id)
   expect_identical(accepted$status, "accepted")
+  expect_identical(nrow(draw$pairings), 16L)
   paths <- ucl_enumerate_legal_knockout_paths(phase20_fixture_resolved_rankings(), draw_artifact = draw, source_bundle_id = phase20_test_source_bundle_id)
   expect_identical(nrow(paths), nrow(draw$pairings))
   expect_true(all(paths$path_status == "accepted_draw"))
@@ -591,12 +603,28 @@ test_that("UCLOUT-03 suppresses rank-boundary paths and conditions exactly on ac
 test_that("UCLOUT-02/03 preserve replay identity and parent authority diagnostics", {
   graph <- phase20_test_completed_fixture_graph()
   state <- ucl_build_state(graph, state_cutoff_utc = phase20_test_information_cutoff_utc)
-  ledger <- ucl_build_forecast_ledger(state)
+  release <- phase20_approved_release_fixture(graph)
+  ledger <- ucl_build_forecast_ledger(
+    state, release = release, state_cutoff_utc = phase20_test_information_cutoff_utc
+  )
   ledger$authority$original_parent_reason <- "no_accepted_club_history"
+  ledger <- phase20_fixture_strict_ledger(
+    ledger, graph = state$graph, cutoff = phase20_test_information_cutoff_utc
+  )
   before <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv) else NULL
-  first <- ucl_run_simulation(state, ledger = ledger, simulations = 2L, seed = 20260921L)
+  first <- ucl_run_simulation(
+    state, ledger = ledger, simulations = 2L, seed = 20260921L,
+    information_cutoff_utc = phase20_test_information_cutoff_utc
+  )
   after <- if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) get(".Random.seed", envir = .GlobalEnv) else NULL
-  second <- ucl_run_simulation(phase20_fixture_reverse_order(graph), ledger = ledger, simulations = 2L, seed = 20260921L)
+  second <- ucl_run_simulation(
+    ucl_build_state(
+      phase20_fixture_reverse_order(graph),
+      state_cutoff_utc = phase20_test_information_cutoff_utc
+    ),
+    ledger = ledger, simulations = 2L, seed = 20260921L,
+    information_cutoff_utc = phase20_test_information_cutoff_utc
+  )
   expect_identical(before, after)
   expect_identical(first$run_id, second$run_id)
   expect_identical(first$rank_rows, second$rank_rows)

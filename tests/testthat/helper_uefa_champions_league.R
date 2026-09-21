@@ -475,6 +475,53 @@ phase20_fixture_score_grid <- function(fixture_id = NA_character_) {
   )
 }
 
+# Attach the process-local score distributions only after the state-authority
+# ledger has been built.  The state contract hashes scalar forecast rows, while
+# the simulation contract hashes nested score grids through its canonical
+# nested-table encoder.  Keeping those two seams separate prevents a list
+# column from entering .ucl_state_ledger_hash while still giving the simulator
+# a strict, fully bound ledger.
+phase20_fixture_strict_ledger <- function(
+    ledger,
+    graph,
+    cutoff = phase20_test_information_cutoff_utc,
+    score_grid_ids = graph$fixtures$fixture_id) {
+  if (!is.list(ledger) || !is.data.frame(ledger$ledger)) {
+    stop("Phase 20 fixture strict ledger requires a built ucl_forecast_ledger", call. = FALSE)
+  }
+  if (!exists(".ucl_sim_canonical_row_hash", mode = "function") ||
+      !exists(".ucl_sim_canonical_table_hash", mode = "function") ||
+      !exists(".ucl_sim_graph_content_hash", mode = "function")) {
+    stop("Phase 20 fixture strict ledger requires the simulation canonical helpers", call. = FALSE)
+  }
+  table <- ledger$ledger
+  table$score_grid <- lapply(as.character(table$fixture_id), function(fixture_id) {
+    if (fixture_id %in% as.character(score_grid_ids)) phase20_fixture_score_grid(fixture_id) else NULL
+  })
+  table$row_sha256 <- vapply(seq_len(nrow(table)), function(index) {
+    .ucl_sim_canonical_row_hash(table[index, , drop = FALSE], schema_tag = "ucl20-forecast-ledger-row-v1")
+  }, character(1))
+  ledger$ledger <- table
+  ledger$forecast_rows <- table
+  ledger$canonical_hash_version <- "phase18-canonical-v2"
+  ledger$graph_sha256 <- .ucl_sim_graph_content_hash(graph)
+  ledger$source_bundle_id <- as.character(graph$source_bundle_id)
+  ledger$state_cutoff_utc <- as.character(cutoff)
+  ledger$information_cutoff_utc <- as.character(cutoff)
+  first_value <- function(values, default = NA_character_) {
+    values <- as.character(values)
+    values <- values[!is.na(values) & nzchar(trimws(values))]
+    if (length(values)) values[[1L]] else default
+  }
+  ledger$model_release_id <- first_value(table$model_release_id, first_value(ledger$model_release_id))
+  ledger$model_sha256 <- first_value(table$model_sha256, first_value(ledger$model_sha256))
+  ledger$calibrator_sha256 <- first_value(table$calibrator_sha256, first_value(ledger$calibrator_sha256))
+  ledger$table_sha256 <- .ucl_sim_canonical_table_hash(
+    table, key = "fixture_id", schema_tag = "ucl20-forecast-ledger-v1"
+  )
+  ledger
+}
+
 phase20_fixture_conditional_ledger <- function(
     graph = phase20_fixture_graph_36x144(),
     score_grid_ids = graph$fixtures$fixture_id[!tolower(graph$fixtures$match_status) %in% c("completed", "after_extra_time", "after_penalties", "awarded", "postponed")],
@@ -542,34 +589,63 @@ phase20_fixture_unresolved_rankings <- function(boundary = 8L) {
 phase20_fixture_accepted_draw <- function(
     source_bundle_id = phase20_test_source_bundle_id,
     edition_id = phase20_test_edition_id) {
-  pairings <- data.frame(
-    path_id = c("playoff-01", "r16-01"),
-    stage_id = c("knockout_play_off", "round_of_16"),
-    seed_slot_id = c("playoff-seed-09", "r16-seed-01"),
-    bracket_position = c("playoff-family-09-10-v-23-24", "r16-bracket-a"),
-    participant_a = c("ucl-club-09", "ucl-club-01"),
-    participant_b = c("ucl-club-24", "winner:playoff-01"),
-    seed_rank = c(9L, 1L),
-    opponent_rank = c(24L, NA_integer_),
-    leg_order = c("seeded_return_leg", "seeded_return_leg"),
-    leg_1_venue_id = c("venue-ucl-club-24", "winner:playoff-01-home"),
-    leg_2_venue_id = c("venue-ucl-club-09", "venue-ucl-club-01"),
-    source_artifact_ids = "ucl20-draw-source-2026-27",
-    stringsAsFactors = FALSE,
-    check.names = FALSE
+  rankings <- phase20_fixture_resolved_rankings()
+  playoff_rank <- c(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L)
+  playoff_opponent <- c(23L, 24L, 21L, 22L, 19L, 20L, 17L, 18L)
+  playoff_family <- c(
+    rep("playoff-family-09-10-v-23-24", 2L),
+    rep("playoff-family-11-12-v-21-22", 2L),
+    rep("playoff-family-13-14-v-19-20", 2L),
+    rep("playoff-family-15-16-v-17-18", 2L)
   )
-  list(
+  playoff <- data.frame(
+    path_id = sprintf("playoff-%02d", seq_len(8L)),
+    stage_id = "knockout_play_off",
+    seed_slot_id = sprintf("playoff-seed-%02d", seq_len(8L)),
+    bracket_position = playoff_family,
+    participant_a = rankings$club_id[playoff_rank],
+    participant_b = rankings$club_id[playoff_opponent],
+    seed_rank = playoff_rank, opponent_rank = playoff_opponent,
+    leg_order = "seeded_return_leg",
+    leg_1_venue_id = paste0("venue-", rankings$club_id[playoff_opponent]),
+    leg_2_venue_id = paste0("venue-", rankings$club_id[playoff_rank]),
+    source_artifact_ids = "ucl20-draw-source-2026-27",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  r16_seed <- 1:8
+  r16 <- data.frame(
+    path_id = sprintf("r16-%02d", seq_len(8L)),
+    stage_id = "round_of_16",
+    seed_slot_id = sprintf("r16-seed-%02d", seq_len(8L)),
+    bracket_position = c("r16-bracket-a", "r16-bracket-b", "r16-bracket-c", "r16-bracket-d",
+                         "r16-bracket-e", "r16-bracket-f", "r16-bracket-g", "r16-bracket-h"),
+    participant_a = rankings$club_id[r16_seed],
+    participant_b = paste0("winner:playoff-", sprintf("%02d", seq_len(8L))),
+    seed_rank = r16_seed, opponent_rank = NA_integer_,
+    leg_order = "seeded_return_leg",
+    leg_1_venue_id = paste0("winner:playoff-", sprintf("%02d", seq_len(8L)), "-home"),
+    leg_2_venue_id = paste0("venue-", rankings$club_id[r16_seed]),
+    source_artifact_ids = "ucl20-draw-source-2026-27",
+    stringsAsFactors = FALSE, check.names = FALSE
+  )
+  pairings <- rbind(playoff, r16)
+  artifact <- list(
     edition_id = edition_id,
     source_bundle_id = source_bundle_id,
     accepted = TRUE,
     complete = TRUE,
     draw_artifact_id = "ucl20-draw-2026-27-v1",
-    draw_artifact_sha256 = phase20_test_hash("ucl20-draw-2026-27-v1-content"),
     source_artifact_ids = "ucl20-draw-source-2026-27",
-    rank_inputs = phase20_fixture_resolved_rankings()[, c("club_id", "rank"), drop = FALSE],
-    rank_input_sha256 = phase20_test_hash(phase20_fixture_resolved_rankings()[, c("club_id", "rank"), drop = FALSE]),
+    rank_inputs = rankings[, c("club_id", "rank"), drop = FALSE],
     pairings = pairings
   )
+  if (!exists(".ucl_sim_draw_hashes", mode = "function")) {
+    stop("Phase 20 accepted draw fixture requires simulation hash helpers", call. = FALSE)
+  }
+  hashes <- .ucl_sim_draw_hashes(artifact, rules = if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else NULL)
+  artifact$rank_input_sha256 <- hashes$rank_input_sha256
+  artifact$draw_artifact_sha256 <- hashes$draw_artifact_sha256
+  artifact
 }
 
 phase20_fixture_draw_variant <- function(kind = c("missing", "stale", "partial", "foreign", "contradictory")) {

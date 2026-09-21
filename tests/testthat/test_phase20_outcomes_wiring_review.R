@@ -70,12 +70,11 @@ test_that("caller artifacts and incomplete stage events cannot replace computed 
   graph <- phase20_fixture_graph_36x144()
   rules <- .ucl_rule_contract()
   release <- phase20_approved_release_fixture(graph)
-  release$forecast_rows$score_grid <- lapply(
-    as.character(release$forecast_rows$fixture_id), phase20_fixture_score_grid
-  )
   state <- ucl_build_state(graph, rules = rules, state_cutoff_utc = phase20_test_information_cutoff_utc)
   ledger <- ucl_build_forecast_ledger(state, release = release, state_cutoff_utc = phase20_test_information_cutoff_utc)
-  ledger <- .ucl_out_prepare_simulation_ledger(ledger, state$graph, release, phase20_test_information_cutoff_utc)
+  ledger <- phase20_fixture_strict_ledger(
+    ledger, graph = state$graph, cutoff = phase20_test_information_cutoff_utc
+  )
   simulation <- ucl_run_simulation(
     state, ledger = ledger, rules = rules, simulations = 1L, seed = 20260921L,
     information_cutoff_utc = phase20_test_information_cutoff_utc

@@ -195,6 +195,23 @@
   ledger
 }
 
+# Phase 18 state hashing is intentionally scalar and rejects nested score-grid
+# columns.  Keep those grids in the caller-owned release for the simulation
+# seam, but remove them from the release view passed to the state ledger; the
+# grids are reattached by .ucl_out_prepare_simulation_ledger after the state
+# rows have been validated and hashed.
+.ucl_out_release_for_state <- function(release) {
+  if (!is.list(release)) return(release)
+  result <- release
+  for (field in c("forecast_rows", "forecasts")) {
+    rows <- result[[field]]
+    if (!is.data.frame(rows)) next
+    nested <- vapply(rows, is.list, logical(1))
+    if (any(nested)) result[[field]] <- rows[, !nested, drop = FALSE]
+  }
+  result
+}
+
 .ucl_out_inventory <- c(
   "competition_topology", "league_schedule", "tie_break_trace",
   "projected_standings", "projected_rankings", "knockout_paths",
@@ -216,6 +233,21 @@
 )
 
 .ucl_out_artifact_hash <- function(data) .ucl_out_canonical_hash(data)
+
+# CSV has no schema for an all-missing column.  Read-back must therefore use
+# the validated in-memory column classes; otherwise an all-NA character field
+# is inferred as logical and its canonical hash no longer binds the bytes that
+# were written.  The artifact schemas contain only scalar CSV-safe columns,
+# so unsupported classes are deliberately read as character rather than
+# silently inferred.
+.ucl_out_csv_col_classes <- function(data) {
+  vapply(data, function(column) {
+    if (is.integer(column)) return("integer")
+    if (is.numeric(column)) return("numeric")
+    if (is.logical(column)) return("logical")
+    "character"
+  }, character(1))
+}
 
 .ucl_out_row_hash_valid <- function(data) {
   if (!is.data.frame(data) || !"row_sha256" %in% names(data)) return(FALSE)
@@ -304,7 +336,14 @@
     if (any(is.na(manifest_production) | manifest_production)) errors <- c(errors, "manifest_production_promotion")
   }
   if (is.data.frame(artifacts$outcomes_manifest) && is.data.frame(artifacts$simulation_metadata) && nrow(artifacts$simulation_metadata) == 1L) {
-    if (!all(as.character(artifacts$outcomes_manifest$run_id) == as.character(artifacts$simulation_metadata$run_id[[1L]]))) errors <- c(errors, "manifest_run_lineage")
+    manifest_runs <- as.character(artifacts$outcomes_manifest$run_id)
+    metadata_run <- as.character(artifacts$simulation_metadata$run_id[[1L]])
+    if (length(manifest_runs) != nrow(artifacts$outcomes_manifest) ||
+        length(metadata_run) != 1L || is.na(metadata_run) || !nzchar(metadata_run) ||
+        anyNA(manifest_runs) || any(!nzchar(manifest_runs)) ||
+        any(manifest_runs != metadata_run)) {
+      errors <- c(errors, "manifest_run_lineage")
+    }
   }
   list(valid = !length(errors), errors = unique(errors))
 }
@@ -854,7 +893,8 @@ phase20_verify_contracts <- function(result) {
   state <- tryCatch(ucl_build_state(graph, rules = rules, state_cutoff_utc = cutoff$value),
                     error = function(error) list(status = "blocked", reason_code = "state_build_failed", message = conditionMessage(error)))
   if (!identical(state$status, "ready")) return(.ucl_out_blocked_result(state$reason_code %||% "state_blocked", mapped_threat_ids = "T20-01-01", information_cutoff_utc = cutoff$value))
-  ledger <- tryCatch(ucl_build_forecast_ledger(state, release = release, state_cutoff_utc = cutoff$value),
+  state_release <- .ucl_out_release_for_state(release)
+  ledger <- tryCatch(ucl_build_forecast_ledger(state, release = state_release, state_cutoff_utc = cutoff$value),
                      error = function(error) list(status = "blocked", reason_code = "ledger_build_failed", message = conditionMessage(error)))
   if (!inherits(ledger, "ucl_forecast_ledger") || !is.data.frame(ledger$ledger)) return(.ucl_out_blocked_result(ledger$reason_code %||% "ledger_contract_invalid", mapped_threat_ids = "T20-03-01", information_cutoff_utc = cutoff$value))
   ledger <- .ucl_out_prepare_simulation_ledger(ledger, graph = state$graph, release = release, cutoff = cutoff$value)
@@ -951,10 +991,22 @@ ucl_write_outcome_candidate <- function(candidate, output_root = NULL, overwrite
   }
   written_names <- sort(list.files(staging, pattern = "\\.csv$"), method = "radix")
   if (!identical(written_names, sort(paste0(.ucl_out_inventory, ".csv"), method = "radix"))) stop("UCL candidate staging inventory mismatch", call. = FALSE)
-  readback <- lapply(.ucl_out_inventory, function(name) utils::read.csv(file.path(staging, paste0(name, ".csv")), stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""))
+  readback <- lapply(.ucl_out_inventory, function(name) {
+    utils::read.csv(
+      file.path(staging, paste0(name, ".csv")), stringsAsFactors = FALSE,
+      check.names = FALSE, na.strings = "",
+      colClasses = .ucl_out_csv_col_classes(candidate$artifacts[[name]])
+    )
+  })
   names(readback) <- .ucl_out_inventory
   readback_check <- .ucl_out_validate_artifact_tables(readback)
   if (!isTRUE(readback_check$valid)) stop(paste0("UCL candidate read-back validation failed: ", paste(readback_check$errors, collapse = ",")), call. = FALSE)
+  expected_hashes <- vapply(candidate$artifacts, .ucl_out_artifact_hash, character(1))
+  readback_hashes <- vapply(readback, .ucl_out_artifact_hash, character(1))
+  if (!identical(names(expected_hashes), names(readback_hashes)) ||
+      !identical(tolower(expected_hashes), tolower(readback_hashes))) {
+    stop("UCL candidate read-back artifact hashes do not bind written bytes", call. = FALSE)
+  }
   if (dir.exists(output_root) && length(list.files(output_root, all.files = TRUE, no.. = TRUE)) && isTRUE(overwrite)) {
     for (name in .ucl_out_inventory) {
       target <- file.path(output_root, paste0(name, ".csv"))
