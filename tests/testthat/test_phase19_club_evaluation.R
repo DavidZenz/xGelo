@@ -565,6 +565,14 @@ test_that("ties failures and every production prerequisite retain or block", {
 
 test_that("replay drift and decision relabeling cannot become promotion authority", {
   result <- phase19_evaluation_test_promotion()
+  shell <- structure(
+    list(evaluation_set_sha256 = strrep("a", 64L)),
+    class = c("phase19_club_evaluation_set", "list")
+  )
+  expect_error(
+    phase19_club_reproducibility_evidence(shell, shell, result$protocol),
+    class = "phase19_club_evaluation_error"
+  )
   drift <- result$evaluations
   drift[[1L]] <- phase19_evaluation_test_clone_fold(
     drift[[1L]], drift[[1L]]$fold_family, 99L

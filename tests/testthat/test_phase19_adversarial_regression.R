@@ -346,6 +346,24 @@ test_that("current authority, identity generations, and policy/fold reviews fail
   phase19_adversarial_hit("P12")
 })
 
+test_that("production replay rejects hash-only shells and caller source graphs", {
+  phase19_adversarial_load()
+  shell <- structure(
+    list(evaluation_set_sha256 = strrep("a", 64L)),
+    class = c("phase19_club_evaluation_set", "list")
+  )
+  expect_error(
+    phase19_club_reproducibility_evidence(
+      shell, shell, phase19_load_fixture_club_evaluation_protocol()
+    ),
+    class = "phase19_club_evaluation_error"
+  )
+  expect_error(
+    phase19_production_club_reproducibility_evidence(shell, list()),
+    class = "phase19_club_evaluation_error"
+  )
+})
+
 test_that("rating identity, batch, and inactivity probes preserve frozen semantics", {
   context <- phase19_adversarial_rating_context()
   on.exit(unlink(context$root, recursive = TRUE, force = TRUE), add = TRUE)

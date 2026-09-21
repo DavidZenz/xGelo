@@ -323,6 +323,91 @@ phase19_club_release_production_parent_schema <- function() {
   )
 }
 
+phase19_club_release_validate_evaluated_model_support <- function(
+    source_authority, model, calibrator, decision
+) {
+  selected <- as.character(decision$selected_model_id)
+  if (!identical(selected, "club_elo_nb")) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      "Production release selection must use the evaluated club_elo_nb support row"
+    )
+  }
+  evaluations <- source_authority$evaluation$fold_evaluations
+  source_folds <- source_authority$fold_source_evidence
+  fold_ids <- sort(vapply(evaluations, `[[`, character(1), "fold_id"), method = "radix")
+  if (!length(fold_ids) || !is.list(source_folds) ||
+      !identical(sort(names(source_folds), method = "radix"), fold_ids)) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      "Production release is missing the complete evaluated fold source graph"
+    )
+  }
+  canonical_id <- fold_ids[[1L]]
+  canonical_evaluation <- evaluations[[match(canonical_id, vapply(
+    evaluations, `[[`, character(1), "fold_id"
+  ))]]
+  canonical_source <- source_folds[[canonical_id]]
+  artifacts <- tryCatch(
+    phase19_validate_club_fold_source_artifacts(
+      canonical_source, canonical_source$fold, source_authority$protocol,
+      canonical_source$outcomes
+    ),
+    error = function(error) error
+  )
+  if (inherits(artifacts, "error")) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      paste0("Canonical evaluated model support could not be regenerated: ",
+             conditionMessage(artifacts))
+    )
+  }
+  selected_artifacts <- artifacts$candidate
+  support <- canonical_source$model_support
+  if (!is.data.frame(support) ||
+      !identical(names(support), phase19_club_evaluation_support_schema()) ||
+      nrow(support) != 2L) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      "Canonical evaluated model support is not the exact typed support table"
+    )
+  }
+  support <- support[support$model_id == selected, , drop = FALSE]
+  expected <- c(
+    model_id = selected,
+    fit_status = "converged", fallback_status = as.character(selected_artifacts$fit$fallback_status),
+    fit_sha256 = as.character(selected_artifacts$fit$fit_sha256),
+    calibrator_status = "fitted",
+    primary_probability_view = as.character(selected_artifacts$calibration_decision$primary_probability_view),
+    calibrator_sha256 = as.character(selected_artifacts$calibrator$calibrator_sha256),
+    calibration_evidence_sha256 = as.character(selected_artifacts$calibration_evidence$evidence_sha256),
+    calibration_decision_sha256 = as.character(selected_artifacts$calibration_decision$decision_sha256)
+  )
+  if (nrow(support) != 1L ||
+      !identical(as.character(unlist(support[1L, names(expected)], use.names = FALSE)),
+                 unname(expected)) ||
+      !identical(model, selected_artifacts$fit) ||
+      !identical(calibrator, selected_artifacts$calibrator) ||
+      !identical(as.character(canonical_evaluation$convergence$fit_sha256[
+        canonical_evaluation$convergence$model_id == selected
+      ]), as.character(model$fit_sha256)) ||
+      !identical(as.character(canonical_evaluation$convergence$calibrator_sha256[
+        canonical_evaluation$convergence$model_id == selected
+      ]), as.character(calibrator$calibrator_sha256)) ||
+      !identical(as.character(canonical_evaluation$convergence$calibration_evidence_sha256[
+        canonical_evaluation$convergence$model_id == selected
+      ]), as.character(selected_artifacts$calibration_evidence$evidence_sha256)) ||
+      !identical(as.character(canonical_evaluation$convergence$calibration_decision_sha256[
+        canonical_evaluation$convergence$model_id == selected
+      ]), as.character(selected_artifacts$calibration_decision$decision_sha256))) {
+    phase19_club_release_abort(
+      "production_authority_invalid",
+      "Release model/calibrator identities do not equal the canonical evaluated model support"
+    )
+  }
+  invisible(TRUE)
+}
+
 #' Validate the complete typed authority graph before production installation.
 #'
 #' A release directory is only a serialized transport.  Its self-hashes and
@@ -345,6 +430,7 @@ phase19_club_release_validate_production_parent_graph <- function(
     "phase19_validate_current_ucl_club_snapshot",
     "phase19_validate_club_rating_replay",
     "phase19_validate_club_evaluation_set",
+    "phase19_validate_club_fold_source_artifacts",
     "phase19_club_validate_authority",
     "phase19_validate_club_integrity_evidence",
     "phase19_validate_club_promotion_decision",
@@ -398,6 +484,9 @@ phase19_club_release_validate_production_parent_graph <- function(
     )
     phase19_validate_club_goal_fit(model)
     phase19_validate_club_calibrator(calibrator, require_fitted = TRUE)
+    phase19_club_release_validate_evaluated_model_support(
+      source_authority, model, calibrator, decision
+    )
     if (!isTRUE(model$production_eligible) ||
         !isTRUE(calibrator$production_eligible) ||
         isTRUE(model$fixture_authority) || isTRUE(calibrator$fixture_authority) ||
@@ -1170,6 +1259,14 @@ phase19_install_club_release <- function(
     target, load_models = TRUE, expected_domain = "club",
     expected_authority_mode = authority_mode
   )
+  if (identical(authority_mode, "production")) {
+    # Re-resolve and validate the fixed source graph immediately before the
+    # selector write; staged/install-time checks must not become a stale
+    # authority window.
+    phase19_club_release_validate_production_parent_graph(
+      source_authority, installed_full$model, installed_full$calibrator
+    )
+  }
   manifest_hash <- phase19_club_release_file_sha256(file.path(target, "release_manifest.csv"))
   selector_path <- phase19_club_release_write_selector(output_root, release_id, paste0(release_id, "/release_manifest.csv"), manifest_hash)
   installed <- TRUE

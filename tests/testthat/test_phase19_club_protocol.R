@@ -281,9 +281,20 @@ test_that("policy owner review must accept and bind every exact parent hash", {
   phase19_protocol_test_load()
   protocol <- phase19_load_fixture_club_evaluation_protocol()
   accepted <- phase19_protocol_test_review(protocol)
-  authority <- phase19_evaluate_policy_review(protocol, accepted, "production")
-  expect_identical(authority$status, "ready")
-  expect_true(authority$production_eligible)
+  # Copy the committed fixture graph, relabel it as production, clear the
+  # embedded review, and retain its valid self-hashes.  This is the exact
+  # caller-object probe: a coherent relabel must still fail fixed-root
+  # resolution.
+  forged <- protocol
+  forged$authority_mode <- "production"
+  forged$fixture_authority <- FALSE
+  forged$production_eligible <- TRUE
+  forged$policy_review <- NULL
+  authority <- phase19_evaluate_policy_review(forged, accepted, "production")
+  expect_identical(authority$status, "blocked")
+  expect_identical(authority$reason_code, "protocol_policy_not_approved")
+  expect_identical(authority$upstream_reason, "caller_policy_review_not_fixed_runtime_root")
+  expect_false(authority$production_eligible)
   expect_false(authority$fixture_authority)
 
   rejected <- phase19_protocol_test_review(protocol, "rejected")

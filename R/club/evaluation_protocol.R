@@ -741,6 +741,40 @@ phase19_evaluate_policy_review <- function(protocol, review, authority_mode = "p
   if (!authority_mode %in% c("production", "fixture")) {
     phase19_protocol_abort("protocol_domain_mismatch", "Protocol authority mode is invalid")
   }
+  if (identical(authority_mode, "production")) {
+    fixed <- phase19_protocol_components(include_review = FALSE)
+    protocol_fields <- intersect(names(fixed), names(protocol))
+    if (!is.list(protocol) ||
+        !identical(as.character(protocol$forecast_domain), "club") ||
+        ("authority_mode" %in% names(protocol) &&
+           !is.null(protocol$authority_mode) &&
+           !identical(as.character(protocol$authority_mode), "production")) ||
+        ("fixture_authority" %in% names(protocol) &&
+           isTRUE(protocol$fixture_authority)) ||
+        ("policy_review" %in% names(protocol) &&
+           !is.null(protocol$policy_review)) ||
+        !identical(protocol[protocol_fields], fixed[protocol_fields])) {
+      return(structure(list(
+        status = "blocked", reason_code = "protocol_policy_not_approved",
+        authority_mode = authority_mode, fixture_authority = FALSE,
+        production_eligible = FALSE, forecast_domain = "club",
+        upstream_reason = "caller_protocol_not_fixed_runtime_root"
+      ), class = c("phase19_club_evaluation_protocol", "list")))
+    }
+    fixed_root <- file.path(.phase19_club_project_root, "data", "club", "model_protocol")
+    fixed_review <- tryCatch(
+      phase19_protocol_read_review(file.path(fixed_root, "policy_review.json")),
+      error = function(error) NULL
+    )
+    if (is.null(fixed_review) || !identical(review, fixed_review)) {
+      return(structure(list(
+        status = "blocked", reason_code = "protocol_policy_not_approved",
+        authority_mode = authority_mode, fixture_authority = FALSE,
+        production_eligible = FALSE, forecast_domain = "club",
+        upstream_reason = "caller_policy_review_not_fixed_runtime_root"
+      ), class = c("phase19_club_evaluation_protocol", "list")))
+    }
+  }
   valid <- tryCatch({
     phase19_validate_policy_review(
       review, protocol, require_accepted = identical(authority_mode, "production")
@@ -1767,6 +1801,7 @@ phase19_protocol_read_generation <- function(runtime_root, snapshot, protocol,
   result$protocol_state <- state
   result$fold_review <- review
   result$generation_id <- as.character(state$generation_id)
+  result$protocol_pointer <- pointer
   class(result) <- c("phase19_club_fold_protocol", "list")
   result
 }
@@ -1848,7 +1883,7 @@ phase19_load_blocked_fold_protocol <- function() {
     production_eligible = FALSE, forecast_domain = "club",
     fold_registry = folds, fold_registry_sha256 = "",
     calibration_recipe = recipe, protocol_state = state,
-    fold_review = review, protocol = protocol
+    fold_review = review, protocol = protocol, protocol_pointer = NULL
   ), class = c("phase19_club_fold_protocol", "list"))
 }
 
@@ -1926,6 +1961,26 @@ phase19_assert_production_fold_protocol <- function(protocol) {
     phase19_fold_abort(
       "fold_authority_invalid",
       "Only an exact owner-reviewed production fold protocol is consumable"
+    )
+  }
+  graph_valid <- tryCatch({
+    pointer <- protocol$protocol_pointer
+    state <- protocol$protocol_state
+    review <- protocol$fold_review
+    phase19_validate_protocol_pointer(pointer, "production")
+    is.list(state) && is.list(review) &&
+      identical(as.character(pointer$generation_id), as.character(protocol$generation_id)) &&
+      identical(as.character(pointer$protocol_state_sha256), as.character(state$state_sha256)) &&
+      identical(as.character(state$generation_id), as.character(pointer$generation_id)) &&
+      identical(as.character(state$fold_review_sha256), as.character(review$review_sha256)) &&
+      identical(as.character(review$decision), "accepted") &&
+      identical(as.character(review$fold_registry_sha256), as.character(protocol$fold_registry_sha256)) &&
+      identical(as.character(state$state), "ready")
+  }, error = function(error) FALSE)
+  if (!isTRUE(graph_valid)) {
+    phase19_fold_abort(
+      "fold_authority_invalid",
+      "Production fold protocol is missing its exact persisted pointer and review graph"
     )
   }
   invisible(protocol)

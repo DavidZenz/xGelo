@@ -643,6 +643,32 @@ phase19_validate_club_goal_fit <- function(fit) {
       "invalid_fit", "Club goal fit nested model, registration, coefficient, or grid identity drifted"
     )
   }
+  # Release-selectable goal models are fixed by the committed candidate
+  # registry.  Recomputing a fit hash must not make an alternate family or
+  # output contract consumable at the release boundary.
+  if (fit$model_id %in% c("club_venue_nb", "club_elo_nb")) {
+    if (!identical(as.character(fit$model_family), "negative_binomial") ||
+        !isTRUE(fit$goal_distribution_declared) ||
+        !identical(as.character(fit$output_capability),
+                   "complete_score_distribution_and_derived_markets")) {
+      phase19_club_goal_model_abort(
+        "invalid_fit",
+        "Release-selectable club goal fits must retain the registered negative-binomial contract"
+      )
+    }
+    if (exists("phase19_expected_candidate_policy", mode = "function")) {
+      registered <- phase19_expected_candidate_policy()
+      registered <- registered[registered$model_id == fit$model_id, , drop = FALSE]
+      if (nrow(registered) != 1L ||
+          !identical(as.character(fit$model_family), as.character(registered$model_family)) ||
+          !identical(as.character(fit$formula), as.character(registered$formula)) ||
+          !identical(as.character(fit$output_capability), as.character(registered$output_capability))) {
+        phase19_club_goal_model_abort(
+          "invalid_fit", "Club goal fit differs from the committed release candidate registry"
+        )
+      }
+    }
+  }
   if (identical(fit$model_family, "negative_binomial")) {
     if (is.null(fit$model) || !inherits(fit$model, "negbin") ||
         !isTRUE(fit$converged) || !isTRUE(fit$model$converged) ||

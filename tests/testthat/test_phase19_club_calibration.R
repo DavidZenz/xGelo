@@ -290,6 +290,24 @@ test_that("calibrator identity is canonical and binds every frozen parent", {
     phase19_validate_club_calibrator(drift),
     class = "phase19_club_calibration_error"
   )
+
+  # A self-hashed production-looking calibrator with arbitrary protocol
+  # parents must still fail when the source-bound production validator
+  # regenerates it from the accepted typed rows.
+  forged <- first
+  forged$authority_mode <- "production"
+  forged$fixture_authority <- FALSE
+  forged$production_eligible <- TRUE
+  forged$protocol_sha256 <- strrep("c", 64L)
+  forged$policy_review_sha256 <- strrep("d", 64L)
+  forged$calibrator_sha256 <- phase19_club_calibrator_sha256(forged)
+  expect_error(
+    phase19_validate_club_calibrator_source(
+      forged, context$rows, context$fold, context$candidate, context$protocol,
+      require_production = TRUE
+    ),
+    class = "phase19_club_calibration_error"
+  )
 })
 
 phase19_calibration_test_applied <- function(context = phase19_calibration_test_context()) {
