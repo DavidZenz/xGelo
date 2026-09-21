@@ -552,6 +552,11 @@ test_that("preflight is metadata-first and object/selector identities are checke
     release_manifest_path = fixture$staged$release_manifest_path,
     authority_mode = "fixture"
   ))
+  expect_error(preflight_phase19_club_release(
+    fixture$staged$release_root,
+    release_manifest_path = fixture$staged$release_manifest_path,
+    authority_mode = "production"
+  ), class = "phase19_club_release_error")
   expect_silent(phase19_validate_club_release(fixture$staged$release_root, FALSE))
   installed <- phase19_install_club_release(fixture$staged$release_root,
                                             file.path(fixture$root, "approved"))
