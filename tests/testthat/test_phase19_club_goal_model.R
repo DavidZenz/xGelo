@@ -309,6 +309,18 @@ test_that("nested fitted-model mutations invalidate the advertised fit identity"
   )
 })
 
+test_that("release-selectable fits cannot rehash an alternate model family", {
+  context <- goal_model_test_context()
+  fit <- goal_model_test_fit(context)
+  forged <- fit
+  forged$model_family <- "poisson"
+  forged$fit_sha256 <- phase19_club_goal_fit_hash(forged)
+  expect_error(
+    phase19_validate_club_goal_fit(forged),
+    class = "phase19_club_goal_model_error"
+  )
+})
+
 test_that("all four frozen club roles dispatch with truthful capabilities", {
   context <- goal_model_test_context()
   fixtures <- goal_model_test_fixtures(context)
