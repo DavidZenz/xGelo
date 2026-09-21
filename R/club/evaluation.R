@@ -1570,6 +1570,7 @@ phase19_production_club_reproducibility_evidence <- function(
       "Production reproducibility rejects caller-owned snapshot, policy, fold, or evaluation identities"
     )
   }
+  phase19_club_assert_production_rating_replay_identity(source_authority)
   phase19_validate_club_rating_replay(
     source_authority$rating_replay, fixed$history_snapshot,
     current_snapshot = fixed$current_snapshot,
@@ -1631,6 +1632,7 @@ phase19_club_production_promotion_source_authority <- function(
         "Production promotion source graph is not bound to the accepted promotion inputs"
       )
     }
+    phase19_club_assert_production_rating_replay_identity(production_source_authority)
     return(production_source_authority)
   }
   if (!inherits(authority, "phase19_club_evaluation_authority") ||
@@ -1645,7 +1647,7 @@ phase19_club_production_promotion_source_authority <- function(
     )
   }
   roots <- authority$source_evidence
-  list(
+  result <- list(
     history_snapshot = roots$history_snapshot,
     current_snapshot = roots$current_snapshot,
     protocol = protocol,
@@ -1657,6 +1659,8 @@ phase19_club_production_promotion_source_authority <- function(
     decision = NULL,
     fold_source_evidence = source_evidence
   )
+  phase19_club_assert_production_rating_replay_identity(result)
+  result
 }
 
 phase19_club_authority_schema <- function() {
@@ -1684,6 +1688,21 @@ phase19_club_authority_sha256 <- function(authority) {
 
 phase19_club_production_source_schema <- function() {
   c("history_snapshot", "current_snapshot", "fold_protocol", "rating_replay")
+}
+
+phase19_club_assert_production_rating_replay_identity <- function(source_authority) {
+  source_evidence <- if (is.list(source_authority$authority)) {
+    source_authority$authority$source_evidence
+  } else NULL
+  if (!is.list(source_evidence) ||
+      !identical(names(source_evidence), phase19_club_production_source_schema()) ||
+      !identical(source_authority$rating_replay, source_evidence$rating_replay)) {
+    phase19_club_evaluation_abort(
+      "reproducibility_source_invalid",
+      "Production source graph rating replay is not the accepted authority replay"
+    )
+  }
+  invisible(source_authority$rating_replay)
 }
 
 phase19_load_fixed_club_production_authority <- function(...) {

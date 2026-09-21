@@ -666,6 +666,60 @@ test_that("production promotion ignores a self-hashed replay copied from accepte
   ))
 })
 
+test_that("production source graphs reject a deterministic alternate rating replay", {
+  root <- phase19_test_fixture_root("rating-replay-identity")
+  on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
+  training <- phase19_load_fixture_club_training_snapshot(root)
+  current <- phase19_load_fixture_current_ucl_club_snapshot(root)
+  ids <- c("club_alpha", "club_beta", "club_gamma", "club_delta")
+  clubs <- current$clubs[seq_along(ids), , drop = FALSE]
+  clubs$provider_club_id <- as.character(9000L + seq_along(ids))
+  clubs$club_id <- ids
+  clubs$display_name <- paste("Identity", ids)
+  clubs$canonical_name <- clubs$display_name
+  clubs$row_sha256 <- phase18_ucl_projected_row_hash(clubs)
+  clubs <- clubs[order(clubs$club_id, method = "radix"), , drop = FALSE]
+  rownames(clubs) <- NULL
+  current$clubs <- clubs
+  current$source_clubs <- clubs
+  current$club_count <- as.integer(nrow(clubs))
+  current$roster_sha256 <- phase18_hash_table_v2(
+    clubs, key = "club_id", schema_tag = "phase19-current-ucl-club-roster-v1"
+  )
+  current$source_club_table_sha256 <- phase19_current_ucl_source_clubs_sha256(clubs)
+  current$snapshot_sha256 <- phase19_current_snapshot_sha256(current)
+  phase19_validate_current_ucl_club_snapshot(current, "fixture")
+  canonical_parameters <- phase19_club_rating_parameters(
+    base_rating = 1500, home_advantage = 60, k_factor = 20,
+    inactivity_factor = 0.995
+  )
+  alternate_parameters <- phase19_club_rating_parameters(
+    base_rating = 1500, home_advantage = 60, k_factor = 30,
+    inactivity_factor = 0.995
+  )
+  canonical <- phase19_replay_club_ratings(
+    training, current, canonical_parameters, cutoff_utc = training$cutoff_utc
+  )
+  alternate <- phase19_replay_club_ratings(
+    training, current, alternate_parameters, cutoff_utc = training$cutoff_utc
+  )
+  source_evidence <- list(
+    history_snapshot = training, current_snapshot = current,
+    fold_protocol = list(), rating_replay = canonical
+  )
+  graph <- list(
+    rating_replay = canonical,
+    authority = list(source_evidence = source_evidence)
+  )
+  expect_silent(phase19_club_assert_production_rating_replay_identity(graph))
+  graph$rating_replay <- alternate
+  expect_error(
+    phase19_club_assert_production_rating_replay_identity(graph),
+    class = "phase19_club_evaluation_error",
+    regexp = "accepted authority replay"
+  )
+})
+
 test_that("production promotion obtains replay from its fixed-source boundary", {
   result <- phase19_evaluation_test_promotion()
   production <- result$protocol

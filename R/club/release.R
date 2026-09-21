@@ -469,6 +469,13 @@ phase19_club_release_validate_production_parent_graph <- function(
       replay, history, current_snapshot = current,
       parameters = replay$parameters, cutoff_utc = replay$cutoff_utc
     )
+    if (!is.list(authority$source_evidence) ||
+        !identical(replay, authority$source_evidence$rating_replay)) {
+      phase19_club_release_abort(
+        "production_authority_invalid",
+        "Production release rating replay must equal the accepted authority replay"
+      )
+    }
     phase19_validate_club_evaluation_set(
       evaluation, protocol, source_folds, folds
     )
