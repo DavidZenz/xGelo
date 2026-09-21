@@ -767,7 +767,7 @@ test_that("production promotion obtains replay from its fixed-source boundary", 
     history_snapshot = list(), current_snapshot = list(), protocol = production,
     evaluation = result$aggregate, authority = source_authority,
     fold_protocol = list(), rating_replay = list(), integrity = result$integrity,
-    decision = NULL, fold_source_evidence = NULL
+    decision = NULL, fold_source_evidence = list()
   )
   originals <- mget(c(
     "phase19_validate_club_evaluation_set",
@@ -806,6 +806,7 @@ test_that("production promotion obtains replay from its fixed-source boundary", 
   }, envir = .GlobalEnv)
   decision <- phase19_evaluate_club_promotion(
     result$aggregate, production, caller_shell, result$integrity, source_authority,
+    source_evidence = source_graph$fold_source_evidence,
     production_source_authority = source_graph
   )
   expect_identical(wrapper_calls, 1L)
