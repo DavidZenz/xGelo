@@ -303,99 +303,32 @@ phase19_cli_fixture_matching_current <- function(current, training) {
   current
 }
 
-phase19_cli_grid <- function(fixture_id, model_id, home_mean, away_mean, fit_sha256,
-                             profile = c("poisson", "calibrated")) {
-  profile <- match.arg(profile)
-  goals <- 0:40
-  raw <- if (identical(profile, "calibrated")) {
-    calibrated <- matrix(0, nrow = length(goals), ncol = length(goals))
-    calibrated[2L, 1L] <- 0.50
-    calibrated[1L, 1L] <- 0.25
-    calibrated[1L, 2L] <- 0.25
-    calibrated
-  } else {
-    outer(stats::dpois(goals, home_mean), stats::dpois(goals, away_mean))
+phase19_cli_smoke_prediction_set <- function(fit, rating, fold) {
+  ids <- phase19_fold_parse_id_text(
+    fold$declared_fixture_ids[[1L]], "declared_fixture_ids"
+  )
+  fixtures <- rating$predictions[
+    match(ids, as.character(rating$predictions$fixture_id)), , drop = FALSE
+  ]
+  if (anyNA(fixtures$fixture_id)) {
+    phase19_cli_abort("fixture rating replay does not cover the declared assessment")
   }
-  grid <- expand.grid(home_goals = goals, away_goals = goals,
-                      KEEP.OUT.ATTRS = FALSE, stringsAsFactors = FALSE)
-  grid$probability <- as.vector(raw / sum(raw))
-  grid$fixture_id <- as.character(fixture_id)
-  grid$score_distribution_id <- paste0(fixture_id, "__", model_id, "__score")
-  grid$model_id <- model_id
-  grid$support_max_home <- 40L
-  grid$support_max_away <- 40L
-  grid$raw_tail_mass <- max(0, 1 - sum(raw))
-  grid$normalized <- TRUE
-  grid$tail_policy <- "truncate_0_40_then_joint_renormalize_once"
-  grid$fit_sha256 <- fit_sha256
-  grid <- grid[, c("fixture_id", "score_distribution_id", "model_id", "home_goals",
-                   "away_goals", "probability", "support_max_home", "support_max_away",
-                   "raw_tail_mass", "normalized", "tail_policy", "fit_sha256")]
-  grid <- grid[order(grid$home_goals, grid$away_goals, method = "radix"), , drop = FALSE]
-  rownames(grid) <- NULL
-  grid
-}
-
-phase19_cli_prediction_set <- function(fit, fold, outcomes, strong = FALSE) {
-  ids <- phase19_fold_parse_id_text(fold$declared_fixture_ids[[1L]], "declared_fixture_ids")
-  grids <- lapply(seq_along(ids), function(index) {
-    if (!isTRUE(strong)) return(phase19_cli_grid(ids[[index]], fit$model_id, 1.15, 1.15, fit$fit_sha256))
-    home <- as.numeric(outcomes$regulation_home_goals[[index]])
-    away <- as.numeric(outcomes$regulation_away_goals[[index]])
-    phase19_cli_grid(ids[[index]], fit$model_id, 1.05, 1.05, fit$fit_sha256,
-                     profile = "calibrated")
-  })
-  rows <- lapply(seq_along(ids), function(index) {
-    grid <- grids[[index]]
-    market <- phase19_club_goal_grid_markets(grid)
-    data.frame(
-      fixture_id = ids[[index]], forecast_domain = "club", authority_mode = "fixture",
-      fixture_authority = TRUE, promotion_eligible = FALSE, promotion_comparable = TRUE,
-      model_id = fit$model_id, model_family = "negative_binomial",
-      output_capability = "complete_score_distribution_and_derived_markets",
-      goal_distribution_declared = TRUE, prediction_status = "ready_goal_distribution",
-      boundary_id = paste0("boundary-", ids[[index]]),
-      evidence_cutoff_exclusive = fold$calibration_cutoff_exclusive,
-      home_club_id = as.character(outcomes$home_club_id[[index]]),
-      away_club_id = as.character(outcomes$away_club_id[[index]]),
-      score_distribution_id = unique(grid$score_distribution_id),
-      p_home = market$p_home, p_draw = market$p_draw, p_away = market$p_away,
-      p_over_2_5 = market$p_over_2_5, p_btts = market$p_btts,
-      expected_home_goals = market$expected_home_goals,
-      expected_away_goals = market$expected_away_goals,
-      likely_home_goals = market$likely_home_goals,
-      likely_away_goals = market$likely_away_goals, raw_tail_mass = grid$raw_tail_mass[[1L]],
-      support_max = 40L, fit_sha256 = fit$fit_sha256,
-      rating_evidence_sha256 = fit$rating_evidence_sha256,
-      training_snapshot_sha256 = fold$snapshot_sha256,
-      current_snapshot_sha256 = fit$current_snapshot_sha256,
-      protocol_sha256 = fit$protocol_sha256, fallback_status = "none",
-      distribution_sha256 = phase18_hash_table_v2(
-        grid, key = c("fixture_id", "home_goals", "away_goals"),
-        schema_tag = "phase19-club-goal-distribution-v1"
-      ), prediction_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
-    )
-  })
-  predictions <- do.call(rbind, rows)
-  predictions$prediction_sha256 <- phase19_club_goal_prediction_row_hash(predictions)
-  distributions <- do.call(rbind, grids)
-  rownames(predictions) <- NULL
-  rownames(distributions) <- NULL
-  structure(list(
-    schema_version = "phase19-club-goal-prediction-set-v1",
-    hash_encoding_version = phase18_canonical_encoding_v2(), forecast_domain = "club",
-    authority_mode = "fixture", fixture_authority = TRUE, promotion_eligible = FALSE,
-    promotion_comparable = TRUE, model_id = fit$model_id,
-    output_capability = "complete_score_distribution_and_derived_markets",
-    goal_distribution_declared = TRUE, declared_fixture_ids = ids,
-    fit_sha256 = fit$fit_sha256, predictions = predictions, distributions = distributions,
-    prediction_table_sha256 = phase18_hash_table_v2(
-      predictions, key = "fixture_id", schema_tag = "phase19-club-goal-predictions-v1"
-    ), distribution_table_sha256 = phase18_hash_table_v2(
-      distributions, key = c("fixture_id", "home_goals", "away_goals"),
-      schema_tag = "phase19-club-goal-distributions-v1"
-    )
-  ), class = c("phase19_club_goal_predictions", "list"))
+  # The goal-model API owns all score-grid and market calculations.  The
+  # fixture controller uses a final local fit only for a diagnostic smoke
+  # path; its prediction rows are explicitly rebound to the frozen fold
+  # assessment cutoff before scoring and can never become production evidence.
+  fixtures$evidence_cutoff_exclusive <- fit$cutoff_utc
+  result <- phase19_predict_club_goal_model(fit, fixtures, ids)
+  result$predictions$evidence_cutoff_exclusive <- fold$calibration_cutoff_exclusive
+  result$predictions$prediction_sha256 <- phase19_club_goal_prediction_row_hash(
+    result$predictions
+  )
+  result$prediction_table_sha256 <- phase18_hash_table_v2(
+    result$predictions, key = "fixture_id",
+    schema_tag = "phase19-club-goal-predictions-v1"
+  )
+  phase19_validate_club_goal_predictions(result, ids, require_goal_grid = TRUE)
+  result
 }
 
 phase19_cli_outcomes <- function(training, fold) {
@@ -414,18 +347,76 @@ phase19_cli_outcomes <- function(training, fold) {
   )
 }
 
-phase19_cli_fixture_calibrator <- function(model_id, fit, protocol) {
-  structure(list(
-    schema_version = "phase19-club-calibrator-v1",
-    hash_encoding_version = phase18_canonical_encoding_v2(), forecast_domain = "club",
-    authority_mode = "fixture", fixture_authority = TRUE, production_eligible = FALSE,
-    model_id = model_id, candidate_id = model_id, calibrator_id = "fixture-controller-calibrator",
-    fit_status = "fitted", distribution_unchanged = TRUE, calibrator_sha256 = digest::digest(
-      paste(model_id, fit$fit_sha256, protocol$protocol_sha256, sep = "|"),
-      algo = "sha256", serialize = FALSE
-    ), protocol_sha256 = protocol$protocol_sha256,
-    calibration_data_cutoff = fit$cutoff_utc
-  ), class = c("phase19_club_calibrator", "list"))
+phase19_cli_smoke_calibration_fold <- function(fold, model_id, row_count = 60L) {
+  assessment_ids <- sprintf(
+    "phase19-smoke-assessment-%s-%03d", model_id, seq_len(row_count)
+  )
+  calibration_ids <- sprintf(
+    "phase19-smoke-calibration-%s-%03d", model_id, seq_len(row_count)
+  )
+  result <- fold
+  result$declared_fixture_ids <- paste(assessment_ids, collapse = "|")
+  result$declared_fixture_count <- as.integer(row_count)
+  result$calibration_fixture_ids <- paste(calibration_ids, collapse = "|")
+  result$calibration_fixture_count <- as.integer(row_count)
+  result$calibration_fixture_sha256 <- phase19_fold_id_sha256(calibration_ids, "calibration")
+  result$row_sha256 <- phase19_fold_row_sha256(result)
+  result
+}
+
+phase19_cli_smoke_calibration_rows <- function(predictions, fold, model_id) {
+  row_count <- 60L
+  ids <- phase19_fold_parse_id_text(
+    fold$calibration_fixture_ids[[1L]], "calibration_fixture_ids"
+  )
+  source <- predictions$predictions[
+    ((seq_len(row_count) - 1L) %% nrow(predictions$predictions)) + 1L, , drop = FALSE
+  ]
+  lower <- as.POSIXct(fold$training_cutoff_exclusive[[1L]],
+                      format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  upper <- as.POSIXct(fold$calibration_cutoff_exclusive[[1L]],
+                      format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  instant <- lower + (upper - lower) / 2
+  kickoff <- format(instant, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  completion <- format(instant + 3600, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  observed <- rep(c("home", "draw", "away"), length.out = row_count)
+  rows <- data.frame(
+    fixture_id = ids, candidate_id = model_id,
+    outer_fold_id = as.character(fold$fold_id),
+    inner_fold_id = rep(c("inner_01", "inner_02", "inner_03"), length.out = row_count),
+    evidence_role = "inner_out_of_fold", competition_id = "phase19-fixture-smoke",
+    event_date = substr(kickoff, 1L, 10L), kickoff_utc = kickoff,
+    kickoff_precision = "instant", completion_not_before_utc = completion,
+    evidence_available_at_utc = completion, counts_for_model = TRUE,
+    p_home_raw = as.numeric(source$p_home), p_draw_raw = as.numeric(source$p_draw),
+    p_away_raw = as.numeric(source$p_away), observed_class = observed,
+    source_grid_sha256 = as.character(source$distribution_sha256),
+    source_prediction_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
+  )
+  rows$source_prediction_sha256 <- phase19_club_calibration_source_row_sha256(rows)
+  rows
+}
+
+phase19_cli_smoke_calibrator <- function(model_id, registration, protocol, fold,
+                                          predictions) {
+  calibration_fold <- phase19_cli_smoke_calibration_fold(fold, model_id)
+  rows <- phase19_cli_smoke_calibration_rows(predictions, calibration_fold, model_id)
+  calibrator <- phase19_fit_club_calibrator(
+    rows, calibration_fold, registration, protocol
+  )
+  phase19_validate_club_calibrator(calibrator, require_fitted = TRUE)
+  ids <- phase19_fold_parse_id_text(
+    calibration_fold$declared_fixture_ids[[1L]], "declared_fixture_ids"
+  )
+  assessment <- predictions$predictions[
+    ((seq_along(ids) - 1L) %% nrow(predictions$predictions)) + 1L, , drop = FALSE
+  ]
+  assessment$fixture_id <- ids
+  assessment$candidate_id <- model_id
+  assessment$evidence_cutoff_exclusive <- calibration_fold$calibration_cutoff_exclusive
+  view <- phase19_apply_club_calibrator(calibrator, assessment, calibration_fold)
+  phase19_validate_club_calibrated_view(view, calibration_fold)
+  list(calibrator = calibrator, fold = calibration_fold, source = rows, view = view)
 }
 
 phase19_cli_fixture <- function(paths) {
@@ -453,25 +444,59 @@ phase19_cli_fixture <- function(paths) {
       training, rating, protocol, training$cutoff_utc
     )
   )
+  if (identical(fits$club_venue_nb$fit_sha256, fits$club_elo_nb$fit_sha256)) {
+    phase19_cli_abort("registered club models produced identical fit identities")
+  }
   folds <- phase19_build_fixture_club_fold_registry(training, protocol)
-  evaluations <- lapply(seq_len(nrow(folds)), function(index) {
+  fold_runs <- lapply(seq_len(nrow(folds)), function(index) {
     fold <- folds[index, , drop = FALSE]
     outcomes <- phase19_cli_outcomes(training, fold)
-    candidate <- phase19_cli_prediction_set(fits$club_elo_nb, fold, outcomes, TRUE)
-    incumbent <- phase19_cli_prediction_set(fits$club_venue_nb, fold, outcomes, FALSE)
+    candidate <- phase19_cli_smoke_prediction_set(fits$club_elo_nb, rating, fold)
+    incumbent <- phase19_cli_smoke_prediction_set(fits$club_venue_nb, rating, fold)
+    list(fold = fold, outcomes = outcomes, candidate = candidate, incumbent = incumbent)
+  })
+  candidate_registration <- registrations[
+    registrations$model_id == "club_elo_nb", , drop = FALSE
+  ]
+  incumbent_registration <- registrations[
+    registrations$model_id == "club_venue_nb", , drop = FALSE
+  ]
+  candidate_calibrator <- phase19_cli_smoke_calibrator(
+    "club_elo_nb", candidate_registration, protocol, fold_runs[[1L]]$fold,
+    fold_runs[[1L]]$candidate
+  )
+  incumbent_calibrator <- phase19_cli_smoke_calibrator(
+    "club_venue_nb", incumbent_registration, protocol, fold_runs[[1L]]$fold,
+    fold_runs[[1L]]$incumbent
+  )
+  calibrators <- list(
+    club_elo_nb = candidate_calibrator$calibrator,
+    club_venue_nb = incumbent_calibrator$calibrator
+  )
+  evaluations <- lapply(fold_runs, function(run) {
+    fold <- run$fold
+    support_hash <- function(calibrator) {
+      phase19_club_calibration_hash_values(
+        list(
+          calibrator_sha256 = calibrator$calibrator_sha256,
+          source_predictions_sha256 = calibrator$source_predictions_sha256
+        ),
+        "phase19-club-fixture-smoke-calibration-decision-v1"
+      )
+    }
     support <- data.frame(
       model_id = c("club_venue_nb", "club_elo_nb"), fit_status = "converged",
       fallback_status = "none", fit_sha256 = c(fits$club_venue_nb$fit_sha256, fits$club_elo_nb$fit_sha256),
       calibrator_status = "fitted", primary_probability_view = "raw_1x2",
       calibrator_sha256 = c(
-        digest::digest(paste("calibrator", fits$club_venue_nb$fit_sha256), algo = "sha256", serialize = FALSE),
-        digest::digest(paste("calibrator", fits$club_elo_nb$fit_sha256), algo = "sha256", serialize = FALSE)
+        calibrators$club_venue_nb$calibrator_sha256,
+        calibrators$club_elo_nb$calibrator_sha256
       ), calibration_evidence_sha256 = c(
-        digest::digest(paste("evidence", fits$club_venue_nb$fit_sha256), algo = "sha256", serialize = FALSE),
-        digest::digest(paste("evidence", fits$club_elo_nb$fit_sha256), algo = "sha256", serialize = FALSE)
+        calibrators$club_venue_nb$source_predictions_sha256,
+        calibrators$club_elo_nb$source_predictions_sha256
       ), calibration_decision_sha256 = c(
-        digest::digest(paste("decision", fits$club_venue_nb$fit_sha256), algo = "sha256", serialize = FALSE),
-        digest::digest(paste("decision", fits$club_elo_nb$fit_sha256), algo = "sha256", serialize = FALSE)
+        support_hash(calibrators$club_venue_nb),
+        support_hash(calibrators$club_elo_nb)
       ), stringsAsFactors = FALSE, check.names = FALSE
     )
     provenance <- data.frame(
@@ -486,27 +511,31 @@ phase19_cli_fixture <- function(paths) {
                                   fold$calibration_fixture_sha256),
       stringsAsFactors = FALSE, check.names = FALSE
     )
-    phase19_score_club_fold(candidate, incumbent, outcomes, fold, protocol, support, provenance)
+    phase19_score_club_fold(
+      run$candidate, run$incumbent, run$outcomes, fold, protocol, support, provenance
+    )
   })
   aggregate <- phase19_aggregate_club_evaluations(evaluations, protocol)
   replay <- phase19_club_reproducibility_evidence(aggregate, aggregate, protocol)
   authority <- phase19_fixture_evaluation_authority(aggregate, protocol)
-  integrity <- as.list(setNames(rep(TRUE, 11L), phase19_club_integrity_names()))
+  integrity <- phase19_derive_club_integrity_evidence(
+    aggregate, protocol, replay, authority
+  )
   decision <- phase19_evaluate_club_promotion(aggregate, protocol, replay, integrity, authority)
   phase19_validate_club_promotion_decision(decision, aggregate, protocol, replay, integrity, authority)
   protocol_release <- protocol
   protocol_release$fold_registry_sha256 <- phase19_fold_registry_sha256(folds, training, protocol, "fixture")
   protocol_release$fold_review_sha256 <- ""
   protocol_release$unavailable_feature_ids <- paste(phase19_feature_ids(), collapse = "|")
-  model <- fits$club_elo_nb
-  calibrator <- phase19_cli_fixture_calibrator("club_elo_nb", model, protocol_release)
+  model <- fits[[as.character(decision$selected_model_id)]]
+  calibrator <- calibrators[[as.character(decision$selected_model_id)]]
   staged <- phase19_stage_fixture_club_release(
     decision, model, calibrator, paths$output_root, release_id = "fixture-club-phase19",
     history_snapshot = training, current_snapshot = current, protocol = protocol_release,
-    evaluation = aggregate, authority = authority
+    evaluation = aggregate, authority = authority, replay = replay, integrity = integrity
   )
-  installed <- phase19_install_club_release(staged$release_root, paths$release_root)
-  resolved <- phase19_resolve_club_release(paths$release_root)
+  installed <- phase19_install_fixture_club_release(staged$release_root, paths$release_root)
+  resolved <- phase19_resolve_fixture_club_release(paths$release_root)
   if (!identical(resolved$forecast_domain, "club") ||
       !identical(as.character(resolved$model_contract$authority_mode), "fixture") ||
       isTRUE(resolved$model_contract$production_eligible)) {
@@ -518,6 +547,8 @@ phase19_cli_fixture <- function(paths) {
     reason_code = "fixture_ineligible", diagnostic_gate_outcome = decision$diagnostic_gate_outcome,
     authority_eligibility = decision$authority_eligibility, promotion_status = decision$promotion_status,
     model_work_started = TRUE, release_mutated = TRUE, selector_mutated = TRUE,
+    evaluation_mode = "fixture_smoke", full_evaluation_gate = FALSE,
+    production_eligible = FALSE, calibration_mode = "fixture_smoke",
     release_id = installed$release_id, evaluation_set_sha256 = aggregate$evaluation_set_sha256,
     decision_sha256 = decision$decision_sha256, provenance = list(
       training_snapshot_sha256 = training$snapshot_sha256,
