@@ -365,11 +365,67 @@ phase19_club_goal_fit_hash <- function(fit) {
     "rating_parameter_sha256", "rating_evidence_sha256",
     "candidate_registry_sha256", "feature_contract_sha256",
     "protocol_sha256", "training_rows_sha256", "coefficient_sha256",
-    "empirical_grid_sha256", "mass_package_version",
+    "empirical_grid_sha256", "model_sha256", "registration_sha256",
+    "mass_package_version",
     "unavailable_feature_ids_text"
   )
   phase19_club_goal_hash_scalars(
     unname(fit[fields]) |> setNames(fields), "phase19-club-goal-fit-v1"
+  )
+}
+
+phase19_club_goal_nested_hash <- function(value, domain) {
+  if (is.null(value)) return("")
+  if (!requireNamespace("digest", quietly = TRUE)) {
+    phase19_club_goal_model_abort("dependency_missing", "digest is required for fitted-object identity")
+  }
+  # Hash a stable, content-only projection.  Serializing a complete MASS
+  # object can materialize lazy slots between construction and validation.
+  # The registered formula/rows are bound separately; this identity binds
+  # the fitted family, coefficient names/values, dispersion, and model shape
+  # that directly determine every prediction.
+  if (inherits(value, "negbin")) {
+    payload <- paste(
+      paste(class(value), collapse = "/"),
+      paste(names(value$coefficients), collapse = "|"),
+      paste(sprintf("%.17g", as.numeric(value$coefficients)), collapse = "|"),
+      sprintf("%.17g", as.numeric(value$theta)),
+      as.integer(value$rank), as.integer(value$df.residual),
+      nrow(value$model), paste(names(value$model), collapse = "|"),
+      paste(deparse(value$call), collapse = " "),
+      paste(deparse(value$terms), collapse = " "),
+      sep = "\u001f"
+    )
+  } else {
+    payload <- value
+  }
+  digest::digest(payload, algo = "sha256", serialize = TRUE)
+}
+
+phase19_club_goal_registration_hash <- function(registration) {
+  if (!is.data.frame(registration) || !nrow(registration) ||
+      !"model_id" %in% names(registration)) {
+    phase19_club_goal_model_abort("invalid_fit", "Goal-fit registration is incomplete")
+  }
+  phase18_hash_table_v2(
+    registration, key = "model_id",
+    schema_tag = "phase19-club-goal-registration-v1"
+  )
+}
+
+phase19_club_goal_coefficients_hash <- function(coefficients) {
+  if (!is.data.frame(coefficients) || !nrow(coefficients)) return("")
+  phase18_hash_table_v2(
+    coefficients, key = "term",
+    schema_tag = "phase19-club-goal-coefficients-v1"
+  )
+}
+
+phase19_club_goal_empirical_grid_hash <- function(empirical_grid) {
+  if (!is.data.frame(empirical_grid) || !nrow(empirical_grid)) return("")
+  phase18_hash_table_v2(
+    empirical_grid, key = c("home_goals", "away_goals"),
+    schema_tag = "phase19-club-empirical-grid-v1"
   )
 }
 
@@ -472,6 +528,7 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
       schema_tag = "phase19-club-empirical-grid-v1"
     )
   } else ""
+  registration_hash <- phase19_club_goal_registration_hash(registration)
   fit <- list(
     schema_version = "phase19-club-goal-fit-v1",
     hash_encoding_version = phase18_canonical_encoding_v2(),
@@ -520,6 +577,8 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
     ),
     coefficient_sha256 = coefficient_hash,
     empirical_grid_sha256 = empirical_hash,
+    model_sha256 = "",
+    registration_sha256 = registration_hash,
     mass_package_version = as.character(utils::packageVersion("MASS")),
     unavailable_feature_ids = phase19_club_goal_unavailable_ids(protocol$feature_contract),
     unavailable_feature_ids_text = paste(
@@ -537,6 +596,11 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
       "rating_evidence_invalid", "Rating rows mix parameter or current-snapshot identities"
     )
   }
+  # Compute the nested-model identity only after the complete fit object has
+  # been assembled; MASS lazily materializes a few slots while inspected.
+  fit$model_sha256 <- phase19_club_goal_nested_hash(
+    fit$model, "phase19-club-goal-model-v1"
+  )
   fit$fit_sha256 <- phase19_club_goal_fit_hash(fit)
   structure(fit, class = c("phase19_club_goal_fit", "list"))
 }
@@ -546,7 +610,19 @@ phase19_validate_club_goal_fit <- function(fit) {
       !identical(fit$forecast_domain, "club") ||
       !identical(fit$fit_sha256, phase19_club_goal_fit_hash(fit)) ||
       !identical(fit$fallback_status, "none")) {
-    phase19_club_goal_model_abort("invalid_fit", "Club goal fit identity is invalid")
+      phase19_club_goal_model_abort("invalid_fit", "Club goal fit identity is invalid")
+  }
+  expected_coefficients <- phase19_club_goal_coefficients_hash(fit$coefficients)
+  expected_grid <- phase19_club_goal_empirical_grid_hash(fit$empirical_grid)
+  expected_registration <- phase19_club_goal_registration_hash(fit$registration)
+  expected_model <- phase19_club_goal_nested_hash(fit$model, "phase19-club-goal-model-v1")
+  if (!identical(as.character(fit$coefficient_sha256), expected_coefficients) ||
+      !identical(as.character(fit$empirical_grid_sha256), expected_grid) ||
+      !identical(as.character(fit$registration_sha256), expected_registration) ||
+      !identical(as.character(fit$model_sha256), expected_model)) {
+    phase19_club_goal_model_abort(
+      "invalid_fit", "Club goal fit nested model, registration, coefficient, or grid identity drifted"
+    )
   }
   if (identical(fit$model_family, "negative_binomial")) {
     if (is.null(fit$model) || !inherits(fit$model, "negbin") ||
