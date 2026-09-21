@@ -50,6 +50,122 @@
   data[, fields, drop = FALSE]
 }
 
+.ucl_out_inventory <- c(
+  "competition_topology", "league_schedule", "tie_break_trace",
+  "projected_standings", "projected_rankings", "knockout_paths",
+  "progression_probabilities", "fixture_forecast_ledger",
+  "simulation_metadata", "outcomes_manifest"
+)
+
+.ucl_out_schemas <- list(
+  competition_topology = c("edition_id", "stage_id", "slot_id", "seed_slot_id", "parent_stage_id", "ruleset_version", "ruleset_sha256", "source_bundle_id", "row_sha256"),
+  league_schedule = c("edition_id", "fixture_id", "matchday", "home_club_id", "away_club_id", "venue_id", "kickoff_utc", "lifecycle_status", "score_regulation_home", "score_regulation_away", "score_final_home", "score_final_away", "score_shootout_home", "score_shootout_away", "source_bundle_id", "source_row_sha256", "row_sha256"),
+  tie_break_trace = c("edition_id", "tie_group_id", "criterion_order", "criterion_id", "subset_before", "subset_after", "evidence_status", "source_artifact_ids", "decisive", "rank_interval_min", "rank_interval_max", "ruleset_version", "ruleset_sha256", "row_sha256"),
+  projected_standings = c("edition_id", "club_id", "played", "wins", "draws", "losses", "goals_for", "goals_against", "goal_difference", "points", "ranking_phase", "rank_interval_min", "rank_interval_max", "qualification_band", "evidence_status", "source_bundle_id", "ruleset_sha256", "row_sha256"),
+  projected_rankings = c("edition_id", "club_id", "rank", "rank_interval_min", "rank_interval_max", "rank_status", "decisive_trace_id", "qualification_band", "source_bundle_id", "ruleset_sha256", "row_sha256"),
+  knockout_paths = c("edition_id", "path_id", "stage_event_id", "stage_id", "seed_slot_id", "participant_a", "participant_b", "leg_order", "leg_1_venue_id", "leg_2_venue_id", "aggregate_regulation_home", "aggregate_regulation_away", "aggregate_final_home", "aggregate_final_away", "extra_time_applied", "extra_time_home", "extra_time_away", "penalty_applied", "penalty_home", "penalty_away", "draw_policy_id", "draw_artifact_id", "draw_artifact_sha256", "path_status", "unresolved_reason", "source_artifact_ids", "source_bundle_id", "ruleset_sha256", "simulation_run_id", "row_sha256"),
+  progression_probabilities = c("edition_id", "club_id", "stage_id", "probability", "status", "source_bundle_id", "ruleset_sha256", "draw_artifact_sha256", "simulation_count", "seed", "run_id", "row_sha256"),
+  fixture_forecast_ledger = c("edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc", "forecast_status", "suppression_reason", "model_release_id", "model_sha256", "calibrator_sha256", "feature_cutoff_utc", "prob_home", "prob_draw", "prob_away", "xg_home", "xg_away", "likely_score", "source_bundle_id", "row_sha256"),
+  simulation_metadata = c("run_id", "edition_id", "source_bundle_id", "ruleset_version", "ruleset_sha256", "model_release_id", "model_sha256", "calibrator_sha256", "draw_policy_id", "draw_artifact_id", "draw_artifact_sha256", "information_cutoff_utc", "algorithm_version", "simulation_count", "seed", "path_policy_id", "path_policy_count", "authority_mode", "production_eligible", "status", "run_sha256"),
+  outcomes_manifest = c("manifest_id", "edition_id", "run_id", "artifact_path", "artifact_schema_version", "artifact_sha256", "parent_id", "parent_sha256", "authority_mode", "production_eligible", "information_cutoff_utc", "canonical_hash_version", "manifest_sha256")
+)
+
+.ucl_out_artifact_hash <- function(data) .ucl_out_canonical_hash(data)
+
+.ucl_out_row_hash_valid <- function(data) {
+  if (!is.data.frame(data) || !"row_sha256" %in% names(data)) return(FALSE)
+  if (!nrow(data)) return(TRUE)
+  hashes <- as.character(data$row_sha256)
+  if (any(is.na(hashes) | !grepl("^[0-9a-f]{64}$", hashes))) return(FALSE)
+  expected <- vapply(seq_len(nrow(data)), function(index) .ucl_out_canonical_hash(data[index, setdiff(names(data), "row_sha256"), drop = FALSE]), character(1))
+  identical(tolower(hashes), tolower(expected))
+}
+
+.ucl_out_manifest_base <- function(manifest) {
+  base <- manifest
+  base$manifest_sha256 <- ""
+  self <- which(as.character(base$artifact_path) == "outcomes_manifest.csv")
+  if (length(self) == 1L) base$artifact_sha256[[self]] <- ""
+  base
+}
+
+.ucl_out_validate_manifest <- function(manifest, graph = NULL) {
+  fields <- .ucl_out_schemas$outcomes_manifest
+  errors <- character()
+  if (!is.data.frame(manifest) || !identical(names(manifest), fields)) return(list(valid = FALSE, errors = "manifest_schema"))
+  if (nrow(manifest) != length(.ucl_out_inventory)) errors <- c(errors, "manifest_cardinality")
+  expected_paths <- paste0(.ucl_out_inventory, ".csv")
+  if (!identical(sort(unique(as.character(manifest$artifact_path))), sort(expected_paths)) || anyDuplicated(as.character(manifest$artifact_path))) errors <- c(errors, "manifest_paths")
+  hashes <- as.character(manifest$artifact_sha256)
+  parents <- as.character(manifest$parent_sha256)
+  self_hash <- as.character(manifest$manifest_sha256)
+  if (any(is.na(hashes) | !grepl("^[0-9a-f]{64}$", hashes))) errors <- c(errors, "manifest_artifact_hashes")
+  if (any(is.na(parents) | !grepl("^[0-9a-f]{64}$", parents))) errors <- c(errors, "manifest_parent_hashes")
+  if (any(is.na(self_hash) | !grepl("^[0-9a-f]{64}$", self_hash)) || length(unique(self_hash)) != 1L) errors <- c(errors, "manifest_self_hash")
+  self <- which(as.character(manifest$artifact_path) == "outcomes_manifest.csv")
+  if (length(self) == 1L && all(grepl("^[0-9a-f]{64}$", hashes))) {
+    expected_self_artifact <- .ucl_out_canonical_hash(.ucl_out_manifest_base(manifest))
+    if (!identical(as.character(manifest$artifact_sha256[[self]]), expected_self_artifact)) errors <- c(errors, "manifest_self_artifact_hash")
+    seed <- manifest
+    seed$manifest_sha256 <- ""
+    if (!identical(as.character(manifest$manifest_sha256[[1L]]), .ucl_out_canonical_hash(seed))) errors <- c(errors, "manifest_self_hash_mismatch")
+  }
+  list(valid = !length(errors), errors = unique(errors))
+}
+
+.ucl_out_validate_artifact_tables <- function(artifacts, graph = NULL, rules = NULL, simulation = NULL) {
+  errors <- character()
+  if (!is.list(artifacts) || !identical(sort(names(artifacts), method = "radix"), sort(.ucl_out_inventory, method = "radix"))) return(list(valid = FALSE, errors = "artifact_inventory"))
+  for (name in .ucl_out_inventory[.ucl_out_inventory != "outcomes_manifest"]) {
+    table <- artifacts[[name]]
+    if (!is.data.frame(table) || !identical(names(table), .ucl_out_schemas[[name]])) {
+      errors <- c(errors, paste0("schema:", name))
+    } else if (identical(name, "simulation_metadata") && (nrow(table) != 1L || is.na(table$run_sha256[[1L]]) || !grepl("^[0-9a-f]{64}$", as.character(table$run_sha256[[1L]])) || !identical(as.character(table$run_sha256[[1L]]), .ucl_out_canonical_hash(table[, setdiff(names(table), "run_sha256"), drop = FALSE])))) {
+      errors <- c(errors, paste0("run_hash:", name))
+    } else if (!identical(name, "simulation_metadata") && !.ucl_out_row_hash_valid(table)) {
+      errors <- c(errors, paste0("row_hash:", name))
+    }
+  }
+  if (is.data.frame(artifacts$competition_topology) && nrow(artifacts$competition_topology) != 36L) errors <- c(errors, "topology_cardinality")
+  if (is.data.frame(artifacts$league_schedule) && nrow(artifacts$league_schedule) != 144L) errors <- c(errors, "schedule_cardinality")
+  if (is.data.frame(artifacts$fixture_forecast_ledger) && nrow(artifacts$fixture_forecast_ledger) != 144L) errors <- c(errors, "forecast_cardinality")
+  if (is.data.frame(artifacts$simulation_metadata) && nrow(artifacts$simulation_metadata) != 1L) errors <- c(errors, "metadata_cardinality")
+  if (is.data.frame(artifacts$simulation_metadata) && nrow(artifacts$simulation_metadata) == 1L) {
+    metadata <- artifacts$simulation_metadata
+    if (is.na(metadata$run_id[[1L]]) || !nzchar(as.character(metadata$run_id[[1L]])) || is.na(metadata$source_bundle_id[[1L]]) || !nzchar(as.character(metadata$source_bundle_id[[1L]])) || is.na(metadata$ruleset_sha256[[1L]]) || !grepl("^[0-9a-f]{64}$", as.character(metadata$ruleset_sha256[[1L]]))) errors <- c(errors, "metadata_lineage")
+    if (is.na(metadata$production_eligible[[1L]]) || isTRUE(as.logical(metadata$production_eligible[[1L]]))) errors <- c(errors, "production_promotion")
+  }
+  if (is.data.frame(artifacts$league_schedule) && is.data.frame(artifacts$fixture_forecast_ledger) && nrow(artifacts$league_schedule) == 144L && nrow(artifacts$fixture_forecast_ledger) == 144L && !identical(sort(as.character(artifacts$league_schedule$fixture_id)), sort(as.character(artifacts$fixture_forecast_ledger$fixture_id)))) errors <- c(errors, "forecast_fixture_coverage")
+  manifest_check <- .ucl_out_validate_manifest(artifacts$outcomes_manifest, graph = graph)
+  errors <- c(errors, manifest_check$errors)
+  if (is.data.frame(artifacts$outcomes_manifest) && nrow(artifacts$outcomes_manifest)) {
+    manifest_production <- suppressWarnings(as.logical(artifacts$outcomes_manifest$production_eligible))
+    if (any(is.na(manifest_production) | manifest_production)) errors <- c(errors, "manifest_production_promotion")
+  }
+  if (is.data.frame(artifacts$outcomes_manifest) && is.data.frame(artifacts$simulation_metadata) && nrow(artifacts$simulation_metadata) == 1L) {
+    if (!all(as.character(artifacts$outcomes_manifest$run_id) == as.character(artifacts$simulation_metadata$run_id[[1L]]))) errors <- c(errors, "manifest_run_lineage")
+  }
+  list(valid = !length(errors), errors = unique(errors))
+}
+
+.ucl_out_build_manifest <- function(artifacts, graph, simulation, metadata, fixture_authority = TRUE) {
+  fields <- .ucl_out_schemas$outcomes_manifest
+  run_id <- as.character(metadata$run_id[[1L]] %||% NA_character_)
+  edition_id <- as.character(metadata$edition_id[[1L]] %||% graph$edition_id)
+  parent_id <- as.character(graph$source_bundle_id %||% "")
+  parent_hash <- as.character(graph$graph_sha256 %||% .ucl_out_hash(parent_id))
+  if (!grepl("^[0-9a-f]{64}$", parent_hash)) parent_hash <- .ucl_out_hash(parent_hash)
+  manifest_id <- paste0("ucl-outcomes-", substr(.ucl_out_hash(c(edition_id, run_id)), 1L, 16L))
+  rows <- lapply(.ucl_out_inventory, function(name) {
+    data.frame(manifest_id = manifest_id, edition_id = edition_id, run_id = run_id, artifact_path = paste0(name, ".csv"), artifact_schema_version = "ucl-outcome-candidate-v2", artifact_sha256 = if (name == "outcomes_manifest") "" else .ucl_out_artifact_hash(artifacts[[name]]), parent_id = parent_id, parent_sha256 = parent_hash, authority_mode = if (fixture_authority) "fixture" else "production", production_eligible = FALSE, information_cutoff_utc = as.character(metadata$information_cutoff_utc[[1L]] %||% NA_character_), canonical_hash_version = "ucl-canonical-v2", manifest_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE)
+  })
+  manifest <- do.call(rbind, rows)
+  self <- match("outcomes_manifest.csv", as.character(manifest$artifact_path))
+  manifest$artifact_sha256[[self]] <- .ucl_out_artifact_hash(.ucl_out_manifest_base(manifest))
+  manifest$manifest_sha256 <- .ucl_out_artifact_hash(manifest)
+  manifest[, fields, drop = FALSE]
+}
+
 .ucl_out_parent_reason <- function(authority = NULL, candidate = NULL) {
   original <- if (is.list(authority)) authority$original_parent_reason %||% authority$parent_reason else NULL
   if (is.null(original) && is.list(candidate)) original <- candidate$original_parent_reason %||% candidate$parent_reason
@@ -94,6 +210,7 @@
     ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256,
     source_bundle_id = graph$source_bundle_id, row_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE
   )
+  data <- data[order(as.character(data$slot_id), method = "radix"), , drop = FALSE]
   data$row_sha256 <- vapply(seq_len(nrow(data)), function(index) .ucl_out_canonical_hash(data[index, setdiff(fields, "row_sha256"), drop = FALSE]), character(1))
   data[, fields, drop = FALSE]
 }
@@ -117,6 +234,7 @@
   trace <- if (is.list(state)) state$tie_break_trace else NULL
   if (is.null(trace) || !is.data.frame(trace)) return(.ucl_out_empty(fields))
   data <- .ucl_out_coerce(trace, fields, list(edition_id = state$edition_id, ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256))
+  if (nrow(data)) data <- data[do.call(order, c(lapply(data[setdiff(fields, "row_sha256")], function(column) vapply(column, .ucl_out_scalar, character(1))), list(method = "radix", na.last = TRUE))), , drop = FALSE]
   data$row_sha256 <- vapply(seq_len(nrow(data)), function(index) .ucl_out_canonical_hash(data[index, setdiff(fields, "row_sha256"), drop = FALSE]), character(1))
   data[, fields, drop = FALSE]
 }
@@ -149,12 +267,45 @@
   paths <- if (is.list(simulation)) simulation$knockout_paths else NULL
   if (is.null(paths) || !is.data.frame(paths)) return(.ucl_out_empty(fields))
   data <- .ucl_out_coerce(paths, fields, list(edition_id = rules$edition_id, draw_policy_id = rules$draw_policy_id, ruleset_sha256 = rules$ruleset_sha256, simulation_run_id = if (is.list(simulation)) simulation$run_id else NA_character_))
+  missing_event <- is.na(data$stage_event_id) | !nzchar(as.character(data$stage_event_id))
+  data$stage_event_id[missing_event] <- as.character(data$path_id[missing_event])
+  if ("source_artifact_ids" %in% names(paths) && "source_artifact_ids" %in% names(data)) data$source_artifact_ids <- as.character(data$source_artifact_ids)
+  unresolved_draw <- any(as.character(data$path_status) %in% c("unresolved", "pre_draw_legal")) || identical(as.character(simulation$status %||% ""), "unresolved_draw_procedure")
+  if (unresolved_draw && nrow(data)) {
+    required_stages <- c("knockout_play_off", "round_of_16", "quarter_final", "semi_final", "final", "champion")
+    missing_stages <- setdiff(required_stages, unique(as.character(data$stage_id)))
+    if (length(missing_stages)) {
+      unresolved_reason <- as.character(data$unresolved_reason)[!is.na(data$unresolved_reason) & nzchar(as.character(data$unresolved_reason))]
+      unresolved_reason <- if (length(unresolved_reason)) unresolved_reason[[1L]] else "missing_edition_draw_procedure"
+      extra <- data[rep(1L, length(missing_stages)), fields, drop = FALSE]
+      for (field in fields) extra[[field]] <- rep(NA, length(missing_stages))
+      extra$edition_id <- rules$edition_id
+      extra$path_id <- paste0("suppressed-", missing_stages)
+      extra$stage_event_id <- extra$path_id
+      extra$stage_id <- missing_stages
+      extra$leg_order <- ifelse(missing_stages == "final", "single_neutral", "seeded_return_leg")
+      extra$draw_policy_id <- rules$draw_policy_id
+      extra$path_status <- "suppressed"
+      extra$unresolved_reason <- unresolved_reason
+      extra$source_bundle_id <- as.character(simulation$metadata$source_bundle_id %||% NA_character_)
+      extra$ruleset_sha256 <- rules$ruleset_sha256
+      extra$simulation_run_id <- as.character(simulation$run_id %||% NA_character_)
+      data <- rbind(data, extra)
+    }
+  }
+  if (nrow(data)) data <- data[order(as.character(data$stage_id), as.character(data$stage_event_id), as.character(data$path_id), method = "radix"), , drop = FALSE]
   data$row_sha256 <- vapply(seq_len(nrow(data)), function(index) .ucl_out_canonical_hash(data[index, setdiff(fields, "row_sha256"), drop = FALSE]), character(1))
   data[, fields, drop = FALSE]
 }
 
 .ucl_out_progression <- function(simulation, rules) {
   fields <- c("edition_id", "club_id", "stage_id", "probability", "status", "source_bundle_id", "ruleset_sha256", "draw_artifact_sha256", "simulation_count", "seed", "run_id", "row_sha256")
+  if (is.list(simulation) && is.data.frame(simulation$progression_probabilities) && nrow(simulation$progression_probabilities)) {
+    output <- .ucl_out_coerce(simulation$progression_probabilities, fields, list(edition_id = rules$edition_id, ruleset_sha256 = rules$ruleset_sha256, run_id = simulation$run_id %||% NA_character_))
+    output <- output[order(as.character(output$club_id), match(as.character(output$stage_id), c("knockout_play_off", "round_of_16", "quarter_final", "semi_final", "final", "champion", "direct_round_of_16", "eliminated")), method = "radix"), , drop = FALSE]
+    output$row_sha256 <- vapply(seq_len(nrow(output)), function(index) .ucl_out_canonical_hash(output[index, setdiff(fields, "row_sha256"), drop = FALSE]), character(1))
+    return(output[, fields, drop = FALSE])
+  }
   rows <- if (is.list(simulation) && is.data.frame(simulation$rank_rows)) simulation$rank_rows else data.frame()
   if (!nrow(rows)) return(.ucl_out_empty(fields))
   output <- do.call(rbind, lapply(sort(unique(as.character(rows$club_id)), method = "radix"), function(club) {
@@ -163,8 +314,15 @@
     ranks <- as.numeric(value$rank)
     safe_mean <- function(values) if (all(is.na(values))) NA_real_ else mean(values, na.rm = TRUE)
     probabilities <- c(safe_mean(ranks >= 1 & ranks <= 8), safe_mean(ranks >= 9 & ranks <= 24), safe_mean(ranks >= 25 & ranks <= 36))
-    data.frame(edition_id = as.character(simulation$metadata$edition_id %||% NA_character_), club_id = club, stage_id = bands, probability = probabilities, status = ifelse(any(is.na(ranks)), "unresolved", "resolved"), source_bundle_id = simulation$metadata$source_bundle_id %||% NA_character_, ruleset_sha256 = simulation$metadata$ruleset_sha256 %||% rules$ruleset_sha256, draw_artifact_sha256 = simulation$metadata$draw_artifact_sha256 %||% NA_character_, simulation_count = as.integer(simulation$metadata$simulation_count %||% length(unique(rows$iteration))), seed = as.integer(simulation$metadata$seed %||% NA_integer_), run_id = simulation$run_id %||% NA_character_, row_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE)
+    base <- data.frame(edition_id = as.character(simulation$metadata$edition_id %||% NA_character_), club_id = club, stage_id = bands, probability = probabilities, status = ifelse(any(is.na(ranks)), "unresolved", "resolved"), source_bundle_id = simulation$metadata$source_bundle_id %||% NA_character_, ruleset_sha256 = simulation$metadata$ruleset_sha256 %||% rules$ruleset_sha256, draw_artifact_sha256 = simulation$metadata$draw_artifact_sha256 %||% NA_character_, simulation_count = as.integer(simulation$metadata$simulation_count %||% length(unique(rows$iteration))), seed = as.integer(simulation$metadata$seed %||% NA_integer_), run_id = simulation$run_id %||% NA_character_, row_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE)
+    if (identical(as.character(simulation$status %||% ""), "unresolved_draw_procedure")) {
+      unresolved_stages <- data.frame(edition_id = base$edition_id[[1L]], club_id = club, stage_id = c("round_of_16", "quarter_final", "semi_final", "final", "champion"), probability = NA_real_, status = "unresolved", source_bundle_id = base$source_bundle_id[[1L]], ruleset_sha256 = base$ruleset_sha256[[1L]], draw_artifact_sha256 = base$draw_artifact_sha256[[1L]], simulation_count = base$simulation_count[[1L]], seed = base$seed[[1L]], run_id = base$run_id[[1L]], row_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE)
+      return(rbind(base, unresolved_stages))
+    }
+    base
   }))
+  stage_order <- c("direct_round_of_16", "knockout_play_off", "round_of_16", "quarter_final", "semi_final", "final", "champion", "eliminated")
+  output <- output[order(as.character(output$club_id), match(as.character(output$stage_id), stage_order), method = "radix"), , drop = FALSE]
   output$row_sha256 <- vapply(seq_len(nrow(output)), function(index) .ucl_out_canonical_hash(output[index, setdiff(fields, "row_sha256"), drop = FALSE]), character(1))
   output[, fields, drop = FALSE]
 }
@@ -173,7 +331,9 @@
   fields <- c("edition_id", "fixture_id", "home_club_id", "away_club_id", "kickoff_utc", "forecast_status", "suppression_reason", "model_release_id", "model_sha256", "calibrator_sha256", "feature_cutoff_utc", "prob_home", "prob_draw", "prob_away", "xg_home", "xg_away", "likely_score", "source_bundle_id", "row_sha256")
   if (is.null(ledger) || !is.data.frame(ledger)) return(.ucl_out_empty(fields))
   data <- .ucl_out_coerce(ledger, fields)
-  data[order(as.character(data$fixture_id), method = "radix"), fields, drop = FALSE]
+  data <- data[order(as.character(data$fixture_id), method = "radix"), fields, drop = FALSE]
+  data$row_sha256 <- vapply(seq_len(nrow(data)), function(index) .ucl_out_canonical_hash(data[index, setdiff(fields, "row_sha256"), drop = FALSE]), character(1))
+  data[, fields, drop = FALSE]
 }
 
 .ucl_out_metadata <- function(simulation, ledger, graph, rules) {
@@ -206,38 +366,45 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   progression <- .ucl_out_progression(simulation, rules)
   forecasts <- .ucl_out_ledger_table(ledger)
   metadata <- .ucl_out_metadata(simulation, ledger, graph, rules)
-  draw_unresolved <- nrow(paths) > 0L && any(as.character(paths$path_status) == "unresolved")
-  stage_events <- if (exists("ucl_aggregate_stage_events", mode = "function") && nrow(paths)) ucl_aggregate_stage_events(paths, rules) else data.frame()
-  reconciliation <- if (exists("ucl_validate_progression_reconciliation", mode = "function") && nrow(progression)) ucl_validate_progression_reconciliation(progression) else list(valid = FALSE, status = "unresolved", errors = "progression_empty")
-  failures <- character()
-  if (nrow(topology) != 36L || nrow(schedule) != 144L) failures <- c(failures, "topology_or_schedule_cardinality")
-  if (nrow(forecasts) != 144L) failures <- c(failures, "forecast_ledger_cardinality")
-  if (!isTRUE(reconciliation$valid) && nrow(progression)) failures <- c(failures, reconciliation$errors)
   fixture_authority <- isTRUE(graph$fixture_authority) || identical(as.character(graph$authority_mode), "fixture") || isTRUE(candidate$fixture_authority)
   authority <- if (is.list(candidate$ledger)) candidate$ledger$authority else NULL
   parent <- .ucl_out_parent_reason(authority, candidate)
-  status <- if (length(failures)) "production_blocked" else if (draw_unresolved || identical(as.character(simulation$status), "unresolved_draw_procedure")) "unresolved_draw_procedure" else if (fixture_authority) "mechanics_complete" else parent$status
+  expected_artifacts <- list(competition_topology = topology, league_schedule = schedule, tie_break_trace = trace, projected_standings = standings, projected_rankings = rankings, knockout_paths = paths, progression_probabilities = progression, fixture_forecast_ledger = forecasts, simulation_metadata = metadata)
+  supplied <- is.list(candidate$artifacts) && length(candidate$artifacts)
+  failures <- character()
+  if (supplied) {
+    artifacts <- candidate$artifacts
+  } else {
+    artifacts <- expected_artifacts
+    artifacts$outcomes_manifest <- .ucl_out_build_manifest(expected_artifacts, graph, simulation, metadata, fixture_authority = fixture_authority)
+  }
+  table_check <- .ucl_out_validate_artifact_tables(artifacts, graph = graph, rules = rules, simulation = simulation)
+  if (!isTRUE(table_check$valid)) failures <- c(failures, table_check$errors)
+  if (nrow(topology) != 36L || nrow(schedule) != 144L) failures <- c(failures, "topology_or_schedule_cardinality")
+  if (nrow(forecasts) != 144L) failures <- c(failures, "forecast_ledger_cardinality")
+  progression_for_check <- if (is.data.frame(artifacts$progression_probabilities)) artifacts$progression_probabilities else progression
+  reconciliation <- if (exists("ucl_validate_progression_reconciliation", mode = "function") && nrow(progression_for_check)) ucl_validate_progression_reconciliation(progression_for_check) else list(valid = FALSE, status = "unresolved", errors = "progression_empty")
+  if (!isTRUE(reconciliation$valid) && nrow(progression_for_check)) failures <- c(failures, reconciliation$errors)
+  paths_for_events <- if (is.data.frame(artifacts$knockout_paths)) artifacts$knockout_paths else paths
+  draw_unresolved <- nrow(paths_for_events) > 0L && any(as.character(paths_for_events$path_status) %in% c("unresolved", "pre_draw_legal"))
+  draw_unresolved <- draw_unresolved || identical(as.character(simulation$status), "unresolved_draw_procedure")
+  stage_events <- if (exists("ucl_aggregate_stage_events", mode = "function") && nrow(paths_for_events)) ucl_aggregate_stage_events(paths_for_events, rules) else data.frame()
+  status <- if (length(failures)) "production_blocked" else if (draw_unresolved) "unresolved_draw_procedure" else if (fixture_authority) "mechanics_complete" else parent$status
   if (!fixture_authority && status == "mechanics_complete") status <- parent$status
-  manifest_fields <- c("manifest_id", "edition_id", "run_id", "artifact_path", "artifact_schema_version", "artifact_sha256", "parent_id", "parent_sha256", "authority_mode", "production_eligible", "information_cutoff_utc", "canonical_hash_version", "manifest_sha256")
-  artifacts <- list(competition_topology = topology, league_schedule = schedule, tie_break_trace = trace, projected_standings = standings, projected_rankings = rankings, knockout_paths = paths, progression_probabilities = progression, fixture_forecast_ledger = forecasts, simulation_metadata = metadata)
-  manifest <- data.frame(manifest_id = paste0("ucl-outcomes-", substr(.ucl_out_hash(c(graph$edition_id, simulation$run_id %||% "")), 1L, 16L)), edition_id = graph$edition_id, run_id = simulation$run_id %||% NA_character_, artifact_path = NA_character_, artifact_schema_version = "ucl-outcome-candidate-v1", artifact_sha256 = .ucl_out_canonical_hash(artifacts), parent_id = graph$source_bundle_id, parent_sha256 = graph$graph_sha256, authority_mode = if (fixture_authority) "fixture" else "production", production_eligible = FALSE, information_cutoff_utc = metadata$information_cutoff_utc, canonical_hash_version = "ucl-canonical-bytes-v1", manifest_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE)
-  manifest$manifest_sha256 <- .ucl_out_canonical_hash(manifest[, setdiff(manifest_fields, "manifest_sha256"), drop = FALSE])
-  artifacts$outcomes_manifest <- manifest[, manifest_fields, drop = FALSE]
   artifact_hashes <- vapply(artifacts, .ucl_out_canonical_hash, character(1))
-  result <- list(valid = !length(failures), status = status, failures = unique(failures), warnings = character(), skips = character(), unexpected_failures = character(), mechanics_complete = !length(failures), production_eligible = FALSE, fixture_authority = fixture_authority, authority_mode = if (fixture_authority) "fixture" else parent$status, original_parent_reason = parent$original_parent_reason, human_needed = identical(parent$status, "production_human_needed"), human_needed_reason = parent$human_needed_reason, production_blocked_reason = if (identical(status, "production_blocked")) parent$production_blocked_reason else NA_character_, normalization_error = parent$normalization_error, unresolved = if (draw_unresolved) "missing_edition_draw_procedure" else character(), selector_changed = FALSE, incumbent_changed = FALSE, edition_id = graph$edition_id, source_bundle_id = graph$source_bundle_id, ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256, model_release_id = metadata$model_release_id, model_sha256 = metadata$model_sha256, calibrator_sha256 = metadata$calibrator_sha256, draw_policy_id = metadata$draw_policy_id, draw_artifact_id = metadata$draw_artifact_id, draw_artifact_sha256 = metadata$draw_artifact_sha256, information_cutoff_utc = metadata$information_cutoff_utc, simulation_run_id = simulation$run_id %||% NA_character_, simulation_count = metadata$simulation_count, seed = metadata$seed, artifact_hashes = artifact_hashes, artifacts = artifacts, stage_events = stage_events, progression_reconciliation = reconciliation)
+  unresolved_reason <- if (draw_unresolved) unique(as.character(paths_for_events$unresolved_reason)) else character()
+  unresolved_reason <- unresolved_reason[!is.na(unresolved_reason) & nzchar(unresolved_reason)]
+  if (!length(unresolved_reason) && draw_unresolved) unresolved_reason <- "missing_edition_draw_procedure"
+  result <- list(valid = !length(failures), status = status, failures = unique(failures), warnings = character(), skips = character(), unexpected_failures = character(), mechanics_complete = !length(failures), production_eligible = FALSE, fixture_authority = fixture_authority, authority_mode = if (fixture_authority) "fixture" else parent$status, original_parent_reason = parent$original_parent_reason, human_needed = identical(parent$status, "production_human_needed"), human_needed_reason = parent$human_needed_reason, production_blocked_reason = if (identical(status, "production_blocked")) parent$production_blocked_reason else NA_character_, normalization_error = parent$normalization_error, unresolved = unresolved_reason, selector_changed = FALSE, incumbent_changed = FALSE, edition_id = graph$edition_id, source_bundle_id = graph$source_bundle_id, ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256, model_release_id = metadata$model_release_id, model_sha256 = metadata$model_sha256, calibrator_sha256 = metadata$calibrator_sha256, draw_policy_id = metadata$draw_policy_id, draw_artifact_id = metadata$draw_artifact_id, draw_artifact_sha256 = metadata$draw_artifact_sha256, information_cutoff_utc = metadata$information_cutoff_utc, simulation_run_id = simulation$run_id %||% NA_character_, simulation_count = metadata$simulation_count, seed = metadata$seed, artifact_hashes = artifact_hashes, artifacts = artifacts, stage_events = stage_events, progression_reconciliation = reconciliation)
   class(result) <- c("ucl_outcome_candidate", "list")
   result
 }
 
 #' Build a deterministic manifest row for a validated candidate or artifact.
 ucl_outcomes_manifest <- function(candidate, artifact_path = NA_character_, parent_id = NA_character_) {
-  validated <- if (is.list(candidate) && isTRUE(candidate$valid) && is.list(candidate$artifacts)) candidate else ucl_validate_outcome_candidate(candidate)
-  artifacts <- if (is.list(validated$artifacts)) validated$artifacts else list()
-  run_id <- validated$simulation_run_id %||% NA_character_
-  parent_hash <- .ucl_out_hash(parent_id %||% "")
-  data <- data.frame(manifest_id = paste0("ucl-outcomes-", substr(.ucl_out_hash(c(validated$edition_id %||% "", run_id)), 1L, 16L)), edition_id = validated$edition_id %||% NA_character_, run_id = run_id, artifact_path = as.character(artifact_path %||% NA_character_), artifact_schema_version = "ucl-outcome-candidate-v1", artifact_sha256 = .ucl_out_canonical_hash(artifacts), parent_id = as.character(parent_id %||% NA_character_), parent_sha256 = parent_hash, authority_mode = validated$authority_mode %||% "fixture", production_eligible = FALSE, information_cutoff_utc = validated$information_cutoff_utc %||% NA_character_, canonical_hash_version = "ucl-canonical-bytes-v1", manifest_sha256 = NA_character_, stringsAsFactors = FALSE, check.names = FALSE)
-  data$manifest_sha256 <- .ucl_out_canonical_hash(data[, setdiff(names(data), "manifest_sha256"), drop = FALSE])
-  data
+  validated <- if (is.list(candidate) && isTRUE(candidate$valid) && is.list(candidate$artifacts) && "outcomes_manifest" %in% names(candidate$artifacts)) candidate else ucl_validate_outcome_candidate(candidate)
+  if (is.list(validated$artifacts) && is.data.frame(validated$artifacts$outcomes_manifest) && nrow(validated$artifacts$outcomes_manifest) == length(.ucl_out_inventory)) return(validated$artifacts$outcomes_manifest)
+  data.frame()
 }
 
 #' Parse the fixed UCL CLI surface without accepting path/authority overrides.
@@ -308,6 +475,8 @@ ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L,
 #' Write only a validated sibling candidate under a process-temporary root.
 ucl_write_outcome_candidate <- function(candidate, output_root = NULL, overwrite = FALSE) {
   if (!is.list(candidate) || !isTRUE(candidate$valid) || !is.list(candidate$artifacts)) stop("UCL outcome candidate is not validated", call. = FALSE)
+  check <- .ucl_out_validate_artifact_tables(candidate$artifacts)
+  if (!isTRUE(check$valid)) stop(paste0("UCL outcome candidate artifact validation failed: ", paste(check$errors, collapse = ",")), call. = FALSE)
   if (is.null(output_root)) stop("UCL candidate output requires an explicit process-temporary root", call. = FALSE)
   output_root <- gsub("/+", "/", normalizePath(output_root, winslash = "/", mustWork = FALSE))
   temporary <- normalizePath(tempdir(), winslash = "/", mustWork = TRUE)
@@ -316,14 +485,31 @@ ucl_write_outcome_candidate <- function(candidate, output_root = NULL, overwrite
   if (!allowed) stop("UCL outcome writes are limited to process-temporary roots", call. = FALSE)
   output_root <- file.path(normalizePath(dirname(output_root), winslash = "/", mustWork = TRUE), basename(output_root))
   if (dir.exists(output_root) && !isTRUE(overwrite) && length(list.files(output_root, all.files = TRUE, no.. = TRUE))) stop("UCL candidate output root is not empty", call. = FALSE)
-  dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+  parent_root <- normalizePath(dirname(output_root), winslash = "/", mustWork = TRUE)
+  staging <- tempfile(".ucl-outcomes-staging-", tmpdir = parent_root)
+  dir.create(staging, recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE, force = TRUE), add = TRUE)
   paths <- character()
-  for (name in names(candidate$artifacts)) {
-    path <- file.path(output_root, paste0(name, ".csv"))
-    staged <- tempfile(paste0(".", name, "-"), tmpdir = output_root, fileext = ".csv")
-    utils::write.csv(candidate$artifacts[[name]], staged, row.names = FALSE, na = "", quote = TRUE)
-    if (!file.rename(staged, path)) stop(paste0("Could not publish UCL candidate artifact: ", name), call. = FALSE)
-    paths[[name]] <- path
+  for (name in .ucl_out_inventory) {
+    path <- file.path(staging, paste0(name, ".csv"))
+    utils::write.csv(candidate$artifacts[[name]], path, row.names = FALSE, na = "", quote = TRUE)
+    paths[[name]] <- file.path(output_root, paste0(name, ".csv"))
   }
+  written_names <- sort(list.files(staging, pattern = "\\.csv$"), method = "radix")
+  if (!identical(written_names, sort(paste0(.ucl_out_inventory, ".csv"), method = "radix"))) stop("UCL candidate staging inventory mismatch", call. = FALSE)
+  readback <- lapply(.ucl_out_inventory, function(name) utils::read.csv(file.path(staging, paste0(name, ".csv")), stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""))
+  names(readback) <- .ucl_out_inventory
+  readback_check <- .ucl_out_validate_artifact_tables(readback)
+  if (!isTRUE(readback_check$valid)) stop(paste0("UCL candidate read-back validation failed: ", paste(readback_check$errors, collapse = ",")), call. = FALSE)
+  if (dir.exists(output_root) && length(list.files(output_root, all.files = TRUE, no.. = TRUE)) && isTRUE(overwrite)) {
+    for (name in .ucl_out_inventory) {
+      target <- file.path(output_root, paste0(name, ".csv"))
+      if (file.exists(target) && !file.remove(target)) stop(paste0("Could not replace UCL incumbent artifact: ", name), call. = FALSE)
+    }
+    for (name in .ucl_out_inventory) if (!file.rename(file.path(staging, paste0(name, ".csv")), file.path(output_root, paste0(name, ".csv")))) stop(paste0("Could not publish UCL candidate artifact: ", name), call. = FALSE)
+  } else if (dir.exists(output_root)) {
+    dir.create(output_root, recursive = TRUE, showWarnings = FALSE)
+    for (name in .ucl_out_inventory) if (!file.rename(file.path(staging, paste0(name, ".csv")), file.path(output_root, paste0(name, ".csv")))) stop(paste0("Could not publish UCL candidate artifact: ", name), call. = FALSE)
+  } else if (!file.rename(staging, output_root)) stop("Could not publish UCL candidate staging root", call. = FALSE)
   invisible(list(status = "written", output_root = output_root, paths = paths, manifest = candidate$artifacts$outcomes_manifest))
 }

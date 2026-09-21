@@ -375,37 +375,141 @@ ucl_validate_draw_artifact <- function(draw_artifact = NULL, rules = NULL, sourc
   list(status = "accepted", reason = NA_character_, draw_artifact_id = draw_id, draw_artifact_sha256 = hash, pairings = pairings, edition_id = rules$edition_id, source_bundle_id = as.character(artifact$source_bundle_id), rank_inputs = rank_inputs)
 }
 
-.ucl_sim_score <- function(row, names) {
-  field <- names[names %in% names(row)][1L]
-  if (is.na(field) || is.null(field)) return(NA_real_)
-  suppressWarnings(as.numeric(row[[field]][[1L]]))
+.ucl_sim_score <- function(row, fields, default = NA_real_) {
+  fields <- fields[fields %in% names(row)]
+  if (!length(fields)) return(default)
+  value <- suppressWarnings(as.numeric(row[[fields[[1L]]]][[1L]]))
+  if (!length(value) || is.na(value)) return(default)
+  value
 }
 
-#' Resolve a two-leg tie by aggregate goals, then second-leg ET and penalties.
+.ucl_sim_valid_goal <- function(value, allow_na = TRUE) {
+  if (is.na(value)) return(isTRUE(allow_na))
+  is.finite(value) && value >= 0 && value == floor(value)
+}
+
+.ucl_sim_id <- function(row, fields, default = NA_character_) {
+  fields <- fields[fields %in% names(row)]
+  if (!length(fields)) return(default)
+  value <- row[[fields[[1L]]]][[1L]]
+  if (length(value) != 1L || is.na(value) || !nzchar(trimws(as.character(value)))) return(default)
+  trimws(as.character(value))
+}
+
+.ucl_sim_leg_payload <- function(row) {
+  regulation_home <- .ucl_sim_score(row, c("regulation_home_goals", "home_goals", "final_home_goals"))
+  regulation_away <- .ucl_sim_score(row, c("regulation_away_goals", "away_goals", "final_away_goals"))
+  extra_home <- .ucl_sim_score(row, c("extra_time_home_goals", "extra_home_goals", "et_home_goals"), NA_real_)
+  extra_away <- .ucl_sim_score(row, c("extra_time_away_goals", "extra_away_goals", "et_away_goals"), NA_real_)
+  final_home <- .ucl_sim_score(row, c("final_home_goals", "home_final_goals"), NA_real_)
+  final_away <- .ucl_sim_score(row, c("final_away_goals", "away_final_goals"), NA_real_)
+  shootout_home <- .ucl_sim_score(row, c("penalty_home", "penalties_home", "penalty_shootout_home_goals", "shootout_home_goals"), NA_real_)
+  shootout_away <- .ucl_sim_score(row, c("penalty_away", "penalties_away", "penalty_shootout_away_goals", "shootout_away_goals"), NA_real_)
+  list(
+    regulation_home = regulation_home, regulation_away = regulation_away,
+    extra_home = extra_home, extra_away = extra_away,
+    final_home = final_home, final_away = final_away,
+    shootout_home = shootout_home, shootout_away = shootout_away
+  )
+}
+
+.ucl_sim_strict_two_leg <- function(first, second) {
+  any(c("stage_id", "participant_a", "participant_b", "leg_order", "leg_number", "seed_rank", "opponent_rank") %in% names(first)) ||
+    any(c("stage_id", "participant_a", "participant_b", "leg_order", "leg_number", "seed_rank", "opponent_rank") %in% names(second))
+}
+
+.ucl_sim_invalid_resolution <- function(reason, rules = NULL, ...) {
+  list(status = "blocked", reason = reason, winner = NA_character_, loser = NA_character_,
+       ruleset_sha256 = if (is.list(rules)) rules$ruleset_sha256 %||% NA_character_ else NA_character_, ...)
+}
+
+#' Resolve a UCL two-leg tie by aggregate goals, then second-leg ET and penalties.
 ucl_resolve_two_leg_tie <- function(first_leg, second_leg, rules = NULL, penalty_winner = NULL) {
   first <- as.data.frame(first_leg, stringsAsFactors = FALSE, check.names = FALSE)
   second <- as.data.frame(second_leg, stringsAsFactors = FALSE, check.names = FALSE)
   if (nrow(first) != 1L || nrow(second) != 1L) stop("UCL two-leg resolver requires one row per leg", call. = FALSE)
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(two_leg_policy = "aggregate_regulation_then_second_leg_extra_time_then_penalties_no_away_goals")
-  fh <- .ucl_sim_score(first, c("final_home_goals", "regulation_home_goals", "home_goals")); fa <- .ucl_sim_score(first, c("final_away_goals", "regulation_away_goals", "away_goals"))
-  sh <- .ucl_sim_score(second, c("final_home_goals", "regulation_home_goals", "home_goals")); sa <- .ucl_sim_score(second, c("final_away_goals", "regulation_away_goals", "away_goals"))
-  participants <- unique(c(as.character(first$home_club_id %||% first$home_team_id %||% first$home_team), as.character(first$away_club_id %||% first$away_team_id %||% first$away_team)))
-  if (length(participants) != 2L || anyNA(c(fh, fa, sh, sa))) return(list(status = "unresolved", reason = "score_evidence_missing", winner = NA_character_))
-  aggregate_home <- fh + sa; aggregate_away <- fa + sh
-  winner <- if (aggregate_home > aggregate_away) participants[[1L]] else if (aggregate_away > aggregate_home) participants[[2L]] else NA_character_
-  et_applied <- FALSE; penalty_applied <- FALSE
-  et_home <- .ucl_sim_score(second, c("extra_time_home_goals", "et_home_goals")); et_away <- .ucl_sim_score(second, c("extra_time_away_goals", "et_away_goals"))
-  pen_home <- .ucl_sim_score(second, c("penalty_home", "penalties_home", "shootout_home_goals")); pen_away <- .ucl_sim_score(second, c("penalty_away", "penalties_away", "shootout_away_goals"))
-  if (is.na(winner) && is.finite(et_home) && is.finite(et_away)) {
-    et_applied <- TRUE
-    if (et_home > et_away) winner <- as.character(second$home_club_id %||% second$home_team_id %||% second$home_team) else if (et_away > et_home) winner <- as.character(second$away_club_id %||% second$away_team_id %||% second$away_team)
+  strict <- .ucl_sim_strict_two_leg(first, second)
+  if (strict) {
+    if (!all(c("leg_number", "leg_order") %in% names(first)) || !all(c("leg_number", "leg_order") %in% names(second))) return(.ucl_sim_invalid_resolution("invalid_leg_topology", rules))
+    leg_numbers <- suppressWarnings(as.integer(c(first$leg_number[[1L]], second$leg_number[[1L]])))
+    if (anyNA(leg_numbers) || !identical(sort(leg_numbers), 1:2) || any(as.character(c(first$leg_order[[1L]], second$leg_order[[1L]])) != "seeded_return_leg")) return(.ucl_sim_invalid_resolution("invalid_leg_topology", rules))
+  } else {
+    if (!"leg_number" %in% names(first)) first$leg_number <- 1L
+    if (!"leg_number" %in% names(second)) second$leg_number <- 2L
+    if (!"leg_order" %in% names(first)) first$leg_order <- "legacy_two_leg"
+    if (!"leg_order" %in% names(second)) second$leg_order <- "legacy_two_leg"
   }
-  if (is.na(winner) && is.finite(pen_home) && is.finite(pen_away)) {
-    penalty_applied <- TRUE
-    if (pen_home > pen_away) winner <- as.character(second$home_club_id %||% second$home_team_id %||% second$home_team) else if (pen_away > pen_home) winner <- as.character(second$away_club_id %||% second$away_team_id %||% second$away_team)
+  ordered <- if (as.integer(first$leg_number[[1L]]) == 1L) list(first = first, second = second) else list(first = second, second = first)
+  first <- ordered$first; second <- ordered$second
+  home_first <- .ucl_sim_id(first, c("home_club_id", "home_team_id", "home_team"))
+  away_first <- .ucl_sim_id(first, c("away_club_id", "away_team_id", "away_team"))
+  home_second <- .ucl_sim_id(second, c("home_club_id", "home_team_id", "home_team"))
+  away_second <- .ucl_sim_id(second, c("away_club_id", "away_team_id", "away_team"))
+  if (any(is.na(c(home_first, away_first, home_second, away_second))) ||
+      any(!nzchar(c(home_first, away_first, home_second, away_second))) ||
+      any(c(home_first, away_first, home_second, away_second)[c(TRUE, FALSE, TRUE, FALSE)] == c(away_first, away_second)) ||
+      !identical(sort(c(home_first, away_first)), sort(c(home_second, away_second))) ||
+      length(unique(c(home_first, away_first))) != 2L || !setequal(c(home_first, home_second), c(home_first, away_first))) {
+    return(.ucl_sim_invalid_resolution("invalid_leg_topology", rules))
   }
-  if (is.na(winner) && !is.null(penalty_winner) && length(penalty_winner) == 1L && as.character(penalty_winner) %in% participants) { penalty_applied <- TRUE; winner <- as.character(penalty_winner) }
-  list(status = if (is.na(winner)) "unresolved" else "resolved", reason = if (is.na(winner)) "penalty_evidence_missing" else NA_character_, winner = winner, participant_a = participants[[1L]], participant_b = participants[[2L]], aggregate_regulation_home = aggregate_home, aggregate_regulation_away = aggregate_away, extra_time_applied = et_applied, extra_time_home = et_home, extra_time_away = et_away, penalty_applied = penalty_applied, penalty_home = pen_home, penalty_away = pen_away, away_goals_used = FALSE, second_leg_venue_id = as.character(second$venue_id %||% second$venue %||% NA_character_), ruleset_sha256 = rules$ruleset_sha256 %||% NA_character_)
+  explicit_participants <- all(c("participant_a", "participant_b") %in% names(first)) && all(c("participant_a", "participant_b") %in% names(second))
+  participant_a <- if (explicit_participants) .ucl_sim_id(first, "participant_a") else home_first
+  participant_b <- if (explicit_participants) .ucl_sim_id(first, "participant_b") else away_first
+  if (is.na(participant_a) || is.na(participant_b) || identical(participant_a, participant_b) ||
+      !identical(sort(c(participant_a, participant_b)), sort(c(home_first, away_first))) ||
+      (explicit_participants && (.ucl_sim_id(second, "participant_a") != participant_a || .ucl_sim_id(second, "participant_b") != participant_b))) {
+    return(.ucl_sim_invalid_resolution("invalid_leg_topology", rules))
+  }
+  if (strict) {
+    if (!all(c("venue_id") %in% names(first)) || !all(c("venue_id") %in% names(second)) ||
+        any(!nzchar(c(.ucl_sim_id(first, "venue_id", ""), .ucl_sim_id(second, "venue_id", ""))))) return(.ucl_sim_invalid_resolution("invalid_leg_topology", rules))
+    if (!all(c("seed_rank", "opponent_rank") %in% names(first)) ||
+        suppressWarnings(as.integer(first$seed_rank[[1L]])) >= suppressWarnings(as.integer(first$opponent_rank[[1L]]))) {
+      return(.ucl_sim_invalid_resolution("invalid_leg_order", rules))
+    }
+    if (!identical(home_first, participant_b) || !identical(home_second, participant_a)) return(.ucl_sim_invalid_resolution("invalid_leg_order", rules))
+  }
+  first_payload <- .ucl_sim_leg_payload(first); second_payload <- .ucl_sim_leg_payload(second)
+  regulation <- c(0, 0); names(regulation) <- c(participant_a, participant_b)
+  final <- regulation
+  if (any(!vapply(c(first_payload$regulation_home, first_payload$regulation_away, second_payload$regulation_home, second_payload$regulation_away), .ucl_sim_valid_goal, logical(1), allow_na = FALSE))) return(list(status = "unresolved", reason = "score_evidence_missing", winner = NA_character_, participant_a = participant_a, participant_b = participant_b))
+  regulation[home_first] <- regulation[home_first] + first_payload$regulation_home
+  regulation[away_first] <- regulation[away_first] + first_payload$regulation_away
+  regulation[home_second] <- regulation[home_second] + second_payload$regulation_home
+  regulation[away_second] <- regulation[away_second] + second_payload$regulation_away
+  final <- regulation
+  extra_applied <- FALSE; penalty_applied <- FALSE; winner <- NA_character_; resolution <- "aggregate"
+  et_home <- second_payload$extra_home; et_away <- second_payload$extra_away
+  if (identical(as.numeric(regulation[[participant_a]]), as.numeric(regulation[[participant_b]]))) {
+    pen_home <- second_payload$shootout_home; pen_away <- second_payload$shootout_away
+    if (any(!vapply(c(et_home, et_away), .ucl_sim_valid_goal, logical(1), allow_na = FALSE))) {
+      if (.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) {
+        et_home <- 0L; et_away <- 0L
+      } else if (!is.null(penalty_winner) && length(penalty_winner) == 1L && as.character(penalty_winner) %in% c(participant_a, participant_b)) {
+        et_home <- 0L; et_away <- 0L
+      } else {
+        return(list(status = "unresolved", reason = "extra_time_evidence_missing", winner = NA_character_, participant_a = participant_a, participant_b = participant_b, aggregate_regulation_home = as.integer(regulation[[participant_a]]), aggregate_regulation_away = as.integer(regulation[[participant_b]]), extra_time_applied = FALSE, penalty_applied = FALSE, away_goals_used = FALSE))
+      }
+    }
+    extra_applied <- TRUE
+    final[home_second] <- final[home_second] + et_home
+    final[away_second] <- final[away_second] + et_away
+    resolution <- "extra_time"
+  }
+  if (final[[participant_a]] > final[[participant_b]]) winner <- participant_a
+  if (final[[participant_b]] > final[[participant_a]]) winner <- participant_b
+  pen_home <- second_payload$shootout_home; pen_away <- second_payload$shootout_away
+  if (is.na(winner)) {
+    if (.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) {
+      penalty_applied <- TRUE; resolution <- "penalties"
+      winner <- if (pen_home > pen_away) home_second else away_second
+    } else if (!is.null(penalty_winner) && length(penalty_winner) == 1L && as.character(penalty_winner) %in% c(participant_a, participant_b)) {
+      penalty_applied <- TRUE; resolution <- "penalties"; winner <- as.character(penalty_winner)
+    }
+  }
+  if (is.na(winner)) return(list(status = "unresolved", reason = "penalty_evidence_missing", winner = NA_character_, participant_a = participant_a, participant_b = participant_b, aggregate_regulation_home = as.integer(regulation[[participant_a]]), aggregate_regulation_away = as.integer(regulation[[participant_b]]), aggregate_final_home = as.integer(final[[participant_a]]), aggregate_final_away = as.integer(final[[participant_b]]), extra_time_applied = extra_applied, extra_time_home = et_home, extra_time_away = et_away, penalty_applied = penalty_applied, penalty_home = pen_home, penalty_away = pen_away, away_goals_used = FALSE, ruleset_sha256 = rules$ruleset_sha256 %||% NA_character_))
+  list(status = "resolved", reason = NA_character_, winner = winner, loser = setdiff(c(participant_a, participant_b), winner)[[1L]], participant_a = participant_a, participant_b = participant_b, aggregate_regulation_home = as.integer(regulation[[participant_a]]), aggregate_regulation_away = as.integer(regulation[[participant_b]]), aggregate_final_home = as.integer(final[[participant_a]]), aggregate_final_away = as.integer(final[[participant_b]]), extra_time_applied = extra_applied, extra_time_home = if (extra_applied) as.integer(et_home) else NA_integer_, extra_time_away = if (extra_applied) as.integer(et_away) else NA_integer_, penalty_applied = penalty_applied, penalty_home = if (penalty_applied) as.integer(pen_home) else NA_integer_, penalty_away = if (penalty_applied) as.integer(pen_away) else NA_integer_, away_goals_used = FALSE, leg_order = as.character(first$leg_order[[1L]]), leg_1_venue_id = .ucl_sim_id(first, "venue_id"), leg_2_venue_id = .ucl_sim_id(second, "venue_id"), second_leg_venue_id = .ucl_sim_id(second, "venue_id"), resolution = resolution, ruleset_sha256 = rules$ruleset_sha256 %||% NA_character_)
 }
 
 #' Resolve the neutral, single-match UCL final.
@@ -413,37 +517,113 @@ ucl_resolve_final <- function(match, rules = NULL, penalty_winner = NULL) {
   row <- as.data.frame(match, stringsAsFactors = FALSE, check.names = FALSE)
   if (nrow(row) != 1L) stop("UCL final resolver requires one match row", call. = FALSE)
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(final_policy = "single_neutral_match_extra_time_then_penalties")
-  home <- as.character(row$home_club_id %||% row$home_team_id %||% row$home_team)
-  away <- as.character(row$away_club_id %||% row$away_team_id %||% row$away_team)
-  if (!isTRUE(row$neutral[[1L]] %||% TRUE)) return(list(status = "blocked", reason = "final_not_neutral"))
-  hg <- .ucl_sim_score(row, c("final_home_goals", "regulation_home_goals", "home_goals")); ag <- .ucl_sim_score(row, c("final_away_goals", "regulation_away_goals", "away_goals"))
-  if (anyNA(c(hg, ag))) return(list(status = "unresolved", reason = "score_evidence_missing", winner = NA_character_))
-  winner <- if (hg > ag) home else if (ag > hg) away else NA_character_
-  et_home <- .ucl_sim_score(row, c("extra_time_home_goals", "et_home_goals")); et_away <- .ucl_sim_score(row, c("extra_time_away_goals", "et_away_goals")); penalty_home <- .ucl_sim_score(row, c("penalty_home", "penalties_home", "shootout_home_goals")); penalty_away <- .ucl_sim_score(row, c("penalty_away", "penalties_away", "shootout_away_goals"))
-  et <- FALSE; penalties <- FALSE
-  if (is.na(winner) && is.finite(et_home) && is.finite(et_away)) { et <- TRUE; winner <- if (et_home > et_away) home else if (et_away > et_home) away else NA_character_ }
-  if (is.na(winner) && is.finite(penalty_home) && is.finite(penalty_away)) { penalties <- TRUE; winner <- if (penalty_home > penalty_away) home else if (penalty_away > penalty_home) away else NA_character_ }
-  if (is.na(winner) && !is.null(penalty_winner) && as.character(penalty_winner) %in% c(home, away)) { penalties <- TRUE; winner <- as.character(penalty_winner) }
-  list(status = if (is.na(winner)) "unresolved" else "resolved", reason = if (is.na(winner)) "penalty_evidence_missing" else NA_character_, winner = winner, neutral = TRUE, home_club_id = home, away_club_id = away, extra_time_applied = et, penalty_applied = penalties, penalty_home = penalty_home, penalty_away = penalty_away, ruleset_sha256 = rules$ruleset_sha256 %||% NA_character_)
+  home <- .ucl_sim_id(row, c("home_club_id", "home_team_id", "home_team")); away <- .ucl_sim_id(row, c("away_club_id", "away_team_id", "away_team"))
+  if (is.na(home) || is.na(away) || identical(home, away)) return(.ucl_sim_invalid_resolution("invalid_final_participants", rules))
+  strict <- "stage_id" %in% names(row) || "stage_event_id" %in% names(row)
+  neutral <- if ("neutral" %in% names(row)) isTRUE(row$neutral[[1L]]) else TRUE
+  if (!neutral) return(.ucl_sim_invalid_resolution("final_not_neutral", rules))
+  venue <- .ucl_sim_id(row, c("venue_id", "venue", "neutral_venue_id"), NA_character_)
+  if (strict && is.na(venue)) return(.ucl_sim_invalid_resolution("final_venue_missing", rules))
+  payload <- .ucl_sim_leg_payload(row)
+  if (any(!vapply(c(payload$regulation_home, payload$regulation_away), .ucl_sim_valid_goal, logical(1), allow_na = FALSE))) return(list(status = "unresolved", reason = "score_evidence_missing", winner = NA_character_, neutral = TRUE, home_club_id = home, away_club_id = away))
+  regulation_tied <- payload$regulation_home == payload$regulation_away
+  et_home <- payload$extra_home; et_away <- payload$extra_away
+  final_home <- payload$regulation_home; final_away <- payload$regulation_away
+  extra_applied <- FALSE; penalty_applied <- FALSE; winner <- if (final_home > final_away) home else if (final_away > final_home) away else NA_character_; resolution <- "regulation"
+  if (regulation_tied) {
+    pen_home <- payload$shootout_home; pen_away <- payload$shootout_away
+    if (any(!vapply(c(et_home, et_away), .ucl_sim_valid_goal, logical(1), allow_na = FALSE))) {
+      if ((.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) || (!is.null(penalty_winner) && as.character(penalty_winner) %in% c(home, away))) {
+        et_home <- 0L; et_away <- 0L
+      } else {
+        return(list(status = "unresolved", reason = "extra_time_evidence_missing", winner = NA_character_, neutral = TRUE, home_club_id = home, away_club_id = away, venue_id = venue))
+      }
+    }
+    extra_applied <- TRUE; final_home <- final_home + et_home; final_away <- final_away + et_away; resolution <- "extra_time"
+    winner <- if (final_home > final_away) home else if (final_away > final_home) away else NA_character_
+  }
+  pen_home <- payload$shootout_home; pen_away <- payload$shootout_away
+  if (is.na(winner)) {
+    if (.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) { penalty_applied <- TRUE; resolution <- "penalties"; winner <- if (pen_home > pen_away) home else away }
+    else if (!is.null(penalty_winner) && as.character(penalty_winner) %in% c(home, away)) { penalty_applied <- TRUE; resolution <- "penalties"; winner <- as.character(penalty_winner) }
+  }
+  if (is.na(winner)) return(list(status = "unresolved", reason = "penalty_evidence_missing", winner = NA_character_, neutral = TRUE, home_club_id = home, away_club_id = away, venue_id = venue, extra_time_applied = extra_applied, penalty_applied = penalty_applied))
+  list(status = "resolved", reason = NA_character_, winner = winner, loser = setdiff(c(home, away), winner)[[1L]], neutral = TRUE, home_advantage = FALSE, home_club_id = home, away_club_id = away, venue_id = venue, regulation_home_goals = as.integer(payload$regulation_home), regulation_away_goals = as.integer(payload$regulation_away), final_home_goals = as.integer(final_home), final_away_goals = as.integer(final_away), extra_time_applied = extra_applied, extra_time_home = if (extra_applied) as.integer(et_home) else NA_integer_, extra_time_away = if (extra_applied) as.integer(et_away) else NA_integer_, penalty_applied = penalty_applied, penalty_home = if (penalty_applied) as.integer(pen_home) else NA_integer_, penalty_away = if (penalty_applied) as.integer(pen_away) else NA_integer_, resolution = resolution, ruleset_sha256 = rules$ruleset_sha256 %||% NA_character_)
+}
+
+# Persist one canonical stage-event row.  This is intentionally private: the
+# public output seam is the closed knockout_paths.csv artifact.
+.ucl_record_stage_event <- function(resolution, stage_id, stage_event_id, seed_slot_id = NA_character_, draw_policy_id = NA_character_, draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_, source_artifact_ids = NA_character_, source_bundle_id = NA_character_, simulation_run_id = NA_character_) {
+  resolution <- if (is.data.frame(resolution)) as.list(resolution[1L, , drop = FALSE]) else resolution
+  scalar <- function(name, default = NA) { value <- resolution[[name]]; if (is.null(value) || !length(value)) return(default); value[[1L]] }
+  aggregate_regulation_home <- scalar("aggregate_regulation_home", scalar("regulation_home_goals", NA_integer_))
+  aggregate_regulation_away <- scalar("aggregate_regulation_away", scalar("regulation_away_goals", NA_integer_))
+  aggregate_final_home <- scalar("aggregate_final_home", scalar("final_home_goals", NA_integer_))
+  aggregate_final_away <- scalar("aggregate_final_away", scalar("final_away_goals", NA_integer_))
+  status <- as.character(scalar("status", scalar("path_status", "unresolved")))
+  if (status %in% c("completed", "accepted_draw")) status <- "resolved"
+  venue <- scalar("venue_id", scalar("second_leg_venue_id", NA_character_))
+  leg_1 <- scalar("leg_1_venue_id", venue); leg_2 <- scalar("leg_2_venue_id", venue)
+  if (identical(as.character(stage_id), "final")) { leg_1 <- venue; leg_2 <- NA_character_ }
+  out <- data.frame(
+    edition_id = scalar("edition_id", if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract()$edition_id else "ucl_2026_27"),
+    path_id = as.character(stage_event_id), stage_event_id = as.character(stage_event_id), stage_id = as.character(stage_id), seed_slot_id = as.character(seed_slot_id),
+    participant_a = as.character(scalar("participant_a", scalar("home_club_id", NA_character_))), participant_b = as.character(scalar("participant_b", scalar("away_club_id", NA_character_))),
+    leg_order = as.character(scalar("leg_order", if (identical(as.character(stage_id), "final")) "single_neutral" else "seeded_return_leg")),
+    leg_1_venue_id = as.character(leg_1), leg_2_venue_id = as.character(leg_2),
+    aggregate_regulation_home = as.integer(aggregate_regulation_home), aggregate_regulation_away = as.integer(aggregate_regulation_away), aggregate_final_home = as.integer(aggregate_final_home), aggregate_final_away = as.integer(aggregate_final_away),
+    extra_time_applied = isTRUE(scalar("extra_time_applied", FALSE)), extra_time_home = as.integer(scalar("extra_time_home", NA_integer_)), extra_time_away = as.integer(scalar("extra_time_away", NA_integer_)), penalty_applied = isTRUE(scalar("penalty_applied", FALSE)), penalty_home = as.integer(scalar("penalty_home", NA_integer_)), penalty_away = as.integer(scalar("penalty_away", NA_integer_)),
+    draw_policy_id = as.character(draw_policy_id), draw_artifact_id = as.character(draw_artifact_id), draw_artifact_sha256 = as.character(draw_artifact_sha256), path_status = status, unresolved_reason = as.character(scalar("reason", scalar("unresolved_reason", NA_character_))), source_artifact_ids = as.character(source_artifact_ids), source_bundle_id = as.character(source_bundle_id), ruleset_sha256 = as.character(scalar("ruleset_sha256", NA_character_)), simulation_run_id = as.character(simulation_run_id), stringsAsFactors = FALSE, check.names = FALSE
+  )
+  out
 }
 
 #' Aggregate stage input/output event counts without repairing unresolved rows.
-ucl_aggregate_stage_events <- function(events, rules = NULL) {
-  if (is.null(events)) return(data.frame(stage_id = character(), input_count = integer(), resolved_count = integer(), unresolved_count = integer(), suppressed_count = integer(), output_count = integer(), stringsAsFactors = FALSE, check.names = FALSE))
+ucl_aggregate_stage_events <- function(events, rules = NULL, stage_inputs = NULL, league_bands = NULL) {
+  empty <- data.frame(stage_id = character(), input_count = integer(), resolved_count = integer(), unresolved_count = integer(), suppressed_count = integer(), output_count = integer(), stringsAsFactors = FALSE, check.names = FALSE)
+  if (is.null(events)) {
+    attr(empty, "valid") <- FALSE
+    attr(empty, "errors") <- "stage_events_empty"
+    return(empty)
+  }
   events <- as.data.frame(events, stringsAsFactors = FALSE, check.names = FALSE)
   if (!"stage_id" %in% names(events)) stop("UCL stage events require stage_id", call. = FALSE)
-  status <- if ("status" %in% names(events)) as.character(events$status) else if ("path_status" %in% names(events)) as.character(events$path_status) else rep("resolved", nrow(events))
-  ids <- sort(unique(as.character(events$stage_id)), method = "radix")
-  out <- do.call(rbind, lapply(ids, function(stage) {
-    values <- status[as.character(events$stage_id) == stage]
-    data.frame(stage_id = stage, input_count = length(values), resolved_count = sum(values %in% c("resolved", "completed", "accepted_draw", "pre_draw_legal")), unresolved_count = sum(values %in% c("unresolved", "blocked")), suppressed_count = sum(values %in% c("suppressed")), output_count = sum(values %in% c("resolved", "completed", "accepted_draw", "pre_draw_legal")), stringsAsFactors = FALSE, check.names = FALSE)
+  stage <- as.character(events$stage_id)
+  raw_status <- if ("status" %in% names(events)) as.character(events$status) else if ("path_status" %in% names(events)) as.character(events$path_status) else rep("resolved", nrow(events))
+  resolved_status <- c("resolved", "completed", "accepted_draw")
+  unresolved_status <- c("unresolved", "blocked")
+  suppressed_status <- c("suppressed", "pre_draw_legal")
+  unknown <- !raw_status %in% c(resolved_status, unresolved_status, suppressed_status)
+  classified <- ifelse(raw_status %in% resolved_status, "resolved", ifelse(raw_status %in% suppressed_status, "suppressed", "unresolved"))
+  input_names <- names(stage_inputs)
+  if (!is.null(stage_inputs) && (is.null(input_names) || any(!nzchar(input_names)))) stop("stage_inputs must be a named count vector", call. = FALSE)
+  ids <- sort(unique(c(stage, input_names %||% character())), method = "radix")
+  errors <- character()
+  out <- do.call(rbind, lapply(ids, function(stage_id) {
+    observed <- classified[stage == stage_id]
+    expected <- if (!is.null(stage_inputs) && stage_id %in% input_names) suppressWarnings(as.integer(stage_inputs[[stage_id]])) else length(observed)
+    if (is.na(expected) || expected < 0L) {
+      errors <<- c(errors, paste0("invalid_stage_input:", stage_id))
+      expected <- length(observed)
+    }
+    if (length(observed) > expected) errors <<- c(errors, paste0("stage_input_overflow:", stage_id))
+    missing <- max(0L, expected - length(observed))
+    data.frame(stage_id = stage_id, input_count = as.integer(expected), resolved_count = as.integer(sum(observed == "resolved")), unresolved_count = as.integer(sum(observed == "unresolved") + missing), suppressed_count = as.integer(sum(observed == "suppressed")), output_count = as.integer(sum(observed == "resolved")), stringsAsFactors = FALSE, check.names = FALSE)
   }))
+  if (any(unknown)) errors <- c(errors, "unknown_stage_event_status")
+  if (any(out$input_count != out$resolved_count + out$unresolved_count + out$suppressed_count)) errors <- c(errors, "stage_count_nonconservation")
+  if (!is.null(league_bands)) {
+    bands <- suppressWarnings(as.numeric(league_bands))
+    if (anyNA(bands) || any(bands < 0) || abs(sum(bands) - 36) > 0) errors <- c(errors, "league_band_nonconservation")
+  }
   row.names(out) <- NULL
+  attr(out, "valid") <- !length(errors)
+  attr(out, "errors") <- unique(errors)
   out
 }
 
 #' Validate probability conservation and monotone progression.
-ucl_validate_progression_reconciliation <- function(progression, tolerance = 1e-10) {
+ucl_validate_progression_reconciliation <- function(progression, stage_inputs = NULL, league_bands = NULL, tolerance = 1e-10) {
   if (!is.data.frame(progression) || !nrow(progression)) return(list(status = "unresolved", valid = FALSE, errors = "progression_empty"))
   required <- c("club_id", "stage_id", "probability")
   if (!all(required %in% names(progression))) return(list(status = "blocked", valid = FALSE, errors = "progression_schema_incomplete"))
@@ -451,19 +631,36 @@ ucl_validate_progression_reconciliation <- function(progression, tolerance = 1e-
   p <- suppressWarnings(as.numeric(progression$probability))
   finite <- !is.na(p)
   if (any(!is.finite(p[finite]) | p[finite] < -tolerance | p[finite] > 1 + tolerance)) errors <- c(errors, "probability_bounds")
+  if (any(is.na(p) & (!("status" %in% names(progression)) | as.character(progression$status) == "resolved"))) errors <- c(errors, "resolved_probability_missing")
+  stage_order <- if ("stage_order" %in% names(progression)) suppressWarnings(as.numeric(progression$stage_order)) else match(as.character(progression$stage_id), c("direct_round_of_16", "knockout_play_off", "round_of_16", "quarter_final", "semi_final", "final", "champion", "eliminated"))
+  if (any(is.na(stage_order))) errors <- c(errors, "stage_order_missing")
   for (club in unique(as.character(progression$club_id))) {
     rows <- progression[as.character(progression$club_id) == club, , drop = FALSE]
-    if ("status" %in% names(rows) && any(as.character(rows$status) == "resolved")) {
-      resolved <- rows[as.character(rows$status) == "resolved", , drop = FALSE]
-      if ("qualification_band" %in% names(resolved)) {
-        total <- sum(as.numeric(resolved$probability), na.rm = TRUE)
-        if (abs(total - 1) > tolerance) errors <- c(errors, paste0("band_sum:", club))
-      }
-    }
-    if (all(c("stage_order", "probability") %in% names(rows))) {
-      ordered <- rows[order(as.numeric(rows$stage_order)), , drop = FALSE]
-      if (any(diff(as.numeric(ordered$probability)) > tolerance, na.rm = TRUE)) errors <- c(errors, paste0("non_monotone:", club))
+    order_values <- stage_order[as.character(progression$club_id) == club]
+    ordered <- rows[order(order_values), , drop = FALSE]
+    ordered_probability <- suppressWarnings(as.numeric(ordered$probability))
+    if (length(ordered_probability) > 1L && any(diff(ordered_probability) > tolerance, na.rm = TRUE)) errors <- c(errors, paste0("non_monotone:", club))
+    if ("qualification_band" %in% names(ordered)) {
+      resolved <- if ("status" %in% names(ordered)) ordered[as.character(ordered$status) == "resolved", , drop = FALSE] else ordered
+      values <- suppressWarnings(as.numeric(resolved$probability))
+      if (length(values) && abs(sum(values, na.rm = TRUE) - 1) > tolerance) errors <- c(errors, paste0("band_sum:", club))
     }
   }
-  list(status = if (length(errors)) "invalid" else "ready", valid = !length(errors), errors = unique(errors))
+  if (!is.null(stage_inputs) && all(as.character(progression$status %||% rep("resolved", nrow(progression))) == "resolved")) {
+    for (stage_id in intersect(names(stage_inputs), unique(as.character(progression$stage_id)))) {
+      values <- suppressWarnings(as.numeric(progression$probability[as.character(progression$stage_id) == stage_id]))
+      if (length(values) > 1L && all(is.finite(values)) && abs(sum(values) - 1) > tolerance) errors <- c(errors, paste0("stage_sum:", stage_id))
+    }
+  }
+  if (!is.null(stage_inputs)) {
+    if (is.null(names(stage_inputs)) || any(!nzchar(names(stage_inputs))) || anyNA(as.numeric(stage_inputs)) || any(as.numeric(stage_inputs) < 0)) errors <- c(errors, "stage_input_schema")
+    unknown_stages <- setdiff(names(stage_inputs), unique(as.character(progression$stage_id)))
+    if (length(unknown_stages)) errors <- c(errors, paste0("stage_input_missing:", unknown_stages))
+  }
+  if (!is.null(league_bands)) {
+    bands <- suppressWarnings(as.numeric(league_bands))
+    if (anyNA(bands) || any(bands < 0) || abs(sum(bands) - 36) > 0) errors <- c(errors, "league_band_nonconservation")
+  }
+  errors <- unique(errors)
+  list(status = if (length(errors)) "invalid" else "ready", valid = !length(errors), errors = errors)
 }

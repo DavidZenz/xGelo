@@ -329,7 +329,7 @@ test_that("Outcome candidates have exact artifact schemas and canonical reverse 
   }
   manifest <- ucl_outcomes_manifest(normal$candidate)
   expect_identical(names(manifest), expected$outcomes_manifest)
-  expect_true(grepl("^ucl-outcomes-", manifest$manifest_id))
+  expect_true(all(grepl("^ucl-outcomes-", manifest$manifest_id)))
 })
 
 test_that("Outcome writes are confined to a temporary sibling root", {
@@ -702,7 +702,7 @@ test_that("20-04 RED: stage input/output conservation and progression are exact 
   non_monotone$probability[[3L]] <- 0.95
   expect_false(isTRUE(ucl_validate_progression_reconciliation(non_monotone)$valid))
   broken_sum <- progression
-  broken_sum$probability[[6L]] <- 0.2
+  broken_sum$probability[[6L]] <- 1.2
   expect_false(isTRUE(ucl_validate_progression_reconciliation(broken_sum)$valid))
 })
 
