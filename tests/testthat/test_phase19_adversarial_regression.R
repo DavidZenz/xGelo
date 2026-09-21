@@ -215,14 +215,45 @@ phase19_adversarial_minimal_calibrator <- function() {
   ), class = c("phase19_club_calibrator", "list"))
 }
 
+phase19_adversarial_release_generation <- local({
+  cached <- NULL
+  function() {
+    if (!is.null(cached)) return(cached)
+    phase19_adversarial_load()
+    old_directory <- getwd()
+    setwd(phase19_adversarial_root)
+    on.exit(setwd(old_directory), add = TRUE)
+    script <- file.path(phase19_adversarial_root, "scripts/run_phase19_club_evaluation.R")
+    lines <- readLines(script, warn = FALSE, encoding = "UTF-8")
+    main <- which(trimws(lines) == "phase19_cli_main()")
+    if (length(main) != 1L) stop("RED: fixture CLI main boundary is not exact", call. = FALSE)
+    eval(parse(text = lines[seq_len(main - 1L)]), envir = .GlobalEnv)
+    fixture_root <- phase19_test_fixture_root("adversarial-release")
+    output_root <- tempfile("phase19-adversarial-release-output-", tmpdir = tempdir())
+    release_root <- tempfile("phase19-adversarial-release-authority-", tmpdir = tempdir())
+    dir.create(output_root, recursive = TRUE)
+    dir.create(release_root, recursive = TRUE)
+    record <- phase19_cli_fixture(list(
+      fixture_root = fixture_root, output_root = output_root, release_root = release_root
+    ))
+    generation <- file.path(release_root, as.character(record$release_id))
+    if (!dir.exists(generation)) stop("RED: fixture CLI did not publish a typed release", call. = FALSE)
+    cached <<- generation
+    generation
+  }
+})
+
 phase19_adversarial_stage_release <- function(label) {
+  generation <- phase19_adversarial_release_generation()
   root <- tempfile(paste0("phase19-adversarial-release-", label, "-"), tmpdir = tempdir())
-  dir.create(root, recursive = TRUE)
-  staged <- phase19_stage_fixture_club_release(
-    decision = phase19_adversarial_minimal_decision(), model = phase19_adversarial_minimal_model(), calibrator = phase19_adversarial_minimal_calibrator(), output_root = root, release_id = paste0("fixture-", label),
-    history_snapshot = list(snapshot_sha256 = strrep("7", 64L), accepted_generation_id = "fixture-history"), current_snapshot = list(snapshot_sha256 = strrep("8", 64L), generation_id = "fixture-current")
-  )
-  list(root = root, staged = staged)
+  staged_root <- file.path(root, "staged")
+  dir.create(staged_root, recursive = TRUE)
+  children <- list.files(generation, all.files = TRUE, no.. = TRUE, full.names = TRUE)
+  copied <- vapply(children, function(child) {
+    file.copy(child, staged_root, recursive = TRUE, copy.date = TRUE)
+  }, logical(1))
+  if (any(!copied)) stop("RED: typed fixture release copy failed", call. = FALSE)
+  list(root = root, staged = list(release_root = staged_root))
 }
 
 phase19_adversarial_cli <- function(arguments = character()) {
