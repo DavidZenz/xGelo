@@ -1,8 +1,8 @@
 ---
 phase: 20-ucl-rules-state-and-tournament-outcomes
-verified: 2026-09-22T00:45:42Z
-status: gaps_found
-score: 3/5 must-haves verified
+verified: 2026-09-25T00:00:00Z
+status: human_needed
+score: 5/5 implementation must-haves verified; external authority pending
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -13,9 +13,13 @@ re_verification:
     - "Simulation now emits the complete 24-row knockout-stage inventory and 8 progression rows per club through champion, including unresolved/suppressed rows when the edition draw is unavailable."
     - "Outcome candidates now compare supplied artifact tables with freshly regenerated expected tables and bind the ten artifact hashes into the manifest."
     - "The ten UCL targets now call the state, ledger, simulation, path, stage, candidate, manifest, and result helpers instead of being pure pass-through nodes."
+    - "Production draw validation now requires accepted edition evidence and an in-process trusted artifact token; the target and CLI seams carry that trusted artifact through simulation and path enumeration."
+    - "Outcome candidates now bind graph, state, ledger, model, calibrator, component, and simulation-run identities; unresolved progression rows must carry NA probabilities."
+    - "Target path/stage exceptions now remain typed blocked states, and replay-check reverses semantic fixture input rows before comparing identities."
   gaps_remaining:
-    - "Trusted accepted-draw authority is not enforced or carried through the production CLI/target graph."
-    - "Outcome-candidate validation still accepts independently mutated state, ledger, and simulation run identity components."
+    - "Phase 18 has no accepted current UCL source bundle."
+    - "Phase 19 still has no source-backed forecast_rows release."
+    - "The official 2026/27 draw artifact remains unreviewed and explicitly unaccepted in the rules sidecar."
   regressions:
     - "Phase 14 standings still fails at test_phase14_standings.R:686 on a temporary schema-v2 row.names attribute mismatch."
     - "The bounded aggregate run did not produce a result for the long Phase 14 state-bundle regression before it was interrupted; it is not reported as green."
@@ -45,6 +49,20 @@ gaps:
       - "Revalidate the supplied state graph and ledger at the outcome boundary and compare graph/state/ledger/model/calibrator/draw/run identities with simulation metadata."
       - "Require unresolved/suppressed progression probabilities to be NA and reject any rehashed semantic mutation."
 ---
+
+# Current final disposition (2026-09-25)
+
+The earlier blocker findings below are retained as the historical audit trail. They were closed by commit `e1402ba` and the focused final-boundary review. The Phase 20 implementation is mechanically complete and fail-closed; the phase remains `human_needed` because production authority is still external and unavailable.
+
+Fresh evidence after the repair:
+
+- `test_uefa_champions_league.R` passed.
+- `test_phase20_state_authority_review.R`, `test_phase20_simulation_review.R`, `test_phase20_outcomes_wiring_review.R`, `test_phase20_adversarial_regression.R`, and `test_phase20_final_boundary_review.R` passed.
+- `targets::tar_manifest()` reports the exact ten UCL targets and fifteen edges.
+- The fixed CLI returns `production_human_needed / phase18_authority_missing` with protected bytes unchanged.
+- The aggregate verifier reaches the known historical Phase 14 standings row-names failure; the long Phase 14 state-bundle regression remains bounded/incomplete and is not claimed green.
+
+Production output must remain absent until Phase 18 source acceptance, Phase 19 release/forecast-row acceptance, and the official 2026/27 draw artifact are independently approved.
 
 # Phase 20: UCL Rules, State, and Tournament Outcomes Verification Report
 
