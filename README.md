@@ -431,6 +431,15 @@ xGelo uses open or locally cached data sources:
   committed. The optional feature block uses dated player valuations to derive
   player-pool value, top-11/top-15/top-23 value, positional depth, value shares,
   depth concentration, age profile, and 6-/12-month valuation momentum.
+- [ClubElo](https://clubelo.com/) through the calculation-only adapter in
+  `R/club/clubelo.R`. It supplies historical/current club-strength ratings and
+  explicit ClubElo-name mappings; provider rows and raw responses are not
+  dashboard publication data.
+- [OpenFootball Champions League](https://github.com/openfootball/champions-league)
+  is the preferred open match-result source for the recent historical UCL
+  window. The repository is CC0 and structured for reproducible snapshots, but
+  each source commit, path, raw hash, and club-identity review must pass the
+  Phase 18 history gate before it becomes production training authority.
 
 Please credit those upstream projects when using or publishing outputs derived
 from this repository. StatsBomb Open Data is licensed under Creative Commons

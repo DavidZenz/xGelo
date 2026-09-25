@@ -47,6 +47,7 @@ phase19_cli_source(c(
   "R/release/domain_contract.R",
   "R/club/model_contract.R",
   "R/club/evaluation_protocol.R",
+  "R/club/clubelo.R",
   "R/club/rating.R",
   "R/club/goal_model.R",
   "R/club/calibration.R",

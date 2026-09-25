@@ -35,6 +35,7 @@ source("R/competition/ucl_source_refresh.R")
 source("R/club/history_contract.R")
 source("R/club/model_contract.R")
 source("R/club/evaluation_protocol.R")
+source("R/club/clubelo.R")
 source("R/club/rating.R")
 source("R/club/goal_model.R")
 source("R/club/calibration.R")
@@ -296,6 +297,7 @@ for (ucl20_target_dependency in c(
   "R/club/history_contract.R",
   "R/club/model_contract.R",
   "R/club/evaluation_protocol.R",
+  "R/club/clubelo.R",
   "R/club/rating.R",
   "R/club/goal_model.R",
   "R/club/calibration.R",

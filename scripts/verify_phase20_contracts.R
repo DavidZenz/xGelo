@@ -59,6 +59,7 @@ phase20_gate_source_runtime <- function() {
     "R/club/history_contract.R",
     "R/club/model_contract.R",
     "R/club/evaluation_protocol.R",
+    "R/club/clubelo.R",
     "R/club/rating.R",
     "R/club/goal_model.R",
     "R/club/calibration.R",
