@@ -218,7 +218,7 @@ phase18_fd_live_performer <- function() {
     }
     req <- httr2::request(url)
     req <- httr2::req_headers_redacted(req, `X-Auth-Token` = token)
-    req <- httr2::req_throttle(req, rate = 9, capacity = 9, fill_time_s = 60, realm = "football-data.org-v4-ucl")
+    req <- httr2::req_throttle(req, capacity = 9, fill_time_s = 60, realm = "football-data.org-v4-ucl")
     req <- httr2::req_error(req, is_error = function(response) FALSE)
     response <- httr2::req_perform(req)
     list(
