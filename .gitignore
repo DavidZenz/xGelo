@@ -12,6 +12,7 @@ outputs/dashboard_precompute_smoke/
 outputs/dashboard_bench_*/
 _targets/
 logs/
+.Renviron
 
 # Disposable root-level test/probe workspaces belong outside the repository.
 /phase13-*
