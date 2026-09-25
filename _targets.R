@@ -413,7 +413,8 @@ phase20_ucl_target_state <- function(source, rules_evidence) {
   graph <- list(
     edition_id = "ucl_2026_27", source_bundle_id = as.character(accepted$bundle$bundle_id[[1L]]),
     authority_mode = "production", fixture_authority = FALSE, production_eligible = TRUE,
-    selector_path = NULL, production_root = NULL, clubs = clubs, fixtures = fixtures
+    selector_path = NULL, production_root = NULL, clubs = clubs, fixtures = fixtures,
+    draw_artifact = accepted$draw_artifact %||% if (is.list(accepted$artifacts)) accepted$artifacts$draw_artifact else NULL
   )
   state <- tryCatch(
     phase20_ucl_target_get("ucl_build_state")(graph, rules = rules_evidence$rules, evidence = rules_evidence$evidence,
@@ -444,18 +445,29 @@ phase20_ucl_target_forecast_ledger <- function(state) {
 phase20_ucl_target_simulation <- function(state, ledger, rules_evidence) {
   issue <- phase20_ucl_target_first_blocker(state, ledger, rules_evidence)
   if (!is.null(issue)) return(issue)
+  raw_draw <- if (is.list(state$graph)) state$graph$draw_artifact else NULL
+  trusted_draw <- tryCatch(
+    phase20_ucl_target_get(".ucl_resolve_trusted_draw_artifact")(
+      raw_draw, rules = rules_evidence$rules, source_bundle_id = state$source_bundle_id
+    ),
+    error = function(error) list(status = "unresolved", reason = "trusted_draw_resolution_failed")
+  )
+  draw <- if (is.list(trusted_draw) && inherits(trusted_draw, "ucl_trusted_draw_artifact")) trusted_draw else NULL
   simulation <- tryCatch(
     phase20_ucl_target_get("ucl_run_simulation")(
       state, ledger = ledger, simulations = 1L, seed = 20260921L,
-      rules = rules_evidence$rules, information_cutoff_utc = phase20_ucl_target_cutoff()
+      rules = rules_evidence$rules, draw_artifact = draw,
+      draw_authority_mode = "production",
+      information_cutoff_utc = phase20_ucl_target_cutoff()
     ),
     error = function(error) phase20_ucl_target_blocked("simulation_failed", conditionMessage(error))
   )
   if (identical(as.character(simulation$status), "blocked")) return(phase20_ucl_target_blocked(simulation$reason %||% "simulation_blocked"))
   list(schema_version = "phase20-ucl-target-simulation-v1", status = simulation$status,
        state = state, ledger = ledger, simulation = simulation, rules = rules_evidence$rules,
+       draw_artifact = draw,
        authority_mode = state$authority_mode %||% "production",
-       fixture_authority = isTRUE(state$fixture_authority), production_eligible = FALSE)
+       draw_authority_mode = "production", fixture_authority = isTRUE(state$fixture_authority), production_eligible = FALSE)
 }
 
 phase20_ucl_target_paths <- function(simulation, rules_evidence) {
@@ -465,11 +477,13 @@ phase20_ucl_target_paths <- function(simulation, rules_evidence) {
   rows <- if (is.data.frame(run$rank_rows) && nrow(run$rank_rows)) run$rank_rows[run$rank_rows$iteration == max(run$rank_rows$iteration), , drop = FALSE] else data.frame()
   paths <- tryCatch(
     phase20_ucl_target_get("ucl_enumerate_legal_knockout_paths")(
-      rows, draw_artifact = NULL, rules = rules_evidence$rules,
-      source_bundle_id = simulation$state$source_bundle_id, seed = 20260921L
+      rows, draw_artifact = simulation$draw_artifact %||% NULL, rules = rules_evidence$rules,
+      source_bundle_id = simulation$state$source_bundle_id, seed = 20260921L,
+      authority_mode = simulation$draw_authority_mode %||% "production"
     ),
-    error = function(error) data.frame()
+    error = function(error) phase20_ucl_target_blocked("path_enumeration_failed", conditionMessage(error))
   )
+  if (is.list(paths) && identical(as.character(paths$status), "blocked")) return(paths)
   list(schema_version = "phase20-ucl-target-paths-v1", status = simulation$status,
        paths = paths, simulation = run, state = simulation$state, ledger = simulation$ledger,
        rules = rules_evidence$rules, authority_mode = simulation$authority_mode,
@@ -489,8 +503,9 @@ phase20_ucl_target_stage_events <- function(paths, rules_evidence) {
       league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
       required_stage_ids = c("knockout_play_off", "round_of_16", "quarter_final", "semi_final", "final", "champion")
     ),
-    error = function(error) data.frame()
+    error = function(error) phase20_ucl_target_blocked("stage_aggregation_failed", conditionMessage(error))
   )
+  if (is.list(aggregate) && identical(as.character(aggregate$status), "blocked")) return(aggregate)
   list(schema_version = "phase20-ucl-target-stage-events-v1", status = paths$status,
        events = events, stage_events = events, stage_reconciliation = aggregate,
        paths = paths, state = paths$state, ledger = paths$ledger %||% NULL,

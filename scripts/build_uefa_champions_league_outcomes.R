@@ -364,12 +364,33 @@ phase20_ucl_source_graph <- function(accepted, rules) {
   validation$graph
 }
 
+phase20_ucl_reverse_semantic_input <- function(graph = NULL, release = NULL) {
+  reverse_rows <- function(value) {
+    if (!is.data.frame(value) || !nrow(value)) return(value)
+    value[rev(seq_len(nrow(value))), , drop = FALSE]
+  }
+  reversed_graph <- graph
+  if (is.list(reversed_graph)) {
+    for (field in c("clubs", "teams", "fixtures", "matches")) {
+      if (is.data.frame(reversed_graph[[field]])) reversed_graph[[field]] <- reverse_rows(reversed_graph[[field]])
+    }
+  }
+  reversed_release <- release
+  if (is.list(reversed_release)) {
+    for (field in c("forecast_rows", "forecasts", "ledger")) {
+      if (is.data.frame(reversed_release[[field]])) reversed_release[[field]] <- reverse_rows(reversed_release[[field]])
+    }
+  }
+  list(graph = reversed_graph, release = reversed_release)
+}
+
 phase20_ucl_candidate_replay <- function(graph = NULL, release = NULL, rules = NULL, options) {
   builder <- phase20_ucl_get("ucl20_build_outcomes")
   first <- builder(graph = graph, release = release, simulations = options$simulations,
                   seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE)
   if (!isTRUE(options$replay_check)) return(list(candidate = first, replay_verified = NA))
-  second <- builder(graph = graph, release = release, simulations = options$simulations,
+  reversed <- phase20_ucl_reverse_semantic_input(graph, release)
+  second <- builder(graph = reversed$graph, release = reversed$release, simulations = options$simulations,
                     seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE)
   hashes_present <- length(first$artifact_hashes) == 10L && length(second$artifact_hashes) == 10L
   stable <- hashes_present && identical(first$artifact_hashes, second$artifact_hashes) &&

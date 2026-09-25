@@ -688,7 +688,8 @@
 #' Run a seeded conditional league-phase simulation.
 ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20260921L,
                                rules = NULL, draw_artifact = NULL, source_bundle_id = NULL,
-                               information_cutoff_utc = NULL) {
+                               information_cutoff_utc = NULL,
+                               draw_authority_mode = "fixture") {
   if (is.list(state) && !is.data.frame(state) && !is.null(state$status) &&
       !identical(as.character(state$status), "ready")) {
     return(structure(list(
@@ -736,7 +737,12 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
   source_bundle_id <- source_bundle_id %||% validation$graph$source_bundle_id
   graph_hash <- .ucl_sim_graph_content_hash(validation$graph)
   state_hash <- .ucl_sim_state_content_hash(state, validation$graph)
-  draw <- ucl_validate_draw_artifact(draw_artifact, rules = rules, source_bundle_id = source_bundle_id)
+  draw <- ucl_validate_draw_artifact(
+    draw_artifact,
+    rules = rules,
+    source_bundle_id = source_bundle_id,
+    authority_mode = draw_authority_mode
+  )
   draw_identity <- if (identical(draw$status, "accepted")) draw$draw_artifact_sha256 else paste0("unresolved:", draw$reason %||% "unknown")
   run_id <- .ucl_sim_sequence_hash(
     list(
@@ -755,7 +761,11 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     list(graph = graph_i, rows = if (is.null(built) || !identical(built$status, "ready")) data.frame() else .ucl_sim_rank_rows(built$standings, iteration, run_id))
   })
   rows <- do.call(rbind, lapply(iteration_results, `[[`, "rows")); if (is.null(rows)) rows <- data.frame(); row.names(rows) <- NULL
-  path_state <- ucl_enumerate_legal_knockout_paths(if (nrow(rows)) rows[rows$iteration == max(rows$iteration), , drop = FALSE] else data.frame(), draw_artifact = draw_artifact, rules = rules, source_bundle_id = source_bundle_id, seed = seed)
+  path_state <- ucl_enumerate_legal_knockout_paths(
+    if (nrow(rows)) rows[rows$iteration == max(rows$iteration), , drop = FALSE] else data.frame(),
+    draw_artifact = draw_artifact, rules = rules, source_bundle_id = source_bundle_id,
+    seed = seed, authority_mode = draw_authority_mode
+  )
   draw_conditioned <- identical(draw$status, "accepted") && is.data.frame(path_state) && nrow(path_state) == 16L &&
     all(as.character(path_state$path_status) == "accepted_draw")
   stage_draw <- if (draw_conditioned) draw else list(status = "unresolved", reason = if (identical(draw$status, "accepted")) "draw_rank_input_mismatch" else draw$reason)
@@ -787,6 +797,17 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
       fixture_authority = isTRUE(validation$graph$fixture_authority), production_eligible = FALSE
     ), class = c("ucl_simulation_run", "list")))
   }
+  component_hashes <- list(
+    knockout_paths_sha256 = .ucl_sim_canonical_table_hash(
+      stage_events, key = "stage_event_id", schema_tag = "ucl20-stage-events-v1"
+    ),
+    stage_events_sha256 = .ucl_sim_canonical_table_hash(
+      stage_events, key = "stage_event_id", schema_tag = "ucl20-stage-events-v1"
+    ),
+    progression_sha256 = .ucl_sim_canonical_table_hash(
+      progression, key = "club_id", schema_tag = "ucl20-progression-v1"
+    )
+  )
   metadata <- list(
     run_id = run_id, graph_sha256 = graph_hash, state_sha256 = state_hash, ledger_sha256 = ledger_check$table_sha256,
     edition_id = validation$graph$edition_id, source_bundle_id = source_bundle_id,
@@ -806,7 +827,9 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     model_release_id = ledger_check$model_release_id, model_sha256 = ledger_check$model_sha256,
     calibrator_sha256 = ledger_check$calibrator_sha256,
     stage_event_count = nrow(stage_events), progression_row_count = nrow(progression),
-    status = if (unresolved_draw) "unresolved_draw_procedure" else "ready"
+    status = if (unresolved_draw) "unresolved_draw_procedure" else "ready",
+    draw_authority_mode = as.character(draw_authority_mode),
+    component_hashes = component_hashes
   )
   structure(list(status = metadata$status, run_id = run_id, rank_rows = rows, simulations = rows,
                  knockout_paths = stage_events, legal_paths = path_state, stage_events = stage_events, progression_probabilities = progression,
@@ -814,6 +837,9 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
                  metadata = metadata, graph = validation$graph, state_sha256 = state_hash,
                  graph_sha256 = graph_hash,
                  ledger = ledger_table, fixture_sampling = sampling,
+                 draw_artifact = if (identical(draw$status, "accepted")) draw_artifact else NULL,
+                 draw_authority_mode = as.character(draw_authority_mode),
+                 component_hashes = component_hashes,
                  club_ids = sort(as.character(validation$graph$clubs$club_id), method = "radix"),
                  fixture_authority = isTRUE(validation$graph$fixture_authority), production_eligible = FALSE),
             class = c("ucl_simulation_run", "list"))
@@ -928,9 +954,9 @@ ucl_aggregate_rank_distributions <- function(simulation, rules = NULL, club_ids 
 }
 
 #' Enumerate only rank-compatible play-off and round-of-16 path families.
-ucl_enumerate_legal_knockout_paths <- function(rankings, draw_artifact = NULL, rules = NULL, seed = NULL, source_bundle_id = NULL) {
+ucl_enumerate_legal_knockout_paths <- function(rankings, draw_artifact = NULL, rules = NULL, seed = NULL, source_bundle_id = NULL, authority_mode = "fixture") {
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(edition_id = "ucl_2026_27", ruleset_sha256 = NA_character_, draw_policy_id = "ucl-2026-27-article19-annexb-v1")
-  draw <- ucl_validate_draw_artifact(draw_artifact, rules = rules, source_bundle_id = source_bundle_id)
+  draw <- ucl_validate_draw_artifact(draw_artifact, rules = rules, source_bundle_id = source_bundle_id, authority_mode = authority_mode)
   if (identical(draw$status, "accepted")) {
     if (!is.data.frame(rankings) || nrow(rankings) != 36L || !all(c("club_id", "rank") %in% names(rankings))) {
       return(.ucl_unresolved_path(rules, source_bundle_id, "draw_rank_input_missing"))
@@ -972,13 +998,59 @@ ucl_enumerate_legal_knockout_paths <- function(rankings, draw_artifact = NULL, r
   output
 }
 
+# The production draw seam carries an unforgeable-in-process token.  Fixture
+# callers can still validate complete mechanics, but the production simulator
+# only accepts artifacts returned by `.ucl_resolve_trusted_draw_artifact()`.
+.ucl_sim_draw_authority <- local({
+  token <- new.env(parent = emptyenv())
+  list(token = token)
+})
+
+#' Resolve a source-backed accepted draw for production use.
+.ucl_resolve_trusted_draw_artifact <- function(draw_artifact = NULL, rules = NULL, source_bundle_id = NULL) {
+  rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(edition_id = "ucl_2026_27")
+  evidence <- if (is.data.frame(rules$evidence)) rules$evidence[as.character(rules$evidence$document_id) == "draw_procedure_2026_27", , drop = FALSE] else data.frame()
+  if (nrow(evidence) != 1L || !isTRUE(evidence$accepted[[1L]]) || !isTRUE(evidence$complete[[1L]])) {
+    return(list(status = "unresolved", reason = "missing_edition_draw_procedure", draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
+  }
+  if (is.null(draw_artifact)) return(list(status = "unresolved", reason = "missing_trusted_draw_artifact", draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
+  checked <- ucl_validate_draw_artifact(draw_artifact, rules = rules, source_bundle_id = source_bundle_id, authority_mode = "fixture")
+  if (!identical(as.character(checked$status), "accepted")) return(checked)
+  trusted <- draw_artifact
+  trusted$accepted <- TRUE
+  trusted$complete <- TRUE
+  trusted$authority_mode <- "production"
+  trusted$trusted_source <- TRUE
+  trusted$source_bundle_id <- as.character(source_bundle_id %||% trusted$source_bundle_id)
+  trusted$draw_artifact_sha256 <- checked$draw_artifact_sha256
+  trusted$rank_input_sha256 <- checked$rank_input_sha256
+  trusted$pairings_sha256 <- checked$pairings_sha256
+  trusted$.authority_token <- .ucl_sim_draw_authority$token
+  class(trusted) <- unique(c("ucl_trusted_draw_artifact", class(trusted)))
+  trusted
+}
+
 #' Validate a same-edition accepted draw or return a typed unresolved state.
-ucl_validate_draw_artifact <- function(draw_artifact = NULL, rules = NULL, source_bundle_id = NULL) {
+ucl_validate_draw_artifact <- function(draw_artifact = NULL, rules = NULL, source_bundle_id = NULL,
+                                       authority_mode = "fixture") {
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else list(edition_id = "ucl_2026_27")
   if (is.null(draw_artifact)) return(list(status = "unresolved", reason = "missing_edition_draw_procedure", draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
   if (is.list(draw_artifact) && identical(as.character(draw_artifact$status %||% ""), "unresolved") && !is.null(draw_artifact$reason)) return(list(status = "unresolved", reason = as.character(draw_artifact$reason), draw_artifact_id = NA_character_, draw_artifact_sha256 = NA_character_))
   if (!is.list(draw_artifact) || !is.data.frame(draw_artifact$pairings)) return(list(status = "unresolved", reason = "partial_draw_artifact"))
   artifact <- draw_artifact; pairings <- artifact$pairings
+  authority_mode <- as.character(authority_mode[[1L]] %||% "fixture")
+  if (!authority_mode %in% c("fixture", "production")) return(list(status = "unresolved", reason = "draw_authority_mode_invalid"))
+  if (identical(authority_mode, "production")) {
+    evidence <- if (is.data.frame(rules$evidence)) rules$evidence[as.character(rules$evidence$document_id) == "draw_procedure_2026_27", , drop = FALSE] else data.frame()
+    if (nrow(evidence) != 1L || !isTRUE(evidence$accepted[[1L]]) || !isTRUE(evidence$complete[[1L]])) {
+      return(list(status = "unresolved", reason = "missing_edition_draw_procedure"))
+    }
+    if (!inherits(draw_artifact, "ucl_trusted_draw_artifact") ||
+        !isTRUE(draw_artifact$trusted_source) ||
+        !identical(draw_artifact$.authority_token, .ucl_sim_draw_authority$token)) {
+      return(list(status = "unresolved", reason = "trusted_draw_authority_missing"))
+    }
+  }
   required <- c("path_id", "stage_id", "seed_slot_id", "bracket_position", "participant_a", "participant_b", "seed_rank", "opponent_rank", "leg_order", "leg_1_venue_id", "leg_2_venue_id", "source_artifact_ids")
   if (!all(required %in% names(pairings)) || !nrow(pairings) || anyNA(pairings$path_id) || anyDuplicated(as.character(pairings$path_id)) || any(!nzchar(trimws(as.character(pairings$path_id))))) return(list(status = "unresolved", reason = "partial_draw_artifact"))
   artifact_bundle <- as.character(artifact$source_bundle_id %||% "")

@@ -608,6 +608,8 @@
   values <- suppressWarnings(as.numeric(progression$probability))
   resolved <- as.character(progression$status) == "resolved"
   if (any(resolved & (!is.finite(values) | values < 0 | values > 1))) errors <- c(errors, "resolved_probability_invalid")
+  unresolved <- !resolved
+  if (any(unresolved & !is.na(values))) errors <- c(errors, "unresolved_probability_must_be_na")
   reconciliation <- if (exists("ucl_validate_progression_reconciliation", mode = "function")) {
     ucl_validate_progression_reconciliation(
       progression, stage_inputs = inventory,
@@ -619,10 +621,60 @@
   list(valid = !length(errors), errors = unique(errors), reconciliation = reconciliation)
 }
 
+.ucl_out_sim_table_hash <- function(data, key, schema_tag) {
+  if (!is.data.frame(data)) return(NA_character_)
+  fn <- if (exists(".ucl_sim_canonical_table_hash", mode = "function")) get(".ucl_sim_canonical_table_hash") else NULL
+  if (!is.function(fn)) return(NA_character_)
+  tryCatch(fn(data, key = key, schema_tag = schema_tag), error = function(error) NA_character_)
+}
+
+.ucl_out_validate_component_binding <- function(candidate, graph, state, ledger_object, ledger_table, simulation) {
+  failures <- character()
+  if (!is.list(simulation) || !is.list(simulation$metadata)) return("simulation_metadata_missing")
+  metadata <- simulation$metadata
+  graph_fn <- if (exists(".ucl_sim_graph_content_hash", mode = "function")) get(".ucl_sim_graph_content_hash") else NULL
+  state_fn <- if (exists(".ucl_sim_state_content_hash", mode = "function")) get(".ucl_sim_state_content_hash") else NULL
+  graph_hash <- if (is.function(graph_fn)) tryCatch(as.character(graph_fn(graph)), error = function(error) NA_character_) else NA_character_
+  state_hash <- if (is.function(state_fn)) tryCatch(as.character(state_fn(state, graph)), error = function(error) NA_character_) else NA_character_
+  ledger_hash <- .ucl_out_sim_table_hash(ledger_table, "fixture_id", "ucl20-forecast-ledger-v1")
+  simulation_ledger_hash <- .ucl_out_sim_table_hash(simulation$ledger, "fixture_id", "ucl20-forecast-ledger-v1")
+  if (is.na(graph_hash) || !identical(tolower(graph_hash), tolower(as.character(metadata$graph_sha256 %||% "")))) failures <- c(failures, "component_graph_hash_mismatch")
+  if (is.na(state_hash) || !identical(tolower(state_hash), tolower(as.character(metadata$state_sha256 %||% "")))) failures <- c(failures, "component_state_hash_mismatch")
+  if (is.na(ledger_hash) || !identical(tolower(ledger_hash), tolower(as.character(metadata$ledger_sha256 %||% "")))) failures <- c(failures, "component_ledger_hash_mismatch")
+  if (is.na(simulation_ledger_hash) || !identical(tolower(simulation_ledger_hash), tolower(as.character(metadata$ledger_sha256 %||% "")))) failures <- c(failures, "simulation_ledger_hash_mismatch")
+  if (!identical(as.character(simulation$run_id %||% ""), as.character(metadata$run_id %||% ""))) failures <- c(failures, "simulation_run_identity_mismatch")
+  if (!identical(tolower(as.character(simulation$graph_sha256 %||% "")), tolower(graph_hash))) failures <- c(failures, "simulation_graph_identity_mismatch")
+  if (!identical(tolower(as.character(simulation$state_sha256 %||% "")), tolower(state_hash))) failures <- c(failures, "simulation_state_identity_mismatch")
+  if (!is.list(ledger_object) || !inherits(ledger_object, "ucl_forecast_ledger")) failures <- c(failures, "ledger_object_contract_missing")
+  if (is.list(ledger_object)) {
+    if (!identical(tolower(as.character(ledger_object$graph_sha256 %||% "")), tolower(graph_hash))) failures <- c(failures, "ledger_graph_identity_mismatch")
+    if (!identical(tolower(as.character(ledger_object$table_sha256 %||% "")), tolower(ledger_hash))) failures <- c(failures, "ledger_table_identity_mismatch")
+    if (!identical(as.character(ledger_object$source_bundle_id %||% ""), as.character(metadata$source_bundle_id %||% ""))) failures <- c(failures, "ledger_source_identity_mismatch")
+    if (!identical(as.character(ledger_object$state_cutoff_utc %||% ""), as.character(metadata$information_cutoff_utc %||% ""))) failures <- c(failures, "ledger_cutoff_identity_mismatch")
+    for (field in c("model_release_id", "model_sha256", "calibrator_sha256")) {
+      if (!identical(tolower(as.character(ledger_object[[field]] %||% "")), tolower(as.character(metadata[[field]] %||% "")))) failures <- c(failures, paste0("ledger_", field, "_mismatch"))
+    }
+  }
+  component_hashes <- simulation$component_hashes %||% metadata$component_hashes
+  if (!is.list(component_hashes)) return(unique(c(failures, "simulation_component_hashes_missing")))
+  observed_stage_hash <- .ucl_out_sim_table_hash(simulation$stage_events, "stage_event_id", "ucl20-stage-events-v1")
+  observed_progression_hash <- .ucl_out_sim_table_hash(simulation$progression_probabilities, "club_id", "ucl20-progression-v1")
+  if (!identical(tolower(as.character(component_hashes$stage_events_sha256 %||% "")), tolower(as.character(observed_stage_hash)))) failures <- c(failures, "stage_component_hash_mismatch")
+  if (!identical(tolower(as.character(component_hashes$knockout_paths_sha256 %||% "")), tolower(as.character(observed_stage_hash)))) failures <- c(failures, "path_component_hash_mismatch")
+  if (!identical(tolower(as.character(component_hashes$progression_sha256 %||% "")), tolower(as.character(observed_progression_hash)))) failures <- c(failures, "progression_component_hash_mismatch")
+  if (!is.null(metadata$draw_artifact_sha256) && length(metadata$draw_artifact_sha256) && !is.na(metadata$draw_artifact_sha256[[1L]]) && nzchar(as.character(metadata$draw_artifact_sha256[[1L]]))) {
+    path_hashes <- unique(as.character(simulation$stage_events$draw_artifact_sha256 %||% character()))
+    path_hashes <- path_hashes[!is.na(path_hashes) & nzchar(path_hashes)]
+    if (!length(path_hashes) || any(tolower(path_hashes) != tolower(as.character(metadata$draw_artifact_sha256[[1L]])))) failures <- c(failures, "draw_component_hash_mismatch")
+  }
+  unique(failures)
+}
+
 #' Validate a deterministic candidate without writing production artifacts.
 ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_cutoff_utc = NULL) {
   graph <- .ucl_out_graph(candidate)
   state <- .ucl_out_state(candidate)
+  ledger_object <- if (is.list(candidate$ledger) && is.data.frame(candidate$ledger$ledger)) candidate$ledger else NULL
   ledger <- .ucl_out_ledger(candidate)
   simulation <- .ucl_out_simulation(candidate)
   rules <- rules %||% if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else NULL
@@ -656,6 +708,8 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   if (!isTRUE(cutoff$valid)) failures <- c(failures, cutoff$reason)
   lineage_check <- .ucl_out_validate_ledger_lineage(ledger)
   if (!isTRUE(lineage_check$valid)) failures <- c(failures, lineage_check$errors)
+  component_binding <- .ucl_out_validate_component_binding(candidate, graph, state, ledger_object, ledger, simulation)
+  failures <- c(failures, component_binding)
   if (supplied) {
     artifacts <- candidate$artifacts
     if (!identical(sort(names(artifacts), method = "radix"), sort(names(expected_artifacts), method = "radix"))) {
@@ -883,11 +937,18 @@ phase20_verify_contracts <- function(result) {
   release <- resolved$value
   release_rows <- if (is.list(release) && is.data.frame(release$forecast_rows)) release$forecast_rows else if (is.list(release) && is.data.frame(release$forecasts)) release$forecasts else NULL
   if (is.null(release_rows) || !nrow(release_rows)) return(list(error = "phase19_forecast_rows_missing"))
-  list(graph = validation$graph, rules = rules, release = release, current = current)
+  raw_draw <- accepted$draw_artifact %||%
+    if (is.list(accepted$artifacts)) accepted$artifacts$draw_artifact else NULL
+  trusted_draw <- if (exists(".ucl_resolve_trusted_draw_artifact", mode = "function")) {
+    tryCatch(.ucl_resolve_trusted_draw_artifact(raw_draw, rules = rules, source_bundle_id = validation$graph$source_bundle_id), error = function(error) NULL)
+  } else NULL
+  if (!is.list(trusted_draw) || !identical(as.character(trusted_draw$status %||% "accepted"), "accepted") || !inherits(trusted_draw, "ucl_trusted_draw_artifact")) trusted_draw <- NULL
+  list(graph = validation$graph, rules = rules, release = release, current = current, draw_artifact = trusted_draw)
 }
 
 .ucl_out_build_pipeline <- function(graph, release, rules, simulations, seed, draw_artifact,
-                                    information_cutoff_utc, write = FALSE, output_root = NULL) {
+                                    information_cutoff_utc, write = FALSE, output_root = NULL,
+                                    draw_authority_mode = "fixture") {
   cutoff <- .ucl_out_validate_cutoff(information_cutoff_utc)
   if (!isTRUE(cutoff$valid)) return(.ucl_out_blocked_result(cutoff$reason, mapped_threat_ids = "T20-03-01", information_cutoff_utc = cutoff$value))
   state <- tryCatch(ucl_build_state(graph, rules = rules, state_cutoff_utc = cutoff$value),
@@ -904,7 +965,8 @@ phase20_verify_contracts <- function(result) {
   }
   simulation <- tryCatch(ucl_run_simulation(state, ledger = ledger, simulations = simulations, seed = seed,
                                              rules = rules, draw_artifact = draw_artifact,
-                                             information_cutoff_utc = cutoff$value),
+                                             information_cutoff_utc = cutoff$value,
+                                             draw_authority_mode = draw_authority_mode),
                          error = function(error) list(status = "blocked", reason = "simulation_failed", message = conditionMessage(error)))
   if (identical(as.character(simulation$status), "blocked")) return(.ucl_out_blocked_result(simulation$reason %||% "simulation_blocked", mapped_threat_ids = "T20-03-03", information_cutoff_utc = cutoff$value))
   candidate <- tryCatch(ucl_validate_outcome_candidate(list(state = state, ledger = ledger, simulation = simulation),
@@ -952,7 +1014,9 @@ ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L,
     cutoff <- information_cutoff_utc
     if (is.null(cutoff)) return(.ucl_out_blocked_result("information_cutoff_missing", mapped_threat_ids = "T20-03-01"))
     return(.ucl_out_build_pipeline(authority$graph, authority$release, authority$rules, simulations, seed,
-                                   draw_artifact, cutoff, write = write, output_root = output_root))
+                                   authority$draw_artifact, cutoff,
+                                   write = write, output_root = output_root,
+                                   draw_authority_mode = "production"))
   }
   fixture <- isTRUE(graph$fixture_authority) && identical(as.character(graph$authority_mode %||% ""), "fixture") && !isTRUE(graph$production_eligible)
   if (!fixture) return(.ucl_out_blocked_result("graph_injection_requires_fixture_authority", mapped_threat_ids = "T20-01-01", information_cutoff_utc = information_cutoff_utc %||% NA_character_))
@@ -963,7 +1027,8 @@ ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L,
   rules <- if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract() else NULL
   if (is.null(rules)) return(.ucl_out_blocked_result("rules_evidence_invalid", mapped_threat_ids = "T20-02-01", information_cutoff_utc = information_cutoff_utc %||% "2026-09-21T00:00:00Z"))
   .ucl_out_build_pipeline(graph, release, rules, simulations, seed, draw_artifact, cutoff,
-                          write = write, output_root = output_root)
+                          write = write, output_root = output_root,
+                          draw_authority_mode = "fixture")
 }
 
 #' Write only a validated sibling candidate under a process-temporary root.
