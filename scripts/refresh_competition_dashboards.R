@@ -30,6 +30,90 @@ phase17_cli_source("R/dashboard/payload_euro.R")
 phase17_cli_source("R/dashboard/renderer.R")
 phase17_cli_source("R/dashboard/publication.R")
 phase17_cli_source("R/dashboard/production_provider.R")
+phase17_cli_source("R/dashboard/edition_registry_v2.R")
+phase17_cli_source("R/dashboard/payload_contract_v2.R")
+phase17_cli_source("R/dashboard/payload_ucl.R")
+phase17_cli_source("R/dashboard/renderer_v2.R")
+phase17_cli_source("R/dashboard/publication_v2.R")
+
+# Phase 21 generic adapter/publisher seam.  The existing Phase 17 main path
+# below remains unchanged; this path is registry-driven and is intentionally
+# callable from tests without invoking the CLI or touching production files.
+phase21_default_adapters <- function() {
+  list(
+    phase17_nations_league = function(value, row, batch_id) {
+      if (is.list(value) && identical(as.character(value$schema_version %||% ""), phase17_dashboard_schema_version)) {
+        return(phase21_normalize_phase17_payload(value, row, batch_id))
+      }
+      phase21_payload_from_bundle(value, row, batch_id)
+    },
+    phase17_euro = function(value, row, batch_id) {
+      if (is.list(value) && identical(as.character(value$schema_version %||% ""), phase17_dashboard_schema_version)) {
+        return(phase21_normalize_phase17_payload(value, row, batch_id))
+      }
+      phase21_payload_from_bundle(value, row, batch_id)
+    },
+    phase21_ucl = function(value, row, batch_id) {
+      candidate <- value %||% list(status = "production_blocked", production_blocked_reason = "phase18_authority_missing", edition_id = row$edition_id[[1L]])
+      # Mechanics-only Phase 20 fixtures remain useful for adapter/render tests,
+      # but are converted to a typed blocked payload before publication.
+      fixture_only <- isTRUE(candidate$fixture_authority) || identical(as.character(candidate$authority_mode %||% ""), "fixture")
+      if (fixture_only) {
+        return(phase21_blocked_payload(row$edition_id[[1L]], "Fixture mechanics are non-promotable; accepted production authority is required.", row, batch_id, status = "blocked"))
+      }
+      phase21_payload_ucl(candidate, row, batch_id)
+    }
+  )
+}
+
+phase21_call_adapter <- function(adapter, value, row, batch_id) {
+  if (!is.function(adapter)) stop("Phase 21 adapter is not callable: ", row$adapter_id[[1L]], call. = FALSE)
+  result <- tryCatch(adapter(value, row, batch_id), error = function(error) {
+    stop("Phase 21 adapter failed for ", row$edition_id[[1L]], ": ", conditionMessage(error), call. = FALSE)
+  })
+  phase21_validate_payload(result)
+  result
+}
+
+phase21_refresh_main <- function(registry = phase21_default_edition_registry(), bundles = NULL,
+                                 bundle_provider = NULL, adapters = list(), public_root = NULL,
+                                 project_root = phase21_cli_root, batch_id = NULL,
+                                 generated_at_utc = "2026-09-25T00:00:00Z", dry_run = FALSE,
+                                 injectors = list()) {
+  registry <- phase21_validate_registry(registry)
+  rows <- phase21_enabled_registry(registry)
+  project_root <- normalizePath(project_root, winslash = "/", mustWork = TRUE)
+  public_root <- public_root %||% file.path(project_root, "docs/competitions")
+  values <- bundles
+  if (is.function(bundle_provider)) values <- bundle_provider(project_root, registry)
+  if (is.null(values)) values <- list()
+  if (!is.list(values)) stop("Phase 21 bundle provider must return a named list", call. = FALSE)
+  default_adapters <- phase21_default_adapters()
+  adapter_map <- modifyList(default_adapters, adapters)
+  payloads <- list()
+  for (index in seq_len(nrow(rows))) {
+    row <- rows[index, , drop = FALSE]
+    edition_id <- row$edition_id[[1L]]
+    adapter_id <- row$adapter_id[[1L]]
+    value <- values[[edition_id]]
+    if (is.null(value)) value <- list(edition_id = edition_id, status = "production_blocked", production_blocked_reason = "no_accepted_bundle", lifecycle_state = "unavailable", forecast_status = "unavailable", warnings = "No accepted bundle was returned by the provider.", artifacts = list())
+    adapter <- adapter_map[[adapter_id]]
+    if (is.null(adapter)) stop("Phase 21 registry adapter is not configured: ", adapter_id, call. = FALSE)
+    payloads[[edition_id]] <- phase21_call_adapter(adapter, value, row, batch_id %||% "phase21-refresh-batch-v1")
+  }
+  if (is.null(batch_id)) batch_id <- phase21_batch_identity(payloads)
+  # Rebind every payload to the single batch identity before staging.
+  for (edition_id in names(payloads)) payloads[[edition_id]]$metadata$batch_id <- batch_id
+  parent <- dirname(normalizePath(as.character(public_root), winslash = "/", mustWork = FALSE))
+  if (!dir.exists(parent)) dir.create(parent, recursive = TRUE, showWarnings = FALSE)
+  stage <- tempfile("phase21-candidate-", tmpdir = parent)
+  dir.create(stage, recursive = TRUE, showWarnings = FALSE)
+  on.exit(if (dir.exists(stage)) unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
+  staged <- phase21_stage_batch(payloads, registry, stage, batch_id = batch_id, generated_at_utc = generated_at_utc)
+  if (isTRUE(dry_run)) return(list(valid = TRUE, dry_run = TRUE, batch_id = batch_id, payloads = payloads, staged = staged, inventory = phase21_expected_public_inventory(registry)))
+  promoted <- phase21_promote_batch(stage, public_root, registry, injectors = injectors, read_back = TRUE)
+  list(valid = TRUE, dry_run = FALSE, batch_id = batch_id, payloads = payloads, staged = staged, promoted = promoted, inventory = phase21_expected_public_inventory(registry))
+}
 
 phase17_cli_scalar <- function(value, option) {
   if (is.null(value) || length(value) != 1L || is.na(value) || !nzchar(as.character(value))) {
