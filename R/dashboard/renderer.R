@@ -505,6 +505,59 @@ phase17_nl_css_percentage <- function(value) {
   if (!length(number) || !is.finite(number[[1L]])) "0%" else paste0(formatC(max(0, min(100, 100 * number[[1L]])), format = "f", digits = 1L), "%")
 }
 
+phase17_nl_fifa_to_iso2 <- c(
+  ALB = "AL", AND = "AD", ARM = "AM", AUT = "AT", AZE = "AZ", BEL = "BE", BIH = "BA",
+  BLR = "BY", BUL = "BG", CRO = "HR", CYP = "CY", CZE = "CZ", DEN = "DK", ENG = "GB",
+  DEU = "DE", ESP = "ES", EST = "EE", FIN = "FI", FRA = "FR", FRO = "FO", GEO = "GE", GIB = "GI",
+  GRE = "GR", HUN = "HU", ISL = "IS", ISR = "IL", IRL = "IE", ITA = "IT", KAZ = "KZ",
+  KOS = "XK", LIE = "LI", LTU = "LT", LUX = "LU", LVA = "LV", MDA = "MD", MKD = "MK",
+  MLT = "MT", MNE = "ME", NED = "NL", NIR = "GB", NOR = "NO", POL = "PL", POR = "PT",
+  ROU = "RO", SCO = "GB", SMR = "SM", SRB = "RS", SUI = "CH", SVK = "SK", SVN = "SI",
+  SWE = "SE", TUR = "TR", UKR = "UA", WAL = "GB"
+)
+
+phase17_nl_team_code <- function(row, role = "team") {
+  fields <- switch(role,
+    home = c("home_fifa_code", "home_team_id", "home_team"),
+    away = c("away_fifa_code", "away_team_id", "away_team"),
+    c("fifa_code", "team_fifa_code", "team_id", "team")
+  )
+  for (field in fields) {
+    value <- phase17_nl_value(row, field)
+    if (!nzchar(value)) next
+    code <- toupper(trimws(value))
+    code <- sub("^TEAM_", "", code)
+    aliases <- c(
+      GIBRALTAR = "GIB", REPUBLIC_OF_IRELAND = "IRL", SCOTLAND = "SCO",
+      WALES = "WAL", NORTHERN_IRELAND = "NIR", KVX = "KOS", GRE = "GRE"
+    )
+    if (code %in% names(aliases)) code <- aliases[[code]]
+    if (code %in% names(phase17_nl_fifa_to_iso2)) return(code)
+  }
+  ""
+}
+
+phase17_nl_flag_emoji <- function(code) {
+  code <- toupper(phase17_public_scalar(code))
+  iso <- if (code %in% names(phase17_nl_fifa_to_iso2)) unname(phase17_nl_fifa_to_iso2[[code]]) else ""
+  if (!length(iso) || !grepl("^[A-Z]{2}$", iso)) return("")
+  intToUtf8(127397L + utf8ToInt(iso))
+}
+
+phase17_nl_team_flag <- function(payload, name, context) {
+  candidates <- c(phase17_nl_rows(payload, "standings"), phase17_nl_rows(payload, "projected_outcomes"),
+                  phase17_nl_rows(payload, "fixtures"), phase17_nl_rows(payload, "results"))
+  for (row in candidates) {
+    for (role in c("team", "home", "away")) {
+      if (identical(phase17_nl_team_name(row, role, context), name)) {
+        flag <- phase17_nl_flag_emoji(phase17_nl_team_code(row, role))
+        if (nzchar(flag)) return(flag)
+      }
+    }
+  }
+  ""
+}
+
 phase17_nl_number <- function(row, fields, default = NA_real_) {
   value <- phase17_nl_value(row, fields)
   number <- suppressWarnings(as.numeric(value))
@@ -681,7 +734,9 @@ phase17_nl_group_table <- function(payload, definition, context) {
   forecast_rows <- if (length(forecast_items)) paste(vapply(forecast_items, function(item) {
     row <- item$row
     rank_probabilities <- row$rank_probabilities %||% setNames(rep(NA_real_, 4L), as.character(seq_len(4L)))
-    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident"><span class="team-name">',
+    flag <- phase17_nl_team_flag(payload, item$name, context)
+    flag_html <- if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else ""
+    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident">', flag_html, '<span class="team-name">',
            phase17_html_escape(item$name), '</span></div></th>',
            '<td class="xpts-cell">', phase17_nl_expected_cell(row, c("expected_points", "xpts", "x_points"), 1L), '</td>',
            '<td class="num xgd-cell">', phase17_nl_expected_cell(row, c("expected_goal_difference", "xgd", "x_goal_difference"), 1L), '</td>',
@@ -696,7 +751,9 @@ phase17_nl_group_table <- function(payload, definition, context) {
   current_rows_html <- if (length(current_rows)) paste(vapply(current_rows, function(item) {
     points_display <- phase17_nl_current_cell(item$points)
     goal_difference_display <- phase17_nl_current_cell(item$goal_difference, signed = TRUE)
-    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident"><span class="team-name">',
+    flag <- phase17_nl_team_flag(payload, item$name, context)
+    flag_html <- if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else ""
+    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident">', flag_html, '<span class="team-name">',
            phase17_html_escape(item$name), '</span></div></th>',
            phase17_nl_value_heat_cell(item$points, 0, points_max, points_display, "standing"),
            '<td class="standing-cell">', phase17_nl_current_cell(item$played), '</td>',
