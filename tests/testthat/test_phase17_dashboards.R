@@ -290,7 +290,7 @@ test_that("Nations League current table derives standings from completed accepte
   )
   html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
   expect_true(grepl("Current standings reflect completed accepted results.", html, fixed = TRUE))
-  expect_true(grepl("<td class=\"num\">3</td><td class=\"num\">1</td><td class=\"num\">1</td><td class=\"num\">0</td><td class=\"num\">0</td><td class=\"num\">2</td><td class=\"num\">1</td><td class=\"num\">+1</td>", html, fixed = TRUE))
+  expect_true(grepl("<span class=\"heat-val\">3</span></td><td class=\"standing-cell\">1</td><td class=\"standing-cell\">1</td><td class=\"standing-cell\">0</td><td class=\"standing-cell\">0</td><td class=\"standing-cell\">2</td><td class=\"standing-cell\">1</td><td class=\"heat-cell standing strong\"", html, fixed = TRUE))
 })
 
 test_that("public section projection keeps provenance out of both dashboards", {

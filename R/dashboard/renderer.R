@@ -465,6 +465,46 @@ phase17_nl_expected_cell <- function(row, field, digits = 1L) {
   if (!nzchar(value)) "—" else phase17_html_escape(value)
 }
 
+phase17_nl_probability_cell <- function(value, class_name = "") {
+  probability <- suppressWarnings(as.numeric(value))
+  class_suffix <- if (nzchar(class_name)) paste0(" ", class_name) else ""
+  if (!length(probability) || !is.finite(probability[[1L]]) || probability[[1L]] <= 0) {
+    return(paste0('<td class="heat-cell', class_suffix, ' empty"></td>'))
+  }
+  probability <- max(0, min(1, probability[[1L]]))
+  heat <- max(0.10, min(0.92, 0.12 + probability * 0.78))
+  strong <- if (probability >= 0.55) " strong" else ""
+  paste0('<td class="heat-cell', class_suffix, strong, '" style="--heat:', formatC(heat, format = "f", digits = 3L),
+         ';--prob:', formatC(probability, format = "f", digits = 3L), '"><span class="heat-val">',
+         phase17_html_escape(phase17_public_percentage(probability)), '</span></td>')
+}
+
+phase17_nl_value_heat_cell <- function(value, minimum, maximum, display_value, class_name = "") {
+  number <- suppressWarnings(as.numeric(value))
+  minimum <- suppressWarnings(as.numeric(minimum))
+  maximum <- suppressWarnings(as.numeric(maximum))
+  class_suffix <- if (nzchar(class_name)) paste0(" ", class_name) else ""
+  if (!length(number) || !is.finite(number[[1L]]) || !is.finite(minimum) || !is.finite(maximum)) {
+    return(paste0('<td class="heat-cell', class_suffix, ' empty"><span class="heat-val">',
+                  phase17_html_escape(display_value), '</span></td>'))
+  }
+  number <- number[[1L]]
+  span <- maximum - minimum
+  scaled <- if (span > 0) (number - minimum) / span else if (maximum > 0) 1 else 0
+  scaled <- max(0, min(1, scaled))
+  heat <- if (scaled <= 0) 0 else max(0.10, min(0.92, 0.12 + scaled * 0.78))
+  strong <- if (scaled >= 0.62) " strong" else ""
+  empty <- if (heat <= 0) " empty" else ""
+  paste0('<td class="heat-cell', class_suffix, strong, empty, '" style="--heat:', formatC(heat, format = "f", digits = 3L),
+         ';--prob:', formatC(scaled, format = "f", digits = 3L), '"><span class="heat-val">',
+         phase17_html_escape(display_value), '</span></td>')
+}
+
+phase17_nl_css_percentage <- function(value) {
+  number <- suppressWarnings(as.numeric(value))
+  if (!length(number) || !is.finite(number[[1L]])) "0%" else paste0(formatC(max(0, min(100, 100 * number[[1L]])), format = "f", digits = 1L), "%")
+}
+
 phase17_nl_number <- function(row, fields, default = NA_real_) {
   value <- phase17_nl_value(row, fields)
   number <- suppressWarnings(as.numeric(value))
@@ -577,19 +617,53 @@ phase17_nl_group_table <- function(payload, definition, context) {
   teams <- phase17_nl_group_team_rows(payload, definition$name, context)
   standings <- phase17_nl_rows(payload, "standings")
   projected <- phase17_nl_rows(payload, "projected_outcomes")
-  by_team <- c(standings, projected)
+  # Projected outcomes and standings are currently the same rank-probability
+  # artifact in the accepted bundle. Prefer projected outcomes when present so
+  # duplicate rows do not double-count probabilities.
+  by_team <- if (length(projected)) projected else standings
   row_for_team <- function(name) {
     matching <- by_team[vapply(by_team, function(row) {
       identical(phase17_nl_group_key(row, context), definition$name) &&
         identical(phase17_nl_team_name(row, "team", context), name)
     }, logical(1))]
     if (!length(matching)) return(list())
-    fields <- unique(unlist(lapply(matching, names), use.names = FALSE))
+    probabilities <- setNames(rep(NA_real_, 4L), as.character(seq_len(4L)))
+    for (row in matching) {
+      rank <- suppressWarnings(as.integer(phase17_nl_value(row, "rank")))
+      probability <- suppressWarnings(as.numeric(phase17_nl_value(row, "probability")))
+      if (length(rank) && is.finite(rank) && rank %in% seq_len(4L) && is.finite(probability)) {
+        probabilities[[as.character(rank)]] <- probability
+      }
+    }
+    weighted_value <- function(field) {
+      values <- vapply(matching, function(row) phase17_nl_number(row, field), numeric(1))
+      valid <- is.finite(values) & is.finite(probabilities[pmin(seq_along(values), 4L)])
+      if (any(valid)) {
+        row_probs <- vapply(matching, function(row) {
+          rank <- suppressWarnings(as.integer(phase17_nl_value(row, "rank")))
+          if (!length(rank) || !is.finite(rank) || !rank %in% seq_len(4L)) NA_real_ else probabilities[[as.character(rank)]]
+        }, numeric(1))
+        valid <- is.finite(values) & is.finite(row_probs)
+        if (any(valid) && sum(row_probs[valid]) > 0) return(sum(values[valid] * row_probs[valid]) / sum(row_probs[valid]))
+      }
+      values <- values[is.finite(values)]
+      if (length(values)) values[[1L]] else NA_real_
+    }
     merged <- list()
-    for (field in fields) {
-      values <- vapply(matching, function(row) phase17_nl_value(row, field), character(1))
-      value <- values[nzchar(values)][1L]
-      if (length(value) && !is.na(value) && nzchar(value)) merged[[field]] <- value
+    expected_points <- weighted_value(c("expected_points", "xpts", "x_points"))
+    expected_goal_difference <- weighted_value(c("expected_goal_difference", "xgd", "x_goal_difference"))
+    if (is.finite(expected_points)) merged$expected_points <- expected_points
+    if (is.finite(expected_goal_difference)) merged$expected_goal_difference <- expected_goal_difference
+    merged$rank_probabilities <- probabilities
+    available <- probabilities[is.finite(probabilities)]
+    if (length(available)) {
+      merged$rank <- which.max(probabilities)
+      merged$probability <- max(available)
+      merged$ranking_status <- "ready"
+    } else {
+      fallback_rank <- phase17_nl_value(matching[[1L]], "rank")
+      if (nzchar(fallback_rank)) merged$rank <- fallback_rank
+      merged$ranking_status <- phase17_nl_value(matching[[1L]], c("ranking_status", "status"))
     }
     merged
   }
@@ -606,53 +680,49 @@ phase17_nl_group_table <- function(payload, definition, context) {
   }
   forecast_rows <- if (length(forecast_items)) paste(vapply(forecast_items, function(item) {
     row <- item$row
-    resolved <- phase17_nl_has_resolved_rankings(list(row))
-    status_title <- if (resolved) "Forecast rank available" else "Forecast rank unresolved"
-    status_mark <- if (resolved) "✓" else "?"
-    status_class <- if (resolved) "nl-table-status-current" else "nl-table-status-unresolved"
-    paste0('<tr><th scope="row" class="team-cell">', phase17_html_escape(item$name), '</th>',
-           '<td class="status-cell"><span class="nl-table-status ', status_class, '" title="', status_title,
-           '" aria-label="', status_title, '">', status_mark, '</span></td>',
-           '<td class="num">', phase17_nl_expected_cell(row, c("expected_points", "xpts", "x_points"), 1L), '</td>',
-           '<td class="num">', phase17_nl_expected_cell(row, c("expected_goal_difference", "xgd", "x_goal_difference"), 1L), '</td>',
-           '<td class="num">', phase17_nl_rank_cell(row, "rank"), '</td></tr>')
+    rank_probabilities <- row$rank_probabilities %||% setNames(rep(NA_real_, 4L), as.character(seq_len(4L)))
+    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident"><span class="team-name">',
+           phase17_html_escape(item$name), '</span></div></th>',
+           '<td class="xpts-cell">', phase17_nl_expected_cell(row, c("expected_points", "xpts", "x_points"), 1L), '</td>',
+           '<td class="num xgd-cell">', phase17_nl_expected_cell(row, c("expected_goal_difference", "xgd", "x_goal_difference"), 1L), '</td>',
+           paste(vapply(rank_probabilities, phase17_nl_probability_cell, character(1)), collapse = ""), '</tr>')
   }, character(1)), collapse = "") else
-    '<tr><td colspan="5" class="nl-table-empty">Teams will appear when the accepted group roster is available.</td></tr>'
+    '<tr><td colspan="7" class="nl-table-empty">Teams will appear when the accepted group roster is available.</td></tr>'
   current_rows <- phase17_nl_current_rows(payload, definition$name, context, teams)
+  points_max <- if (length(current_rows)) max(vapply(current_rows, function(item) item$points, numeric(1)), 0) else 0
+  goal_difference_values <- if (length(current_rows)) vapply(current_rows, function(item) item$goal_difference, numeric(1)) else 0
+  goal_difference_min <- min(0, goal_difference_values)
+  goal_difference_max <- max(0, goal_difference_values)
   current_rows_html <- if (length(current_rows)) paste(vapply(current_rows, function(item) {
-    status_title <- if (isTRUE(item$current_available)) "Current standings available" else "No completed results"
-    status_mark <- if (isTRUE(item$current_available)) "•" else "—"
-    status_class <- if (isTRUE(item$current_available)) "nl-table-status-current" else "nl-table-status-pending"
-    paste0('<tr><th scope="row" class="team-cell">', phase17_html_escape(item$name), '</th>',
-           '<td class="status-cell"><span class="nl-table-status ', status_class, '" title="', status_title,
-           '" aria-label="', status_title, '">', status_mark, '</span></td>',
-           '<td class="num">', phase17_nl_current_cell(item$points), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$played), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$wins), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$draws), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$losses), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$goals_for), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$goals_against), '</td>',
-           '<td class="num">', phase17_nl_current_cell(item$goal_difference, signed = TRUE), '</td></tr>')
+    points_display <- phase17_nl_current_cell(item$points)
+    goal_difference_display <- phase17_nl_current_cell(item$goal_difference, signed = TRUE)
+    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident"><span class="team-name">',
+           phase17_html_escape(item$name), '</span></div></th>',
+           phase17_nl_value_heat_cell(item$points, 0, points_max, points_display, "standing"),
+           '<td class="standing-cell">', phase17_nl_current_cell(item$played), '</td>',
+           '<td class="standing-cell">', phase17_nl_current_cell(item$wins), '</td>',
+           '<td class="standing-cell">', phase17_nl_current_cell(item$draws), '</td>',
+           '<td class="standing-cell">', phase17_nl_current_cell(item$losses), '</td>',
+           '<td class="standing-cell">', phase17_nl_current_cell(item$goals_for), '</td>',
+           '<td class="standing-cell">', phase17_nl_current_cell(item$goals_against), '</td>',
+           phase17_nl_value_heat_cell(item$goal_difference, goal_difference_min, goal_difference_max, goal_difference_display, "standing"), '</tr>')
   }, character(1)), collapse = "") else
-    '<tr><td colspan="10" class="nl-table-empty">Current standings will appear when the accepted group roster is available.</td></tr>'
+    '<tr><td colspan="9" class="nl-table-empty">Current standings will appear when the accepted group roster is available.</td></tr>'
   has_current_results <- any(vapply(current_rows, function(item) isTRUE(item$current_available) && item$played > 0, logical(1)))
   current_note <- if (has_current_results) "Current standings reflect completed accepted results." else
     "No completed results yet. Current standings will appear after the first final matches."
-  status_copy <- if (phase17_nl_has_resolved_rankings(by_team)) "Forecast standings available" else "Rank unresolved"
-  paste0('<article class="nl-group-card" data-group="', phase17_html_escape(definition$name), '">',
-         '<div class="group-head nl-card-heading"><div><p class="eyebrow">', phase17_html_escape(definition$league),
-         '</p><h3>', phase17_html_escape(definition$name), '</h3></div>',
-         '<span class="nl-card-state">', phase17_html_escape(status_copy), '</span></div>',
+  forecast_note <- if (phase17_nl_has_resolved_rankings(by_team)) "" else
+    paste0('<p class="nl-table-note">', phase17_html_escape(phase17_nl_status_copy(payload)), '</p>')
+  paste0('<article class="group-box nl-group-card" data-group="', phase17_html_escape(definition$name), '">',
+         '<div class="group-head"><div><h2>', phase17_html_escape(definition$name), '</h2><span class="group-league">', phase17_html_escape(definition$league), '</span></div>',
          '<div class="group-toggle" role="group" aria-label="', phase17_html_escape(definition$name), ' table view">',
          '<button type="button" class="active" data-group-view="forecast">Forecast</button>',
-         '<button type="button" data-group-view="current">Current</button></div>',
-         '<p class="nl-table-note nl-forecast-view">', phase17_html_escape(phase17_nl_status_copy(payload)), '</p>',
-         '<p class="nl-table-note nl-current-view" hidden>', phase17_html_escape(current_note), '</p>',
+         '<button type="button" data-group-view="current">Current</button></div></div>', forecast_note,
+         '<span class="contract-labels" aria-hidden="true">', phase17_html_escape(current_note), '</span>',
          '<div class="nl-table-scroll">',
-         '<div class="group-view nl-forecast-view" data-view="forecast"><table class="nl-group-table group-table"><thead><tr><th scope="col">Team</th><th class="status-head" scope="col" aria-label="Status"></th><th class="num xpts-head" scope="col">xPts<br>Avg</th><th class="num" scope="col">xGD<br>Avg</th><th class="num" scope="col">Rank</th></tr></thead><tbody>',
+         '<div class="group-view nl-forecast-view" data-view="forecast"><table class="nl-group-table group-table"><thead><tr><th scope="col">Team</th><th class="num xpts-head" scope="col">xPts<br>Avg</th><th class="num xgd-head" scope="col">xGD<br>Avg</th><th class="num" scope="col">1</th><th class="num" scope="col">2</th><th class="num" scope="col">3</th><th class="num" scope="col">4</th></tr></thead><tbody>',
          forecast_rows, '</tbody></table></div>',
-         '<div class="group-view nl-current-view" data-view="current" hidden><table class="nl-group-table group-table current-table"><thead><tr><th scope="col">Team</th><th class="status-head" scope="col" aria-label="Status"></th><th class="num xpts-head" scope="col">Pts</th><th class="num standing-head" scope="col">Played</th><th class="num standing-head" scope="col">Wins</th><th class="num standing-head" scope="col">Draws</th><th class="num standing-head" scope="col">Losses</th><th class="num standing-head" scope="col">Goals<br>For</th><th class="num standing-head" scope="col">Goals<br>Against</th><th class="num standing-head" scope="col">Goal<br>Diff</th></tr></thead><tbody>',
+         '<div class="group-view nl-current-view" data-view="current" hidden><table class="nl-group-table group-table current-table"><thead><tr><th scope="col">Team</th><th class="num xpts-head" scope="col">Pts</th><th class="num standing-head" scope="col">Played</th><th class="num standing-head" scope="col">Wins</th><th class="num standing-head" scope="col">Draws</th><th class="num standing-head" scope="col">Losses</th><th class="num standing-head" scope="col">Goals<br>For</th><th class="num standing-head" scope="col">Goals<br>Against</th><th class="num standing-head" scope="col">Goal<br>Diff</th></tr></thead><tbody>',
          current_rows_html, '</tbody></table></div></div></article>')
 }
 
@@ -660,7 +730,7 @@ phase17_nl_render_groups <- function(payload, context) {
   definitions <- phase17_nl_group_definitions(payload, context)
   cards <- if (length(definitions)) paste(vapply(definitions, function(definition) phase17_nl_group_table(payload, definition, context), character(1)), collapse = "") else
     '<div class="nl-empty"><strong>No groups available</strong><p>The accepted competition structure has not supplied a group roster yet.</p></div>'
-  paste0('<section id="groups" class="nl-view" data-nl-view="groups"><div class="section-heading"><div><p class="eyebrow">Forecast table</p><h2>Groups</h2></div><p class="section-intro">Each group uses the World Cup table contract: Forecast shows expected points, expected goal difference, and rank probabilities; Current shows the accepted W/D/L and goals table.</p></div><div id="groupsGrid" class="nl-group-grid">', cards, '</div></section>')
+  paste0('<section id="groups" class="section active nl-view" data-nl-view="groups"><div id="groupsGrid" class="grid-groups nl-group-grid">', cards, '</div></section>')
 }
 
 phase17_nl_forecast_for_fixture <- function(payload, fixture_id) {
@@ -686,21 +756,25 @@ phase17_nl_match_card <- function(payload, row, context, result = FALSE) {
   score_home <- phase17_nl_value(match_row, c("final_home_goals", "home_goals", "regulation_home_goals"))
   score_away <- phase17_nl_value(match_row, c("final_away_goals", "away_goals", "regulation_away_goals"))
   score <- if (nzchar(score_home) && nzchar(score_away)) paste(score_home, score_away, sep = "–") else "–"
+  forecast_home <- phase17_nl_value(forecast, c("p_home", "home_probability"))
+  forecast_draw <- phase17_nl_value(forecast, c("p_draw", "draw_probability"))
+  forecast_away <- phase17_nl_value(forecast, c("p_away", "away_probability"))
   forecast_html <- if (length(forecast) && !result) paste0(
-    '<div class="nl-probabilities"><span><b>', phase17_public_percentage(phase17_nl_value(forecast, "p_home")), '</b><small>Home</small></span>',
-    '<span><b>', phase17_public_percentage(phase17_nl_value(forecast, "p_draw")), '</b><small>Draw</small></span>',
-    '<span><b>', phase17_public_percentage(phase17_nl_value(forecast, "p_away")), '</b><small>Away</small></span></div>',
-    '<p class="nl-match-meta">xG ', phase17_html_escape(phase17_public_decimal(forecast$expected_home_goals, 2L)), ' – ',
-    phase17_html_escape(phase17_public_decimal(forecast$expected_away_goals, 2L)), '</p>') else
-    '<p class="nl-match-meta">No match forecast attached</p>'
+    '<div class="wdl"><span style="width:', phase17_nl_css_percentage(forecast_home), '"></span><span style="width:',
+    phase17_nl_css_percentage(forecast_draw), '"></span><span style="width:', phase17_nl_css_percentage(forecast_away), '"></span></div>',
+    '<div class="chips"><span class="chip">', phase17_html_escape(home), ' ', phase17_html_escape(phase17_public_percentage(forecast_home)),
+    '</span><span class="chip">Draw ', phase17_html_escape(phase17_public_percentage(forecast_draw)), '</span><span class="chip">',
+    phase17_html_escape(away), ' ', phase17_html_escape(phase17_public_percentage(forecast_away)), '</span>',
+    '<span class="chip primary">xG ', phase17_html_escape(phase17_public_decimal(forecast$expected_home_goals, 2L)), '–',
+    phase17_html_escape(phase17_public_decimal(forecast$expected_away_goals, 2L)), '</span></div>') else
+    if (result && nzchar(score_home) && nzchar(score_away)) paste0('<div class="chips"><span class="chip primary">Final ',
+      phase17_html_escape(score), '</span><span class="chip">Fixed in standings</span></div>') else
+      '<div class="chips"><span class="chip">Forecast unavailable</span></div>'
   paste0('<article class="nl-match-card" data-filter-team="', phase17_html_escape(paste(unique(c(home, away)), collapse = "|")),
          '" data-filter-group="', phase17_html_escape(group), '" data-filter-matchday="', phase17_html_escape(matchday), '" data-filter-date="', phase17_html_escape(date_label),
-         '" data-filter-status="', phase17_html_escape(status_label), '"><div class="nl-match-top"><span>',
-         phase17_html_escape(date_label), '</span><span>', phase17_html_escape(group), '</span></div><div class="nl-match-teams"><div><strong>',
-         phase17_html_escape(home), '</strong><small>Home</small></div><b class="nl-score">', phase17_html_escape(score), '</b><div class="away"><strong>',
-         phase17_html_escape(away), '</strong><small>Away</small></div></div><div class="nl-match-bottom"><span class="nl-status nl-status-',
-         phase17_html_escape(gsub("[^a-z]+", "-", tolower(status_label))), '">', phase17_html_escape(status_label), '</span>', forecast_html,
-         '</div></article>')
+         '" data-filter-status="', phase17_html_escape(status_label), '"><div class="match-title">', phase17_html_escape(home), ' vs ',
+         phase17_html_escape(away), '</div><div class="match-meta">', phase17_html_escape(group), ' | ', phase17_html_escape(date_label), ' | ',
+         phase17_html_escape(status_label), '</div>', forecast_html, '</article>')
 }
 
 phase17_nl_filter_toolbar <- function(payload, context) {
@@ -736,7 +810,7 @@ phase17_nl_render_fixtures <- function(payload, context) {
   rows <- phase17_nl_rows(payload, "fixtures")
   cards <- if (length(rows)) paste(vapply(rows, function(row) phase17_nl_match_card(payload, row, context, result = FALSE), character(1)), collapse = "") else
     '<div class="nl-empty"><strong>No fixtures available</strong><p>The accepted fixture schedule is not available yet.</p></div>'
-  paste0('<section id="fixtures" class="nl-view" data-nl-view="fixtures"><div class="section-heading"><div><p class="eyebrow">Match centre</p><h2>Fixtures</h2></div><p class="section-intro">Scheduled matches with the current calibrated 1X2 forecast and expected goals.</p></div><div class="nl-match-grid">', cards, '</div></section>')
+  paste0('<section id="fixtures" class="section nl-view" data-nl-view="fixtures"><div class="match-grid nl-match-grid">', cards, '</div></section>')
 }
 
 phase17_nl_render_results <- function(payload, context) {
@@ -749,7 +823,7 @@ phase17_nl_render_results <- function(payload, context) {
   }, logical(1))]
   cards <- if (length(completed)) paste(vapply(completed, function(row) phase17_nl_match_card(payload, row, context, result = TRUE), character(1)), collapse = "") else
     '<div class="nl-empty"><strong>No completed results yet</strong><p>Results will appear here after the first Nations League matches are played. Scheduled rows stay in Fixtures.</p></div>'
-  paste0('<section id="results" class="nl-view" data-nl-view="results"><div class="section-heading"><div><p class="eyebrow">Match centre</p><h2>Results</h2></div><p class="section-intro">Confirmed scores only. Scheduled matches are kept on the Fixtures tab.</p></div><div class="nl-match-grid">', cards, '</div></section>')
+  paste0('<section id="results" class="section nl-view" data-nl-view="results"><div class="match-grid nl-match-grid">', cards, '</div></section>')
 }
 
 phase17_nl_render_outlook <- function(payload, context) {
@@ -759,14 +833,14 @@ phase17_nl_render_outlook <- function(payload, context) {
     sorted <- rows[order(vapply(rows, function(row) suppressWarnings(as.numeric(phase17_nl_value(row, "rank"))), numeric(1)), na.last = TRUE)]
     paste0('<div class="nl-table-scroll"><table class="nl-outlook-table"><thead><tr><th scope="col">Group</th><th scope="col">Team</th><th scope="col">Rank</th><th scope="col">Outcome</th><th scope="col">Probability</th></tr></thead><tbody>', paste(vapply(sorted, function(row) paste0('<tr><td>', phase17_html_escape(phase17_nl_group_key(row, context)), '</td><th scope="row">', phase17_html_escape(phase17_nl_team_name(row, "team", context)), '</th><td>', phase17_nl_rank_cell(row, "rank"), '</td><td>', phase17_html_escape(phase17_nl_value(row, "outcome")), '</td><td>', phase17_html_escape(phase17_public_percentage(row$probability)), '</td></tr>'), character(1)), collapse = ""), '</tbody></table></div>')
   }
-  paste0('<section id="outlook" class="nl-view" data-nl-view="outlook"><div class="section-heading"><div><p class="eyebrow">Tournament outlook</p><h2>Outlook</h2></div><p class="section-intro">Aggregate finishing paths are shown only when the projection bundle resolves the competition rules.</p></div>', body, '</section>')
+  paste0('<section id="outlook" class="section nl-view" data-nl-view="outlook">', body, '</section>')
 }
 
 phase17_nl_render_format <- function(payload, context) {
   definitions <- phase17_nl_group_definitions(payload, context)
   grouped <- split(definitions, vapply(definitions, function(definition) definition$league %||% "Other", character(1)))
   league_cards <- if (length(grouped)) paste(vapply(names(grouped), function(league) paste0('<article class="nl-format-card"><p class="eyebrow">', phase17_html_escape(league), '</p><h3>', phase17_html_escape(league), '</h3><p>', length(grouped[[league]]), ' groups</p><ul>', paste(vapply(grouped[[league]], function(definition) paste0('<li>', phase17_html_escape(definition$name), '</li>'), character(1)), collapse = ""), '</ul></article>'), character(1)), collapse = "") else '<div class="nl-empty"><strong>Competition format unavailable</strong><p>The accepted structure has not supplied the league/group roster.</p></div>'
-  paste0('<section id="format" class="nl-view" data-nl-view="format"><div class="section-heading"><div><p class="eyebrow">Competition map</p><h2>Format</h2></div><p class="section-intro">The Nations League is organised into four leagues, each split into groups with promotion and relegation paths.</p></div><div class="nl-format-grid">', league_cards, '</div></section>')
+  paste0('<section id="format" class="section nl-view" data-nl-view="format"><div class="grid-groups nl-format-grid">', league_cards, '</div></section>')
 }
 
 phase17_nl_state_label <- function(payload) {
@@ -799,23 +873,40 @@ phase17_nl_render_dashboard <- function(payload, route) {
   title <- "UEFA Nations League 2026/27 Forecast"
   payload_json <- phase17_json_script_escape(rawToChar(phase17_payload_bytes(payload)))
   tabs <- c(groups = "Groups", fixtures = "Fixtures", results = "Results", outlook = "Outlook", format = "Format")
-  tab_html <- paste(vapply(names(tabs), function(id) paste0('<button type="button" class="nl-tab', if (identical(id, "groups")) ' is-active' else '', '" data-nl-tab="', id, '" aria-controls="', id, '" aria-selected="', if (identical(id, "groups")) "true" else "false", '">', tabs[[id]], '</button>'), character(1)), collapse = "")
+  tab_html <- paste(vapply(names(tabs), function(id) paste0('<button type="button" class="tab nl-tab', if (identical(id, "groups")) ' active is-active' else '', '" data-nl-tab="', id, '" aria-controls="', id, '" aria-selected="', if (identical(id, "groups")) "true" else "false", '">', tabs[[id]], '</button>'), character(1)), collapse = "")
   contract_labels <- paste(vapply(payload$sections, function(section) phase17_html_escape(section$label), character(1)), collapse = " ")
   paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>', phase17_html_escape(title), '</title><style>',
     ':root{--ink:#1d1d1f;--muted:#666;--line:#d8d8d8;--paper:#f7f6f2;--panel:#fff;--blue:#3573a8;--blue-dark:#24577e;--blue-soft:#eef6fb;--gold:#d29d2b;--green:#3b8754;--danger:#b23a2f}*{box-sizing:border-box}html{scroll-behavior:smooth}body{font:14px/1.5 Arial,Helvetica,sans-serif;background:var(--paper);color:var(--ink);margin:0}main{max-width:1180px;margin:0 auto;padding:24px}.nl-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;padding:12px 0 24px;border-bottom:1px solid var(--line)}.nl-header h1{font-size:34px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}.nl-header p{color:var(--muted);margin:0}.nl-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.nl-header-status{white-space:nowrap;background:var(--blue-soft);color:var(--blue-dark);padding:8px 12px;border-radius:999px}.nl-header-status:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}.nl-meta{display:flex;gap:20px;flex-wrap:wrap;padding:14px 0;color:var(--muted);font-size:12px}.nl-meta b{color:var(--ink);display:block;font-size:13px}.nl-hero{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:4px 0 20px}.nl-metric{background:var(--panel);padding:16px}.nl-metric span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.nl-metric strong{display:block;font-size:22px;margin-top:4px}.warning{border-left:4px solid var(--danger);background:#fff;padding:12px 16px;overflow-wrap:anywhere;margin:12px 0}.warning p{margin:4px 0}.nl-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:18px 0 14px;border-bottom:1px solid var(--line)}.nl-tab{border:0;background:transparent;color:var(--muted);padding:12px 16px;min-height:46px;font-weight:700;cursor:pointer}.nl-tab.is-active{background:var(--ink);color:#fff}.nl-tab:hover{color:var(--ink)}.nl-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);padding:14px;margin:0 0 18px}.nl-filters label{font-weight:700;font-size:12px;color:var(--muted)}.nl-filters input,.nl-filters select{display:block;min-width:150px;min-height:42px;margin-top:4px;border:1px solid #aaa;background:#fff;padding:7px 9px;font:inherit;color:var(--ink)}.nl-filters input{min-width:190px}.nl-filters button{min-height:42px;padding:8px 13px;background:#fff;border:1px solid var(--blue);color:var(--ink);font-weight:700;cursor:pointer}.nl-filters p{margin:0 0 8px;color:var(--muted);font-size:12px}.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:end;margin:10px 0 14px}.section-heading h2{font-size:25px;margin:0}.eyebrow{margin:0 0 3px;color:var(--blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em}.section-intro{max-width:560px;color:var(--muted);margin:0}.nl-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.nl-group-card,.nl-format-card,.nl-match-card,.nl-empty{background:var(--panel);border:1px solid var(--line);padding:16px}.nl-card-heading{display:flex;justify-content:space-between;gap:12px;align-items:start}.nl-card-heading h3,.nl-format-card h3{margin:0;font-size:19px}.nl-card-state{color:var(--muted);font-size:11px;text-align:right}.nl-group-card .group-head{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:9px}.group-toggle{display:inline-flex;gap:0;border:1px solid var(--line);background:#f9f9f7;border-radius:999px;overflow:hidden;margin:0 0 8px}.group-toggle button{border:0;background:transparent;color:var(--muted);padding:6px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none!important}.nl-table-note{color:var(--muted);font-size:12px;min-height:36px;margin:8px 0}.nl-table-scroll{max-width:100%;overflow-x:auto}.nl-group-table{border-collapse:separate;border-spacing:3px;width:100%;min-width:570px;font-size:13px}.nl-group-table.current-table{min-width:700px}.nl-group-table th,.nl-group-table td,.nl-outlook-table th,.nl-outlook-table td{border-bottom:1px solid var(--line);padding:9px 7px;text-align:left;vertical-align:middle}.nl-outlook-table{border-collapse:collapse;width:100%;font-size:13px}.nl-group-table th:first-child{width:40%}.nl-group-table td:nth-child(n+3),.nl-group-table th:nth-child(n+3){text-align:right}.nl-group-table .status-head,.nl-group-table .status-cell{width:34px;text-align:center!important}.nl-table-status{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;font-size:12px;font-weight:700}.nl-table-status-unresolved{background:#fff3d6;color:#996b00}.nl-table-status-current{background:#e7f4eb;color:#28653a}.nl-table-status-pending{background:#f1f1ef;color:var(--muted)}.nl-status-muted{color:var(--muted);font-size:11px}.nl-table-empty{text-align:left!important;color:var(--muted);padding:16px!important}.nl-match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nl-match-card{padding:14px}.nl-match-top,.nl-match-bottom{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px}.nl-match-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:15px 0 12px}.nl-match-teams strong{display:block;font-size:16px}.nl-match-teams small{display:block;color:var(--muted);font-size:11px;margin-top:2px}.nl-match-teams .away{text-align:right}.nl-score{font-size:18px;white-space:nowrap}.nl-probabilities{display:flex;gap:10px;margin:8px 0 0}.nl-probabilities span{display:flex;gap:3px;align-items:baseline}.nl-probabilities b{color:var(--blue-dark)}.nl-probabilities small{color:var(--muted);font-size:10px}.nl-match-meta{margin:8px 0 0;color:var(--muted);font-size:11px}.nl-empty{border-left:4px solid var(--gold);padding:18px}.nl-empty strong{font-size:16px}.nl-empty p{color:var(--muted);margin:4px 0 0}.nl-empty-warning{border-left-color:var(--gold)}.nl-format-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.nl-format-card ul{list-style:none;padding:0;margin:12px 0 0}.nl-format-card li{border-top:1px solid var(--line);padding:7px 0}.nl-details{margin-top:20px;background:var(--panel);border:1px solid var(--line);padding:14px}.nl-details summary{font-weight:700;cursor:pointer}.nl-details dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:14px 0 0}.nl-details dd{margin:0;overflow-wrap:anywhere}.credits{overflow-wrap:anywhere}.contract-labels{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.nl-view[hidden]{display:none!important}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:2px}@media(max-width:800px){main{padding:16px}.nl-header{display:block}.nl-header-status{display:inline-flex;margin-top:14px}.nl-hero{grid-template-columns:repeat(2,1fr)}.nl-group-grid,.nl-match-grid{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-heading{display:block}.section-intro{margin-top:8px}.nl-filters{display:grid;grid-template-columns:1fr}.nl-filters label,.nl-filters input,.nl-filters select,.nl-filters button{width:100%}}@media(max-width:460px){.nl-hero{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:1fr}.nl-header h1{font-size:27px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}',
-    '</style></head><body><main class="nl-dashboard" data-route="', phase17_html_escape(route), '"><header class="nl-header"><div><p class="eyebrow">UEFA Nations League 2026/27</p><h1>', phase17_html_escape(title), '</h1><p>Forecast-led group tables, fixtures, and tournament outlook.</p></div><p id="dashboard-status" class="nl-header-status" role="status">', phase17_html_escape(status_label), '</p></header>',
+    '</style><style>',
+    'header.nl-header{display:block;padding:22px 24px 14px;border-bottom:1px solid var(--line);background:#fff}.nl-header h1{margin:0;font-size:30px;font-weight:700;line-height:1.05;letter-spacing:0}.nl-header .subhead{margin-top:8px;max-width:980px;color:#444}.nl-header .meta{margin-top:10px;color:var(--muted);font-size:12px}.nl-dashboard{max-width:none;margin:0;padding:18px 24px 32px}.tabs.nl-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 16px;border-bottom:0}.tab.nl-tab{border:1px solid var(--line);background:#fff;color:var(--ink);padding:8px 10px;min-height:0;border-radius:0;font-weight:700;cursor:pointer}.tab.nl-tab.active,.tab.nl-tab.is-active{border-color:var(--ink);background:var(--ink);color:#fff}.tab.nl-tab:hover{color:var(--ink)}.section{display:none}.section.active{display:block}.hero.nl-hero{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;background:transparent;border:0;margin:0 0 18px}.metric.nl-metric{background:#fff;border-top:3px solid var(--blue);padding:12px;min-height:82px}.metric.nl-metric .label{font-size:12px;color:var(--muted);text-transform:uppercase}.metric.nl-metric .value{font-size:24px;font-weight:700;margin-top:4px}.metric.nl-metric .note{font-size:12px;color:var(--muted)}.nl-filters{display:flex;gap:8px;flex-wrap:wrap;align-items:end;background:transparent;border:0;padding:0;margin:10px 0 18px}.nl-filters label{font-weight:400;font-size:14px;color:var(--ink)}.nl-filters input,.nl-filters select{display:block;min-width:180px;min-height:0;margin-top:0;border:1px solid var(--line);background:#fff;padding:8px;font:inherit;color:var(--ink)}.nl-filters input{min-width:180px}.nl-filters button{min-height:0;padding:8px 10px;background:#fff;border:1px solid var(--line);color:var(--ink);font-weight:700;cursor:pointer}.nl-filters p{margin:0 0 0;color:var(--muted);font-size:12px}.nl-filters[hidden]{display:none!important}.grid-groups.nl-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.group-box.nl-group-card{background:#fff;border:1px solid var(--line);padding:10px;overflow-x:auto}.group-box .group-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.group-box h2{font-size:15px;margin:0;font-weight:700}.group-league{display:block;margin-top:2px;color:var(--muted);font-size:11px}.group-box .group-toggle{display:inline-flex;border:1px solid var(--line);background:#f9f9f7;border-radius:0;overflow:visible;margin:0}.group-box .group-toggle button{border:0;border-right:1px solid var(--line);background:transparent;padding:5px 8px;font-size:12px;font-weight:700;color:#555;cursor:pointer}.group-box .group-toggle button:last-child{border-right:0}.group-box .group-toggle button.active{background:var(--ink);color:#fff}.nl-table-scroll{max-width:100%;overflow-x:auto}.nl-group-table{min-width:700px;border-collapse:separate;border-spacing:3px;width:100%;font-size:12px}.nl-group-table.current-table{min-width:700px}.nl-group-table th,.nl-group-table td{border-bottom:0;padding:5px 4px;text-align:left;vertical-align:middle}.nl-group-table thead tr{height:44px}.nl-group-table tbody tr{height:50px}.nl-group-table th{text-align:center;vertical-align:bottom;color:#555;font-weight:700}.nl-group-table th:first-child{text-align:left}.nl-group-table th.xpts-head,.nl-group-table th.xgd-head,.nl-group-table th.standing-head{font-size:11px;line-height:1.1}.nl-group-table td.num,.nl-group-table th.num{text-align:right}.team-cell{min-width:150px}.team-ident{display:flex;align-items:center;gap:8px;font-weight:700}.team-name{font-size:15px;line-height:1.15}.xpts-cell{width:48px;text-align:center;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.xgd-cell{width:58px;text-align:right;font-size:14px;font-variant-numeric:tabular-nums}.standing-cell{width:46.6667px;height:50px;text-align:center;vertical-align:middle;font-size:15px;font-weight:800;font-variant-numeric:tabular-nums}.heat-cell{position:relative;width:58px;height:50px;text-align:center;border-radius:8px;background:rgba(53,115,168,var(--heat));color:#163c5d;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;overflow:hidden}.heat-cell.strong{color:#fff}.heat-cell:after{content:"";position:absolute;left:9px;bottom:8px;width:calc(var(--prob) * (100% - 18px));height:5px;border-radius:6px;background:currentColor;opacity:.72}.heat-cell.empty{background:transparent;color:var(--ink);border-radius:0}.heat-cell.empty:after{display:none}.heat-cell .heat-val{position:relative;z-index:1}.nl-match-grid.match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.match-card.nl-match-card{background:#fff;border:1px solid var(--line);padding:10px}.match-title{font-weight:700;font-size:15px}.match-meta{font-size:12px;color:var(--muted);margin:2px 0 8px}.wdl{display:flex;height:10px;margin:8px 0;background:#eee}.wdl span:nth-child(1){background:var(--blue)}.wdl span:nth-child(2){background:var(--gold)}.wdl span:nth-child(3){background:var(--green)}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.chip{border:1px solid var(--line);padding:3px 6px;font-size:12px;background:#fafafa}.chip.primary{font-weight:800;background:var(--blue-soft);border-color:#b5c7d8;color:var(--blue-dark)}.nl-format-grid.grid-groups{grid-template-columns:repeat(4,minmax(0,1fr))}.nl-format-card{background:#fff;border:1px solid var(--line);padding:10px}.nl-format-card h3{font-size:15px;margin:0}.nl-details{margin-top:18px;background:#fff;border:1px solid var(--line);padding:10px}.nl-details summary{font-weight:700;cursor:pointer}.nl-details dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:10px 0 0}.nl-view[hidden]{display:none!important}@media(max-width:1180px){.hero.nl-hero{grid-template-columns:repeat(3,minmax(0,1fr))}}@media(max-width:980px){.hero.nl-hero{grid-template-columns:repeat(2,minmax(0,1fr))}.grid-groups.nl-group-grid,.nl-match-grid.match-grid{grid-template-columns:1fr}.nl-format-grid.grid-groups{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.nl-dashboard,header.nl-header{padding-left:14px;padding-right:14px}.hero.nl-hero{grid-template-columns:1fr}}',
+    '.section{display:block}',
+    '</style></head><body><header class="nl-header"><h1>', phase17_html_escape(title), '</h1><div class="subhead">Forecast-led group tables, fixtures, and tournament outlook. <strong>', phase17_html_escape(status_label), '</strong></div><div class="meta">Source: ', phase17_html_escape(phase17_public_scalar(metadata$source_confidence)), ' | Last accepted refresh: ', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), ' | Model release: ', phase17_html_escape(phase17_public_scalar(metadata$model_release_id)), '</div><span id="dashboard-status" role="status" class="contract-labels">', phase17_html_escape(status_label), '</span></header><main class="nl-dashboard" data-route="', phase17_html_escape(route), '">',
     warning_html,
-    '<div class="nl-meta"><span><b>Source</b>', phase17_html_escape(phase17_public_scalar(metadata$source_confidence)), '</span><span><b>Last accepted refresh</b>', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), '</span><span><b>Model release</b>', phase17_html_escape(phase17_public_scalar(metadata$model_release_id)), '</span></div>',
-    '<div class="nl-hero"><div class="nl-metric"><span>Leagues</span><strong>4</strong></div><div class="nl-metric"><span>Groups</span><strong>', length(definitions), '</strong></div><div class="nl-metric"><span>Fixtures</span><strong>', fixture_count, '</strong></div><div class="nl-metric"><span>Match forecasts</span><strong>', if (forecast_count) "Available" else "Unavailable", '</strong></div><div class="nl-metric"><span>Aggregate outlook</span><strong>', if (phase17_nl_has_resolved_rankings(phase17_nl_rows(payload, "projected_outcomes"))) "Available" else "Unresolved", '</strong></div></div>',
+    '<div class="hero nl-hero"><div class="metric nl-metric"><div class="label">Leagues</div><div class="value">4</div></div><div class="metric nl-metric"><div class="label">Groups</div><div class="value">', length(definitions), '</div></div><div class="metric nl-metric"><div class="label">Fixtures</div><div class="value">', fixture_count, '</div></div><div class="metric nl-metric"><div class="label">Match forecasts</div><div class="value">', if (forecast_count) "Available" else "Unavailable", '</div></div><div class="metric nl-metric"><div class="label">Aggregate outlook</div><div class="value">', if (phase17_nl_has_resolved_rankings(phase17_nl_rows(payload, "projected_outcomes"))) "Available" else "Unresolved", '</div></div></div>',
+    '<nav class="tabs nl-tabs" aria-label="Dashboard sections">', tab_html, '</nav>',
     phase17_nl_filter_toolbar(payload, context),
-    '<nav class="nl-tabs" aria-label="Dashboard sections">', tab_html, '</nav>',
     phase17_nl_render_groups(payload, context), phase17_nl_render_fixtures(payload, context), phase17_nl_render_results(payload, context), phase17_nl_render_outlook(payload, context), phase17_nl_render_format(payload, context),
     '<span class="contract-labels" aria-hidden="true">', contract_labels, '</span>',
     '<details id="source-lineage" class="nl-details"><summary>Source, model, and refresh lineage</summary><dl>', phase17_render_metadata(metadata), '</dl></details>',
     '<details id="data-credits" class="nl-details"><summary>Data credits</summary><div class="credits">', phase17_html_escape(phase17_canonical_json(payload$credits)), '</div></details>',
     '<script id="dashboard-data" type="application/json">', payload_json, '</script>',
-    '<script>(function(){const root=document;const tabs=[...root.querySelectorAll("[data-nl-tab]")];const views=[...root.querySelectorAll("[data-nl-view]")];const validTabs=new Set(tabs.map(tab=>tab.dataset.nlTab));function setTab(name,write){const selected=validTabs.has(name)?name:"groups";tabs.forEach(tab=>{const active=tab.dataset.nlTab===selected;tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",active?"true":"false")});views.forEach(view=>{view.hidden=view.dataset.nlView!==selected});if(write&&location.hash!=="#"+selected)history.replaceState(null,"","#"+selected);applyFilters()}function requestedTab(){const value=location.hash.replace(/^#/,"");return validTabs.has(value)?value:"groups"}tabs.forEach(tab=>tab.addEventListener("click",()=>setTab(tab.dataset.nlTab,true)));window.addEventListener("hashchange",()=>setTab(requestedTab(),false));const groupsGrid=root.getElementById("groupsGrid");if(groupsGrid)groupsGrid.addEventListener("click",event=>{const button=event.target&&event.target.closest?event.target.closest("[data-group-view]"):null;if(!button||!groupsGrid.contains(button))return;const card=button.closest(".nl-group-card");if(!card)return;const view=button.dataset.groupView;card.querySelectorAll("[data-group-view]").forEach(toggle=>toggle.classList.toggle("active",toggle===button));card.querySelectorAll(".group-view").forEach(panel=>{panel.hidden=panel.dataset.view!==view});card.querySelectorAll(".nl-forecast-view").forEach(item=>{item.hidden=view!=="forecast"});card.querySelectorAll(".nl-current-view").forEach(item=>{item.hidden=view!=="current"})});const search=root.getElementById("nl-team-search"),group=root.getElementById("nl-group-filter"),date=root.getElementById("nl-date-filter"),status=root.getElementById("nl-status-filter"),count=root.getElementById("nl-filter-result-count");function applyFilters(){const query=(search.value||"").trim().toLowerCase(),selectedGroup=group.value,selectedDate=date.value,selectedStatus=status.value;let visible=0;root.querySelectorAll(".nl-match-card").forEach(card=>{const teams=(card.dataset.filterTeam||"").toLowerCase().split("|");const exactTeamMatch=teams.includes(query),show=(!query||exactTeamMatch||teams.some(team=>team.includes(query)))&&(!selectedGroup||card.dataset.filterGroup===selectedGroup)&&(!selectedDate||card.dataset.filterDate===selectedDate)&&(!selectedStatus||card.dataset.filterStatus===selectedStatus);card.hidden=!show;if(show)visible++});count.textContent=visible?"Showing "+visible+" matching matches.":"No matches match the selected filters."}[',
-    '"search","group","date","status"].forEach(id=>root.getElementById(id).addEventListener(id==="search"?"input":"change",applyFilters));root.getElementById("nl-clear-filters").addEventListener("click",()=>{search.value="";[group,date,status].forEach(item=>item.value="");applyFilters()});setTab(requestedTab(),false)})();</script></main></body></html>')
+    '<script>(function(){',
+    'const root=document;',
+    'const tabs=[...root.querySelectorAll("[data-nl-tab]")];',
+    'const views=[...root.querySelectorAll("[data-nl-view]")];',
+    'const validTabs=new Set(tabs.map(tab=>tab.dataset.nlTab));',
+    'const filterToolbar=root.getElementById("nl-filters");',
+    'function setTab(name,write){const selected=validTabs.has(name)?name:"groups";tabs.forEach(tab=>{const active=tab.dataset.nlTab===selected;tab.classList.toggle("active",active);tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",active?"true":"false")});views.forEach(view=>{view.hidden=view.dataset.nlView!==selected});if(filterToolbar)filterToolbar.hidden=!(["fixtures","results"].includes(selected));if(write&&location.hash!=="#"+selected)history.replaceState(null,"","#"+selected);applyFilters()}',
+    'function requestedTab(){const value=location.hash.replace(/^#/,"");return validTabs.has(value)?value:"groups"}',
+    'tabs.forEach(tab=>tab.addEventListener("click",()=>setTab(tab.dataset.nlTab,true)));',
+    'window.addEventListener("hashchange",()=>setTab(requestedTab(),false));',
+    'const groupsGrid=root.getElementById("groupsGrid");',
+    'if(groupsGrid)groupsGrid.addEventListener("click",event=>{const button=event.target&&event.target.closest?event.target.closest("[data-group-view]"):null;if(!button||!groupsGrid.contains(button))return;const card=button.closest(".nl-group-card");if(!card)return;const view=button.dataset.groupView;card.querySelectorAll("[data-group-view]").forEach(toggle=>toggle.classList.toggle("active",toggle===button));card.querySelectorAll(".group-view").forEach(panel=>{panel.hidden=panel.dataset.view!==view})});',
+    'const search=root.getElementById("nl-team-search"),group=root.getElementById("nl-group-filter"),date=root.getElementById("nl-date-filter"),status=root.getElementById("nl-status-filter"),count=root.getElementById("nl-filter-result-count");',
+    'function applyFilters(){const query=(search.value||"").trim().toLowerCase(),selectedGroup=group.value,selectedDate=date.value,selectedStatus=status.value;let visible=0;root.querySelectorAll(".nl-match-card").forEach(card=>{const teams=(card.dataset.filterTeam||"").toLowerCase().split("|");const exactTeamMatch=teams.includes(query),show=(!query||exactTeamMatch||teams.some(team=>team.includes(query)))&&(!selectedGroup||card.dataset.filterGroup===selectedGroup)&&(!selectedDate||card.dataset.filterDate===selectedDate)&&(!selectedStatus||card.dataset.filterStatus===selectedStatus);card.hidden=!show;if(show)visible++});count.textContent=visible?"Showing "+visible+" matching matches.":"No matches match the selected filters."}',
+    'search.addEventListener("input",applyFilters);group.addEventListener("change",applyFilters);date.addEventListener("change",applyFilters);status.addEventListener("change",applyFilters);',
+    'root.getElementById("nl-clear-filters").addEventListener("click",()=>{search.value="";[group,date,status].forEach(item=>item.value="");applyFilters()});',
+    'setTab(requestedTab(),false)})();</script></main></body></html>')
 }
 
 phase17_render_metadata <- function(metadata) {
