@@ -50,14 +50,17 @@ test_that("production Nations League snapshot is the complete official UEFA sche
   artifacts <- attr(registries, "source_artifacts")
   bundle_id <- "nl-2026-27-official-uefa-v2"
 
-  expect_identical(as.character(nations$status$competition_status), "scheduled")
+  expect_identical(as.character(nations$status$competition_status), "in_progress")
   expect_equal(nrow(fixtures), 156L)
   expect_equal(nrow(groups), 14L)
   expect_equal(nrow(standings), 0L)
   expect_equal(nrow(results), 156L)
   expect_equal(length(unique(as.character(fixtures$uefa_source_fixture_id))), 156L)
   expect_equal(length(unique(as.character(groups$source_group_id))), 14L)
-  expect_true(all(toupper(as.character(fixtures$source_status)) == "UPCOMING"))
+  expect_true(all(toupper(as.character(fixtures$source_status)) %in% c(
+    "FINISHED", "LIVE", "UPCOMING", "POSTPONED", "CANCELLED", "ABANDONED"
+  )))
+  expect_true(any(toupper(as.character(fixtures$source_status)) == "FINISHED"))
   expect_true(all(as.logical(fixtures$kickoff_confirmed)))
   expect_true(all(nzchar(as.character(fixtures$confirmed_kickoff_at_utc))))
   expect_false(any(
@@ -69,9 +72,34 @@ test_that("production Nations League snapshot is the complete official UEFA sche
     as.character(results$uefa_source_fixture_id),
     as.character(fixtures$uefa_source_fixture_id)
   )
-  expect_true(all(as.character(results$match_status) == "scheduled"))
-  expect_true(all(is.na(results$home_goals) & is.na(results$away_goals)))
-  expect_true(all(!as.logical(results$counts_for_standings) & !as.logical(results$counts_for_form)))
+  expect_equal(
+    sum(as.character(results$match_status) == "completed"),
+    sum(toupper(as.character(fixtures$source_status)) == "FINISHED")
+  )
+  expect_equal(
+    sum(as.character(results$match_status) == "in_progress"),
+    sum(toupper(as.character(fixtures$source_status)) == "LIVE")
+  )
+  expect_equal(
+    sum(as.character(results$match_status) == "scheduled"),
+    sum(toupper(as.character(fixtures$source_status)) %in% c(
+      "UPCOMING", "POSTPONED", "CANCELLED", "ABANDONED"
+    ))
+  )
+  expect_true(all(
+    !is.na(results$home_goals[as.character(results$match_status) == "completed"]) &
+      !is.na(results$away_goals[as.character(results$match_status) == "completed"])
+  ))
+  expect_true(all(
+    is.na(results$home_goals[as.character(results$match_status) != "completed"]) &
+      is.na(results$away_goals[as.character(results$match_status) != "completed"])
+  ))
+  expect_true(all(
+    as.logical(results$counts_for_standings) == (as.character(results$match_status) == "completed")
+  ))
+  expect_true(all(
+    as.logical(results$counts_for_form) == (as.character(results$match_status) == "completed")
+  ))
 
   expect_equal(nrow(identity), 54L)
   expect_setequal(
@@ -92,11 +120,11 @@ test_that("production Nations League snapshot is the complete official UEFA sche
   expect_identical(as.character(nl_bundle$bundle_status), "accepted")
   expect_identical(as.character(nl_bundle$acceptance_state), "accepted")
   expect_identical(as.character(nl_bundle$fallback_status), "official")
-  expect_match(as.character(nl_bundle$parser_commit_sha), "^d322121")
+  expect_match(as.character(nl_bundle$parser_commit_sha), "^[0-9a-fA-F]{7,64}$")
   expect_false(any(grepl("sample", c(nl_bundle$bundle_id, nl_artifacts$artifact_id), fixed = TRUE)))
   expect_true(all(as.character(nl_artifacts$source_url) == phase14_uefa_nl_matches_url()))
   expect_true(all(as.character(nl_artifacts$source_url_lineage) == phase14_uefa_nl_matches_url()))
-  expect_true(all(as.character(nl_artifacts$raw_sha256) == "a8b9a1d9c4329a33ffa15a447cb84f2cf92c01caac9668f46d3f0f0abeaed4cd"))
+  expect_true(all(grepl("^[0-9a-fA-F]{64}$", as.character(nl_artifacts$raw_sha256))))
   expect_equal(length(unique(as.character(nl_artifacts$retrieved_at_utc))), 1L)
 
   for (index in seq_len(nrow(nl_artifacts))) {

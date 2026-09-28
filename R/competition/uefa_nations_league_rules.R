@@ -962,6 +962,12 @@ uefa_nl_rank_parse_boolean <- function(values) {
 uefa_nl_rank_parse_utc <- function(values) {
   text <- trimws(as.character(values))
   parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  fractional <- grepl("\\.[0-9]+Z$", text)
+  if (any(fractional | is.na(parsed))) {
+    fractional <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
+    replace <- grepl("\\.[0-9]+Z$", text) | is.na(parsed)
+    parsed[replace] <- fractional[replace]
+  }
   invalid <- is.na(text) | !nzchar(text) | is.na(parsed) | !grepl("Z$", text)
   parsed[invalid] <- as.POSIXct(NA, tz = "UTC")
   parsed
@@ -972,7 +978,8 @@ uefa_nl_rank_valid_status <- function(values) {
     "completed", "complete", "finished", "full_time", "full-time",
     "after_extra_time", "after-extra-time", "after_penalties", "after-penalties", "awarded",
     "scheduled", "upcoming", "pending", "not_started", "not-started", "official",
-    "projected", "unresolved", "suppressed", "postponed", "cancelled", "canceled", "abandoned"
+    "projected", "unresolved", "suppressed", "in_progress", "in-progress", "live",
+    "postponed", "cancelled", "canceled", "abandoned"
   )
 }
 

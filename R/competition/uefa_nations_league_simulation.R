@@ -772,6 +772,10 @@ uefa_nl_sim_parse_timestamp <- function(value) {
   if (is.null(value) || !length(value) || is.na(value[[1L]]) || !nzchar(trimws(as.character(value[[1L]])))) return(as.POSIXct(NA, tz = "UTC"))
   text <- trimws(as.character(value[[1L]]))
   parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  # UEFA's live endpoint uses RFC3339 timestamps with optional fractional
+  # seconds (for example, `...20:35:11.203Z`).  Accept both forms while
+  # retaining the explicit UTC `Z` contract.
+  if (grepl("\\.[0-9]+Z$", text) || is.na(parsed)) parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
   if (is.na(parsed) || !grepl("Z$", text)) stop("Nations League simulation timestamp is invalid", call. = FALSE)
   parsed
 }
@@ -1352,14 +1356,25 @@ uefa_nl_sim_cutoff <- function(matches) {
   fields <- intersect(c("state_cutoff_utc", "simulation_cutoff_utc"), names(matches))
   values <- character()
   if (length(fields)) values <- as.character(unlist(matches[fields], use.names = FALSE))
-  parsed <- suppressWarnings(as.POSIXct(values, tz = "UTC"))
+  parse_values <- function(values) {
+    if (!length(values)) return(as.POSIXct(character(), tz = "UTC"))
+    seconds <- vapply(values, function(value) {
+      parsed <- tryCatch(uefa_nl_sim_parse_timestamp(value), error = function(error) as.POSIXct(NA, tz = "UTC"))
+      if (is.na(parsed)) parsed <- suppressWarnings(as.POSIXct(as.character(value), tz = "UTC"))
+      as.numeric(parsed)
+    }, numeric(1))
+    as.POSIXct(seconds, origin = "1970-01-01", tz = "UTC")
+  }
+  parsed <- parse_values(values)
   parsed <- parsed[!is.na(parsed)]
   if (!length(parsed) && "evidence_completed_at_utc" %in% names(matches)) {
-    parsed <- suppressWarnings(as.POSIXct(as.character(matches$evidence_completed_at_utc), tz = "UTC"))
+    parsed <- parse_values(as.character(matches$evidence_completed_at_utc))
     parsed <- parsed[!is.na(parsed)]
   }
   if (!length(parsed)) return("2099-12-31T23:59:59Z")
-  format(max(parsed), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  # Keep milliseconds so a result completed late within the maximum second is
+  # not incorrectly treated as occurring after the simulation cutoff.
+  format(max(parsed) + 0.001, "%Y-%m-%dT%H:%M:%OS6Z", tz = "UTC")
 }
 
 uefa_nl_sim_prepare_iteration_matches <- function(matches, cutoff_utc) {

@@ -692,10 +692,11 @@ phase14_state_bundle_hash_value <- function(value) {
     if (phase14_state_bundle_is_score_grid(value)) {
       return(digest::digest(value, algo = "sha256", serialize = TRUE))
     }
-    # phase14_forecast_hash_data orders columns before serialising; base::order
-    # has no vector to order for a zero-column empty schema.  Empty artifacts
-    # are valid (notably pre_draw), so hash their stable column-name schema.
-    if (!ncol(value)) {
+    # Header-only CSVs are valid (notably pre_draw and inactive optional
+    # evidence).  Base::read.csv can change the storage type of zero-row
+    # columns, so hash every empty data frame by its stable column-name
+    # schema rather than by in-memory column attributes.
+    if (!nrow(value)) {
       return(digest::digest(paste(names(value), collapse = "|"), algo = "sha256", serialize = FALSE))
     }
     return(phase14_forecast_hash_data(value))

@@ -1119,6 +1119,94 @@ phase13_acquire_canonical_content_sha256 <- function(data) {
   phase13_source_sha256(phase13_acquire_csv_bytes(data))
 }
 
+phase13_acquire_normalized_publication_tables <- function(candidate, edition_context) {
+  required <- phase13_source_required_resource_types()
+  artifact_ids <- setNames(
+    as.character(candidate$artifacts$source_artifact_id),
+    as.character(candidate$artifacts$artifact_type)
+  )
+  source_tables <- setNames(
+    lapply(
+      required,
+      function(artifact_type) phase13_acquire_resource_table(
+        candidate$resources[[artifact_type]],
+        artifact_type,
+        edition_context$edition_id,
+        artifact_ids[[artifact_type]]
+      )
+    ),
+    required
+  )
+  normalized_fixtures <- phase13_normalize_fixture_rows(
+    source_tables$fixtures,
+    identity_map = edition_context$identity_registry,
+    edition_id = edition_context$edition_id,
+    source_artifact_id = artifact_ids[["fixtures"]],
+    lifecycle_state = edition_context$lifecycle_state,
+    schema_version = "phase14-normalized-fixture-v2"
+  )
+  normalized_results <- phase13_normalize_accepted_result_rows(
+    source_tables$results,
+    normalized_fixtures = normalized_fixtures,
+    edition_id = edition_context$edition_id,
+    source_artifact_id = artifact_ids[["results"]],
+    lifecycle_state = edition_context$lifecycle_state,
+    schema_version = "phase14-normalized-result-v2"
+  )
+  source_tables$fixtures <- normalized_fixtures
+  source_tables$results <- normalized_results
+  source_tables$standings <- phase14_normalize_accepted_standings_rows(
+    source_tables$standings,
+    identity_map = edition_context$identity_registry,
+    edition_id = edition_context$edition_id,
+    source_bundle_id = edition_context$source_bundle_id,
+    source_artifact_id = artifact_ids[["standings"]]
+  )
+  source_tables
+}
+
+phase13_acquire_accepted_content_signature <- function(tables) {
+  required <- phase13_source_required_resource_types()
+  if (!is.list(tables) || !setequal(names(tables), required)) {
+    stop("Phase 13 accepted-content signature requires all resource tables", call. = FALSE)
+  }
+  hashes <- vapply(
+    required,
+    function(artifact_type) {
+      table <- tables[[artifact_type]]
+      if (!is.data.frame(table)) stop("Phase 13 accepted-content signature requires data frames", call. = FALSE)
+      row_hashes <- if ("row_sha256" %in% names(table)) {
+        sort(as.character(table$row_sha256))
+      } else if (nrow(table)) {
+        sort(as.character(phase13_row_sha256(table)))
+      } else {
+        character()
+      }
+      phase13_source_sha256(paste(row_hashes, collapse = "\n"))
+    },
+    character(1)
+  )
+  phase13_source_sha256(
+    paste(paste(required, hashes, sep = "="), collapse = "\n")
+  )
+}
+
+phase13_acquire_raw_content_signature <- function(artifacts) {
+  phase13_source_require_columns(
+    artifacts,
+    c("artifact_type", "raw_sha256"),
+    "Phase 13 source artifacts"
+  )
+  rows <- artifacts[, c("artifact_type", "raw_sha256"), drop = FALSE]
+  rows <- rows[order(as.character(rows$artifact_type)), , drop = FALSE]
+  phase13_source_sha256(
+    paste(
+      paste(as.character(rows$artifact_type), as.character(rows$raw_sha256), sep = "="),
+      collapse = "\n"
+    )
+  )
+}
+
 phase13_acquire_csv_roundtrip <- function(data) {
   if (!is.data.frame(data)) stop("Phase 13 CSV round-trip requires a data frame", call. = FALSE)
   path <- tempfile("phase13-csv-roundtrip-", fileext = ".csv")
@@ -1698,6 +1786,12 @@ phase13_acquire_publication_validate_source_table <- function(
   if (identical(artifact_type, "fixtures")) {
     expected_schemas[[2L]] <- c(
       "schema_version", phase14_source_compact_resource_schema()$fixtures,
+      "edition_id", "source_artifact_id", "row_sha256"
+    )
+  }
+  if (identical(artifact_type, "results")) {
+    expected_schemas[[2L]] <- c(
+      "schema_version", phase14_source_resource_schema()$results,
       "edition_id", "source_artifact_id", "row_sha256"
     )
   }
@@ -3016,6 +3110,42 @@ phase13_acquire_update_edition_after_acceptance <- function(
     )
     transition_applied <- TRUE
   }
+  candidate_state <- NULL
+  status_resource <- candidate$resources$status
+  if (is.data.frame(status_resource) && nrow(status_resource)) {
+    status_values <- intersect(c("competition_status", "lifecycle_state"), names(status_resource))
+    if (length(status_values)) candidate_state <- as.character(status_resource[[status_values[[1L]]]][[1L]])
+  } else if (is.list(status_resource) && length(status_resource)) {
+    status_values <- intersect(c("competition_status", "lifecycle_state"), names(status_resource[[1L]]))
+    if (length(status_values)) candidate_state <- as.character(status_resource[[1L]][[status_values[[1L]]]][[1L]])
+  }
+  if (!is.null(candidate_state) && !is.na(candidate_state) &&
+      candidate_state %in% phase13_competition_lifecycle_states()) {
+    current_state <- as.character(accepted_row$lifecycle_state[[1L]])
+    states <- phase13_competition_lifecycle_states()
+    current_index <- match(current_state, states)
+    candidate_index <- match(candidate_state, states)
+    if (candidate_index < current_index) {
+      stop("Phase 13 accepted refresh lifecycle cannot move backwards: ", current_state, " -> ", candidate_state, call. = FALSE)
+    }
+    while (current_index < candidate_index) {
+      next_state <- states[[current_index + 1L]]
+      accepted_row <- phase13_transition_competition_edition(
+        accepted_row,
+        next_state,
+        operator_action = if (phase13_registry_blank(operator_action)) {
+          paste("accepted official source lifecycle", next_state)
+        } else {
+          operator_action
+        },
+        validation_passed = TRUE,
+        operator = operator,
+        audit_at_utc = accepted_at_utc
+      )
+      transition_applied <- TRUE
+      current_index <- current_index + 1L
+    }
+  }
   accepted_row$source_bundle_id <- candidate_bundle_id
   accepted_row$active_output_bundle_id <- candidate_bundle_id
   accepted_row$last_accepted_output_bundle_id <- candidate_bundle_id
@@ -3343,7 +3473,19 @@ phase13_acquire_main <- function(
     candidate <- phase13_acquire_candidate(options, edition_id)
     candidate$manifest <- phase13_acquire_source_manifest_table(candidate$bundle, candidate$artifacts)
     if (isTRUE(options$dry_run)) {
-      message(sprintf("Phase 13 dry-run candidate valid: %s (%s)", candidate$bundle$bundle_id[[1L]], edition_id))
+      edition_context <- phase13_acquire_load_edition_context(
+        edition_id,
+        registry_root = registry_root,
+        project_root = phase13_acquire_project_root
+      )
+      normalized_tables <- phase13_acquire_normalized_publication_tables(candidate, edition_context)
+      message(sprintf(
+        "Phase 13 dry-run candidate valid: %s (%s) source_bundle_sha256=%s accepted_content_signature=%s raw_content_signature=%s",
+        candidate$bundle$bundle_id[[1L]], edition_id,
+        as.character(candidate$bundle$source_bundle_sha256[[1L]]),
+        phase13_acquire_accepted_content_signature(normalized_tables),
+        phase13_acquire_raw_content_signature(candidate$artifacts)
+      ))
       return(invisible(candidate))
     }
     if (isTRUE(options$publish_accepted)) {

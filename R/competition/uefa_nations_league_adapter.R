@@ -52,6 +52,30 @@ phase14_uefa_nl_first_scalar <- function(..., default = NULL) {
   default
 }
 
+phase14_uefa_nl_optional_goal <- function(value, label) {
+  if (is.null(value) || !length(value) || is.na(value[[1L]]) ||
+      !nzchar(trimws(as.character(value[[1L]])))) {
+    return(NA_integer_)
+  }
+  parsed <- suppressWarnings(as.numeric(as.character(value[[1L]])))
+  if (length(parsed) != 1L || is.na(parsed) || !is.finite(parsed) ||
+      parsed < 0 || parsed != floor(parsed)) {
+    stop("Official UEFA Nations League ", label, " must be a non-negative whole number", call. = FALSE)
+  }
+  as.integer(parsed)
+}
+
+phase14_uefa_nl_match_statuses <- function(payload) {
+  toupper(vapply(payload, function(match) phase14_uefa_nl_scalar(match$status, "status"), character(1)))
+}
+
+phase14_uefa_nl_lifecycle_state <- function(statuses) {
+  statuses <- toupper(trimws(as.character(statuses)))
+  if (all(statuses == "FINISHED")) return("complete")
+  if (any(statuses %in% c("FINISHED", "LIVE"))) return("in_progress")
+  "scheduled"
+}
+
 phase14_uefa_nl_team_display_name <- function(team) {
   phase14_uefa_nl_first_scalar(
     phase14_uefa_nl_get(team, c("translations", "displayName", "EN")),
@@ -139,8 +163,15 @@ phase14_uefa_nl_validate_response <- function(
   if (length(unique(team_ids)) != as.integer(expected_team_count)) {
     stop("Official UEFA Nations League response team count is not ", expected_team_count, call. = FALSE)
   }
-  if (any(tolower(vapply(payload, function(match) phase14_uefa_nl_scalar(match$status, "status"), character(1))) != "upcoming")) {
-    stop("Official UEFA Nations League response contains a non-UPCOMING match", call. = FALSE)
+  statuses <- phase14_uefa_nl_match_statuses(payload)
+  allowed_statuses <- c("FINISHED", "LIVE", "UPCOMING", "POSTPONED", "CANCELLED", "ABANDONED")
+  invalid <- setdiff(unique(statuses), allowed_statuses)
+  if (length(invalid)) {
+    stop(
+      "Official UEFA Nations League response contains an unsupported match status: ",
+      invalid[[1L]],
+      call. = FALSE
+    )
   }
   invisible(payload)
 }
@@ -157,6 +188,7 @@ phase14_uefa_nl_adapt_response <- function(
     expected_team_count = expected_team_count
   )
   n <- length(payload)
+  statuses <- phase14_uefa_nl_match_statuses(payload)
   fixture_rows <- lapply(payload, function(match) {
     group_id <- phase14_uefa_nl_scalar(match$group$id, "group ID")
     kickoff <- phase14_uefa_nl_scalar(
@@ -230,14 +262,91 @@ phase14_uefa_nl_adapt_response <- function(
   results <- data.frame(
     source_fixture_id = fixtures$source_fixture_id,
     status = fixtures$status,
-    home_goals = rep(NA_integer_, n),
-    away_goals = rep(NA_integer_, n),
+    home_goals = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_integer_)
+      phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "total", "home")),
+        "home score"
+      )
+    }, integer(1)),
+    away_goals = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_integer_)
+      phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "total", "away")),
+        "away score"
+      )
+    }, integer(1)),
+    regulation_home_goals = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_integer_)
+      phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "regular", "home")),
+        "regular-time home score"
+      )
+    }, integer(1)),
+    regulation_away_goals = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_integer_)
+      phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "regular", "away")),
+        "regular-time away score"
+      )
+    }, integer(1)),
+    final_home_goals = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_integer_)
+      phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "total", "home")),
+        "final home score"
+      )
+    }, integer(1)),
+    final_away_goals = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_integer_)
+      phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "total", "away")),
+        "final away score"
+      )
+    }, integer(1)),
+    source_status = fixtures$source_status,
+    match_status = ifelse(
+      statuses == "FINISHED",
+      "completed",
+      ifelse(statuses == "LIVE", "in_progress", "scheduled")
+    ),
+    completion_method = rep("not_applicable", n),
+    shootout_home_goals = rep(NA_integer_, n),
+    shootout_away_goals = rep(NA_integer_, n),
+    winner_team_id = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_character_)
+      home_goals <- phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "total", "home")),
+        "home score"
+      )
+      away_goals <- phase14_uefa_nl_optional_goal(
+        phase14_uefa_nl_get(payload[[index]], c("score", "total", "away")),
+        "away score"
+      )
+      if (is.na(home_goals) || is.na(away_goals) || home_goals == away_goals) return(NA_character_)
+      if (home_goals > away_goals) {
+        phase14_uefa_nl_scalar(payload[[index]]$homeTeam$id, "home UEFA team ID")
+      } else {
+        phase14_uefa_nl_scalar(payload[[index]]$awayTeam$id, "away UEFA team ID")
+      }
+    }, character(1)),
+    evidence_completed_at_utc = vapply(seq_along(payload), function(index) {
+      if (!identical(statuses[[index]], "FINISHED")) return(NA_character_)
+      phase14_uefa_nl_first_scalar(
+        payload[[index]]$fullTimeAt,
+        payload[[index]]$endTime,
+        default = NA_character_
+      )
+    }, character(1)),
+    counts_for_standings = statuses == "FINISHED",
+    counts_for_form = statuses == "FINISHED",
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
+  results <- results[, phase14_source_resource_schema()$results, drop = FALSE]
   status <- data.frame(
     source_edition_id = phase14_uefa_nl_edition_id(),
-    competition_status = "scheduled",
+    competition_status = phase14_uefa_nl_lifecycle_state(statuses),
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
@@ -544,6 +653,12 @@ phase15_uefa_nl_capture_missing <- function(values) {
 phase15_uefa_nl_parse_utc_timestamp <- function(values, field) {
   text <- trimws(as.character(values))
   parsed <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
+  fractional <- grepl("\\.[0-9]+Z$", text)
+  if (any(fractional | is.na(parsed))) {
+    precise <- suppressWarnings(as.POSIXct(text, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
+    replace <- fractional | is.na(parsed)
+    parsed[replace] <- precise[replace]
+  }
   invalid <- is.na(text) | !nzchar(text) | is.na(parsed) | !grepl("Z$", text)
   if (any(invalid)) stop("Phase 15 stage capture has an invalid ", field, " UTC timestamp", call. = FALSE)
   parsed
