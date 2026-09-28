@@ -147,7 +147,13 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
     results = phase17_provider_alias_rows(source_tables$results, edition_id),
     form = phase17_provider_alias_rows(if (nrow(state_tables[["state/competition_form.csv"]])) state_tables[["state/competition_form.csv"]] else outcome_tables[["outcomes/fixture_forecast_form.csv"]], edition_id),
     forecasts = phase17_provider_alias_rows(outcome_tables[["outcomes/fixture_forecast_form.csv"]], edition_id),
-    projected_outcomes = phase17_provider_alias_rows(outcome_tables[["outcomes/projected_standings.csv"]], edition_id)
+    projected_outcomes = phase17_provider_alias_rows(outcome_tables[["outcomes/projected_standings.csv"]], edition_id),
+    # These accepted outcome artifacts power the Nations League-specific
+    # outlook and tournament-tree views.  They remain outside the stable
+    # eight-section Phase 17 contract so EURO consumers are unchanged.
+    progression_probabilities = phase17_provider_alias_rows(outcome_tables[["outcomes/team_path_probabilities.csv"]], edition_id),
+    tournament_tree = phase17_provider_alias_rows(outcome_tables[["outcomes/stage_slots.csv"]], edition_id),
+    tournament_topology = phase17_provider_alias_rows(outcome_tables[["outcomes/competition_topology.csv"]], edition_id)
   )
   c(metadata, list(artifacts = artifacts, credits = metadata$credits,
                    source = source, state = state, outcomes = outcomes))

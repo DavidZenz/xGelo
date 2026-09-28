@@ -293,6 +293,41 @@ test_that("Nations League current table derives standings from completed accepte
   expect_true(grepl("<span class=\"heat-val\">3</span></td><td class=\"standing-cell\">1</td><td class=\"standing-cell\">1</td><td class=\"standing-cell\">0</td><td class=\"standing-cell\">0</td><td class=\"standing-cell\">2</td><td class=\"standing-cell\">1</td><td class=\"heat-cell standing strong\"", html, fixed = TRUE))
 })
 
+test_that("Nations League outlook renders accepted probability bars and projected tree", {
+  api <- phase17_test_load_contract()
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
+  sys.source(file.path(phase17_test_project_root, "R/dashboard/renderer.R"), api)
+  bundle <- api$phase17_fixture_bundle("uefa_nations_league_2026_27", lifecycle_state = "active")
+  bundle$artifacts$structure <- data.frame(league = "A", display_name = "Group A1", group_id = "A", stringsAsFactors = FALSE)
+  bundle$artifacts$fixtures <- data.frame(
+    fixture_id = "fixture-001", group_id = "A", home_team_id = "team_alpha", away_team_id = "team_beta",
+    home_display_name = "Alpha", away_display_name = "Beta", status = "scheduled", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$projected_outcomes <- data.frame(
+    league = "A", group_id = "A", team_id = "team_alpha", rank = c(1L, 2L),
+    probability = c(0.7, 0.3), ranking_status = "ready", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$progression_probabilities <- data.frame(
+    team_id = "team_alpha", league = "A", p_quarter_final = 0.8, p_semi_final = 0.5,
+    p_final = 0.25, p_champion = 0.12, p_direct_promotion = 0,
+    p_playoff_eligibility = 0.1, p_direct_relegation = 0, status = "projected", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$tournament_tree <- data.frame(
+    stage_id = "league_a_quarter_final", stage_type = "quarter_final", stage_status = "projected",
+    participant_slot_home = "A-group-winner-A", participant_slot_away = "A-group-runner-up-A",
+    home_team_id = "team_alpha", away_team_id = "team_beta", resolution_status = "projected", stringsAsFactors = FALSE
+  )
+  bundle$artifacts$tournament_topology <- data.frame(
+    stage_id = "c_d_playoff", stage_type = "play_off", topology_status = "unresolved", stringsAsFactors = FALSE
+  )
+  html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
+  expect_true(all(vapply(c(
+    "data-nl-tab=\"tree\"", "Rank probability outlook", "probbar", "Direct promotion",
+    "Projected Nations League progression", "League A quarter-finals", "League C / D play-off",
+    "Projected participant slots are unresolved"
+  ), grepl, logical(1), x = html, fixed = TRUE)))
+})
+
 test_that("public section projection keeps provenance out of both dashboards", {
   api <- phase17_test_load_contract()
   sys.source(file.path(phase17_test_project_root, "R/dashboard/payload_nations_league.R"), api)
