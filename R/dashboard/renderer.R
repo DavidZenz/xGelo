@@ -990,11 +990,21 @@ phase17_nl_tree_stage <- function(stage_id, stage_rows, topology_rows, payload, 
     if (length(matches)) phase17_nl_value(matches[[1L]], "stage_type") else ""
   }
   stage_status <- if (length(stage_rows)) phase17_public_status(phase17_nl_value(stage_rows[[1L]], "stage_status")) else "Unresolved"
-  stage_note <- if (length(stage_rows) > 1L) paste(length(stage_rows), "projected candidate slots") else if (length(stage_rows)) "Projected slot" else "Projected slots unresolved"
+  modal_stage <- stage_id %in% c("league_a_semi_final", "league_a_final", "league_a_third_place")
+  stage_note <- if (!length(stage_rows)) {
+    "Projected slots unresolved"
+  } else if (modal_stage) {
+    "Most-likely simulated participant path"
+  } else if (length(stage_rows) > 1L) {
+    paste(length(stage_rows), "legal draw candidates")
+  } else {
+    "Projected slot"
+  }
   cards <- if (length(stage_rows)) paste(vapply(seq_along(stage_rows), function(index) {
     row <- stage_rows[[index]]
     status <- phase17_public_status(phase17_nl_value(row, c("resolution_status", "stage_status")))
-    paste0('<article class="tree-match"><div class="tree-match-head"><span>', if (length(stage_rows) > 1L) paste0("Candidate ", sprintf("%02d", index)) else "Projected tie", '</span><span>', phase17_html_escape(status), '</span></div>',
+    card_label <- if (modal_stage) "Modal path" else if (length(stage_rows) > 1L) paste0("Candidate ", sprintf("%02d", index)) else "Projected tie"
+    paste0('<article class="tree-match"><div class="tree-match-head"><span>', card_label, '</span><span>', phase17_html_escape(status), '</span></div>',
            '<div class="tree-slot"><span class="tree-slot-side">Home</span><strong>', phase17_html_escape(phase17_nl_slot_label(row, "home", context)), '</strong></div>',
            '<div class="tree-slot"><span class="tree-slot-side">Away</span><strong>', phase17_html_escape(phase17_nl_slot_label(row, "away", context)), '</strong></div></article>')
   }, character(1)), collapse = "") else
@@ -1016,8 +1026,8 @@ phase17_nl_render_tree <- function(payload, context) {
     if (is.null(candidate_rows)) candidate_rows <- list()
     phase17_nl_tree_stage(stage_id, candidate_rows, topology_rows, payload, context)
   }, character(1)), collapse = "")
-  paste0('<section id="tree" class="section nl-view" data-nl-view="tree"><div class="section-heading"><div><p class="eyebrow">Tournament tree</p><h2>Projected Nations League progression</h2></div><p class="section-intro">This is the accepted stage topology and projected slot map. It is not a fixed draw: unresolved stages stay clearly marked until their participants are determined.</p></div>',
-         '<div class="nl-tree-note"><strong>How to read this:</strong> stage cards show projected participants and legal candidate slots. The final tree will resolve after the group standings and official draws are known.</div>',
+  paste0('<section id="tree" class="section nl-view" data-nl-view="tree"><div class="section-heading"><div><p class="eyebrow">Tournament tree</p><h2>Projected Nations League progression</h2></div><p class="section-intro">The accepted simulation follows the knockout path through quarter-finals, semi-finals, and final. Quarter-final cards retain every legal draw candidate; later rounds show the modal participant path.</p></div>',
+         '<div class="nl-tree-note"><strong>How to read this:</strong> the semifinal, final, and third-place cards are the most-likely simulated participant path. The Outlook tab carries the full progression probabilities; rule inputs that are still unresolved remain marked below.</div>',
          '<div class="nl-tree-block"><h2>League A knockout</h2><div class="nl-tree-grid">', render_stage_group(stage_order), '</div></div>',
          '<div class="nl-tree-block"><h2>Promotion / relegation play-offs</h2><div class="nl-tree-grid nl-playoff-grid">', render_stage_group(playoff_order), '</div></div></section>')
 }

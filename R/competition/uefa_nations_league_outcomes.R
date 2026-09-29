@@ -729,7 +729,23 @@ phase15_nl_simulation_stage_slots <- function(simulation, topology, rules_lineag
   output <- do.call(rbind, rows)
   if (nrow(output) > 1L) {
     key <- paste(output$stage_id, output$leg_number, output$participant_slot_home, output$participant_slot_away, output$stage_status, sep = "::")
-    output <- output[!duplicated(key), , drop = FALSE]
+    # A simulation emits one resolved participant pair per iteration.  Keep a
+    # deterministic modal pair for each bracket slot so the published tree is
+    # a genuine most-likely path rather than whichever iteration happened to be
+    # first in the raw capture.  The full path probabilities remain published
+    # in team_path_probabilities.csv.
+    groups <- split(seq_len(nrow(output)), key, drop = TRUE)
+    keep <- vapply(groups, function(indexes) {
+      pairs <- paste(output$home_team_id[indexes], output$away_team_id[indexes], sep = "::")
+      present <- nzchar(trimws(as.character(output$home_team_id[indexes]))) &
+        nzchar(trimws(as.character(output$away_team_id[indexes])))
+      if (!any(present)) return(indexes[[1L]])
+      counts <- table(pairs[present])
+      winners <- names(counts)[counts == max(counts)]
+      winners <- sort(winners, method = "radix")
+      indexes[which(pairs == winners[[1L]])[[1L]]]
+    }, integer(1L))
+    output <- output[sort(unique(keep)), , drop = FALSE]
   }
   phase15_nl_add_row_hashes(output)
 }

@@ -284,6 +284,216 @@ phase15_nl_forecast_handoff <- function(state_bundle) {
   forecasts
 }
 
+# The Phase 14 state bundle contains forecasts for the league phase only.  The
+# Nations League simulation can resolve the knockout path as soon as it is
+# given the same approved-model forecast contract for the possible knockout
+# matchups.  Build that finite handoff once per state manifest and attach the
+# stage/slot identity that the simulator uses when it follows a sampled path.
+phase15_nl_knockout_forecast_cache <- if (exists("phase15_nl_knockout_forecast_cache", inherits = FALSE)) {
+  get("phase15_nl_knockout_forecast_cache", inherits = FALSE)
+} else {
+  new.env(parent = emptyenv())
+}
+
+phase15_nl_bind_rows_fill <- function(frames) {
+  frames <- frames[vapply(frames, function(frame) is.data.frame(frame) && nrow(frame), logical(1))]
+  if (!length(frames)) return(data.frame(stringsAsFactors = FALSE, check.names = FALSE))
+  fields <- unique(unlist(lapply(frames, names), use.names = FALSE))
+  frames <- lapply(frames, function(frame) {
+    frame <- as.data.frame(frame, stringsAsFactors = FALSE, check.names = FALSE)
+    for (field in setdiff(fields, names(frame))) frame[[field]] <- rep(NA, nrow(frame))
+    frame[, fields, drop = FALSE]
+  })
+  output <- do.call(rbind, frames)
+  row.names(output) <- NULL
+  output
+}
+
+phase15_nl_knockout_stage_contexts <- function(team_table) {
+  if (!is.data.frame(team_table) || !nrow(team_table)) return(data.frame(stringsAsFactors = FALSE, check.names = FALSE))
+  teams <- team_table[toupper(as.character(team_table$league)) == "A", c("team_id", "group_id"), drop = FALSE]
+  teams$team_id <- as.character(teams$team_id)
+  teams$group_id <- as.character(teams$group_id)
+  teams <- teams[order(teams$group_id, teams$team_id, method = "radix"), , drop = FALSE]
+  if (nrow(teams) != 16L) stop("Nations League knockout forecast handoff requires sixteen League A teams", call. = FALSE)
+
+  rows <- list()
+  row_index <- 0L
+  add <- function(stage_id, leg_number, home_team_id, away_team_id, slot_home, slot_away) {
+    row_index <<- row_index + 1L
+    rows[[row_index]] <<- data.frame(
+      stage_id = stage_id, leg_number = as.integer(leg_number),
+      home_team_id = as.character(home_team_id), away_team_id = as.character(away_team_id),
+      participant_slot_home = as.character(slot_home), participant_slot_away = as.character(slot_away),
+      stringsAsFactors = FALSE, check.names = FALSE
+    )
+  }
+
+  # Every legal quarter-final pairing is a group winner against a different
+  # group runner-up.  The two legs are represented in the simulator's home
+  # orientation (runner-up hosts leg one, winner hosts leg two).
+  group_ids <- sort(unique(teams$group_id), method = "radix")
+  for (group_a in group_ids) {
+    for (group_b in setdiff(group_ids, group_a)) {
+      winners <- teams$team_id[teams$group_id == group_a]
+      runners <- teams$team_id[teams$group_id == group_b]
+      for (winner in winners) {
+        for (runner in runners) {
+          add(
+            "league_a_quarter_final", 1L, runner, winner,
+            paste0("A-group-runner-up-", group_b), paste0("A-group-winner-", group_a)
+          )
+          add(
+            "league_a_quarter_final", 2L, winner, runner,
+            paste0("A-group-winner-", group_a), paste0("A-group-runner-up-", group_b)
+          )
+        }
+      }
+    }
+  }
+
+  # The semifinal draw is open after the QF draw.  Keep both bracket slots
+  # available for every ordered League A team pair.
+  semi_slots <- list(
+    c("semi-finalist-1", "semi-finalist-2"),
+    c("semi-finalist-3", "semi-finalist-4")
+  )
+  for (slots in semi_slots) {
+    for (home in teams$team_id) {
+      for (away in teams$team_id[teams$team_id != home]) {
+        add("league_a_semi_final", 1L, home, away, slots[[1L]], slots[[2L]])
+      }
+    }
+  }
+
+  # The same pairwise model is used for the final and third-place match.  The
+  # actual participants are supplied by the sampled semifinal winners/losers.
+  for (stage_id in c("league_a_final", "league_a_third_place")) {
+    slots <- if (stage_id == "league_a_final") {
+      c("semi-final-1-winner", "semi-final-2-winner")
+    } else {
+      c("semi-final-1-loser", "semi-final-2-loser")
+    }
+    for (home in teams$team_id) {
+      for (away in teams$team_id[teams$team_id != home]) {
+        add(stage_id, 1L, home, away, slots[[1L]], slots[[2L]])
+      }
+    }
+  }
+  if (!length(rows)) return(data.frame(stringsAsFactors = FALSE, check.names = FALSE))
+  output <- do.call(rbind, rows)
+  output$context_id <- sprintf("nl-knockout-context-%05d", seq_len(nrow(output)))
+  row.names(output) <- NULL
+  output
+}
+
+phase15_nl_knockout_forecast_handoff <- function(loaded) {
+  if (!is.list(loaded) || !is.list(loaded$state_bundle) || !is.list(loaded$topology)) {
+    phase15_nl_fail("Knockout forecast handoff requires loaded Nations League inputs.")
+  }
+  state <- loaded$state_bundle
+  cache_key <- paste(
+    phase15_nl_text(state$state_manifest_sha256, ""),
+    phase15_nl_text(state$model_release_id, ""),
+    sep = "::"
+  )
+  if (exists(cache_key, envir = phase15_nl_knockout_forecast_cache, inherits = FALSE)) {
+    return(get(cache_key, envir = phase15_nl_knockout_forecast_cache, inherits = FALSE))
+  }
+
+  base_teams <- loaded$topology$teams[toupper(as.character(loaded$topology$teams$league)) == "A", c("team_id", "group_id"), drop = FALSE]
+  team_ids <- sort(unique(as.character(base_teams$team_id)), method = "radix")
+  pairs <- expand.grid(home_team_id = team_ids, away_team_id = team_ids, stringsAsFactors = FALSE)
+  pairs <- pairs[pairs$home_team_id != pairs$away_team_id, , drop = FALSE]
+  pairs <- pairs[order(pairs$home_team_id, pairs$away_team_id, method = "radix"), , drop = FALSE]
+  pairs$edition_id <- phase15_nl_edition_id()
+  pairs$fixture_id <- paste0("nl-knockout-base-", pairs$home_team_id, "-", pairs$away_team_id)
+  pairs$match_id <- pairs$fixture_id
+  pairs$scheduled_at_utc <- "2027-03-21T18:00:00Z"
+  pairs$confirmed_kickoff_at_utc <- pairs$scheduled_at_utc
+  pairs$kickoff_confirmed <- TRUE
+  pairs$source_status <- "UPCOMING"
+  pairs$venue <- "home"
+  pairs <- pairs[, c(
+    "edition_id", "fixture_id", "match_id", "home_team_id", "away_team_id",
+    "scheduled_at_utc", "confirmed_kickoff_at_utc", "kickoff_confirmed", "source_status", "venue"
+  ), drop = FALSE]
+
+  generated <- phase14_build_fixture_forecasts(
+    canonical_matches = pairs,
+    team_registry = file.path(loaded$project_root, "data/competition/registries/team_identity.csv"),
+    trusted_release_root = file.path(loaded$project_root, "outputs/releases"),
+    national_team_xg_registry = file.path(loaded$project_root, "data/competition/registries/national_team_xg_sources.csv"),
+    edition_registry = file.path(loaded$project_root, "data/competition/registries/competition_editions.csv"),
+    edition_lifecycle_state = "scheduled"
+  )
+  if (!is.data.frame(generated$forecasts) || nrow(generated$forecasts) != nrow(pairs) ||
+      !is.data.frame(generated$fixture_status) || nrow(generated$fixture_status) != nrow(pairs) ||
+      !is.data.frame(generated$score_distributions) || !nrow(generated$score_distributions)) {
+    phase15_nl_fail("Approved forecast release did not cover the Nations League knockout pairings.")
+  }
+  if (any(tolower(as.character(generated$forecasts$forecast_status)) != "available") ||
+      any(tolower(as.character(generated$fixture_status$forecast_status)) != "available")) {
+    phase15_nl_fail("Nations League knockout pairings contain unavailable approved forecasts.")
+  }
+
+  base_forecasts <- generated$forecasts
+  base_forecasts$home_team_id <- pairs$home_team_id[match(base_forecasts$fixture_id, pairs$fixture_id)]
+  base_forecasts$away_team_id <- pairs$away_team_id[match(base_forecasts$fixture_id, pairs$fixture_id)]
+  base_forecasts$stage_id <- "league_phase"
+  base_forecasts$leg_number <- NA_integer_
+  base_forecasts$participant_slot_home <- base_forecasts$home_team_id
+  base_forecasts$participant_slot_away <- base_forecasts$away_team_id
+  base_status <- generated$fixture_status
+  base_status$home_team_id <- pairs$home_team_id[match(base_status$fixture_id, pairs$fixture_id)]
+  base_status$away_team_id <- pairs$away_team_id[match(base_status$fixture_id, pairs$fixture_id)]
+
+  contexts <- phase15_nl_knockout_stage_contexts(loaded$topology$teams)
+  pair_key <- paste(pairs$home_team_id, pairs$away_team_id, sep = "::")
+  context_key <- paste(contexts$home_team_id, contexts$away_team_id, sep = "::")
+  contexts$base_fixture_id <- pairs$fixture_id[match(context_key, pair_key)]
+  if (anyNA(contexts$base_fixture_id)) phase15_nl_fail("Knockout forecast context contains an unknown team pairing.")
+  contexts$fixture_id <- paste0("nl-knockout-stage-", contexts$context_id)
+  contexts$match_id <- contexts$fixture_id
+
+  base_index <- match(contexts$base_fixture_id, base_forecasts$fixture_id)
+  stage_forecasts <- base_forecasts[base_index, , drop = FALSE]
+  stage_forecasts$fixture_id <- contexts$fixture_id
+  stage_forecasts$match_id <- contexts$match_id
+  stage_forecasts$stage_id <- contexts$stage_id
+  stage_forecasts$leg_number <- contexts$leg_number
+  stage_forecasts$home_team_id <- contexts$home_team_id
+  stage_forecasts$away_team_id <- contexts$away_team_id
+  stage_forecasts$participant_slot_home <- contexts$participant_slot_home
+  stage_forecasts$participant_slot_away <- contexts$participant_slot_away
+  stage_status <- base_status[match(contexts$base_fixture_id, base_status$fixture_id), , drop = FALSE]
+  stage_status$fixture_id <- contexts$fixture_id
+  stage_status$match_id <- contexts$match_id
+  stage_status$home_team_id <- contexts$home_team_id
+  stage_status$away_team_id <- contexts$away_team_id
+  stage_status$stage_id <- contexts$stage_id
+  stage_status$leg_number <- contexts$leg_number
+  stage_status$participant_slot_home <- contexts$participant_slot_home
+  stage_status$participant_slot_away <- contexts$participant_slot_away
+
+  league_forecasts <- phase15_nl_forecast_handoff(state)
+  league_forecasts$stage_id <- "league_phase"
+  league_forecasts$leg_number <- if ("leg_number" %in% names(league_forecasts)) league_forecasts$leg_number else NA_integer_
+  league_forecasts$participant_slot_home <- if ("participant_slot_home" %in% names(league_forecasts)) league_forecasts$participant_slot_home else league_forecasts$home_team_id
+  league_forecasts$participant_slot_away <- if ("participant_slot_away" %in% names(league_forecasts)) league_forecasts$participant_slot_away else league_forecasts$away_team_id
+  league_status <- as.data.frame(state$forecast_status, stringsAsFactors = FALSE, check.names = FALSE)
+  output <- list(
+    forecasts = phase15_nl_bind_rows_fill(list(league_forecasts, stage_forecasts)),
+    forecast_status = phase15_nl_bind_rows_fill(list(league_status, stage_status)),
+    score_distributions = phase15_nl_bind_rows_fill(list(state$score_distributions, generated$score_distributions)),
+    stage_contexts = contexts,
+    base_forecast_count = nrow(base_forecasts),
+    stage_forecast_count = nrow(stage_forecasts)
+  )
+  assign(cache_key, output, envir = phase15_nl_knockout_forecast_cache)
+  output
+}
+
 phase15_nl_stage_capture_lineage <- function(stage_capture) {
   manifest <- stage_capture$manifest
   registry <- stage_capture$registry
@@ -331,13 +541,16 @@ phase15_nl_attach_stage_capture_lineage <- function(candidate, stage_capture) {
 
 phase15_nl_build_candidate <- function(loaded, options, source_override = loaded$source) {
   state_bundle <- loaded$state_bundle
-  forecasts <- phase15_nl_forecast_handoff(state_bundle)
+  knockout_handoff <- phase15_nl_knockout_forecast_handoff(loaded)
+  forecasts <- knockout_handoff$forecasts
+  forecast_status <- knockout_handoff$forecast_status
+  score_distributions <- knockout_handoff$score_distributions
   simulation <- uefa_nl_run_simulation(
     canonical_matches = state_bundle$canonical_matches,
     completed_results = source_override$results,
-    forecast_status = state_bundle$forecast_status,
+    forecast_status = forecast_status,
     forecasts = forecasts,
-    score_distributions = state_bundle$score_distributions,
+    score_distributions = score_distributions,
     groups = list(groups = loaded$topology$groups, group_rows = loaded$topology$teams),
     rules = loaded$rules,
     simulation_count = options$simulations,
