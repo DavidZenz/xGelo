@@ -333,6 +333,8 @@ test_that("Nations League outlook renders accepted probability bars and projecte
     "Projected Nations League progression", "League A quarter-finals", "League C / D play-off", "Home path",
     "Projected participant slots are unresolved"
   ), grepl, logical(1), x = html, fixed = TRUE)))
+  expect_true(grepl('<th scope="col">Status</th>', html, fixed = TRUE))
+  expect_false(grepl('<th scope="col">State</th>', html, fixed = TRUE))
 })
 
 test_that("public section projection keeps provenance out of both dashboards", {
