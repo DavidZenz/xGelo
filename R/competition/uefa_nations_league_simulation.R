@@ -1133,7 +1133,16 @@ uefa_nl_sim_find_forecast <- function(
   if ("stage_id" %in% names(candidate)) candidate <- candidate[uefa_nl_rank_final_stage_id(candidate$stage_id) == uefa_nl_rank_final_stage_id(stage_id), , drop = FALSE]
   if (!is.null(home_team_id) && "home_team_id" %in% names(candidate)) candidate <- candidate[as.character(candidate$home_team_id) == as.character(home_team_id), , drop = FALSE]
   if (!is.null(away_team_id) && "away_team_id" %in% names(candidate)) candidate <- candidate[as.character(candidate$away_team_id) == as.character(away_team_id), , drop = FALSE]
-  if (!is.null(leg_number) && "leg_number" %in% names(candidate)) candidate <- candidate[suppressWarnings(as.integer(as.character(candidate$leg_number))) == as.integer(leg_number), , drop = FALSE]
+  if (!is.null(leg_number) && "leg_number" %in% names(candidate)) {
+    # Phase 14's league-phase forecast rows may omit leg_number because the
+    # fixture identity already uniquely identifies the match.  Treat an
+    # all-missing leg column as an unspecified value rather than filtering
+    # every valid forecast out when the simulator supplies the canonical
+    # single-leg value (1).  When explicit leg numbers are present, keep the
+    # stricter match so knockout legs cannot cross-match.
+    leg_values <- suppressWarnings(as.integer(as.character(candidate$leg_number)))
+    if (any(!is.na(leg_values))) candidate <- candidate[leg_values == as.integer(leg_number), , drop = FALSE]
+  }
   if (!is.null(participant_slot_home) && "participant_slot_home" %in% names(candidate)) candidate <- candidate[as.character(candidate$participant_slot_home) == as.character(participant_slot_home), , drop = FALSE]
   if (!is.null(participant_slot_away) && "participant_slot_away" %in% names(candidate)) candidate <- candidate[as.character(candidate$participant_slot_away) == as.character(participant_slot_away), , drop = FALSE]
   if (nrow(candidate) != 1L) return(NULL)
@@ -1399,7 +1408,7 @@ uefa_nl_sim_prepare_iteration_matches <- function(matches, cutoff_utc) {
 
 uefa_nl_sim_sample_league_matches <- function(
     matches, forecast_status, forecasts, score_distributions, rules, seed,
-    projection_run_id, draw_policy_id, cutoff_utc) {
+    projection_run_id, draw_policy_id, cutoff_utc, iteration = 1L) {
   output <- uefa_nl_sim_prepare_iteration_matches(matches, cutoff_utc)
   open <- output$stage_id == "league_phase" & uefa_nl_sim_status_is_open(output$match_status)
   records <- list()
@@ -1427,7 +1436,7 @@ uefa_nl_sim_sample_league_matches <- function(
           leg_number = 1L, fixture_id = fixture_id,
           participant_slot_home = output$home_team_id[[index]],
           participant_slot_away = output$away_team_id[[index]],
-          seed = uefa_nl_sim_seed_for(seed, fixture = fixture_id, stage = "league_phase", iteration = 1L),
+          seed = uefa_nl_sim_seed_for(seed, fixture = fixture_id, stage = "league_phase", iteration = iteration),
           projection_run_id = projection_run_id, draw_policy_id = draw_policy_id
         )
       } else {
@@ -1716,7 +1725,7 @@ uefa_nl_sim_iteration <- function(
     cutoff_utc, projection_run_id, draw_policy_id) {
   sampled <- uefa_nl_sim_sample_league_matches(
     matches, forecast_status, forecasts, score_distributions, rules, seed,
-    projection_run_id, draw_policy_id, cutoff_utc
+    projection_run_id, draw_policy_id, cutoff_utc, iteration = iteration
   )
   state <- uefa_nl_sim_build_league_state(sampled$matches, groups, rules, source_bundle_id, cutoff_utc)
   interim <- state$interim
@@ -1895,7 +1904,7 @@ uefa_nl_sim_aggregate_rankings <- function(captures, simulation_count, metadata)
   uefa_nl_sim_add_metadata(output, metadata$edition_id, metadata$projection_run_id, simulation_count, metadata$simulation_seed, metadata$rules, metadata$source_bundle_id, metadata$source_bundle_sha256, metadata$model_release_id)
 }
 
-uefa_nl_sim_aggregate_standings <- function(iterations, simulation_count, metadata) {
+uefa_nl_sim_aggregate_standings <- function(iterations, simulation_count, metadata, groups = NULL, canonical_matches = NULL) {
   captures <- lapply(iterations, function(iteration) {
     frame <- uefa_nl_sim_bind_rows(iteration$state$group_rankings)
     if (!nrow(frame)) return(frame)
@@ -1905,18 +1914,90 @@ uefa_nl_sim_aggregate_standings <- function(iterations, simulation_count, metada
   })
   captures <- uefa_nl_sim_bind_rows(captures)
   if (!nrow(captures)) return(captures)
-  key_fields <- intersect(c("league", "group_id", "team_id", "rank"), names(captures))
-  key <- do.call(paste, c(lapply(captures[key_fields], function(column) ifelse(is.na(column), "<NA>", as.character(column))), sep = "\x1f"))
-  groups <- split(seq_len(nrow(captures)), key, drop = TRUE)
-  rows <- lapply(groups, function(indexes) {
-    row <- captures[indexes[[1L]], , drop = FALSE]
-    row$probability <- if (any(is.na(captures$rank[indexes]))) NA_real_ else length(indexes) / simulation_count
-    row$expected_points <- if ("points" %in% names(captures) && all(is.finite(as.numeric(captures$points[indexes])))) mean(as.numeric(captures$points[indexes])) else NA_real_
-    row$expected_goal_difference <- if ("goal_difference" %in% names(captures) && all(is.finite(as.numeric(captures$goal_difference[indexes])))) mean(as.numeric(captures$goal_difference[indexes])) else NA_real_
-    row$simulation_count <- as.integer(simulation_count)
-    row
-  })
+  # Emit a complete team x rank matrix.  The old reducer emitted only the
+  # ranks observed in the captures, which made a deterministic current table
+  # look like a valid forecast (one row per team with probability 1).  Keeping
+  # zero-probability rows makes the public contract explicit and lets the
+  # publication validator distinguish resolved groups from collapsed output.
+  team_rows <- if (is.data.frame(groups)) groups else uefa_nl_sim_extract_table(groups, c("groups", "group_rows", "teams", "rows"))
+  if (!is.data.frame(team_rows) || !nrow(team_rows)) {
+    team_rows <- unique(captures[intersect(c("league", "group_id", "team_id"), names(captures))])
+  }
+  required_team_fields <- c("league", "group_id", "team_id")
+  if (!all(required_team_fields %in% names(team_rows))) {
+    stop("Nations League projected standings require league, group_id, and team_id", call. = FALSE)
+  }
+  team_rows <- unique(team_rows[, required_team_fields, drop = FALSE])
+  team_rows$league <- toupper(trimws(as.character(team_rows$league)))
+  team_rows$group_id <- trimws(as.character(team_rows$group_id))
+  team_rows$team_id <- trimws(as.character(team_rows$team_id))
+
+  resolved_groups <- setNames(rep(FALSE, length(unique(team_rows$group_id))), unique(team_rows$group_id))
+  if (is.data.frame(canonical_matches) && nrow(canonical_matches)) {
+    league_matches <- canonical_matches
+    if ("stage_id" %in% names(league_matches)) league_matches <- league_matches[as.character(league_matches$stage_id) == "league_phase", , drop = FALSE]
+    if (nrow(league_matches) && "group_id" %in% names(league_matches)) {
+      status_fields <- intersect(c("match_status", "source_status", "status"), names(league_matches))
+      score_fields <- c("final_home_goals", "final_away_goals")
+      if (length(status_fields) && all(score_fields %in% names(league_matches))) {
+        status <- tolower(trimws(as.character(league_matches[[status_fields[[1L]]]])))
+        home <- suppressWarnings(as.numeric(as.character(league_matches$final_home_goals)))
+        away <- suppressWarnings(as.numeric(as.character(league_matches$final_away_goals)))
+        complete <- uefa_nl_sim_status_is_completed(status) & is.finite(home) & is.finite(away)
+        for (group_id in names(resolved_groups)) {
+          group_matches <- league_matches[as.character(league_matches$group_id) == group_id, , drop = FALSE]
+          group_index <- which(as.character(league_matches$group_id) == group_id)
+          resolved_groups[[group_id]] <- nrow(group_matches) > 0L && all(complete[group_index])
+        }
+      }
+    }
+  }
+
+  rows <- list()
+  row_index <- 0L
+  for (team_index in seq_len(nrow(team_rows))) {
+    team <- team_rows[team_index, , drop = FALSE]
+    group_id <- as.character(team$group_id[[1L]])
+    team_id <- as.character(team$team_id[[1L]])
+    league <- as.character(team$league[[1L]])
+    group_size <- sum(team_rows$group_id == group_id)
+    captures_team <- captures[
+      as.character(captures$league) == league &
+        as.character(captures$group_id) == group_id &
+        as.character(captures$team_id) == team_id,
+      , drop = FALSE
+    ]
+    valid_ranks <- suppressWarnings(as.integer(as.character(captures_team$rank)))
+    complete_capture <- nrow(captures_team) >= as.integer(simulation_count) &&
+      length(valid_ranks) >= as.integer(simulation_count) &&
+      all(is.finite(valid_ranks))
+    status <- if (complete_capture) {
+      if (isTRUE(resolved_groups[[group_id]])) "resolved" else "projected"
+    } else "unresolved"
+    for (rank in seq_len(group_size)) {
+      rank_indexes <- which(valid_ranks == rank)
+      probability <- if (complete_capture) length(rank_indexes) / simulation_count else NA_real_
+      expected_points <- NA_real_
+      expected_goal_difference <- NA_real_
+      if (length(rank_indexes) && "points" %in% names(captures_team)) {
+        values <- suppressWarnings(as.numeric(captures_team$points[rank_indexes]))
+        if (all(is.finite(values))) expected_points <- mean(values)
+      }
+      if (length(rank_indexes) && "goal_difference" %in% names(captures_team)) {
+        values <- suppressWarnings(as.numeric(captures_team$goal_difference[rank_indexes]))
+        if (all(is.finite(values))) expected_goal_difference <- mean(values)
+      }
+      row_index <- row_index + 1L
+      rows[[row_index]] <- data.frame(
+        league = league, group_id = group_id, team_id = team_id, rank = as.integer(rank),
+        probability = probability, expected_points = expected_points,
+        expected_goal_difference = expected_goal_difference, ranking_status = status,
+        stringsAsFactors = FALSE, check.names = FALSE
+      )
+    }
+  }
   output <- uefa_nl_sim_bind_rows(rows)
+  output$simulation_count <- as.integer(simulation_count)
   uefa_nl_sim_add_metadata(output, metadata$edition_id, metadata$projection_run_id, simulation_count, metadata$simulation_seed, metadata$rules, metadata$source_bundle_id, metadata$source_bundle_sha256, metadata$model_release_id)
 }
 
@@ -2100,7 +2181,7 @@ uefa_nl_run_simulation <- function(
       )
     })
     fixture_captures <- uefa_nl_sim_bind_rows(lapply(iterations, `[[`, "fixture_rows"))
-    projected_standings <- uefa_nl_sim_aggregate_standings(iterations, count, metadata)
+    projected_standings <- uefa_nl_sim_aggregate_standings(iterations, count, metadata, groups = normalized_groups, canonical_matches = normalized_matches)
     ranking_captures <- uefa_nl_sim_bind_rows(lapply(iterations, uefa_nl_sim_rank_capture))
     projected_rankings <- uefa_nl_sim_aggregate_rankings(ranking_captures, count, metadata)
     metadata$ranking_stages <- sort(unique(as.character(projected_rankings$ranking_stage)), method = "radix")

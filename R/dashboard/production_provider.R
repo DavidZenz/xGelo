@@ -64,6 +64,41 @@ phase17_provider_alias_rows <- function(table, edition_id) {
   table
 }
 
+phase17_provider_manifest_parent_hash <- function(manifest, token) {
+  if (!is.data.frame(manifest) || !nrow(manifest) ||
+      !all(c("parent_paths", "parent_sha256") %in% names(manifest))) return("")
+  paths <- strsplit(as.character(manifest$parent_paths[[1L]]), "|", fixed = TRUE)[[1L]]
+  hashes <- strsplit(as.character(manifest$parent_sha256[[1L]]), "|", fixed = TRUE)[[1L]]
+  index <- which(grepl(token, paths, fixed = TRUE))
+  if (length(index) != 1L) return("")
+  hash <- trimws(hashes[[index[[1L]]]])
+  if (!grepl("^[0-9a-fA-F]{64}$", hash)) "" else tolower(hash)
+}
+
+phase17_provider_tree_rows <- function(table, edition_id) {
+  table <- phase17_provider_alias_rows(table, edition_id)
+  if (!is.data.frame(table) || !nrow(table)) return(table)
+  # Durable stage_slots.csv deliberately keeps the Phase 15 schema stable.
+  # The dashboard projection adds readable, deterministic tie/match identities
+  # and explicit participant-slot references at the public adapter boundary.
+  stage <- if ("stage_id" %in% names(table)) as.character(table$stage_id) else rep("stage", nrow(table))
+  leg <- if ("leg_number" %in% names(table)) as.character(table$leg_number) else rep("1", nrow(table))
+  home_slot <- if ("participant_slot_home" %in% names(table)) as.character(table$participant_slot_home) else rep("", nrow(table))
+  away_slot <- if ("participant_slot_away" %in% names(table)) as.character(table$participant_slot_away) else rep("", nrow(table))
+  source_fixture <- if ("source_fixture_id" %in% names(table)) as.character(table$source_fixture_id) else rep("", nrow(table))
+  source_fixture[is.na(source_fixture)] <- ""
+  tie_key <- paste(stage, leg, home_slot, away_slot, sep = "::")
+  tie_id <- paste0("nl-tie-", gsub("[^A-Za-z0-9]+", "-", tolower(tie_key)))
+  tie_id <- sub("-+$", "", tie_id)
+  tie_id <- make.unique(tie_id, sep = "-")
+  match_id <- ifelse(nzchar(trimws(source_fixture)), trimws(source_fixture), paste0(tie_id, "-leg-", leg))
+  table$tie_id <- tie_id
+  table$match_id <- match_id
+  table$participant_slot_ref_home <- home_slot
+  table$participant_slot_ref_away <- away_slot
+  table
+}
+
 phase17_provider_source_bundle <- function(project_root, edition_id, registry) {
   accepted <- file.path(project_root, "data/competition/accepted", edition_id)
   required <- c("source_bundle_manifest.csv", "fixtures.csv", "groups.csv", "standings.csv", "results.csv", "status.csv")
@@ -118,6 +153,9 @@ phase17_provider_metadata <- function(source, state, outcomes, registry, edition
   if (is.na(seed)) seed <- 0L
   if (is.na(count)) count <- 0L
   retrieved <- if ("retrieved_at_utc" %in% names(source$manifest)) max(as.character(source$manifest$retrieved_at_utc), na.rm = TRUE) else as.character(source_row$accepted_at_utc[[1L]])
+  article15_access_hash <- phase17_provider_manifest_parent_hash(outcome_manifest, "access_list.csv")
+  article15_discipline_hash <- phase17_provider_manifest_parent_hash(outcome_manifest, "discipline_points.csv")
+  article15_manifest_hash <- phase17_provider_manifest_parent_hash(outcome_manifest, "rule_inputs/uefa_nations_league_2026_27/manifest.csv")
   list(
     edition_id = edition_id, lifecycle_state = lifecycle, candidate_status = "accepted",
     forecast_status = status, source_bundle_id = as.character(source_row$bundle_id[[1L]]),
@@ -130,6 +168,11 @@ phase17_provider_metadata <- function(source, state, outcomes, registry, edition
     ruleset_sha256 = as.character(outcome_manifest$ruleset_sha256[[1L]]),
     simulation_seed = seed, simulation_count = count,
     projection_run_id = as.character(outcome_manifest$projection_run_id[[1L]]),
+    article15_access_list_status = if (nzchar(article15_access_hash)) "captured" else "unavailable",
+    article15_access_list_sha256 = article15_access_hash,
+    article15_discipline_points_status = if (nzchar(article15_discipline_hash)) "captured" else "unavailable",
+    article15_discipline_points_sha256 = article15_discipline_hash,
+    article15_rule_inputs_manifest_sha256 = article15_manifest_hash,
     warnings = if ("warnings" %in% names(outcome_manifest)) as.character(outcome_manifest$warnings[[1L]]) else character(),
     credits = list(source_name = "UEFA accepted competition bundle", source_url = as.character(source_row$source_url[[1L]] %||% "https://www.uefa.com/"), license = "Official competition source")
   )
@@ -152,7 +195,7 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
     # outlook and tournament-tree views.  They remain outside the stable
     # eight-section Phase 17 contract so EURO consumers are unchanged.
     progression_probabilities = phase17_provider_alias_rows(outcome_tables[["outcomes/team_path_probabilities.csv"]], edition_id),
-    tournament_tree = phase17_provider_alias_rows(outcome_tables[["outcomes/stage_slots.csv"]], edition_id),
+    tournament_tree = phase17_provider_tree_rows(outcome_tables[["outcomes/stage_slots.csv"]], edition_id),
     tournament_topology = phase17_provider_alias_rows(outcome_tables[["outcomes/competition_topology.csv"]], edition_id)
   )
   c(metadata, list(artifacts = artifacts, credits = metadata$credits,

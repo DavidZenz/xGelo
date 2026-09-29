@@ -2048,6 +2048,40 @@ test_that("simulation replay preserves RNG, hashes, and probability mass", {
   expect_equal(sum(as.numeric(open_outcome[1L, c("p_home", "p_draw", "p_away")])), 1, tolerance = 1e-12)
   mass <- aggregate(probability ~ league + group_id + rank, first$projected_standings, sum, na.action = na.omit)
   expect_true(all(abs(mass$probability - 1) <= 1e-12))
+  team_mass <- aggregate(probability ~ league + group_id + team_id, first$projected_standings, sum, na.action = na.omit)
+  expect_true(all(abs(team_mass$probability - 1) <= 1e-12))
+  expected_rows <- sum(vapply(split(inputs$groups$group_rows$team_id, inputs$groups$group_rows$group_id), function(teams) length(unique(teams))^2, numeric(1)))
+  expect_equal(nrow(first$projected_standings), expected_rows)
+  expect_true(any(first$projected_standings$probability > 0 & first$projected_standings$probability < 1))
+  expect_true(any(first$projected_standings$ranking_status == "projected"))
+  expect_true(any(first$projected_standings$ranking_status == "resolved"))
+})
+
+test_that("future fixture sampling changes unfinished rank distributions", {
+  inputs <- phase15_test_simulation_inputs(simulation_count = 4L)
+  baseline <- do.call(uefa_nl_run_simulation, inputs)
+  changed <- inputs
+  changed$forecasts$p_home <- 0.90
+  changed$forecasts$p_draw <- 0.05
+  changed$forecasts$p_away <- 0.05
+  changed$forecast_status$p_home <- 0.90
+  changed$forecast_status$p_draw <- 0.05
+  changed$forecast_status$p_away <- 0.05
+  altered <- do.call(uefa_nl_run_simulation, changed)
+  expect_false(identical(baseline$projected_standings, altered$projected_standings))
+  expect_true(any(baseline$projected_standings$ranking_status == "projected"))
+  # A small deterministic sample can legitimately place all mass on one
+  # outcome after the forecast is changed.  The conservation assertions above
+  # still enforce a complete distribution; require a fractional cell in at
+  # least one replay so this test proves the unfinished group is simulated,
+  # without making an accidental all-home draw a failure.
+  expect_true(any(c(
+    baseline$projected_standings$probability,
+    altered$projected_standings$probability
+  ) > 0 & c(
+    baseline$projected_standings$probability,
+    altered$projected_standings$probability
+  ) < 1))
 })
 
 test_that("replay verification compares every registered artifact key exactly", {

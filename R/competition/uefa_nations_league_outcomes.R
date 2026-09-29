@@ -1396,6 +1396,30 @@ phase15_nl_validate_probability_groups <- function(table, group_fields, name, to
   groups <- interaction(table[group_fields], drop = TRUE, lex.order = TRUE, sep = "::")
   sums <- tapply(probabilities, groups, sum)
   if (any(abs(as.numeric(sums) - 1) > tolerance)) stop("Phase 15 ", name, " probabilities are not conserved", call. = FALSE)
+  # Projected group standings are a matrix, not just a set of independent
+  # rank totals.  Require every team to have one row for every rank in its
+  # group so a stale/current snapshot cannot masquerade as a forecast with
+  # probability 1 on the currently observed rank.
+  if (identical(name, "projected standings") && all(c("league", "group_id", "team_id", "rank") %in% names(table))) {
+    group_key <- interaction(table[c("league", "group_id")], drop = TRUE, lex.order = TRUE, sep = "::")
+    team_key <- interaction(table[c("league", "group_id", "team_id")], drop = TRUE, lex.order = TRUE, sep = "::")
+    cell_key <- interaction(table[c("league", "group_id", "team_id", "rank")], drop = TRUE, lex.order = TRUE, sep = "::")
+    if (anyDuplicated(as.character(cell_key))) stop("Phase 15 projected standings contain duplicate team/rank cells", call. = FALSE)
+    group_sizes <- tapply(as.character(table$team_id), group_key, function(values) length(unique(values)))
+    observed_cells <- tapply(as.character(table$rank), team_key, length)
+    # The interaction label includes league, group, and team.  Match the
+    # expected group size by using the first two key components explicitly.
+    expected_cells <- vapply(strsplit(names(observed_cells), "::", fixed = TRUE), function(parts) {
+      group_label <- paste(parts[seq_len(min(2L, length(parts)))], collapse = "::")
+      value <- group_sizes[[group_label]]
+      if (is.null(value)) NA_real_ else as.numeric(value)
+    }, numeric(1))
+    if (any(!is.finite(expected_cells) | as.numeric(observed_cells) != expected_cells)) {
+      stop("Phase 15 projected standings are missing team/rank probability cells", call. = FALSE)
+    }
+    team_sums <- tapply(probabilities, team_key, sum)
+    if (any(abs(as.numeric(team_sums) - 1) > tolerance)) stop("Phase 15 projected standings team probabilities are not conserved", call. = FALSE)
+  }
   invisible(TRUE)
 }
 

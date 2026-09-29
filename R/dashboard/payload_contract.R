@@ -399,6 +399,14 @@ phase17_normalize_metadata <- function(bundle, batch_id = "phase17-fixture-batch
     simulation_seed = as.integer(bundle$simulation_seed[[1L]]),
     simulation_count = as.integer(bundle$simulation_count[[1L]]),
     projection_run_id = phase17_bundle_scalar(bundle, "projection_run_id"),
+    # Article 15 inputs are surfaced as provenance, not as a substitute for
+    # the ranking probabilities themselves.  Fixture bundles that pre-date
+    # this field remain valid and render the inputs as unavailable.
+    article15_access_list_status = phase17_bundle_scalar(bundle, "article15_access_list_status", "unavailable"),
+    article15_access_list_sha256 = phase17_bundle_scalar(bundle, "article15_access_list_sha256", ""),
+    article15_discipline_points_status = phase17_bundle_scalar(bundle, "article15_discipline_points_status", "unavailable"),
+    article15_discipline_points_sha256 = phase17_bundle_scalar(bundle, "article15_discipline_points_sha256", ""),
+    article15_rule_inputs_manifest_sha256 = phase17_bundle_scalar(bundle, "article15_rule_inputs_manifest_sha256", ""),
     warnings = as.character(bundle$warnings %||% character()),
     showing_last_accepted_snapshot = isTRUE(bundle$showing_last_accepted_snapshot %||% FALSE)
   )

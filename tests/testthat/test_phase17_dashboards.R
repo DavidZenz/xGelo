@@ -323,7 +323,7 @@ test_that("Nations League outlook renders accepted probability bars and projecte
   html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
   expect_true(all(vapply(c(
     "data-nl-tab=\"tree\"", "Rank probability outlook", "probbar", "Direct promotion",
-    "Projected Nations League progression", "League A quarter-finals", "League C / D play-off",
+    "Projected Nations League progression", "League A quarter-finals", "League C / D play-off", "Home path",
     "Projected participant slots are unresolved"
   ), grepl, logical(1), x = html, fixed = TRUE)))
 })
