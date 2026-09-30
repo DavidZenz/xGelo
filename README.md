@@ -240,11 +240,11 @@ XGELO_RUN_BENCHMARK=true scripts/auto_update_worldcup_dashboard.sh  # refresh fr
 XGELO_MATCH_SIMS=1000 XGELO_TOURNAMENT_SIMS=1000 scripts/auto_update_worldcup_dashboard.sh
 ```
 
-The Nations League refresh uses the registered UEFA source and bounded
-parallel outcome simulations:
+The Nations League refresh uses the registered UEFA source, 1,000 outcome
+simulations by default, and four bounded parallel workers:
 
 ```bash
-XGELO_NL_SIMULATIONS=100 XGELO_NL_WORKERS=4 scripts/auto_update_nations_league_dashboard.sh
+XGELO_NL_SIMULATIONS=1000 XGELO_NL_WORKERS=4 scripts/auto_update_nations_league_dashboard.sh
 ```
 
 For a daily local cron job at 09:30:

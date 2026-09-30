@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 DRY_RUN=false
 SKIP_PUSH=false
-SIMULATIONS="${XGELO_NL_SIMULATIONS:-100}"
+SIMULATIONS="${XGELO_NL_SIMULATIONS:-1000}"
 WORKERS="${XGELO_NL_WORKERS:-4}"
 for arg in "$@"; do
   case "$arg" in
