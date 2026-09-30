@@ -752,6 +752,18 @@ uefa_nl_sim_normalize_count <- function(value) {
   value
 }
 
+uefa_nl_sim_normalize_workers <- function(value, simulation_count) {
+  value <- suppressWarnings(as.integer(value))
+  if (length(value) != 1L || is.na(value) || value < 1L) {
+    stop("Nations League simulation workers must be a positive integer", call. = FALSE)
+  }
+  value <- min(value, as.integer(simulation_count))
+  # fork-based mclapply is not available on Windows.  The serial fallback
+  # keeps the same deterministic iteration order and output contract there.
+  if (.Platform$OS.type == "windows") value <- 1L
+  value
+}
+
 uefa_nl_sim_normalize_seed <- function(value) {
   value <- suppressWarnings(as.integer(value))
   if (length(value) != 1L || is.na(value) || value < 0L) stop("Nations League simulation seed must be one non-negative integer", call. = FALSE)
@@ -2126,10 +2138,11 @@ uefa_nl_sim_metadata_row <- function(metadata, input_hashes, canonical_input_has
 uefa_nl_run_simulation <- function(
     canonical_matches, completed_results = NULL, forecast_status, forecasts,
     score_distributions, groups, rules = uefa_nl_2026_27_rules(), simulation_count = 1000L,
-    seed = 15017L, source_bundle_id, source_bundle_sha256, model_release_id,
+    seed = 15017L, workers = 1L, source_bundle_id, source_bundle_sha256, model_release_id,
     model_lineage = list(), state_manifest_sha256, euro_playoff_eligibility = NULL,
     official_stage_slots = NULL) {
   count <- uefa_nl_sim_normalize_count(simulation_count)
+  worker_count <- uefa_nl_sim_normalize_workers(workers, count)
   simulation_seed <- uefa_nl_sim_normalize_seed(seed)
   source_bundle_id <- uefa_nl_sim_scalar_text(source_bundle_id, "source_bundle_id")
   source_bundle_sha256 <- uefa_nl_sim_scalar_text(source_bundle_sha256, "source_bundle_sha256")
@@ -2172,14 +2185,24 @@ uefa_nl_run_simulation <- function(
     state_manifest_sha256 = state_manifest_sha256, cutoff_utc = cutoff_utc
   )
   uefa_nl_sim_with_seed(simulation_seed, function() {
-    iterations <- lapply(seq_len(count), function(iteration) {
+    run_iteration <- function(iteration) {
       iter_seed <- uefa_nl_sim_seed_for(simulation_seed, iteration = iteration)
       uefa_nl_sim_iteration(
         iteration, normalized_matches, normalized_groups, normalized_status, normalized_forecasts, normalized_scores,
         rules, iter_seed, source_bundle_id, normalized_slots, euro_playoff_eligibility,
         cutoff_utc, projection$projection_run_id, projection$draw_policy_id
       )
-    })
+    }
+    iterations <- if (worker_count > 1L && count > 1L) {
+      parallel::mclapply(
+        seq_len(count), run_iteration,
+        mc.cores = worker_count,
+        mc.preschedule = TRUE,
+        mc.set.seed = FALSE
+      )
+    } else {
+      lapply(seq_len(count), run_iteration)
+    }
     fixture_captures <- uefa_nl_sim_bind_rows(lapply(iterations, `[[`, "fixture_rows"))
     projected_standings <- uefa_nl_sim_aggregate_standings(iterations, count, metadata, groups = normalized_groups, canonical_matches = normalized_matches)
     ranking_captures <- uefa_nl_sim_bind_rows(lapply(iterations, uefa_nl_sim_rank_capture))

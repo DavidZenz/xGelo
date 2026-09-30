@@ -240,6 +240,13 @@ XGELO_RUN_BENCHMARK=true scripts/auto_update_worldcup_dashboard.sh  # refresh fr
 XGELO_MATCH_SIMS=1000 XGELO_TOURNAMENT_SIMS=1000 scripts/auto_update_worldcup_dashboard.sh
 ```
 
+The Nations League refresh uses the registered UEFA source and bounded
+parallel outcome simulations:
+
+```bash
+XGELO_NL_SIMULATIONS=100 XGELO_NL_WORKERS=4 scripts/auto_update_nations_league_dashboard.sh
+```
+
 For a daily local cron job at 09:30:
 
 ```cron
@@ -267,17 +274,18 @@ For a bounded smoke run:
 XGELO_UPDATE_MAX_RUNS=1 scripts/watch_worldcup_dashboard_updates.sh
 ```
 
-On macOS, use the LaunchAgent definition for a durable hourly local schedule:
+On macOS, use the LaunchAgent definition for a durable daily local schedule:
 
 ```bash
 mkdir -p ~/Library/LaunchAgents
 scripts/install_competition_dashboards.sh
 ```
 
-The LaunchAgent runs the Nations League source refresh once when loaded and
-then every hour. It pulls the official UEFA match bundle, recomputes accepted
-state and forecast outcomes, regenerates the dashboard, and commits/pushes
-only after the validation gates pass. Its stdout/stderr go to
+The LaunchAgent runs once daily at 03:00 local time. It pulls the official UEFA
+match bundle, recomputes accepted state and forecast outcomes using bounded
+parallel simulation workers, regenerates the dashboard, and commits/pushes only
+after the validation gates pass. Installing the agent does not trigger an
+immediate long-running refresh. Its stdout/stderr go to
 `logs/competition-dashboard-update.out` and
 `logs/competition-dashboard-update.err`.
 

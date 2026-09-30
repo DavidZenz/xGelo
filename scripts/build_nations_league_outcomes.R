@@ -63,11 +63,18 @@ phase15_nl_require_scalar <- function(value, option) {
   value
 }
 
+phase15_nl_default_workers <- function() {
+  value <- suppressWarnings(as.integer(Sys.getenv("XGELO_NL_WORKERS", "1")))
+  if (is.na(value) || value < 1L) value <- 1L
+  value
+}
+
 phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(
     edition_id = NULL,
     simulations = 1000L,
     seed = 15017L,
+    workers = phase15_nl_default_workers(),
     dry_run = FALSE,
     replay_check = FALSE,
     write = FALSE,
@@ -93,11 +100,11 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       index <- index + 1L
       next
     }
-    if (grepl("^--(edition-id|simulations|seed)=", argument)) {
+    if (grepl("^--(edition-id|simulations|seed|workers)=", argument)) {
       parts <- strsplit(argument, "=", fixed = TRUE)[[1L]]
       option <- parts[[1L]]
       value <- paste(parts[-1L], collapse = "=")
-    } else if (argument %in% c("--edition-id", "--simulations", "--seed")) {
+    } else if (argument %in% c("--edition-id", "--simulations", "--seed", "--workers")) {
       if (index == length(args)) {
         phase15_nl_fail(sprintf("Option %s requires one value.", argument))
       }
@@ -122,6 +129,12 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
         phase15_nl_fail("--seed must be a non-negative integer.")
       }
       options$seed <- parsed
+    } else if (identical(option, "--workers")) {
+      parsed <- suppressWarnings(as.integer(value))
+      if (is.na(parsed) || parsed < 1L || !identical(as.character(parsed), value)) {
+        phase15_nl_fail("--workers must be a positive integer.")
+      }
+      options$workers <- parsed
     }
     index <- index + 1L
   }
@@ -162,6 +175,7 @@ phase15_nl_cli_usage <- function() {
     "Options:",
     "  --simulations N   Positive simulation count (default: 1000)",
     "  --seed N          Non-negative deterministic seed (default: 15017)",
+    "  --workers N       Parallel simulation workers (default: XGELO_NL_WORKERS or 1)",
     "  --dry-run         Validate and build in memory (default mode)",
     "  --replay-check    Validate normal, reversed, and repeated replays",
     "  --write           Atomically publish the registered nine-file bundle",
@@ -403,9 +417,29 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
 
   base_teams <- loaded$topology$teams[toupper(as.character(loaded$topology$teams$league)) == "A", c("team_id", "group_id"), drop = FALSE]
   team_ids <- sort(unique(as.character(base_teams$team_id)), method = "radix")
-  pairs <- expand.grid(home_team_id = team_ids, away_team_id = team_ids, stringsAsFactors = FALSE)
-  pairs <- pairs[pairs$home_team_id != pairs$away_team_id, , drop = FALSE]
-  pairs <- pairs[order(pairs$home_team_id, pairs$away_team_id, method = "radix"), , drop = FALSE]
+  # Build only the ordered pairings that can occur in the registered bracket.
+  # The previous implementation forecast every ordered pair of League A
+  # teams (54 * 53 = 2,862 rows), even though the Nations League knockout
+  # topology needs only the pairs represented by the QF/SF/final contexts.
+  # Keeping this finite handoff to the reachable graph is the same
+  # precompute-before-simulation pattern used by the WC dashboard and avoids
+  # spending most of a refresh fitting forecasts that can never be sampled.
+  contexts <- phase15_nl_knockout_stage_contexts(loaded$topology$teams)
+  context_pairs <- unique(contexts[c("home_team_id", "away_team_id")])
+  context_pairs <- context_pairs[
+    !is.na(context_pairs$home_team_id) &
+      !is.na(context_pairs$away_team_id) &
+      nzchar(as.character(context_pairs$home_team_id)) &
+      nzchar(as.character(context_pairs$away_team_id)) &
+      context_pairs$home_team_id != context_pairs$away_team_id,
+    ,
+    drop = FALSE
+  ]
+  pairs <- context_pairs[order(context_pairs$home_team_id, context_pairs$away_team_id, method = "radix"), , drop = FALSE]
+  row.names(pairs) <- NULL
+  if (!nrow(pairs) || any(!pairs$home_team_id %in% team_ids) || any(!pairs$away_team_id %in% team_ids)) {
+    phase15_nl_fail("Nations League knockout forecast contexts contain an unknown League A team.")
+  }
   pairs$edition_id <- phase15_nl_edition_id()
   pairs$fixture_id <- paste0("nl-knockout-base-", pairs$home_team_id, "-", pairs$away_team_id)
   pairs$match_id <- pairs$fixture_id
@@ -448,7 +482,6 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
   base_status$home_team_id <- pairs$home_team_id[match(base_status$fixture_id, pairs$fixture_id)]
   base_status$away_team_id <- pairs$away_team_id[match(base_status$fixture_id, pairs$fixture_id)]
 
-  contexts <- phase15_nl_knockout_stage_contexts(loaded$topology$teams)
   pair_key <- paste(pairs$home_team_id, pairs$away_team_id, sep = "::")
   context_key <- paste(contexts$home_team_id, contexts$away_team_id, sep = "::")
   contexts$base_fixture_id <- pairs$fixture_id[match(context_key, pair_key)]
@@ -554,6 +587,7 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
     groups = list(groups = loaded$topology$groups, group_rows = loaded$topology$teams),
     rules = loaded$rules,
     simulation_count = options$simulations,
+    workers = options$workers,
     seed = options$seed,
     source_bundle_id = state_bundle$source_bundle_id,
     source_bundle_sha256 = state_bundle$source_bundle_sha256,
@@ -730,6 +764,7 @@ phase15_build_nl_outcomes_main <- function(
     mode = options$mode,
     simulations = options$simulations,
     seed = options$seed,
+    workers = options$workers,
     candidate = normal$candidate,
     simulation = normal$simulation,
     validation = TRUE,
@@ -771,6 +806,7 @@ phase15_nl_print_result <- function(result) {
   cat(sprintf("mode=%s\n", result$mode))
   cat(sprintf("simulations=%d\n", result$simulations))
   cat(sprintf("seed=%d\n", result$seed))
+  cat(sprintf("workers=%d\n", result$workers %||% 1L))
   cat("artifact_count=9\n")
   cat(sprintf("validation=%s\n", if (isTRUE(result$validation)) "TRUE" else "FALSE"))
   cat(sprintf("durable_mutation=%s\n", if (isTRUE(result$durable_mutation)) "TRUE" else "FALSE"))

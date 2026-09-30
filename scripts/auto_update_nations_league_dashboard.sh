@@ -7,6 +7,7 @@ cd "$ROOT_DIR"
 DRY_RUN=false
 SKIP_PUSH=false
 SIMULATIONS="${XGELO_NL_SIMULATIONS:-100}"
+WORKERS="${XGELO_NL_WORKERS:-4}"
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
@@ -18,6 +19,10 @@ done
 
 [[ "$SIMULATIONS" =~ ^[1-9][0-9]*$ ]] || {
   echo "--simulations must be a positive integer." >&2
+  exit 2
+}
+[[ "$WORKERS" =~ ^[1-9][0-9]*$ ]] || {
+  echo "XGELO_NL_WORKERS must be a positive integer." >&2
   exit 2
 }
 
@@ -102,7 +107,7 @@ git fetch --quiet
 "$R_SCRIPT" --vanilla scripts/acquire_uefa_snapshot.R "${CAPTURE_ARGS[@]}" --publish-accepted
 "$R_SCRIPT" --vanilla scripts/refresh_nations_league_state.R --edition-id "$EDITION_ID"
 "$R_SCRIPT" --vanilla scripts/build_nations_league_outcomes.R \
-  --edition-id "$EDITION_ID" --simulations "$SIMULATIONS" --seed 15017 --write
+  --edition-id "$EDITION_ID" --simulations "$SIMULATIONS" --workers "$WORKERS" --seed 15017 --write
 
 # The dashboard coordinator intentionally remains read-only about Git.  Invoke
 # its production provider directly so this wrapper can own the single commit.
