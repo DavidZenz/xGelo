@@ -274,9 +274,12 @@ mkdir -p ~/Library/LaunchAgents
 scripts/install_competition_dashboards.sh
 ```
 
-The LaunchAgent runs once when loaded and then every hour. Its stdout/stderr go
-to `logs/launchd-dashboard-update.out` and
-`logs/launchd-dashboard-update.err`.
+The LaunchAgent runs the Nations League source refresh once when loaded and
+then every hour. It pulls the official UEFA match bundle, recomputes accepted
+state and forecast outcomes, regenerates the dashboard, and commits/pushes
+only after the validation gates pass. Its stdout/stderr go to
+`logs/competition-dashboard-update.out` and
+`logs/competition-dashboard-update.err`.
 
 ## Generate A Forecast
 

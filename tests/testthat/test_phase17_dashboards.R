@@ -584,7 +584,7 @@ test_that("launchd|Safari policy|browser smoke|scheduler conflict", {
   old_plist <- api$phase17_validate_plist(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist"))
   expect_true(new_plist$valid && old_plist$valid)
   expect_identical(new_plist$label, "com.xgelo.competition-dashboards")
-  expect_true(all(c("/bin/bash", "/Users/davidzenz/R/xGelo/scripts/auto_update_competition_dashboards.sh") %in% unlist(new_plist$arguments)))
+  expect_true(all(c("/bin/bash", "/Users/davidzenz/R/xGelo/scripts/auto_update_nations_league_dashboard.sh") %in% unlist(new_plist$arguments)))
   expect_identical(old_plist$label, "com.xgelo.dashboard-update")
   expect_true(grepl("Disabled", paste(readLines(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist")), collapse = " "), fixed = TRUE))
   installer <- paste(readLines(file.path(phase17_test_project_root, "scripts/install_competition_dashboards.sh")), collapse = "\n")

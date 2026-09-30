@@ -10,7 +10,7 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/Users/davidzenz/R/xGelo/scripts/auto_update_competition_dashboards.sh</string>
+    <string>/Users/davidzenz/R/xGelo/scripts/auto_update_nations_league_dashboard.sh</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
