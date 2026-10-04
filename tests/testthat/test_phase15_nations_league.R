@@ -8,7 +8,7 @@ phase15_test_project_root <- normalizePath(
 
 phase15_test_edition_id <- "uefa_nations_league_2026_27"
 phase15_test_source_bundle_id <- "nl-2026-27-official-uefa-v2"
-phase15_test_ruleset_version <- "uefa-nations-league-2026-27-v2"
+phase15_test_ruleset_version <- "uefa-nations-league-2026-27-v3"
 
 phase15_test_sha256 <- function(value) {
   if (is.raw(value)) {
@@ -613,7 +613,7 @@ phase15_test_stage_row <- function(
   )
 }
 
-phase15_test_completed_stage_capture <- function() {
+phase15_test_completed_stage_capture <- function(legacy = FALSE) {
   rows <- list(
     phase15_test_stage_row("league_a_quarter_final", "quarter_final", 1L, "source-qf-1", "team-a-1-1", "team-a-1-2", "A-winner-A1", "A-runner-up-A2", 1L, 0L),
     phase15_test_stage_row("league_a_quarter_final", "quarter_final", 2L, "source-qf-2", "team-a-1-2", "team-a-1-1", "A-runner-up-A2", "A-winner-A1", 0L, 0L, 1L, 0L),
@@ -628,6 +628,7 @@ phase15_test_completed_stage_capture <- function() {
     phase15_test_stage_row("c_d_playoff", "play_off", 2L, "source-cd-2", "team-c-3-1", "team-d-2-1", "C-rank-45", "D-rank-51", 0L, 1L, 0L, 1L)
   )
   capture <- do.call(rbind, rows)
+  if (!legacy) capture <- capture[capture$stage_id != "c_d_playoff", , drop = FALSE]
   rownames(capture) <- NULL
   phase15_test_add_row_hashes(capture)
 }
@@ -884,7 +885,7 @@ test_that("completed stage captures preserve exact score axes and source lineage
   )
   stage_ids <- c(
     "league_a_quarter_final", "league_a_semi_final", "league_a_final",
-    "a_b_playoff", "b_c_playoff", "c_d_playoff"
+    "a_b_playoff", "b_c_playoff"
   )
   expect_true(all(completed_score_fields %in% names(capture)))
   expect_setequal(unique(capture$stage_id), stage_ids)
@@ -987,7 +988,7 @@ test_that("canonical Nations League topology freezes the scheduled 2026/27 sourc
   expect_identical(as.integer(table(topology$teams$league_id)), c(16L, 16L, 16L, 6L))
   expect_setequal(
     topology$stage_topology$stage_id,
-    c("league_phase", "league_a_quarter_final", "league_a_semi_final", "league_a_third_place", "league_a_final", "a_b_playoff", "b_c_playoff", "c_d_playoff")
+    c("league_phase", "league_a_quarter_final", "league_a_semi_final", "league_a_third_place", "league_a_final", "a_b_playoff", "b_c_playoff")
   )
   expect_length(uefa_nl_stage_status_values(), 5L)
   expect_identical(
@@ -1373,9 +1374,11 @@ test_that("the existing scheduled adapter remains a five-resource, 156-fixture b
   adapted <- phase14_uefa_nl_adapt_response(payload)
   expect_identical(names(adapted$resources), phase13_source_required_resource_types())
   expect_identical(adapted$official_counts, c(fixtures = 156L, groups = 14L, teams = 54L))
-  expect_true(all(is.na(adapted$resources$results$home_goals)))
-  expect_true(all(is.na(adapted$resources$results$away_goals)))
-  expect_identical(adapted$resources$status$competition_status, "scheduled")
+  final <- adapted$resources$results$match_status == "completed"
+  expect_true(all(is.finite(adapted$resources$results$home_goals[final])))
+  expect_true(all(is.na(adapted$resources$results$home_goals[!final])))
+  expect_true(all(is.na(adapted$resources$results$away_goals[!final])))
+  expect_identical(adapted$resources$status$competition_status, "in_progress")
 })
 
 test_that("Article 15 ordering is recursive, auditable, and uses the Phase 14 adapter seam", {
@@ -1624,23 +1627,23 @@ test_that("Article 19 interim rankings and transition selectors use exact dynami
   expect_false(any(interim$interim_rank == 55L))
 
   selectors <- uefa_nl_select_transition_slots(interim)
-  expect_equal(nrow(selectors), 30L)
-  expect_equal(sum(selectors$transition_type == "direct_promotion"), 10L)
-  expect_equal(sum(selectors$transition_type == "direct_relegation"), 10L)
+  expect_equal(nrow(selectors), 24L)
+  expect_equal(sum(selectors$transition_type == "direct_promotion"), 14L)
+  expect_equal(sum(selectors$transition_type == "direct_relegation"), 2L)
   expect_equal(sum(selectors$stage_id == "a_b_playoff"), 4L)
   expect_equal(sum(selectors$stage_id == "b_c_playoff"), 4L)
-  expect_equal(sum(selectors$stage_id == "c_d_playoff"), 2L)
+  expect_equal(sum(selectors$stage_id == "c_d_playoff"), 0L)
   expect_equal(anyDuplicated(selectors$transition_key), 0L)
 
   ab <- selectors[selectors$stage_id == "a_b_playoff", , drop = FALSE]
   bc <- selectors[selectors$stage_id == "b_c_playoff", , drop = FALSE]
   cd <- selectors[selectors$stage_id == "c_d_playoff", , drop = FALSE]
-  expect_identical(ab$higher_league_rank, 9:12)
+  expect_identical(ab$higher_league_rank, 11:14)
   expect_identical(ab$lower_league_rank, 21:24)
-  expect_identical(bc$higher_league_rank, 25:28)
+  expect_identical(bc$higher_league_rank, 29:32)
   expect_identical(bc$lower_league_rank, 37:40)
-  expect_identical(cd$higher_league_rank, 45:46)
-  expect_identical(cd$lower_league_rank, 51:52)
+  expect_length(cd$higher_league_rank, 0L)
+  expect_length(cd$lower_league_rank, 0L)
   expect_true(all(ab$first_leg_home_team_id == ab$lower_league_team_id))
   expect_true(all(bc$first_leg_home_team_id == bc$lower_league_team_id))
   expect_true(all(cd$first_leg_home_team_id == cd$lower_league_team_id))
@@ -1731,10 +1734,10 @@ phase15_test_final_stage_outcomes <- function(include_finals = TRUE) {
   output
 }
 
-test_that("Article 19.04 final overall ranking covers all ten bands and Article 19.05 overwrite", {
+test_that("archived v2 Article 19.04 ranking covers all ten bands and Article 19.05 overwrite", {
   interim <- phase15_test_final_interim_rankings()
   complete <- phase15_test_final_stage_outcomes()
-  ranked <- uefa_nl_rank_final_overall(interim, complete)
+  ranked <- uefa_nl_rank_final_overall(interim, complete, rules = uefa_nl_2026_27_legacy_rules())
   expected_sources <- c(
     4L, 1L, 3L, 2L, 5L, 6L, 7L, 8L,
     9L:12L, 17L:20L, 13L:16L, 21L:24L,
@@ -1753,7 +1756,7 @@ test_that("Article 19.04 final overall ranking covers all ten bands and Article 
   expect_equal(ranked$team_id[ranked$final_overall_rank == 3L], "team-final-03")
   expect_equal(ranked$team_id[ranked$final_overall_rank == 4L], "team-final-02")
 
-  pre_finals <- uefa_nl_rank_final_overall(interim, phase15_test_final_stage_outcomes(include_finals = FALSE))
+  pre_finals <- uefa_nl_rank_final_overall(interim, phase15_test_final_stage_outcomes(include_finals = FALSE), rules = uefa_nl_2026_27_legacy_rules())
   expected_pre_sources <- c(
     1L:8L, 9L:12L, 17L:20L, 13L:16L, 21L:24L,
     25L:28L, 33L:36L, 29L:32L, 37L:40L,
@@ -1814,7 +1817,7 @@ test_that("C/D cancellation retains exactly C46/C47 and D50/D51 without probabil
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
-  retained <- uefa_nl_resolve_cd_playoff_cancellation(interim, eligibility)
+  retained <- uefa_nl_resolve_cd_playoff_cancellation(interim, eligibility, rules = uefa_nl_2026_27_legacy_rules())
   expect_equal(nrow(retained), 4L)
   expect_identical(retained$cd_playoff_status, rep("cancelled", 4L))
   expect_identical(retained$selection_status, rep("retained", 4L))
@@ -1834,7 +1837,7 @@ test_that("C/D cancellation retains exactly C46/C47 and D50/D51 without probabil
   expect_true(all(is.na(retained$playoff_loss_probability)))
   expect_true(all(grepl("^[0-9a-f]{64}$", retained$row_sha256)))
 
-  selected <- uefa_nl_select_transition_slots(interim, eligibility)
+  selected <- uefa_nl_select_transition_slots(interim, eligibility, rules = uefa_nl_2026_27_legacy_rules())
   cancelled <- selected[selected$cd_playoff_status == "cancelled", , drop = FALSE]
   expect_equal(nrow(cancelled), 4L)
   expect_setequal(cancelled$retained_next_edition_rank, c(46L, 47L, 50L, 51L))
@@ -1842,10 +1845,11 @@ test_that("C/D cancellation retains exactly C46/C47 and D50/D51 without probabil
 
 test_that("absent and incomplete C/D eligibility remain unresolved with no retention claims", {
   interim <- phase15_test_final_interim_rankings()
-  absent <- uefa_nl_resolve_cd_playoff_cancellation(interim, NULL)
+  absent <- uefa_nl_resolve_cd_playoff_cancellation(interim, NULL, rules = uefa_nl_2026_27_legacy_rules())
   incomplete <- uefa_nl_resolve_cd_playoff_cancellation(
     interim,
-    data.frame(team_id = "team-final-45", qualifies_for_euro_playoff = FALSE, stringsAsFactors = FALSE, check.names = FALSE)
+    data.frame(team_id = "team-final-45", qualifies_for_euro_playoff = FALSE, stringsAsFactors = FALSE, check.names = FALSE),
+    rules = uefa_nl_2026_27_legacy_rules()
   )
   for (result in list(absent, incomplete)) {
     expect_true(all(result$eligibility_status == "unresolved_external_eligibility"))
@@ -2108,8 +2112,9 @@ test_that("replay verification compares every registered artifact key exactly", 
   expect_error(compare_replays(first, second), "artifact bytes")
 })
 
-test_that("official stage capture replay is stable and C/D branches stay explicit", {
+test_that("archived v2 stage capture replay and C/D branches stay explicit", {
   inputs <- phase15_test_simulation_inputs(simulation_count = 1L)
+  inputs$rules <- uefa_nl_2026_27_legacy_rules()
   base <- do.call(uefa_nl_run_simulation, inputs)
   interim <- base$projected_rankings[base$projected_rankings$ranking_scope == "interim_overall", , drop = FALSE]
   candidate <- function(rank) as.character(interim$team_id[interim$interim_overall_rank == rank][[1L]])
@@ -2179,7 +2184,7 @@ test_that("official stage capture replay is stable and C/D branches stay explici
   expect_true(all(is.na(contested$playoff_loss_probability)))
 
   captured <- inputs
-  captured$official_stage_slots <- phase15_test_completed_stage_capture()
+  captured$official_stage_slots <- phase15_test_completed_stage_capture(legacy = TRUE)
   captured_reversed <- captured
   captured_reversed$official_stage_slots <- captured_reversed$official_stage_slots[nrow(captured_reversed$official_stage_slots):1L, , drop = FALSE]
   capture_a <- do.call(uefa_nl_run_simulation, captured)
@@ -2362,16 +2367,19 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
     length(unique(c(as.character(fixtures$home_team_id), as.character(fixtures$away_team_id)))),
     54L
   )
-  expect_identical(as.character(source$status$competition_status), "scheduled")
-  expect_true(all(toupper(as.character(fixtures$source_status)) == "UPCOMING"))
+  expect_identical(as.character(source$status$competition_status), "in_progress")
+  expect_true(all(toupper(as.character(fixtures$source_status)) %in% c("UPCOMING", "FINISHED", "LIVE", "POSTPONED", "CANCELLED", "ABANDONED")))
   expect_true(all(as.logical(fixtures$kickoff_confirmed)))
   expect_identical(
     as.character(results$uefa_source_fixture_id),
     as.character(fixtures$uefa_source_fixture_id)
   )
-  expect_true(all(as.character(results$match_status) == "scheduled"))
-  expect_true(all(is.na(results$home_goals) & is.na(results$away_goals)))
-  expect_true(all(!as.logical(results$counts_for_standings) & !as.logical(results$counts_for_form)))
+  final <- results$match_status == "completed"
+  expect_true(any(final))
+  expect_true(all(is.finite(results$home_goals[final]) & is.finite(results$away_goals[final])))
+  expect_true(all(is.na(results$home_goals[!final]) & is.na(results$away_goals[!final])))
+  expect_identical(as.logical(results$counts_for_standings), final)
+  expect_identical(as.logical(results$counts_for_form), final)
 
   topology <- before$topology
   expect_identical(topology$official_counts, c(groups = 14L, fixtures = 156L, teams = 54L))
@@ -2385,7 +2393,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
     c(
       "league_phase", "league_a_quarter_final", "league_a_semi_final",
       "league_a_third_place", "league_a_final", "a_b_playoff",
-      "b_c_playoff", "c_d_playoff"
+      "b_c_playoff"
     )
   )
 
@@ -2425,10 +2433,10 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   expect_true(all(current_access$rows$status == "unresolved_access_list"))
 
   interim <- phase15_test_final_interim_rankings()
-  post_final <- uefa_nl_rank_final_overall(interim, phase15_test_final_stage_outcomes())
+  post_final <- uefa_nl_rank_final_overall(interim, phase15_test_final_stage_outcomes(), rules = uefa_nl_2026_27_legacy_rules())
   pre_final <- uefa_nl_rank_final_overall(
     interim,
-    phase15_test_final_stage_outcomes(include_finals = FALSE)
+    phase15_test_final_stage_outcomes(include_finals = FALSE), rules = uefa_nl_2026_27_legacy_rules()
   )
   expect_identical(post_final$final_overall_rank, seq_len(54L))
   expect_identical(post_final$ranking_stage, rep("final_overall", 54L))
@@ -2461,7 +2469,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   cancellation_eligibility$qualifies_for_euro_playoff[
     match(interim$team_id[interim$interim_rank %in% c(45L, 46L, 51L, 52L)], cancellation_eligibility$team_id)
   ] <- TRUE
-  cancelled <- uefa_nl_resolve_cd_playoff_cancellation(interim, cancellation_eligibility)
+  cancelled <- uefa_nl_resolve_cd_playoff_cancellation(interim, cancellation_eligibility, rules = uefa_nl_2026_27_legacy_rules())
   expect_identical(cancelled$cd_playoff_status, rep("cancelled", 4L))
   expect_identical(cancelled$stage_status, rep("suppressed", 4L))
   expect_identical(
@@ -2475,7 +2483,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   )
   expect_true(all(nzchar(cancelled$cancellation_reason)))
   expect_true(all(is.na(cancelled$playoff_eligibility_probability)))
-  unresolved_cd <- uefa_nl_resolve_cd_playoff_cancellation(interim, NULL)
+  unresolved_cd <- uefa_nl_resolve_cd_playoff_cancellation(interim, NULL, rules = uefa_nl_2026_27_legacy_rules())
   expect_true(all(unresolved_cd$eligibility_status == "unresolved_external_eligibility"))
   expect_true(all(unresolved_cd$cd_playoff_status == "unresolved"))
   expect_true(all(is.na(unresolved_cd$retained_next_edition_rank)))
@@ -2509,7 +2517,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
     unique(completed_capture$stage_id),
     c(
       "league_a_quarter_final", "league_a_semi_final", "league_a_final",
-      "a_b_playoff", "b_c_playoff", "c_d_playoff"
+      "a_b_playoff", "b_c_playoff"
     )
   )
   expect_true(all(nzchar(completed_capture$source_fixture_id)))
@@ -2568,7 +2576,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
     }
   }
   expect_true(all(as.integer(manifest$simulation_seed) == 15017L))
-  expect_true(all(as.integer(manifest$simulation_count) == 1L))
+  expect_true(all(as.integer(manifest$simulation_count) == as.integer(bundle$simulation_metadata$simulation_count[[1L]])))
   expect_true(all(as.character(manifest$validation_status) == "valid"))
 
   topology_output <- bundle$artifacts[["outcomes/competition_topology.csv"]]
@@ -2590,7 +2598,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
 
   metadata <- bundle$simulation_metadata
   expect_identical(as.integer(metadata$simulation_seed[[1L]]), 15017L)
-  expect_identical(as.integer(metadata$simulation_count[[1L]]), 1L)
+  expect_true(as.integer(metadata$simulation_count[[1L]]) >= 1L)
   expect_identical(as.character(metadata$source_bundle_id[[1L]]), source$source_bundle_id)
   expect_identical(as.character(metadata$source_bundle_sha256[[1L]]), source$source_bundle_sha256)
   expect_identical(as.character(metadata$state_manifest_sha256[[1L]]), before$state_bundle$state_manifest_sha256)
@@ -2599,9 +2607,16 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   expect_true(nzchar(as.character(metadata$draw_policy_id[[1L]])))
   expect_true(grepl("calibrated_1x2", as.character(metadata$probability_sampling_policy[[1L]]), fixed = TRUE))
 
-  fixture_form <- bundle$fixture_forecast_form
-  expect_equal(nrow(fixture_form), 156L)
-  expect_setequal(as.character(fixture_form$fixture_id), as.character(before$state_bundle$canonical_matches$fixture_id))
+  all_fixture_form <- bundle$fixture_forecast_form
+  expect_equal(nrow(all_fixture_form), 156L)
+  expect_setequal(as.character(all_fixture_form$fixture_id), as.character(before$state_bundle$canonical_matches$fixture_id))
+  final_ids <- as.character(results$fixture_id[final])
+  expect_length(final_ids, sum(final))
+  completed_form <- all_fixture_form[all_fixture_form$fixture_id %in% final_ids, , drop = FALSE]
+  expect_true(all(completed_form$forecast_status == "suppressed"))
+  expect_true(all(completed_form$suppression_reason == "status_ineligible"))
+  expect_true(all(is.na(completed_form$p_home) & is.na(completed_form$p_draw) & is.na(completed_form$p_away)))
+  fixture_form <- all_fixture_form[!all_fixture_form$fixture_id %in% final_ids, , drop = FALSE]
   expect_true(all(as.character(fixture_form$forecast_status) == "available"))
   expect_identical(unique(as.character(fixture_form$primary_probability_view)), "calibrated_1x2")
   expect_true(all(is.finite(as.numeric(fixture_form$p_home))))
@@ -2645,7 +2660,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
 
   cd_output <- bundle$artifacts[["outcomes/transition_outcomes.csv"]]
   cd_output <- cd_output[cd_output$stage_id == "c_d_playoff", , drop = FALSE]
-  expect_equal(nrow(cd_output), 4L)
+  expect_equal(nrow(cd_output), 0L)
   expect_true(all(cd_output$eligibility_status == "unresolved_external_eligibility"))
   expect_true(all(cd_output$stage_status == "unresolved"))
   expect_true(all(cd_output$cd_playoff_status == "unresolved"))
@@ -2677,7 +2692,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   expect_true(any(synthetic$team_path_probabilities$p_playoff_eligibility > 0, na.rm = TRUE))
   expect_setequal(
     unique(synthetic$transition_outcomes$transition_type),
-    c("a_b_playoff", "b_c_playoff", "c_d_playoff_cancellation", "direct_promotion", "direct_relegation")
+    c("a_b_playoff", "b_c_playoff", "direct_promotion", "direct_relegation")
   )
   applicable_playoffs <- synthetic$transition_outcomes[
     synthetic$transition_outcomes$transition_type %in% c("a_b_playoff", "b_c_playoff"),

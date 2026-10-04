@@ -264,8 +264,9 @@ test_that("Nations League renderer uses a World Cup-style shell", {
     "Forecast", "Current", "nl-group-table", "nl-match-card",
     "No completed results yet", "Scheduled · forecasts available"
   ), grepl, logical(1), x = html, fixed = TRUE)))
-  expect_true(grepl('class="group-view nl-forecast-view" data-view="forecast"', html, fixed = TRUE))
-  expect_true(grepl('class="group-view nl-current-view" data-view="current" hidden', html, fixed = TRUE))
+  expect_true(grepl("Projected standings", html, fixed = TRUE))
+  expect_true(grepl("Current standings", html, fixed = TRUE))
+  expect_false(grepl("data-group-view=", html, fixed = TRUE))
   expect_true(grepl('<th scope="col">Team</th><th class="status-head" scope="col" aria-label="Status"></th>', html, fixed = TRUE))
   expect_false(grepl('<th class="status-head" scope="col">State</th>', html, fixed = TRUE))
   expect_false(grepl('class="nl-table-status-pending"', html, fixed = TRUE))
@@ -273,7 +274,7 @@ test_that("Nations League renderer uses a World Cup-style shell", {
   expect_identical(api$phase17_nl_status_cell("projected"), "")
   expect_true(grepl("status-mark qualified", api$phase17_nl_status_cell("qualified"), fixed = TRUE))
   expect_true(grepl("status-mark eliminated", api$phase17_nl_status_cell("eliminated"), fixed = TRUE))
-  expect_true(grepl("Goals<br>For", html, fixed = TRUE))
+  expect_true(grepl('title="Goals for">GF', html, fixed = TRUE))
   expect_true(grepl("Rank probabilities are pending Article 15", html, fixed = TRUE))
   expect_false(grepl('data-table-view="forecast"', html, fixed = TRUE))
   expect_false(grepl("<th scope=\"col\">Accepted data</th>", html, fixed = TRUE))
@@ -297,7 +298,8 @@ test_that("Nations League current table derives standings from completed accepte
   )
   html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
   expect_true(grepl("Current standings reflect completed accepted results.", html, fixed = TRUE))
-  expect_true(grepl("<span class=\"heat-val\">3</span></td><td class=\"standing-cell\">1</td><td class=\"standing-cell\">1</td><td class=\"standing-cell\">0</td><td class=\"standing-cell\">0</td><td class=\"standing-cell\">2</td><td class=\"standing-cell\">1</td><td class=\"heat-cell standing strong\"", html, fixed = TRUE))
+  expect_true(grepl('<td class="standing-cell">1</td><td class="standing-cell">1</td><td class="standing-cell">0</td><td class="standing-cell">0</td><td class="standing-cell">2</td><td class="standing-cell">1</td><td class="standing-cell">+1</td>', html, fixed = TRUE))
+  expect_true(grepl('<span class="heat-val">3</span>', html, fixed = TRUE))
 })
 
 test_that("Nations League outlook renders accepted probability bars and projected tree", {
@@ -329,7 +331,7 @@ test_that("Nations League outlook renders accepted probability bars and projecte
   )
   html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
   expect_true(all(vapply(c(
-    "data-nl-tab=\"tree\"", "Rank probability outlook", "probbar", "Direct promotion",
+    "data-nl-tab=\"tree\"", "Rank probability outlook", "probbar", "Promotion", "Who wins the Nations League?",
     "Projected Nations League progression", "League A quarter-finals", "League C / D play-off", "Home path",
     "Projected participant slots are unresolved"
   ), grepl, logical(1), x = html, fixed = TRUE)))
@@ -501,6 +503,7 @@ test_that("atomic batch|inventory|hash|size|rollback|idempotency", {
 test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   script <- new.env(parent = globalenv())
   sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  script$phase17_detect_browser_capability <- function() list(available=TRUE, automated_only=TRUE, runner="safari-webdriver", driver=script$phase17_safari_driver_path, version=script$phase17_safari_version)
   callback_names <- character()
   callbacks <- list(
     phase13_validate_source_bundle = function(arguments) { callback_names <<- c(callback_names, "source"); list(valid = TRUE) },
@@ -705,6 +708,7 @@ test_that("no mutation", {
   api <- phase17_test_load_contract()
   script <- new.env(parent = globalenv())
   sys.source(file.path(phase17_test_project_root, "scripts/refresh_competition_dashboards.R"), script)
+  script$phase17_detect_browser_capability <- function() list(available=TRUE, automated_only=TRUE, runner="safari-webdriver", driver=script$phase17_safari_driver_path, version=script$phase17_safari_version)
   result <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"))
   expect_true(result$valid && result$dry_run)
   expect_true(all(vapply(result$trace, function(item) identical(item$status, "pass"), logical(1))))

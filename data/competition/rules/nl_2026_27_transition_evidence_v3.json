@@ -1,0 +1,97 @@
+{
+  "ruleset_version": "uefa-nations-league-2026-27-v3",
+  "effective_date": "2026-09-15",
+  "verified_on": "2026-10-04",
+  "sources": {
+    "article_16": "https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27/Article-16-Match-system-play-offs-Online",
+    "article_19": "https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27/Article-19-Individual-league-interim-overall-and-final-overall-rankings-Online"
+  },
+  "transitions": {
+    "A": {
+      "quarter_finals": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "remain": [
+        9,
+        10
+      ],
+      "a_b_playoff": [
+        11,
+        12,
+        13,
+        14
+      ],
+      "direct_relegation": [
+        15,
+        16
+      ]
+    },
+    "B": {
+      "direct_promotion": [
+        17,
+        18,
+        19,
+        20
+      ],
+      "a_b_playoff": [
+        21,
+        22,
+        23,
+        24
+      ],
+      "remain": [
+        25,
+        26,
+        27,
+        28
+      ],
+      "b_c_playoff": [
+        29,
+        30,
+        31,
+        32
+      ]
+    },
+    "C": {
+      "direct_promotion": [
+        33,
+        34,
+        35,
+        36
+      ],
+      "b_c_playoff": [
+        37,
+        38,
+        39,
+        40
+      ],
+      "remain": [
+        41,
+        42,
+        43,
+        44,
+        45,
+        46,
+        47,
+        48
+      ]
+    },
+    "D": {
+      "direct_promotion": "all_accepted_teams"
+    }
+  },
+  "playoff_draw": "uniform_permutation_higher_league_seeded_against_lower_league_unless_official_draw_accepted",
+  "first_leg_home": "lower_league",
+  "next_edition": {
+    "A": "final_ranks_1_18",
+    "B": "final_ranks_19_36",
+    "C": "remaining_accepted_teams"
+  }
+}

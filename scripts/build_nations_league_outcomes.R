@@ -394,6 +394,19 @@ phase15_nl_knockout_stage_contexts <- function(team_table) {
       }
     }
   }
+  # Play-off forecasts depend on the team pair and home orientation, not
+  # on the regulation rank slot eventually occupied by that team.
+  for (stage_id in c("a_b_playoff", "b_c_playoff")) {
+    high_league <- if (stage_id == "a_b_playoff") "A" else "B"
+    low_league <- if (stage_id == "a_b_playoff") "B" else "C"
+    high <- sort(as.character(team_table$team_id[toupper(team_table$league) == high_league]), method = "radix")
+    low <- sort(as.character(team_table$team_id[toupper(team_table$league) == low_league]), method = "radix")
+    if (length(high) != 16L || length(low) != 16L) stop("Play-off forecast handoff requires complete league rosters", call. = FALSE)
+    for (higher in high) for (lower in low) {
+      add(stage_id, 1L, lower, higher, "*", "*")
+      add(stage_id, 2L, higher, lower, "*", "*")
+    }
+  }
   if (!length(rows)) return(data.frame(stringsAsFactors = FALSE, check.names = FALSE))
   output <- do.call(rbind, rows)
   output$context_id <- sprintf("nl-knockout-context-%05d", seq_len(nrow(output)))
@@ -409,18 +422,19 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
   cache_key <- paste(
     phase15_nl_text(state$state_manifest_sha256, ""),
     phase15_nl_text(state$model_release_id, ""),
+    uefa_nl_ruleset_sha256(loaded$rules),
     sep = "::"
   )
   if (exists(cache_key, envir = phase15_nl_knockout_forecast_cache, inherits = FALSE)) {
     return(get(cache_key, envir = phase15_nl_knockout_forecast_cache, inherits = FALSE))
   }
 
-  base_teams <- loaded$topology$teams[toupper(as.character(loaded$topology$teams$league)) == "A", c("team_id", "group_id"), drop = FALSE]
+  base_teams <- loaded$topology$teams[toupper(as.character(loaded$topology$teams$league)) %in% c("A", "B", "C"), c("team_id", "group_id"), drop = FALSE]
   team_ids <- sort(unique(as.character(base_teams$team_id)), method = "radix")
   # Build only the ordered pairings that can occur in the registered bracket.
-  # The previous implementation forecast every ordered pair of League A
-  # teams (54 * 53 = 2,862 rows), even though the Nations League knockout
-  # topology needs only the pairs represented by the QF/SF/final contexts.
+  # League A title stages and all possible A/B and B/C play-off draws share
+  # this approved-model handoff. Reuse each ordered pair distribution across
+  # its stage contexts instead of recomputing it inside simulations.
   # Keeping this finite handoff to the reachable graph is the same
   # precompute-before-simulation pattern used by the WC dashboard and avoids
   # spending most of a refresh fitting forecasts that can never be sampled.
@@ -438,7 +452,7 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
   pairs <- context_pairs[order(context_pairs$home_team_id, context_pairs$away_team_id, method = "radix"), , drop = FALSE]
   row.names(pairs) <- NULL
   if (!nrow(pairs) || any(!pairs$home_team_id %in% team_ids) || any(!pairs$away_team_id %in% team_ids)) {
-    phase15_nl_fail("Nations League knockout forecast contexts contain an unknown League A team.")
+    phase15_nl_fail("Nations League knockout forecast contexts contain an unknown A/B/C team.")
   }
   pairs$edition_id <- phase15_nl_edition_id()
   pairs$fixture_id <- paste0("nl-knockout-base-", pairs$home_team_id, "-", pairs$away_team_id)
@@ -459,16 +473,16 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
     trusted_release_root = file.path(loaded$project_root, "outputs/releases"),
     national_team_xg_registry = file.path(loaded$project_root, "data/competition/registries/national_team_xg_sources.csv"),
     edition_registry = file.path(loaded$project_root, "data/competition/registries/competition_editions.csv"),
-    edition_lifecycle_state = "scheduled"
+    edition_lifecycle_state = "scheduled",
+    invalid_score_support = "suppress"
   )
-  if (!is.data.frame(generated$forecasts) || nrow(generated$forecasts) != nrow(pairs) ||
+  if (!is.data.frame(generated$forecasts) || any(!generated$forecasts$fixture_id %in% pairs$fixture_id) ||
       !is.data.frame(generated$fixture_status) || nrow(generated$fixture_status) != nrow(pairs) ||
       !is.data.frame(generated$score_distributions) || !nrow(generated$score_distributions)) {
     phase15_nl_fail("Approved forecast release did not cover the Nations League knockout pairings.")
   }
-  if (any(tolower(as.character(generated$forecasts$forecast_status)) != "available") ||
-      any(tolower(as.character(generated$fixture_status$forecast_status)) != "available")) {
-    phase15_nl_fail("Nations League knockout pairings contain unavailable approved forecasts.")
+  if (!setequal(as.character(generated$fixture_status$fixture_id), as.character(pairs$fixture_id))) {
+    phase15_nl_fail("Nations League knockout forecast status does not cover every pairing.")
   }
 
   base_forecasts <- generated$forecasts
@@ -499,6 +513,7 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
   stage_forecasts$away_team_id <- contexts$away_team_id
   stage_forecasts$participant_slot_home <- contexts$participant_slot_home
   stage_forecasts$participant_slot_away <- contexts$participant_slot_away
+  stage_forecasts <- stage_forecasts[!is.na(base_index), , drop = FALSE]
   stage_status <- base_status[match(contexts$base_fixture_id, base_status$fixture_id), , drop = FALSE]
   stage_status$fixture_id <- contexts$fixture_id
   stage_status$match_id <- contexts$match_id

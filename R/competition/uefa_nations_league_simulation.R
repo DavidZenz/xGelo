@@ -1072,7 +1072,9 @@ uefa_nl_sim_normalize_score_distributions <- function(score_distributions) {
   if (is.null(output)) output <- data.frame(stringsAsFactors = FALSE, check.names = FALSE)
   output <- as.data.frame(output, stringsAsFactors = FALSE, check.names = FALSE)
   if (!nrow(output)) return(output)
-  uefa_nl_sim_canonical_table(output, "score_distributions", key = c("score_distribution_id", "fixture_id", "home_goals", "away_goals"))
+  output <- uefa_nl_sim_canonical_table(output, "score_distributions", key = c("score_distribution_id", "fixture_id", "home_goals", "away_goals"))
+  if ("score_distribution_id" %in% names(output)) attr(output, "uefa_nl_grid_rows") <- split(seq_len(nrow(output)), as.character(output$score_distribution_id))
+  output
 }
 
 uefa_nl_sim_normalize_stage_slots <- function(official_stage_slots, rules) {
@@ -1115,6 +1117,12 @@ uefa_nl_sim_fixture_grid <- function(score_distributions, forecast_row) {
   score_id <- if ("score_distribution_id" %in% names(forecast_row)) as.character(forecast_row$score_distribution_id[[1L]]) else NA_character_
   grid <- score_distributions
   if (!is.data.frame(grid) || !nrow(grid)) return(NULL)
+  grid_rows <- attr(grid, "uefa_nl_grid_rows", exact = TRUE)
+  if (!is.null(grid_rows) && !is.na(score_id) && nzchar(score_id)) {
+    indexes <- grid_rows[[score_id]]
+    if (length(indexes)) return(grid[indexes, , drop = FALSE])
+    return(NULL)
+  }
   if (!is.na(score_id) && nzchar(score_id) && "score_distribution_id" %in% names(grid)) {
     candidate <- grid[as.character(grid$score_distribution_id) == score_id, , drop = FALSE]
     if (nrow(candidate)) return(candidate)
@@ -1155,8 +1163,8 @@ uefa_nl_sim_find_forecast <- function(
     leg_values <- suppressWarnings(as.integer(as.character(candidate$leg_number)))
     if (any(!is.na(leg_values))) candidate <- candidate[leg_values == as.integer(leg_number), , drop = FALSE]
   }
-  if (!is.null(participant_slot_home) && "participant_slot_home" %in% names(candidate)) candidate <- candidate[as.character(candidate$participant_slot_home) == as.character(participant_slot_home), , drop = FALSE]
-  if (!is.null(participant_slot_away) && "participant_slot_away" %in% names(candidate)) candidate <- candidate[as.character(candidate$participant_slot_away) == as.character(participant_slot_away), , drop = FALSE]
+  if (!is.null(participant_slot_home) && "participant_slot_home" %in% names(candidate)) candidate <- candidate[as.character(candidate$participant_slot_home) %in% c(as.character(participant_slot_home), "*"), , drop = FALSE]
+  if (!is.null(participant_slot_away) && "participant_slot_away" %in% names(candidate)) candidate <- candidate[as.character(candidate$participant_slot_away) %in% c(as.character(participant_slot_away), "*"), , drop = FALSE]
   if (nrow(candidate) != 1L) return(NULL)
   status_row <- uefa_nl_sim_forecast_status_for_id(status, candidate$fixture_id[[1L]])
   if (is.null(status_row) || !identical(as.character(status_row$forecast_status[[1L]]), "available")) return(NULL)
@@ -1524,13 +1532,57 @@ uefa_nl_sim_build_league_state <- function(matches, groups, rules, source_bundle
   list(states = states, group_rankings = group_rankings, individual = individual, interim = interim)
 }
 
+# Select participants by regulation rank; pair them by the accepted draw or
+# a uniformly sampled seeded-to-unseeded permutation, never by rank equality.
+uefa_nl_sim_draw_playoffs <- function(slots, official_slots, seed, rules) {
+  if (!uefa_nl_revised_transitions(rules) || !nrow(slots)) return(slots)
+  for (stage in names(rules$transitions$play_offs)) {
+    indexes <- which(slots$stage_id == stage & slots$selection_status == "selected")
+    if (!length(indexes)) next
+    selected <- slots[indexes, , drop = FALSE]
+    if (nrow(selected) != 4L || anyDuplicated(selected$higher_league_team_id) ||
+        anyDuplicated(selected$lower_league_team_id)) stop("Incomplete play-off participant set", call. = FALSE)
+    selected <- selected[order(selected$higher_league_rank, method = "radix"), , drop = FALSE]
+    low_order <- order(selected$lower_league_rank, method = "radix")
+    official <- uefa_nl_sim_pairings_from_slots(official_slots, stage, rules)
+    if (nrow(official)) {
+      if (nrow(official) != 4L) stop("Incomplete official play-off draw", call. = FALSE)
+      high <- selected$higher_league_team_id
+      low <- selected$lower_league_team_id
+      high_match <- vapply(seq_len(nrow(official)), function(i) {
+        match(intersect(c(official$team_a[[i]], official$team_b[[i]]), high)[1L], high)
+      }, integer(1))
+      low_match <- vapply(seq_len(nrow(official)), function(i) {
+        match(intersect(c(official$team_a[[i]], official$team_b[[i]]), low)[1L], low)
+      }, integer(1))
+      if (anyNA(c(high_match, low_match)) || anyDuplicated(high_match) || anyDuplicated(low_match)) {
+        stop("Official play-off draw contradicts selected participants", call. = FALSE)
+      }
+      permutation <- low_match[match(seq_len(4L), high_match)]
+      tie_ids <- official$tie_id[match(seq_len(4L), high_match)]
+    } else {
+      permutation <- low_order[uefa_nl_sim_with_seed(uefa_nl_sim_seed_for(seed, stage = stage, mode = "playoff-draw"), function() sample.int(4L))]
+      tie_ids <- paste(stage, selected$higher_league_rank, selected$lower_league_rank[permutation], sep = "::")
+    }
+    original <- selected
+    for (field in c("lower_league_team_id", "lower_league_rank")) selected[[field]] <- original[[field]][permutation]
+    selected$first_leg_home_team_id <- selected$lower_league_team_id
+    if (!"tie_id" %in% names(slots)) slots$tie_id <- NA_character_
+    selected$tie_id <- as.character(tie_ids)
+    selected$transition_key <- paste(stage, selected$higher_league_rank, selected$lower_league_rank, selected$higher_league_team_id, selected$lower_league_team_id, sep = "::")
+    selected$row_sha256 <- uefa_nl_rules_row_sha256(selected)
+    slots[indexes, names(selected)] <- selected
+  }
+  slots
+}
+
 uefa_nl_sim_transition_pair <- function(row, official_slots = NULL, rules = uefa_nl_2026_27_rules()) {
   stage_id <- as.character(row$stage_id[[1L]])
   high <- as.character(row$higher_league_team_id[[1L]])
   low <- as.character(row$lower_league_team_id[[1L]])
   if (is.na(high) || is.na(low) || !nzchar(high) || !nzchar(low) || identical(high, low)) return(NULL)
   pair <- data.frame(
-    tie_id = paste(stage_id, as.character(row$higher_league_rank[[1L]]), as.character(row$lower_league_rank[[1L]]), sep = "::"),
+    tie_id = uefa_nl_sim_row_value(row, "tie_id", paste(stage_id, as.character(row$higher_league_rank[[1L]]), as.character(row$lower_league_rank[[1L]]), sep = "::")),
     pair_index = 1L, legs = 2L, team_a = high, team_b = low,
     slot_a = paste0(as.character(row$higher_league), "-rank-", as.character(row$higher_league_rank)),
     slot_b = paste0(as.character(row$lower_league), "-rank-", as.character(row$lower_league_rank)),
@@ -1622,7 +1674,7 @@ uefa_nl_sim_transition_events <- function(transition_slots, playoff_results, ite
     }
     high <- as.character(source$higher_league_team_id[[1L]])
     low <- as.character(source$lower_league_team_id[[1L]])
-    tie_id <- paste(stage_id, as.character(source$higher_league_rank[[1L]]), as.character(source$lower_league_rank[[1L]]), sep = "::")
+    tie_id <- uefa_nl_sim_row_value(source, "tie_id", paste(stage_id, as.character(source$higher_league_rank[[1L]]), as.character(source$lower_league_rank[[1L]]), sep = "::"))
     resolved <- if (is.data.frame(playoff_results) && nrow(playoff_results)) playoff_results[playoff_results$stage_id == stage_id & playoff_results$tie_id == tie_id, , drop = FALSE] else data.frame(stringsAsFactors = FALSE, check.names = FALSE)
     stage_status <- if (nrow(resolved) == 1L) as.character(resolved$stage_status[[1L]]) else "unresolved"
     winner <- if (nrow(resolved) == 1L) as.character(resolved$winner_team_id[[1L]]) else NA_character_
@@ -1716,14 +1768,25 @@ uefa_nl_sim_iteration_paths <- function(
     eligibility <- if (cd_cancelled || cd_unresolved) NA_real_ else if (nrow(playoff_rows)) 1 else 0
     playoff_win <- if (nrow(playoff_rows) && any(as.character(playoff_rows$outcome_type) == "playoff_win", na.rm = TRUE)) 1 else if (nrow(playoff_rows) && any(as.character(playoff_rows$stage_status) == "unresolved", na.rm = TRUE)) NA_real_ else 0
     playoff_loss <- if (nrow(playoff_rows) && any(as.character(playoff_rows$outcome_type) == "playoff_loss", na.rm = TRUE)) 1 else if (nrow(playoff_rows) && any(as.character(playoff_rows$stage_status) == "unresolved", na.rm = TRUE)) NA_real_ else 0
+    total_move <- function(direction) {
+      direct <- transition_for(team, paste0("direct_", direction))
+      if (!is.finite(direct)) return(NA_real_)
+      if (direct == 1) return(1)
+      relevant <- if (direction == "promotion") playoff_rows[as.character(playoff_rows$lower_league_team_id) == team, , drop = FALSE] else
+        playoff_rows[as.character(playoff_rows$higher_league_team_id) == team, , drop = FALSE]
+      if (!nrow(relevant)) return(0)
+      if (any(is.na(relevant$stage_status) | relevant$stage_status != "completed")) return(NA_real_)
+      as.numeric(any(relevant$outcome_type == if (direction == "promotion") "playoff_win" else "playoff_loss"))
+    }
     data.frame(
       iteration = as.integer(iteration), team_id = team, league = leagues[[team]],
       p_quarter_final = qf[[team]], p_semi_final = semi[[team]], p_third_place = third_place[[team]],
       p_final = finalist[[team]], p_champion = champion[[team]],
+      p_promotion = total_move("promotion"), p_relegation = total_move("relegation"),
       p_direct_promotion = transition_for(team, "direct_promotion"),
       p_direct_relegation = transition_for(team, "direct_relegation"),
       p_playoff_eligibility = eligibility, p_playoff_win = playoff_win, p_playoff_loss = playoff_loss,
-      status = if (cd_cancelled) "suppressed" else if (cd_unresolved || any(c("unresolved", "blocked") %in% as.character(interim$ordering_status[match(interim$team_id, team)]))) "unresolved" else "projected",
+      status = if (cd_cancelled) "suppressed" else if (cd_unresolved || any(c("unresolved", "blocked") %in% as.character(interim$ordering_status[match(team, interim$team_id)]))) "unresolved" else "projected",
       suppression_reason = if (cd_cancelled) "c_d_playoff_cancelled" else "",
       stringsAsFactors = FALSE, check.names = FALSE
     )
@@ -1745,12 +1808,14 @@ uefa_nl_sim_iteration <- function(
     uefa_nl_select_transition_slots(interim, euro_playoff_eligibility, rules),
     error = function(error) data.frame(stringsAsFactors = FALSE, check.names = FALSE)
   )
-  cd <- tryCatch(uefa_nl_resolve_cd_playoff_cancellation(interim, euro_playoff_eligibility, rules), error = function(error) data.frame(stringsAsFactors = FALSE, check.names = FALSE))
+  cd <- tryCatch(if (uefa_nl_revised_transitions(rules)) data.frame() else uefa_nl_resolve_cd_playoff_cancellation(interim, euro_playoff_eligibility, rules), error = function(error) data.frame(stringsAsFactors = FALSE, check.names = FALSE))
   cd_status <- attr(cd, "cancellation_status", exact = TRUE) %||% "not_required"
   if (!identical(cd_status, "not_required") && nrow(transition_slots)) {
     transition_slots <- transition_slots[transition_slots$stage_id != "c_d_playoff", , drop = FALSE]
     transition_slots <- uefa_nl_sim_bind_rows(list(transition_slots, cd))
   }
+
+  transition_slots <- uefa_nl_sim_draw_playoffs(transition_slots, official_stage_slots, uefa_nl_sim_seed_for(seed, iteration = iteration, stage = "playoffs"), rules)
 
   official_qf <- official_stage_slots[official_stage_slots$stage_id == "league_a_quarter_final", , drop = FALSE]
   winners <- interim[as.character(interim$league) == "A" & as.integer(interim$group_position) == 1L, , drop = FALSE]
@@ -2016,7 +2081,7 @@ uefa_nl_sim_aggregate_standings <- function(iterations, simulation_count, metada
 uefa_nl_sim_aggregate_paths <- function(iterations, groups, simulation_count, metadata) {
   captures <- uefa_nl_sim_bind_rows(lapply(iterations, `[[`, "paths"))
   teams <- sort(as.character(groups$team_id), method = "radix")
-  path_fields <- c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win", "p_playoff_loss")
+  path_fields <- c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win", "p_playoff_loss", "p_promotion", "p_relegation")
   rows <- lapply(teams, function(team) {
     team_rows <- captures[as.character(captures$team_id) == team, , drop = FALSE]
     if (!nrow(team_rows)) return(data.frame(team_id = team, stringsAsFactors = FALSE, check.names = FALSE))
@@ -2174,7 +2239,7 @@ uefa_nl_run_simulation <- function(
     official_stage_slots = uefa_nl_sim_phase14_hash(normalized_slots, "official_stage_slots")
   )
   cutoff_utc <- uefa_nl_sim_cutoff(normalized_matches)
-  policy <- "phase15-article17-legal-draws-v1"
+  policy <- if (uefa_nl_revised_transitions(rules)) "phase15-articles16-17-legal-seeded-draws-v2" else "phase15-article17-legal-draws-v1"
   projection <- uefa_nl_sim_projection_ids("", policy, simulation_seed)
   metadata <- list(
     edition_id = rules$edition_id, projection_run_id = projection$projection_run_id,

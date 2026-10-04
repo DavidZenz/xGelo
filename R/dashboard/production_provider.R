@@ -11,6 +11,7 @@ phase17_provider_source_authorities <- function(project_root) {
   target <- if (exists("phase17_cli_env", inherits = TRUE)) get("phase17_cli_env", inherits = TRUE) else parent.frame()
   files <- c(
     "R/competition/publication_hashes.R", "R/competition/source_contracts.R",
+    "R/competition/uefa_nations_league_rules.R", "R/competition/uefa_nations_league_rule_inputs.R", "R/competition/standings.R",
     "R/competition/edition_registry.R", "R/competition/team_identity.R",
     "R/release/release_contract.R", "R/competition/state_bundle.R",
     "R/competition/forecast_layer.R", "R/competition/uefa_euro_rules.R",
@@ -178,15 +179,61 @@ phase17_provider_metadata <- function(source, state, outcomes, registry, edition
   )
 }
 
+phase17_provider_nl_fixtures <- function(project_root, source) {
+  fixtures <- source$tables$fixtures
+  manifest <- source$manifest
+  fields <- c("artifact_type", "relative_local_raw_path", "raw_sha256")
+  if (!all(fields %in% names(manifest)) || !"uefa_source_fixture_id" %in% names(fixtures)) return(fixtures)
+  evidence <- manifest[manifest$artifact_type == "fixtures", , drop = FALSE]
+  if (nrow(evidence) != 1L) stop("Nations League fixtures require unique accepted matchday evidence", call. = FALSE)
+  path <- file.path(project_root, as.character(evidence$relative_local_raw_path[[1L]]))
+  if (!file.exists(path) || !identical(digest::digest(file = path, algo = "sha256"), as.character(evidence$raw_sha256[[1L]]))) {
+    stop("Nations League matchday evidence does not match its accepted hash", call. = FALSE)
+  }
+  # The accepted canonical CSV omits matchday. Carry the official sequence
+  # from its already accepted raw capture at the dashboard adapter boundary.
+  raw <- jsonlite::fromJSON(path, simplifyVector = FALSE)
+  ids <- vapply(raw, function(row) as.character(row$id %||% ""), character(1))
+  days <- vapply(raw, function(row) suppressWarnings(as.integer(row$matchday$sequenceNumber %||% NA_integer_)), integer(1))
+  indexes <- match(as.character(fixtures$uefa_source_fixture_id), ids)
+  if (anyDuplicated(ids) || anyNA(indexes) || anyNA(days[indexes]) || any(!days[indexes] %in% 1:6)) {
+    stop("Nations League accepted matchday coverage is incomplete", call. = FALSE)
+  }
+  fixtures$matchday <- days[indexes]
+  fixtures
+}
+
+phase17_provider_nl_current_standings <- function(project_root, source, state) {
+  inputs <- phase15_nl_read_rule_inputs(project_root = project_root)
+  topology <- uefa_nl_build_topology(groups = source$tables$groups, fixtures = source$tables$fixtures,
+                                    access_list = inputs$access_list, discipline_points = inputs$discipline_points,
+                                    project_root = project_root)
+  matches <- source$tables$results
+  groups <- split(topology$teams, as.character(topology$teams$group_id))
+  frames <- lapply(groups, function(teams) {
+    rows <- matches[as.character(matches$group_id) == as.character(teams$group_id[[1L]]), , drop = FALSE]
+    ranked <- uefa_nl_build_group_standings_state(rows, discipline_points = teams[c("team_id", "discipline_points")],
+      access_list = teams[c("team_id", "access_list_position")], group_id = teams$group_id[[1L]],
+      rules = uefa_nl_2026_27_rules(), team_ids = as.character(teams$team_id),
+      state_cutoff_utc = if ("retrieved_at_utc" %in% names(source$manifest)) max(as.character(source$manifest$retrieved_at_utc)) else as.character(source$bundle$accepted_at_utc[[1L]]),
+      edition_id = source$edition_id, source_bundle_id = as.character(source$bundle$bundle_id[[1L]]))$standings
+    ranked$league <- as.character(teams$league[[1L]])
+    ranked$current_position <- ranked$group_position
+    ranked
+  })
+  do.call(rbind, frames)
+}
+
 phase17_provider_bundle <- function(project_root, edition_id, source, state, outcomes, registry) {
   source_tables <- source$tables
   state_tables <- state$artifacts
   outcome_tables <- outcomes$artifacts
   metadata <- phase17_provider_metadata(source, state, outcomes, registry, edition_id)
   artifacts <- list(
+    current_standings = if (edition_id == "uefa_nations_league_2026_27") phase17_provider_alias_rows(phase17_provider_nl_current_standings(project_root, source, state), edition_id) else data.frame(),
     structure = phase17_provider_alias_rows(source_tables$groups, edition_id),
     standings = phase17_provider_alias_rows(if (nrow(state_tables[["state/standings.csv"]])) state_tables[["state/standings.csv"]] else outcome_tables[["outcomes/projected_standings.csv"]], edition_id),
-    fixtures = phase17_provider_alias_rows(source_tables$fixtures, edition_id),
+    fixtures = phase17_provider_alias_rows(if (edition_id == "uefa_nations_league_2026_27") phase17_provider_nl_fixtures(project_root, source) else source_tables$fixtures, edition_id),
     results = phase17_provider_alias_rows(source_tables$results, edition_id),
     form = phase17_provider_alias_rows(if (nrow(state_tables[["state/competition_form.csv"]])) state_tables[["state/competition_form.csv"]] else outcome_tables[["outcomes/fixture_forecast_form.csv"]], edition_id),
     forecasts = phase17_provider_alias_rows(outcome_tables[["outcomes/fixture_forecast_form.csv"]], edition_id),

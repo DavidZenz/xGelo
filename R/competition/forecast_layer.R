@@ -1340,7 +1340,9 @@ phase14_build_fixture_forecasts <- function(
     predict_fn = predict_registered_baseline,
     generated_at_utc = NULL,
     compact_top_n = 10L,
-    support_max = 40L) {
+    support_max = 40L,
+    invalid_score_support = c("error", "suppress")) {
+  invalid_score_support <- match.arg(invalid_score_support)
   if (!is.data.frame(canonical_matches)) stop("Phase 14 fixture forecasts require a data frame", call. = FALSE)
   if ("case_id" %in% names(canonical_matches) && "expected_status_row_count" %in% names(canonical_matches)) {
     return(phase14_forecast_legacy_cases(canonical_matches))
@@ -1453,6 +1455,7 @@ phase14_build_fixture_forecasts <- function(
   }
 
   forecasts <- list()
+  unsupported_fixture_ids <- character()
   distributions <- data.frame(stringsAsFactors = FALSE)
   top10 <- data.frame(stringsAsFactors = FALSE)
   if (length(eligible_rows) && !identical(lifecycle, "pre_draw") && is.null(release_reason) && !length(missing_active)) {
@@ -1467,18 +1470,29 @@ phase14_build_fixture_forecasts <- function(
     if (!is.list(prediction) || !is.data.frame(prediction$distributions) || !is.data.frame(prediction$predictions)) {
       stop("Phase 14 approved release model prediction output is incomplete", call. = FALSE)
     }
-    validate_benchmark_score_distributions(
+    # Keep the sealed G=40 support and tolerance. Cross-league hypothetical
+    # pairings may exceed that support; only an explicit caller can request
+    # per-fixture suppression, with no renormalized invalid grid published.
+    if (identical(invalid_score_support, "suppress")) {
+      tails <- prediction$distributions$raw_tail_mass
+      invalid <- !is.finite(tails) | tails < 0 | tails > 1e-10
+      unsupported_ids <- unique(as.character(prediction$distributions$score_distribution_id[invalid]))
+      unsupported_fixture_ids <- sub("__score$", "", unsupported_ids)
+      prediction$distributions <- prediction$distributions[!prediction$distributions$score_distribution_id %in% unsupported_ids, , drop = FALSE]
+      prediction$predictions <- prediction$predictions[!prediction$predictions$fixture_id %in% unsupported_fixture_ids, , drop = FALSE]
+    }
+    if (nrow(prediction$distributions)) validate_benchmark_score_distributions(
       prediction$distributions,
       expected_distribution_ids = unique(as.character(prediction$distributions$score_distribution_id)),
       support_max = support_max
     )
-    expected_prediction_ids <- as.character(adapted$fixture_id)
+    expected_prediction_ids <- setdiff(as.character(adapted$fixture_id), unsupported_fixture_ids)
     if (anyDuplicated(as.character(prediction$predictions$fixture_id)) ||
         !setequal(as.character(prediction$predictions$fixture_id), expected_prediction_ids)) {
       stop("Phase 14 forecast prediction output silently dropped or duplicated fixture IDs", call. = FALSE)
     }
     distributions <- prediction$distributions
-    forecasts <- lapply(seq_len(nrow(adapted)), function(row) {
+    forecasts <- lapply(which(!as.character(adapted$fixture_id) %in% unsupported_fixture_ids), function(row) {
       fixture_id <- as.character(adapted$fixture_id[[row]])
       grid <- distributions[as.character(distributions$score_distribution_id) == paste0(fixture_id, "__score"), , drop = FALSE]
       if (!nrow(grid)) stop("Phase 14 forecast prediction output is missing score grid for fixture: ", fixture_id, call. = FALSE)
@@ -1530,12 +1544,12 @@ phase14_build_fixture_forecasts <- function(
       row$modal_away_goals <- as.integer(row$modal_away_goals)
       phase14_forecast_batch_hash_row(row)
     })
-    forecasts <- do.call(rbind, forecasts)
-    top10 <- do.call(rbind, lapply(seq_len(nrow(forecasts)), function(index) {
+    forecasts <- if (length(forecasts)) do.call(rbind, forecasts) else data.frame(stringsAsFactors = FALSE)
+    top10 <- if (nrow(forecasts)) do.call(rbind, lapply(seq_len(nrow(forecasts)), function(index) {
       fixture_id <- forecasts$fixture_id[[index]]
       grid <- distributions[as.character(distributions$score_distribution_id) == paste0(fixture_id, "__score"), , drop = FALSE]
       phase14_forecast_batch_top10(forecasts[index, , drop = FALSE], grid, compact_top_n)
-    }))
+    })) else data.frame(stringsAsFactors = FALSE)
   } else {
     forecasts <- data.frame(stringsAsFactors = FALSE)
   }
@@ -1546,6 +1560,7 @@ phase14_build_fixture_forecasts <- function(
     status <- if (identical(reason, "eligible")) {
       if (!is.null(release_reason)) release_reason else if (length(missing_active)) "feature_evidence_unavailable" else "none"
     } else reason
+    if (fallback$fixture_id %in% unsupported_fixture_ids) status <- "score_support_unavailable"
     available <- identical(status, "none")
     if (available) {
       forecast <- forecasts[as.character(forecasts$fixture_id) == as.character(fallback$fixture_id), , drop = FALSE]

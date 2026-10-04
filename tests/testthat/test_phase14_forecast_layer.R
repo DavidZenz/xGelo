@@ -793,3 +793,35 @@ test_that("batch forecast resolves release, features, and prediction exactly onc
   expect_equal(nrow(result$forecasts), 2L)
   expect_equal(length(unique(result$forecasts$score_distribution_id)), 2L)
 })
+
+
+test_that("explicit support suppression preserves valid forecasts and never publishes invalid grids", {
+  inputs <- phase14_forecast_tracer_release_inputs()
+  matches <- phase14_forecast_tracer_match()
+  matches <- rbind(matches, matches)
+  matches$fixture_id <- matches$match_id <- c("supported-pair", "unsupported-pair")
+  prediction <- function(fit, fixtures, support_max) {
+    out <- predict_registered_baseline(fit, fixtures, support_max)
+    out$distributions$raw_tail_mass[out$distributions$score_distribution_id == "unsupported-pair__score"] <- 0.01
+    out
+  }
+  args <- c(list(canonical_matches = matches, team_registry = phase14_forecast_tracer_registry(),
+                 predict_fn = prediction), inputs)
+  expect_error(do.call(phase14_build_fixture_forecasts, args), "omitted tail")
+  out <- do.call(phase14_build_fixture_forecasts, c(args, list(invalid_score_support = "suppress")))
+  expect_identical(out$forecasts$fixture_id, "supported-pair")
+  expect_identical(unique(out$score_distributions$score_distribution_id), "supported-pair__score")
+  expect_equal(out$forecasts$score_support_max, 40L)
+  expect_equal(nrow(out$fixture_status), 2L)
+  status <- out$fixture_status[out$fixture_status$fixture_id == "unsupported-pair", , drop = FALSE]
+  expect_identical(status$forecast_status, "suppressed")
+  expect_identical(status$suppression_reason, "score_support_unavailable")
+  prediction_all <- function(fit, fixtures, support_max) {
+    out <- prediction(fit, fixtures, support_max); out$distributions$raw_tail_mass <- 0.01; out
+  }
+  args$predict_fn <- prediction_all
+  all_missing <- do.call(phase14_build_fixture_forecasts, c(args, list(invalid_score_support = "suppress")))
+  expect_equal(nrow(all_missing$forecasts), 0L)
+  expect_equal(nrow(all_missing$score_distributions), 0L)
+  expect_true(all(all_missing$fixture_status$suppression_reason == "score_support_unavailable"))
+})

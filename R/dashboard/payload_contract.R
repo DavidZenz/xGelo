@@ -390,6 +390,7 @@ phase17_normalize_metadata <- function(bundle, batch_id = "phase17-fixture-batch
     generated_at_utc = phase17_bundle_scalar(bundle, "generated_at_utc", "2026-08-25T00:00:00Z"),
     last_refresh_at_utc = phase17_bundle_scalar(bundle, "source_retrieved_at_utc", "2026-08-25T00:00:00Z"),
     source_confidence = phase17_bundle_scalar(bundle, "source_confidence", "unknown"),
+    accepted_data_cutoff_utc = phase17_bundle_scalar(bundle, "source_retrieved_at_utc", ""),
     source_bundle_id = phase17_bundle_scalar(bundle, "source_bundle_id"),
     source_bundle_sha256 = phase17_bundle_scalar(bundle, "source_bundle_sha256"),
     model_release_id = phase17_bundle_scalar(bundle, "model_release_id"),

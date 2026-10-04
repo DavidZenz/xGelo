@@ -80,7 +80,7 @@ phase15_nl_outcomes_schema <- function() {
       "edition_id", "projection_run_id", "team_id", "league", "p_quarter_final",
       "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion",
       "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win",
-      "p_playoff_loss", "status", "suppression_reason", "simulation_count",
+      "p_playoff_loss", "p_promotion", "p_relegation", "status", "suppression_reason", "simulation_count",
       "simulation_seed", "ruleset_version", "ruleset_sha256", "source_bundle_id",
       "model_release_id", "row_sha256"
     ),
@@ -564,7 +564,7 @@ phase15_nl_read_phase14_state_bundle <- function(
 
 phase15_nl_rules_lineage <- function(rules = NULL) {
   rules <- rules %||% if (exists("uefa_nl_2026_27_rules", mode = "function", inherits = TRUE)) uefa_nl_2026_27_rules() else list()
-  version <- if (exists("uefa_nl_ruleset_version", mode = "function", inherits = TRUE)) uefa_nl_ruleset_version() else phase15_nl_text(rules$ruleset_version, "phase15-nations-league-rules-v1")
+  version <- phase15_nl_text(rules$ruleset_version, if (exists("uefa_nl_ruleset_version", mode = "function", inherits = TRUE)) uefa_nl_ruleset_version() else "phase15-nations-league-rules-v1")
   hash <- if (exists("uefa_nl_ruleset_sha256", mode = "function", inherits = TRUE)) {
     uefa_nl_ruleset_sha256(rules)
   } else {
@@ -1477,7 +1477,15 @@ phase15_validate_nl_outcomes_bundle <- function(bundle) {
   for (path in setdiff(expected, "outcomes/outcomes_manifest.csv")) {
     key <- phase15_nl_artifact_key(path)
     key <- sub("\\.csv$", "", key)
-    phase15_nl_require_schema(artifacts[[path]], schemas[[key]], path)
+    schema <- schemas[[key]]
+    # Read archived v2 paths without inventing total move probabilities or
+    # changing the bytes on which their existing lineage hashes depend.
+    if (identical(key, "team_path_probabilities") &&
+        identical(as.character(bundle$ruleset_version), "uefa-nations-league-2026-27-v2") &&
+        !any(c("p_promotion", "p_relegation") %in% names(artifacts[[path]]))) {
+      schema <- setdiff(schema, c("p_promotion", "p_relegation"))
+    }
+    phase15_nl_require_schema(artifacts[[path]], schema, path)
     table <- artifacts[[path]]
     if (nrow(table) && any(as.character(table$edition_id) != phase15_nl_edition_id())) stop("Phase 15 outcomes artifact has a foreign edition: ", path, call. = FALSE)
     if (nrow(table) && any(!grepl("^[0-9a-fA-F]{64}$", as.character(table$row_sha256)))) stop("Phase 15 outcomes artifact has invalid row hashes: ", path, call. = FALSE)
@@ -1503,10 +1511,33 @@ phase15_validate_nl_outcomes_bundle <- function(bundle) {
   for (scope in names(ranking_scopes)) {
     rows <- rankings[as.character(rankings$ranking_scope) == scope, , drop = FALSE]
     phase15_nl_validate_probability_groups(rows, ranking_scopes[[scope]], paste0("projected rankings (", scope, ")"))
+    phase15_nl_validate_probability_groups(rows, c("ranking_scope", "team_id"), paste0("projected rankings per team (", scope, ")"))
   }
-  for (field in c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win", "p_playoff_loss")) {
+  for (field in c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win", "p_playoff_loss", "p_promotion", "p_relegation")) {
     values <- suppressWarnings(as.numeric(as.character(artifacts[["outcomes/team_path_probabilities.csv"]][[field]])))
     if (any(!is.na(values) & (values < 0 | values > 1))) stop("Team path probability is outside [0,1]: ", field, call. = FALSE)
+  }
+  paths <- artifacts[["outcomes/team_path_probabilities.csv"]]
+  for (pair in list(c("p_champion", "p_final"), c("p_final", "p_semi_final"),
+                    c("p_semi_final", "p_quarter_final"), c("p_direct_promotion", "p_promotion"),
+                    c("p_direct_relegation", "p_relegation"))) {
+    if (!all(pair %in% names(paths))) next
+    small <- suppressWarnings(as.numeric(paths[[pair[[1L]]]])); large <- suppressWarnings(as.numeric(paths[[pair[[2L]]]]))
+    valid <- is.finite(small) & is.finite(large)
+    if (any(small[valid] > large[valid] + 1e-8)) stop("Team path probabilities do not reconcile: ", paste(pair, collapse = " <= "), call. = FALSE)
+  }
+  if (identical(as.character(bundle$ruleset_version), "uefa-nations-league-2026-27-v3")) {
+    paths <- as.data.frame(paths, stringsAsFactors = FALSE)
+    probability_fields <- grep("^p_", names(paths), value = TRUE)
+    paths[probability_fields] <- lapply(paths[probability_fields], function(value) suppressWarnings(as.numeric(value)))
+    a <- paths[paths$league == "A", , drop = FALSE]
+    expected_totals <- c(p_quarter_final = 8, p_semi_final = 4, p_final = 2, p_champion = 1)
+    if (nrow(a) == 16L) for (field in names(expected_totals)) {
+      if (all(is.finite(a[[field]])) && abs(sum(a[[field]]) - expected_totals[[field]]) > 1e-8) stop("League A stage probability total mismatch: ", field, call. = FALSE)
+    }
+    win <- paths$p_playoff_win; loss <- paths$p_playoff_loss; eligibility <- paths$p_playoff_eligibility
+    valid <- is.finite(win) & is.finite(loss) & is.finite(eligibility)
+    if (any(abs(win[valid] + loss[valid] - eligibility[valid]) > 1e-8)) stop("Play-off win/loss probabilities do not reconcile", call. = FALSE)
   }
   phase15_nl_validate_outcomes_manifest(manifest, artifacts, bundle)
   invisible(TRUE)

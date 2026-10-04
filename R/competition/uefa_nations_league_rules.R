@@ -5,7 +5,7 @@
 #' remains the arithmetic seam for later ranking adapters.
 
 uefa_nl_ruleset_version <- function() {
-  "uefa-nations-league-2026-27-v2"
+  "uefa-nations-league-2026-27-v3"
 }
 
 uefa_nl_edition_id <- function() {
@@ -113,8 +113,8 @@ uefa_nl_rules_canonical_object <- function(value) {
   uefa_nl_rules_scalar(value)
 }
 
-uefa_nl_2026_27_rules <- function() {
-  ruleset_version <- uefa_nl_ruleset_version()
+uefa_nl_2026_27_legacy_rules <- function() {
+  ruleset_version <- "uefa-nations-league-2026-27-v2"
   list(
     edition_id = uefa_nl_edition_id(),
     ruleset_version = ruleset_version,
@@ -297,6 +297,33 @@ uefa_nl_2026_27_rules <- function() {
       regulation_rank_universe_is_source_derived = TRUE
     )
   )
+}
+
+# The superseded contract remains explicit for replaying archived v2 evidence.
+# Production always resolves the revised regulations effective 15 September.
+uefa_nl_2026_27_rules <- function() {
+  rules <- uefa_nl_2026_27_legacy_rules()
+  rules$ruleset_version <- uefa_nl_ruleset_version()
+  rules$transition_revision <- "2026-09-15"
+  rules$rule_evidence <- list(
+    effective_date = "2026-09-15", verified_on = "2026-10-04",
+    article_16 = "https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27/Article-16-Match-system-play-offs-Online",
+    article_19 = "https://documents.uefa.com/r/Regulations-of-the-UEFA-Nations-League-2026/27/Article-19-Individual-league-interim-overall-and-final-overall-rankings-Online"
+  )
+  rules$transitions$direct_promotion$D_to_C <- "all_teams"
+  rules$transitions$direct_relegation <- list(A_to_B = "interim_overall_ranks_15_16")
+  rules$transitions$play_offs$a_b_playoff$higher_ranks <- 11:14
+  rules$transitions$play_offs$b_c_playoff$higher_ranks <- 29:32
+  rules$transitions$play_offs$c_d_playoff <- NULL
+  rules$stages$c_d_playoff <- NULL
+  rules$article_12$downstream_stages <- setdiff(rules$article_12$downstream_stages, "c_d_playoff")
+  rules$source_admission$c_d_external_eligibility <- "not_applicable"
+  rules$article_19$next_edition_league_sizes <- c(A = 18L, B = 18L)
+  rules
+}
+
+uefa_nl_revised_transitions <- function(rules) {
+  identical(rules$transition_revision, "2026-09-15")
 }
 
 uefa_nl_stage_topology <- function(rules = uefa_nl_2026_27_rules()) {
@@ -1907,6 +1934,20 @@ uefa_nl_rank_final_overall <- function(
     rankings$final_ranking_status <- "ready"
     rankings$final_stage_status <- "pre_finals"
   } else {
+    revised <- uefa_nl_revised_transitions(rules)
+    if (revised) {
+      containers <- rep(NA_character_, nrow(rankings))
+      rank <- rankings$interim_rank
+      containers[rank %in% 1:8] <- NA_character_
+      containers[rank %in% 9:10] <- "a_stable_band"
+      containers[rank %in% 15:16] <- "a_relegation_band"
+      containers[rank %in% 17:20] <- "a_b_band"
+      containers[rank %in% 25:28] <- "b_stable_band"
+      containers[rank %in% 33:36] <- "b_c_band"
+      containers[rank %in% 41:44] <- "c_stable_band"
+      containers[rank %in% 45:48] <- "c_fourth_band"
+      containers[rank >= 49L] <- "d_stable_band"
+    } else {
     containers <- rep(NA_character_, nrow(rankings))
     rank <- rankings$interim_rank
     containers[rank >= 1L & rank <= 4L] <- "quarter_final_winner"
@@ -1925,6 +1966,7 @@ uefa_nl_rank_final_overall <- function(
     containers[rank >= 49L & rank <= 50L] <- "c_d_band"
     containers[rank >= 51L & rank <= 52L] <- "c_relegation_band"
     containers[rank >= 53L] <- "d_stable_band"
+    }
     assignment_error <- FALSE
     assignment_missing <- character()
     apply_outcomes <- function(stage_id, winner_container, loser_container = winner_container) {
@@ -1952,10 +1994,20 @@ uefa_nl_rank_final_overall <- function(
     apply_outcomes("league_a_quarter_final", "quarter_final_winner", "quarter_final_loser")
     apply_outcomes("a_b_playoff", "a_b_band", "a_relegation_band")
     apply_outcomes("b_c_playoff", "b_c_band", "b_relegation_band")
-    apply_outcomes("c_d_playoff", "c_d_band", "c_relegation_band")
+    if (!revised) apply_outcomes("c_d_playoff", "c_d_band", "c_relegation_band")
     if (assignment_error || anyNA(containers)) return(uefa_nl_rank_final_blocked(rankings, unique(c(assignment_missing, "stage_participants")), rules))
     starts <- c(quarter_final_winner = 1L, quarter_final_loser = 5L, a_b_band = 9L, a_relegation_band = 17L, b_c_band = 25L, b_relegation_band = 33L, c_stable_band = 41L, c_d_band = 45L, c_relegation_band = 49L, d_stable_band = 53L)
     widths <- c(quarter_final_winner = 4L, quarter_final_loser = 4L, a_b_band = 8L, a_relegation_band = 8L, b_c_band = 8L, b_relegation_band = 8L, c_stable_band = 4L, c_d_band = 4L, c_relegation_band = 4L, d_stable_band = 3L)
+    if (revised) {
+      starts <- c(quarter_final_winner = 1L, quarter_final_loser = 5L, a_stable_band = 9L,
+                  a_b_band = 11L, a_relegation_band = 19L, b_stable_band = 25L,
+                  b_c_band = 29L, b_relegation_band = 37L, c_stable_band = 41L,
+                  c_fourth_band = 45L, d_stable_band = 49L)
+      widths <- c(quarter_final_winner = 4L, quarter_final_loser = 4L, a_stable_band = 2L,
+                  a_b_band = 8L, a_relegation_band = 6L, b_stable_band = 4L,
+                  b_c_band = 8L, b_relegation_band = 4L, c_stable_band = 4L,
+                  c_fourth_band = 4L, d_stable_band = sum(rankings$league == "D"))
+    }
     final_rank <- rep(NA_integer_, nrow(rankings))
     for (container in names(starts)) {
       indexes <- which(containers == container)
@@ -2035,6 +2087,7 @@ uefa_nl_resolve_cd_playoff_cancellation <- function(
     interim_rankings,
     euro_playoff_eligibility,
     rules = uefa_nl_2026_27_rules()) {
+  if (uefa_nl_revised_transitions(rules)) return(data.frame(stringsAsFactors = FALSE))
   rules <- uefa_nl_rank_rules(rules)
   rankings <- uefa_nl_rank_bind_group_standings(interim_rankings)
   if (!"interim_rank" %in% names(rankings) && "interim_overall_rank" %in% names(rankings)) rankings$interim_rank <- as.integer(rankings$interim_overall_rank)
@@ -2166,17 +2219,18 @@ uefa_nl_select_transition_slots <- function(
     lower_id <- if (source == lower) row$team_id[[1L]] else NA_character_
     append_row(uefa_nl_transition_row(edition_id, "direct_transition", transition_type, source, higher, lower, higher_id, lower_id, row$team_id[[1L]], if (source == higher) row$interim_rank[[1L]] else NA_integer_, if (source == lower) row$interim_rank[[1L]] else NA_integer_, row$group_id[[1L]] %||% NA_character_, row$group_position[[1L]] %||% group_position, row$interim_rank[[1L]], eligibility_status = "not_applicable", selection_status = "selected", rules = rules))
   }
+  revised <- uefa_nl_revised_transitions(rules)
   for (league in c("B", "C", "D")) {
     target <- c(B = "A", C = "B", D = "C")[[league]]
-    winners <- rankings[rankings$league == league & rankings$group_position == 1L, , drop = FALSE]
+    winners <- rankings[rankings$league == league & (rankings$group_position == 1L | (revised & league == "D")), , drop = FALSE]
     if (nrow(winners)) for (row_index in seq_len(nrow(winners))) make_direct(league, target, "direct_promotion", winners[row_index, , drop = FALSE], winners$interim_rank[[row_index]], 1L)
   }
-  for (league in c("A", "B")) {
+  for (league in if (revised) "A" else c("A", "B")) {
     target <- c(A = "B", B = "C")[[league]]
-    fourth <- rankings[rankings$league == league & rankings$group_position == 4L, , drop = FALSE]
+    fourth <- rankings[rankings$league == league & rankings$group_position == 4L & (!revised | rankings$interim_rank %in% 15:16), , drop = FALSE]
     if (nrow(fourth)) for (row_index in seq_len(nrow(fourth))) make_direct(league, target, "direct_relegation", fourth[row_index, , drop = FALSE], fourth$interim_rank[[row_index]], 4L)
   }
-  for (rank in c(47L, 48L)) {
+  for (rank in if (revised) integer() else c(47L, 48L)) {
     row <- lookup_rank("C", rank)
     make_direct("C", "D", "direct_relegation", row, rank, if (nrow(row)) row$group_position[[1L]] else NA_integer_)
   }
@@ -2208,12 +2262,12 @@ uefa_nl_select_transition_slots <- function(
       ))
     }
   }
-  make_pairs("a_b_playoff", "A", "B", 9:12, 21:24, "a_b_playoff")
-  make_pairs("b_c_playoff", "B", "C", 25:28, 37:40, "b_c_playoff")
-  make_pairs("c_d_playoff", "C", "D", 45:46, 51:52, "c_d_playoff", conditional = TRUE)
+  make_pairs("a_b_playoff", "A", "B", rules$transitions$play_offs$a_b_playoff$higher_ranks, 21:24, "a_b_playoff")
+  make_pairs("b_c_playoff", "B", "C", rules$transitions$play_offs$b_c_playoff$higher_ranks, 37:40, "b_c_playoff")
+  if (!revised) make_pairs("c_d_playoff", "C", "D", 45:46, 51:52, "c_d_playoff", conditional = TRUE)
   if (!length(rows)) return(data.frame(stringsAsFactors = FALSE))
   output <- do.call(rbind, rows)
-  cancellation <- uefa_nl_resolve_cd_playoff_cancellation(rankings, euro_playoff_eligibility, rules)
+  cancellation <- if (revised) data.frame() else uefa_nl_resolve_cd_playoff_cancellation(rankings, euro_playoff_eligibility, rules)
   if (nrow(cancellation) && any(cancellation$cd_playoff_status == "cancelled")) {
     output <- output[output$stage_id != "c_d_playoff", , drop = FALSE]
     for (field in setdiff(names(cancellation), names(output))) output[[field]] <- NA

@@ -247,6 +247,19 @@ simulations by default, and four bounded parallel workers:
 XGELO_NL_SIMULATIONS=1000 XGELO_NL_WORKERS=4 scripts/auto_update_nations_league_dashboard.sh
 ```
 
+The Nations League Outlook compares title chances with the chance of reaching
+the four-team Finals. Each group stacks projected standings, current standings
+and accepted fixtures. Promotion and relegation include play-off results;
+play-off participation overlaps those outcomes, so these columns do not sum to
+100%. Zero is displayed as `0.0%`, positive values below 0.1% as `<0.1%`, and
+unavailable probabilities as `—`.
+
+The active format follows UEFA's revised 15 September 2026 regulations
+(`uefa-nations-league-2026-27-v3`): all League D teams move to League C, with no
+C/D play-offs. Final allocations use three leagues, with 18 teams in A, 18 in B,
+and the remaining teams in C. The source evidence is pinned in
+`data/competition/rules/nl_2026_27_transition_evidence_v3.json`.
+
 For a daily local cron job at 09:30:
 
 ```cron

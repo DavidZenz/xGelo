@@ -14,6 +14,7 @@ phase17_payload_nations_league <- function(bundle, batch_id = "phase17-fixture-b
   payload <- phase17_neutral_payload(bundle, phase17_section_ids(), batch_id = batch_id)
   # Keep the public section order stable while carrying accepted Nations
   # League progression artifacts for the competition-specific views.
+  payload$current_standings <- phase17_bundle_rows(bundle, "current_standings")
   payload$progression_probabilities <- phase17_bundle_rows(bundle, "progression_probabilities")
   payload$tournament_tree <- phase17_bundle_rows(bundle, "tournament_tree")
   payload$tournament_topology <- phase17_bundle_rows(bundle, "tournament_topology")
