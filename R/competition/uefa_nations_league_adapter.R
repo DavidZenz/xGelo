@@ -18,6 +18,10 @@ phase14_uefa_nl_source_page_url <- function() {
   "https://www.uefa.com/uefanationsleague/fixtures-results/"
 }
 
+phase14_uefa_nl_article_url <- function() {
+  "https://www.uefa.com/uefanationsleague/news/02a2-1fea18abbcbc-456e846509e7-1000--2026-27-uefa-nations-league-all-the-league-phase-fixtures-a/"
+}
+
 phase14_uefa_nl_bundle_id <- function() {
   "nl-2026-27-official-uefa-v2"
 }
@@ -368,11 +372,175 @@ phase14_uefa_nl_adapt_raw_bytes <- function(raw_bytes, artifact_type) {
   if (!requireNamespace("jsonlite", quietly = TRUE)) stop("jsonlite is required for the UEFA adapter", call. = FALSE)
   raw_bytes <- if (is.raw(raw_bytes)) raw_bytes else charToRaw(enc2utf8(as.character(raw_bytes)))
   payload <- jsonlite::fromJSON(rawToChar(raw_bytes), simplifyVector = FALSE)
+  if (is.list(payload) && identical(payload$schema_version, "uefa-nl-article-capture-v1")) {
+    if (!identical(payload$source_url, phase14_uefa_nl_article_url())) {
+      stop("Official UEFA article capture has an unexpected source URL", call. = FALSE)
+    }
+    baseline <- jsonlite::base64_dec(phase14_uefa_nl_scalar(payload$baseline_raw_base64, "baseline bytes"))
+    article <- jsonlite::base64_dec(phase14_uefa_nl_scalar(payload$article_raw_base64, "article bytes"))
+    baseline_payload <- jsonlite::fromJSON(rawToChar(baseline), simplifyVector = FALSE)
+    payload <- phase14_uefa_nl_overlay_article(baseline_payload, article)
+  }
   adapted <- phase14_uefa_nl_adapt_response(payload)
   if (!artifact_type %in% names(adapted$resources)) {
     stop("Official UEFA Nations League adapter does not expose resource: ", artifact_type, call. = FALSE)
   }
   adapted$resources[[artifact_type]]
+}
+
+phase14_uefa_nl_article_matches <- function(article_raw, payload) {
+  if (!requireNamespace("xml2", quietly = TRUE)) stop("xml2 is required for the UEFA article fallback", call. = FALSE)
+  if (!is.raw(article_raw) || !length(article_raw) || length(article_raw) > 3e6) {
+    stop("Official UEFA results article is empty or exceeds the byte limit", call. = FALSE)
+  }
+  document <- xml2::read_html(rawToChar(article_raw), encoding = "UTF-8")
+  title <- xml2::xml_text(xml2::xml_find_first(document, "//h1"))
+  if (!grepl("2026/27 UEFA Nations League", title, fixed = TRUE)) {
+    stop("Official UEFA results article has an unexpected title", call. = FALSE)
+  }
+  anchors <- xml2::xml_find_all(document, "//a[contains(@href, '/uefanationsleague/match/')]")
+  hrefs <- xml2::xml_attr(anchors, "href")
+  ids <- sub(".*?/uefanationsleague/match/([0-9]+).*", "\\1", hrefs)
+  keep <- grepl("/uefanationsleague/match/[0-9]+", hrefs)
+  ids <- ids[keep]
+  anchors <- anchors[keep]
+  labels <- trimws(gsub("[[:space:]]+", " ", xml2::xml_text(anchors)))
+  if (anyDuplicated(ids) || length(ids) != length(payload) ||
+      !setequal(ids, vapply(payload, function(match) as.character(match$id[[1L]]), character(1)))) {
+    stop("Official UEFA results article does not cover the exact accepted fixture IDs", call. = FALSE)
+  }
+  score_pattern <- "[0-9]+[[:space:]]*[-–][[:space:]]*[0-9]+"
+  scores <- vector("list", length(payload))
+  names(scores) <- ids
+  for (index in seq_along(ids)) {
+    match <- payload[[match(ids[[index]], vapply(payload, function(item) as.character(item$id[[1L]]), character(1)))]]
+    label <- labels[[index]]
+    found <- gregexpr(score_pattern, label, perl = TRUE)[[1L]]
+    if (length(found) != 1L || (length(found) == 1L && found[[1L]] < 0L)) {
+      if (grepl("[0-9]+[[:space:]]*[-–][[:space:]]*[0-9]+", label, perl = TRUE)) {
+        stop("Official UEFA article has an ambiguous match score", call. = FALSE)
+      }
+      score <- c(NA_integer_, NA_integer_)
+      pieces <- strsplit(label, "[[:space:]]+vs[[:space:]]+", perl = TRUE)[[1L]]
+      if (length(pieces) != 2L) stop("Official UEFA article has an unrecognized fixture label: ", ids[[index]], call. = FALSE)
+    } else {
+      token <- regmatches(label, gregexpr(score_pattern, label, perl = TRUE))[[1L]][[1L]]
+      score <- as.integer(strsplit(gsub("[[:space:]]", "", token), "[-–]")[[1L]])
+      pieces <- c(
+        trimws(substr(label, 1L, found[[1L]] - 1L)),
+        trimws(substr(label, found[[1L]] + attr(found, "match.length")[[1L]], nchar(label)))
+      )
+    }
+    expected <- c(phase14_uefa_nl_team_display_name(match$homeTeam), phase14_uefa_nl_team_display_name(match$awayTeam))
+    if (!identical(phase14_uefa_nl_normalize_name(pieces), phase14_uefa_nl_normalize_name(expected))) {
+      stop("Official UEFA article team labels disagree with fixture ID: ", ids[[index]], call. = FALSE)
+    }
+    scores[[ids[[index]]]] <- score
+  }
+  scores
+}
+
+phase14_uefa_nl_overlay_article <- function(payload, article_raw) {
+  phase14_uefa_nl_validate_response(payload)
+  scores <- phase14_uefa_nl_article_matches(article_raw, payload)
+  for (index in seq_along(payload)) {
+    id <- as.character(payload[[index]]$id[[1L]])
+    score <- scores[[id]]
+    old_status <- toupper(as.character(payload[[index]]$status[[1L]]))
+    if (anyNA(score)) {
+      if (old_status %in% c("FINISHED", "LIVE")) {
+        stop("Official UEFA results article omits a completed or live score: ", id, call. = FALSE)
+      }
+      next
+    }
+    payload[[index]]$status <- "FINISHED"
+    payload[[index]]$score <- list(
+      regular = list(home = score[[1L]], away = score[[2L]]),
+      total = list(home = score[[1L]], away = score[[2L]])
+    )
+  }
+  phase14_uefa_nl_validate_response(payload)
+  payload
+}
+
+phase14_uefa_nl_baseline_raw <- function(project_root = ".") {
+  registry <- utils::read.csv(file.path(project_root, "data/competition/registries/source_artifacts.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  selected <- registry[as.character(registry$bundle_id) == phase14_uefa_nl_bundle_id() &
+    as.character(registry$artifact_type) == "fixtures", , drop = FALSE]
+  if (nrow(selected) != 1L) stop("Official UEFA article fallback requires one accepted fixture artifact", call. = FALSE)
+  relative <- as.character(selected$relative_local_raw_path[[1L]])
+  if (is.na(relative) || !grepl("^data/competition/local_raw/uefa_nations_league_2026_27/[^/]+/fixtures\\.json$", relative)) {
+    stop("Official UEFA article fallback has an unsafe fixture raw path", call. = FALSE)
+  }
+  path <- file.path(project_root, relative)
+  bytes <- readBin(path, "raw", n = file.info(path)$size)
+  if (!identical(digest::digest(bytes, algo = "sha256", serialize = FALSE),
+    tolower(as.character(selected$raw_sha256[[1L]])))) {
+    stop("Official UEFA article fallback fixture raw hash mismatch", call. = FALSE)
+  }
+  parsed <- jsonlite::fromJSON(rawToChar(bytes), simplifyVector = FALSE)
+  if (is.list(parsed) && identical(parsed$schema_version, "uefa-nl-article-capture-v1")) {
+    bytes <- jsonlite::base64_dec(phase14_uefa_nl_scalar(parsed$baseline_raw_base64, "baseline bytes"))
+  }
+  phase14_uefa_nl_validate_response(jsonlite::fromJSON(rawToChar(bytes), simplifyVector = FALSE))
+  bytes
+}
+
+phase14_uefa_nl_validate_against_accepted <- function(payload, project_root = ".") {
+  accepted_root <- file.path(project_root, "data/competition/accepted/uefa_nations_league_2026_27")
+  fixtures <- utils::read.csv(file.path(accepted_root, "fixtures.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  results <- utils::read.csv(file.path(accepted_root, "results.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  ids <- vapply(payload, function(match) as.character(match$id[[1L]]), character(1))
+  if (nrow(fixtures) != length(ids) || nrow(results) != length(ids) ||
+      !setequal(as.character(fixtures$uefa_source_fixture_id), ids) ||
+      !setequal(as.character(results$uefa_source_fixture_id), ids)) {
+    stop("Official UEFA article fallback disagrees with the accepted fixture inventory", call. = FALSE)
+  }
+  fixture_rows <- fixtures[match(ids, as.character(fixtures$uefa_source_fixture_id)), , drop = FALSE]
+  result_rows <- results[match(ids, as.character(results$uefa_source_fixture_id)), , drop = FALSE]
+  for (index in seq_along(payload)) {
+    match <- payload[[index]]
+    current <- fixture_rows[index, , drop = FALSE]
+    if (!identical(as.character(match$homeTeam$id[[1L]]), as.character(current$home_uefa_source_team_id[[1L]])) ||
+        !identical(as.character(match$awayTeam$id[[1L]]), as.character(current$away_uefa_source_team_id[[1L]])) ||
+        !identical(as.character(match$kickOffTime$dateTime[[1L]]), as.character(current$scheduled_at_utc[[1L]]))) {
+      stop("Official UEFA article fallback would change accepted fixture identity or kickoff", call. = FALSE)
+    }
+    if (identical(as.character(result_rows$match_status[[index]]), "completed") &&
+        !identical(as.character(match$status[[1L]]), "FINISHED")) {
+      stop("Official UEFA article fallback would remove an accepted completed result", call. = FALSE)
+    }
+  }
+  invisible(payload)
+}
+
+phase14_uefa_nl_fetch_article <- function(url = phase14_uefa_nl_article_url(), max_attempts = 3L) {
+  if (!identical(url, phase14_uefa_nl_article_url())) stop("Official UEFA article URL is not allowlisted", call. = FALSE)
+  last_error <- ""
+  for (attempt in seq_len(min(as.integer(max_attempts), 3L))) {
+    response <- tryCatch({
+      request <- httr2::request(url)
+      request <- httr2::req_headers(request, Accept = "text/html")
+      httr2::req_perform(httr2::req_timeout(request, seconds = 15))
+    }, error = function(error) { last_error <<- conditionMessage(error); NULL })
+    if (!is.null(response)) {
+      status <- httr2::resp_status(response)
+      if (status == 200L) {
+        content_type <- tolower(httr2::resp_header(response, "content-type") %||% "")
+        if (!grepl("^text/html(;|$)", content_type)) stop("Official UEFA article response is not HTML", call. = FALSE)
+        bytes <- httr2::resp_body_raw(response)
+        if (!length(bytes) || length(bytes) > 3e6) stop("Official UEFA article response exceeds the byte limit", call. = FALSE)
+        return(list(raw_bytes = bytes, source_url = url))
+      }
+      last_error <- paste("HTTP", status)
+      if (!status %in% c(429L, 500L, 502L, 503L, 504L)) break
+    }
+    if (attempt < max_attempts) Sys.sleep(min(8, 2 ^ (attempt - 1L)))
+  }
+  stop("Official UEFA article fallback fetch failed: ", last_error, call. = FALSE)
 }
 
 phase14_uefa_nl_validate_payload <- function(payload, artifact_type = "fixtures") {
@@ -397,7 +565,9 @@ phase14_uefa_nl_live_input <- function(
     fetch_fn,
     clock_fn = function() as.numeric(Sys.time()),
     sleep_fn = Sys.sleep,
-    rate_limit_state = NULL) {
+    rate_limit_state = NULL,
+    article_fetch_fn = phase14_uefa_nl_fetch_article,
+    project_root = ".") {
   if (!is.function(fetch_fn)) stop("Official UEFA Nations League acquisition requires a fetch function", call. = FALSE)
   url <- options[["uefa-matches-url"]] %||% options[["uefa_matches_url"]] %||% phase14_uefa_nl_matches_url()
   url <- phase14_uefa_nl_scalar(url, "matches URL")
@@ -417,7 +587,36 @@ phase14_uefa_nl_live_input <- function(
   if (!is.null(request_headers) && ("request_headers" %in% fetch_formals || "..." %in% fetch_formals)) {
     fetch_args$request_headers <- request_headers
   }
-  captured <- do.call(fetch_fn, fetch_args)
+  primary_error <- NULL
+  captured <- tryCatch(do.call(fetch_fn, fetch_args), error = function(error) {
+    primary_error <<- error
+    NULL
+  })
+  if (!is.null(primary_error)) {
+    if (!startsWith(conditionMessage(primary_error), "Phase 13 structured URL capture failed for fixtures")) {
+      stop(primary_error)
+    }
+    article <- article_fetch_fn(phase14_uefa_nl_article_url())
+    if (!is.list(article) || !is.raw(article$raw_bytes) ||
+        !identical(article$source_url, phase14_uefa_nl_article_url())) {
+      stop("Official UEFA article fetch did not return exact bytes from the allowlisted URL", call. = FALSE)
+    }
+    baseline_raw <- phase14_uefa_nl_baseline_raw(project_root)
+    baseline <- jsonlite::fromJSON(rawToChar(baseline_raw), simplifyVector = FALSE)
+    overlaid <- phase14_uefa_nl_overlay_article(baseline, article$raw_bytes)
+    phase14_uefa_nl_validate_against_accepted(overlaid, project_root)
+    composite <- list(
+      schema_version = "uefa-nl-article-capture-v1",
+      source_url = phase14_uefa_nl_article_url(),
+      baseline_raw_base64 = jsonlite::base64_enc(baseline_raw),
+      article_raw_base64 = jsonlite::base64_enc(article$raw_bytes)
+    )
+    captured <- list(
+      payload = overlaid,
+      raw_bytes = charToRaw(as.character(jsonlite::toJSON(composite, auto_unbox = TRUE))),
+      source_url = phase14_uefa_nl_article_url()
+    )
+  }
   if (!is.list(captured) || is.null(captured$payload) || is.null(captured$raw_bytes)) {
     stop("Official UEFA Nations League fetch did not return a payload and exact raw bytes", call. = FALSE)
   }
@@ -433,7 +632,11 @@ phase14_uefa_nl_live_input <- function(
     raw_bytes_by_resource = setNames(rep(list(captured$raw_bytes), length(resource_types)), resource_types),
     retrieved_at_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     official_endpoint = source_url,
-    source_page_url = phase14_uefa_nl_source_page_url()
+    source_page_url = if (identical(source_url, phase14_uefa_nl_article_url())) {
+      phase14_uefa_nl_article_url()
+    } else {
+      phase14_uefa_nl_source_page_url()
+    }
   )
 }
 
