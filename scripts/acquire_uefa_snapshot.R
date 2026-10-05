@@ -2,8 +2,9 @@
 
 # Bounded Phase 13 source capture.  This entrypoint accepts either committed
 # compact fixtures or one operator-supplied URL per structured resource class.
-# It never parses rendered page text and never publishes a candidate before the
-# complete edition-wide bundle has passed the source contract.
+# The fixed UEFA Nations League article is a bounded, validated fallback for
+# results when the structured endpoint cannot be retrieved. No candidate is
+# published before the complete edition-wide bundle passes the source contract.
 
 phase13_acquire_command_args <- commandArgs(trailingOnly = FALSE)
 phase13_acquire_script_args <- phase13_acquire_command_args[grepl("^--file=", phase13_acquire_command_args)]
@@ -1056,7 +1057,8 @@ phase13_acquire_candidate <- function(options, edition_id, project_root = phase1
   input <- if (official_uefa_nations_league) {
     phase14_uefa_nl_live_input(
       options = options,
-      fetch_fn = phase13_acquire_fetch_structured_url
+      fetch_fn = phase13_acquire_fetch_structured_url,
+      project_root = project_root
     )
   } else if (!is.null(options[["fixture-dir"]])) {
     phase13_acquire_fixture_input(options[["fixture-dir"]], edition_id, options[["fixture-file"]])
@@ -2182,7 +2184,9 @@ phase13_acquire_source_handoff_from_raw_store <- function(
       parsed <- phase13_acquire_empty_resource(artifact_type)
     }
     official_uefa_nations_league <- identical(edition_id, phase14_uefa_nl_edition_id()) &&
-      any(as.character(artifact$source_url) == phase14_uefa_nl_matches_url())
+      any(as.character(artifact$source_url) %in% c(
+        phase14_uefa_nl_matches_url(), phase14_uefa_nl_article_url()
+      ))
     if (official_uefa_nations_league) {
       parsed <- phase14_uefa_nl_adapt_raw_bytes(raw_bytes, artifact_type)
     }
