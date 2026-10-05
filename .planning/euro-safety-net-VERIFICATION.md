@@ -43,4 +43,10 @@ Validated the rebuilt ten-artifact outcome bundle, wrote it atomically, and vali
 - Nations League HTML SHA-256: `ebef3765ba0fd289d2718defcc240944765ecb2e05015662ace24537e2bd9415`
 - Published HTML hash equals the inspected preview hash.
 
-Local publication is complete. No live push or remote deployment was requested. UCL, unrelated GSD milestone state, and unrelated working-tree changes are preserved.
+The initial local publication was complete before the user subsequently authorized merge and online deployment. UCL, unrelated GSD milestone state, and unrelated working-tree changes are preserved.
+
+## Authorized merge publication preflight
+
+The latest `master` refresh (`26753e0`) contributes 86 completed results. A fresh hash-verified UEFA capture at `2026-10-05T08:29:50Z` preserves every fixture/result football value from that refresh. Rebuilt state and all ten outcome artifacts with the same model, seed and 1,000 simulations. Two-worker replay, complete queue, probability reconciliation and atomic read-back passed. All 32 forecast/priority metric columns exactly match the previously validated rebuild from master’s original capture.
+
+Three publication regression suites passed 478 expectations (zero failures/errors). Browser verifies 54 EURO rows, 86 Results and 156 Fixtures, plus mobile containment and sticky team cells. Batch `phase17-4369b1ed55723354348633f1` was validated and atomically promoted; Nations League HTML SHA-256 is `38fc1b73aba1cd1aa77da90270eb00ecd8349b057263359e043f5742f6e503f3`. Merge/push and live Pages read-back follow this commit.
