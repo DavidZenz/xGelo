@@ -233,6 +233,7 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
   if (edition_id == "uefa_nations_league_2026_27" && is.data.frame(queue) && nrow(queue)) {
     metadata$priority_policy_version <- as.character(queue$priority_policy_version[[1L]])
     metadata$priority_policy_sha256 <- as.character(queue$priority_policy_sha256[[1L]])
+    metadata$outcomes_manifest_sha256 <- as.character(outcomes$manifest_sha256)
   }
   artifacts <- list(
     current_standings = if (edition_id == "uefa_nations_league_2026_27") phase17_provider_alias_rows(phase17_provider_nl_current_standings(project_root, source, state), edition_id) else data.frame(),

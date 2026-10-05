@@ -683,10 +683,14 @@ test_that("temporary schema-v2 standings publication is loader-valid", {
   expect_identical(publication$durable_after$sha256, publication$durable_before$sha256)
   expect_identical(publication$durable_after$bytes, publication$durable_before$bytes)
   expect_identical(publication$raw_after, publication$raw_before)
-  expect_identical(
-    publication$source_artifacts_after[order(publication$source_artifacts_after$artifact_id), setdiff(names(publication$source_artifacts_after), c("row_sha256", "canonical_content_sha256")), drop = FALSE],
-    publication$source_artifacts_before[order(publication$source_artifacts_before$artifact_id), setdiff(names(publication$source_artifacts_before), c("row_sha256", "canonical_content_sha256")), drop = FALSE]
-  )
+  registry_values <- function(rows) {
+    rows <- rows[order(rows$artifact_id), setdiff(names(rows), c("row_sha256", "canonical_content_sha256")), drop = FALSE]
+    # CSV read-back resets row names; compare the registry values and ordering.
+    row.names(rows) <- NULL
+    rows
+  }
+  expect_identical(registry_values(publication$source_artifacts_after),
+                   registry_values(publication$source_artifacts_before))
   snapshots <- attr(publication$loaded, "accepted_snapshots")
   for (edition_id in phase14_standings_test_api(acquire, "phase13_publication_editions")()) {
     path <- file.path(publication$sandbox$accepted_root, edition_id, "standings.csv")

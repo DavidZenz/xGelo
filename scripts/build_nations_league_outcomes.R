@@ -610,7 +610,8 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
     model_lineage = state_bundle$model_lineage,
     state_manifest_sha256 = state_bundle$state_manifest_sha256,
     euro_playoff_eligibility = NULL,
-    official_stage_slots = loaded$stage_capture$stage_capture
+    official_stage_slots = loaded$stage_capture$stage_capture,
+    cutoff_utc = max(as.character(loaded$source$manifest$accepted_at_utc))
   )
   candidate <- phase15_build_nl_outcomes_candidate(
     simulation = simulation,

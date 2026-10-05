@@ -21,6 +21,7 @@ phase17_payload_nations_league <- function(bundle, batch_id = "phase17-fixture-b
   queue <- phase17_bundle_rows(bundle, "euro_priority_queue")
   first <- if (length(queue)) queue[[1L]] else list()
   for (field in intersect(c("priority_policy_version", "priority_policy_sha256"), names(first))) payload$metadata[[field]] <- first[[field]]
+  if (!is.null(bundle$outcomes_manifest_sha256)) payload$metadata$outcomes_manifest_sha256 <- bundle$outcomes_manifest_sha256
   fields <- c("priority_policy_version", "priority_policy_sha256", "cutoff_utc", "simulation_count", "simulation_seed",
               "projection_run_id", "source_bundle_id", "source_bundle_sha256", "model_release_id")
   payload$euro_safety_net <- list(

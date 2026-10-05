@@ -1,34 +1,46 @@
 # EURO 2028 Nations League priority outlook verification
 
-Implementation date: 5 October 2026. Scope: active Nations League dashboard, independent Article 16 priority policy, joint per-iteration queue, optional dashboard payload, ten-file outcome inventory with explicit nine-file compatibility.
+Completed 5 October 2026. Scope: active Nations League dashboard, independent Article 16 priority policy, joint per-iteration queue, optional dashboard payload, ten-file outcome inventory with explicit nine-file compatibility.
 
-## Automated checks
+## Authorized cutoff correction
 
-- Priority policy/calculation/renderer contract: 8 cases, 58 expectations passed. Covers interim rather than final ranks; complete queue permutations; 14 group winners and 13 priority winners; correlated simulation aggregation; type-1 empirical percentiles; metric-specific availability without renormalization; D winner selection without requiring non-winners' ranks; zero/sub-0.1%/missing formatting; unrounded sorting; policy-bound publication identity.
-- Nations League simulation replay and unavailable inputs: 31 expectations passed, including missing score grids, unavailable completed results, known group/interim evidence with unresolved knockout results, RNG preservation and worker parity.
-- Dashboard regression suite: 28 cases, 216 expectations passed. Existing missing-upstream warning; no failures/errors.
-- Existing revised Nations League rules/group/outlook coverage: 11 cases, 197 expectations passed.
-- State bundle production inventory: 22 expectations passed with the module isolated from global scalar helper collisions.
-- CLI foreign/conflicting modes: 7 expectations passed with the R executable on PATH.
-- Atomic publisher rollback/hash/inventory checks: 12 expectations passed.
-- Production CLI acceptance reached 183 passing expectations, then exposed legacy outcome writer round-trip failure. Fixed the writer to preserve the recognized incumbent inventory; explicit old-bundle write/read-back now passes with unchanged manifest content hashes.
-- Approved input two-iteration replay: serial and two-worker builds produced identical CSV bytes and hashes for every outcome artifact.
-- `git diff --check` passes.
+The user requested “fix cutoff and rebuild”. The simulator previously parsed an RFC3339 cutoff as midnight and omitted ten accepted results on 2 October. It now parses full UTC time, including fractional seconds, and production builds pass the accepted source cutoff `2026-10-03T01:00:32Z`. All 70 completed results count; the remaining 86 matches remain scheduled. Shared standings timestamp parsing now preserves the same boundary.
 
-## Browser checks so far
+The corrected rebuild retains `phase14-open-nb-incumbent-calibrated-v1`, seed 15017, and 1,000 simulations. Approved source/state/model inputs and the precomputed model handoff were unchanged. Fixture forecast probabilities and expected goals are exactly equal to the incumbent, and all fixture forecast and topology row hashes match; their published files remain unchanged. Aggregate standings, rankings, stage slots, transitions and team paths changed as authorized. The cutoff is hashed in simulation inputs; the rebuilt outcome manifest is bound to the new dashboard batch identity.
 
-Codex in-app browser, legacy artifact preview: direct `#euro-2028` navigation; 54 accepted teams and flags; 216 reasoned unavailable cells; League D filter returns six teams; Germany search returns one; unmatched search displays the empty-results message. Independent match views still contain 156 fixtures and 70 results. Keyboard tab activation works.
+## Automated verification
 
-At 390 × 844, document width remains 390px, the table panel is 360px, and its 828px content stays in the horizontal scroller. Team cells are sticky and keyboard ArrowRight scrolls the focusable panel.
+Five rerun suites passed 1,166 expectations with no failures or errors:
 
-## Publication status
+- Priority/cutoff/renderer contract: 9 cases, 65 expectations. Includes interim rather than final ranks, complete permutations, 14 group winners and 13 priority winners, correlated aggregation, empirical percentiles, metric-specific missing-input propagation without renormalization, D winner selection, zero/sub-0.1%/missing formatting, unrounded sorting, full fractional-second cutoff boundaries, policy and outcome-bound batch identity.
+- Nations League outcomes and production CLI: 41 cases, 630 expectations. Includes legal draws, deterministic worker replay, unavailable score grids/results, explicit legacy compatibility, fresh production dry-run/replay and immutable accepted inputs.
+- Dashboard regression: 28 cases, 216 expectations. One existing missing-Git-upstream warning; no failures.
+- Shared standings: 13 cases, 236 expectations. A test compared CSV row names rather than registry values; its comparison now resets row names while still checking ordered values.
+- Existing cutoff suite: 5 cases, 19 expectations.
 
-Pending final production rebuild, populated desktop/mobile inspection, manifest/hash checks and atomic promotion/read-back. The incumbent publication has not been promoted by this work.
+Approved-input two-iteration builds with one and two workers produced identical CSV bytes and hashes for every artifact. The final build used eight workers. Production output has 54 complete queue rows; group-winning probabilities sum to 14, winner-priority probabilities to 13, and expected queue positions to 1,485. Title, quarter-final and Finals probabilities sum to 1, 8 and 4 respectively.
 
-## Cutoff issue requiring a decision
+Additional adversarial contract checks passed: current inventory requires the queue; recognized legacy inventory remains readable; mismatched queue policy hashes, manifest policy parent hashes and out-of-range ranks fail validation. Injected outcome read-back failure restores incumbent hashes. `git diff --check` passes.
 
-The existing `uefa_nl_sim_prepare_iteration_matches()` compares completion evidence with `as.POSIXct(cutoff_utc, tz = "UTC")`. With its RFC3339 cutoff, this R version interprets the value as midnight, omitting ten accepted results on 2 October. The production input has 70 completed results; only 60 are counted in those iterations. Its inferred simulation cutoff is `2026-10-02T20:39:55.914999Z`, while the accepted source cutoff is `2026-10-03T01:00:32Z`.
+## Browser verification
 
-The new queue correctly treats missing group inputs as unavailable. Correcting the underlying cutoff changes the existing Nations League probabilities, conflicting with the requested unchanged forecasts. User choice requested: fix and rebuild forecasts, or preserve existing forecasts and expose affected priority aggregates as unavailable. No publication decision has been assumed.
+Codex in-app browser, populated dashboard:
 
-The pinned Safari-version gate has not been run; browser checks above use the Codex in-app browser. UCL and unrelated GSD milestone state are unchanged.
+- Direct `#euro-2028` navigation selects the tab. All 54 teams display resolved metrics and flags. Seven genuine-zero probability cells remain visible. The leading order is Portugal, Spain, France, Switzerland and Austria, matching unrounded means.
+- League D returns six rows; Germany search returns one with its original average queue position of 13.7. Unmatched search shows the empty-results message; clearing restores all 54 rows.
+- Enter opens Portugal’s accessible range disclosure, showing a 10–90% range of 1–3. Probability cells and league badges have minimum computed contrast 6.54:1.
+- At 1440 × 900, the table is aligned with no document overflow. At 390 × 844, document width is 390px, the panel is 360px, and its 828px content remains within its focusable horizontal scroller. Keyboard ArrowRight moves the panel by 40px; the team column stays sticky.
+- Separate Fixtures and Results views still show 156 and 70 matches. Keyboard section navigation works. The EURO qualifying link opens the companion’s unchanged `pre_draw` state.
+
+Desktop and mobile screenshots are saved in the task visualization directory. The pinned Safari-version gate was not run; these responsive checks use the Codex in-app browser.
+
+## Publication
+
+Validated the rebuilt ten-artifact outcome bundle, wrote it atomically, and validated read-back. Staged both existing dashboard routes, checked exact inventory and file limits, inspected the preview, copied the validated candidate into the publication filesystem parent, and promoted under the existing batch lock with read-back validation.
+
+- Batch: `phase17-fde29c8f279d24294ca5cd58`
+- Accepted cutoff: `2026-10-03T01:00:32Z`
+- Nations League HTML SHA-256: `ebef3765ba0fd289d2718defcc240944765ecb2e05015662ace24537e2bd9415`
+- Published HTML hash equals the inspected preview hash.
+
+Local publication is complete. No live push or remote deployment was requested. UCL, unrelated GSD milestone state, and unrelated working-tree changes are preserved.

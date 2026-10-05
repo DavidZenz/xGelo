@@ -2063,6 +2063,7 @@ test_that("simulation replay preserves RNG, hashes, and probability mass", {
   worker_result <- do.call(uefa_nl_run_simulation, worker_inputs)
   expect_identical(first$euro_priority_queue, worker_result$euro_priority_queue)
   expect_identical(first$team_path_probabilities, worker_result$team_path_probabilities)
+  expect_true(all(is.finite(first$euro_priority_queue$expected_queue_position)))
   # This fixture omits downstream stage distributions. Give all completed
   # group evidence a cutoff on the following day to test independence from
   # unresolved knockout results without relying on an implicit cutoff.

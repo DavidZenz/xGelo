@@ -70,7 +70,12 @@ phase14_standings_timestamp <- function(values, field) {
   present <- !is.na(values)
   if (!any(present)) return(output)
 
-  parsed <- suppressWarnings(as.POSIXct(values[present], tz = "UTC"))
+  text <- values[present]
+  parsed <- suppressWarnings(as.POSIXct(text, tz = "UTC"))
+  # Base R's automatic parser can accept only the date prefix of RFC3339
+  # values. Preserve the full time and fractional seconds at this boundary.
+  rfc3339 <- grepl("T.*Z$", text)
+  parsed[rfc3339] <- suppressWarnings(as.POSIXct(text[rfc3339], format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
   if (any(is.na(parsed))) {
     stop("Phase 14 standings ", field, " contains an invalid UTC timestamp", call. = FALSE)
   }

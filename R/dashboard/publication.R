@@ -66,7 +66,7 @@ phase17_batch_identity <- function(payloads = NULL, bundles = NULL, batch_id = N
     fields <- c("edition_id", "source_bundle_id", "source_bundle_sha256", "model_release_id",
             "release_manifest_sha256", "ruleset_version", "ruleset_sha256", "simulation_seed",
             "simulation_count", "projection_run_id")
-    fields <- c(fields, intersect(c("priority_policy_version", "priority_policy_sha256"), names(value)))
+    fields <- c(fields, intersect(c("priority_policy_version", "priority_policy_sha256", "outcomes_manifest_sha256"), names(value)))
     value[fields]
   })
   paste0("phase17-", substr(phase17_sha256_raw(phase17_canonical_bytes(metadata)), 1L, 24L))

@@ -28,6 +28,21 @@ test_that("Article 16 policy is pinned separately and mirrors evidence", {
   expect_false(identical(api$uefa_euro_priority_policy_sha256(changed), api$uefa_euro_priority_policy_sha256()))
 })
 
+test_that("RFC3339 cutoffs preserve cutoff-day results and fractional boundaries", {
+  api <- euro_priority_api()
+  matches <- data.frame(stage_id="league_phase", match_status="completed",
+    evidence_completed_at_utc=c("2026-10-02T20:39:55.914Z", "2026-10-02T20:39:55.915Z", "2026-10-02T20:39:55.916Z"),
+    final_home_goals=1L, final_away_goals=0L)
+  rows <- api$uefa_nl_sim_prepare_iteration_matches(matches,"2026-10-02T20:39:55.915Z")
+  expect_identical(rows$counts_for_standings,c(TRUE,TRUE,FALSE))
+  expect_true(all(api$uefa_nl_sim_prepare_iteration_matches(matches,"2026-10-03T01:00:32Z")$counts_for_standings))
+  expect_error(api$uefa_nl_sim_prepare_iteration_matches(matches,NA_character_),"cutoff is missing")
+  expect_error(api$uefa_nl_sim_prepare_iteration_matches(matches,"not-a-timestamp"),"timestamp is invalid")
+  parsed <- api$phase14_standings_timestamp(matches$evidence_completed_at_utc,"evidence")
+  cutoff <- api$phase14_standings_timestamp("2026-10-02T20:39:55.915Z","cutoff")
+  expect_identical(parsed <= cutoff,c(TRUE,TRUE,FALSE))
+})
+
 test_that("each joint queue is a complete permutation using interim rankings", {
   api <- euro_priority_api(); interim <- euro_priority_interim()
   set.seed(23); rng <- .Random.seed
@@ -128,6 +143,11 @@ test_that("optional safety-net payload preserves sections and binds policy to ba
   expect_false(identical(original,policy_batch))
   bundle$priority_policy_sha256 <- paste(rep("a",64),collapse="")
   expect_false(identical(policy_batch,api$phase17_batch_identity(bundles=list(bundle))))
+  bundle$outcomes_manifest_sha256 <- paste(rep("b",64),collapse="")
+  outcome_batch <- api$phase17_batch_identity(bundles=list(bundle))
+  bundle$outcomes_manifest_sha256 <- paste(rep("c",64),collapse="")
+  expect_false(identical(outcome_batch,api$phase17_batch_identity(bundles=list(bundle))))
+  expect_identical(api$phase17_payload_nations_league(bundle)$metadata$outcomes_manifest_sha256,bundle$outcomes_manifest_sha256)
 })
 
 test_that("dashboard sorts unrounded means, exposes ranges and keeps filter namespaces separate", {

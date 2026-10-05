@@ -247,6 +247,11 @@ simulations by default, and four bounded parallel workers:
 XGELO_NL_SIMULATIONS=1000 XGELO_NL_WORKERS=4 scripts/auto_update_nations_league_dashboard.sh
 ```
 
+Production simulations use the accepted source cutoff in UTC, preserving the
+time and fractional seconds. Completed results at or before that cutoff count
+towards the standings; later evidence stays excluded. The cutoff is bound to
+simulation input hashes and rebuilt outcomes to the dashboard batch identity.
+
 The Nations League Outlook compares title chances with the chance of reaching
 the four-team Finals. Each group stacks projected standings, current standings
 and accepted fixtures. Promotion and relegation include play-off results;

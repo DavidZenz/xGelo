@@ -1411,6 +1411,8 @@ uefa_nl_sim_cutoff <- function(matches) {
 }
 
 uefa_nl_sim_prepare_iteration_matches <- function(matches, cutoff_utc) {
+  cutoff <- uefa_nl_sim_parse_timestamp(cutoff_utc)
+  if (is.na(cutoff)) stop("Nations League simulation cutoff is missing", call. = FALSE)
   output <- as.data.frame(matches, stringsAsFactors = FALSE, check.names = FALSE)
   if (!"state_cutoff_utc" %in% names(output)) output$state_cutoff_utc <- cutoff_utc
   output$state_cutoff_utc <- cutoff_utc
@@ -1424,7 +1426,7 @@ uefa_nl_sim_prepare_iteration_matches <- function(matches, cutoff_utc) {
     qualifies <- output$stage_id[[index]] == "league_phase" &&
       uefa_nl_sim_status_is_completed(output$match_status[[index]]) &&
       uefa_nl_sim_score_present(output[index, , drop = FALSE]) &&
-      !is.na(evidence) && evidence <= as.POSIXct(cutoff_utc, tz = "UTC")
+      !is.na(evidence) && evidence <= cutoff
     output$counts_for_standings[[index]] <- isTRUE(qualifies)
   }
   output
@@ -2217,7 +2219,7 @@ uefa_nl_run_simulation <- function(
     score_distributions, groups, rules = uefa_nl_2026_27_rules(), simulation_count = 1000L,
     seed = 15017L, workers = 1L, source_bundle_id, source_bundle_sha256, model_release_id,
     model_lineage = list(), state_manifest_sha256, euro_playoff_eligibility = NULL,
-    official_stage_slots = NULL) {
+    official_stage_slots = NULL, cutoff_utc = NULL) {
   count <- uefa_nl_sim_normalize_count(simulation_count)
   worker_count <- uefa_nl_sim_normalize_workers(workers, count)
   simulation_seed <- uefa_nl_sim_normalize_seed(seed)
@@ -2250,7 +2252,12 @@ uefa_nl_run_simulation <- function(
     groups = uefa_nl_sim_phase14_hash(normalized_groups, "groups"),
     official_stage_slots = uefa_nl_sim_phase14_hash(normalized_slots, "official_stage_slots")
   )
-  cutoff_utc <- uefa_nl_sim_cutoff(normalized_matches)
+  cutoff_utc <- if (is.null(cutoff_utc)) uefa_nl_sim_cutoff(normalized_matches) else {
+    value <- uefa_nl_sim_scalar_text(cutoff_utc, "cutoff_utc")
+    if (is.na(uefa_nl_sim_parse_timestamp(value))) stop("Nations League simulation cutoff is missing", call. = FALSE)
+    value
+  }
+  canonical_input_hashes$simulation_cutoff <- uefa_nl_sim_hash_data(cutoff_utc)
   policy <- if (uefa_nl_revised_transitions(rules)) "phase15-articles16-17-legal-seeded-draws-v2" else "phase15-article17-legal-draws-v1"
   projection <- uefa_nl_sim_projection_ids("", policy, simulation_seed)
   metadata <- list(
