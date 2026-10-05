@@ -16,7 +16,12 @@ phase15_nl_edition_id <- function() {
   "uefa_nations_league_2026_27"
 }
 
-phase15_nl_outcomes_expected_inventory <- function() {
+if (!exists("uefa_euro_validate_priority", mode = "function", inherits = TRUE)) {
+  priority_root <- if (exists("uefa_nl_rules_project_root", mode = "function")) uefa_nl_rules_project_root(".") else "."
+  sys.source(file.path(priority_root, "R/competition/uefa_euro_priority.R"), envir = environment())
+}
+
+phase15_nl_outcomes_expected_inventory <- function(legacy = FALSE) {
   file.path(
     "outcomes",
     c(
@@ -27,10 +32,20 @@ phase15_nl_outcomes_expected_inventory <- function() {
       "transition_outcomes.csv",
       "team_path_probabilities.csv",
       "fixture_forecast_form.csv",
+      if (!legacy) "euro_priority_queue.csv",
       "simulation_metadata.csv",
       "outcomes_manifest.csv"
     )
   )
+}
+
+phase15_nl_bundle_inventory <- function(artifacts) {
+  current <- phase15_nl_outcomes_expected_inventory()
+  if (is.list(artifacts) && setequal(names(artifacts), current)) return(current)
+  legacy <- phase15_nl_outcomes_expected_inventory(legacy = TRUE)
+  if (is.list(artifacts) && setequal(names(artifacts), legacy) &&
+      !"outcomes_inventory_version" %in% names(artifacts[["outcomes/simulation_metadata.csv"]])) return(legacy)
+  stop("Phase 15 outcomes bundle has an incomplete or unsupported inventory", call. = FALSE)
 }
 
 phase15_nl_outcomes_schema <- function() {
@@ -99,7 +114,16 @@ phase15_nl_outcomes_schema <- function() {
       "parent_canonical_matches_sha256", "parent_forecast_status_sha256",
       "parent_forecasts_sha256", "parent_score_distributions_sha256", "row_sha256"
     ),
+    euro_priority_queue = c(
+      "edition_id", "projection_run_id", "team_id", "league", "group_id",
+      "p_group_winner", "p_group_winner_reason", "p_winner_priority", "p_winner_priority_reason",
+      "expected_interim_rank", "expected_interim_rank_reason", "expected_queue_position", "expected_queue_position_reason",
+      "queue_position_p10", "queue_position_p90", "status", "priority_policy_version", "priority_policy_sha256",
+      "simulation_count", "simulation_seed", "cutoff_utc", "source_bundle_id", "source_bundle_sha256",
+      "model_release_id", "ruleset_version", "ruleset_sha256", "row_sha256"
+    ),
     simulation_metadata = c(
+      "outcomes_inventory_version",
       "edition_id", "projection_run_id", "simulation_seed", "simulation_count",
       "probability_sampling_policy", "scoreline_conditioning_policy",
       "penalty_resolution_policy", "draw_policy_id", "draw_policy_sha256",
@@ -882,6 +906,7 @@ phase15_nl_build_simulation_metadata <- function(simulation, state, source, rule
     for (field in setdiff(schema, "row_sha256")) if (field %in% names(input)) output[[field]] <- input[[field]][[1L]]
   }
   output$edition_id <- phase15_nl_edition_id()
+  output$outcomes_inventory_version <- "phase15-nl-outcomes-v2"
   output$projection_run_id <- common$projection_run_id
   output$simulation_seed <- common$simulation_seed
   output$simulation_count <- common$simulation_count
@@ -925,6 +950,7 @@ phase15_nl_parent_graph_from_state <- function(
   put("source_bundle_manifest", source$source_manifest_path %||% "data/competition/accepted/uefa_nations_league_2026_27/source_bundle_manifest.csv", source$source_bundle_sha256)
   put("source_bundle", "data/competition/registries/source_bundles.csv", source$source_bundle_sha256)
   put("ruleset", "rules/uefa_nations_league_ruleset", rules_lineage$ruleset_sha256)
+  put("euro_priority_policy", "rules/uefa_euro_priority_policy", uefa_euro_priority_policy_sha256())
   capture_manifest <- if (is.list(stage_capture)) stage_capture$manifest else NULL
   if (is.data.frame(capture_manifest) && nrow(capture_manifest)) {
     put("stage_capture_manifest", "data/competition/accepted/uefa_nations_league_2026_27/stage_capture_manifest.csv", phase15_nl_scalar(capture_manifest, "manifest_sha256"))
@@ -1001,6 +1027,16 @@ phase15_build_nl_outcomes_candidate <- function(
   projected_rankings <- phase15_nl_build_projected_rankings(simulation, common)
   transition_outcomes <- phase15_nl_build_transition_outcomes(simulation, common)
   team_paths <- phase15_nl_build_team_paths(simulation, common)
+  queue_input <- simulation$euro_priority_queue
+  if (!is.data.frame(queue_input) || !nrow(queue_input)) {
+    # Synthetic callers without captures publish unavailable rows, never a
+    # current-standings substitute. Real simulations provide the full reducer.
+    queue_input <- uefa_euro_priority_aggregate(data.frame(), topology$teams, as.integer(common$simulation_count))
+    queue_input$cutoff_utc <- phase15_nl_scalar(simulation$metadata, "cutoff_utc")
+  }
+  euro_priority_queue <- phase15_nl_map_simulation_table(queue_input,
+    phase15_nl_outcomes_schema()$euro_priority_queue, common)
+  euro_priority_queue <- phase15_nl_add_row_hashes(euro_priority_queue)
   fixture_form <- phase15_nl_build_fixture_forecast_form(
     canonical_matches = state$canonical_matches,
     forecast_status = state$forecast_status,
@@ -1019,7 +1055,7 @@ phase15_build_nl_outcomes_candidate <- function(
   state$parent_graph <- parent_graph
   output_hash <- phase15_nl_sha256(list(
     projected_standings, projected_rankings, transition_outcomes, team_paths,
-    stage_slots, fixture_form, simulation_metadata
+    stage_slots, fixture_form, euro_priority_queue, simulation_metadata
   ), serialize = TRUE)
   simulation_metadata$output_sha256 <- output_hash
   simulation_metadata <- phase15_nl_add_row_hashes(simulation_metadata)
@@ -1031,6 +1067,7 @@ phase15_build_nl_outcomes_candidate <- function(
     "outcomes/transition_outcomes.csv" = transition_outcomes,
     "outcomes/team_path_probabilities.csv" = team_paths,
     "outcomes/fixture_forecast_form.csv" = fixture_form,
+    "outcomes/euro_priority_queue.csv" = euro_priority_queue,
     "outcomes/simulation_metadata.csv" = simulation_metadata
   )
   candidate <- list(
@@ -1229,6 +1266,7 @@ phase15_nl_manifest_parent_keys <- function(artifact_key) {
     transition_outcomes = c("phase14_state_manifest", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release", "simulation_metadata"),
     team_path_probabilities = c("phase14_state_manifest", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release", "simulation_metadata"),
     fixture_forecast_form = c("phase14_state_manifest", "phase14_canonical_matches", "phase14_forecast_status", "phase14_forecasts", "phase14_score_distributions", "source_bundle_manifest"),
+    euro_priority_queue = c("phase14_state_manifest", "phase14_canonical_matches", "source_bundle_manifest", "ruleset", "euro_priority_policy", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release", "simulation_metadata"),
     simulation_metadata = c("phase14_state_manifest", "phase14_forecast_status", "phase14_forecasts", "phase14_score_distributions", "source_bundle_manifest", "ruleset", "article15_rule_inputs_manifest", "article15_access_list", "article15_discipline_points", "model_release"),
     character()
   )
@@ -1280,7 +1318,7 @@ phase15_nl_outcomes_manifest_rows <- function(candidate, artifacts = NULL, gener
   artifacts <- artifacts %||% candidate$artifacts %||% candidate$outcomes_artifacts
   expected <- phase15_nl_outcomes_expected_inventory()
   table_paths <- setdiff(expected, "outcomes/outcomes_manifest.csv")
-  if (!is.list(artifacts) || !setequal(names(artifacts), table_paths)) stop("Phase 15 outcomes candidate must contain exactly eight non-manifest artifacts", call. = FALSE)
+  if (!is.list(artifacts) || !setequal(names(artifacts), table_paths)) stop("Phase 15 outcomes candidate must contain the complete current non-manifest inventory", call. = FALSE)
   lineage <- phase15_nl_manifest_lineage(candidate)
   parent_graph <- candidate$parent_graph %||% list()
   rows <- lapply(table_paths, function(path) {
@@ -1426,7 +1464,7 @@ phase15_nl_validate_probability_groups <- function(table, group_fields, name, to
 phase15_nl_validate_outcomes_manifest <- function(manifest, artifacts, candidate = NULL) {
   schema <- phase15_nl_outcomes_schema()$outcomes_manifest
   phase15_nl_require_schema(manifest, schema, "outcomes manifest")
-  expected <- phase15_nl_outcomes_expected_inventory()
+  expected <- phase15_nl_bundle_inventory(artifacts)
   if (!identical(as.character(manifest$artifact_path), expected)) stop("Phase 15 outcomes manifest has an unexpected or reordered inventory", call. = FALSE)
   if (any(as.character(manifest$edition_id) != phase15_nl_edition_id())) stop("Phase 15 outcomes manifest has a foreign edition", call. = FALSE)
   phase15_nl_assert_hash(manifest$content_sha256[seq_len(nrow(manifest) - 1L)], "outcomes content", allow_empty = FALSE)
@@ -1446,6 +1484,10 @@ phase15_nl_validate_outcomes_manifest <- function(manifest, artifacts, candidate
     if (!identical(tolower(as.character(row$content_sha256[[1L]])), phase15_nl_table_content_hash(table))) stop("Outcomes content hash mismatch: ", path, call. = FALSE)
     parents <- phase15_nl_manifest_parent_lookup(manifest, path)
     if (!length(parents$paths) || length(parents$paths) != length(parents$hashes) || any(!grepl("^[0-9a-fA-F]{64}$", parents$hashes))) stop("Outcomes artifact is missing complete parent hashes: ", path, call. = FALSE)
+    if (identical(path, "outcomes/euro_priority_queue.csv")) {
+      index <- which(parents$paths == "rules/uefa_euro_priority_policy")
+      if (length(index) != 1L || parents$hashes[[index]] != uefa_euro_priority_policy_sha256()) stop("EURO priority manifest policy hash mismatch", call. = FALSE)
+    }
   }
   self_index <- which(manifest$artifact_path == "outcomes/outcomes_manifest.csv")
   if (length(self_index) != 1L) stop("Outcomes manifest is missing its self row", call. = FALSE)
@@ -1470,14 +1512,16 @@ phase15_validate_nl_outcomes_bundle <- function(bundle) {
   if (!is.list(bundle)) stop("Phase 15 outcomes validator requires a candidate or bundle", call. = FALSE)
   artifacts <- bundle$artifacts %||% bundle$outcomes_artifacts
   manifest <- bundle$manifest %||% artifacts[["outcomes/outcomes_manifest.csv"]]
-  expected <- phase15_nl_outcomes_expected_inventory()
-  if (!is.list(artifacts) || !setequal(names(artifacts), expected)) stop("Phase 15 outcomes candidate must contain exactly the nine-file sibling inventory", call. = FALSE)
+  expected <- phase15_nl_bundle_inventory(artifacts)
   if (!is.data.frame(manifest)) stop("Phase 15 outcomes candidate is missing outcomes_manifest.csv", call. = FALSE)
   schemas <- phase15_nl_outcomes_schema()
   for (path in setdiff(expected, "outcomes/outcomes_manifest.csv")) {
     key <- phase15_nl_artifact_key(path)
     key <- sub("\\.csv$", "", key)
     schema <- schemas[[key]]
+    if (identical(key, "simulation_metadata") && !"outcomes/euro_priority_queue.csv" %in% expected) {
+      schema <- setdiff(schema, "outcomes_inventory_version")
+    }
     # Read archived v2 paths without inventing total move probabilities or
     # changing the bytes on which their existing lineage hashes depend.
     if (identical(key, "team_path_probabilities") &&
@@ -1490,6 +1534,23 @@ phase15_validate_nl_outcomes_bundle <- function(bundle) {
     if (nrow(table) && any(as.character(table$edition_id) != phase15_nl_edition_id())) stop("Phase 15 outcomes artifact has a foreign edition: ", path, call. = FALSE)
     if (nrow(table) && any(!grepl("^[0-9a-fA-F]{64}$", as.character(table$row_sha256)))) stop("Phase 15 outcomes artifact has invalid row hashes: ", path, call. = FALSE)
     if (nrow(table) && any(as.character(table$row_sha256) != phase15_nl_row_hashes(table))) stop("Phase 15 outcomes artifact row hash mismatch: ", path, call. = FALSE)
+  }
+  if ("outcomes/euro_priority_queue.csv" %in% expected) {
+    if (!identical(phase15_nl_scalar(artifacts[["outcomes/simulation_metadata.csv"]], "outcomes_inventory_version"), "phase15-nl-outcomes-v2")) stop("EURO priority requires the current outcomes inventory version", call. = FALSE)
+    queue <- artifacts[["outcomes/euro_priority_queue.csv"]]
+    # Topology's stable schema records group counts rather than team IDs;
+    # use the accepted candidate roster, or published team paths on read-back.
+    roster <- bundle$topology$teams %||% artifacts[["outcomes/team_path_probabilities.csv"]]
+    if (!"group_id" %in% names(roster)) {
+      group_rows <- artifacts[["outcomes/projected_standings.csv"]]
+      roster <- unique(group_rows[c("team_id", "league", "group_id")])
+    }
+    if (!nrow(roster)) roster <- NULL
+    uefa_euro_validate_priority(queue, roster)
+    meta <- artifacts[["outcomes/simulation_metadata.csv"]]
+    for (field in c("projection_run_id", "simulation_count", "simulation_seed", "source_bundle_id", "source_bundle_sha256", "model_release_id", "ruleset_version", "ruleset_sha256")) {
+      if (anyNA(queue[[field]]) || any(as.character(queue[[field]]) != phase15_nl_scalar(meta, field))) stop("EURO priority lineage mismatch: ", field, call. = FALSE)
+    }
   }
   rules_lineage <- list(
     ruleset_version = bundle$ruleset_version %||% phase15_nl_scalar(bundle$simulation_metadata, "ruleset_version"),
@@ -1565,12 +1626,13 @@ phase15_write_nl_outcomes_bundle <- function(candidate, output_root = NULL, proj
   dir.create(parent, recursive = TRUE, showWarnings = FALSE)
   existing <- if (dir.exists(root)) gsub("\\\\", "/", list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE)) else character()
   expected_files <- sub("^outcomes/", "", phase15_nl_outcomes_expected_inventory())
-  if (length(existing) && !setequal(existing, expected_files)) stop("Existing Phase 15 outcomes root contains an unexpected file", call. = FALSE)
+  legacy_files <- sub("^outcomes/", "", phase15_nl_outcomes_expected_inventory(legacy = TRUE))
+  if (length(existing) && !setequal(existing, expected_files) && !setequal(existing, legacy_files)) stop("Existing Phase 15 outcomes root contains an unexpected file", call. = FALSE)
   staging <- tempfile(".outcomes-staging-", tmpdir = parent)
   dir.create(staging, recursive = TRUE, showWarnings = FALSE)
   on.exit(if (dir.exists(staging)) unlink(staging, recursive = TRUE), add = TRUE)
   artifacts <- candidate$artifacts %||% candidate$outcomes_artifacts
-  for (path in phase15_nl_outcomes_expected_inventory()) {
+  for (path in phase15_nl_bundle_inventory(artifacts)) {
     relative <- sub("^outcomes/", "", path)
     target <- file.path(staging, relative)
     dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
@@ -1589,8 +1651,12 @@ phase15_write_nl_outcomes_bundle <- function(candidate, output_root = NULL, proj
     if (had_existing) file.rename(backup, root)
     stop("Could not atomically promote the Nations League outcomes root", call. = FALSE)
   }
+  output <- tryCatch(phase15_nl_read_outcomes_bundle(root, validate = TRUE), error = function(error) {
+    unlink(root, recursive = TRUE)
+    if (had_existing && !file.rename(backup, root)) stop("Outcomes read-back failed and incumbent restore failed", call. = FALSE)
+    stop(conditionMessage(error), call. = FALSE)
+  })
   if (had_existing && dir.exists(backup)) unlink(backup, recursive = TRUE)
-  output <- phase15_nl_read_outcomes_bundle(root, validate = TRUE)
   output$written_root <- root
   output
 }
@@ -1602,7 +1668,11 @@ phase15_nl_read_outcomes_bundle <- function(root = NULL, project_root = ".", val
   expected <- phase15_nl_outcomes_expected_inventory()
   relative <- sub("^outcomes/", "", expected)
   present <- gsub("\\\\", "/", list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE))
-  if (!setequal(present, relative)) stop("Phase 15 outcomes durable bundle must contain exactly nine files", call. = FALSE)
+  legacy <- phase15_nl_outcomes_expected_inventory(legacy = TRUE)
+  if (setequal(present, sub("^outcomes/", "", legacy))) {
+    expected <- legacy
+    relative <- sub("^outcomes/", "", expected)
+  } else if (!setequal(present, relative)) stop("Phase 15 outcomes durable bundle has an incomplete inventory", call. = FALSE)
   artifacts <- lapply(relative, function(path) phase15_nl_read_csv(file.path(root, path), path))
   names(artifacts) <- expected
   manifest <- artifacts[["outcomes/outcomes_manifest.csv"]]

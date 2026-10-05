@@ -63,9 +63,11 @@ phase17_batch_identity <- function(payloads = NULL, bundles = NULL, batch_id = N
   metadata <- lapply(values, function(value) {
     if (!is.list(value)) stop("Phase 17 batch identity inputs must be lists", call. = FALSE)
     if (!is.null(value$metadata)) value <- value$metadata
-    value[c("edition_id", "source_bundle_id", "source_bundle_sha256", "model_release_id",
+    fields <- c("edition_id", "source_bundle_id", "source_bundle_sha256", "model_release_id",
             "release_manifest_sha256", "ruleset_version", "ruleset_sha256", "simulation_seed",
-            "simulation_count", "projection_run_id")]
+            "simulation_count", "projection_run_id")
+    fields <- c(fields, intersect(c("priority_policy_version", "priority_policy_sha256"), names(value)))
+    value[fields]
   })
   paste0("phase17-", substr(phase17_sha256_raw(phase17_canonical_bytes(metadata)), 1L, 24L))
 }

@@ -14,7 +14,7 @@ phase17_provider_source_authorities <- function(project_root) {
     "R/competition/uefa_nations_league_rules.R", "R/competition/uefa_nations_league_rule_inputs.R", "R/competition/standings.R",
     "R/competition/edition_registry.R", "R/competition/team_identity.R",
     "R/release/release_contract.R", "R/competition/state_bundle.R",
-    "R/competition/forecast_layer.R", "R/competition/uefa_euro_rules.R",
+    "R/competition/forecast_layer.R", "R/competition/uefa_euro_rules.R", "R/competition/uefa_euro_priority.R",
     "R/competition/uefa_euro_outcomes.R", "R/competition/uefa_nations_league_outcomes.R"
   )
   for (relative in files) {
@@ -229,6 +229,11 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
   state_tables <- state$artifacts
   outcome_tables <- outcomes$artifacts
   metadata <- phase17_provider_metadata(source, state, outcomes, registry, edition_id)
+  queue <- outcome_tables[["outcomes/euro_priority_queue.csv"]]
+  if (edition_id == "uefa_nations_league_2026_27" && is.data.frame(queue) && nrow(queue)) {
+    metadata$priority_policy_version <- as.character(queue$priority_policy_version[[1L]])
+    metadata$priority_policy_sha256 <- as.character(queue$priority_policy_sha256[[1L]])
+  }
   artifacts <- list(
     current_standings = if (edition_id == "uefa_nations_league_2026_27") phase17_provider_alias_rows(phase17_provider_nl_current_standings(project_root, source, state), edition_id) else data.frame(),
     structure = phase17_provider_alias_rows(source_tables$groups, edition_id),
@@ -242,6 +247,7 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
     # outlook and tournament-tree views.  They remain outside the stable
     # eight-section Phase 17 contract so EURO consumers are unchanged.
     progression_probabilities = phase17_provider_alias_rows(outcome_tables[["outcomes/team_path_probabilities.csv"]], edition_id),
+    euro_priority_queue = if (edition_id == "uefa_nations_league_2026_27") phase17_provider_alias_rows(outcome_tables[["outcomes/euro_priority_queue.csv"]], edition_id) else data.frame(),
     tournament_tree = phase17_provider_tree_rows(outcome_tables[["outcomes/stage_slots.csv"]], edition_id),
     tournament_topology = phase17_provider_alias_rows(outcome_tables[["outcomes/competition_topology.csv"]], edition_id)
   )

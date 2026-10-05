@@ -254,6 +254,21 @@ play-off participation overlaps those outcomes, so these columns do not sum to
 100%. Zero is displayed as `0.0%`, positive values below 0.1% as `<0.1%`, and
 unavailable probabilities as `—`.
 
+The **EURO 2028** tab (`#euro-2028`) shows the Nations League priority queue
+before teams qualify through other routes. Each simulation prioritizes A/B/C
+group winners, then the highest-ranked D group winner, then remaining teams by
+interim overall rank. League D's fallback applies only if too few eligible
+A/B/C winners remain. Group-winning and winner-priority chances are not EURO
+play-off entry probabilities. The table includes average ranks, queue positions
+and accessible 10–90% ranges, with independent team/league filters.
+
+The policy is pinned in `data/competition/rules/euro_2028_nl_priority_policy_v1.json`;
+`outcomes/euro_priority_queue.csv` is part of the current ten-file outcome bundle.
+Exact archived nine-file bundles remain readable and show the feature as
+unavailable until rebuilt. EURO qualification-route forecasts require a later
+joint simulation with accepted EURO draw/schedule inputs; the EURO companion
+retains its pre-draw state.
+
 The active format follows UEFA's revised 15 September 2026 regulations
 (`uefa-nations-league-2026-27-v3`): all League D teams move to League C, with no
 C/D play-offs. Final allocations use three leagues, with 18 teams in A, 18 in B,

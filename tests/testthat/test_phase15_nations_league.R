@@ -2059,6 +2059,28 @@ test_that("simulation replay preserves RNG, hashes, and probability mass", {
   expect_true(any(first$projected_standings$probability > 0 & first$projected_standings$probability < 1))
   expect_true(any(first$projected_standings$ranking_status == "projected"))
   expect_true(any(first$projected_standings$ranking_status == "resolved"))
+  worker_inputs <- inputs; worker_inputs$workers <- 2L
+  worker_result <- do.call(uefa_nl_run_simulation, worker_inputs)
+  expect_identical(first$euro_priority_queue, worker_result$euro_priority_queue)
+  expect_identical(first$team_path_probabilities, worker_result$team_path_probabilities)
+  # This fixture omits downstream stage distributions. Give all completed
+  # group evidence a cutoff on the following day to test independence from
+  # unresolved knockout results without relying on an implicit cutoff.
+  known <- inputs; known$simulation_count <- 1L
+  known$canonical_matches$simulation_cutoff_utc <- "2026-09-24T00:00:00Z"
+  known_result <- do.call(uefa_nl_run_simulation, known)
+  expect_true(all(is.finite(known_result$euro_priority_queue$expected_queue_position)))
+  missing_grid <- inputs; missing_grid$simulation_count <- 1L
+  missing_grid$score_distributions <- missing_grid$score_distributions[FALSE,,drop=FALSE]
+  unavailable <- do.call(uefa_nl_run_simulation, missing_grid)
+  expect_true(all(is.na(unavailable$euro_priority_queue$expected_queue_position)))
+  expect_true(any(is.na(unavailable$euro_priority_queue$p_group_winner)))
+  expect_true(any(is.finite(unavailable$euro_priority_queue$p_group_winner)))
+  missing_result <- known
+  missing_result$canonical_matches$final_home_goals[2] <- NA_integer_
+  missing_result$canonical_matches$regulation_home_goals[2] <- NA_integer_
+  unavailable_result <- do.call(uefa_nl_run_simulation, missing_result)
+  expect_true(all(is.na(unavailable_result$euro_priority_queue$expected_queue_position)))
 })
 
 test_that("future fixture sampling changes unfinished rank distributions", {
@@ -2197,18 +2219,18 @@ test_that("archived v2 stage capture replay and C/D branches stay explicit", {
 # Plan 15-02 extension points: Article 15 group ranking, Article 19 rankings, and transitions.
 # Plan 15-03 extension points: calibrated sampling, stage resolution, draw policies, and simulation.
 # Plan 15-04 extension points: outcomes schema, stage-capture loading, and forecast/form pass-through.
-# Plan 15-05 extension points: the nine-file writer, dry-run, and replay entrypoint.
+# Outcome writer, dry-run, and replay entrypoint, including the priority companion.
 # Plan 15-06 extension points: production acceptance, no-leakage, and registered-root checks.
 
 test_that("Phase 15 outcome inventory and fixture pass-through stay outside Phase 14 state", {
   expected <- phase15_nl_outcomes_expected_inventory()
-  expect_length(expected, 9L)
+  expect_length(expected, 10L)
   expect_identical(expected[[7L]], "outcomes/fixture_forecast_form.csv")
   expect_false(any(expected %in% phase14_state_bundle_expected_inventory()))
   expect_identical(names(phase15_nl_outcomes_schema()), c(
     "competition_topology", "stage_slots", "projected_standings", "projected_rankings",
     "transition_outcomes", "team_path_probabilities", "fixture_forecast_form",
-    "simulation_metadata", "outcomes_manifest"
+    "euro_priority_queue", "simulation_metadata", "outcomes_manifest"
   ))
 
   state <- phase15_nl_read_phase14_state_bundle(phase15_test_project_root)
@@ -2269,7 +2291,7 @@ test_that("Phase 15 candidate writer and loader preserve the hashed sibling cont
   expect_silent(phase15_validate_nl_outcomes_bundle(candidate))
   output_root <- phase15_test_output_root()
   written <- phase15_write_nl_outcomes_bundle(candidate, output_root = output_root)
-  expect_length(written$artifacts, 9L)
+  expect_length(written$artifacts, 10L)
   expect_identical(names(written$artifacts), phase15_nl_outcomes_expected_inventory())
   expect_identical(names(written$fixture_forecast_form), names(candidate$artifacts[["outcomes/fixture_forecast_form.csv"]]))
   loaded <- phase15_nl_read_outcomes_bundle(output_root)
@@ -2530,7 +2552,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
     "--simulations", "1", "--seed", "15017", "--dry-run"
   ))
   expect_identical(dry_run$status, 0L)
-  expect_true(grepl("artifact_count=9", dry_run$output, fixed = TRUE))
+  expect_true(grepl("artifact_count=10", dry_run$output, fixed = TRUE))
   expect_true(grepl("validation=TRUE", dry_run$output, fixed = TRUE))
   expect_true(grepl("durable_mutation=FALSE", dry_run$output, fixed = TRUE))
   expect_true(grepl("stage_capture_id=nl-2026-27-stage-capture-v1", dry_run$output, fixed = TRUE))
@@ -2560,10 +2582,13 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   expect_identical(before$registry_tree, after$registry_tree)
 
   bundle <- phase15_nl_read_outcomes_bundle(durable_root)
-  expect_identical(names(bundle$artifacts), expected_inventory)
+  # An incumbent may still be the explicitly supported pre-queue inventory;
+  # the dry-run build above must always produce the new ten-artifact contract.
+  accepted_inventory <- phase15_nl_bundle_inventory(bundle$artifacts)
+  expect_identical(names(bundle$artifacts), accepted_inventory)
   manifest <- bundle$manifest
-  expect_identical(as.character(manifest$artifact_path), expected_inventory)
-  for (path in expected_inventory) {
+  expect_identical(as.character(manifest$artifact_path), accepted_inventory)
+  for (path in accepted_inventory) {
     row <- manifest[manifest$artifact_path == path, , drop = FALSE]
     expect_equal(nrow(row), 1L)
     artifact <- bundle$artifacts[[path]]
@@ -2721,7 +2746,7 @@ test_that("Phase 15 production acceptance proves current truth, replay identity,
   read_back <- phase15_nl_read_outcomes_bundle(test_output_root)
   expect_identical(read_back$manifest$content_sha256, bundle$manifest$content_sha256)
   expect_identical(read_back$manifest$manifest_sha256, bundle$manifest$manifest_sha256)
-  for (path in expected_inventory) {
+  for (path in accepted_inventory) {
     expect_identical(
       phase15_nl_table_content_hash(read_back$artifacts[[path]]),
       phase15_nl_table_content_hash(bundle$artifacts[[path]])

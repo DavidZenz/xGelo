@@ -666,6 +666,7 @@ phase14_state_bundle_registered_outcomes_inventory <- function() {
     "outcomes/transition_outcomes.csv",
     "outcomes/team_path_probabilities.csv",
     "outcomes/fixture_forecast_form.csv",
+    "outcomes/euro_priority_queue.csv",
     "outcomes/simulation_metadata.csv",
     "outcomes/outcomes_manifest.csv"
   )

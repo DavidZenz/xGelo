@@ -27,6 +27,10 @@ uefa_nl_simulation_source_if_missing(
   "R/competition/standings.R",
   c("phase14_compute_standings")
 )
+uefa_nl_simulation_source_if_missing(
+  "R/competition/uefa_euro_priority.R",
+  c("uefa_euro_priority_capture", "uefa_euro_priority_aggregate")
+)
 
 uefa_nl_sim_null_coalesce <- function(left, right) {
   if (is.null(left) || !length(left)) right else left
@@ -1804,6 +1808,14 @@ uefa_nl_sim_iteration <- function(
   )
   state <- uefa_nl_sim_build_league_state(sampled$matches, groups, rules, source_bundle_id, cutoff_utc)
   interim <- state$interim
+  # A complete finish needs every league match counted, either from accepted
+  # completed evidence or a successful forecast sample. This also catches
+  # completed rows with unavailable scores or evidence beyond the cutoff.
+  unresolved_matches <- sampled$matches$stage_id == "league_phase" &
+    (is.na(sampled$matches$counts_for_standings) | !sampled$matches$counts_for_standings)
+  unresolved_groups <- unique(as.character(sampled$matches$group_id[unresolved_matches]))
+  euro_priority <- uefa_euro_priority_capture(interim, groups, iteration,
+    group_rankings = state$group_rankings, unresolved_groups = unresolved_groups)
   transition_slots <- tryCatch(
     uefa_nl_select_transition_slots(interim, euro_playoff_eligibility, rules),
     error = function(error) data.frame(stringsAsFactors = FALSE, check.names = FALSE)
@@ -1903,7 +1915,7 @@ uefa_nl_sim_iteration <- function(
   list(
     matches = sampled$matches, fixture_rows = sampled$fixture_rows, state = state,
     interim = interim, final_rankings = final_rankings, transition_slots = transition_slots,
-    transition_events = transition_events, paths = paths, stage_slots = stage_slots,
+    transition_events = transition_events, paths = paths, euro_priority = euro_priority, stage_slots = stage_slots,
     stage_matches = uefa_nl_sim_bind_rows(list(qf$match_rows, semi$match_rows, final$match_rows, third$match_rows, playoff_matches)),
     stage_resolutions = all_resolutions
   )
@@ -2277,6 +2289,12 @@ uefa_nl_run_simulation <- function(
     metadata$final_ranking_stages <- sort(unique(as.character(final_ranking_rows$ranking_stage)), method = "radix")
     transition_outcomes <- uefa_nl_sim_aggregate_transitions(iterations, count, metadata)
     team_paths <- uefa_nl_sim_aggregate_paths(iterations, normalized_groups, count, metadata)
+    euro_priority_queue <- uefa_euro_priority_aggregate(
+      uefa_nl_sim_bind_rows(lapply(iterations, `[[`, "euro_priority")), normalized_groups, count)
+    euro_priority_queue <- uefa_nl_sim_add_metadata(euro_priority_queue, metadata$edition_id,
+      metadata$projection_run_id, count, simulation_seed, rules, source_bundle_id,
+      source_bundle_sha256, model_release_id)
+    euro_priority_queue$cutoff_utc <- cutoff_utc
     fixture_outcomes <- uefa_nl_sim_aggregate_fixtures(normalized_matches, normalized_status, normalized_forecasts, fixture_captures, count, metadata, source_bundle_sha256, state_manifest_sha256)
     stage_slots <- uefa_nl_sim_bind_rows(lapply(iterations, `[[`, "stage_slots"))
     stage_matches <- uefa_nl_sim_bind_rows(lapply(iterations, `[[`, "stage_matches"))
@@ -2289,6 +2307,7 @@ uefa_nl_run_simulation <- function(
     output_tables <- list(
       projected_standings = projected_standings, projected_rankings = projected_rankings,
       transition_outcomes = transition_outcomes, team_path_probabilities = team_paths,
+      euro_priority_queue = euro_priority_queue,
       fixture_forecast_form = fixture_outcomes, outcome_probabilities = fixture_outcomes,
       stage_slots = stage_slots, stage_matches = stage_matches, stage_resolutions = stage_resolutions
     )
@@ -2298,6 +2317,7 @@ uefa_nl_run_simulation <- function(
       projected_standings = projected_standings, projected_rankings = projected_rankings,
       stage_slots = stage_slots, stage_matches = stage_matches, stage_resolutions = stage_resolutions,
       transition_outcomes = transition_outcomes, team_path_probabilities = team_paths,
+      euro_priority_queue = euro_priority_queue,
       fixture_forecast_form = fixture_outcomes, outcome_probabilities = fixture_outcomes,
       simulation_metadata = simulation_metadata, input_hashes = raw_input_hashes,
       canonical_input_hashes = canonical_input_hashes, output_hashes = output_hashes,

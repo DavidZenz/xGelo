@@ -178,7 +178,7 @@ phase15_nl_cli_usage <- function() {
     "  --workers N       Parallel simulation workers (default: XGELO_NL_WORKERS or 1)",
     "  --dry-run         Validate and build in memory (default mode)",
     "  --replay-check    Validate normal, reversed, and repeated replays",
-    "  --write           Atomically publish the registered nine-file bundle",
+    "  --write           Atomically publish the registered ten-file bundle",
     "  --help            Show this help",
     sep = "\n"
   )
@@ -822,7 +822,7 @@ phase15_nl_print_result <- function(result) {
   cat(sprintf("simulations=%d\n", result$simulations))
   cat(sprintf("seed=%d\n", result$seed))
   cat(sprintf("workers=%d\n", result$workers %||% 1L))
-  cat("artifact_count=9\n")
+  cat(sprintf("artifact_count=%d\n", length(result$candidate$artifacts)))
   cat(sprintf("validation=%s\n", if (isTRUE(result$validation)) "TRUE" else "FALSE"))
   cat(sprintf("durable_mutation=%s\n", if (isTRUE(result$durable_mutation)) "TRUE" else "FALSE"))
   if (isTRUE(result$replay_verified)) {

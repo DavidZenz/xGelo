@@ -248,6 +248,18 @@ phase17_validate_payload <- function(payload) {
   if (length(missing_metadata)) {
     stop("Phase 17 payload metadata is missing: ", paste(missing_metadata, collapse = ", "), call. = FALSE)
   }
+  safety <- payload$euro_safety_net
+  if (!is.null(safety)) {
+    if (!identical(as.character(payload$edition_id), "uefa_nations_league_2026_27") ||
+        !is.list(safety) || !identical(safety$schema_version, "euro-safety-net-v1") ||
+        !safety$status %in% c("projected", "unresolved", "unavailable") || !is.list(safety$metadata) || !is.list(safety$rows)) {
+      stop("EURO safety-net payload has an invalid optional contract", call. = FALSE)
+    }
+    if (length(safety$rows)) {
+      ids <- vapply(safety$rows, function(row) as.character(row$team_id %||% ""), character(1))
+      if (any(!nzchar(ids)) || anyDuplicated(ids)) stop("EURO safety-net payload requires unique team IDs", call. = FALSE)
+    }
+  }
   invisible(TRUE)
 }
 

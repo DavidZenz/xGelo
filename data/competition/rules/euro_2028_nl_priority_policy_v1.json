@@ -1,0 +1,15 @@
+{
+  "policy_version": "uefa-euro-2028-nl-priority-v1",
+  "edition_id": "uefa_euro_2028_qualifying",
+  "nations_league_edition_id": "uefa_nations_league_2026_27",
+  "regulations_effective_date": "2026-07-29",
+  "source_url": "https://documents.uefa.com/r/Regulations-of-the-UEFA-European-Football-Championship-2026-28/Article-16-Path-formation-play-offs-Online",
+  "article": "16.02(b-d)",
+  "ranking_scope": "interim_overall",
+  "priority_leagues": ["A", "B", "C"],
+  "d_policy": "highest_ranked_group_winner_only_if_insufficient_eligible_abc_winners",
+  "remaining_policy": "interim_overall_rank",
+  "exclusions": "not_applied_in_priority_outlook",
+  "quantile_type": 1,
+  "evidence": "Available League A, B and C group winners have priority in interim overall ranking order. If insufficient such winners are available, the highest-ranked League D group winner receives the next place unless already qualified. Remaining places follow interim overall ranking order, excluding teams already qualified for the finals or play-offs."
+}
