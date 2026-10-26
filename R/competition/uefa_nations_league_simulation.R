@@ -33,6 +33,8 @@ uefa_nl_simulation_source_if_missing(
 )
 uefa_nl_simulation_source_if_missing("R/common/simulation_execution.R", c("simulation_execute", "simulation_execute_stream"))
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_streaming.R", "uefa_nl_stream_reducer")
+uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_numeric.R", "uefa_nl_sim_prepare_numeric_groups")
+uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_paths.R", "uefa_nl_sim_prepare_paths")
 
 uefa_nl_sim_null_coalesce <- function(left, right) {
   if (is.null(left) || !length(left)) right else left
@@ -2433,7 +2435,7 @@ uefa_nl_sim_prepare_group_reducer <- function(runtime, matches, groups, rules, s
     list(group_rankings = rankings, individual = individual,
          interim = uefa_nl_rank_interim_overall(individual, rules))
   }
-  runtime
+  uefa_nl_sim_prepare_numeric_groups(runtime, matches, groups, rules, source, cutoff)
 }
 
 uefa_nl_run_simulation <- function(
@@ -2506,14 +2508,21 @@ uefa_nl_run_simulation <- function(
     projection$draw_policy_id)
   runtime <- uefa_nl_sim_prepare_group_reducer(runtime, normalized_matches,
     normalized_groups, rules, source_bundle_id, cutoff_utc)
+  runtime <- uefa_nl_sim_prepare_paths(runtime, rules, normalized_slots)
+  stream_metadata <- uefa_nl_stream_prepare_metadata(count, metadata)
+  # The helpers above are scoped to this invocation. All immutable metadata is
+  # prepared once; ranking-stage metadata added later does not change it.
+  uefa_nl_stream_metadata <- function(data, count, metadata) stream_metadata(data)
   uefa_nl_sim_with_seed(simulation_seed, function() {
     run_iteration <- function(iteration) {
       iter_seed <- uefa_nl_sim_seed_for(simulation_seed, iteration = iteration)
-      runtime$uefa_nl_sim_iteration(
+      value <- runtime$uefa_nl_sim_iteration(
         iteration, normalized_matches, normalized_groups, normalized_status, normalized_forecasts, normalized_scores,
         rules, iter_seed, source_bundle_id, normalized_slots, euro_playoff_eligibility,
         cutoff_utc, projection$projection_run_id, projection$draw_policy_id
       )
+      if (execution_mode == "stream") attr(value, "nl_stream_capture") <- uefa_nl_stream_capture(value)
+      value
     }
     if (execution_mode == "stream") {
       code <- simulation_repository_identity(uefa_nl_rules_project_root("."))
@@ -2521,7 +2530,7 @@ uefa_nl_run_simulation <- function(
         list(inputs = raw_input_hashes, canonical = canonical_input_hashes, metadata = metadata, code = code),
         run_dir, workers = worker_count, chunk_size = chunk_size, resume = resume, progress = progress, batch_size = batch_size,
         trace = function(value) c(value[c("stage_slots", "stage_matches", "stage_resolutions")],
-          list(mean_records = uefa_nl_stream_mean_records(value))))
+          list(mean_records = uefa_nl_stream_mean_records(value))), auxiliary_fields = "mean_records")
       statistics <- store$statistics
       statistics$exact_means <- simulation_exact_trace_means(store)
       projected_standings <- uefa_nl_stream_standings(statistics, count, metadata, normalized_groups, normalized_matches)

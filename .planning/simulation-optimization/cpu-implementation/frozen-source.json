@@ -1,0 +1,12 @@
+{
+  "source_snapshot_sha256": "43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5",
+  "physical_memory_bytes": 68719476736,
+  "workers": 4,
+  "chunk_size": 256,
+  "count_limit": 100000,
+  "time_limit_seconds": 7200,
+  "reference_commit": "6c13de0",
+  "cl_commit": "ca9119a",
+  "published_outputs_changed": false,
+  "status": "frozen_performance_regressions_verified"
+}

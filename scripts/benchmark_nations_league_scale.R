@@ -2,6 +2,7 @@
 # Read accepted inputs, run one scale, validate a candidate, write only compact
 # measurements. Run each count in a fresh process under /usr/bin/time -l for RSS.
 # Usage: Rscript scripts/benchmark_nations_league_scale.R ROOT COUNT [CACHE_DIR] [WORKERS]
+benchmark_started <- proc.time()[["elapsed"]]
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 2L) stop("Usage: benchmark_nations_league_scale.R ROOT COUNT [CACHE_DIR]")
 asset_root <- normalizePath(args[[1L]], mustWork = TRUE)
@@ -37,8 +38,17 @@ cat(sprintf("accepted_source=%s state_manifest=%s count=%d seed=15017 workers=%d
 message("simulation_phase phase=preparation_complete")
 frozen_implementation <- digest::digest(simulation_repository_identity("."), algo = "sha256")
 gc(reset = TRUE)
+preparation_seconds <- proc.time()[["elapsed"]] - benchmark_started
+execution_started <- simulation_seconds <- NA_real_
+phase_progress <- function(event) {
+  if (is.na(execution_started)) execution_started <<- proc.time()[["elapsed"]]
+  if (event$phase == "aggregation") simulation_seconds <<- event$elapsed_seconds
+  message(sprintf("simulation_progress phase=%s completed=%d committed=%d total=%d elapsed_seconds=%.3f remaining_seconds=%.3f workers=%d",
+    event$phase, event$completed, event$committed, event$total, event$elapsed_seconds, event$estimated_remaining_seconds, event$workers))
+}
 profile <- Sys.getenv("NL_BENCH_PROFILE")
 if (nzchar(profile)) Rprof(profile)
+simulation_started <- proc.time()[["elapsed"]]
 elapsed <- system.time(simulation <- entry$uefa_nl_run_simulation(
   canonical_matches = state$canonical_matches, completed_results = loaded$source$results,
   forecast_status = handoff$forecast_status, forecasts = handoff$forecasts,
@@ -50,9 +60,11 @@ elapsed <- system.time(simulation <- entry$uefa_nl_run_simulation(
   state_manifest_sha256 = state$state_manifest_sha256,
   official_stage_slots = loaded$stage_capture$stage_capture,
   cutoff_utc = max(as.character(loaded$source$manifest$accepted_at_utc)),
-  batch_size = 32L, progress = TRUE, execution_mode = "stream",
+  batch_size = 32L, progress = phase_progress, execution_mode = "stream",
   run_dir = file.path(cache_dir, paste0("run-", count)), resume = identical(Sys.getenv("XGELO_SIM_RESUME"), "1"), chunk_size = 256L
-))
+), gcFirst = FALSE)
+simulation_setup_seconds <- execution_started - simulation_started
+aggregation_seconds <- elapsed[["elapsed"]] - simulation_setup_seconds - simulation_seconds
 if (nzchar(profile)) Rprof(NULL)
 heap <- gc()
 peak_parent_r_heap_bytes <- sum(heap[, "max used"] * c(56, 8))
@@ -66,7 +78,7 @@ candidate_time <- system.time({
     project_root = loaded$project_root, generated_at_utc = NULL, rule_inputs = loaded$rule_inputs)
   candidate <- entry$phase15_nl_attach_stage_capture_lineage(candidate, loaded$stage_capture)
   entry$phase15_validate_nl_outcomes_bundle(candidate)
-})
+}, gcFirst = FALSE)
 rows <- lapply(names(candidate$artifacts), function(name) data.frame(
   artifact = name, rows = nrow(candidate$artifacts[[name]]),
   bytes = length(entry$phase15_nl_csv_bytes(candidate$artifacts[[name]]))))
@@ -80,6 +92,8 @@ measurement <- data.frame(simulations = count, seed = 15017L, workers = workers,
   implementation_sha256 = frozen_implementation,
   execution_mode = "stream", trace_bytes = sum(file.info(list.files(attr(simulation, "trace_store")$run_dir, recursive = TRUE, full.names = TRUE))$size),
   elapsed_seconds = elapsed[["elapsed"]], candidate_seconds = candidate_time[["elapsed"]],
+  preparation_seconds = preparation_seconds + simulation_setup_seconds,
+  simulation_seconds = simulation_seconds, aggregation_seconds = aggregation_seconds,
   simulation_object_bytes = as.numeric(object.size(simulation)),
   peak_parent_r_heap_bytes = peak_parent_r_heap_bytes,
   artifact_bytes = sum(sizes$bytes), validated = TRUE)

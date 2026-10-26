@@ -27,4 +27,9 @@ resource watchdog continues automatic enforcement between those checks.
 Implementation and test work may run in parallel only for independently owned
 files, following AGENTS.md. Large competition runs remain sequential.
 
-Status: CL implementation starting; no scale benchmark active.
+Status: CL implementation committed (`ca9119a`, 578 passing assertions).
+NL numeric/path/counter and trace-storage changes are integrated. Complete
+accepted NL objects and candidate CSV bytes match the frozen reference for
+three seeds, one/three workers, uneven chunks and interrupted resume. Frozen performance regressions pass; the expanded provider-acceptance suite
+retains its proven pre-existing review/manifest failure. Source bytes are frozen
+at the recorded identity. Staged CL checks precede staged NL checks.

@@ -121,25 +121,131 @@ simulation_atomic_rds <- function(value, path) {
   saveRDS(value, temporary, compress = FALSE, version = 3L)
   if (!file.rename(temporary, path)) stop("Simulation atomic write failed: ", path, call. = FALSE)
 }
-simulation_stream_validate_chunk <- function(path, expected_ids, fingerprint) {
+simulation_stream_schema_builder <- function(ids, auxiliary_fields) {
+  schema <- list(schema = "simulation-trace-schema-v2", ids = ids,
+    auxiliary_fields = auxiliary_fields, record_names = list(), frames = list())
+  observe <- function(value, id = NULL) {
+    if (!is.list(value) || is.data.frame(value) || is.null(names(value))) return(invisible(NULL))
+    fields <- names(value)
+    if (!any(vapply(schema$record_names, identical, logical(1), fields))) schema$record_names[[length(schema$record_names) + 1L]] <<- fields
+    for (field in fields) {
+      frame <- value[[field]]
+      if (!is.data.frame(frame)) next
+      variants <- schema$frames[[field]]
+      same <- which(vapply(variants, function(x) identical(names(x), names(frame)), logical(1)))
+      if (!length(same)) {
+        variants[[length(variants) + 1L]] <- frame[if (nrow(frame)) 1L else integer(), , drop = FALSE]
+      } else if (!nrow(variants[[same[[1L]]]]) && nrow(frame)) variants[[same[[1L]]]] <- frame[1L, , drop = FALSE]
+      schema$frames[field] <<- list(variants)
+    }
+    invisible(NULL)
+  }
+  list(observe = observe, value = function() schema)
+}
+# Check the bytes that readers will decode. A chunk is bounded by chunk_size;
+# retaining its compressed payload avoids hashing a path and then reopening a
+# possibly changed file. Unselected payloads are hashed and released immediately.
+simulation_stream_read_chunk <- function(path, expected_ids, fingerprint,
+    keep = character(), auxiliary_fields = NULL, expected_schema = NULL) {
   marker <- file.path(path, "commit.rds")
   if (!file.exists(marker)) stop("Uncommitted simulation chunk: ", path, call. = FALSE)
-  commit <- readRDS(marker)
+  commit <- tryCatch(readRDS(marker), error = function(e) stop("Corrupt simulation chunk commit", call. = FALSE))
   if (!identical(commit$fingerprint, fingerprint) || !identical(commit$ids, expected_ids)) {
     stop("Simulation chunk identity/coverage mismatch", call. = FALSE)
   }
-  for (name in c("trace.bin.gz", "statistics.rds")) {
+  version2 <- identical(commit$schema, "simulation-chunk-v2")
+  if ((!is.null(commit$schema) && !version2) ||
+      (!is.null(expected_schema) && !expected_schema %in% c("simulation-stream-v1", "simulation-stream-v2")) ||
+      (identical(expected_schema, "simulation-stream-v2") && !version2) ||
+      (identical(expected_schema, "simulation-stream-v1") && !is.null(commit$schema))) {
+    stop("Simulation chunk schema/version mismatch", call. = FALSE)
+  }
+  auxiliary <- if (version2) commit$auxiliary_fields else character()
+  if (!is.character(auxiliary) || anyNA(auxiliary) || any(!nzchar(auxiliary)) || anyDuplicated(auxiliary) ||
+      (!is.null(auxiliary_fields) && !identical(auxiliary, auxiliary_fields))) stop("Simulation auxiliary field identity mismatch", call. = FALSE)
+  auxiliary_files <- if (length(auxiliary)) sprintf("auxiliary-%04d.bin.gz", seq_along(auxiliary)) else character()
+  payloads <- c("trace.bin.gz", "statistics.rds", if (version2) "schema.rds", auxiliary_files)
+  if (!is.character(commit$hashes) || !identical(names(commit$hashes), payloads) ||
+      !setequal(list.files(path, all.files = TRUE, no.. = TRUE), c(payloads, "commit.rds"))) {
+    stop("Simulation chunk file inventory mismatch", call. = FALSE)
+  }
+  buffers <- list(); schema <- NULL
+  for (name in payloads) {
     file <- file.path(path, name)
-    if (!file.exists(file) || !identical(simulation_file_hash(file), commit$hashes[[name]])) {
+    bytes <- tryCatch(readBin(file, "raw", n = file.info(file)$size), error = function(e) NULL)
+    if (is.null(bytes) || !identical(digest::digest(bytes, algo = "sha256", serialize = FALSE), commit$hashes[[name]])) {
       stop("Corrupt simulation chunk: ", file, call. = FALSE)
     }
+    if (name == "schema.rds") {
+      con <- rawConnection(bytes)
+      schema <- tryCatch(readRDS(con), error = function(e) stop("Corrupt simulation chunk schema", call. = FALSE), finally = close(con))
+    }
+    if (name %in% keep) buffers[[name]] <- bytes
   }
-  commit
+  if (version2 && (!is.list(schema) || !identical(schema$schema, "simulation-trace-schema-v2") ||
+      !identical(schema$ids, expected_ids) || !identical(schema$auxiliary_fields, auxiliary) ||
+      !is.list(schema$record_names) || !is.list(schema$frames))) stop("Simulation chunk schema identity/coverage mismatch", call. = FALSE)
+  list(commit = commit, schema = schema, buffers = buffers)
+}
+
+simulation_stream_trace_connections <- function(chunk, fields = NULL) {
+  auxiliary <- chunk$commit$auxiliary_fields
+  if (is.null(auxiliary)) auxiliary <- character()
+  selected <- if (is.null(fields)) auxiliary else intersect(auxiliary, fields)
+  files <- if (length(selected)) stats::setNames(sprintf("auxiliary-%04d.bin.gz", match(selected, auxiliary)), selected) else character()
+  need_main <- is.null(fields) || any(!fields %in% auxiliary) || !identical(chunk$commit$schema, "simulation-chunk-v2")
+  if (need_main) files <- c(.main = "trace.bin.gz", files)
+  lapply(files, function(file) gzcon(rawConnection(chunk$buffers[[file]])))
+}
+
+simulation_stream_visit_chunk <- function(chunk, ids, visitor, fields = NULL) {
+  connections <- simulation_stream_trace_connections(chunk, fields)
+  on.exit(for (con in connections) try(close(con), silent = TRUE), add = TRUE)
+  for (id in ids) {
+    records <- lapply(connections, function(con) {
+      record <- tryCatch(unserialize(con), error = function(e) stop("Corrupt simulation trace record: ", conditionMessage(e), call. = FALSE))
+      if (!is.list(record) || !identical(record$iteration, id) || !"value" %in% names(record)) stop("Simulation trace iteration/coverage mismatch", call. = FALSE)
+      record
+    })
+    value <- if (".main" %in% names(records)) records[[".main"]]$value else list()
+    for (field in setdiff(names(records), ".main")) value[field] <- list(records[[field]]$value)
+    if (identical(chunk$commit$schema, "simulation-chunk-v2") && ".main" %in% names(records)) {
+      original_names <- records[[".main"]]$field_names
+      if (!is.null(original_names)) {
+        if (!any(vapply(chunk$schema$record_names, identical, logical(1), original_names)) ||
+            !setequal(names(value), if (is.null(fields)) original_names else union(setdiff(original_names, chunk$commit$auxiliary_fields), intersect(original_names, fields)))) stop("Simulation trace field/schema mismatch", call. = FALSE)
+        value <- value[original_names[original_names %in% names(value)]]
+        if (is.null(fields)) for (name in names(records[[".main"]]$value_attributes)) attr(value, name) <- records[[".main"]]$value_attributes[[name]]
+      }
+    }
+    if (!is.null(fields)) {
+      if (!is.list(value) || !all(fields %in% names(value))) stop("Simulation trace fields are missing", call. = FALSE)
+      value <- value[fields]
+    }
+    visitor(value, id)
+  }
+  for (con in connections) if (length(readBin(con, "raw", 1L))) stop("Unexpected simulation trace records", call. = FALSE)
+  invisible(TRUE)
+}
+
+simulation_stream_validate_chunk <- function(path, expected_ids, fingerprint, auxiliary_fields = NULL,
+    decode = FALSE, expected_schema = NULL) {
+  marker <- tryCatch(readRDS(file.path(path, "commit.rds")), error = function(e) NULL)
+  files <- if (!decode || is.null(marker)) character() else names(marker$hashes)
+  chunk <- simulation_stream_read_chunk(path, expected_ids, fingerprint, keep = files,
+    auxiliary_fields = auxiliary_fields, expected_schema = expected_schema)
+  if (decode && identical(chunk$commit$schema, "simulation-chunk-v2")) {
+    schema <- simulation_stream_schema_builder(expected_ids, chunk$commit$auxiliary_fields)
+    simulation_stream_visit_chunk(chunk, expected_ids, schema$observe)
+    if (!identical(chunk$schema, schema$value())) stop("Simulation chunk schema/row mismatch", call. = FALSE)
+  } else if (decode) simulation_stream_visit_chunk(chunk, expected_ids, function(value, id) NULL)
+  chunk$commit
 }
 
 simulation_execute_stream <- function(count, iteration, reducer, identity, run_dir,
     workers = 4L, chunk_size = 256L, resume = FALSE, progress = NULL,
-    trace = function(value) value, budget = NULL, batch_size = 32L) {
+    trace = function(value) value, budget = NULL, batch_size = 32L,
+    auxiliary_fields = character()) {
   integer_control <- function(value, name) {
     if (length(value) != 1L || is.na(value) || !is.finite(value) || value < 1 ||
         value != floor(value) || value > .Machine$integer.max) stop(name, " must be a positive integer", call. = FALSE)
@@ -152,7 +258,9 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
   if (!is.logical(resume) || length(resume) != 1L || is.na(resume)) stop("Invalid resume control", call. = FALSE)
   if (!(is.null(progress) || is.function(progress) || (is.logical(progress) && length(progress) == 1L && !is.na(progress)))) stop("Invalid progress control", call. = FALSE)
   if (!all(vapply(reducer[c("init", "update", "merge")], is.function, logical(1)))) stop("Invalid simulation reducer", call. = FALSE)
+  if (!is.null(reducer$finalize) && !is.function(reducer$finalize)) stop("Invalid simulation reducer finalizer", call. = FALSE)
   if (!is.function(trace)) stop("Invalid simulation trace writer", call. = FALSE)
+  if (!is.character(auxiliary_fields) || anyNA(auxiliary_fields) || any(!nzchar(auxiliary_fields)) || anyDuplicated(auxiliary_fields) || ".main" %in% auxiliary_fields) stop("Invalid simulation auxiliary fields", call. = FALSE)
   if (is.null(run_dir) || length(run_dir) != 1L || is.na(run_dir) || !nzchar(run_dir)) stop("Streaming requires run_dir", call. = FALSE)
   had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
   if (had_seed) saved_seed <- get(".Random.seed", envir = .GlobalEnv)
@@ -177,8 +285,8 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
     locale = Sys.getlocale(), long_double_bytes = .Machine$sizeof.longdouble,
     formatting = options()[c("OutDec", "scipen", "digits")],
     packages = vapply(c("digest", "jsonlite"), function(p) as.character(utils::packageVersion(p)), character(1)))
-  manifest <- list(schema = "simulation-stream-v1", identity = identity, count = count,
-    chunk_size = chunk_size, environment = environment)
+  manifest <- list(schema = "simulation-stream-v2", identity = identity, count = count,
+    chunk_size = chunk_size, auxiliary_fields = auxiliary_fields, environment = environment)
   fingerprint <- digest::digest(manifest, algo = "sha256")
   manifest$fingerprint <- fingerprint
   manifest_path <- file.path(run_dir, "manifest.rds")
@@ -197,7 +305,8 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
   done <- vapply(seq_along(ranges), function(index) {
     path <- chunk_path(index)
     if (!dir.exists(path)) return(FALSE)
-    simulation_stream_validate_chunk(path, ranges[[index]], fingerprint)
+    simulation_stream_validate_chunk(path, ranges[[index]], fingerprint, auxiliary_fields,
+      expected_schema = manifest$schema)
     TRUE
   }, logical(1))
   # Interrupted staging directories never have commit authority.
@@ -230,14 +339,30 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
   execute_chunk <- function(index) {
     path <- file.path(run_dir, sprintf(".partial-%06d-%d", index, Sys.getpid()))
     if (!dir.create(path)) stop("Cannot stage simulation chunk", call. = FALSE)
-    con <- gzfile(file.path(path, "trace.bin.gz"), "wb", compression = 1L)
-    on.exit(try(close(con), silent = TRUE), add = TRUE)
+    auxiliary_files <- if (length(auxiliary_fields)) sprintf("auxiliary-%04d.bin.gz", seq_along(auxiliary_fields)) else character()
+    connections <- list()
+    on.exit(for (con in connections) try(close(con), silent = TRUE), add = TRUE)
+    files <- stats::setNames(c("trace.bin.gz", auxiliary_files), c(".main", auxiliary_fields))
+    for (field in names(files)) connections[[field]] <- gzfile(file.path(path, files[[field]]), "wb", compression = 1L)
+    schema <- simulation_stream_schema_builder(ranges[[index]], auxiliary_fields)
     accumulator <- reducer$init()
     local_count <- 0L
     for (id in ranges[[index]]) {
       value <- iteration(id)
       accumulator <- reducer$update(accumulator, value, id)
-      serialize(list(iteration = id, value = trace(value)), con, version = 3L)
+      logical_trace <- trace(value)
+      schema$observe(logical_trace)
+      record <- list(iteration = id, value = logical_trace)
+      if (length(auxiliary_fields)) {
+        if (!is.list(logical_trace) || is.data.frame(logical_trace) || is.object(logical_trace) ||
+            is.null(names(logical_trace)) || anyNA(names(logical_trace)) || anyDuplicated(names(logical_trace)) || any(!nzchar(names(logical_trace))) ||
+            !all(auxiliary_fields %in% names(logical_trace))) stop("Auxiliary traces require complete, uniquely named plain lists", call. = FALSE)
+        record$field_names <- names(logical_trace)
+        record$value_attributes <- attributes(logical_trace)[setdiff(names(attributes(logical_trace)), "names")]
+        record$value <- logical_trace[!names(logical_trace) %in% auxiliary_fields]
+        for (field in auxiliary_fields) serialize(list(iteration = id, value = logical_trace[[field]]), connections[[field]], version = 3L)
+      }
+      serialize(record, connections[[".main"]], version = 3L)
       local_count <- local_count + 1L
       if (local_count %% batch_size == 0L || local_count == length(ranges[[index]])) {
         counter <- file.path(progress_dir, as.character(index)); next_path <- paste0(counter, ".next")
@@ -246,11 +371,19 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
         if (workers == 1L) emit()
       }
     }
-    close(con)
+    for (con in connections) close(con)
+    if (!identical(local_count, length(ranges[[index]]))) stop("Simulation emitted iteration coverage mismatch", call. = FALSE)
+    # Some reducers use compact numeric state during the hot loop and convert
+    # it to their merge representation only once for the completed chunk.
+    if (is.function(reducer$finalize)) accumulator <- reducer$finalize(accumulator)
     saveRDS(accumulator, file.path(path, "statistics.rds"), compress = FALSE, version = 3L)
-    hashes <- stats::setNames(vapply(c("trace.bin.gz", "statistics.rds"), function(name) simulation_file_hash(file.path(path, name)), character(1)), c("trace.bin.gz", "statistics.rds"))
-    saveRDS(list(fingerprint = fingerprint, ids = ranges[[index]], hashes = hashes), file.path(path, "commit.rds"), compress = FALSE)
-    simulation_stream_validate_chunk(path, ranges[[index]], fingerprint)
+    saveRDS(schema$value(), file.path(path, "schema.rds"), compress = FALSE, version = 3L)
+    payloads <- c("trace.bin.gz", "statistics.rds", "schema.rds", auxiliary_files)
+    hashes <- stats::setNames(vapply(payloads, function(name) simulation_file_hash(file.path(path, name)), character(1)), payloads)
+    saveRDS(list(schema = "simulation-chunk-v2", fingerprint = fingerprint, ids = ranges[[index]],
+      auxiliary_fields = auxiliary_fields, hashes = hashes), file.path(path, "commit.rds"), compress = FALSE)
+    simulation_stream_validate_chunk(path, ranges[[index]], fingerprint, auxiliary_fields,
+      expected_schema = manifest$schema)
     if (!file.rename(path, chunk_path(index))) stop("Simulation chunk commit failed", call. = FALSE)
     index
   }
@@ -293,34 +426,62 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
   accumulator <- reducer$init()
   emit("aggregation")
   for (index in seq_along(ranges)) {
-    simulation_stream_validate_chunk(chunk_path(index), ranges[[index]], fingerprint)
-    accumulator <- reducer$merge(accumulator, readRDS(file.path(chunk_path(index), "statistics.rds")))
+    chunk <- simulation_stream_read_chunk(chunk_path(index), ranges[[index]], fingerprint,
+      keep = "statistics.rds", auxiliary_fields = auxiliary_fields, expected_schema = manifest$schema)
+    con <- rawConnection(chunk$buffers[["statistics.rds"]])
+    statistics <- tryCatch(readRDS(con), finally = close(con))
+    accumulator <- reducer$merge(accumulator, statistics)
     if (is.function(budget)) budget(NULL)
   }
   structure(list(run_dir = run_dir, manifest = manifest, statistics = accumulator,
     complete = all(done)), class = "simulation_trace_store")
 }
 
-simulation_trace_visit <- function(store, visitor) {
+simulation_trace_manifest <- function(store) {
   if (!inherits(store, "simulation_trace_store") || !isTRUE(store$complete)) stop("Missing complete simulation trace store", call. = FALSE)
   manifest <- readRDS(file.path(store$run_dir, "manifest.rds"))
   if (!identical(manifest, store$manifest)) stop("Simulation trace manifest changed", call. = FALSE)
+  if (!(identical(manifest$schema, "simulation-stream-v1") || identical(manifest$schema, "simulation-stream-v2"))) stop("Unknown simulation trace schema", call. = FALSE)
   firsts <- seq.int(1L, manifest$count, by = manifest$chunk_size)
+  paths <- sprintf("chunk-%06d", seq_along(firsts))
+  if (!setequal(list.files(store$run_dir, pattern = "^chunk-"), paths)) stop("Simulation trace chunk inventory mismatch", call. = FALSE)
+  manifest
+}
+
+simulation_trace_visit <- function(store, visitor, fields = NULL) {
+  if (!is.function(visitor)) stop("Invalid simulation trace visitor", call. = FALSE)
+  if (!is.null(fields) && (!is.character(fields) || anyNA(fields) || any(!nzchar(fields)) || anyDuplicated(fields))) stop("Invalid simulation trace field selection", call. = FALSE)
+  manifest <- simulation_trace_manifest(store)
+  firsts <- seq.int(1L, manifest$count, by = manifest$chunk_size)
+  auxiliary <- manifest$auxiliary_fields
+  if (is.null(auxiliary)) auxiliary <- character()
+  selected <- if (is.null(fields)) auxiliary else intersect(auxiliary, fields)
+  keep <- if (is.null(fields) || any(!fields %in% auxiliary) || identical(manifest$schema, "simulation-stream-v1")) "trace.bin.gz" else character()
+  if (length(selected)) keep <- c(keep, sprintf("auxiliary-%04d.bin.gz", match(selected, auxiliary)))
   for (index in seq_along(firsts)) {
     ids <- seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L))
     path <- file.path(store$run_dir, sprintf("chunk-%06d", index))
-    simulation_stream_validate_chunk(path, ids, manifest$fingerprint)
-    con <- gzfile(file.path(path, "trace.bin.gz"), "rb")
-    tryCatch({
-      for (id in ids) {
-        record <- unserialize(con)
-        if (!identical(record$iteration, id)) stop("Simulation trace iteration mismatch", call. = FALSE)
-        visitor(record$value, id)
-      }
-      if (length(readBin(con, "raw", 1L))) stop("Unexpected simulation trace records", call. = FALSE)
-    }, finally = close(con))
+    chunk <- simulation_stream_read_chunk(path, ids, manifest$fingerprint, keep, auxiliary,
+      expected_schema = manifest$schema)
+    simulation_stream_visit_chunk(chunk, ids, visitor, fields)
   }
   invisible(TRUE)
+}
+
+# Frame exemplars are committed with each chunk. Column discovery can therefore
+# apply the same schema-preserving transform without decoding every football row.
+# A separate row visit still verifies and decodes the exact bytes being hashed.
+simulation_trace_schema_visit <- function(store, visitor) {
+  manifest <- simulation_trace_manifest(store)
+  if (!identical(manifest$schema, "simulation-stream-v2")) return(FALSE)
+  firsts <- seq.int(1L, manifest$count, by = manifest$chunk_size)
+  for (index in seq_along(firsts)) {
+    ids <- seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L))
+    chunk <- simulation_stream_read_chunk(file.path(store$run_dir, sprintf("chunk-%06d", index)),
+      ids, manifest$fingerprint, auxiliary_fields = manifest$auxiliary_fields, expected_schema = manifest$schema)
+    visitor(chunk$schema)
+  }
+  TRUE
 }
 
 simulation_trace_materialize <- function(store) {
@@ -377,84 +538,149 @@ simulation_trace_table <- function(reference, transform = identity) {
     frame <- value[[reference$field]]
     if (!is.data.frame(frame)) stop("Simulation trace table is missing: ", reference$field, call. = FALSE)
     frames[[length(frames) + 1L]] <<- transform(frame)
-  })
+  }, fields = reference$field)
   if (!length(frames)) return(data.frame())
   fields <- unique(unlist(lapply(frames, names)))
   frames <- lapply(frames, function(frame) { for (field in setdiff(fields, names(frame))) frame[[field]] <- rep(NA, nrow(frame)); frame[, fields, drop = FALSE] })
   result <- do.call(rbind, frames); row.names(result) <- NULL; result
 }
 
-# External sort bounds canonical hashing memory. Hex UTF-8 keys preserve radix
-# field ordering including prefixes/control characters; payload uses base64 so
-# embedded record separators/newlines cannot affect the external sort format.
-simulation_trace_nl_hashes <- function(store, fields, transform, normalize) {
+# Resolve both ordinary repo calls and modules sourced into a private namespace
+# before the caller changes directory. No path under the simulation run is code.
+simulation_canonical_helper_path <- local({
+  sources <- Filter(function(path) is.character(path) && length(path) == 1L &&
+    basename(path) == "simulation_execution.R", lapply(sys.frames(), function(frame) frame$ofile))
+  source_root <- if (length(sources)) dirname(dirname(dirname(normalizePath(sources[[length(sources)]], mustWork = TRUE)))) else NULL
+  function() {
+    for (start in unique(c(source_root, getwd()))) {
+      root <- normalizePath(start, mustWork = TRUE)
+      repeat {
+        helper <- file.path(root, "scripts", "hash_simulation_canonical.py")
+        if (file.exists(helper)) return(normalizePath(helper, mustWork = TRUE))
+        parent <- dirname(root)
+        if (identical(parent, root)) break
+        root <- parent
+      }
+    }
+    stop("Canonical simulation merge helper is missing", call. = FALSE)
+  }
+})
+
+# Hex UTF-8 keys preserve radix field ordering, including prefixes and control
+# characters. Bounded sorted gzip runs avoid whole-history plaintext copies.
+# The stdlib helper merges <=32 streams and hashes the original framing directly.
+simulation_trace_nl_hashes <- function(store, fields, transform, normalize,
+    run_size = 4096L, fan_in = 32L) {
+  if (length(run_size) != 1L || is.na(run_size) || !is.finite(run_size) || run_size < 1L || run_size > 4096L || run_size != floor(run_size)) stop("Invalid canonical run size", call. = FALSE)
+  if (length(fan_in) != 1L || is.na(fan_in) || !is.finite(fan_in) || fan_in < 2L || fan_in > 32L || fan_in != floor(fan_in)) stop("Invalid canonical merge fan-in", call. = FALSE)
+  run_size <- as.integer(run_size); fan_in <- as.integer(fan_in)
+  helper <- simulation_canonical_helper_path()
+  python <- Sys.which("python3")
+  if (!nzchar(python)) stop("python3 is required for bounded canonical simulation hashing", call. = FALSE)
   directory <- tempfile("simulation-canonical-", tmpdir = store$run_dir)
   if (!dir.create(directory)) stop("Cannot create canonical sort workspace", call. = FALSE)
   on.exit(unlink(directory, recursive = TRUE), add = TRUE)
   columns <- stats::setNames(vector("list", length(fields)), fields)
-  simulation_trace_visit(store, function(value, id) for (field in fields) {
-    frame <- transform(value[[field]])
-    columns[[field]] <<- union(columns[[field]], names(frame))
+  schemas <- simulation_trace_schema_visit(store, function(schema) for (field in fields) {
+    frames <- schema$frames[[field]]
+    if (is.null(frames)) stop("Simulation trace table schema is missing: ", field, call. = FALSE)
+    for (frame in frames) columns[[field]] <<- union(columns[[field]], names(transform(frame)))
   })
-  connections <- stats::setNames(lapply(fields, function(field) file(file.path(directory, paste0(field, ".input")), "wb")), fields)
-  on.exit(for (con in connections) try(close(con), silent = TRUE), add = TRUE)
+  if (!schemas) simulation_trace_visit(store, function(value, id) for (field in fields) {
+    columns[[field]] <<- union(columns[[field]], names(transform(value[[field]])))
+  }, fields = fields)
   hex <- function(value) paste(sprintf("%02x", as.integer(charToRaw(enc2utf8(value)))), collapse = "")
   for (field in fields) columns[[field]] <- sort(columns[[field]], method = "radix")
+  runs <- buffers <- column_cache <- stats::setNames(vector("list", length(fields)), fields)
+  buffered <- totals <- stats::setNames(integer(length(fields)), fields)
+  flush <- function(field) {
+    if (!buffered[[field]]) return(invisible(NULL))
+    lines <- sort(unlist(buffers[[field]], use.names = FALSE), method = "radix")
+    if (length(lines) != buffered[[field]] || length(lines) > run_size) stop("Canonical sorted run coverage/bound mismatch", call. = FALSE)
+    name <- sprintf("field-%04d-run-%08d.gz", match(field, fields), length(runs[[field]]) + 1L)
+    path <- file.path(directory, name); con <- gzfile(path, "wb", compression = 1L)
+    tryCatch(writeLines(lines, con, useBytes = TRUE), finally = close(con))
+    runs[[field]][[length(runs[[field]]) + 1L]] <<- list(path = name, rows = length(lines), sha256 = simulation_file_hash(path))
+    buffers[[field]] <<- list(); buffered[[field]] <<- 0L
+    invisible(NULL)
+  }
+  append_lines <- function(field, lines) {
+    first <- 1L
+    while (first <= length(lines)) {
+      take <- min(length(lines) - first + 1L, run_size - buffered[[field]])
+      buffers[[field]][[length(buffers[[field]]) + 1L]] <<- lines[seq.int(first, first + take - 1L)]
+      buffered[[field]] <<- buffered[[field]] + take
+      totals[[field]] <<- totals[[field]] + take
+      first <- first + take
+      if (buffered[[field]] == run_size) flush(field)
+    }
+    invisible(NULL)
+  }
   simulation_trace_visit(store, function(value, id) for (field in fields) {
     frame <- transform(value[[field]])
     if (!nrow(frame)) next
+    if (length(setdiff(names(frame), columns[[field]]))) stop("Canonical trace transform changed its schema", call. = FALSE)
     for (name in setdiff(columns[[field]], names(frame))) frame[[name]] <- rep(NA, nrow(frame))
-    values <- lapply(frame[, columns[[field]], drop = FALSE], normalize)
-    hex_columns <- lapply(values, function(column) {
+    values <- hex_columns <- vector("list", length(columns[[field]])); cache <- column_cache[[field]]
+    for (index in seq_along(columns[[field]])) {
+      name <- columns[[field]][[index]]; raw <- frame[[name]]; previous <- cache[[name]]
+      if (!is.null(previous) && identical(raw, previous$raw)) {
+        values[[index]] <- previous$values; hex_columns[[index]] <- previous$hex
+        next
+      }
+      column <- enc2utf8(normalize(raw))
+      if (!is.character(column) || length(column) != nrow(frame) || anyNA(column)) stop("Invalid canonical column normalization", call. = FALSE)
       unique_values <- unique(column)
-      encoded <- vapply(unique_values, hex, character(1), USE.NAMES = FALSE)
-      encoded[match(column, unique_values)]
-    })
-    keys <- do.call(paste, c(hex_columns, list(sep = "!")))
-    text <- do.call(paste, c(values, list(sep = "\x1f")))
+      encoded <- if (!is.null(previous) && identical(unique_values, previous$unique)) previous$encoded else vapply(unique_values, hex, character(1), USE.NAMES = FALSE)
+      values[[index]] <- column; hex_columns[[index]] <- encoded[match(column, unique_values)]
+      # Retain only the last bounded column and its unique encoding. There is
+      # no cumulative per-value cache as new tournament results arrive.
+      cache[name] <- list(if (length(raw) <= 4096L && sum(nchar(column, type = "bytes")) <= 65536L)
+        list(raw = raw, values = column, hex = hex_columns[[index]], unique = unique_values, encoded = encoded) else NULL)
+    }
+    column_cache[field] <<- list(cache)
+    keys <- if (length(hex_columns)) do.call(paste, c(hex_columns, list(sep = "!"))) else rep("", nrow(frame))
+    text <- if (length(values)) do.call(paste, c(values, list(sep = "\x1f"))) else rep("", nrow(frame))
     payload <- vapply(text, function(row) jsonlite::base64_enc(charToRaw(row)), character(1), USE.NAMES = FALSE)
-    lines <- paste0(keys, "\t", gsub("\n", "", payload, fixed = TRUE))
-    writeLines(lines, connections[[field]], useBytes = TRUE)
-  })
-  for (con in connections) close(con)
+    append_lines(field, paste0(keys, "\t", gsub("\n", "", payload, fixed = TRUE)))
+  }, fields = fields)
+  for (field in fields) flush(field)
+  manifest <- list(schema = "simulation-canonical-runs-v1", fan_in = fan_in,
+    fields = unname(lapply(fields, function(field) list(field = field, columns = length(columns[[field]]),
+      rows = totals[[field]], header_base64 = gsub("\n", "", jsonlite::base64_enc(charToRaw(enc2utf8(paste(columns[[field]], collapse = "\x1f")))), fixed = TRUE),
+      runs = if (length(runs[[field]])) runs[[field]] else list()))))
+  manifest_path <- file.path(directory, "runs.json"); output_path <- file.path(directory, "hashes.json")
+  jsonlite::write_json(manifest, manifest_path, auto_unbox = TRUE, digits = NA)
+  output <- suppressWarnings(system2(python, c(shQuote(helper), "--manifest", shQuote(manifest_path), "--output", shQuote(output_path)), stdout = TRUE, stderr = TRUE))
+  status <- attr(output, "status")
+  if ((!is.null(status) && status != 0L) || !file.exists(output_path)) stop("Canonical simulation compressed merge failed: ", paste(output, collapse = "\n"), call. = FALSE)
+  result <- tryCatch(jsonlite::read_json(output_path, simplifyVector = FALSE), error = function(e) NULL)
+  if (!identical(result$schema, "simulation-canonical-hashes-v1") || !identical(as.integer(result$fan_in), fan_in) ||
+      length(result$fields) != length(fields) || !identical(vapply(result$fields, `[[`, character(1), "field"), fields)) stop("Invalid canonical merge receipt", call. = FALSE)
   hashes <- stats::setNames(character(length(fields)), fields)
   for (field in fields) {
-    input <- file.path(directory, paste0(field, ".input")); sorted <- paste0(input, ".sorted")
-    status <- system2("/usr/bin/sort", c("-S", "16M", "-T", shQuote(directory), "-o", shQuote(sorted), shQuote(input)), env = "LC_ALL=C")
-    if (!identical(status, 0L)) stop("Canonical simulation external sort failed", call. = FALSE)
-    payload <- file.path(directory, paste0(field, ".canonical"))
-    output <- file(payload, "wb"); source <- file(sorted, "rb")
-    tryCatch({
-      writeBin(charToRaw(paste(columns[[field]], collapse = "\x1f")), output)
-      repeat {
-        lines <- readLines(source, n = 1024L, warn = FALSE)
-        if (!length(lines)) break
-        for (line in lines) {
-          encoded <- substring(line, regexpr("\t", line, fixed = TRUE) + 1L)
-          writeBin(as.raw(30L), output); writeBin(jsonlite::base64_dec(encoded), output)
-        }
-      }
-    }, finally = { close(output); close(source) })
-    hashes[[field]] <- simulation_file_hash(payload)
+    receipt <- result$fields[[match(field, fields)]]
+    if (length(receipt$rows) != 1L || !identical(as.double(receipt$rows), as.double(totals[[field]])) ||
+        !is.character(receipt$sha256) || length(receipt$sha256) != 1L || !grepl("^[0-9a-f]{64}$", receipt$sha256)) stop("Canonical merge hash/coverage receipt mismatch", call. = FALSE)
+    hashes[[field]] <- receipt$sha256
   }
   hashes
 }
 
 simulation_trace_validate <- function(store) {
-  if (!inherits(store, "simulation_trace_store") || !isTRUE(store$complete)) stop("Missing complete simulation trace store", call. = FALSE)
-  manifest <- readRDS(file.path(store$run_dir, "manifest.rds"))
-  if (!identical(store$manifest, manifest)) stop("Simulation trace manifest mismatch", call. = FALSE)
+  manifest <- simulation_trace_manifest(store)
   firsts <- seq.int(1L, manifest$count, by = manifest$chunk_size)
   paths <- sprintf("chunk-%06d", seq_along(firsts))
   if (!setequal(list.files(store$run_dir, pattern = "^chunk-"), paths)) stop("Simulation trace chunk inventory mismatch", call. = FALSE)
   for (index in seq_along(firsts)) simulation_stream_validate_chunk(file.path(store$run_dir, paths[[index]]),
-    seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L)), manifest$fingerprint)
+    seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L)), manifest$fingerprint,
+    manifest$auxiliary_fields, decode = TRUE, expected_schema = manifest$schema)
   invisible(TRUE)
 }
 
 simulation_repository_identity <- function(root = ".") {
   paths <- sort(c(list.files(file.path(root, "R"), pattern = "\\.R$", recursive = TRUE, full.names = TRUE),
-    file.path(root, c("scripts/build_nations_league_outcomes.R", "scripts/build_uefa_champions_league_outcomes.R"))), method = "radix")
+    file.path(root, c("scripts/build_nations_league_outcomes.R", "scripts/build_uefa_champions_league_outcomes.R", "scripts/hash_simulation_canonical.py"))), method = "radix")
   # list.files can preserve a relative root; normalize before assigning names.
   paths <- normalizePath(paths, mustWork = TRUE)
   relative <- substring(paths, nchar(normalizePath(root, mustWork = TRUE)) + 2L)
@@ -484,7 +710,7 @@ simulation_exact_trace_means <- function(store) {
     if (!is.data.frame(value$mean_records)) stop("Exact mean trace records are missing", call. = FALSE)
     frames[[length(frames) + 1L]] <<- value$mean_records
     if (id %% store$manifest$chunk_size == 0L || id == store$manifest$count) flush()
-  })
+  }, fields = "mean_records")
   values <- new.env(hash = TRUE, parent = emptyenv())
   for (key in ls(files, all.names = TRUE, sorted = FALSE)) {
     path <- get(key, files); n <- file.info(path)$size / 8

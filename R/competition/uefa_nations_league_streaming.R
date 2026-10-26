@@ -1,18 +1,97 @@
 # WC-style sufficient statistics; the simulation's football rules remain in
 # the existing iteration kernel. No full history is retained by these reducers.
 uefa_nl_stream_path_fields <- function() c("p_quarter_final", "p_semi_final", "p_third_place", "p_final", "p_champion", "p_direct_promotion", "p_direct_relegation", "p_playoff_eligibility", "p_playoff_win", "p_playoff_loss", "p_promotion", "p_relegation")
+
+uefa_nl_stream_capture <- function(value) {
+  standings <- uefa_nl_sim_bind_rows(value$state$group_rankings)
+  standings$rank <- as.integer(standings$group_position)
+  list(rankings = uefa_nl_sim_rank_capture(value), standings = standings)
+}
+
+# Counters are vectors during a chunk. Only previously unseen keys allocate a
+# representative row; conversion to the compatible bucket format is once per
+# chunk, rather than an R get/modify/assign loop for every observed row.
+uefa_nl_stream_counter_state <- function(names) {
+  structure(stats::setNames(lapply(names, function(name) {
+    table <- new.env(parent = emptyenv())
+    table$keys <- character(); table$n <- numeric(); table$rows <- list()
+    table$iterations <- integer(); table$indexes <- integer()
+    table$value_fields <- list(); table$histograms <- list()
+    table
+  }), names), class = c("uefa_nl_counter_state", "list"))
+}
+
+uefa_nl_stream_observe <- function(table, rows, fields, numeric_fields, iteration, histogram_fields) {
+  if (!is.data.frame(rows) || !nrow(rows)) return(invisible(NULL))
+  keys <- simulation_bucket_keys(rows, fields)
+  indexes <- match(keys, table$keys)
+  added <- unique(keys[is.na(indexes)])
+  if (length(added)) {
+    first <- match(added, keys)
+    table$keys <- c(table$keys, added)
+    table$n <- c(table$n, numeric(length(added)))
+    table$rows <- c(table$rows, lapply(first, function(i) rows[i, , drop = FALSE]))
+    table$iterations <- c(table$iterations, rep.int(as.integer(iteration), length(added)))
+    table$indexes <- c(table$indexes, as.integer(first))
+    table$value_fields <- c(table$value_fields, rep(list(numeric_fields), length(added)))
+    indexes <- match(keys, table$keys)
+  }
+  table$n <- table$n + tabulate(indexes, nbins = length(table$keys))
+  for (field in histogram_fields) {
+    values <- as.numeric(rows[[field]])
+    tokens <- ifelse(is.na(values), "<NA>", as.character(values))
+    keys <- paste(indexes, tokens, sep = "\x1f")
+    histogram <- table$histograms[[field]]
+    if (is.null(histogram)) histogram <- list(keys = character(), n = numeric(), bucket = integer(), token = character())
+    locations <- match(keys, histogram$keys)
+    added <- unique(keys[is.na(locations)])
+    if (length(added)) {
+      first <- match(added, keys)
+      histogram$keys <- c(histogram$keys, added)
+      histogram$n <- c(histogram$n, numeric(length(added)))
+      histogram$bucket <- c(histogram$bucket, indexes[first])
+      histogram$token <- c(histogram$token, tokens[first])
+      locations <- match(keys, histogram$keys)
+    }
+    histogram$n <- histogram$n + tabulate(locations, nbins = length(histogram$keys))
+    table$histograms[[field]] <- histogram
+  }
+  invisible(NULL)
+}
+
+uefa_nl_stream_finalize_counters <- function(state) {
+  if (!inherits(state, "uefa_nl_counter_state")) return(state)
+  output <- simulation_bucket_state(names(state))
+  for (name in names(state)) {
+    table <- state[[name]]
+    for (i in seq_along(table$keys)) {
+      fields <- table$value_fields[[i]]
+      values <- stats::setNames(lapply(fields, function(field) {
+        histogram <- table$histograms[[field]]
+        if (is.null(histogram)) return(numeric())
+        selected <- which(histogram$bucket == i)
+        stats::setNames(histogram$n[selected], histogram$token[selected])
+      }), fields)
+      assign(table$keys[[i]], list(row = table$rows[[i]], ordinal = c(table$iterations[[i]], table$indexes[[i]]),
+        n = table$n[[i]], values = values), output[[name]])
+    }
+  }
+  output
+}
+
 uefa_nl_stream_reducer <- function() {
   add_rows <- function(table, rows, fields, numeric, iteration, histogram = FALSE) {
-    simulation_bucket_observe(table, rows, intersect(fields, names(rows)), intersect(numeric, names(rows)),
+    uefa_nl_stream_observe(table, rows, intersect(fields, names(rows)), intersect(numeric, names(rows)),
       iteration, if (histogram) intersect(numeric, names(rows)) else character())
   }
-  list(init = function() simulation_bucket_state(c("rankings", "standings", "paths", "transitions", "fixtures", "euro", "slots")),
+  list(init = function() uefa_nl_stream_counter_state(c("rankings", "standings", "paths", "transitions", "fixtures", "euro", "slots")),
     update = function(state, value, iteration) {
-      ranking <- uefa_nl_sim_rank_capture(value); ranking$iteration <- NULL
+      capture <- attr(value, "nl_stream_capture", exact = TRUE)
+      if (is.null(capture)) capture <- uefa_nl_stream_capture(value)
+      ranking <- capture$rankings; ranking$iteration <- NULL
       keys <- c("ranking_scope", "team_id", "league", "group_id", "group_position", "rank", "interim_overall_rank", "final_overall_rank", "ranking_stage")
       add_rows(state$rankings, ranking, keys, character(), iteration)
-      standings <- uefa_nl_sim_bind_rows(value$state$group_rankings)
-      standings$rank <- as.integer(standings$group_position)
+      standings <- capture$standings
       add_rows(state$standings, standings, c("league", "group_id", "team_id", "rank"), c("points", "goal_difference"), iteration)
       add_rows(state$paths, value$paths, c("team_id", "status", "suppression_reason"), uefa_nl_stream_path_fields(), iteration)
       transitions <- value$transition_events
@@ -34,7 +113,9 @@ uefa_nl_stream_reducer <- function() {
         add_rows(state$slots, slots, keys, character(), iteration)
       }
       state
-    }, merge = simulation_bucket_merge_state)
+    }, finalize = uefa_nl_stream_finalize_counters,
+    merge = function(left, right) simulation_bucket_merge_state(
+      uefa_nl_stream_finalize_counters(left), uefa_nl_stream_finalize_counters(right)))
 }
 
 uefa_nl_stream_bind_buckets <- function(buckets) {
@@ -57,6 +138,19 @@ uefa_nl_stream_rankings <- function(statistics, count, metadata) {
 uefa_nl_stream_metadata <- function(data, count, metadata) uefa_nl_sim_add_metadata(data,
   metadata$edition_id, metadata$projection_run_id, count, metadata$simulation_seed,
   metadata$rules, metadata$source_bundle_id, metadata$source_bundle_sha256, metadata$model_release_id)
+
+uefa_nl_stream_prepare_metadata <- function(count, metadata) {
+  values <- list(edition_id = as.character(metadata$edition_id), projection_run_id = as.character(metadata$projection_run_id),
+    simulation_count = as.integer(count), simulation_seed = as.integer(metadata$simulation_seed),
+    ruleset_version = as.character(metadata$rules$ruleset_version), ruleset_sha256 = uefa_nl_ruleset_sha256(metadata$rules),
+    source_bundle_id = as.character(metadata$source_bundle_id), source_bundle_sha256 = as.character(metadata$source_bundle_sha256),
+    model_release_id = as.character(metadata$model_release_id))
+  function(data) {
+    if (!is.data.frame(data) || !nrow(data)) return(data)
+    for (field in names(values)) data[[field]] <- rep(values[[field]], length.out = nrow(data))
+    data
+  }
+}
 
 uefa_nl_stream_standings <- function(statistics, count, metadata, groups, matches) {
   # Reuse the legacy schema/completed-group policy with one representative run;
@@ -172,22 +266,27 @@ uefa_nl_stream_modal_slots <- function(statistics) {
 }
 
 uefa_nl_stream_mean_records <- function(value) {
-  frames <- list()
+  key_parts <- value_parts <- list()
   append <- function(table, rows, keys, metrics) {
     if (!nrow(rows)) return(invisible(NULL))
+    if (any(!metrics %in% names(rows))) stop("Missing streamed mean fields: ", table, call. = FALSE)
     key <- simulation_bucket_keys(rows, keys)
-    for (metric in metrics) frames[[length(frames) + 1L]] <<- data.frame(
-      key = paste(table, key, metric, sep = "\x1d"), value = as.numeric(rows[[metric]]), stringsAsFactors = FALSE)
+    for (metric in metrics) {
+      key_parts[[length(key_parts) + 1L]] <<- paste(table, key, metric, sep = "\x1d")
+      value_parts[[length(value_parts) + 1L]] <<- as.numeric(rows[[metric]])
+    }
   }
-  rows <- uefa_nl_sim_bind_rows(value$state$group_rankings); rows$rank <- as.integer(rows$group_position)
+  capture <- attr(value, "nl_stream_capture", exact = TRUE)
+  if (is.null(capture)) capture <- uefa_nl_stream_capture(value)
+  rows <- capture$standings
   append("standings", rows, c("league", "group_id", "team_id", "rank"), c("points", "goal_difference"))
   append("paths", value$paths, "team_id", uefa_nl_stream_path_fields())
   append("euro", value$euro_priority, "team_id", uefa_euro_priority_metrics())
   transitions <- value$transition_events; transitions$iteration <- NULL
   metrics <- intersect(c("probability", "playoff_eligibility_probability", "playoff_win_probability", "playoff_loss_probability"), names(transitions))
   append("transitions", transitions, setdiff(names(transitions), c(metrics, "row_sha256", "table_sha256")), metrics)
-  if (!length(frames)) return(data.frame(key = character(), value = numeric()))
-  do.call(rbind, frames)
+  if (!length(key_parts)) return(data.frame(key = character(), value = numeric()))
+  data.frame(key = unlist(key_parts, use.names = FALSE), value = unlist(value_parts, use.names = FALSE), stringsAsFactors = FALSE)
 }
 uefa_nl_stream_exact_mean <- function(statistics, table, row, keys, field) {
   key <- paste(table, simulation_bucket_key(row, keys), field, sep = "\x1d")

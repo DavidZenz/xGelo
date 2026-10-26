@@ -214,3 +214,21 @@ See `.planning/simulation-optimization/STREAMING.md`. This maintenance does not 
   unchanged by this audit. No scale run is active.
 
 See `.planning/simulation-optimization/DEEP-AUDIT.md` and `deep-audit/evidence/`.
+
+## CPU Optimization Implementation — 2026-10-26
+
+- [x] Implement and verify CL prepared canonical framing and typed rows first
+  (`ca9119a`, 578 passing assertions, 64 exact reference samples).
+- [x] Implement NL numeric Article 15/19 paths, prepared knockout helpers,
+  compact chunk counters and reusable metadata/captures.
+- [x] Preserve accepted NL complete objects, hashes, candidate CSV bytes and
+  caller RNG across three seeds, uneven chunks, worker changes and interrupted
+  resume; implement bounded v2 traces and compressed canonical merge runs.
+- [ ] Complete frozen-code regression/resource gates and staged CL then NL
+  1k/10k/100k certification. No scale benchmark or promotion is active yet.
+- [ ] Resolve the pre-existing Phase 18 provider review/manifest mismatch through
+  its separate authority workflow. Optimization does not rewrite those files.
+
+See `.planning/simulation-optimization/CPU-IMPLEMENTATION-PLAN.md` and
+`CPU-IMPLEMENTATION.md`. Public dashboards and accepted artifacts are unchanged;
+CL production authority remains blocked independently of fixture performance.

@@ -1,0 +1,21 @@
+{
+  "valid": false,
+  "performance_gate_valid": true,
+  "all_regressions_green": false,
+  "source_snapshot_sha256": "43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5",
+  "R_suites": 30,
+  "assertions": 3286,
+  "python_tests": 9,
+  "euro_replay_passed": true,
+  "known_preexisting_failure": {
+    "file": "test_phase18_source_acceptance.R",
+    "assertions": 247,
+    "failures": 1,
+    "errors": 3,
+    "warnings": 1,
+    "skips": 0
+  },
+  "warning": "One expected Git preflight warning: this local branch has no upstream.",
+  "cl_production_certified": false,
+  "dashboards_unchanged": true
+}

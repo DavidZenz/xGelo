@@ -1,0 +1,255 @@
+{
+  "baseline_commit": "6c13de0",
+  "source_snapshot_under_review": "43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5",
+  "scope": "Read-only provider authority baseline investigation and two fresh-process regression suites; no repository edits or benchmarks.",
+  "byte_comparison": {
+    "all_match_baseline": true,
+    "file_count": 9,
+    "files": [
+      {
+        "path": "R/common/phase18_canonical_hash.R",
+        "baseline_git_blob": "0626abe611ec9f45a593ab996df97a420d18203a",
+        "current_git_blob": "0626abe611ec9f45a593ab996df97a420d18203a",
+        "matches_baseline": true,
+        "sha256": "a68b34913d9576d4468bd9ed1b5d95dcf15876d75544f5e078176434533630ee",
+        "frozen_sha256": "a68b34913d9576d4468bd9ed1b5d95dcf15876d75544f5e078176434533630ee",
+        "matches_frozen_module": true
+      },
+      {
+        "path": "R/competition/ucl_source_acceptance.R",
+        "baseline_git_blob": "b0cf2bc867999914f41c7ffd2a1905db44e9615e",
+        "current_git_blob": "b0cf2bc867999914f41c7ffd2a1905db44e9615e",
+        "matches_baseline": true,
+        "sha256": "246b24140bf466c3ace037debd8a9121aa681a7b6657f05cbc1f44dbe2d63ba2",
+        "frozen_sha256": "246b24140bf466c3ace037debd8a9121aa681a7b6657f05cbc1f44dbe2d63ba2",
+        "matches_frozen_module": true
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/current.json",
+        "baseline_git_blob": "f4d2c7c754fbc71c5515ad3b9421e2a6f2f7710f",
+        "current_git_blob": "f4d2c7c754fbc71c5515ad3b9421e2a6f2f7710f",
+        "matches_baseline": true,
+        "sha256": "60bc19c0ddc5880be06bf207a0c70fcca8b15a72526b17761681ec1f98146097"
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/ACCEPTANCE.md",
+        "baseline_git_blob": "351cb2403978b9749841e0f4573b4db2ce54505c",
+        "current_git_blob": "351cb2403978b9749841e0f4573b4db2ce54505c",
+        "matches_baseline": true,
+        "sha256": "42a365bd82a07a2b4636320c157d1f2510b52b3f0742e77bb98f5ed34431011b"
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/acceptance_manifest.csv",
+        "baseline_git_blob": "c80bd3ad4c0e82cbf77a11f05610fe440633cfab",
+        "current_git_blob": "c80bd3ad4c0e82cbf77a11f05610fe440633cfab",
+        "matches_baseline": true,
+        "sha256": "efa27d6363f23c3e8bd04f1bc32edb97a8036f98c5e806dd65836e65ef9c2fdc"
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/coverage_matrix.csv",
+        "baseline_git_blob": "fa147ac58a6cf78332edb3ae0bd7523569b74158",
+        "current_git_blob": "fa147ac58a6cf78332edb3ae0bd7523569b74158",
+        "matches_baseline": true,
+        "sha256": "738c2f1744e4d9d1f7f92e00689efff9623cc28eff3fcabda197ffa8877666f2"
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/edition_expectations.csv",
+        "baseline_git_blob": "1a4469ac61ba36d36b2b0fd08c5eb1181117b8a3",
+        "current_git_blob": "1a4469ac61ba36d36b2b0fd08c5eb1181117b8a3",
+        "matches_baseline": true,
+        "sha256": "3b49e0f6685067cb64bc5aff20b4c5cf05e7d2f3ef9abf38eba8d446e678ff06"
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/provider_terms_review.csv",
+        "baseline_git_blob": "eeac7d16303f8b4a910101bda49d98b71ac9d2bd",
+        "current_git_blob": "eeac7d16303f8b4a910101bda49d98b71ac9d2bd",
+        "matches_baseline": true,
+        "sha256": "9d57ac6b3d07db5c8eac23d088f114325f83eb40485e8aba0c5d24a6c981bbb7"
+      },
+      {
+        "path": "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/schema_fingerprint.csv",
+        "baseline_git_blob": "e63933112e220b441846057ad9f2d016f7147e52",
+        "current_git_blob": "e63933112e220b441846057ad9f2d016f7147e52",
+        "matches_baseline": true,
+        "sha256": "1f18d627d7082af516f03ddab0817157a3dd668955fd2f6f6145e8aaa3250702"
+      }
+    ]
+  },
+  "reproduced_baseline": {
+    "current": {
+      "mode": "current",
+      "fresh_process": true,
+      "R": "R version 4.6.1 (2026-06-24)",
+      "failure": {
+        "message": "Phase 18 acceptance integrity error: manifest differs from recomputed evidence: review_sha256",
+        "classes": [
+          "phase18_acceptance_integrity",
+          "simpleError",
+          "error",
+          "condition"
+        ]
+      },
+      "persisted": {
+        "decision": "not_run",
+        "reason_code": "missing_credential",
+        "automation_enabled": false,
+        "review_sha256": "d8e20072656750b0891c616d4873871fd7b5c1697e70bdd86714d05c7bfd8f66",
+        "row_sha256": "ad42bc7742eb490b8f7fe8c4b8a3cebd4d9606fb9ae6341a833ee646af463ba8",
+        "created_at_utc": "2026-09-20T08:46:01Z"
+      },
+      "recomputed": {
+        "review_sha256": "50d9abd25277f27247bc871a8fb7216684bc67c916e06399b6e196df000e4686",
+        "different_fields": "review_sha256"
+      },
+      "historical_review_before_approval_commit": {
+        "commit": "9b06e48^",
+        "statuses": "pending",
+        "review_sha256": "d8e20072656750b0891c616d4873871fd7b5c1697e70bdd86714d05c7bfd8f66",
+        "matches_persisted_manifest": true
+      },
+      "owner_review": {
+        "statuses": "approved",
+        "reviewer": "David Zenz",
+        "reviewed_at_utc": "2026-09-25T11:14:17Z",
+        "validation": {
+          "valid": true,
+          "decision": "accepted",
+          "reason_code": "accepted",
+          "message": "Owner review approved",
+          "review_sha256": "50d9abd25277f27247bc871a8fb7216684bc67c916e06399b6e196df000e4686"
+        }
+      }
+    },
+    "frozen": {
+      "mode": "frozen",
+      "fresh_process": true,
+      "R": "R version 4.6.1 (2026-06-24)",
+      "failure": {
+        "message": "Phase 18 acceptance integrity error: manifest differs from recomputed evidence: review_sha256",
+        "classes": [
+          "phase18_acceptance_integrity",
+          "simpleError",
+          "error",
+          "condition"
+        ]
+      },
+      "persisted": {
+        "decision": "not_run",
+        "reason_code": "missing_credential",
+        "automation_enabled": false,
+        "review_sha256": "d8e20072656750b0891c616d4873871fd7b5c1697e70bdd86714d05c7bfd8f66",
+        "row_sha256": "ad42bc7742eb490b8f7fe8c4b8a3cebd4d9606fb9ae6341a833ee646af463ba8",
+        "created_at_utc": "2026-09-20T08:46:01Z"
+      },
+      "recomputed": {
+        "review_sha256": "50d9abd25277f27247bc871a8fb7216684bc67c916e06399b6e196df000e4686",
+        "different_fields": "review_sha256"
+      },
+      "historical_review_before_approval_commit": {
+        "commit": "9b06e48^",
+        "statuses": "pending",
+        "review_sha256": "d8e20072656750b0891c616d4873871fd7b5c1697e70bdd86714d05c7bfd8f66",
+        "matches_persisted_manifest": true
+      },
+      "owner_review": {
+        "statuses": "approved",
+        "reviewer": "David Zenz",
+        "reviewed_at_utc": "2026-09-25T11:14:17Z",
+        "validation": {
+          "valid": true,
+          "decision": "accepted",
+          "reason_code": "accepted",
+          "message": "Owner review approved",
+          "review_sha256": "50d9abd25277f27247bc871a8fb7216684bc67c916e06399b6e196df000e4686"
+        }
+      }
+    },
+    "same_failure": true,
+    "same_recomputation": true
+  },
+  "cause": {
+    "commit": "9b06e485b762b3f7e436a151f5a3be079de89c9d",
+    "changed_protected_paths": [
+      "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/provider_terms_review.csv"
+    ],
+    "explanation": "The September 25 owner approval replaced seven review rows inside an existing generation. The September 20 disabled acceptance manifest and current pointer were retained. The persisted review hash exactly matches the historical pending review, while the approved review has a different valid hash. Both frozen and current validators reject this unchanged binding mismatch.",
+    "automation_enabled": false
+  },
+  "source_acceptance_full_suite": {
+    "file": "test_phase18_source_acceptance.R",
+    "assertions": 247,
+    "failures": 1,
+    "errors": 3,
+    "warnings": 1,
+    "skips": 0
+  },
+  "fresh_process_suites": [
+    {
+      "file": "test_phase18_source_bundle.R",
+      "assertions": 72,
+      "test_cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skips": 0,
+      "conditions": []
+    },
+    {
+      "file": "test_phase18_adversarial_regression.R",
+      "assertions": 60,
+      "test_cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skips": 0,
+      "conditions": []
+    }
+  ],
+  "initial_environment_attempts": {
+    "cause": "Rscript was absent from the inherited PATH; absolute Rscript launched the parent but nested system2(Rscript) could not start.",
+    "attempts": {
+      "test_phase18_source_bundle.R": {
+        "file": "test_phase18_source_bundle.R",
+        "assertions": 68,
+        "test_cases": 12,
+        "failures": 0,
+        "errors": 1,
+        "warnings": 0,
+        "skips": 0,
+        "conditions": [
+          {
+            "test": "provider-live projected resources write and fresh-process validate a candidate bundle",
+            "type": "error",
+            "message": "<cmdError/error/condition>\nError in `system2(\"Rscript\", c(\"--vanilla\", \"-e\", shQuote(expression)), stdout = TRUE, stderr = TRUE)`: error in running command"
+          }
+        ]
+      },
+      "test_phase18_adversarial_regression.R": {
+        "file": "test_phase18_adversarial_regression.R",
+        "assertions": 54,
+        "test_cases": 21,
+        "failures": 0,
+        "errors": 2,
+        "warnings": 0,
+        "skips": 0,
+        "conditions": [
+          {
+            "test": "CR-15 unsafe edition CLI creates no path and exits usage",
+            "type": "error",
+            "message": "<cmdError/error/condition>\nError in `system2(\"Rscript\", c(\"--vanilla\", file.path(phase18_adversarial_root, \"scripts/accept_ucl_provider.R\"), \"--provider-id\", \"football_data_org_v4\", \"--edition-id\", \"../escape\", \"--review-path\", review_path, \"--evidence-root\", file.path(sandbox, \"evidence\")), stdout = TRUE, stderr = TRUE)`: error in running command"
+          },
+          {
+            "test": "WR-03 successful candidate CLI subprocess exits zero truthfully",
+            "type": "error",
+            "message": "<cmdError/error/condition>\nError in `system2(\"Rscript\", c(\"--vanilla\", script, phase18_adversarial_root, payload, \"--provider-id\", \"football_data_org_v4\", \"--edition-id\", \"ucl_2026_27\", \"--review-path\", review_path, \"--evidence-root\", evidence_parent, \"--mode\", \"provider_live\", \"--club-registry-root\", registry_root, \"--candidate-root\", candidate_root, \"--bundle-id\", \"ucl-2026-27-wr03-v1\"), stdout = TRUE, stderr = TRUE)`: error in running command"
+          }
+        ]
+      }
+    }
+  },
+  "caveats": [
+    "The source-acceptance suite remains failing: this investigation proves the unchanged baseline mismatch and does not certify provider authority.",
+    "The first two remaining-suite attempts lacked Rscript on PATH for nested subprocesses. Final reruns explicitly prepend /opt/homebrew/opt/r/bin.",
+    "No authority files, dashboard bytes, code, credential state, or provider automation were changed."
+  ]
+}
