@@ -168,3 +168,19 @@ Resume file: .planning/phases/20-ucl-rules-state-and-tournament-outcomes/20-CONT
 - [ ] Production release: full 100,000-simulation validation and formal desktop/mobile browser acceptance remain outstanding; incumbent publication retained.
 
 See `.planning/dashboard-improvements/PLAN.md`, `SUMMARY.md`, `SCALE.md` and `RUNBOOK.md`. This maintenance work does not advance or replace the current UCL phase.
+
+## Simulation Optimization Maintenance — 2026-10-26
+
+- [x] Stop the persistent 100k run and confirm all original workers exited.
+- [x] Deeply compare WC/NL/CL execution and implement prepared samplers,
+  persistent parallel execution, numeric NL group arithmetic, compact transient
+  state, actual progress counts and CL execution controls.
+- [x] Validate exact reference parity, national publication regressions, CL
+  authority/simulation suites and 37 focused optimization assertions.
+- [x] Complete accepted NL 1k candidate validation and resource repeat: roughly
+  2.5x faster; synthetic CL 50-run mechanics comparison roughly 5.7x faster.
+- [ ] Full 10k/100k certification, streaming trace/memory work and the documented
+  pre-existing CL simulated-result cutoff concern remain separate release work.
+
+See `.planning/simulation-optimization/AUDIT.md` and its CSV/JSON evidence.
+No replacement 100k run or public promotion is active.

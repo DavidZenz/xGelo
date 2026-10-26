@@ -147,16 +147,17 @@ test_that("scale certification binds measured count, validation, lineage and imp
   valid <- data.frame(simulations = 100000L, seed = 15017L, workers = 4L,
     source_bundle_id = "accepted-benchmark-source", state_manifest_sha256 = strrep("a", 64L),
     elapsed_seconds = 120, validated = TRUE,
-    simulation_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/competition/uefa_nations_league_simulation.R"), algo = "sha256"))
+    simulation_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/competition/uefa_nations_league_simulation.R"), algo = "sha256"),
+    execution_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/common/simulation_execution.R"), algo = "sha256"))
   check <- function(value) {
     write.csv(value, receipt, row.names = FALSE)
     api$phase17_validate_scale_evidence(receipt, 100000L, 4L, release_safety_root)
   }
   expect_true(check(valid)$valid)
-  for (field in c("simulations", "seed", "workers", "elapsed_seconds", "validated", "source_bundle_id", "state_manifest_sha256", "simulation_code_sha256")) {
+  for (field in c("simulations", "seed", "workers", "elapsed_seconds", "validated", "source_bundle_id", "state_manifest_sha256", "simulation_code_sha256", "execution_code_sha256")) {
     bad <- valid
     bad[[field]] <- switch(field, simulations = 1000L, seed = 1L, workers = 1L,
-      elapsed_seconds = 0, validated = FALSE, source_bundle_id = "", state_manifest_sha256 = "", simulation_code_sha256 = strrep("0", 64L))
+      elapsed_seconds = 0, validated = FALSE, source_bundle_id = "", state_manifest_sha256 = "", simulation_code_sha256 = strrep("0", 64L), execution_code_sha256 = strrep("0", 64L))
     expect_error(check(bad), "scale validation required", info = field)
   }
   write.csv(valid, receipt, row.names = FALSE)

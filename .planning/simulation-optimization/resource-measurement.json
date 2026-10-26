@@ -1,0 +1,6 @@
+{
+  "maximum_resident_set_bytes": 1992081408,
+  "peak_memory_footprint_bytes": 1759234208,
+  "wall_seconds": 357.34,
+  "scope": "macOS time -l report; not a sum of all worker RSS"
+}

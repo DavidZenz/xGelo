@@ -19,7 +19,7 @@ sys.source("scripts/build_nations_league_outcomes.R", envir = entry)
 # handoff, bound to its complete accepted inputs and local implementation bytes.
 loaded <- entry$phase15_nl_default_inputs(project_root = asset_root)
 implementation <- c("scripts/build_nations_league_outcomes.R", "R/competition/forecast_layer.R",
-                    "R/competition/uefa_nations_league_simulation.R")
+                    "R/competition/uefa_nations_league_simulation.R", "R/common/simulation_execution.R")
 implementation_hashes <- vapply(implementation, function(path) digest::digest(file = path, algo = "sha256"), character(1))
 cache_key <- digest::digest(list(loaded, implementation_hashes), algo = "sha256")
 handoff_path <- file.path(cache_dir, paste0("handoff-", cache_key, ".rds"))
@@ -30,6 +30,7 @@ if (file.exists(handoff_path)) {
   saveRDS(handoff, handoff_path)
 }
 simulation_code_sha256 <- unname(implementation_hashes[["R/competition/uefa_nations_league_simulation.R"]])
+execution_code_sha256 <- unname(implementation_hashes[["R/common/simulation_execution.R"]])
 state <- loaded$state_bundle
 cat(sprintf("accepted_source=%s state_manifest=%s count=%d seed=15017 workers=%d\n",
   state$source_bundle_id, state$state_manifest_sha256, count, workers)); flush.console()
@@ -46,7 +47,8 @@ elapsed <- system.time(simulation <- entry$uefa_nl_run_simulation(
   model_release_id = state$model_release_id, model_lineage = state$model_lineage,
   state_manifest_sha256 = state$state_manifest_sha256,
   official_stage_slots = loaded$stage_capture$stage_capture,
-  cutoff_utc = max(as.character(loaded$source$manifest$accepted_at_utc))
+  cutoff_utc = max(as.character(loaded$source$manifest$accepted_at_utc)),
+  batch_size = 32L, progress = TRUE
 ))
 if (nzchar(profile)) Rprof(NULL)
 heap <- gc()
@@ -69,6 +71,7 @@ write.csv(sizes, file.path(cache_dir, paste0("artifacts-", count, ".csv")), row.
 measurement <- data.frame(simulations = count, seed = 15017L, workers = workers,
   source_bundle_id = state$source_bundle_id, state_manifest_sha256 = state$state_manifest_sha256,
   simulation_code_sha256 = simulation_code_sha256,
+  execution_code_sha256 = execution_code_sha256,
   elapsed_seconds = elapsed[["elapsed"]], candidate_seconds = candidate_time[["elapsed"]],
   simulation_object_bytes = as.numeric(object.size(simulation)),
   peak_parent_r_heap_bytes = peak_parent_r_heap_bytes,

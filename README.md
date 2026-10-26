@@ -281,6 +281,15 @@ draw candidates are expandable, and later tree slots are independent participant
 projections rather than one confirmed bracket. EURO qualifying presents a single
 waiting page until an accepted official draw and schedule are available.
 
+NL and CL simulations now reuse prepared sampling inputs and persistent workers,
+with completed-simulation progress reporting. CL accepts `--workers` and
+`--batch-size`; Windows uses a serial fallback. Detailed traces still grow with
+the simulation count, and progress counters are not resumable checkpoints.
+The performance audit, measured comparisons and remaining CL correctness concern
+are documented in [the simulation audit](.planning/simulation-optimization/AUDIT.md).
+Changed simulator/execution code requires fresh full-scale certification before
+the public 100k policy can be enabled.
+
 The **EURO 2028** tab (`#euro-2028`) shows the Nations League priority queue
 before teams qualify through other routes. Each simulation prioritizes A/B/C
 group winners, then the highest-ranked D group winner, then remaining teams by

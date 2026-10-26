@@ -191,7 +191,7 @@ phase17_validate_scale_evidence <- function(path, simulations, workers, project_
   if (!file.exists(path)) fail(paste0("missing benchmark receipt: ", path))
   receipt <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(error) fail("unreadable benchmark receipt"))
   required <- c("simulations", "seed", "workers", "source_bundle_id", "state_manifest_sha256",
-                "elapsed_seconds", "validated", "simulation_code_sha256")
+                "elapsed_seconds", "validated", "simulation_code_sha256", "execution_code_sha256")
   if (nrow(receipt) != 1L || !all(required %in% names(receipt))) fail("incomplete benchmark receipt")
   numeric_value <- function(name) suppressWarnings(as.numeric(receipt[[name]][[1L]]))
   count <- numeric_value("simulations"); seed <- numeric_value("seed"); worker_count <- numeric_value("workers")
@@ -205,6 +205,8 @@ phase17_validate_scale_evidence <- function(path, simulations, workers, project_
   implementation <- file.path(project_root, "R/competition/uefa_nations_league_simulation.R")
   hash <- digest::digest(file = implementation, algo = "sha256")
   if (!identical(tolower(as.character(receipt$simulation_code_sha256[[1L]])), hash)) fail("simulation implementation has changed since the benchmark")
+  execution_hash <- digest::digest(file = file.path(project_root, "R/common/simulation_execution.R"), algo = "sha256")
+  if (!identical(tolower(as.character(receipt$execution_code_sha256[[1L]])), execution_hash)) fail("execution implementation has changed since the benchmark")
   invisible(list(valid = TRUE, simulations = count, seed = seed, workers = worker_count, evidence = normalizePath(path)))
 }
 
@@ -272,7 +274,8 @@ phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute
     "test_uefa_nations_league_production.R", "test_phase16_euro_qualifying.R",
     "test_phase17_dashboards.R", "test_nations_league_dashboard_revision.R",
     "test_phase21_dashboard_publication.R", "test_dashboard_release_safety.R",
-    "test_active_dashboard_improvements.R", "test_nl_simulation_scale.R"
+    "test_active_dashboard_improvements.R", "test_nl_simulation_scale.R",
+    "test_simulation_optimization.R"
   )
   expressions <- vapply(suites, function(suite) {
     paste0('r <- testthat::test_file("tests/testthat/', suite,

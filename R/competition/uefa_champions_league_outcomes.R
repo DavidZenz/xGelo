@@ -761,6 +761,7 @@ ucl_outcomes_manifest <- function(candidate, artifact_path = NA_character_, pare
 #' Parse the fixed UCL CLI surface without accepting path/authority overrides.
 ucl20_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   result <- list(edition_id = "ucl_2026_27", simulations = 1000L, seed = 20260921L,
+                 workers = 4L, batch_size = 64L,
                  information_cutoff_utc = "2026-09-21T00:00:00Z",
                  dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE,
                  mode = "dry-run")
@@ -768,7 +769,7 @@ ucl20_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   saw_write <- FALSE
   forbidden_roots <- c("fixture-root", "output-root", "selector-path", "trusted-root",
                        "trusted-release-root", "production-root", "national-root", "source-root")
-  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc")
+  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc", "workers", "batch-size")
   parse_integer <- function(value, option, minimum, maximum) {
     if (!length(value) || !grepl("^-?[0-9]+$", as.character(value))) stop(paste0(option, " must be an integer"), call. = FALSE)
     parsed <- suppressWarnings(as.integer(value))
@@ -797,6 +798,8 @@ ucl20_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     else if (identical(key, "simulations")) result$simulations <- parse_integer(value, "--simulations", 1L, 100000L)
     else if (identical(key, "seed")) result$seed <- parse_integer(value, "--seed", 0L, .Machine$integer.max)
     else if (identical(key, "information-cutoff-utc")) result$information_cutoff_utc <- value
+    else if (identical(key, "workers")) result$workers <- parse_integer(value, "--workers", 1L, 64L)
+    else if (identical(key, "batch-size")) result$batch_size <- parse_integer(value, "--batch-size", 1L, 100000L)
     else stop(paste0("Unknown UCL argument: --", key), call. = FALSE)
     index <- index + 1L
   }
@@ -948,7 +951,8 @@ phase20_verify_contracts <- function(result) {
 
 .ucl_out_build_pipeline <- function(graph, release, rules, simulations, seed, draw_artifact,
                                     information_cutoff_utc, write = FALSE, output_root = NULL,
-                                    draw_authority_mode = "fixture") {
+                                    draw_authority_mode = "fixture", workers = 4L,
+                                    batch_size = 256L, progress = NULL) {
   cutoff <- .ucl_out_validate_cutoff(information_cutoff_utc)
   if (!isTRUE(cutoff$valid)) return(.ucl_out_blocked_result(cutoff$reason, mapped_threat_ids = "T20-03-01", information_cutoff_utc = cutoff$value))
   state <- tryCatch(ucl_build_state(graph, rules = rules, state_cutoff_utc = cutoff$value),
@@ -966,7 +970,8 @@ phase20_verify_contracts <- function(result) {
   simulation <- tryCatch(ucl_run_simulation(state, ledger = ledger, simulations = simulations, seed = seed,
                                              rules = rules, draw_artifact = draw_artifact,
                                              information_cutoff_utc = cutoff$value,
-                                             draw_authority_mode = draw_authority_mode),
+                                             draw_authority_mode = draw_authority_mode,
+                                             workers = workers, batch_size = batch_size, progress = progress),
                          error = function(error) list(status = "blocked", reason = "simulation_failed", message = conditionMessage(error)))
   if (identical(as.character(simulation$status), "blocked")) return(.ucl_out_blocked_result(simulation$reason %||% "simulation_blocked", mapped_threat_ids = "T20-03-03", information_cutoff_utc = cutoff$value))
   candidate <- tryCatch(ucl_validate_outcome_candidate(list(state = state, ledger = ledger, simulation = simulation),
@@ -995,7 +1000,7 @@ phase20_verify_contracts <- function(result) {
 }
 
 #' Build the fixed production outcome contract or a mechanics-only fixture candidate.
-ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L, seed = 20260921L, draw_artifact = NULL, information_cutoff_utc = NULL, write = FALSE, output_root = NULL) {
+ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L, seed = 20260921L, draw_artifact = NULL, information_cutoff_utc = NULL, write = FALSE, output_root = NULL, workers = 4L, batch_size = 256L, progress = NULL) {
   if (is.null(graph)) {
     authority <- .ucl_out_production_authority()
     if (!is.null(authority$error)) {
@@ -1016,7 +1021,8 @@ ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L,
     return(.ucl_out_build_pipeline(authority$graph, authority$release, authority$rules, simulations, seed,
                                    authority$draw_artifact, cutoff,
                                    write = write, output_root = output_root,
-                                   draw_authority_mode = "production"))
+                                   draw_authority_mode = "production", workers = workers,
+                                   batch_size = batch_size, progress = progress))
   }
   fixture <- isTRUE(graph$fixture_authority) && identical(as.character(graph$authority_mode %||% ""), "fixture") && !isTRUE(graph$production_eligible)
   if (!fixture) return(.ucl_out_blocked_result("graph_injection_requires_fixture_authority", mapped_threat_ids = "T20-01-01", information_cutoff_utc = information_cutoff_utc %||% NA_character_))
@@ -1028,7 +1034,8 @@ ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L,
   if (is.null(rules)) return(.ucl_out_blocked_result("rules_evidence_invalid", mapped_threat_ids = "T20-02-01", information_cutoff_utc = information_cutoff_utc %||% "2026-09-21T00:00:00Z"))
   .ucl_out_build_pipeline(graph, release, rules, simulations, seed, draw_artifact, cutoff,
                           write = write, output_root = output_root,
-                          draw_authority_mode = "fixture")
+                          draw_authority_mode = "fixture", workers = workers,
+                          batch_size = batch_size, progress = progress)
 }
 
 #' Write only a validated sibling candidate under a process-temporary root.

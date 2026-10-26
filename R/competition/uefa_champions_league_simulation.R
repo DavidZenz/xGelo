@@ -13,6 +13,8 @@
     candidate <- file.path(root, "R", "common", "phase18_canonical_hash.R")
     if (file.exists(candidate)) {
       try(sys.source(candidate, envir = env), silent = TRUE)
+      execution <- file.path(root, "R", "common", "simulation_execution.R")
+      if (file.exists(execution)) sys.source(execution, envir = env)
       break
     }
     parent <- dirname(root)
@@ -686,10 +688,62 @@
 }
 
 #' Run a seeded conditional league-phase simulation.
+.ucl_sim_prepare_sampler <- function(graph, ledger, cutoff) {
+  prepared <- .ucl_prepare_iteration_matches(graph$fixtures, cutoff_utc = cutoff)
+  template <- .ucl_sample_open_fixtures(prepared, ledger, seed = 0L, cutoff_utc = cutoff)
+  plans <- lapply(template$sampled_fixture_ids, function(id) {
+    row <- ledger[as.character(ledger$fixture_id) == id, , drop = FALSE]
+    list(id = id, index = match(id, graph$fixtures$fixture_id),
+         record = match(id, template$records$fixture_id), grid = .ucl_sim_score_grid(row))
+  })
+  function(iteration, seed) {
+    sampled <- template
+    iteration_seed <- .ucl_sim_seed_for(seed, "iteration", iteration)
+    for (plan in plans) {
+      chosen <- .ucl_sim_with_seed(.ucl_sim_seed_for(iteration_seed, "fixture", plan$id),
+        function() sample.int(nrow(plan$grid), 1L, prob = plan$grid$probability))
+      home <- plan$grid$home_goals[[chosen]]; away <- plan$grid$away_goals[[chosen]]
+      for (field in c("regulation_home_goals", "final_home_goals")) sampled$matches[[field]][[plan$index]] <- home
+      for (field in c("regulation_away_goals", "final_away_goals")) sampled$matches[[field]][[plan$index]] <- away
+      sampled$matches$winner_club_id[[plan$index]] <- if (home > away) sampled$matches$home_club_id[[plan$index]] else if (away > home) sampled$matches$away_club_id[[plan$index]] else NA_character_
+      sampled$records$sampled_home_goals[[plan$record]] <- home
+      sampled$records$sampled_away_goals[[plan$record]] <- away
+    }
+    output <- graph
+    output$fixtures <- sampled$matches
+    attr(output, "ucl_sampling") <- sampled
+    output
+  }
+}
+
+.ucl_sim_prepare_ranker <- function(graph, rules, cutoff) {
+  # Schedule/source/ledger authority was validated by ucl_run_simulation. Only
+  # seeded scores change in this closure; recomputing a 144-row source graph
+  # hash per iteration is unused work. Preserve the public arithmetic/rules.
+  phase14_available <- isTRUE(.ucl_state_source_phase14())
+  function(graph_i) {
+    if (!phase14_available && !isTRUE(graph$fixture_authority)) return(NULL)
+    matches <- .ucl_state_to_phase14_matches(graph_i$fixtures, cutoff)
+    universal <- tryCatch({
+      if (phase14_available) phase14_compute_standings(matches = matches,
+        edition_id = graph$edition_id, group_id = "league_phase", state_cutoff_utc = cutoff,
+        source_bundle_id = graph$source_bundle_id, ruleset_adapter = NULL,
+        team_ids = graph$clubs$club_id)
+      else .ucl_state_fallback_standings(matches, as.character(graph$clubs$club_id))
+    }, error = function(error) NULL)
+    if (is.null(universal)) return(NULL)
+    ranking <- ucl_apply_article18(universal, matches = graph_i$fixtures, rules = rules)
+    ranking$source_bundle_id <- graph$source_bundle_id
+    ranking$ruleset_sha256 <- rules$ruleset_sha256
+    ranking
+  }
+}
+
 ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20260921L,
                                rules = NULL, draw_artifact = NULL, source_bundle_id = NULL,
                                information_cutoff_utc = NULL,
-                               draw_authority_mode = "fixture") {
+                               draw_authority_mode = "fixture", workers = 4L,
+                               batch_size = 256L, progress = NULL) {
   if (is.list(state) && !is.data.frame(state) && !is.null(state$status) &&
       !identical(as.character(state$status), "ready")) {
     return(structure(list(
@@ -755,11 +809,13 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     names = c("state_sha256", "ledger_sha256", "source_bundle_id", "model_release_id", "model_sha256", "calibrator_sha256", "ruleset_sha256", "draw_identity", "rank_input_sha256", "seed", "simulation_count", "information_cutoff_utc", "algorithm_version"),
     domain = "ucl20-simulation-run-v3"
   )
-  iteration_results <- lapply(seq_len(simulations), function(iteration) {
-    graph_i <- .ucl_sim_iteration_graph(validation$graph, ledger_table, seed = seed, cutoff_utc = cutoff$value, iteration = iteration)
-    built <- if (exists("ucl_build_state", mode = "function")) ucl_build_state(graph_i, rules = rules, state_cutoff_utc = cutoff$value) else NULL
-    list(graph = graph_i, rows = if (is.null(built) || !identical(built$status, "ready")) data.frame() else .ucl_sim_rank_rows(built$standings, iteration, run_id))
-  })
+  sampler <- .ucl_sim_prepare_sampler(validation$graph, ledger_table, cutoff$value)
+  ranker <- .ucl_sim_prepare_ranker(validation$graph, rules, cutoff$value)
+  iteration_results <- .ucl_sim_canonical_env$simulation_execute(simulations, function(iteration) {
+    graph_i <- sampler(iteration, seed)
+    ranking <- ranker(graph_i)
+    list(sampling = attr(graph_i, "ucl_sampling"), rows = if (is.null(ranking)) data.frame() else .ucl_sim_rank_rows(ranking, iteration, run_id))
+  }, workers = workers, batch_size = batch_size, progress = progress)
   rows <- do.call(rbind, lapply(iteration_results, `[[`, "rows")); if (is.null(rows)) rows <- data.frame(); row.names(rows) <- NULL
   path_state <- ucl_enumerate_legal_knockout_paths(
     if (nrow(rows)) rows[rows$iteration == max(rows$iteration), , drop = FALSE] else data.frame(),
@@ -782,7 +838,7 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
     required_stage_ids = names(stage_inputs)
   )
-  sampling <- lapply(iteration_results, function(result) attr(result$graph, "ucl_sampling"))
+  sampling <- lapply(iteration_results, `[[`, "sampling")
   path_statuses <- if (is.data.frame(path_state) && nrow(path_state)) as.character(path_state$path_status) else character()
   unresolved_draw <- !draw_conditioned && (length(path_statuses) == 0L || any(path_statuses %in% c("pre_draw_legal", "unresolved")))
   if (!isTRUE(attr(stage_reconciliation, "valid")) || !isTRUE(progression_reconciliation$valid)) {

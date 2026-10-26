@@ -1,0 +1,2 @@
+"simulations","seed","workers","source_bundle_id","state_manifest_sha256","simulation_code_sha256","execution_code_sha256","elapsed_seconds","candidate_seconds","simulation_object_bytes","peak_parent_r_heap_bytes","artifact_bytes","validated"
+1000,15017,4,"nl-2026-27-official-uefa-v2","3089fdfdd8e073991c23e62812bd28e324b3c118e6a3ac6d141d44691c3f4c8a","f10bdea5f52d61b31cd210e8cc1f8936800b9ab4a2b16eb03296c00e0303ee46","f4d65492c5882d7dd40d2978fd9be18b0115c92124315c15847ce4026100f2f0",323.965,37.091,18033576,1140361448,4817087,TRUE

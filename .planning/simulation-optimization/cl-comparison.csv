@@ -1,0 +1,4 @@
+"mode","simulations","elapsed_seconds"
+"original_serial",50,34.88
+"optimized_serial",50,11.887
+"optimized_4_workers",50,6.11

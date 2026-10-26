@@ -1,0 +1,11 @@
+"artifact","rows","bytes"
+"outcomes/competition_topology.csv",21,7432
+"outcomes/stage_slots.csv",92,38944
+"outcomes/projected_standings.csv",210,89222
+"outcomes/projected_rankings.csv",3836,2161359
+"outcomes/transition_outcomes.csv",4937,2239981
+"outcomes/team_path_probabilities.csv",54,23514
+"outcomes/fixture_forecast_form.csv",156,202249
+"outcomes/euro_priority_queue.csv",54,32816
+"outcomes/simulation_metadata.csv",1,1681
+"outcomes/outcomes_manifest.csv",10,19889

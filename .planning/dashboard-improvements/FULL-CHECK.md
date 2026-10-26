@@ -1,5 +1,10 @@
 # Full release check — 2026-10-26
 
+**Superseded runtime status:** the user subsequently requested stopping the 100k
+run and optimizing NL/CL. The persistent launchd job and all its workers have
+been stopped. See `../simulation-optimization/AUDIT.md`; no full-scale receipt
+was produced and no replacement 100k run is active.
+
 User requested the full check after implementation, then requested Firefox when
 Safari reported remote automation disabled.
 

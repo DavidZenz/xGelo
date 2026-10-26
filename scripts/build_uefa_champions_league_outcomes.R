@@ -92,6 +92,7 @@ phase20_ucl_parse_integer <- function(value, option, minimum, maximum = Inf) {
 phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(
     edition_id = "ucl_2026_27", simulations = 1000L, seed = 20260921L,
+    workers = 4L, batch_size = 64L,
     information_cutoff_utc = "2026-09-21T00:00:00Z",
     dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE,
     mode = "dry-run"
@@ -100,7 +101,7 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     "fixture-root", "output-root", "selector-path", "trusted-root",
     "trusted-release-root", "production-root", "national-root", "source-root"
   )
-  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc")
+  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc", "workers", "batch-size")
   saw_dry_run <- FALSE
   saw_write <- FALSE
   index <- 1L
@@ -156,6 +157,10 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       options$seed <- phase20_ucl_parse_integer(value, "--seed", 0L, .Machine$integer.max)
     } else if (identical(key, "information-cutoff-utc")) {
       options$information_cutoff_utc <- value
+    } else if (identical(key, "workers")) {
+      options$workers <- phase20_ucl_parse_integer(value, "--workers", 1L, 64L)
+    } else if (identical(key, "batch-size")) {
+      options$batch_size <- phase20_ucl_parse_integer(value, "--batch-size", 1L, 100000L)
     }
     index <- index + 1L
   }
@@ -195,6 +200,8 @@ phase20_ucl_usage <- function() {
     "  --edition-id ID   Supported edition (default: ucl_2026_27)",
     "  --simulations N   Positive simulation count (default: 1000)",
     "  --seed N          Non-negative deterministic seed (default: 20260921)",
+    "  --workers N       Parallel workers (default: 4; Windows uses serial fallback)",
+    "  --batch-size N    Progress reporting interval per worker (default: 64)",
     "  --information-cutoff-utc TS  Required UTC information cutoff (default: 2026-09-21T00:00:00Z)",
     "  --dry-run         Validate and build without writing (default)",
     "  --replay-check    Compare normal/reversed/repeated canonical identities",
@@ -388,11 +395,13 @@ phase20_ucl_reverse_semantic_input <- function(graph = NULL, release = NULL) {
 phase20_ucl_candidate_replay <- function(graph = NULL, release = NULL, rules = NULL, options) {
   builder <- phase20_ucl_get("ucl20_build_outcomes")
   first <- builder(graph = graph, release = release, simulations = options$simulations,
-                  seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE)
+                  seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE,
+                  workers = options$workers, batch_size = options$batch_size, progress = TRUE)
   if (!isTRUE(options$replay_check)) return(list(candidate = first, replay_verified = NA))
   reversed <- phase20_ucl_reverse_semantic_input(graph, release)
   second <- builder(graph = reversed$graph, release = reversed$release, simulations = options$simulations,
-                    seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE)
+                    seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE,
+                    workers = options$workers, batch_size = options$batch_size, progress = TRUE)
   hashes_present <- length(first$artifact_hashes) == 10L && length(second$artifact_hashes) == 10L
   stable <- hashes_present && identical(first$artifact_hashes, second$artifact_hashes) &&
     isTRUE(phase20_ucl_get("phase20_verify_contracts")(first)) &&
