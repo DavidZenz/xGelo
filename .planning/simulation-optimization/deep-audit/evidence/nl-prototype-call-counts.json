@@ -1,0 +1,18 @@
+{
+  "reference": {
+    "uefa_nl_rank_parse_utc": 84,
+    "uefa_nl_sim_normalize_score_distributions": 0,
+    "uefa_nl_sim_build_league_state": 1,
+    "uefa_nl_sim_resolve_stage_pair": 16,
+    "uefa_nl_rank_preflight": 28,
+    "uefa_nl_rank_prepare_matches": 42
+  },
+  "prepared_reuse": {
+    "uefa_nl_rank_parse_utc": 16,
+    "uefa_nl_sim_normalize_score_distributions": 0,
+    "uefa_nl_sim_build_league_state": 0,
+    "uefa_nl_sim_resolve_stage_pair": 16,
+    "uefa_nl_rank_preflight": 28,
+    "uefa_nl_rank_prepare_matches": 14
+  }
+}

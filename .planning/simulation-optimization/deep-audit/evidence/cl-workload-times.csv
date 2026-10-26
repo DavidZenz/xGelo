@@ -1,0 +1,5 @@
+"variant","count","elapsed_seconds","mean_trace_rows","unresolved_rank_fraction","early_criterion_trace_rows","late_criterion_trace_rows"
+"two_row_reference",64,7.335,58.96875,0.844184027777778,1458,2316
+"two_row_prepared",64,3.62,58.96875,0.844184027777778,1458,2316
+"wider_reference",64,4.01,16.375,0,1010,38
+"wider_prepared",64,2.235,16.375,0,1010,38

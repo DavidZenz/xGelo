@@ -1,0 +1,101 @@
+{
+  "baseline_commit": "e1b8f80e7748ecd76f4b5dfccd27927b6c6ea519",
+  "source_snapshot_sha256": "ea44d253cea8daf6dc80eb794d8b1738e70e831a721ba61c87570a1afdeb140f",
+  "production_source_modified": false,
+  "scale_certification": false,
+  "nl_authority": "accepted_national",
+  "cl_authority": "synthetic_fixture_only",
+  "nl_handoff_sha256": "9acfa53fc2be3d9f300084e3e06b7fba0b68e9f0525a72061eb1cedd4b78e7ef",
+  "results": {
+    "cl-prototype-times.csv": {
+      "mean_seconds": {
+        "reference": 6.8485,
+        "prepared_frames": 3.481
+      },
+      "speedup_over_reference": {
+        "prepared_frames": 1.967394426888825
+      }
+    },
+    "cl-rows-prototype-times.csv": {
+      "mean_seconds": {
+        "reference": 6.9305,
+        "prepared_frames_rows": 2.2625
+      },
+      "speedup_over_reference": {
+        "prepared_frames_rows": 3.0632044198895025
+      }
+    },
+    "nl-prototype-times.csv": {
+      "mean_seconds": {
+        "reference": 4.073499999999999,
+        "prepared_reuse": 4.039
+      },
+      "speedup_over_reference": {
+        "prepared_reuse": 1.0085417182470908
+      }
+    },
+    "nl-prepared-prototype-times.csv": {
+      "mean_seconds": {
+        "reference": 4.0175,
+        "prepared_reuse": 3.9595000000000002
+      },
+      "speedup_over_reference": {
+        "prepared_reuse": 1.0146483141810834
+      }
+    },
+    "nl-rows-prototype-times.csv": {
+      "mean_seconds": {
+        "reference": 4.0325,
+        "scalar_row_templates": 3.348
+      },
+      "speedup_over_reference": {
+        "scalar_row_templates": 1.2044504181600955
+      }
+    },
+    "nl-canonical-times.csv": {
+      "mean_seconds": {
+        "reference": 0.654,
+        "fixed_metadata": 0.384
+      },
+      "speedup_over_reference": {
+        "fixed_metadata": 1.703125
+      }
+    }
+  },
+  "evidence_sha256": {
+    "cl-component-times.csv": "5584b2221b7b49e726de561a8b71b4ff9019c59826778ece65b6955cb075054d",
+    "cl-prepared-self.csv": "d476dcdcedd46b196dc910916ac2702145b7a43ef7ba7d3a25e399f009b2846f",
+    "cl-prepared-total.csv": "0a2944b55a4fb8d4fe0f869519a8471bf323aa863c5c6fd4f476c73aac1a9f8b",
+    "cl-profile-self.csv": "07503daf8417331814d441071827546012d41f59175c2b4d72e97d1676945f4d",
+    "cl-profile-total.csv": "6487ba22da4d26f6bf589de9eceb7f375f0680fda0dfc0dc5dd80dee60112065",
+    "cl-prototype-parity.json": "ff472199d8d0601946798dfdaab8c7d61c3f15563cf737295ac106419fe01fa2",
+    "cl-prototype-times.csv": "93d9d9ce11b0dd45a5a703849be34257e1c1d0d53c26af87b467ebb03233b3d4",
+    "cl-rows-prototype-parity.json": "a9d6ba56da164df01546c4c9a19ce64dd6e73ce6f226e2fbef6cac4b2c7a89f6",
+    "cl-rows-prototype-times.csv": "3846520b48569472e6a1c6302988a22064a9dd8ad9afb5dc8af47aaf43950aa6",
+    "cl-workload-times.csv": "4e5ed2f103773158b13ff8a19d81aa26a9ab4bd5b8696b7a7caf4dc2c1a0f5b2",
+    "nl-canonical-parity.json": "db07f02b32fe6ce59c5e55477048a16b2fcb7489ac08415af7df3558167356f4",
+    "nl-canonical-times.csv": "ac347fcb1bd62653196d80cba432337d73f0ec14b8d07525f458ed694a560bb1",
+    "nl-kernel-self.csv": "243d99a53fe8ce1f41b70feeba1df16fdea515c5983800c17c713016b9699fd3",
+    "nl-kernel-times.csv": "d34600ea964b71869d6fcc38017abe27050dabe05c2f71fc77ab8cf430a329db",
+    "nl-kernel-total.csv": "303b70482f8378c238feef58bc13fc7f381accd4d13a2e8863a0fac8a6da4b4c",
+    "nl-prepared-prototype-parity.json": "069c80a94e0a96485e00678b4d4ee0fa0fb22bee5538b45cdbeba8ad95dd56ce",
+    "nl-prepared-prototype-times.csv": "d9d81a30f22cc7384d910f50c5509500b6053ec97c0d8f45324c1fa6ff6d2d39",
+    "nl-prototype-call-counts.json": "b624ef0cf46e1d58eb2bfba05e786a791d44d17d83afe26ecb7f050139c9e06c",
+    "nl-prototype-parity.json": "069c80a94e0a96485e00678b4d4ee0fa0fb22bee5538b45cdbeba8ad95dd56ce",
+    "nl-prototype-times.csv": "c6016b3da85f1a8e438ea5b32730afdc7e035cbffcfd7964a8bdeb1b7e61e9e7",
+    "nl-rows-prototype-parity.json": "7abcd0482f532872da5bed12bb617d58bc34ead6d6637bdae7dc60b25a66b8e9",
+    "nl-rows-prototype-times.csv": "b589841c90fe5ed175294e985dcc3d180387fd71c1e4406900c5c0d44b5b8cbb",
+    "verification.json": "6ccb5f77d74451620f475b939fa3c3510ba7b46f25f19cb931bd3bc19c19a12b"
+  },
+  "probe_sha256": {
+    "cl-profile.R": "0bb6c715b92d20f34e5dcc0d1b4c0b56d08448f2a03d11dfce23f29498bb9986",
+    "cl-prototype.R": "6351b10982ef9346d2494f1fb2fcfa61b78fb7c0f8e260106f50a4aa2a846d0c",
+    "cl-rows-prototype.R": "10bd239271893be67a247e630b83856d3b0ad3dd4d3ce7d8d39ce7d408d4af52",
+    "cl-workload.R": "cc40cc9f36bba99fb55d1ce59b79e3605072e06f0297addfb119b66000b77f7b",
+    "nl-aggregation.R": "9879645a1b70caaa5247b512197282ac863558a5ed8be4f140be877f4def7ed4",
+    "nl-profile.R": "af04a1915cb4cd1d4a6c09fd6d30201bf03ebd08372418f4fd19245551187ae9",
+    "nl-prototype-counts.R": "43506dd9c646dacbfd32f24d99ad557ec89962201be5cbbb7ac13a65094c2f51",
+    "nl-prototype.R": "29f0909a1d21537cfcb60c66151997bc0c1464e910117e3956b47fb8d173f718",
+    "nl-rows-prototype.R": "451c87aefa20000b4dcf89396dfda958407fc1a18e8786c77323d3f223edde8b"
+  }
+}

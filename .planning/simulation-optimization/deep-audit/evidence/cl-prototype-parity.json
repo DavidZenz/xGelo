@@ -1,0 +1,7 @@
+{
+  "seed_cases": 40,
+  "full_sampling_and_ranking_cases": 64,
+  "caller_rng_preserved": true,
+  "full_rank_attributes_and_trace_hashes_identical": true,
+  "production_code_changed": false
+}

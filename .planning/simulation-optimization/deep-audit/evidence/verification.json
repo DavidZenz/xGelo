@@ -1,0 +1,10 @@
+{
+  "all_durable_probes_parse": true,
+  "durable_probe_count": 9,
+  "portable_cl_setup_and_exact_ranking_smoke": "passed",
+  "portable_nl_three_canonical_hash_replay": "passed",
+  "production_source_diff_from_e1b8f80": [],
+  "wc_publication_sha256": "bc540c9d1014095e5d10b2ddc06b73d105c13cd8db7efee6c46bf2d6e86f56b7",
+  "new_scale_certificate": false,
+  "production_code_changed": false
+}

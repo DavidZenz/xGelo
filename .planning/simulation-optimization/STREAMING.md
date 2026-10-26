@@ -66,3 +66,8 @@ All three stages share algorithm `ucl-conditional-league-v5`, seed 7, cutoff `20
 - Final measurement SHA-256: `7e1f616c4c9b95cd760c2fc54b431af6b4f74e5abcc0d67561bf38e4bdf7492a`.
 
 Small, hash-bound receipts are committed as `streaming-cl-v5-{1000,10000,100000}.csv` and matching `.resources.json`; the final audit is `streaming-final-verification.json`. Complete traces and checkpoints remain private under `/private/tmp/xgelo-wc-style-certification-v5/cl/`. The interrupted v4 100k attempt is historical diagnostics and cannot resume or certify v5. No long run or public promotion remains active.
+
+The subsequent deep CPU audit and bounded prototype evidence are in
+`DEEP-AUDIT.md`. It identifies a measured 3.06× CL kernel opportunity and explains
+why NL needs prepared numeric ranking/path work beyond streaming. Those private
+prototypes do not change this implementation or certify new scale performance.

@@ -1,0 +1,8 @@
+{
+  "full_iteration_cases": 8,
+  "full_iteration_objects_identical": true,
+  "experiment_only": true,
+  "public_data_frame_unchanged": true,
+  "production_recommendation": "explicit typed row constructors at profiled call sites; retain public validators",
+  "production_code_changed": false
+}

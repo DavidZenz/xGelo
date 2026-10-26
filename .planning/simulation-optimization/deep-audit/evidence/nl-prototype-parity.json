@@ -1,0 +1,7 @@
+{
+  "full_iteration_cases": 8,
+  "full_iteration_objects_identical": true,
+  "prototype": ["omit overwritten intermediate snapshot hashes", "reuse within-iteration match preparation", "memo immutable timestamp vectors"],
+  "production_code_changed": false,
+  "scope": "warm selected kernels only; no scale certification"
+}

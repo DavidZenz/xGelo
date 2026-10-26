@@ -1,0 +1,11 @@
+{
+  "exact_three_trace_hashes": true,
+  "hashes": {
+    "stage_slots": "93ae5aadcf46095d7cfcd7e04df24fa84e435585ec21200d3600d9b31b23e1ae",
+    "stage_matches": "7ad82537355a56595d8f892eea6c4e7a37a473e56c6dd355de8b52488173800a",
+    "stage_resolutions": "8f4748c6cd22c8f6d70c9145afd2301dad8ef55c9c0a88fc3d4b2287f095bb75"
+  },
+  "count": 30,
+  "production_code_changed": false,
+  "checkpoint_copy_only": true
+}

@@ -198,3 +198,19 @@ No replacement 100k run or public promotion is active.
 - [ ] Public promotion remains separate; CL source/model authority remains human_needed.
 
 See `.planning/simulation-optimization/STREAMING.md`. This maintenance does not advance the UCL milestone phases.
+
+## Deep Simulation Performance Audit — 2026-10-26
+
+- [x] Audit NL/CL worker, rule-engine, canonical encoding, trace and validation
+  costs against WC's actual numeric/counter workload; record fresh profiles.
+- [x] Check bounded private prototypes with exact returned-object/hash parity:
+  CL prepared frames/typed rows 3.06× kernel throughput; NL typed rows 1.20×;
+  NL metadata hoisting 1.70× canonical-hash phase. NL preparation memoization
+  showed no reliable overall gain.
+- [x] Record CL's degenerate two-score benchmark behavior (deep ties and explicit
+  unresolved ranks) and distinguish it from production forecasting evidence.
+- [ ] Implement/certify the next CPU changes. The NL two-hour target remains
+  unmet; existing production code, WC/public bytes and authority state are
+  unchanged by this audit. No scale run is active.
+
+See `.planning/simulation-optimization/DEEP-AUDIT.md` and `deep-audit/evidence/`.
