@@ -19,6 +19,7 @@ uefa_nl_sim_prepare_paths <- function(runtime, rules, official_slots) {
   original_qf <- runtime$uefa_nl_draw_quarter_finals
   original_sf <- runtime$uefa_nl_draw_semi_finals
   original_transition_pair <- runtime$uefa_nl_sim_transition_pair
+  original_transition_row <- runtime$uefa_nl_transition_row
   original_resolution_row <- runtime$uefa_nl_sim_stage_resolution_row
   topology <- original_topology(rules)
   rules_hash <- uefa_nl_ruleset_sha256(rules)
@@ -26,6 +27,41 @@ uefa_nl_sim_prepare_paths <- function(runtime, rules, official_slots) {
   leg_schemas <- new.env(parent = emptyenv())
   legal_draws <- new.env(parent = emptyenv())
   empty <- frame(list(), 0L)
+  runtime$uefa_nl_transition_row <- function(
+      edition_id, stage_id, transition_type, league = NA_character_, higher_league = NA_character_, lower_league = NA_character_,
+      higher_league_team_id = NA_character_, lower_league_team_id = NA_character_, team_id = NA_character_,
+      higher_league_rank = NA_integer_, lower_league_rank = NA_integer_, group_id = NA_character_, group_position = NA_integer_,
+      interim_rank = NA_integer_, first_leg_home_team_id = NA_character_, eligibility_status = "not_applicable",
+      selection_status = "selected", unresolved_reason = "", cd_playoff_status = "not_applicable", cancellation_reason = "",
+      retained_next_edition_league = NA_character_, retained_next_edition_rank = NA_integer_,
+      playoff_eligibility_probability = NA_real_, playoff_win_probability = NA_real_, playoff_loss_probability = NA_real_, rules = uefa_nl_2026_27_rules()) {
+    values <- list(edition_id, stage_id, transition_type, league, higher_league, lower_league,
+      higher_league_team_id, lower_league_team_id, team_id, higher_league_rank, lower_league_rank,
+      group_id, group_position, interim_rank, first_leg_home_team_id, eligibility_status, selection_status,
+      unresolved_reason, cd_playoff_status, cancellation_reason, retained_next_edition_league,
+      retained_next_edition_rank, playoff_eligibility_probability, playoff_win_probability, playoff_loss_probability)
+    # Named scalars and custom classes can affect data.frame row names/coercion.
+    # Keep those, vector recycling, and changed rules on the authoritative path.
+    if (!identical(rules, fixed_rules) || !all(lengths(values) == 1L) ||
+        !all(vapply(values, function(value) is.null(attributes(value)) && typeof(value) %in% c("character", "integer", "double", "logical"), logical(1))) ||
+        length(rules$ruleset_version) != 1L || !is.null(attributes(rules$ruleset_version))) {
+      return(original_transition_row(edition_id, stage_id, transition_type, league, higher_league, lower_league,
+        higher_league_team_id, lower_league_team_id, team_id, higher_league_rank, lower_league_rank,
+        group_id, group_position, interim_rank, first_leg_home_team_id, eligibility_status, selection_status,
+        unresolved_reason, cd_playoff_status, cancellation_reason, retained_next_edition_league,
+        retained_next_edition_rank, playoff_eligibility_probability, playoff_win_probability, playoff_loss_probability, rules))
+    }
+    frame(list(edition_id = as.character(edition_id), stage_id = as.character(stage_id), transition_type = as.character(transition_type),
+      ranking_scope = "interim_overall", league = as.character(league), higher_league = as.character(higher_league), lower_league = as.character(lower_league),
+      higher_league_team_id = as.character(higher_league_team_id), lower_league_team_id = as.character(lower_league_team_id), team_id = as.character(team_id),
+      higher_league_rank = as.integer(higher_league_rank), lower_league_rank = as.integer(lower_league_rank), group_id = as.character(group_id),
+      group_position = as.integer(group_position), interim_rank = as.integer(interim_rank), first_leg_home_team_id = as.character(first_leg_home_team_id),
+      eligibility_status = as.character(eligibility_status), selection_status = as.character(selection_status), unresolved_reason = as.character(unresolved_reason),
+      cd_playoff_status = as.character(cd_playoff_status), cancellation_reason = as.character(cancellation_reason),
+      retained_next_edition_league = as.character(retained_next_edition_league), retained_next_edition_rank = as.integer(retained_next_edition_rank),
+      playoff_eligibility_probability = as.numeric(playoff_eligibility_probability), playoff_win_probability = as.numeric(playoff_win_probability), playoff_loss_probability = as.numeric(playoff_loss_probability),
+      ruleset_version = rules$ruleset_version, ruleset_sha256 = rules_hash, row_sha256 = NA_character_), 1L)
+  }
   runtime$uefa_nl_stage_topology <- function(rules = fixed_rules) {
     if (identical(rules, fixed_rules)) topology else original_topology(rules)
   }

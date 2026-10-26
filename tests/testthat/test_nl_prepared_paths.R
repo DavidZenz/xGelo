@@ -84,6 +84,58 @@ test_that("transition precedence and C/D suppression retain exact team-path valu
   expect_identical(do.call(runtime$uefa_nl_sim_iteration_paths, args), do.call(reference, args))
 })
 
+test_that("prepared transition rows retain the complete typed schema and metadata", {
+  module <- nl_paths_test_module$module; reference <- module$uefa_nl_transition_row
+  explicit <- list(edition_id = 2026L, stage_id = "c_d_playoff", transition_type = "playoff", league = "C",
+    higher_league = "C", lower_league = "D", higher_league_team_id = "high", lower_league_team_id = "low", team_id = "high",
+    higher_league_rank = 7.9, lower_league_rank = "2", group_id = "C1", group_position = TRUE, interim_rank = 39L,
+    first_leg_home_team_id = "low", eligibility_status = "ineligible", selection_status = "suppressed", unresolved_reason = "external",
+    cd_playoff_status = "cancelled", cancellation_reason = "euro_playoff", retained_next_edition_league = "C", retained_next_edition_rank = 39L,
+    playoff_eligibility_probability = 0, playoff_win_probability = 0.25, playoff_loss_probability = "0.75")
+  for (rules in list(module$uefa_nl_2026_27_rules(), module$uefa_nl_2026_27_legacy_rules())) {
+    runtime <- nl_paths_test_runtime(rules)
+    expect_identical(formals(runtime$uefa_nl_transition_row), formals(reference))
+    for (args in list(list(edition_id = "2026-27", stage_id = "direct_transition", transition_type = "direct_promotion"), explicit,
+                      lapply(explicit, function(value) NA), lapply(explicit, function(value) NA_real_),
+                      lapply(explicit, function(value) NA_character_))) {
+      args$rules <- rules
+      actual <- do.call(runtime$uefa_nl_transition_row, args)
+      expect_identical(actual, do.call(reference, args))
+      expect_identical(ncol(actual), 29L)
+      expect_identical(actual$row_sha256, NA_character_)
+    }
+    # The preserved default remains the revised public rules, even in a legacy runtime.
+    args <- explicit
+    expect_identical(do.call(runtime$uefa_nl_transition_row, args), do.call(reference, args))
+  }
+})
+
+test_that("transition rows defer vector, named, attributed and changed-rule inputs", {
+  module <- nl_paths_test_module$module; reference <- module$uefa_nl_transition_row
+  runtime <- nl_paths_test_runtime(); calls <- new.env(parent = emptyenv()); calls$n <- 0L
+  assign("original_transition_row", function(...) { calls$n <- calls$n + 1L; reference(...) }, envir = environment(runtime$uefa_nl_transition_row))
+  base <- list(edition_id = "2026-27", stage_id = "a_b_playoff", transition_type = "playoff")
+  expect_identical(do.call(runtime$uefa_nl_transition_row, base), do.call(reference, base))
+  expect_identical(calls$n, 0L)
+  for (value in list(c("x", "y"), c(named = "x"), factor("x"), as.Date("2026-01-01"),
+                     structure("x", note = "custom"), list("x"), as.raw(1L), matrix("x", nrow = 1L))) {
+    args <- base; args$team_id <- value
+    previous <- calls$n
+    expect_identical(do.call(runtime$uefa_nl_transition_row, args), do.call(reference, args))
+    expect_identical(calls$n, previous + 1L)
+  }
+  args <- base; args$rules <- module$uefa_nl_2026_27_legacy_rules()
+  previous <- calls$n
+  expect_identical(do.call(runtime$uefa_nl_transition_row, args), do.call(reference, args))
+  expect_identical(calls$n, previous + 1L)
+  args <- base; args$team_id <- character()
+  expect_error(do.call(runtime$uefa_nl_transition_row, args), "differing number of rows")
+  expect_error(do.call(reference, args), "differing number of rows")
+  args <- base; args$team_id <- c("x", "y"); args$group_id <- letters[1:3]
+  expect_error(do.call(runtime$uefa_nl_transition_row, args), "differing number of rows")
+  expect_error(do.call(reference, args), "differing number of rows")
+})
+
 test_that("vector slots, official lookup and QF traversal preserve full rows and hashes", {
   module <- nl_paths_test_module$module; rules <- module$uefa_nl_2026_27_rules()
   pairs <- data.frame(tie_id = c("x", "y", "z"), pair_index = 1:3, legs = c(2L, 1L, 2L),

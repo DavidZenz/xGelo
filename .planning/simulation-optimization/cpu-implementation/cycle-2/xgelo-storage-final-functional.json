@@ -1,0 +1,26 @@
+[
+  {
+    "file": "tests/testthat/test_simulation_trace_storage.R",
+    "assertions": 146,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "tests/testthat/test_simulation_streaming.R",
+    "assertions": 44,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "tests/testthat/test_simulation_optimization.R",
+    "assertions": 48,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  }
+]

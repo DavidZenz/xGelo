@@ -1,0 +1,25 @@
+{
+  "source_snapshot_sha256": "43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5",
+  "implementation_sha256": "da6eb5327bebce1c0886c1c5b63185e9617640c71079e75af65fa1320d8d1d8b",
+  "files": {
+    "cl/cl-1000-4.csv": "38ee0f8e91d8c8a2107b962859a652ea9b3943b4de9db4c87248471f8b6e8f86",
+    "cl/cl-1000-4.csv.resources.json": "14146ae4645aff221886b077992f7506cdf76a638202e3602c252dc74c8f7753",
+    "cl/cl-10000-4.csv": "28280a5b27e52d9c8b6c21d472b3396856d3c8e2d6ddb2db58e9ce4db9c11ea5",
+    "cl/cl-10000-4.csv.resources.json": "9c5208861cf97ff13a5f5b60385d19b5454f31f4a1cf7cf4b46b824cb256d459",
+    "cl/cl-100000-4.csv": "c5f28c1a293dac425c7744cb4b83b36d82a21e0db40027c81eb1dc8d7bc0c29a",
+    "cl/cl-100000-4.csv.resources.json": "a8c706203f8c7a5a52faee2d74e7cdd52503fdc536d9f5550c474cc20e26d8ce",
+    "cl/resource-1000.json": "14146ae4645aff221886b077992f7506cdf76a638202e3602c252dc74c8f7753",
+    "cl/resource-10000.json": "9c5208861cf97ff13a5f5b60385d19b5454f31f4a1cf7cf4b46b824cb256d459",
+    "cl/resource-100000.json": "a8c706203f8c7a5a52faee2d74e7cdd52503fdc536d9f5550c474cc20e26d8ce",
+    "nl/artifacts-1000.csv": "40355f838555fba271334c37ffae1a001a3d32de9794b824440f59c7c48f70cd",
+    "nl/artifacts-10000.csv": "e0dd9fc9b3e7e406df3dc3a8a8db0c84e10e3374d4cdeaca84aa099667d3edfb",
+    "nl/gate-100000.json": "c071a4f33a0590d3cf86841643c0d8a11cb68a76aa8c123b3f30db3d5202df91",
+    "nl/measurement-1000.csv": "fb3d632884b542efd2bdf5566e98f8f45e7e37518894c9edbbdad943e72b78d1",
+    "nl/measurement-1000.csv.resources.json": "5ef0e0440f6810b7f42d81bfa1e888b7104569829a2320e842e9bfe8d2b52969",
+    "nl/measurement-10000.csv": "ee0bcb480adfb49052bd6065569d9150d24a6656c87c9bf74c347de3381e9eda",
+    "nl/measurement-10000.csv.resources.json": "92261075ca876b7e7d3bdadf8e3257d9713623d0913ea1e9cb322450ae5035ef",
+    "nl/resource-1000.json": "5ef0e0440f6810b7f42d81bfa1e888b7104569829a2320e842e9bfe8d2b52969",
+    "nl/resource-10000.json": "92261075ca876b7e7d3bdadf8e3257d9713623d0913ea1e9cb322450ae5035ef"
+  },
+  "status": "CL fixture 100k passed; NL 10k validated, 100k withheld by time preflight; checkpoints retained"
+}

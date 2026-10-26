@@ -48,11 +48,11 @@ class CanonicalMergeTests(unittest.TestCase):
             sentinel = root / "unrelated.gz"; sentinel.write_bytes(b"preserve unrelated bytes")
             active = 0; peak = 0
             original = canonical.read_run
-            def tracked(run, columns):
+            def tracked(run, columns, decode_payload=True):
                 nonlocal active, peak
                 active += 1; peak = max(peak, active)
                 try:
-                    yield from original(run, columns)
+                    yield from original(run, columns, decode_payload=decode_payload)
                 finally:
                     active -= 1
             with mock.patch.object(canonical, "read_run", tracked):
@@ -144,6 +144,45 @@ class CanonicalMergeTests(unittest.TestCase):
             self.assertNotEqual(process.returncode, 0)
             self.assertIn("merge failed", process.stderr)
             self.assertFalse((root / "other.json").exists())
+
+    def test_intermediates_skip_repeated_key_validation_but_keep_exact_hash(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            rows = [(str(i % 7), "unchanged metadata " * 20) for i in range(97)]
+            manifest, _ = write_manifest(root, rows, run_size=2, fan_in=2)
+            counts = dict(full=0, final=0)
+            original = canonical.decode_record
+            def tracked(line, columns, verify_key=True):
+                counts["full" if verify_key else "final"] += 1
+                return original(line, columns, verify_key=verify_key)
+            with mock.patch.object(canonical, "decode_record", tracked):
+                result = canonical.hash_manifest(manifest, root / "hashes.json")
+            ordered = sorted(rows, key=lambda row: tuple(value.encode("utf-8") for value in row))
+            payload = b"a\x1fz" + b"".join(b"\x1e" + "\x1f".join(row).encode("utf-8") for row in ordered)
+            self.assertEqual(result["fields"][0]["sha256"], hashlib.sha256(payload).hexdigest())
+            self.assertEqual(counts["full"], len(rows))
+            self.assertEqual(counts["final"], len(rows))
+
+    def test_mutated_valid_gzip_intermediate_fails_its_checksum_before_any_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest, _ = write_manifest(root, [(str(i), "value") for i in range(17)], run_size=1, fan_in=2)
+            original = canonical.read_run
+            mutated = False
+            def corrupt(run, columns, decode_payload=True):
+                nonlocal mutated
+                if run.validated and not mutated:
+                    # Valid gzip, sorted lines and unchanged row count: only
+                    # the exact compressed-byte checksum reveals the change.
+                    content = gzip.decompress(run.path.read_bytes())
+                    run.path.write_bytes(gzip.compress(content, compresslevel=9, mtime=7))
+                    mutated = True
+                yield from original(run, columns, decode_payload=decode_payload)
+            with mock.patch.object(canonical, "read_run", corrupt):
+                with self.assertRaisesRegex(ValueError, "checksum"):
+                    canonical.hash_manifest(manifest, root / "hashes.json")
+            self.assertTrue(mutated)
+            self.assertFalse((root / "hashes.json").exists())
 
 
 if __name__ == "__main__":

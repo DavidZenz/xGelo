@@ -35,6 +35,7 @@ uefa_nl_simulation_source_if_missing("R/common/simulation_execution.R", c("simul
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_streaming.R", "uefa_nl_stream_reducer")
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_numeric.R", "uefa_nl_sim_prepare_numeric_groups")
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_paths.R", "uefa_nl_sim_prepare_paths")
+uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_canonical.R", "uefa_nl_sim_prepare_canonical")
 
 uefa_nl_sim_null_coalesce <- function(left, right) {
   if (is.null(left) || !length(left)) right else left
@@ -2321,7 +2322,7 @@ uefa_nl_sim_prepare_runtime <- function(matches, forecasts, status, scores, cuto
       outcome <- sample(c("home", "draw", "away"), 1L, replace = TRUE, prob = plan$probabilities)
       indexes <- plan$indexes[[outcome]]
       chosen <- sample(indexes, 1L, prob = plan$conditional[indexes])
-      result <- plan$template
+      result <- unclass(plan$template)
       for (field in c("home_goals", "regulation_home_goals", "final_home_goals")) result[[field]] <- as.integer(plan$home[[chosen]])
       for (field in c("away_goals", "regulation_away_goals", "final_away_goals")) result[[field]] <- as.integer(plan$away[[chosen]])
       result$outcome_class <- outcome
@@ -2329,8 +2330,42 @@ uefa_nl_sim_prepare_runtime <- function(matches, forecasts, status, scores, cuto
       result$scoreline_conditional_probability <- plan$conditional[[chosen]]
       result$stage_id <- as.character(stage_id); result$stage_status <- as.character(stage_status)
       result$projection_run_id <- as.character(projection_run_id); result$draw_policy_id <- as.character(draw_policy_id)
+      attributes(result) <- attributes(plan$template)
       result
     })
+  }
+  forecast_match_original <- runtime$uefa_nl_sim_forecast_match_row
+  runtime$uefa_nl_sim_forecast_match_row <- function(
+      forecasts, status, score_distributions, stage_id, home_team_id, away_team_id,
+      leg_number = 1L, fixture_id = NULL, participant_slot_home = NULL,
+      participant_slot_away = NULL, seed = NULL, projection_run_id = "", draw_policy_id = "") {
+    if (length(home_team_id) != 1L || length(away_team_id) != 1L || length(leg_number) != 1L ||
+        length(participant_slot_home) > 1L || length(participant_slot_away) > 1L) {
+      return(forecast_match_original(forecasts, status, score_distributions, stage_id,
+        home_team_id, away_team_id, leg_number, fixture_id, participant_slot_home,
+        participant_slot_away, seed, projection_run_id, draw_policy_id))
+    }
+    forecast <- runtime$uefa_nl_sim_find_forecast(forecasts, status, stage_id = stage_id,
+      home_team_id = home_team_id, away_team_id = away_team_id, fixture_id = fixture_id,
+      leg_number = leg_number, participant_slot_home = participant_slot_home,
+      participant_slot_away = participant_slot_away)
+    if (is.null(forecast)) return(NULL)
+    grid <- runtime$uefa_nl_sim_fixture_grid(score_distributions, forecast)
+    if (is.null(grid)) return(NULL)
+    sampled <- runtime$uefa_nl_sample_stage_match(forecast, grid, seed = seed,
+      stage_id = stage_id, stage_status = "projected", projection_run_id = projection_run_id,
+      draw_policy_id = draw_policy_id)
+    output_attributes <- attributes(sampled)
+    sampled <- unclass(sampled)
+    sampled$leg_number <- as.integer(leg_number)
+    sampled$participant_slot_home <- as.character(participant_slot_home %||% home_team_id)
+    sampled$participant_slot_away <- as.character(participant_slot_away %||% away_team_id)
+    sampled$home_team_id <- as.character(home_team_id)
+    sampled$away_team_id <- as.character(away_team_id)
+    sampled$fixture_id <- as.character(forecast$fixture_id[[1L]])
+    sampled$match_id <- sampled$fixture_id
+    attributes(sampled) <- output_attributes
+    sampled
   }
   # League fixtures, eligibility, suppression and output schema are fixed for
   # this run. Build them once; the hot loop only replaces sampled numeric data.
@@ -2346,6 +2381,8 @@ uefa_nl_sim_prepare_runtime <- function(matches, forecasts, status, scores, cuto
       forecasts, score_distributions, rules, seed, projection_run_id, draw_policy_id,
       cutoff_utc, iteration = 1L) {
     output <- league_template
+    match_columns <- unclass(output$matches)
+    fixture_columns <- unclass(output$fixture_rows)
     for (plan in league_plans) {
       sampled <- uefa_nl_sim_with_seed(uefa_nl_sim_seed_for(seed, fixture = plan$id,
           stage = "league_phase", iteration = iteration), function() {
@@ -2356,21 +2393,25 @@ uefa_nl_sim_prepare_runtime <- function(matches, forecasts, status, scores, cuto
              outcome = outcome, probability = plan$sampler$probabilities[[outcome]],
              conditional = plan$sampler$conditional[[chosen]])
       })
-      for (field in intersect(c("home_goals", "regulation_home_goals", "final_home_goals"), names(output$matches))) output$matches[[field]][[plan$index]] <- sampled$home
-      for (field in intersect(c("away_goals", "regulation_away_goals", "final_away_goals"), names(output$matches))) output$matches[[field]][[plan$index]] <- sampled$away
-      for (field in intersect(c("outcome_class", "outcome_probability", "scoreline_conditional_probability"), names(output$matches))) {
+      for (field in intersect(c("home_goals", "regulation_home_goals", "final_home_goals"), names(match_columns))) match_columns[[field]][[plan$index]] <- sampled$home
+      for (field in intersect(c("away_goals", "regulation_away_goals", "final_away_goals"), names(match_columns))) match_columns[[field]][[plan$index]] <- sampled$away
+      for (field in intersect(c("outcome_class", "outcome_probability", "scoreline_conditional_probability"), names(match_columns))) {
         value <- switch(field, outcome_class = sampled$outcome, outcome_probability = sampled$probability,
                         scoreline_conditional_probability = sampled$conditional)
-        output$matches[[field]][[plan$index]] <- value
+        match_columns[[field]][[plan$index]] <- value
       }
-      output$fixture_rows$outcome_class[[plan$record]] <- sampled$outcome
-      output$fixture_rows$outcome_probability[[plan$record]] <- sampled$probability
+      fixture_columns$outcome_class[[plan$record]] <- sampled$outcome
+      fixture_columns$outcome_probability[[plan$record]] <- sampled$probability
     }
+    attributes(match_columns) <- attributes(league_template$matches)
+    attributes(fixture_columns) <- attributes(league_template$fixture_rows)
+    output$matches <- match_columns
+    output$fixture_rows <- fixture_columns
     output
   }
   # Group reducer preparation is installed below once the immutable roster and
   # rules are available. It uses the same Article 15/19 ranking functions.
-  runtime
+  uefa_nl_sim_prepare_canonical(runtime)
 }
 
 uefa_nl_sim_prepare_group_reducer <- function(runtime, matches, groups, rules, source, cutoff) {

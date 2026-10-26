@@ -121,6 +121,61 @@ simulation_atomic_rds <- function(value, path) {
   saveRDS(value, temporary, compress = FALSE, version = 3L)
   if (!file.rename(temporary, path)) stop("Simulation atomic write failed: ", path, call. = FALSE)
 }
+simulation_statistics_codec <- function(codec = NULL) {
+  if (is.null(codec)) return(NULL) # absent legacy metadata permits header detection
+  if (!is.character(codec) || length(codec) != 1L || is.na(codec) ||
+      !codec %in% c("none", "gzip")) stop("Unknown simulation statistics codec", call. = FALSE)
+  codec
+}
+simulation_statistics_read <- function(bytes, codec, expected_size = NULL, expected_crc32 = NULL) {
+  codec <- simulation_statistics_codec(codec)
+  if (is.null(codec)) codec <- if (length(bytes) >= 2L && identical(bytes[1:2], as.raw(c(31L, 139L)))) "gzip" else "none"
+  con <- NULL
+  on.exit(if (!is.null(con)) close(con))
+  withCallingHandlers({
+    if (identical(codec, "gzip")) {
+      if (length(bytes) < 18L || !identical(bytes[1:2], as.raw(c(31L, 139L)))) stop("Corrupt simulation statistics gzip header/trailer", call. = FALSE)
+      trailer <- bytes[seq.int(length(bytes) - 7L, length(bytes))]
+      trailer_crc32 <- paste(sprintf("%02x", as.integer(rev(trailer[1:4]))), collapse = "")
+      trailer_size <- sum(as.integer(trailer[5:8]) * 256^(0:3))
+      limit <- if (is.null(expected_size)) trailer_size else expected_size
+      if (!is.finite(limit) || limit < 0 || limit != floor(limit) || limit %% 2^32 != trailer_size) stop("Corrupt simulation statistics gzip size binding", call. = FALSE)
+      con <- gzcon(rawConnection(bytes), allowNonCompressed = FALSE)
+      blocks <- list(); total <- 0
+      previous_messages <- sink.number(type = "message")
+      diagnostics <- tryCatch(utils::capture.output({
+        repeat {
+          # The new writer binds the exact serialized size. Legacy gzip uses
+          # its trailer size; block reads never allocate a corrupt claimed size.
+          block <- readBin(con, "raw", n = min(1048576, limit - total + 1))
+          if (!length(block)) break
+          total <- total + length(block)
+          if (total > limit) stop("Corrupt simulation statistics decompressed size", call. = FALSE)
+          blocks[[length(blocks) + 1L]] <- block
+        }
+      }, type = "message"), finally = {
+        # R's gzip CRC failures can use REprintf without a warning condition.
+        # Capture those diagnostics and preserve an existing caller message sink.
+        if (sink.number(type = "message") != previous_messages) sink(getConnection(previous_messages), type = "message")
+      })
+      if (length(diagnostics)) stop("Corrupt simulation statistics gzip diagnostic: ", paste(diagnostics, collapse = "; "), call. = FALSE)
+      close(con); con <- NULL
+      if (total != limit) stop("Corrupt simulation statistics truncated gzip size", call. = FALSE)
+      payload <- if (length(blocks)) do.call(c, blocks) else raw()
+      crc32 <- digest::digest(payload, algo = "crc32", serialize = FALSE)
+      if (!identical(crc32, trailer_crc32) || (!is.null(expected_crc32) && !identical(crc32, expected_crc32))) stop("Corrupt simulation statistics gzip CRC32", call. = FALSE)
+      rm(blocks)
+    } else {
+      payload <- bytes
+      if ((!is.null(expected_size) && length(payload) != expected_size) ||
+          (!is.null(expected_crc32) && !identical(digest::digest(payload, algo = "crc32", serialize = FALSE), expected_crc32))) stop("Corrupt simulation statistics serialization binding", call. = FALSE)
+    }
+    con <- rawConnection(payload)
+    value <- readRDS(con)
+    if (length(readBin(con, "raw", 1L))) stop("Unexpected simulation statistics records", call. = FALSE)
+    value
+  }, warning = function(warning) stop("Corrupt simulation statistics: ", conditionMessage(warning), call. = FALSE))
+}
 simulation_stream_schema_builder <- function(ids, auxiliary_fields) {
   schema <- list(schema = "simulation-trace-schema-v2", ids = ids,
     auxiliary_fields = auxiliary_fields, record_names = list(), frames = list())
@@ -146,7 +201,8 @@ simulation_stream_schema_builder <- function(ids, auxiliary_fields) {
 # retaining its compressed payload avoids hashing a path and then reopening a
 # possibly changed file. Unselected payloads are hashed and released immediately.
 simulation_stream_read_chunk <- function(path, expected_ids, fingerprint,
-    keep = character(), auxiliary_fields = NULL, expected_schema = NULL) {
+    keep = character(), auxiliary_fields = NULL, expected_schema = NULL,
+    expected_statistics_codec = NULL) {
   marker <- file.path(path, "commit.rds")
   if (!file.exists(marker)) stop("Uncommitted simulation chunk: ", path, call. = FALSE)
   commit <- tryCatch(readRDS(marker), error = function(e) stop("Corrupt simulation chunk commit", call. = FALSE))
@@ -154,6 +210,15 @@ simulation_stream_read_chunk <- function(path, expected_ids, fingerprint,
     stop("Simulation chunk identity/coverage mismatch", call. = FALSE)
   }
   version2 <- identical(commit$schema, "simulation-chunk-v2")
+  statistics_codec <- simulation_statistics_codec(commit$statistics_codec)
+  if (!identical(statistics_codec, simulation_statistics_codec(expected_statistics_codec))) stop("Simulation statistics codec mismatch", call. = FALSE)
+  statistics_size <- commit$statistics_uncompressed_bytes; statistics_crc32 <- commit$statistics_crc32
+  if (!is.null(statistics_codec) || !is.null(statistics_size) || !is.null(statistics_crc32)) {
+    if (!is.numeric(statistics_size) || length(statistics_size) != 1L || !is.finite(statistics_size) ||
+        statistics_size < 0 || statistics_size != floor(statistics_size) ||
+        !is.character(statistics_crc32) || length(statistics_crc32) != 1L || is.na(statistics_crc32) ||
+        !grepl("^[0-9a-f]{8}$", statistics_crc32)) stop("Simulation statistics serialization metadata mismatch", call. = FALSE)
+  }
   if ((!is.null(commit$schema) && !version2) ||
       (!is.null(expected_schema) && !expected_schema %in% c("simulation-stream-v1", "simulation-stream-v2")) ||
       (identical(expected_schema, "simulation-stream-v2") && !version2) ||
@@ -176,6 +241,11 @@ simulation_stream_read_chunk <- function(path, expected_ids, fingerprint,
     if (is.null(bytes) || !identical(digest::digest(bytes, algo = "sha256", serialize = FALSE), commit$hashes[[name]])) {
       stop("Corrupt simulation chunk: ", file, call. = FALSE)
     }
+    if (name == "statistics.rds") {
+      gzip <- length(bytes) >= 2L && identical(bytes[1:2], as.raw(c(31L, 139L)))
+      effective_statistics_codec <- if (gzip) "gzip" else "none"
+      if (!is.null(statistics_codec) && !identical(effective_statistics_codec, statistics_codec)) stop("Simulation statistics codec/header mismatch", call. = FALSE)
+    }
     if (name == "schema.rds") {
       con <- rawConnection(bytes)
       schema <- tryCatch(readRDS(con), error = function(e) stop("Corrupt simulation chunk schema", call. = FALSE), finally = close(con))
@@ -185,7 +255,8 @@ simulation_stream_read_chunk <- function(path, expected_ids, fingerprint,
   if (version2 && (!is.list(schema) || !identical(schema$schema, "simulation-trace-schema-v2") ||
       !identical(schema$ids, expected_ids) || !identical(schema$auxiliary_fields, auxiliary) ||
       !is.list(schema$record_names) || !is.list(schema$frames))) stop("Simulation chunk schema identity/coverage mismatch", call. = FALSE)
-  list(commit = commit, schema = schema, buffers = buffers)
+  list(commit = commit, schema = schema, buffers = buffers, statistics_codec = effective_statistics_codec,
+    statistics_size = statistics_size, statistics_crc32 = statistics_crc32)
 }
 
 simulation_stream_trace_connections <- function(chunk, fields = NULL) {
@@ -229,11 +300,14 @@ simulation_stream_visit_chunk <- function(chunk, ids, visitor, fields = NULL) {
 }
 
 simulation_stream_validate_chunk <- function(path, expected_ids, fingerprint, auxiliary_fields = NULL,
-    decode = FALSE, expected_schema = NULL) {
+    decode = FALSE, expected_schema = NULL, expected_statistics_codec = NULL) {
   marker <- tryCatch(readRDS(file.path(path, "commit.rds")), error = function(e) NULL)
   files <- if (!decode || is.null(marker)) character() else names(marker$hashes)
   chunk <- simulation_stream_read_chunk(path, expected_ids, fingerprint, keep = files,
-    auxiliary_fields = auxiliary_fields, expected_schema = expected_schema)
+    auxiliary_fields = auxiliary_fields, expected_schema = expected_schema,
+    expected_statistics_codec = expected_statistics_codec)
+  if (decode) simulation_statistics_read(chunk$buffers[["statistics.rds"]], chunk$statistics_codec,
+    chunk$statistics_size, chunk$statistics_crc32)
   if (decode && identical(chunk$commit$schema, "simulation-chunk-v2")) {
     schema <- simulation_stream_schema_builder(expected_ids, chunk$commit$auxiliary_fields)
     simulation_stream_visit_chunk(chunk, expected_ids, schema$observe)
@@ -245,7 +319,7 @@ simulation_stream_validate_chunk <- function(path, expected_ids, fingerprint, au
 simulation_execute_stream <- function(count, iteration, reducer, identity, run_dir,
     workers = 4L, chunk_size = 256L, resume = FALSE, progress = NULL,
     trace = function(value) value, budget = NULL, batch_size = 32L,
-    auxiliary_fields = character()) {
+    auxiliary_fields = character(), statistics_codec = "gzip") {
   integer_control <- function(value, name) {
     if (length(value) != 1L || is.na(value) || !is.finite(value) || value < 1 ||
         value != floor(value) || value > .Machine$integer.max) stop(name, " must be a positive integer", call. = FALSE)
@@ -260,6 +334,8 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
   if (!all(vapply(reducer[c("init", "update", "merge")], is.function, logical(1)))) stop("Invalid simulation reducer", call. = FALSE)
   if (!is.null(reducer$finalize) && !is.function(reducer$finalize)) stop("Invalid simulation reducer finalizer", call. = FALSE)
   if (!is.function(trace)) stop("Invalid simulation trace writer", call. = FALSE)
+  statistics_codec <- simulation_statistics_codec(statistics_codec)
+  if (is.null(statistics_codec)) stop("New simulation runs require an explicit statistics codec", call. = FALSE)
   if (!is.character(auxiliary_fields) || anyNA(auxiliary_fields) || any(!nzchar(auxiliary_fields)) || anyDuplicated(auxiliary_fields) || ".main" %in% auxiliary_fields) stop("Invalid simulation auxiliary fields", call. = FALSE)
   if (is.null(run_dir) || length(run_dir) != 1L || is.na(run_dir) || !nzchar(run_dir)) stop("Streaming requires run_dir", call. = FALSE)
   had_seed <- exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)
@@ -286,7 +362,8 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
     formatting = options()[c("OutDec", "scipen", "digits")],
     packages = vapply(c("digest", "jsonlite"), function(p) as.character(utils::packageVersion(p)), character(1)))
   manifest <- list(schema = "simulation-stream-v2", identity = identity, count = count,
-    chunk_size = chunk_size, auxiliary_fields = auxiliary_fields, environment = environment)
+    chunk_size = chunk_size, auxiliary_fields = auxiliary_fields,
+    statistics_codec = statistics_codec, environment = environment)
   fingerprint <- digest::digest(manifest, algo = "sha256")
   manifest$fingerprint <- fingerprint
   manifest_path <- file.path(run_dir, "manifest.rds")
@@ -306,7 +383,7 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
     path <- chunk_path(index)
     if (!dir.exists(path)) return(FALSE)
     simulation_stream_validate_chunk(path, ranges[[index]], fingerprint, auxiliary_fields,
-      expected_schema = manifest$schema)
+      expected_schema = manifest$schema, expected_statistics_codec = manifest$statistics_codec)
     TRUE
   }, logical(1))
   # Interrupted staging directories never have commit authority.
@@ -376,14 +453,27 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
     # Some reducers use compact numeric state during the hot loop and convert
     # it to their merge representation only once for the completed chunk.
     if (is.function(reducer$finalize)) accumulator <- reducer$finalize(accumulator)
-    saveRDS(accumulator, file.path(path, "statistics.rds"), compress = FALSE, version = 3L)
+    statistics_path <- file.path(path, "statistics.rds")
+    statistics_payload <- serialize(accumulator, NULL, version = 3L)
+    statistics_size <- length(statistics_payload)
+    statistics_crc32 <- digest::digest(statistics_payload, algo = "crc32", serialize = FALSE)
+    if (identical(statistics_codec, "gzip")) {
+      statistics_con <- gzfile(statistics_path, "wb", compression = 1L)
+      tryCatch(writeBin(statistics_payload, statistics_con), finally = close(statistics_con))
+    } else {
+      statistics_con <- file(statistics_path, "wb")
+      tryCatch(writeBin(statistics_payload, statistics_con), finally = close(statistics_con))
+    }
+    rm(statistics_payload)
     saveRDS(schema$value(), file.path(path, "schema.rds"), compress = FALSE, version = 3L)
     payloads <- c("trace.bin.gz", "statistics.rds", "schema.rds", auxiliary_files)
     hashes <- stats::setNames(vapply(payloads, function(name) simulation_file_hash(file.path(path, name)), character(1)), payloads)
     saveRDS(list(schema = "simulation-chunk-v2", fingerprint = fingerprint, ids = ranges[[index]],
-      auxiliary_fields = auxiliary_fields, hashes = hashes), file.path(path, "commit.rds"), compress = FALSE)
+      auxiliary_fields = auxiliary_fields, statistics_codec = statistics_codec,
+      statistics_uncompressed_bytes = statistics_size, statistics_crc32 = statistics_crc32,
+      hashes = hashes), file.path(path, "commit.rds"), compress = FALSE)
     simulation_stream_validate_chunk(path, ranges[[index]], fingerprint, auxiliary_fields,
-      expected_schema = manifest$schema)
+      expected_schema = manifest$schema, expected_statistics_codec = manifest$statistics_codec)
     if (!file.rename(path, chunk_path(index))) stop("Simulation chunk commit failed", call. = FALSE)
     index
   }
@@ -427,9 +517,10 @@ simulation_execute_stream <- function(count, iteration, reducer, identity, run_d
   emit("aggregation")
   for (index in seq_along(ranges)) {
     chunk <- simulation_stream_read_chunk(chunk_path(index), ranges[[index]], fingerprint,
-      keep = "statistics.rds", auxiliary_fields = auxiliary_fields, expected_schema = manifest$schema)
-    con <- rawConnection(chunk$buffers[["statistics.rds"]])
-    statistics <- tryCatch(readRDS(con), finally = close(con))
+      keep = "statistics.rds", auxiliary_fields = auxiliary_fields, expected_schema = manifest$schema,
+      expected_statistics_codec = manifest$statistics_codec)
+    statistics <- simulation_statistics_read(chunk$buffers[["statistics.rds"]], chunk$statistics_codec,
+      chunk$statistics_size, chunk$statistics_crc32)
     accumulator <- reducer$merge(accumulator, statistics)
     if (is.function(budget)) budget(NULL)
   }
@@ -442,6 +533,7 @@ simulation_trace_manifest <- function(store) {
   manifest <- readRDS(file.path(store$run_dir, "manifest.rds"))
   if (!identical(manifest, store$manifest)) stop("Simulation trace manifest changed", call. = FALSE)
   if (!(identical(manifest$schema, "simulation-stream-v1") || identical(manifest$schema, "simulation-stream-v2"))) stop("Unknown simulation trace schema", call. = FALSE)
+  simulation_statistics_codec(manifest$statistics_codec)
   firsts <- seq.int(1L, manifest$count, by = manifest$chunk_size)
   paths <- sprintf("chunk-%06d", seq_along(firsts))
   if (!setequal(list.files(store$run_dir, pattern = "^chunk-"), paths)) stop("Simulation trace chunk inventory mismatch", call. = FALSE)
@@ -462,7 +554,7 @@ simulation_trace_visit <- function(store, visitor, fields = NULL) {
     ids <- seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L))
     path <- file.path(store$run_dir, sprintf("chunk-%06d", index))
     chunk <- simulation_stream_read_chunk(path, ids, manifest$fingerprint, keep, auxiliary,
-      expected_schema = manifest$schema)
+      expected_schema = manifest$schema, expected_statistics_codec = manifest$statistics_codec)
     simulation_stream_visit_chunk(chunk, ids, visitor, fields)
   }
   invisible(TRUE)
@@ -478,7 +570,8 @@ simulation_trace_schema_visit <- function(store, visitor) {
   for (index in seq_along(firsts)) {
     ids <- seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L))
     chunk <- simulation_stream_read_chunk(file.path(store$run_dir, sprintf("chunk-%06d", index)),
-      ids, manifest$fingerprint, auxiliary_fields = manifest$auxiliary_fields, expected_schema = manifest$schema)
+      ids, manifest$fingerprint, auxiliary_fields = manifest$auxiliary_fields, expected_schema = manifest$schema,
+      expected_statistics_codec = manifest$statistics_codec)
     visitor(chunk$schema)
   }
   TRUE
@@ -674,7 +767,8 @@ simulation_trace_validate <- function(store) {
   if (!setequal(list.files(store$run_dir, pattern = "^chunk-"), paths)) stop("Simulation trace chunk inventory mismatch", call. = FALSE)
   for (index in seq_along(firsts)) simulation_stream_validate_chunk(file.path(store$run_dir, paths[[index]]),
     seq.int(firsts[[index]], min(manifest$count, firsts[[index]] + manifest$chunk_size - 1L)), manifest$fingerprint,
-    manifest$auxiliary_fields, decode = TRUE, expected_schema = manifest$schema)
+    manifest$auxiliary_fields, decode = TRUE, expected_schema = manifest$schema,
+    expected_statistics_codec = manifest$statistics_codec)
   invisible(TRUE)
 }
 

@@ -2,8 +2,9 @@
 
 The CL optimization is committed as `ca9119a`. NL numeric ranking, prepared
 knockout paths, chunk counters and trace storage are integrated. Exact
-compatibility checks pass; combined regressions and fresh staged performance
-certification remain in progress. No public promotion is authorized or active.
+compatibility checks pass. The first frozen cycle validated CL through 100k
+and NL through 10k; NL's conservative time gate withheld 100k. A second CPU and
+storage cycle is undergoing verification. No public promotion is active.
 
 ## Changes
 
@@ -65,6 +66,30 @@ on PATH; ordinary in-memory library calls keep their existing return shape.
   certificate or an overall speed estimate. See `cpu-implementation/`.
 
 ## Scale gate
+
+First-cycle frozen source `43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5`
+and implementation `da6eb5327bebce1c0886c1c5b63185e9617640c71079e75af65fa1320d8d1d8b`:
+
+| Competition | 1k total | 10k total | 100k total | Peak combined RSS |
+| --- | ---: | ---: | ---: | ---: |
+| CL fixture | 27.8 s | 128.2 s | 1,044.1 s | 0.637 GiB |
+| NL accepted | 316.8 s | 864.4 s | Withheld | 5.027 GiB |
+
+CL's 100k is 2.79 times faster than the prior corrected v5 receipt. NL's 10k
+includes 652.5 seconds simulation, 177.6 seconds aggregation and 19.5 seconds
+candidate validation. Its 10,649.8-second conservative projection fails the
+7,200-second admission gate. Checkpoints and compact receipts are retained in
+`cpu-implementation/cycle-1/`. These receipts describe their frozen source;
+they do not certify subsequent code changes.
+
+The second cycle prepares canonical columns once, fuses private row/table
+hashing and uses guarded primitive row construction/binding. Public rule
+functions and unsupported/custom-schema fallbacks remain intact. Checkpoint
+statistics use level-1 gzip with manifest/commit codec binding, serialized
+size/CRC metadata and full verified-buffer decoding. Historical readers remain
+available. Canonical merge intermediates created by the same process retain
+SHA, CRC, order and count checks while avoiding repeated key reconstruction.
+All storage metadata remains outside public football identities.
 
 After regressions, freeze all R and benchmark/supervisor source bytes and run
 fresh CL then NL processes at 1k and 10k. Admit each 100k run only when the

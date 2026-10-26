@@ -27,6 +27,25 @@ resource watchdog continues automatic enforcement between those checks.
 Implementation and test work may run in parallel only for independently owned
 files, following AGENTS.md. Large competition runs remain sequential.
 
+Second-cycle work after the first gate: retain the validated CL 100k and NL
+1k/10k receipts and all checkpoints. NL's first conservative projection is
+10,649.8 seconds, so do not start its 100k run. Profile a warmed worker, then
+fuse private canonical normalization/finalization and update sampled columns
+without repeated data-frame reconstruction. Compress checkpoint statistics
+with explicit hash-bound codec metadata, preserving historical readers and
+full validation. Avoid repeated canonical key validation only for exact
+intermediate runs generated and checksum-bound by the same helper process.
+Repeat exact compatibility, affected regressions and fresh staged gates after
+freezing the revised source. Keep four workers, 256-iteration chunks and all
+original time, memory and disk limits.
+
+CL has already passed the first complete staged cycle. In the follow-up cycle,
+measure NL's fresh 1k/10k pilots first to assess the remaining admission gate.
+If that gate passes, run final CL 1k/10k/100k sequentially, then the NL 100k run
+using the same frozen source and verified pilot receipts. Recheck input,
+measurement and source hashes plus resource headroom before admission. No
+large runs overlap; no failed gate is bypassed or relaxed.
+
 Status: CL implementation committed (`ca9119a`, 578 passing assertions).
 NL numeric/path/counter and trace-storage changes are integrated. Complete
 accepted NL objects and candidate CSV bytes match the frozen reference for

@@ -1,0 +1,37 @@
+{
+  "competition": "cl",
+  "count": 100000,
+  "status": "passed",
+  "command": [
+    "/opt/homebrew/opt/r/bin/Rscript",
+    "--vanilla",
+    "scripts/benchmark_champions_league_scale.R",
+    "100000",
+    "4",
+    "/private/tmp/xgelo-cpu-certification/cl"
+  ],
+  "physical_memory_bytes": 68719476736,
+  "memory_limit_bytes": 34359738368,
+  "time_limit_seconds": 7200,
+  "peak_process_tree_rss_bytes": 679903232,
+  "peak_disk_bytes": 1323831599,
+  "prior_active_seconds": 0.0,
+  "attempt_history": [],
+  "source_snapshot_sha256": "43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5",
+  "wall_seconds": 1044.058442708003,
+  "inputs": {
+    "seed": "7",
+    "source_bundle_id": "phase20-ucl-fixture-source-v1",
+    "graph_sha256": "3222d7a88f0b988863644b08cc7107f066d68eef1c44a8f736153673295095be",
+    "ledger_sha256": "e189484d6f6b34a78e5c71ff9242b176763fb16c90c7da98647949697bafde6f",
+    "ruleset_sha256": "5b4c49f378620d6d96596ed10a1a43199ebf4c7ac291d1322ac1a3ad32dc2347",
+    "information_cutoff_utc": "2026-09-01T00:00:00Z",
+    "algorithm_version": "ucl-conditional-league-v5"
+  },
+  "trace_bytes": 1191908607,
+  "implementation_sha256": "da6eb5327bebce1c0886c1c5b63185e9617640c71079e75af65fa1320d8d1d8b",
+  "authority": "synthetic_fixture_only",
+  "production_certified": false,
+  "attempt_wall_seconds": 1044.058442708003,
+  "measurement_sha256": "c5f28c1a293dac425c7744cb4b83b36d82a21e0db40027c81eb1dc8d7bc0c29a"
+}

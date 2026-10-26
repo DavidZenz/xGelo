@@ -1,0 +1,312 @@
+[
+  {
+    "file": "EURO replay",
+    "status": 0,
+    "elapsed_seconds": 195.08885883299808
+  },
+  {
+    "file": "test_phase13_publication_hashes.R",
+    "assertions": 106,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 9.168805207998957
+  },
+  {
+    "file": "test_phase13_publication_manifests.R",
+    "assertions": 68,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 11.225034041999606
+  },
+  {
+    "file": "test_phase13_publication_transaction.R",
+    "assertions": 117,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 1.098714709005435
+  },
+  {
+    "file": "test_phase13_publication_integration.R",
+    "assertions": 175,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 283.10027949999494
+  },
+  {
+    "file": "test_phase13_refresh_failure.R",
+    "assertions": 40,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 182.21189999999478
+  },
+  {
+    "file": "test_phase15_nations_league.R",
+    "assertions": 634,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 486.2085244159971
+  },
+  {
+    "file": "test_uefa_nations_league_production.R",
+    "assertions": 63,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 17.873380291988724
+  },
+  {
+    "file": "test_phase16_euro_qualifying.R",
+    "assertions": 441,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 122.38435283400759
+  },
+  {
+    "file": "test_phase17_dashboards.R",
+    "assertions": 217,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 1,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 42.032195084000705
+  },
+  {
+    "file": "test_nations_league_dashboard_revision.R",
+    "assertions": 197,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 3.6867289999936474
+  },
+  {
+    "file": "test_phase21_dashboard_publication.R",
+    "assertions": 46,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 1.0657765419891803
+  },
+  {
+    "file": "test_dashboard_release_safety.R",
+    "assertions": 49,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 3.32172766700387
+  },
+  {
+    "file": "test_active_dashboard_improvements.R",
+    "assertions": 72,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 1.7226337080064695
+  },
+  {
+    "file": "test_nl_simulation_scale.R",
+    "assertions": 10,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 0.7195331249968149
+  },
+  {
+    "file": "test_simulation_optimization.R",
+    "assertions": 48,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 31.848564917003387
+  },
+  {
+    "file": "test_simulation_streaming.R",
+    "assertions": 44,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 44.760481666002306
+  },
+  {
+    "file": "test_uefa_champions_league.R",
+    "assertions": 362,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 192.95311708300142
+  },
+  {
+    "file": "test_phase20_state_authority_review.R",
+    "assertions": 34,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 9.587649624998448
+  },
+  {
+    "file": "test_phase20_final_boundary_review.R",
+    "assertions": 13,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 45.389540417003445
+  },
+  {
+    "file": "test_phase20_adversarial_regression.R",
+    "assertions": 63,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 16.889379125001142
+  },
+  {
+    "file": "test_phase20_outcomes_wiring_review.R",
+    "assertions": 24,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 55.7221133330022
+  },
+  {
+    "file": "test_phase20_simulation_review.R",
+    "assertions": 34,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 24.167804625001736
+  },
+  {
+    "file": "test_cl_prepared_execution.R",
+    "assertions": 48,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 0.7180508750025183
+  },
+  {
+    "file": "test_nl_numeric_execution.R",
+    "assertions": 48,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 4.552706334012328
+  },
+  {
+    "file": "test_nl_prepared_canonical.R",
+    "assertions": 179,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 1.1357735420024255
+  },
+  {
+    "file": "test_nl_prepared_sampling.R",
+    "assertions": 33,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 2.71477250001044
+  },
+  {
+    "file": "test_nl_prepared_paths.R",
+    "assertions": 121,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 7.100951875007013
+  },
+  {
+    "file": "test_nl_stream_counters.R",
+    "assertions": 26,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 0.7320708750048652
+  },
+  {
+    "file": "test_simulation_trace_storage.R",
+    "assertions": 146,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 2.7782482089969562
+  },
+  {
+    "file": "test_phase18_canonical_hash.R",
+    "assertions": 31,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "status": 0,
+    "elapsed_seconds": 0.7113965410098899
+  },
+  {
+    "file": "test_simulation_scale_watchdog.py",
+    "status": 0,
+    "elapsed_seconds": 1.605570790998172
+  }
+]

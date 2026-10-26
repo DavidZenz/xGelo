@@ -224,8 +224,13 @@ See `.planning/simulation-optimization/DEEP-AUDIT.md` and `deep-audit/evidence/`
 - [x] Preserve accepted NL complete objects, hashes, candidate CSV bytes and
   caller RNG across three seeds, uneven chunks, worker changes and interrupted
   resume; implement bounded v2 traces and compressed canonical merge runs.
-- [ ] Complete frozen-code regression/resource gates and staged CL then NL
-  1k/10k/100k certification. No scale benchmark or promotion is active yet.
+- [x] Complete first frozen cycle: CL fixture 1k/10k/100k validated in
+  27.8/128.2/1,044.1 seconds; NL accepted 1k/10k validated in 316.8/864.4
+  seconds. NL 100k withheld by the 10,649.8-second conservative projection;
+  checkpoints retained and dashboards unchanged.
+- [ ] Verify the follow-up private canonical/typed-row CPU and compressed
+  statistics changes, then repeat frozen staged certification. No scale
+  benchmark or promotion is active during implementation.
 - [ ] Resolve the pre-existing Phase 18 provider review/manifest mismatch through
   its separate authority workflow. Optimization does not rewrite those files.
 

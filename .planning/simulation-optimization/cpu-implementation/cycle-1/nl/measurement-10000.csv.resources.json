@@ -1,0 +1,34 @@
+{
+  "competition": "nl",
+  "count": 10000,
+  "status": "passed",
+  "command": [
+    "/opt/homebrew/opt/r/bin/Rscript",
+    "--vanilla",
+    "scripts/benchmark_nations_league_scale.R",
+    "/private/tmp/xgelo-active-dashboards",
+    "10000",
+    "/private/tmp/xgelo-cpu-certification/nl",
+    "4"
+  ],
+  "physical_memory_bytes": 68719476736,
+  "memory_limit_bytes": 34359738368,
+  "time_limit_seconds": 7200,
+  "peak_process_tree_rss_bytes": 5205049344,
+  "peak_disk_bytes": 1196449535,
+  "prior_active_seconds": 0.0,
+  "attempt_history": [],
+  "source_snapshot_sha256": "43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5",
+  "wall_seconds": 864.4413853329897,
+  "inputs": {
+    "seed": "15017",
+    "source_bundle_id": "nl-2026-27-official-uefa-v2",
+    "state_manifest_sha256": "3089fdfdd8e073991c23e62812bd28e324b3c118e6a3ac6d141d44691c3f4c8a"
+  },
+  "trace_bytes": 990203833,
+  "implementation_sha256": "da6eb5327bebce1c0886c1c5b63185e9617640c71079e75af65fa1320d8d1d8b",
+  "authority": "accepted_national",
+  "production_certified": false,
+  "attempt_wall_seconds": 864.4413853329897,
+  "measurement_sha256": "ee0bcb480adfb49052bd6065569d9150d24a6656c87c9bf74c347de3381e9eda"
+}

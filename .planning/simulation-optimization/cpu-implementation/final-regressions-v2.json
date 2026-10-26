@@ -1,0 +1,48 @@
+{
+  "valid": false,
+  "performance_gate_valid": true,
+  "all_regressions_green": false,
+  "source_snapshot_sha256": "5e9cea95125135a2c1fa59ee28e386bdb053a3d9cd7e69f46b651b6c6cbd4c59",
+  "implementation_sha256": "c0b683e70d87e5326b4aff900612cb13e0ad0eec69373d43e962a1b201112d61",
+  "R_suites": 32,
+  "assertions": 3621,
+  "python_tests": 11,
+  "euro_replay_passed": true,
+  "known_preexisting_failure": {
+    "file": "test_phase18_source_acceptance.R",
+    "assertions": 247,
+    "failures": 1,
+    "errors": 3,
+    "warnings": 1,
+    "skips": 0
+  },
+  "reused_unchanged_authority_suites": [
+    {
+      "file": "test_phase18_source_bundle.R",
+      "assertions": 72,
+      "test_cases": 12,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skips": 0,
+      "conditions": []
+    },
+    {
+      "file": "test_phase18_adversarial_regression.R",
+      "assertions": 60,
+      "test_cases": 21,
+      "failures": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skips": 0,
+      "conditions": []
+    }
+  ],
+  "warning": "Expected local Git preflight warning: branch has no upstream.",
+  "independent_read_only_review": {
+    "reference": "08d5a35",
+    "actionable_findings": 0
+  },
+  "cl_production_certified": false,
+  "dashboards_unchanged": true
+}

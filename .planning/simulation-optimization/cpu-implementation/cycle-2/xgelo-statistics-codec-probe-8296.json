@@ -1,0 +1,114 @@
+{
+  "R": "R version 4.6.1 (2026-06-24)",
+  "completed_run": "/private/tmp/xgelo-cpu-certification/nl/run-1000",
+  "results": [
+    {
+      "chunk": "chunk-000001",
+      "level": 1,
+      "raw_bytes": 22189296,
+      "gzip_bytes": 1951341,
+      "compression_ratio": 11.3713061940481,
+      "write_elapsed": 0.231,
+      "read_elapsed": 0.318
+    },
+    {
+      "chunk": "chunk-000001",
+      "level": 4,
+      "raw_bytes": 22189296,
+      "gzip_bytes": 1514142,
+      "compression_ratio": 14.6546994931783,
+      "write_elapsed": 0.274,
+      "read_elapsed": 0.188
+    },
+    {
+      "chunk": "chunk-000001",
+      "level": 6,
+      "raw_bytes": 22189296,
+      "gzip_bytes": 1287606,
+      "compression_ratio": 17.2329858667947,
+      "write_elapsed": 0.325,
+      "read_elapsed": 0.168
+    },
+    {
+      "chunk": "chunk-000002",
+      "level": 1,
+      "raw_bytes": 22616670,
+      "gzip_bytes": 1991791,
+      "compression_ratio": 11.354941356799,
+      "write_elapsed": 0.23,
+      "read_elapsed": 0.191
+    },
+    {
+      "chunk": "chunk-000002",
+      "level": 4,
+      "raw_bytes": 22616670,
+      "gzip_bytes": 1546986,
+      "compression_ratio": 14.619828492307,
+      "write_elapsed": 0.28,
+      "read_elapsed": 0.172
+    },
+    {
+      "chunk": "chunk-000002",
+      "level": 6,
+      "raw_bytes": 22616670,
+      "gzip_bytes": 1312983,
+      "compression_ratio": 17.2254096206882,
+      "write_elapsed": 0.339,
+      "read_elapsed": 0.172000000000001
+    },
+    {
+      "chunk": "chunk-000003",
+      "level": 1,
+      "raw_bytes": 22523697,
+      "gzip_bytes": 1987500,
+      "compression_ratio": 11.3326777358491,
+      "write_elapsed": 0.23,
+      "read_elapsed": 0.167999999999999
+    },
+    {
+      "chunk": "chunk-000003",
+      "level": 4,
+      "raw_bytes": 22523697,
+      "gzip_bytes": 1542027,
+      "compression_ratio": 14.6065516362554,
+      "write_elapsed": 0.27,
+      "read_elapsed": 0.168999999999999
+    },
+    {
+      "chunk": "chunk-000003",
+      "level": 6,
+      "raw_bytes": 22523697,
+      "gzip_bytes": 1308626,
+      "compression_ratio": 17.2117144241365,
+      "write_elapsed": 0.331000000000001,
+      "read_elapsed": 0.168999999999999
+    },
+    {
+      "chunk": "chunk-000004",
+      "level": 1,
+      "raw_bytes": 21661083,
+      "gzip_bytes": 1908714,
+      "compression_ratio": 11.3485220939334,
+      "write_elapsed": 0.222000000000001,
+      "read_elapsed": 0.183
+    },
+    {
+      "chunk": "chunk-000004",
+      "level": 4,
+      "raw_bytes": 21661083,
+      "gzip_bytes": 1483056,
+      "compression_ratio": 14.6057080784542,
+      "write_elapsed": 0.268999999999998,
+      "read_elapsed": 0.163
+    },
+    {
+      "chunk": "chunk-000004",
+      "level": 6,
+      "raw_bytes": 21661083,
+      "gzip_bytes": 1258399,
+      "compression_ratio": 17.2132074167255,
+      "write_elapsed": 0.326999999999998,
+      "read_elapsed": 0.164999999999999
+    }
+  ]
+}

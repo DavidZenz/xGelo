@@ -313,3 +313,117 @@ test_that("canonical helper failures and invalid receipts fail closed and clean 
   expect_length(list.files(path, pattern = "^simulation-canonical-"), 0L)
   expect_true(simulation_trace_validate(run))
 })
+
+test_that("statistics codecs preserve summaries, direct readers and resumable chunk bindings", {
+  for (codec in c("none", "gzip")) {
+    path <- tempfile(); on.exit(unlink(path, recursive = TRUE), add = TRUE)
+    run <- simulation_execute_stream(5L, function(i) list(table = data.frame(x = i)),
+      trace_storage_reducer(), "statistics-codecs", path, workers = 1L, chunk_size = 2L,
+      statistics_codec = codec)
+    expect_identical(run$manifest$statistics_codec, codec)
+    expect_identical(run$statistics, 5L)
+    chunk <- file.path(path, "chunk-000001"); commit <- readRDS(file.path(chunk, "commit.rds"))
+    expect_identical(commit$statistics_codec, codec)
+    expect_identical(readRDS(file.path(chunk, "statistics.rds")), 2L)
+    bytes <- readBin(file.path(chunk, "statistics.rds"), "raw", file.info(file.path(chunk, "statistics.rds"))$size)
+    expect_identical(identical(bytes[1:2], as.raw(c(31L, 139L))), codec == "gzip")
+    expect_identical(simulation_statistics_read(bytes, codec), 2L)
+    expect_true(simulation_trace_validate(run))
+    resumed <- simulation_execute_stream(5L, function(i) stop("must not repeat"), trace_storage_reducer(),
+      "statistics-codecs", path, workers = 2L, chunk_size = 2L, statistics_codec = codec, resume = TRUE)
+    expect_identical(resumed, run)
+    expect_error(simulation_execute_stream(5L, identity, trace_storage_reducer(), "statistics-codecs", path,
+      chunk_size = 2L, statistics_codec = if (codec == "none") "gzip" else "none", resume = TRUE), "fingerprint")
+  }
+})
+
+test_that("missing, unknown and downgraded statistics codecs fail across all store readers", {
+  path <- tempfile(); on.exit(unlink(path, recursive = TRUE))
+  run <- trace_storage_run(path)
+  chunk <- file.path(path, "chunk-000001"); marker <- file.path(chunk, "commit.rds")
+  original <- readRDS(marker)
+  for (codec in list(NULL, "none", "unknown")) {
+    changed <- original; changed$statistics_codec <- codec; saveRDS(changed, marker, compress = FALSE)
+    expect_error(simulation_trace_validate(run), "statistics codec")
+    expect_error(simulation_trace_materialize(run), "statistics codec")
+    expect_error(simulation_trace_visit(run, function(x, i) NULL, fields = "table"), "statistics codec")
+    expect_error(simulation_trace_schema_visit(run, function(schema) NULL), "statistics codec")
+    expect_error(simulation_exact_trace_means(run), "statistics codec")
+    expect_error(simulation_trace_nl_hashes(run, "table", identity, as.character), "statistics codec")
+    expect_error(simulation_execute_stream(7L, identity, trace_storage_reducer(), "trace-storage-v2", path,
+      resume = TRUE, chunk_size = 3L, auxiliary_fields = "mean_records"), "statistics codec")
+  }
+  saveRDS(original, marker, compress = FALSE)
+  saveRDS(2L, file.path(chunk, "statistics.rds"), compress = FALSE)
+  trace_storage_rehash(chunk, "statistics.rds")
+  expect_error(simulation_trace_validate(run), "codec/header")
+  expect_error(simulation_trace_materialize(run), "codec/header")
+})
+
+test_that("historical v2 statistics auto-detect raw or gzip only when both codec fields are absent", {
+  for (codec in c("none", "gzip")) {
+    path <- tempfile(); on.exit(unlink(path, recursive = TRUE), add = TRUE)
+    run <- simulation_execute_stream(5L, function(i) list(table = data.frame(x = i)), trace_storage_reducer(),
+      "historical-codec", path, workers = 1L, chunk_size = 2L, statistics_codec = codec)
+    manifest <- run$manifest; manifest$statistics_codec <- NULL; manifest$fingerprint <- NULL
+    manifest$fingerprint <- digest::digest(manifest, algo = "sha256")
+    saveRDS(manifest, file.path(path, "manifest.rds"), compress = FALSE)
+    for (name in list.files(path, pattern = "^chunk-", full.names = TRUE)) {
+      marker <- file.path(name, "commit.rds"); commit <- readRDS(marker)
+      commit$statistics_codec <- NULL; commit$fingerprint <- manifest$fingerprint
+      commit$statistics_uncompressed_bytes <- NULL; commit$statistics_crc32 <- NULL
+      saveRDS(commit, marker, compress = FALSE)
+    }
+    run$manifest <- manifest
+    expect_true(simulation_trace_validate(run))
+    expect_identical(vapply(simulation_trace_materialize(run), function(x) x$table$x, integer(1)), 1:5)
+    chunk <- simulation_stream_read_chunk(file.path(path, "chunk-000001"), 1:2, manifest$fingerprint,
+      keep = "statistics.rds", auxiliary_fields = character(), expected_schema = manifest$schema)
+    expect_identical(chunk$statistics_codec, codec)
+    expect_identical(simulation_statistics_read(chunk$buffers[["statistics.rds"]], chunk$statistics_codec), 2L)
+  }
+})
+
+test_that("statistics readers reject extra objects, concatenated records, CRC and truncation", {
+  gzip_file <- function(values) {
+    path <- tempfile(); on.exit(unlink(path))
+    con <- gzfile(path, "wb", compression = 1L)
+    tryCatch(for (value in values) saveRDS(value, con, version = 3L), finally = close(con))
+    readBin(path, "raw", file.info(path)$size)
+  }
+  valid <- gzip_file(list(list(total = 7L)))
+  expect_identical(simulation_statistics_read(valid, "gzip"), list(total = 7L))
+  expect_error(simulation_statistics_read(gzip_file(list(1L, 2L)), "gzip"), "statistics records")
+  expect_error(simulation_statistics_read(c(valid, gzip_file(list(2L))), "gzip"), "statistics records|Corrupt")
+  expect_error(simulation_statistics_read(head(valid, -4L), "gzip"), "Corrupt|error|incomplete|read")
+  crc <- valid; crc[[length(crc) - 7L]] <- as.raw(bitwXor(as.integer(crc[[length(crc) - 7L]]), 1L))
+  expect_error(simulation_statistics_read(crc, "gzip"), "Corrupt|error|read")
+  expect_error(simulation_statistics_read(c(crc, valid), "gzip"), "Corrupt")
+  expect_error(simulation_statistics_read(c(valid, gzip_file(list())), "gzip"), "Corrupt")
+  expect_error(simulation_statistics_read(c(valid, charToRaw("garbage")), "gzip"), "Corrupt")
+  expect_error(simulation_statistics_read(c(valid, rep(as.raw(0L), 8L)), "gzip"), "Corrupt")
+  messages <- tempfile(); message_con <- file(messages, "w")
+  previous_messages <- sink.number(type = "message")
+  on.exit({ sink(getConnection(previous_messages), type = "message"); close(message_con); unlink(messages) }, add = TRUE)
+  sink(message_con, type = "message"); installed_sink <- sink.number(type = "message")
+  expect_error(simulation_statistics_read(crc, "gzip"), "Corrupt")
+  expect_identical(sink.number(type = "message"), installed_sink)
+  expect_identical(simulation_statistics_read(valid, "gzip"), list(total = 7L))
+  expect_identical(sink.number(type = "message"), installed_sink)
+  expect_error(simulation_statistics_read(serialize(7L, NULL), "gzip"), "gzip|compressed|header|format")
+})
+
+test_that("full validation rejects rehashed malformed gzip statistics", {
+  path <- tempfile(); on.exit(unlink(path, recursive = TRUE))
+  run <- trace_storage_run(path)
+  chunk <- file.path(path, "chunk-000001")
+  con <- gzfile(file.path(chunk, "statistics.rds"), "wb", compression = 1L)
+  tryCatch(writeBin(charToRaw("not an RDS object"), con), finally = close(con))
+  trace_storage_rehash(chunk, "statistics.rds")
+  expect_error(simulation_trace_validate(run), "input format|Corrupt|read")
+  marker <- file.path(chunk, "commit.rds"); commit <- readRDS(marker)
+  commit$statistics_uncompressed_bytes <- nchar("not an RDS object", type = "bytes")
+  commit$statistics_crc32 <- digest::digest(charToRaw("not an RDS object"), algo = "crc32", serialize = FALSE)
+  saveRDS(commit, marker, compress = FALSE)
+  expect_error(simulation_trace_validate(run), "input format|Corrupt|read")
+})

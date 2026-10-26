@@ -28,6 +28,7 @@ class Run(NamedTuple):
     path: Path
     rows: int
     sha256: str
+    validated: bool = False
 
 
 class HashedIO:
@@ -55,17 +56,26 @@ def integer(value, label, minimum=0, maximum=None):
     return value
 
 
-def decode_record(line, columns):
+def record_parts(line):
     if len(line) > MAX_LINE_BYTES or not line.endswith(b"\n") or line.count(b"\t") != 1:
         raise ValueError("Invalid canonical run record framing or size")
-    key, encoded = line[:-1].split(b"\t")
+    return line[:-1].split(b"\t")
+
+
+def decode_record(line, columns, verify_key=True):
+    key, encoded = record_parts(line)
+    try:
+        payload = base64.b64decode(encoded, validate=True)
+    except ValueError as error:
+        raise ValueError("Invalid canonical base64 payload") from error
+    if not verify_key:
+        return payload
     if not HEX_KEY.fullmatch(key):
         raise ValueError("Invalid canonical hexadecimal sort key")
     pieces = key.split(b"!") if columns else []
     if len(pieces) != columns or (not columns and key) or any(len(piece) % 2 for piece in pieces):
         raise ValueError("Canonical key column coverage mismatch")
     try:
-        payload = base64.b64decode(encoded, validate=True)
         expected = b"\x1f".join(bytes.fromhex(piece.decode("ascii")) for piece in pieces)
     except (ValueError, UnicodeError) as error:
         raise ValueError("Invalid canonical base64/hex payload") from error
@@ -74,7 +84,7 @@ def decode_record(line, columns):
     return payload
 
 
-def read_run(run, columns):
+def read_run(run, columns, decode_payload=True):
     count = 0
     previous = None
     with run.path.open("rb") as raw:
@@ -84,7 +94,13 @@ def read_run(run, columns):
                 line = source.readline(MAX_LINE_BYTES + 1)
                 if not line:
                     break
-                payload = decode_record(line, columns)
+                if run.validated and not decode_payload:
+                    record_parts(line)
+                    payload = None
+                else:
+                    payload = decode_record(line, columns, verify_key=not run.validated)
+                    if not decode_payload:
+                        payload = None
                 if previous is not None and line < previous:
                     raise ValueError("Canonical input run is not sorted")
                 previous = line
@@ -98,13 +114,13 @@ def read_run(run, columns):
             raise ValueError("Canonical compressed run checksum mismatch")
 
 
-def merge_records(runs, columns, consume):
+def merge_records(runs, columns, consume, decode_payload=True):
     heap = []
     count = 0
     previous = None
     with ExitStack() as stack:
         for index, run in enumerate(runs):
-            iterator = read_run(run, columns)
+            iterator = read_run(run, columns, decode_payload=decode_payload)
             stack.callback(iterator.close)
             first = next(iterator, None)
             if first is not None:
@@ -195,10 +211,14 @@ def hash_manifest(manifest_path, output_path):
                 with path.open("xb") as raw:
                     hashed = HashedIO(raw)
                     with gzip.GzipFile(fileobj=hashed, mode="wb", compresslevel=1, mtime=0) as destination:
-                        count = merge_records(group, columns, lambda line, payload: destination.write(line))
+                        count = merge_records(group, columns, lambda line, payload: destination.write(line), decode_payload=False)
                     hashed.flush()
                     checksum = hashed.digest.hexdigest()
-                following.append(Run(path, count, checksum))
+                # This flag is created only here, never from manifest input.
+                # Every line was validated before being written verbatim, and
+                # later reads still verify its exact compressed SHA/CRC/order/
+                # coverage before a success receipt can be emitted.
+                following.append(Run(path, count, checksum, validated=True))
                 for consumed in group:
                     consumed.path.unlink()
             runs = following
