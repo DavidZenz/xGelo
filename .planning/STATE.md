@@ -191,7 +191,7 @@ No replacement 100k run or public promotion is active.
 - [x] Correct CL projected-result cutoff semantics separately (`9a19a04`, algorithm v4), retaining all authority guards.
 - [x] Implement bounded persistent chunks, complete disk audit traces, exact sufficient-statistic summaries, strict bound resume, actual/committed progress and legacy compatibility readers.
 - [x] Preserve accepted NL tables, hashes and candidate CSV bytes; pass the national gate (EURO replay + 16 suites), focused streaming/guard tests and watchdog tests.
-- [ ] Finish fresh staged 1k/10k/100k resource checks. Active private supervisor: `/private/tmp/xgelo-wc-style-certification`; NL/CL run sequentially, with 100k gated by <=2h active total and <32 GiB combined RSS on this 64 GiB host.
+- [ ] Finish CL staged resource checks. NL 1k/10k validated (239 s / 1,954 s total); NL 100k withheld because the conservative projection is 6.53 hours. CL v4 1k/10k passed (49 s / 326 s total), then the 100k check was stopped after reproducing a missing-forecast uncertainty gap. The v5 completeness guard fixes it; current focused/CL regression checks precede a fresh staged CL run under `/private/tmp/xgelo-wc-style-certification-v5`. Old v4 chunks are not a v5 certificate. NL component hashes and its time-gate failure are unchanged.
 - [ ] Public promotion remains separate; CL source/model authority remains human_needed.
 
 See `.planning/simulation-optimization/STREAMING.md`. This maintenance does not advance the UCL milestone phases.

@@ -1,0 +1,23 @@
+{
+  "note": "CL-only correctness revision changes the conservative whole-repository fingerprint. NL simulation/executor/reducer bytes and its candidate path are unchanged. Prior NL measurements remain diagnostic evidence, not a current 100k publication receipt.",
+  "checks": [
+    {
+      "count": 1000,
+      "national_components_unchanged": {
+        "simulation_code_sha256": true,
+        "execution_code_sha256": true,
+        "reducer_code_sha256": true
+      },
+      "performance_publication_certified": false
+    },
+    {
+      "count": 10000,
+      "national_components_unchanged": {
+        "simulation_code_sha256": true,
+        "execution_code_sha256": true,
+        "reducer_code_sha256": true
+      },
+      "performance_publication_certified": false
+    }
+  ]
+}

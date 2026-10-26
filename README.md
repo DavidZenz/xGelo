@@ -551,8 +551,10 @@ and `ucl_materialize_simulation()` explicitly reconstruct legacy results for
 small diagnostics; production builders consume streamed summaries directly.
 Keep the private run directory while its trace references are needed.
 
-CL algorithm `ucl-conditional-league-v4` counts eligible sampled projections
-separately from accepted results available at the information cutoff. Accepted
+CL algorithm `ucl-conditional-league-v5` counts eligible sampled projections
+separately from accepted results available at the information cutoff. A required
+fixture without an accepted or sampled result leaves all league rank/band
+projections unresolved. Accepted
 fixtures and their timestamps remain immutable. Missing ranking/draw/knockout
 information retains its unresolved or suppressed status.
 

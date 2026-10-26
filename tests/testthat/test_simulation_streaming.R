@@ -111,3 +111,30 @@ test_that("NL streaming preserves alternate seeds and unavailable forecast seman
     expect_identical(uefa_nl_materialize_simulation(result), reference)
   }
 })
+
+
+test_that("CL cannot resolve qualification probabilities with an unknown required fixture", {
+  source("helper_uefa_champions_league.R", local = TRUE)
+  for (name in c("rules", "state", "simulation")) source(paste0("../../R/competition/uefa_champions_league_", name, ".R"), local = TRUE)
+  for (expression in parse("test_phase20_simulation_review.R")) {
+    if (is.call(expression) && identical(expression[[1L]], as.name("<-")) && identical(expression[[2L]], as.name("phase20_sim_review_ledger"))) eval(expression)
+  }
+  graph <- phase20_fixture_graph_36x144(); cutoff <- "2026-09-01T00:00:00Z"
+  ledger <- phase20_sim_review_ledger(graph)
+  ledger$ledger$forecast_status[[1L]] <- "suppressed"
+  ledger$ledger$suppression_reason[[1L]] <- "forecast_unavailable"
+  ledger$ledger$row_sha256[[1L]] <- .ucl_sim_canonical_row_hash(ledger$ledger[1L,,drop=FALSE], schema_tag = "ucl20-forecast-ledger-row-v1")
+  ledger$table_sha256 <- .ucl_sim_canonical_table_hash(ledger$ledger, key = "fixture_id", schema_tag = "ucl20-forecast-ledger-v1")
+  state <- ucl_build_state(graph, state_cutoff_utc = cutoff)
+  args <- list(state = state, ledger = ledger, simulations = 3L, seed = 7L, information_cutoff_utc = cutoff)
+  reference <- do.call(ucl_run_simulation, c(args, list(workers = 1L)))
+  bands <- reference$progression_probabilities[reference$progression_probabilities$stage_id %in% c("direct_round_of_16", "knockout_play_off", "eliminated"), ]
+  expect_true(all(bands$status == "unresolved"))
+  expect_true(all(is.na(bands$probability)))
+  expect_true(all(is.na(reference$rank_rows$rank)))
+  expect_true(all(vapply(reference$fixture_sampling, function(x) length(x$suppressed_fixture_ids) == 1L, logical(1))))
+  path <- tempfile(); on.exit(unlink(path, recursive = TRUE))
+  streamed <- do.call(ucl_run_simulation, c(args, list(workers = 2L, execution_mode = "stream", run_dir = path, chunk_size = 2L)))
+  expect_identical(ucl_materialize_simulation(streamed), reference)
+  expect_identical(ucl_aggregate_rank_distributions(streamed), ucl_aggregate_rank_distributions(reference))
+})

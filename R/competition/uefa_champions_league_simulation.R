@@ -723,6 +723,7 @@
   original <- .ucl_state_to_phase14_matches(graph$fixtures, cutoff)
   evidence <- vapply(original$evidence_completed_at_utc, .ucl_sim_parse_utc,
     as.POSIXct(NA, origin = "1970-01-01", tz = "UTC"))
+  required <- original$counts_for_standings %in% TRUE | !.ucl_state_status_completed(original$match_status)
   actual <- original$counts_for_standings %in% TRUE &
     .ucl_state_status_completed(original$match_status) &
     is.finite(original$final_home_goals) & is.finite(original$final_away_goals) &
@@ -765,6 +766,22 @@
     ranking <- ucl_apply_article18(universal, matches = matches, rules = rules)
     ranking$source_bundle_id <- graph$source_bundle_id
     ranking$ruleset_sha256 <- rules$ruleset_sha256
+    # Unknown required results cannot become a completed simulated season.
+    # Retain the known arithmetic and explicit sampling records, but do not
+    # infer rank/band probabilities from a partial set of remaining fixtures.
+    incomplete <- any(required & !counted)
+    if (incomplete) {
+      ranking$rank <- rep(NA_integer_, nrow(ranking))
+      ranking$rank_interval_min <- rep(1L, nrow(ranking))
+      ranking$rank_interval_max <- rep(as.integer(length(ids)), nrow(ranking))
+      ranking$rank_status <- rep("unresolved", nrow(ranking))
+      ranking$qualification_band <- rep("unresolved", nrow(ranking))
+      ranking$qualification_status <- rep("unresolved", nrow(ranking))
+      ranking$evidence_status <- rep("unresolved", nrow(ranking))
+      ranking$decisive_trace_id <- rep(NA_character_, nrow(ranking))
+      attr(ranking, "status") <- "unresolved"
+      attr(ranking, "suppression_reason") <- "incomplete_simulated_league"
+    }
     ranking
   }
 }
@@ -837,10 +854,10 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
       ledger_check$model_release_id, ledger_check$model_sha256, ledger_check$calibrator_sha256,
       if (is.null(rules)) NA_character_ else rules$ruleset_sha256,
       draw_identity, if (identical(draw$status, "accepted")) draw$rank_input_sha256 else NA_character_,
-      as.integer(seed), simulations, cutoff$value, "ucl-conditional-league-v4"
+      as.integer(seed), simulations, cutoff$value, "ucl-conditional-league-v5"
     ),
     names = c("state_sha256", "ledger_sha256", "source_bundle_id", "model_release_id", "model_sha256", "calibrator_sha256", "ruleset_sha256", "draw_identity", "rank_input_sha256", "seed", "simulation_count", "information_cutoff_utc", "algorithm_version"),
-    domain = "ucl20-simulation-run-v4"
+    domain = "ucl20-simulation-run-v5"
   )
   sampler <- .ucl_sim_prepare_sampler(validation$graph, ledger_table, cutoff$value)
   ranker <- .ucl_sim_prepare_ranker(validation$graph, rules, cutoff$value)
@@ -926,7 +943,7 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     draw_policy_id = if (is.null(rules)) "ucl-2026-27-article19-annexb-v1" else rules$draw_policy_id,
     draw_artifact_id = if (identical(draw$status, "accepted")) draw$draw_artifact_id else NA_character_,
     draw_artifact_sha256 = if (identical(draw$status, "accepted")) draw$draw_artifact_sha256 else NA_character_,
-    information_cutoff_utc = cutoff$value, algorithm_version = "ucl-conditional-league-v4",
+    information_cutoff_utc = cutoff$value, algorithm_version = "ucl-conditional-league-v5",
     simulation_count = simulations, seed = as.integer(seed), path_policy_id = attr(path_state, "path_policy")$policy_id %||% "ucl-2026-27-article19-annexb-v1",
     path_policy_count = if (is.data.frame(path_state)) nrow(path_state) else 0L,
     path_policy_mode = attr(path_state, "path_policy")$mode %||% "unresolved",
