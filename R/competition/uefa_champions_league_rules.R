@@ -268,7 +268,7 @@
 .ucl_rule_trace_row <- function(rules, tie_group_id, criterion_order, criterion_id,
                                 before, after, evidence_status, counted_ids,
                                 decisive, rank_min, rank_max) {
-  data.frame(
+  structure(list(
     edition_id = rules$edition_id,
     tie_group_id = as.character(tie_group_id),
     criterion_order = as.integer(criterion_order),
@@ -282,9 +282,8 @@
     rank_interval_max = as.integer(rank_max),
     ruleset_version = rules$ruleset_version,
     ruleset_sha256 = rules$ruleset_sha256,
-    row_sha256 = NA_character_,
-    stringsAsFactors = FALSE, check.names = FALSE
-  )
+    row_sha256 = NA_character_
+  ), class = "data.frame", row.names = c(NA_integer_, -1L))
 }
 
 .ucl_rule_hash_rows <- function(data) {
@@ -296,6 +295,43 @@
     data, exclude = intersect("row_sha256", names(data)),
     schema_tag = "ucl-rules-trace-v2"
   )
+}
+
+# Run-local canonical encoder. Only immutable schema framing is retained;
+# dynamic column values are deduplicated within one small criterion trace.
+# The public Phase 18 encoder remains the reference and validation boundary.
+.ucl_rule_prepare_trace_hasher <- function() {
+  if (!isTRUE(.ucl_rule_phase18_available())) return(.ucl_rule_hash_rows)
+  frame <- function(bytes) c(writeBin(as.integer(length(bytes)), raw(), size = 4L, endian = "big"), bytes)
+  text_frame <- function(text) frame(charToRaw(enc2utf8(text)))
+  encoding <- text_frame("phase18-canonical-v2")
+  scalar_header <- c(encoding, text_frame("scalar"))
+  present <- text_frame("present"); missing <- text_frame("missing")
+  type_tag <- phase18_v2_type_tag
+  scalar_text <- phase18_v2_scalar_text
+  layout <- NULL; header <- NULL; prefixes <- NULL
+  function(data) {
+    if (!nrow(data)) return(character())
+    fields <- setdiff(names(data), "row_sha256")
+    types <- vapply(data[fields], type_tag, character(1))
+    next_layout <- list(fields, types)
+    if (!identical(next_layout, layout)) {
+      layout <<- next_layout
+      header <<- c(encoding, text_frame("row"), text_frame("ucl-rules-trace-v2"), text_frame(as.character(length(fields))))
+      prefixes <<- lapply(seq_along(fields), function(i) c(scalar_header, text_frame(fields[[i]]), text_frame(types[[i]])))
+    }
+    columns <- lapply(seq_along(fields), function(i) {
+      column <- data[[fields[[i]]]]; values <- unique(column)
+      encoded <- lapply(seq_along(values), function(j) {
+        value <- values[j]; absent <- is.na(value[[1L]])
+        payload <- if (absent) raw() else charToRaw(enc2utf8(scalar_text(value, types[[i]])))
+        frame(c(prefixes[[i]], if (absent) missing else present, frame(payload)))
+      })
+      encoded[match(column, values)]
+    })
+    vapply(seq_len(nrow(data)), function(row) digest::digest(
+      do.call(c, c(list(header), lapply(columns, `[[`, row))), algo = "sha256", serialize = FALSE), character(1))
+  }
 }
 
 .ucl_derive_qualification_bands <- function(rank, rank_interval_min, rank_interval_max) {
@@ -413,12 +449,11 @@ ucl_apply_article18 <- function(standings, matches = NULL, evidence = NULL,
       rank_max <- current_rank + length(subgroup) - 1L
       exact <- isTRUE(resolved$group_resolved[[subgroup_index]]) && length(subgroup) == 1L
       for (club_id in subgroup) {
-        rank_rows[[length(rank_rows) + 1L]] <- data.frame(
+        rank_rows[[length(rank_rows) + 1L]] <- structure(list(
           club_id = club_id, rank = if (exact) as.integer(current_rank) else NA_integer_,
           rank_interval_min = as.integer(rank_min), rank_interval_max = as.integer(rank_max),
-          rank_status = if (exact) "resolved" else "unresolved",
-          stringsAsFactors = FALSE, check.names = FALSE
-        )
+          rank_status = if (exact) "resolved" else "unresolved"
+        ), class = "data.frame", row.names = c(NA_integer_, -1L))
       }
       current_rank <- current_rank + length(subgroup)
     }

@@ -688,7 +688,35 @@
 }
 
 #' Run a seeded conditional league-phase simulation.
+.ucl_sim_prepare_seed_encoder <- function() {
+  canonical <- .ucl_sim_canonical_env
+  if (!exists("phase18_v2_text_frame", envir = canonical, inherits = FALSE)) return(.ucl_sim_seed_for)
+  frame <- function(bytes) c(writeBin(as.integer(length(bytes)), raw(), size = 4L, endian = "big"), bytes)
+  text_frame <- function(text) frame(charToRaw(enc2utf8(text)))
+  encoding <- text_frame("phase18-canonical-v2")
+  header <- c(encoding, text_frame("sequence"), text_frame("ucl20-simulation-sequence-v2"), text_frame("3"))
+  present <- text_frame("present"); missing <- text_frame("missing")
+  prefixes <- lapply(paste0("value_", 1:3), function(field) c(encoding,
+    text_frame("scalar"), text_frame(field), text_frame("character")))
+  scalar <- function(value, prefix) {
+    absent <- is.na(value)
+    frame(c(prefix, if (absent) missing else present,
+      frame(if (absent) raw() else charToRaw(enc2utf8(value)))))
+  }
+  function(seed, ...) {
+    values <- c(seed, ...)
+    if (length(values) != 3L) return(.ucl_sim_seed_for(seed, ...))
+    values <- as.character(values)
+    bytes <- c(header, scalar(values[[1L]], prefixes[[1L]]),
+      scalar(values[[2L]], prefixes[[2L]]), scalar(values[[3L]], prefixes[[3L]]))
+    value <- suppressWarnings(strtoi(substr(digest::digest(bytes, algo = "sha256", serialize = FALSE), 1L, 7L), base = 16L))
+    if (is.na(value)) value <- 1L
+    as.integer((as.numeric(value) %% (.Machine$integer.max - 1)) + 1)
+  }
+}
+
 .ucl_sim_prepare_sampler <- function(graph, ledger, cutoff) {
+  seed_for <- .ucl_sim_prepare_seed_encoder()
   prepared <- .ucl_prepare_iteration_matches(graph$fixtures, cutoff_utc = cutoff)
   template <- .ucl_sample_open_fixtures(prepared, ledger, seed = 0L, cutoff_utc = cutoff)
   plans <- lapply(template$sampled_fixture_ids, function(id) {
@@ -698,9 +726,9 @@
   })
   function(iteration, seed) {
     sampled <- template
-    iteration_seed <- .ucl_sim_seed_for(seed, "iteration", iteration)
+    iteration_seed <- seed_for(seed, "iteration", iteration)
     for (plan in plans) {
-      chosen <- .ucl_sim_with_seed(.ucl_sim_seed_for(iteration_seed, "fixture", plan$id),
+      chosen <- .ucl_sim_with_seed(seed_for(iteration_seed, "fixture", plan$id),
         function() sample.int(nrow(plan$grid), 1L, prob = plan$grid$probability))
       home <- plan$grid$home_goals[[chosen]]; away <- plan$grid$away_goals[[chosen]]
       for (field in c("regulation_home_goals", "final_home_goals")) sampled$matches[[field]][[plan$index]] <- home
@@ -717,6 +745,10 @@
 }
 
 .ucl_sim_prepare_ranker <- function(graph, rules, cutoff) {
+  rule_scope <- new.env(parent = environment(ucl_apply_article18))
+  rule_scope$.ucl_rule_hash_rows <- .ucl_rule_prepare_trace_hasher()
+  article18 <- ucl_apply_article18
+  environment(article18) <- rule_scope
   # The accepted graph is immutable. Actual evidence must pass the historical
   # cutoff; sampled results are a separate projection, never postdated facts.
   phase14_available <- isTRUE(.ucl_state_source_phase14())
@@ -763,7 +795,7 @@
       goal_difference = as.integer(gf - ga), points = as.integer(3 * wins + draws),
       source_bundle_id = graph$source_bundle_id, stringsAsFactors = FALSE)
     # The same counted rows supply away-goal/win and trace evidence criteria.
-    ranking <- ucl_apply_article18(universal, matches = matches, rules = rules)
+    ranking <- article18(universal, matches = matches, rules = rules)
     ranking$source_bundle_id <- graph$source_bundle_id
     ranking$ruleset_sha256 <- rules$ruleset_sha256
     # Unknown required results cannot become a completed simulated season.

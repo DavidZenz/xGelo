@@ -1,0 +1,58 @@
+[
+  {
+    "file": "test_uefa_champions_league.R",
+    "assertions": 362,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "test_phase20_state_authority_review.R",
+    "assertions": 34,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "test_phase20_final_boundary_review.R",
+    "assertions": 13,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "test_phase20_adversarial_regression.R",
+    "assertions": 63,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "test_phase20_outcomes_wiring_review.R",
+    "assertions": 24,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "test_phase20_simulation_review.R",
+    "assertions": 34,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  {
+    "file": "test_cl_prepared_execution.R",
+    "assertions": 48,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  }
+]
