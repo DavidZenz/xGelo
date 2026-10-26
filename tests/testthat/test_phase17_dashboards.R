@@ -117,11 +117,11 @@ test_that("all required failure injectors are deterministic and fail closed", {
 
 test_that("Safari capability policy is exact, automated-only, and fail closed", {
   api <- phase17_test_load_contract()
-  ready <- api$phase17_probe_safari_capability(version_output = "SafariDriver 26.5.2")
+  ready <- api$phase17_probe_safari_capability(version_output = "SafariDriver 26.6.2")
   expect_true(ready$available)
   expect_true(ready$automated_only)
   expect_identical(ready$driver, "/System/Cryptexes/App/usr/bin/safaridriver")
-  expect_identical(ready$version, "26.5.2")
+  expect_identical(ready$version, "26.6.2")
   expect_identical(api$phase17_probe_safari_capability(enabled = FALSE)$status, "disabled")
   expect_identical(api$phase17_probe_safari_capability(version_output = "SafariDriver 99.0.0")$status, "version_mismatch")
   expect_identical(api$phase17_probe_safari_capability(driver = "/usr/bin/safaridriver")$status, "path_mismatch")
@@ -207,8 +207,8 @@ test_that("payload sections|metadata|pre_draw|blocked|credits", {
   expect_identical(names(payload$sections), api$phase17_section_ids())
   expect_true(all(vapply(api$phase17_section_ids(), grepl, logical(1), x = html, fixed = TRUE)))
   expect_true(all(vapply(c("dashboard-data", "dashboard-status", "source-lineage", "data-credits",
-                           "filter-section", "filter-league-group", "filter-team", "filter-matchday",
-                           "filter-status", "clear-filters", "filter-result-count"),
+                           "nl-selected-team", "nl-selected-group", "nl-team-search",
+                           "nl-clear-filters", "nl-filter-result-count"),
                          grepl, logical(1), x = html, fixed = TRUE)))
   expect_true(all(vapply(c("Batch", "Last accepted refresh", "Source confidence", "Model release",
                            "Simulation seed", "Simulation count", "Data credits"),
@@ -221,7 +221,7 @@ test_that("payload sections|metadata|pre_draw|blocked|credits", {
   expect_true(grepl("\\u003cscript\\u003e", hostile_html, fixed = TRUE))
   euro <- api$phase17_payload_euro(api$phase17_fixture_bundle("uefa_euro_2028_qualifying"))
   euro_html <- api$render_phase17_dashboard(euro)
-  expect_true(grepl("Pre-draw", euro_html, fixed = TRUE))
+  expect_true(grepl("euro-predraw", euro_html, fixed = TRUE))
   expect_false(grepl("fixture-001", euro_html, fixed = TRUE))
   blocked <- nl
   blocked$lifecycle_state <- "revision_blocked"
@@ -332,7 +332,7 @@ test_that("Nations League outlook renders accepted probability bars and projecte
   html <- api$render_phase17_dashboard(api$phase17_payload_nations_league(bundle))
   expect_true(all(vapply(c(
     "data-nl-tab=\"tree\"", "Rank probability outlook", "probbar", "Promotion", "Who wins the Nations League?",
-    "Projected Nations League progression", "League A quarter-finals", "League C / D play-off", "Home path",
+    "Projected Nations League progression", "League A quarter-finals", "League C / D play-off", "Alpha reaches quarter-finals",
     "Projected participant slots are unresolved"
   ), grepl, logical(1), x = html, fixed = TRUE)))
   expect_true(grepl('<th scope="col">Status</th>', html, fixed = TRUE))
@@ -402,12 +402,13 @@ test_that("public section projection keeps provenance out of both dashboards", {
     expect_true(all(vapply(c("Group A1", "Alpha", "Beta"), grepl, logical(1),
                            x = primary_html, fixed = TRUE)))
     expect_true(grepl("55.0%", primary_html, fixed = TRUE))
+    primary_text <- gsub("<[^>]+>", "", primary_html)
     expect_false(any(vapply(c(
-      "<b>schema version:</b>", "<b>source group id:</b>", "<b>edition id:</b>",
-      "<b>source artifact id:</b>", "<b>row sha256:</b>", "<b>fixture id:</b>",
-      "<b>team id:</b>", "<b>league or group:</b>", "internal-fixture-1",
+      "schema version:", "source group id:", "edition id:",
+      "source artifact id:", "row sha256:", "fixture id:",
+      "team id:", "league or group:", "internal-fixture-1",
       "team_alpha", "internal-groups-artifact", row_hash, "should-never-render"
-    ), grepl, logical(1), x = primary_html, fixed = TRUE)))
+    ), grepl, logical(1), x = primary_text, fixed = TRUE)))
   }
 })
 
@@ -428,14 +429,13 @@ test_that("filters|responsive|accessibility|zero-one-many|long-text", {
   no_match <- api$phase17_filter_payload(payload, list(team = "Missing"))
   expect_equal(no_match$filter_result_count, 0L)
   html <- api$render_phase17_dashboard(payload)
-  expect_true(all(vapply(c("<select", "aria-label=\"Dashboard filters\"", "aria-live=\"polite\"",
+  expect_true(all(vapply(c("<select", "aria-live=\"polite\"",
                            "focus-visible", "overflow-x:auto", "prefers-reduced-motion", "Clear filters",
-                           "No rows match the selected filters", "overflow-wrap:anywhere", "data-filter-group",
-                           "data-filter-team", "data-filter-matchday", "data-filter-status", "===", "teams.includes"),
+                           "No matches fit the selected filters", "overflow-wrap:anywhere", "data-filter-group",
+                           "data-filter-team", "data-filter-status", "==="),
                          grepl, logical(1), x = html, fixed = TRUE)))
-  expect_true(grepl("All sections", html, fixed = TRUE))
+  expect_false(grepl('id="filter-section"', html, fixed = TRUE))
   expect_true(grepl("All teams", html, fixed = TRUE))
-  expect_true(grepl("All matchdays", html, fixed = TRUE))
   expect_true(grepl("All statuses", html, fixed = TRUE))
   expect_identical(filtered$metadata, payload$metadata)
   expect_identical(filtered$sections$standings, payload$sections$standings)
@@ -512,7 +512,7 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   )
   result <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"))
   result_with_callbacks <- script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"), callbacks = callbacks)
-  production <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"))
+  production <- script$phase17_refresh_main(c("--dry-run", "--fixture-root", phase17_test_project_root, "--skip-git"), callbacks = list(browser_runner = function(...) list(valid = TRUE)))
   expect_true(production$valid && production$dry_run)
   expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root, "--skip-git"),
                                            callbacks = list(phase13_validate_source_bundle = function(arguments) list(valid = FALSE, failure_reason = "rejected source"))),
@@ -531,7 +531,7 @@ test_that("exact gate order|dry run|fail closed|prior phase contracts", {
   expect_true(all(c("source", "release", "probability") %in% callback_names))
   expect_true(result_with_callbacks$dry_run)
   expect_length(result$inventory, 10L)
-  for (failure in c("source", "rules", "probability", "replay", "browser", "manifest", "hash")) {
+  for (failure in c("source", "rules", "probability", "replay", "browser", "regression", "manifest", "hash")) {
     expect_error(script$phase17_refresh_main(c("--dry-run", "--fixture-mode", "--fixture-root", phase17_test_project_root,
                                                "--skip-git", "--gate-failure", failure)),
                  paste0("Injected Phase 17 ", failure))
@@ -600,7 +600,7 @@ test_that("launchd|Safari policy|browser smoke|scheduler conflict", {
 
 test_that("Safari policy", {
   api <- phase17_test_load_contract()
-  ready <- api$phase17_probe_safari_capability(version_output = "Included with Safari 26.5.2")
+  ready <- api$phase17_probe_safari_capability(version_output = "Included with Safari 26.6.2")
   expect_true(ready$available && ready$automated_only)
   expect_identical(ready$runner, "safari-webdriver")
   expect_identical(ready$status, "ready")
@@ -623,7 +623,7 @@ test_that("browser smoke", {
   on.exit(unlink(root, recursive = TRUE, force = TRUE), add = TRUE)
   bundles <- setNames(lapply(api$phase17_editions(), api$phase17_fixture_bundle), api$phase17_editions())
   materialized <- script$phase17_materialize_routes(bundles, root, "phase17-browser-batch")
-  capability <- api$phase17_probe_safari_capability(version_output = "SafariDriver 26.5.2")
+  capability <- api$phase17_probe_safari_capability(version_output = "SafariDriver 26.6.2")
   result <- script$phase17_run_browser_gate(materialized$batch_root, capability = capability,
                                             browser_runner = function(path, width, height) list(valid = TRUE))
   expect_true(result$valid && result$automated_only)

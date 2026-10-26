@@ -183,8 +183,50 @@ phase17_validate_probability_inputs <- function(bundle, approved_release = NULL)
        gate_trace = list(gate = "phase17_probability", required = required))
 }
 
+# A completed, validated benchmark certifies this implementation before the
+# nightly updater can enable expensive public rebuilds. Source refreshes still
+# pass their normal accepted-data gates; this receipt is performance evidence.
+phase17_validate_scale_evidence <- function(path, simulations, workers, project_root = phase17_cli_root) {
+  fail <- function(reason) stop("Nations League scale validation required: ", reason, call. = FALSE)
+  if (!file.exists(path)) fail(paste0("missing benchmark receipt: ", path))
+  receipt <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(error) fail("unreadable benchmark receipt"))
+  required <- c("simulations", "seed", "workers", "source_bundle_id", "state_manifest_sha256",
+                "elapsed_seconds", "validated", "simulation_code_sha256")
+  if (nrow(receipt) != 1L || !all(required %in% names(receipt))) fail("incomplete benchmark receipt")
+  numeric_value <- function(name) suppressWarnings(as.numeric(receipt[[name]][[1L]]))
+  count <- numeric_value("simulations"); seed <- numeric_value("seed"); worker_count <- numeric_value("workers")
+  elapsed <- numeric_value("elapsed_seconds")
+  if (!is.finite(count) || count < max(100000, as.numeric(simulations)) || count != floor(count) ||
+      !is.finite(seed) || seed != 15017 || !is.finite(worker_count) || worker_count != as.numeric(workers) ||
+      !is.finite(elapsed) || elapsed <= 0 || !isTRUE(as.logical(receipt$validated[[1L]]))) fail("benchmark count, seed, workers, elapsed time or validation did not qualify")
+  if (is.na(receipt$source_bundle_id[[1L]]) || !nzchar(trimws(receipt$source_bundle_id[[1L]])) ||
+      is.na(receipt$state_manifest_sha256[[1L]]) ||
+      !grepl("^[0-9a-fA-F]{64}$", receipt$state_manifest_sha256[[1L]])) fail("accepted benchmark lineage is missing")
+  implementation <- file.path(project_root, "R/competition/uefa_nations_league_simulation.R")
+  hash <- digest::digest(file = implementation, algo = "sha256")
+  if (!identical(tolower(as.character(receipt$simulation_code_sha256[[1L]])), hash)) fail("simulation implementation has changed since the benchmark")
+  invisible(list(valid = TRUE, simulations = count, seed = seed, workers = worker_count, evidence = normalizePath(path)))
+}
+
 phase17_detect_browser_capability <- function() {
   phase17_probe_safari_capability()
+}
+
+phase17_webdriver_runner <- function(path, width, height) {
+  python <- Sys.getenv("XGELO_PYTHON", unset = Sys.which("python3"))
+  if (!nzchar(python)) stop("Python 3 is required for the Safari WebDriver gate", call. = FALSE)
+  evidence <- Sys.getenv("XGELO_BROWSER_EVIDENCE_DIR", unset = file.path(tempdir(), "xgelo-browser-evidence"))
+  args <- c(file.path(phase17_cli_root, "scripts/dashboard_browser_gate.py"),
+            "--stage-root", dirname(dirname(path)), "--path", path,
+            "--width", as.character(width), "--height", as.character(height),
+            "--driver", phase17_safari_driver_path, "--evidence-dir", evidence)
+  output <- system2(python, shQuote(args), stdout = TRUE, stderr = TRUE, timeout = 90L)
+  status <- attr(output, "status") %||% 0L
+  report <- tryCatch(jsonlite::fromJSON(tail(output, 1L), simplifyVector = FALSE), error = function(error) NULL)
+  if (status != 0L || !is.list(report) || !isTRUE(report$valid)) {
+    stop("Safari WebDriver gate failed: ", report$failure_reason %||% paste(output, collapse = "\n"), call. = FALSE)
+  }
+  report
 }
 
 phase17_run_browser_gate <- function(public_root, capability = phase17_detect_browser_capability(), viewports = list(desktop = c(1440L, 900L), mobile = c(390L, 844L)), injector = NULL, browser_runner = NULL) {
@@ -200,6 +242,7 @@ phase17_run_browser_gate <- function(public_root, capability = phase17_detect_br
       !identical(as.integer(viewports$mobile), c(390L, 844L))) {
     stop("Phase 17 browser viewport smoke failed", call. = FALSE)
   }
+  if (is.null(browser_runner)) browser_runner <- phase17_webdriver_runner
   if (!is.function(browser_runner)) stop("Phase 17 browser gate unavailable: no WebDriver runner", call. = FALSE)
   routes <- c("nations-league", "euro-qualifying")
   checks <- unlist(lapply(routes, function(route) {
@@ -222,26 +265,36 @@ phase17_run_browser_gate <- function(public_root, capability = phase17_detect_br
 
 phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute = FALSE, env = Sys.getenv(), injector = NULL, runner = NULL) {
   if (is.function(injector)) injector()
-  commands <- c(
-    "scripts/build_euro_qualifying_outcomes.R --replay-check",
-    "testthat::test_file(\"tests/testthat/test_phase13_publication_hashes.R\", desc = \"phase13 publication hashes\")",
-    "testthat::test_file(\"tests/testthat/test_phase13_publication_manifests.R\", desc = \"phase13 publication manifests\")",
-    "testthat::test_file(\"tests/testthat/test_phase13_publication_transaction.R\", desc = \"phase13 publication transaction\")",
-    "testthat::test_file(\"tests/testthat/test_phase13_publication_integration.R\", desc = \"phase13 publication integration\")",
-    "testthat::test_file(\"tests/testthat/test_phase13_refresh_failure.R\", desc = \"phase13 refresh failure\")",
-    "testthat::test_file(\"tests/testthat/test_phase15_nations_league.R\", desc = \"phase15 nations league\")",
-    "testthat::test_file(\"tests/testthat/test_uefa_nations_league_production.R\", desc = \"UEFA nations league production\")",
-    "testthat::test_file(\"tests/testthat/test_phase16_euro_qualifying.R\", desc = \"phase16 euro qualifying\")",
-    "testthat::test_file(\"tests/testthat/test_phase17_dashboards.R\", desc = \"phase17 regression\")"
+  suites <- c(
+    "test_phase13_publication_hashes.R", "test_phase13_publication_manifests.R",
+    "test_phase13_publication_transaction.R", "test_phase13_publication_integration.R",
+    "test_phase13_refresh_failure.R", "test_phase15_nations_league.R",
+    "test_uefa_nations_league_production.R", "test_phase16_euro_qualifying.R",
+    "test_phase17_dashboards.R", "test_nations_league_dashboard_revision.R",
+    "test_phase21_dashboard_publication.R", "test_dashboard_release_safety.R",
+    "test_active_dashboard_improvements.R", "test_nl_simulation_scale.R"
   )
+  expressions <- vapply(suites, function(suite) {
+    paste0('r <- testthat::test_file("tests/testthat/', suite,
+           '"); d <- as.data.frame(r); if (!nrow(d) || !any(d$nb > d$skipped) || any(d$failed > 0L | d$error)) stop("Required dashboard suite failed or executed zero assertions")')
+  }, character(1))
+  commands <- c("scripts/build_euro_qualifying_outcomes.R --replay-check", expressions)
   if (isTRUE(execute)) {
-    runner <- runner %||% function(command, args, ...) system2(command, args, ...)
+    previous <- getwd(); setwd(project_root); on.exit(setwd(previous), add = TRUE)
+    default_runner <- is.null(runner)
+    if (is.null(runner)) runner <- function(command, args, ...) system2(command, shQuote(args), ...)
+    executable <- if (default_runner) Sys.getenv("XGELO_RSCRIPT", unset = file.path(R.home("bin"), "Rscript")) else "Rscript"
+    child_environment <- c("PHASE17_IN_REGRESSION_GATE=1",
+      if (default_runner) paste0("PATH=", shQuote(paste(dirname(executable), Sys.getenv("PATH"), sep = .Platform$path.sep))))
     child_args <- c("--vanilla", "scripts/build_euro_qualifying_outcomes.R", "--edition-id", "uefa_euro_2028_qualifying", "--replay-check")
+    # A single recursion marker applies to every suite. Do not forward Sys.getenv
+    # as bare values to system2: its env argument requires NAME=value strings.
     for (i in seq_along(commands)) {
       args <- if (i == 1L) child_args else c("--vanilla", "-e", commands[[i]])
-      status <- runner("Rscript", args, stdout = TRUE, stderr = TRUE,
-                       env = if (i == length(commands)) c(env, PHASE17_IN_REGRESSION_GATE = "1") else env)
-      if (!identical(attr(status, "status") %||% 0L, 0L)) stop("Phase 17 regression gate failed: ", commands[[i]], call. = FALSE)
+      status <- suppressWarnings(runner(executable, args, stdout = TRUE, stderr = TRUE,
+                       env = child_environment))
+      code <- if (is.numeric(status) && length(status) == 1L) status else attr(status, "status") %||% 0L
+      if (code != 0L) stop("Phase 17 regression gate failed: ", commands[[i]], "\n", paste(status, collapse = "\n"), call. = FALSE)
     }
   }
   list(valid = TRUE, status = "passed", commands = commands,
@@ -368,7 +421,7 @@ phase17_load_production_bundles <- function(project_root, provider = NULL) {
   bundles
 }
 
-phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callbacks = list(), now = "2026-08-25T00:00:00Z") {
+phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callbacks = list(), now = "2026-08-25T00:00:00Z", external_git_owner = FALSE) {
   options <- phase17_parse_refresh_args(args)
   if (isTRUE(options$help)) return(invisible(options))
   if (isTRUE(options$emit_git_allowlist)) {
@@ -396,7 +449,7 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   inject <- function(name) {
     if (identical(options$gate_failure, name)) stop("Injected Phase 17 ", name, " failure", call. = FALSE)
   }
-  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) {
+  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git) && !isTRUE(external_git_owner)) {
     inject("git_preflight")
     phase17_git_preflight(root, fetch = TRUE)
   }
@@ -432,10 +485,14 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
   on.exit(unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
   materialized <- phase17_materialize_routes(bundles, stage, batch_id)
   phase17_write_batch_envelope(materialized$batch_root, materialized$payloads, materialized$routes, batch_id, now)
+  if (!isTRUE(options$dry_run) && is.function(callbacks$browser_runner)) {
+    stop("Injected browser runners are test-only and require --dry-run", call. = FALSE)
+  }
   browser_runner <- callbacks$browser_runner
-  if (isTRUE(options$fixture_mode) && !is.function(browser_runner)) browser_runner <- function(path, width, height) list(valid = TRUE)
+  if (isTRUE(options$fixture_mode) && isTRUE(options$dry_run) && !is.function(browser_runner)) browser_runner <- function(path, width, height) list(valid = TRUE)
   browser <- phase17_run_browser_gate(materialized$batch_root, browser_runner = browser_runner)
   record("phase17_run_browser_gate", list(public_root = materialized$batch_root, viewports = c("desktop", "mobile"), runner = browser$runner, version = browser$version, status = browser$status), "phase17_run_browser_gate")
+  inject("regression")
   regression <- phase17_run_regression_gate(root, execute = !isTRUE(options$dry_run))
   record("phase17_run_regression_gate", list(environment = "PHASE17_IN_REGRESSION_GATE=1", status = regression$status), "phase17_run_regression_gate")
   inject("manifest"); inject("hash"); record("envelope", list(inventory = phase17_expected_public_inventory()), "phase17_validate_batch_envelope")
@@ -445,7 +502,7 @@ phase17_refresh_main <- function(args = commandArgs(trailingOnly = TRUE), callba
     phase17_promote_batch(stage, options$public_root, injectors = list(promotion = function() inject("promotion"), read_back = function() inject("read_back")))
   })
   record("read_back", list(public_root = options$public_root), "phase17_validate_batch_envelope")
-  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git)) {
+  if (!isTRUE(options$dry_run) && !isTRUE(options$skip_git) && !isTRUE(external_git_owner)) {
     inject("git_preflight")
     phase17_git_preflight(root, fetch = FALSE, require_clean = FALSE)
   }

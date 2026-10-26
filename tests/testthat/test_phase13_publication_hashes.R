@@ -63,7 +63,7 @@ phase13_publication_test_source_fixture_rows <- function(normalized) {
     home_display_name = as.character(normalized$home_display_name),
     away_display_name = as.character(normalized$away_display_name),
     scheduled_at_utc = as.character(normalized$scheduled_at_utc),
-    status = as.character(normalized$status),
+    status = as.character(if ("source_status" %in% names(normalized)) normalized$source_status else normalized$status),
     stringsAsFactors = FALSE,
     check.names = FALSE
   )
@@ -82,7 +82,7 @@ phase13_publication_test_source_result_rows <- function(normalized) {
   }
   data.frame(
     source_fixture_id = as.character(normalized$uefa_source_fixture_id),
-    status = as.character(normalized$status),
+    status = as.character(if ("source_status" %in% names(normalized)) normalized$source_status else normalized$status),
     home_goals = normalized$home_goals,
     away_goals = normalized$away_goals,
     stringsAsFactors = FALSE,

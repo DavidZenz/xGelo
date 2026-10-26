@@ -104,10 +104,20 @@ phase13_refresh_test_invalid_fixture_dir <- function() {
 }
 
 phase13_refresh_test_valid_candidate <- function(acquire, sandbox, bundle_id) {
+  # Acquire a synthetic snapshot at the incumbent lifecycle, preserving the
+  # real backward-transition guard as the production season progresses.
+  fixture_path <- tempfile("phase13-refresh-candidate-", fileext = ".json")
+  on.exit(unlink(fixture_path), add = TRUE)
+  fixture <- jsonlite::fromJSON(file.path(phase13_refresh_test_project_root,
+    "tests/fixtures/phase13/uefa_nations_league_sample.json"), simplifyVector = FALSE)
+  editions <- utils::read.csv(file.path(sandbox$registry_root, "competition_editions.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE)
+  fixture$resources$status[[1L]]$competition_status <- editions$lifecycle_state[editions$edition_id == "uefa_nations_league_2026_27"][[1L]]
+  jsonlite::write_json(fixture, fixture_path, auto_unbox = TRUE, pretty = TRUE)
   acquire$phase13_acquire_candidate(
     list(
       `fixture-dir` = file.path(phase13_refresh_test_project_root, "tests/fixtures/phase13"),
-      `fixture-file` = NULL,
+      `fixture-file` = fixture_path,
       `fallback-file` = NULL,
       `bundle-id` = bundle_id
     ),

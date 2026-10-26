@@ -36,6 +36,7 @@ phase17_public_status <- function(value) {
   labels <- c(
     upcoming = "Scheduled", scheduled = "Scheduled", live = "In progress",
     in_progress = "In progress", finished = "Final", played = "Final", final = "Final",
+    complete = "Final", completed = "Final",
     available = "Available", unavailable = "Unavailable", unresolved = "Unresolved",
     suppressed = "Suppressed", postponed = "Postponed", cancelled = "Cancelled",
     none = ""
@@ -612,28 +613,9 @@ phase17_nl_status_cell <- function(status) {
 phase17_nl_qualification_status <- function(payload, row, context) {
   explicit <- phase17_nl_value(row, c("qualification_status", "advancement_status", "qualification_state"))
   if (nzchar(explicit)) return(explicit)
-  progression <- phase17_nl_extra_rows(payload, "progression_probabilities")
-  if (!length(progression)) return("")
-  team_id <- phase17_nl_value(row, "team_id")
-  league <- toupper(phase17_nl_value(row, "league"))
-  matches <- progression[vapply(progression, function(candidate) {
-    candidate_team_id <- phase17_nl_value(candidate, "team_id")
-    candidate_league <- toupper(phase17_nl_value(candidate, "league"))
-    (nzchar(team_id) && identical(candidate_team_id, team_id)) ||
-      (!nzchar(team_id) && identical(candidate_league, league) &&
-       identical(phase17_nl_team_name(candidate, "team", context), phase17_nl_team_name(row, "team", context)))
-  }, logical(1))]
-  if (!length(matches)) return("")
-  path_status <- tolower(phase17_nl_value(matches[[1L]], "status"))
-  if (path_status %in% c("unresolved", "suppressed", "unavailable", "blocked")) return("")
-  # League A has a single WC-like advancement target in the current format:
-  # the quarter-finals.  Do not turn zero promotion/relegation probabilities
-  # in lower leagues into generic elimination marks.
-  field <- if (identical(league, "A")) "p_quarter_final" else ""
-  if (!nzchar(field)) return("")
-  probability <- suppressWarnings(as.numeric(phase17_nl_value(matches[[1L]], field)))
-  if (!length(probability) || !is.finite(probability)) return("")
-  if (probability >= 0.999) "qualified" else if (probability <= 0.001) "eliminated" else ""
+  # A Monte Carlo extreme is not a mathematical qualification decision.
+  # Only explicit accepted state may authorize a confirmed badge.
+  ""
 }
 
 phase17_nl_probability_bar <- function(value, class_name = "") {
@@ -736,6 +718,8 @@ phase17_nl_number <- function(row, fields, default = NA_real_) {
 }
 
 phase17_nl_completed_result <- function(row) {
+  status <- tolower(phase17_nl_value(row, c("match_status", "source_status", "fixture_status", "status")))
+  if (status %in% c("live", "in_progress", "scheduled", "upcoming", "postponed", "cancelled")) return(NULL)
   counts <- tolower(phase17_nl_value(row, "counts_for_standings"))
   if (counts %in% c("false", "0", "no", "n")) return(NULL)
   home_goals <- phase17_nl_number(row, c("final_home_goals", "home_goals", "regulation_home_goals"))
@@ -843,6 +827,77 @@ phase17_nl_current_cell <- function(value, signed = FALSE) {
     formatC(number[[1L]], format = "f", digits = 0L)
 }
 
+phase17_nl_team_key <- function(row = list(), name = "", context, role = "team") {
+  fields <- switch(role, home = "home_team_id", away = "away_team_id", "team_id")
+  key <- phase17_nl_value(row, fields)
+  if (nzchar(key) && grepl("^team_", key)) return(key)
+  mapped <- names(context$teams)[unname(context$teams) == name]
+  canonical <- mapped[grepl("^team_", mapped)]
+  if (length(canonical)) return(sort(canonical, method = "radix")[[1L]])
+  name
+}
+
+phase17_nl_team_attribute <- function(row = list(), name = "", context, role = "team") {
+  paste0(' data-team-id="', phase17_html_escape(phase17_nl_team_key(row, name, context, role)), '"')
+}
+
+phase17_nl_navigation <- function(payload, context) {
+  definitions <- phase17_nl_group_definitions(payload, context)
+  teams <- list()
+  for (definition in definitions) for (item in phase17_nl_group_team_rows(payload, definition$name, context)) {
+    key <- phase17_nl_team_key(item$row, item$name, context)
+    if (nzchar(key)) teams[[key]] <- item$name
+  }
+  if (length(teams)) teams <- teams[order(unlist(teams), method = "radix")]
+  options <- paste(vapply(names(teams), function(key) paste0('<option value="', phase17_html_escape(key), '">', phase17_html_escape(teams[[key]]), '</option>'), character(1)), collapse = "")
+  groups <- sort(unique(vapply(definitions, function(item) item$name, character(1))), method = "radix")
+  paste0('<div class="nl-navigation" aria-label="Team and group navigation"><label for="nl-selected-team">Follow team<select id="nl-selected-team"><option value="">All teams</option>', options, '</select></label>',
+    '<button type="button" id="nl-clear-team">Clear team</button><label id="nl-group-navigation" for="nl-selected-group">League or group<select id="nl-selected-group"><option value="">All groups</option>',
+    paste(vapply(groups, function(group) paste0('<option value="', phase17_html_escape(group), '">', phase17_html_escape(group), '</option>'), character(1)), collapse = ""),
+    '</select></label><p id="nl-selection-status" role="status" aria-live="polite">Choose a team to highlight its outlook and find its matches.</p></div>')
+}
+
+phase17_nl_match_rows <- function(payload, completed = FALSE) {
+  fixtures <- phase17_nl_rows(payload, "fixtures")
+  results <- phase17_nl_rows(payload, "results")
+  results <- lapply(results, function(row) {
+    # Legacy accepted results can omit terminal status. Resolve their own final
+    # evidence before a stale scheduled fixture status is merged into the row.
+    if (!nzchar(phase17_nl_value(row, "match_status")) && !is.null(phase17_nl_completed_result(row))) row$match_status <- "final"
+    row
+  })
+  rows <- list()
+  for (row in c(fixtures, results)) {
+    id <- phase17_nl_value(row, "fixture_id")
+    if (!nzchar(id)) {
+      home <- phase17_nl_value(row, c("home_team_id", "home_display_name", "home_team"))
+      away <- phase17_nl_value(row, c("away_team_id", "away_display_name", "away_team"))
+      kickoff <- phase17_nl_value(row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc", "date"))
+      # Old accepted bundles may use display-name/date aliases. Without enough
+      # identity evidence, retain distinct rows rather than silently merging them.
+      id <- if (all(nzchar(c(home, away, kickoff)))) paste("legacy", home, away, kickoff, sep = "::") else paste0("anonymous-", length(rows) + 1L)
+    }
+    if (is.null(rows[[id]])) rows[[id]] <- row else rows[[id]] <- modifyList(rows[[id]], row)
+  }
+  rows <- unname(rows)
+  terminal <- function(row) {
+    status <- tolower(phase17_nl_value(row, c("match_status", "source_status", "fixture_status", "status")))
+    if (status %in% c("live", "in_progress", "scheduled", "upcoming", "postponed", "cancelled")) return(FALSE)
+    status %in% c("final", "finished", "played", "complete", "completed") || !is.null(phase17_nl_completed_result(row))
+  }
+  rows <- rows[vapply(rows, terminal, logical(1)) == completed]
+  if (length(rows)) rows <- rows[order(vapply(rows, function(row) phase17_nl_value(row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc", "date")), character(1)), vapply(rows, phase17_nl_value, character(1), fields = "fixture_id"), method = "radix")]
+  rows
+}
+
+phase17_nl_kickoff_label <- function(value) {
+  date <- phase17_nl_date_label(value)
+  value <- phase17_public_scalar(value)
+  if (!grepl("T[0-9]{2}:[0-9]{2}", value)) return(date)
+  stamp <- suppressWarnings(as.POSIXct(value, format = "%Y-%m-%dT%H:%M:%S", tz = "UTC"))
+  if (is.na(stamp)) date else paste(date, format(stamp, "%H:%M UTC", tz = "UTC"))
+}
+
 phase17_nl_group_table <- function(payload, definition, context) {
   teams <- phase17_nl_group_team_rows(payload, definition$name, context)
   standings <- phase17_nl_rows(payload, "standings")
@@ -902,6 +957,11 @@ phase17_nl_group_table <- function(payload, definition, context) {
       if (nzchar(fallback_rank)) merged$rank <- fallback_rank
       merged$ranking_status <- phase17_nl_value(matching[[1L]], c("ranking_status", "status"))
     }
+    for (field in c("qualification_status", "advancement_status", "qualification_state")) {
+      values <- unique(vapply(matching, phase17_nl_value, character(1), fields = field))
+      values <- values[nzchar(values)]
+      if (length(values) == 1L) merged[[field]] <- values[[1L]]
+    }
     merged
   }
   forecast_items <- if (length(teams)) lapply(teams, function(item) {
@@ -926,7 +986,7 @@ phase17_nl_group_table <- function(payload, definition, context) {
     status_html <- phase17_nl_status_cell(qualification_status)
     flag <- phase17_nl_team_flag(payload, item$name, context)
     flag_html <- if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else ""
-    paste0('<tr><th scope="row" class="team-cell"><div class="team-ident">', flag_html, '<span class="team-name">',
+    paste0('<tr', phase17_nl_team_attribute(row, item$name, context), '><th scope="row" class="team-cell"><div class="team-ident">', flag_html, '<span class="team-name">',
            phase17_html_escape(item$name), '</span></div></th><td class="status-cell">', status_html, '</td>',
            '<td class="xpts-cell">', phase17_nl_expected_cell(row, c("expected_points", "xpts", "x_points"), 1L), '</td>',
            '<td class="num xgd-cell">', phase17_nl_expected_cell(row, c("expected_goal_difference", "xgd", "x_goal_difference"), 1L), '</td>',
@@ -944,7 +1004,7 @@ phase17_nl_group_table <- function(payload, definition, context) {
     goal_difference_display <- phase17_nl_current_cell(item$goal_difference, signed = TRUE)
     flag <- phase17_nl_team_flag(payload, item$name, context)
     flag_html <- if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else ""
-    paste0('<tr><td class="standing-cell current-position">', if (nzchar(item$current_position)) phase17_html_escape(item$current_position) else "—", '</td><th scope="row" class="team-cell"><div class="team-ident">', flag_html, '<span class="team-name">',
+    paste0('<tr', phase17_nl_team_attribute(name = item$name, context = context), '><td class="standing-cell current-position">', if (nzchar(item$current_position)) phase17_html_escape(item$current_position) else "—", '</td><th scope="row" class="team-cell"><div class="team-ident">', flag_html, '<span class="team-name">',
            phase17_html_escape(item$name), '</span></div></th>',
            '<td class="standing-cell">', phase17_nl_current_cell(item$played), '</td>',
            '<td class="standing-cell">', phase17_nl_current_cell(item$wins), '</td>',
@@ -960,7 +1020,7 @@ phase17_nl_group_table <- function(payload, definition, context) {
     "No completed results yet. Current standings will appear after the first final matches."
   forecast_note <- if (matrix_status %in% c("projected", "resolved")) "" else
     paste0('<p class="nl-table-note">', phase17_html_escape(phase17_nl_status_copy(payload)), '</p>')
-  paste0('<article class="group-box nl-group-card" data-group="', phase17_html_escape(definition$name), '">',
+  paste0('<article class="group-box nl-group-card" data-group="', phase17_html_escape(definition$name), '" data-group-name="', phase17_html_escape(definition$name), '">',
          '<div class="group-head"><div><h2>', phase17_html_escape(definition$name), '</h2><span class="group-league">', phase17_html_escape(definition$league), '</span></div></div>',
          '<p class="nl-table-note">', phase17_html_escape(phase17_nl_group_explanation(definition$league)), '</p>',
          '<h3>Projected standings</h3><p class="nl-table-note">Ordered by expected points, then expected goal difference. Promotion and relegation include play-offs; play-off participation overlaps these outcomes. — means unavailable.</p>', forecast_note,
@@ -1046,10 +1106,10 @@ phase17_nl_match_card <- function(payload, row, context, result = FALSE) {
   } else if (result && nzchar(score_home) && nzchar(score_away)) paste0('<div class="chips"><span class="chip primary">Final ',
       phase17_html_escape(score), '</span><span class="chip">Fixed in standings</span></div>') else
     paste0('<div class="chips"><span class="chip">', if (forecast_status %in% c("suppressed", "unavailable", "unresolved")) "Forecast unavailable" else "Forecast pending", '</span></div>')
-  paste0('<article class="nl-match-card" data-filter-team="', phase17_html_escape(paste(unique(c(home, away)), collapse = "|")),
-         '" data-filter-group="', phase17_html_escape(group), '" data-filter-matchday="', phase17_html_escape(matchday), '" data-filter-date="', phase17_html_escape(date_label),
+  paste0('<article class="nl-match-card" data-team-id="', phase17_html_escape(paste(c(phase17_nl_team_key(match_row, home, context, 'home'), phase17_nl_team_key(match_row, away, context, 'away')), collapse = '|')), '" data-filter-team="', phase17_html_escape(paste(unique(c(home, away)), collapse = "|")),
+         '" data-filter-group="', phase17_html_escape(group), '" data-filter-matchday="', phase17_html_escape(matchday), '" data-filter-date="', phase17_html_escape(substr(date_value, 1L, 10L)),
          '" data-filter-status="', phase17_html_escape(status_label), '"><div class="match-title">', phase17_html_escape(home), ' vs ',
-         phase17_html_escape(away), '</div><div class="match-meta">', phase17_html_escape(group), ' | ', phase17_html_escape(date_label), ' | ',
+         phase17_html_escape(away), '</div><div class="match-meta">', phase17_html_escape(group), ' | ', phase17_html_escape(phase17_nl_kickoff_label(date_value)), ' | ',
          phase17_html_escape(status_label), '</div>', forecast_html, '</article>')
 }
 
@@ -1061,7 +1121,8 @@ phase17_nl_filter_toolbar <- function(payload, context) {
   teams <- sort(unique(unlist(lapply(match_rows, function(row) c(
     phase17_nl_team_name(row, "home", context), phase17_nl_team_name(row, "away", context)
   )))), method = "radix")
-  dates <- sort(unique(vapply(match_rows, function(row) phase17_nl_date_label(phase17_nl_value(row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc", "date"))), character(1))), method = "radix")
+  dates <- sort(unique(vapply(match_rows, function(row) substr(phase17_nl_value(row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc", "date")), 1L, 10L), character(1))), method = "radix")
+  dates <- dates[grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}$", dates)]
   statuses <- sort(unique(c(
     vapply(fixtures, function(row) phase17_public_status(phase17_nl_value(row, c("source_status", "fixture_status", "status"))), character(1)),
     vapply(results, function(row) phase17_public_status(phase17_nl_value(row, c("match_status", "source_status", "status"))), character(1))
@@ -1071,32 +1132,20 @@ phase17_nl_filter_toolbar <- function(payload, context) {
          '<label for="nl-team-search">Search teams<input id="nl-team-search" type="search" placeholder="e.g. Spain" autocomplete="off"></label>',
          '<label for="nl-group-filter">League or group<select id="nl-group-filter">',
          option_html(groups, "All groups"), '</select></label>',
-         '<label for="nl-date-filter">Date<select id="nl-date-filter">', option_html(dates, "All dates"), '</select></label>',
+         '<label for="nl-date-filter">Date<select id="nl-date-filter">', paste0('<option value="">All dates</option>', paste(vapply(dates, function(date) paste0('<option value="', date, '">', phase17_html_escape(phase17_nl_date_label(date)), '</option>'), character(1)), collapse = "")), '</select></label>',
          '<label for="nl-status-filter">Status<select id="nl-status-filter">', option_html(statuses, "All statuses"), '</select></label>',
-         '<button type="button" id="nl-clear-filters">Clear filters</button><p id="nl-filter-result-count" role="status" aria-live="polite">Showing scheduled matches.</p><span class="contract-copy" aria-hidden="true">No rows match the selected filters.</span>',
-         '<select id="filter-section" hidden aria-hidden="true"><option value="">All sections</option></select>',
-         '<select id="filter-league-group" hidden aria-hidden="true"><option value="">All</option></select>',
-         '<select id="filter-team" hidden aria-hidden="true"><option value="">All teams</option></select>',
-         '<select id="filter-matchday" hidden aria-hidden="true"><option value="">All matchdays</option></select>',
-         '<select id="filter-status" hidden aria-hidden="true"><option value="">All statuses</option></select>',
-         '<button type="button" id="clear-filters" hidden aria-hidden="true">Clear filters</button><span id="filter-result-count" hidden aria-hidden="true">Showing accepted dashboard data.</span></form>')
+         '<button type="button" id="nl-clear-filters">Clear filters</button><p id="nl-filter-result-count" role="status" aria-live="polite">Showing upcoming matches.</p></form>')
 }
 
 phase17_nl_render_fixtures <- function(payload, context) {
-  rows <- phase17_nl_rows(payload, "fixtures")
+  rows <- phase17_nl_match_rows(payload, completed = FALSE)
   cards <- if (length(rows)) paste(vapply(rows, function(row) phase17_nl_match_card(payload, row, context, result = FALSE), character(1)), collapse = "") else
-    '<div class="nl-empty"><strong>No fixtures available</strong><p>The accepted fixture schedule is not available yet.</p></div>'
+    '<div class="nl-empty"><strong>No upcoming fixtures</strong><p>There are no upcoming matches in the accepted schedule.</p></div>'
   paste0('<section id="fixtures" class="section nl-view" data-nl-view="fixtures"><div class="match-grid nl-match-grid">', cards, '</div></section>')
 }
 
 phase17_nl_render_results <- function(payload, context) {
-  rows <- phase17_nl_rows(payload, "results")
-  completed <- rows[vapply(rows, function(row) {
-    status <- tolower(phase17_nl_value(row, c("match_status", "source_status", "status")))
-    home <- phase17_nl_value(row, c("final_home_goals", "home_goals", "regulation_home_goals"))
-    away <- phase17_nl_value(row, c("final_away_goals", "away_goals", "regulation_away_goals"))
-    status %in% c("final", "finished", "played", "complete", "completed") || (nzchar(home) && nzchar(away))
-  }, logical(1))]
+  completed <- phase17_nl_match_rows(payload, completed = TRUE)
   cards <- if (length(completed)) paste(vapply(completed, function(row) phase17_nl_match_card(payload, row, context, result = TRUE), character(1)), collapse = "") else
     '<div class="nl-empty"><strong>No completed results yet</strong><p>Results will appear here after the first Nations League matches are played. Scheduled rows stay in Fixtures.</p></div>'
   paste0('<section id="results" class="section nl-view" data-nl-view="results"><div class="match-grid nl-match-grid">', cards, '</div></section>')
@@ -1134,7 +1183,7 @@ phase17_nl_render_title_chart <- function(payload, context) {
   body <- if (length(rows)) paste(vapply(rows, function(row) {
     flag <- phase17_nl_team_flag(payload, row$name, context)
     label <- paste0(row$name, ": title ", phase17_nl_percentage(row$title), "; reach the Finals ", phase17_nl_percentage(row$finals))
-    paste0('<div class="nl-title-row"><div class="team-ident">', if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else '',
+    paste0('<div class="nl-title-row"', phase17_nl_team_attribute(name = row$name, context = context), '><div class="team-ident">', if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else '',
            '<span class="team-name">', phase17_html_escape(row$name), '</span></div>',
            '<div class="nl-title-track" role="img" aria-label="', phase17_html_escape(label), '">', bar(row$finals, "finals"), bar(row$title, "title"), '</div>',
            '<span class="nl-title-value">', phase17_html_escape(phase17_nl_percentage(row$title)), '</span><span class="nl-finals-value">', phase17_html_escape(phase17_nl_percentage(row$finals)), '</span></div>')
@@ -1146,7 +1195,7 @@ phase17_nl_render_title_chart <- function(payload, context) {
          '<div class="nl-title-legend"><span><i class="title"></i>Win the title</span><span><i class="finals"></i>Reach the Finals</span></div>',
          '<div class="nl-title-heading"><span>Team</span><span>Probability</span><span>Title</span><span>Finals</span></div>', body,
          '<div class="nl-title-axis"><span></span><div><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><span></span><span></span></div>',
-         '<p class="nl-table-note">Accepted data cutoff: ', phase17_html_escape(cutoff), ' · ', phase17_html_escape(count), ' simulations.</p></div>')
+         '<p class="nl-table-note">Accepted data cutoff: ', phase17_html_escape(cutoff), ' · ', phase17_html_escape(count), ' simulations. Sampling precision does not measure model uncertainty; a sampled zero is not proof that an outcome is impossible.</p></div>')
 }
 
 phase17_nl_render_outlook_summary <- function(payload, context) {
@@ -1194,7 +1243,7 @@ phase17_nl_render_progression <- function(payload, context) {
     cells <- paste(vapply(names(probability_columns), function(field) paste0(
       '<td class="probability-column">', phase17_nl_probability_bar(row[[field]]), '</td>'
     ), character(1)), collapse = "")
-    paste0('<tr class="progression-row', status_class, '"><td><div class="team-ident">', flag_html,
+    paste0('<tr class="progression-row', status_class, '"', phase17_nl_team_attribute(row, phase17_nl_path_team_name(row, context), context), '><td><div class="team-ident">', flag_html,
            '<span class="team-name">', phase17_html_escape(phase17_nl_path_team_name(row, context)),
            '</span></div></td><td>', phase17_html_escape(phase17_nl_value(row, "league")),
            '</td><td><span class="path-status', status_class, '">', phase17_html_escape(status %||% "—"),
@@ -1257,7 +1306,7 @@ phase17_nl_render_euro_safety_net <- function(payload, context) {
     league <- phase17_public_scalar(row$league)
     group <- sub("^Group ", "", phase17_nl_group_key(row, context))
     if (grepl("^[1-4]$", group)) group <- paste0(league, group)
-    paste0('<tr class="euro-priority-row" data-euro-team="', phase17_html_escape(name), '" data-euro-league="', phase17_html_escape(league), '">',
+    paste0('<tr class="euro-priority-row"', phase17_nl_team_attribute(row, name, context), ' data-euro-team="', phase17_html_escape(name), '" data-euro-league="', phase17_html_escape(league), '">',
       '<th scope="row" class="team-cell"><div class="team-ident">', if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else '',
       '<span class="team-name">', phase17_html_escape(name), '</span></div></th><td><span class="euro-group league-', phase17_html_escape(tolower(league)), '">', phase17_html_escape(group), '</span></td>',
       probability(row, "p_group_winner"), probability(row, "p_winner_priority"), rank_cell(row, "expected_interim_rank"), rank_cell(row, "expected_queue_position"), '</tr>')
@@ -1353,18 +1402,16 @@ phase17_nl_tree_team_probability <- function(payload, team_id, field) {
 }
 
 phase17_nl_tree_probability_html <- function(payload, row, stage_id) {
-  direct <- suppressWarnings(as.numeric(phase17_nl_value(row, c("path_probability", "tie_probability", "probability"))))
-  if (length(direct) == 1L && is.finite(direct)) {
-    return(paste0('<div class="tree-probability">Path ', phase17_nl_probability_bar(direct), '</div>'))
-  }
   field <- phase17_nl_tree_probability_field(stage_id)
   if (!nzchar(field)) return("")
-  labels <- c(home = "Home path", away = "Away path")
-  bars <- vapply(names(labels), function(role) {
+  event <- switch(stage_id, league_a_quarter_final = "reaches quarter-finals", league_a_semi_final = "reaches the Finals", league_a_final = "reaches final", league_a_third_place = "plays third-place match")
+  context <- phase17_public_context(payload)
+  bars <- vapply(c("home", "away"), function(role) {
     team_id <- phase17_nl_value(row, paste0(role, "_team_id"))
     value <- phase17_nl_tree_team_probability(payload, team_id, field)
-    if (!is.finite(value)) return("")
-    paste0('<div class="tree-probability"><span class="tree-probability-label">', labels[[role]], '</span>', phase17_nl_probability_bar(value), '</div>')
+    name <- phase17_public_team(row, role, context)
+    if (!is.finite(value) || !nzchar(name)) return("")
+    paste0('<div class="tree-probability"><span class="tree-probability-label">', phase17_html_escape(paste(name, event)), '</span>', phase17_nl_probability_bar(value), '</div>')
   }, character(1))
   paste(bars[nzchar(bars)], collapse = "")
 }
@@ -1379,11 +1426,14 @@ phase17_nl_tree_stage <- function(stage_id, stage_rows, topology_rows, payload, 
     if (length(matches)) phase17_nl_value(matches[[1L]], "stage_type") else ""
   }
   stage_status <- if (length(stage_rows)) phase17_public_status(phase17_nl_value(stage_rows[[1L]], "stage_status")) else "Unresolved"
+  official_stage <- length(stage_rows) > 0L && all(vapply(stage_rows, function(row) tolower(phase17_nl_value(row, "stage_status")) %in% c("official", "confirmed", "completed", "final"), logical(1)))
   modal_stage <- stage_id %in% c("league_a_semi_final", "league_a_final", "league_a_third_place")
   stage_note <- if (!length(stage_rows)) {
     "Projected slots unresolved"
+  } else if (official_stage) {
+    "Accepted official ties"
   } else if (modal_stage) {
-    "Most-likely simulated participant path"
+    "Most frequent simulated participant in each slot"
   } else if (length(stage_rows) > 1L) {
     paste(length(stage_rows), "legal draw candidates")
   } else {
@@ -1394,13 +1444,15 @@ phase17_nl_tree_stage <- function(stage_id, stage_rows, topology_rows, payload, 
     identity <- phase17_nl_tree_identity(row, stage_id, index)
     status <- phase17_public_status(phase17_nl_value(row, c("resolution_status", "stage_status")))
     if (!nzchar(status)) status <- "Unresolved"
-    card_label <- if (modal_stage) "Modal path" else if (length(stage_rows) > 1L) paste0("Candidate ", sprintf("%02d", index)) else "Projected tie"
+    card_label <- if (official_stage) paste0("Official tie ", sprintf("%02d", index)) else if (modal_stage) "Slot projection" else if (length(stage_rows) > 1L) paste0("Candidate ", sprintf("%02d", index)) else "Projected tie"
     probability_html <- phase17_nl_tree_probability_html(payload, row, stage_id)
-    paste0('<article class="tree-match" data-tie-id="', phase17_html_escape(identity$tie_id), '" data-match-id="', phase17_html_escape(identity$match_id), '" data-slot-home="', phase17_html_escape(identity$home), '" data-slot-away="', phase17_html_escape(identity$away), '"><div class="tree-match-head"><span>', card_label, ' · ', phase17_html_escape(identity$match_id), '</span><span>', phase17_html_escape(status), '</span></div>',
+    paste0('<article class="tree-match" data-team-id="', phase17_html_escape(paste(c(phase17_nl_team_key(row, phase17_public_team(row, 'home', context), context, 'home'), phase17_nl_team_key(row, phase17_public_team(row, 'away', context), context, 'away')), collapse = '|')), '" data-tie-id="', phase17_html_escape(identity$tie_id), '" data-match-id="', phase17_html_escape(identity$match_id), '" data-slot-home="', phase17_html_escape(identity$home), '" data-slot-away="', phase17_html_escape(identity$away), '"><div class="tree-match-head"><span>', card_label, '</span><span>', phase17_html_escape(status), '</span></div>',
            '<div class="tree-slot"><span class="tree-slot-side">Home</span><strong>', phase17_html_escape(phase17_nl_slot_label(row, "home", context)), '</strong></div>',
            '<div class="tree-slot"><span class="tree-slot-side">Away</span><strong>', phase17_html_escape(phase17_nl_slot_label(row, "away", context)), '</strong></div>', probability_html, '</article>')
   }, character(1)), collapse = "") else
     '<div class="tree-stage-empty">Projected participant slots are unresolved in the accepted snapshot.</div>'
+  candidate_stage <- length(stage_rows) > 1L && !modal_stage && !all(vapply(stage_rows, function(row) tolower(phase17_nl_value(row, "stage_status")) %in% c("official", "confirmed", "completed", "final"), logical(1)))
+  if (candidate_stage) cards <- paste0('<p class="tree-stage-summary">Draw not confirmed. ', length(stage_rows), ' legal candidates are available; these are alternatives, not one bracket.</p><details class="tree-candidates"><summary>Explore legal draw candidates</summary><div class="tree-match-list">', cards, '</div></details>')
   paste0('<article class="nl-tree-stage" data-stage-id="', phase17_html_escape(stage_id), '"><div class="tree-stage-head"><div><h3>', phase17_html_escape(phase17_nl_stage_label(stage_id, stage_type)), '</h3><p>', phase17_html_escape(stage_note), '</p></div><span class="path-status">', phase17_html_escape(stage_status), '</span></div><div class="tree-match-list">', cards, '</div></article>')
 }
 
@@ -1420,8 +1472,8 @@ phase17_nl_render_tree <- function(payload, context) {
     phase17_nl_tree_stage(stage_id, candidate_rows, topology_rows, payload, context)
   }, character(1)), collapse = "")
   knockout_html <- paste0('<div class="nl-bracket-grid"><div class="nl-bracket-column">', render_stage_group("league_a_quarter_final"), '</div><div class="nl-bracket-column">', render_stage_group("league_a_semi_final"), '</div><div class="nl-bracket-column nl-bracket-final-column">', render_stage_group(c("league_a_final", "league_a_third_place")), '</div></div>')
-  paste0('<section id="tree" class="section nl-view" data-nl-view="tree"><div class="section-heading"><div><p class="eyebrow">Tournament tree</p><h2>Projected Nations League progression</h2></div><p class="section-intro">The accepted simulation follows the knockout path through quarter-finals, semi-finals, and final. Quarter-final cards retain every legal draw candidate; later rounds show the modal participant path.</p></div>',
-         '<div class="nl-tree-note"><strong>How to read this:</strong> the semifinal, final, and third-place cards are the most-likely simulated participant path. The Outlook tab carries the full progression probabilities; rule inputs that are still unresolved remain marked below.</div>',
+  paste0('<section id="tree" class="section nl-view" data-nl-view="tree"><div class="section-heading"><div><p class="eyebrow">Tournament tree</p><h2>Projected Nations League progression</h2></div><p class="section-intro">The accepted simulation follows the knockout path through quarter-finals, semi-finals, and final. Unconfirmed draws show a stage summary with legal alternatives in details; later rounds show independently projected participants for each slot.</p></div>',
+         '<div class="nl-tree-note"><strong>How to read this:</strong> each semifinal, final, and third-place slot shows its most frequent simulated participant independently. A team can appear in alternative slots; these cards do not form one joint bracket or confirmed fixtures. Team percentages describe reaching that stage, not winning the displayed tie. The Outlook tab carries the full progression probabilities; rule inputs that are still unresolved remain marked below.</div>',
          '<div class="nl-tree-block"><h2>League A knockout</h2>', knockout_html, '</div>',
          '<div class="nl-tree-block"><h2>Promotion / relegation play-offs</h2><p class="nl-table-note">Each stage has four ties. Until an official draw is accepted, cards show possible rank-slot pairings with their modal projected teams; they are draw candidates, not one confirmed bracket. The lower-league team hosts the first leg.</p><div class="nl-tree-grid nl-playoff-grid">', render_stage_group(playoff_order), '</div></div></section>')
 }
@@ -1441,7 +1493,7 @@ phase17_nl_render_outlook <- function(payload, context) {
     rank_rows <- paste(vapply(sorted, function(row) {
       status <- tolower(phase17_nl_value(row, c("ranking_status", "status")))
       status_label <- if (status %in% c("resolved", "complete", "completed")) "Resolved" else if (status %in% c("projected", "ready")) "Projected" else "Pending"
-      paste0('<tr><td>', phase17_html_escape(phase17_nl_group_key(row, context)), '</td><th scope="row">', phase17_html_escape(phase17_nl_team_name(row, "team", context)), '</th><td>', phase17_nl_rank_cell(row, "rank"), '</td><td><span class="path-status">', status_label, '</span></td><td>', phase17_nl_probability_bar(row$probability), '</td></tr>')
+      paste0('<tr', phase17_nl_team_attribute(row, phase17_nl_team_name(row, context = context), context), '><td>', phase17_html_escape(phase17_nl_group_key(row, context)), '</td><th scope="row">', phase17_html_escape(phase17_nl_team_name(row, "team", context)), '</th><td>', phase17_nl_rank_cell(row, "rank"), '</td><td><span class="path-status">', status_label, '</span></td><td>', phase17_nl_probability_bar(row$probability), '</td></tr>')
     }, character(1)), collapse = "")
     notice <- if (rank_status == "unavailable") '<p class="nl-table-note">Rank probabilities are shown from the accepted rows, but the complete team × rank matrix is still pending validation.</p>' else ""
     paste0('<div class="nl-outlook-block"><div class="section-heading"><div><p class="eyebrow">Forecast standings</p><h2>Rank probability outlook</h2></div><p class="section-intro">Each bar is the simulated probability of a team finishing in the listed group rank.</p></div>', notice, '<div class="nl-table-scroll"><table class="nl-outlook-table"><thead><tr><th scope="col">Group</th><th scope="col">Team</th><th scope="col">Rank</th><th scope="col">Status</th><th scope="col">Probability</th></tr></thead><tbody>', rank_rows, '</tbody></table></div></div>')
@@ -1479,6 +1531,74 @@ phase17_nl_state_label <- function(payload) {
   "Forecast unavailable"
 }
 
+phase17_nl_browser_script <- function() {
+  paste0(
+    "(function(){\n",
+    "const root=document;\n",
+    "const tabs=[...root.querySelectorAll('[data-nl-tab]')];\n",
+    "const views=[...root.querySelectorAll('[data-nl-view]')];\n",
+    "const validTabs=new Set(tabs.map(tab=>tab.dataset.nlTab));\n",
+    "const filterToolbar=root.getElementById('nl-filters');\n",
+    "const followed=root.getElementById('nl-selected-team'),groups=root.getElementById('nl-selected-group');\n",
+    "const groupNavigation=root.getElementById('nl-group-navigation'),selectionStatus=root.getElementById('nl-selection-status');\n",
+    "const search=root.getElementById('nl-team-search'),group=root.getElementById('nl-group-filter'),date=root.getElementById('nl-date-filter'),status=root.getElementById('nl-status-filter'),count=root.getElementById('nl-filter-result-count');\n",
+    "const controls=[search,group,date,status],matchStates={fixtures:['','','',''],results:['','','','']};let currentTab='';\n",
+    "function highlightTeam(){\n",
+    " const key=followed.value;\n",
+    " root.querySelectorAll('[data-team-id]').forEach(item=>item.classList.toggle('is-selected-team',!!key&&(item.dataset.teamId||'').split('|').includes(key)));\n",
+    " const name=followed.selectedOptions[0]?.textContent||'';\n",
+    " selectionStatus.textContent=key?name+' is highlighted across views. Fixtures and Results show its matches.':'Choose a team to highlight its outlook and find its matches.';\n",
+    "}\n",
+    "function applyFilters(){\n",
+    " const selectedGroup=groups.value;\n",
+    " root.querySelectorAll('.nl-group-card').forEach(card=>card.hidden=!!selectedGroup&&card.dataset.groupName!==selectedGroup);\n",
+    " const query=(search.value||'').trim().toLowerCase(),groupValue=group.value,dateValue=date.value,statusValue=status.value,key=followed.value;\n",
+    " let visible=0;const activeView=views.find(view=>!view.hidden&&['fixtures','results'].includes(view.dataset.nlView));\n",
+    " if(!activeView)return;\n",
+    " const cards=[...activeView.querySelectorAll(\".nl-match-card\")];\n",
+    " cards.forEach(card=>{const teams=(card.dataset.filterTeam||'').toLowerCase().split('|');const exactTeamMatch=teams.includes(query);\n",
+    "  const show=(!key||(card.dataset.teamId||'').split('|').includes(key))&&(!query||exactTeamMatch||teams.some(team=>team.includes(query)))&&(!groupValue||card.dataset.filterGroup===groupValue)&&(!dateValue||card.dataset.filterDate===dateValue)&&(!statusValue||card.dataset.filterStatus===statusValue);\n",
+    "  card.hidden=!show;if(show)visible++;\n",
+    " });\n",
+    " count.textContent=visible?'Showing '+visible+(currentTab==='results'?' completed matches.':' upcoming matches.'):(cards.length?'No matches fit the selected filters.':(currentTab==='results'?'No completed results available.':'No upcoming fixtures available.'));\n",
+    "}\n",
+    "function setTab(name,write){\n",
+    " if(matchStates[currentTab])matchStates[currentTab]=controls.map(control=>control.value);\n",
+    " const selected=validTabs.has(name)?name:'groups';currentTab=selected;\n",
+    " tabs.forEach(tab=>{const active=tab.dataset.nlTab===selected;tab.classList.toggle('active',active);tab.classList.toggle('is-active',active);tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});\n",
+    " views.forEach(view=>{view.hidden=view.dataset.nlView!==selected;view.setAttribute('role','tabpanel');view.setAttribute('aria-labelledby','nl-tab-'+view.dataset.nlView);});\n",
+    " filterToolbar.hidden=!['fixtures','results'].includes(selected);groupNavigation.hidden=selected!=='groups';\n",
+    " if(matchStates[selected])controls.forEach((control,index)=>control.value=matchStates[selected][index]);\n",
+    " if(write&&location.hash!=='#'+selected)history.replaceState(null,'','#'+selected);\n",
+    " highlightTeam();applyFilters();\n",
+    "}\n",
+    "function requestedTab(){const value=location.hash.replace(/^#/,'');return validTabs.has(value)?value:'groups';}\n",
+    "tabs.forEach((tab,index)=>{\n",
+    " tab.addEventListener('click',()=>setTab(tab.dataset.nlTab,true));\n",
+    " tab.addEventListener('keydown',event=>{let target;\n",
+    "  if(event.key==='ArrowRight')target=tabs[(index+1)%tabs.length];\n",
+    "  if(event.key==='ArrowLeft')target=tabs[(index+tabs.length-1)%tabs.length];\n",
+    "  if(event.key==='Home')target=tabs[0];if(event.key==='End')target=tabs[tabs.length-1];\n",
+    "  if(target){event.preventDefault();setTab(target.dataset.nlTab,true);target.focus();}\n",
+    " });\n",
+    "});\n",
+    "window.addEventListener('hashchange',()=>setTab(requestedTab(),false));\n",
+    "search.addEventListener('input',applyFilters);[group,date,status,groups].forEach(control=>control.addEventListener('change',applyFilters));\n",
+    "followed.addEventListener('change',()=>{highlightTeam();applyFilters();});\n",
+    "root.getElementById('nl-clear-team').addEventListener('click',()=>{followed.value='';highlightTeam();applyFilters();});\n",
+    "root.getElementById('nl-clear-filters').addEventListener('click',()=>{controls.forEach(control=>control.value='');applyFilters();});\n",
+    "filterToolbar.addEventListener('submit',event=>event.preventDefault());\n",
+    "const euroSearch=root.getElementById('euro-team-search'),euroLeague=root.getElementById('euro-league-filter'),euroRows=[...root.querySelectorAll('.euro-priority-row')];\n",
+    "function filterEuro(){const query=(euroSearch.value||'').trim().toLowerCase(),league=euroLeague.value;let visible=0;\n",
+    " euroRows.forEach(row=>{const show=(!query||row.dataset.euroTeam.toLowerCase().includes(query))&&(!league||row.dataset.euroLeague===league);row.hidden=!show;if(show)visible++;});\n",
+    " root.getElementById('euro-team-count').textContent='Showing '+visible+' of '+euroRows.length+' teams.';root.getElementById('euro-no-teams').hidden=visible>0;\n",
+    "}\n",
+    "euroSearch.addEventListener('input',filterEuro);euroLeague.addEventListener('change',filterEuro);root.getElementById('euro-clear-filters').addEventListener('click',()=>{euroSearch.value='';euroLeague.value='';filterEuro();});\n",
+    "setTab(requestedTab(),false);\n",
+    "})();\n"
+  )
+}
+
 phase17_nl_render_dashboard <- function(payload, route) {
   metadata <- payload$metadata
   context <- phase17_public_context(payload)
@@ -1503,13 +1623,18 @@ phase17_nl_render_dashboard <- function(payload, route) {
   rank_rows <- phase17_nl_rows(payload, "projected_outcomes")
   if (!length(rank_rows)) rank_rows <- phase17_nl_rows(payload, "standings")
   rank_status <- phase17_nl_rank_matrix_status(rank_rows, context)
-  forecast_label <- if (forecast_count) paste0(forecast_available_count, "/", forecast_count) else "—"
+  remaining <- phase17_nl_match_rows(payload, completed = FALSE)
+  remaining_ids <- vapply(remaining, phase17_nl_value, character(1), fields = "fixture_id")
+  available_ids <- unique(vapply(forecast_rows[vapply(forecast_rows, function(row) tolower(phase17_nl_value(row, c("forecast_status", "status"))) %in% c("available", "projected", "ready"), logical(1))], phase17_nl_value, character(1), fields = "fixture_id"))
+  forecast_label <- if (length(remaining)) paste0(sum(remaining_ids %in% available_ids), "/", length(remaining)) else "0/0"
   outlook_label <- switch(rank_status, resolved = "Resolved", projected = "Projected", "Pending")
   status_label <- phase17_nl_state_label(payload)
+  model_cutoff <- phase17_public_scalar(metadata$model_data_cutoff %||% metadata$feature_cutoff)
+  if (!nzchar(model_cutoff)) model_cutoff <- "Unavailable"
   title <- "UEFA Nations League 2026/27 Forecast"
   payload_json <- phase17_json_script_escape(rawToChar(phase17_payload_bytes(payload)))
   tabs <- c(groups = "Groups", fixtures = "Fixtures", results = "Results", outlook = "Outlook", "euro-2028" = "EURO 2028", tree = "Tournament tree", format = "Format")
-  tab_html <- paste(vapply(names(tabs), function(id) paste0('<button type="button" class="tab nl-tab', if (identical(id, "groups")) ' active is-active' else '', '" data-nl-tab="', id, '" aria-controls="', id, '" aria-selected="', if (identical(id, "groups")) "true" else "false", '">', tabs[[id]], '</button>'), character(1)), collapse = "")
+  tab_html <- paste(vapply(names(tabs), function(id) paste0('<button type="button" class="tab nl-tab', if (identical(id, "groups")) ' active is-active' else '', '" data-nl-tab="', id, '" id="nl-tab-', id, '" role="tab" tabindex="', if (identical(id, "groups")) "0" else "-1", '" aria-controls="', id, '" aria-selected="', if (identical(id, "groups")) "true" else "false", '">', tabs[[id]], '</button>'), character(1)), collapse = "")
   contract_labels <- paste(vapply(payload$sections, function(section) phase17_html_escape(section$label), character(1)), collapse = " ")
   paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>', phase17_html_escape(title), '</title><style>',
     ':root{--ink:#1d1d1f;--muted:#666;--line:#d8d8d8;--paper:#f7f6f2;--panel:#fff;--blue:#3573a8;--blue-dark:#24577e;--blue-soft:#eef6fb;--gold:#d29d2b;--green:#3b8754;--danger:#b23a2f}*{box-sizing:border-box}html{scroll-behavior:smooth}body{font:14px/1.5 Arial,Helvetica,sans-serif;background:var(--paper);color:var(--ink);margin:0}main{max-width:1180px;margin:0 auto;padding:24px}.nl-header{display:flex;justify-content:space-between;gap:24px;align-items:flex-end;padding:12px 0 24px;border-bottom:1px solid var(--line)}.nl-header h1{font-size:34px;line-height:1.05;margin:0 0 8px;letter-spacing:-.02em}.nl-header p{color:var(--muted);margin:0}.nl-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700}.nl-header-status{white-space:nowrap;background:var(--blue-soft);color:var(--blue-dark);padding:8px 12px;border-radius:999px}.nl-header-status:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--green)}.nl-meta{display:flex;gap:20px;flex-wrap:wrap;padding:14px 0;color:var(--muted);font-size:12px}.nl-meta b{color:var(--ink);display:block;font-size:13px}.nl-hero{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);margin:4px 0 20px}.nl-metric{background:var(--panel);padding:16px}.nl-metric span{display:block;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}.nl-metric strong{display:block;font-size:22px;margin-top:4px}.warning{border-left:4px solid var(--danger);background:#fff;padding:12px 16px;overflow-wrap:anywhere;margin:12px 0}.warning p{margin:4px 0}.nl-tabs{display:flex;gap:5px;flex-wrap:wrap;margin:18px 0 14px;border-bottom:1px solid var(--line)}.nl-tab{border:0;background:transparent;color:var(--muted);padding:12px 16px;min-height:46px;font-weight:700;cursor:pointer}.nl-tab.is-active{background:var(--ink);color:#fff}.nl-tab:not(.is-active):hover{color:var(--ink)}.nl-filters{display:flex;gap:10px;align-items:end;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);padding:14px;margin:0 0 18px}.nl-filters label{font-weight:700;font-size:12px;color:var(--muted)}.nl-filters input,.nl-filters select{display:block;min-width:150px;min-height:42px;margin-top:4px;border:1px solid #aaa;background:#fff;padding:7px 9px;font:inherit;color:var(--ink)}.nl-filters input{min-width:190px}.nl-filters button{min-height:42px;padding:8px 13px;background:#fff;border:1px solid var(--blue);color:var(--ink);font-weight:700;cursor:pointer}.nl-filters p{margin:0 0 8px;color:var(--muted);font-size:12px}.section-heading{display:flex;justify-content:space-between;gap:24px;align-items:end;margin:10px 0 14px}.section-heading h2{font-size:25px;margin:0}.eyebrow{margin:0 0 3px;color:var(--blue);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em}.section-intro{max-width:560px;color:var(--muted);margin:0}.nl-group-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.nl-group-card,.nl-format-card,.nl-match-card,.nl-empty{background:var(--panel);border:1px solid var(--line);padding:16px}.nl-card-heading{display:flex;justify-content:space-between;gap:12px;align-items:start}.nl-card-heading h3,.nl-format-card h3{margin:0;font-size:19px}.nl-card-state{color:var(--muted);font-size:11px;text-align:right}.nl-group-card .group-head{display:flex;justify-content:space-between;gap:12px;align-items:start;margin-bottom:9px}.group-toggle{display:inline-flex;gap:0;border:1px solid var(--line);background:#f9f9f7;border-radius:999px;overflow:hidden;margin:0 0 8px}.group-toggle button{border:0;background:transparent;color:var(--muted);padding:6px 12px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}.group-toggle button.active{background:var(--ink);color:#fff}.group-view[hidden]{display:none!important}.nl-table-note{color:var(--muted);font-size:12px;min-height:36px;margin:8px 0}.nl-table-scroll{max-width:100%;overflow-x:auto}.nl-group-table{border-collapse:separate;border-spacing:3px;width:100%;min-width:570px;font-size:13px}.nl-group-table.current-table{min-width:700px}.nl-group-table th,.nl-group-table td,.nl-outlook-table th,.nl-outlook-table td{border-bottom:1px solid var(--line);padding:9px 7px;text-align:left;vertical-align:middle}.nl-outlook-table{border-collapse:collapse;width:100%;font-size:13px}.nl-group-table th:first-child{width:40%}.nl-group-table td:nth-child(n+3),.nl-group-table th:nth-child(n+3){text-align:right}.nl-group-table .status-head,.nl-group-table .status-cell{width:34px;text-align:center!important}.nl-table-status{display:inline-flex;align-items:center;justify-content:center;width:21px;height:21px;border-radius:50%;font-size:12px;font-weight:700}.nl-table-status-unresolved{background:#fff3d6;color:#996b00}.nl-table-status-resolved,.nl-table-status-current{background:#e7f4eb;color:#28653a}.nl-table-status-pending{background:#f1f1ef;color:var(--muted)}.nl-status-muted{color:var(--muted);font-size:11px}.nl-table-empty{text-align:left!important;color:var(--muted);padding:16px!important}.nl-match-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.nl-match-card{padding:14px}.nl-match-top,.nl-match-bottom{display:flex;justify-content:space-between;gap:8px;align-items:center;color:var(--muted);font-size:11px}.nl-match-teams{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:15px 0 12px}.nl-match-teams strong{display:block;font-size:16px}.nl-match-teams small{display:block;color:var(--muted);font-size:11px;margin-top:2px}.nl-match-teams .away{text-align:right}.nl-score{font-size:18px;white-space:nowrap}.nl-probabilities{display:flex;gap:10px;margin:8px 0 0}.nl-probabilities span{display:flex;gap:3px;align-items:baseline}.nl-probabilities b{color:var(--blue-dark)}.nl-probabilities small{color:var(--muted);font-size:10px}.nl-match-meta{margin:8px 0 0;color:var(--muted);font-size:11px}.nl-empty{border-left:4px solid var(--gold);padding:18px}.nl-empty strong{font-size:16px}.nl-empty p{color:var(--muted);margin:4px 0 0}.nl-empty-warning{border-left-color:var(--gold)}.nl-format-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.nl-format-card ul{list-style:none;padding:0;margin:12px 0 0}.nl-format-card li{border-top:1px solid var(--line);padding:7px 0}.nl-details{margin-top:20px;background:var(--panel);border:1px solid var(--line);padding:14px}.nl-details summary{font-weight:700;cursor:pointer}.nl-details dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:14px 0 0}.nl-details dd{margin:0;overflow-wrap:anywhere}.credits{overflow-wrap:anywhere}.contract-labels{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}.nl-view[hidden]{display:none!important}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:3px solid var(--blue);outline-offset:2px}@media(max-width:800px){main{padding:16px}.nl-header{display:block}.nl-header-status{display:inline-flex;margin-top:14px}.nl-hero{grid-template-columns:repeat(2,1fr)}.nl-group-grid,.nl-match-grid{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.section-heading{display:block}.section-intro{margin-top:8px}.nl-filters{display:grid;grid-template-columns:1fr}.nl-filters label,.nl-filters input,.nl-filters select,.nl-filters button{width:100%}}@media(max-width:460px){.nl-hero{grid-template-columns:1fr}.nl-format-grid{grid-template-columns:1fr}.nl-header h1{font-size:27px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}',
@@ -1521,34 +1646,18 @@ phase17_nl_render_dashboard <- function(payload, route) {
     '.section{display:block}',
     '.nl-group-grid.grid-groups{grid-template-columns:minmax(0,1fr)}.group-box.nl-group-card{min-width:0;padding:20px;overflow:visible}.nl-group-card h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#5b6068;margin:24px 0 8px}.nl-group-card .group-head{border:0;padding:0;margin-bottom:12px}.nl-group-table{min-width:940px;border-spacing:4px;font-size:13px}.nl-group-table.current-table{min-width:680px}.nl-group-table th:first-child{width:185px}.nl-group-table .team-cell{min-width:185px;text-align:left;background:var(--panel);position:sticky;left:0;z-index:2}.nl-group-table thead th:first-child{position:sticky;left:0;background:var(--panel);z-index:3}.current-table .team-cell{left:44px;width:185px}.current-table thead th:first-child,.current-table .current-position{width:40px;text-align:center}.current-table thead th:nth-child(2){width:185px;position:sticky;left:44px;background:var(--panel);z-index:3;text-align:left}.current-table .current-position,.current-table thead th:first-child{position:sticky;left:0;min-width:40px;background:var(--panel);z-index:3}.nl-group-table .heat-cell{--heat-color:39,91,181;color:#14345d;background:rgba(var(--heat-color),var(--heat))}.nl-group-table .heat-cell.promotion{--heat-color:18,112,75;color:#0a3924}.nl-group-table .heat-cell.playoff{--heat-color:160,100,0;color:#4e3000}.nl-group-table .heat-cell.relegation{--heat-color:174,43,43;color:#591414}.nl-group-table .heat-cell.strong{background:rgb(var(--heat-color));color:white}.nl-group-table .heat-cell.empty{background:transparent;color:#555}.heat-cell:after{display:none}.nl-table-scroll:focus-visible{outline:2px solid #24577e;outline-offset:3px}.nl-title-outlook{padding:24px;background:var(--panel);border:1px solid var(--line)}.nl-title-heading,.nl-title-row,.nl-title-axis{display:grid;grid-template-columns:190px minmax(0,1fr) 76px 76px;gap:14px;align-items:center}.nl-title-heading{color:#595e67;font-size:12px;padding:10px 0}.nl-title-heading>span:nth-child(n+3),.nl-title-value,.nl-finals-value{text-align:right}.nl-title-row{min-height:53px}.nl-title-row .team-name{font-size:16px}.nl-title-track{height:34px;position:relative;background:repeating-linear-gradient(to right,#dfe0e5 0,#dfe0e5 1px,transparent 1px,transparent 25%)}.nl-title-bar{position:absolute;left:0;top:4px;height:26px}.nl-title-bar.finals{background:#d9ddeb}.nl-title-bar.title{background:#111543}.nl-title-value{font-size:16px;font-weight:800;color:#111543;font-variant-numeric:tabular-nums}.nl-finals-value{font-size:15px;color:#595e67;font-variant-numeric:tabular-nums}.nl-title-legend{display:flex;gap:20px;flex-wrap:wrap;margin:18px 0 10px;font-size:12px}.nl-title-legend span{display:flex;align-items:center;gap:7px}.nl-title-legend i{display:inline-block;width:22px;height:10px}.nl-title-legend .title{background:#111543}.nl-title-legend .finals{background:#d9ddeb}.nl-title-axis{margin:6px 0 16px;font-size:10px;color:#666}.nl-title-axis>div{display:flex;justify-content:space-between}.nl-compact-fixtures{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.nl-fixture-day{border-top:1px solid var(--line);padding:10px 0}.nl-fixture-day h4{font-size:12px;margin:0 0 8px;color:#555}.nl-compact-teams{display:grid;grid-template-columns:minmax(0,1fr) 52px minmax(0,1fr);gap:8px;align-items:center}.nl-compact-teams>span{display:flex;align-items:center;gap:6px;font-weight:700}.nl-compact-score{text-align:center;border:1px solid #b9bbc3;border-radius:5px;padding:5px;color:#555}.nl-compact-score.completed{background:#111543;color:white;border-color:#111543}.nl-group-fixture small{display:block;margin-top:5px;color:#666;font-size:11px}.nl-details summary{cursor:pointer;padding:5px}.nl-details summary:focus-visible,.nl-tabs button:focus-visible{outline:2px solid #24577e;outline-offset:3px}@media(max-width:650px){.group-box.nl-group-card{padding:12px}.nl-compact-fixtures{grid-template-columns:1fr}.nl-title-outlook{padding:12px}.nl-title-heading,.nl-title-row,.nl-title-axis{grid-template-columns:105px minmax(0,1fr) 48px 48px;gap:6px}.nl-title-row .team-ident{gap:4px}.nl-title-row .team-name{font-size:12px}.nl-title-row .team-flag{font-size:16px}.nl-title-value,.nl-finals-value{font-size:12px}.nl-title-heading{font-size:10px}.nl-title-axis>div>span:nth-child(2),.nl-title-axis>div>span:nth-child(4){visibility:hidden}.nl-group-table th:first-child{width:140px}.nl-group-table .team-cell{min-width:140px}.nl-title-legend{gap:12px}}',
     '.euro-priority-note{padding:14px 16px;background:var(--blue-soft);border-left:4px solid var(--blue-dark);color:var(--blue-dark)}.euro-meta{font-size:12px;color:#555}.euro-meta a{color:#24577e}.euro-filters{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:20px 0 14px}.euro-filters label{font-size:12px;font-weight:700}.euro-filters input,.euro-filters select{display:block;min-height:42px;margin-top:4px;padding:8px;border:1px solid #aaa;background:white;font:inherit}.euro-filters button{min-height:42px;padding:8px 12px;background:white;border:1px solid #aaa;font:inherit;cursor:pointer}.euro-filters p{margin:0 0 8px;color:#555;font-size:12px}.euro-table-panel{max-width:100%;min-width:0;background:white;border:1px solid var(--line);padding:10px}.euro-priority-table{width:100%;min-width:820px;table-layout:fixed;font-variant-numeric:tabular-nums}.euro-priority-table th:first-child{width:26%}.euro-priority-table .heat-cell,.euro-priority-table .standing-cell{width:auto}.euro-priority-table th:nth-child(2),.euro-priority-table td:nth-child(2){text-align:center}.euro-priority-table th,.euro-priority-table td{padding:12px 10px}.euro-priority-table .heat-cell:not(.empty){background:rgba(39,91,181,calc(.08 + var(--prob)*.18));color:#14345d}.euro-group{display:inline-block;padding:4px 9px;color:white;font-size:12px;font-weight:700;border-radius:3px;white-space:nowrap}.euro-group.league-a{background:#24577e}.euro-group.league-b{background:#236951}.euro-group.league-c{background:#8c4c10}.euro-group.league-d{background:#704099}.euro-range{max-width:180px;margin-left:auto}.euro-range summary{cursor:pointer}.euro-range span{display:block;font-size:11px;color:#555;margin-top:5px}.euro-range summary:focus-visible,.euro-filters :focus-visible{outline:2px solid #24577e;outline-offset:3px}.euro-priority-row[hidden],#euro-no-teams[hidden]{display:none!important}@media(max-width:650px){.euro-table-panel{padding:4px}.euro-filters input{max-width:100%}.euro-priority-table .team-cell{min-width:140px}}',
-    '</style></head><body><header class="nl-header"><h1>', phase17_html_escape(title), '</h1><div class="subhead">Forecast-led group tables, fixtures, and tournament outlook. <strong>', phase17_html_escape(status_label), '</strong></div><div class="meta">Source: ', phase17_html_escape(phase17_public_scalar(metadata$source_confidence)), ' | Last accepted refresh: ', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), ' | Model release: ', phase17_html_escape(phase17_public_scalar(metadata$model_release_id)), '</div><span id="dashboard-status" role="status" class="contract-labels">', phase17_html_escape(status_label), '</span></header><main class="nl-dashboard" data-route="', phase17_html_escape(route), '">',
+    '.nl-dashboard [hidden]{display:none!important}.nl-dashboard{min-width:0}.nl-navigation{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:0 0 16px}.nl-navigation label{font-weight:700;font-size:12px}.nl-navigation select{display:block;padding:8px;min-height:44px;max-width:100%;margin-top:4px}.nl-navigation button,.nl-dashboard .nl-tabs button,.nl-filters button,.nl-filters input,.nl-filters select{min-height:44px}.nl-navigation p{font-size:12px;max-width:50ch;margin:0;color:#444}.is-selected-team{outline:2px solid #24577e;outline-offset:-2px;background-color:#eef6fb!important}.is-selected-team>.team-cell{background:#eef6fb}.tree-stage-summary{font-size:13px}.tree-candidates summary{padding:8px;cursor:pointer}.nl-tree-stage>.tree-match-list{max-height:none;overflow:visible}.tree-candidates>.tree-match-list{max-height:600px;overflow:auto}.nl-table-scroll{min-width:0}.nl-tree-stage{overflow-wrap:anywhere}.nl-title-track{min-width:0}@media(max-width:650px){.nl-navigation{display:grid;grid-template-columns:1fr}.nl-navigation select{width:100%}.nl-filters input,.nl-filters select{min-width:0;width:100%}.nl-filters label{max-width:100%;width:100%}.nl-title-heading,.nl-title-row,.nl-title-axis{grid-template-columns:88px minmax(0,1fr) 44px 44px;gap:4px}.nl-title-value,.nl-finals-value{font-size:11px}}',
+    '</style></head><body><header class="nl-header"><h1>', phase17_html_escape(title), '</h1><div class="subhead">Forecast-led group tables, fixtures, and tournament outlook. <strong>', phase17_html_escape(status_label), '</strong></div><div class="meta">Source snapshot: ', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), ' | Model cutoff: ', phase17_html_escape(model_cutoff), ' | Forecast generated: ', phase17_html_escape(phase17_nl_kickoff_label(metadata$generated_at_utc)), '</div><span id="dashboard-status" role="status" class="contract-labels">', phase17_html_escape(status_label), '</span></header><main class="nl-dashboard" data-route="', phase17_html_escape(route), '">',
     warning_html,
-    '<div class="hero nl-hero"><div class="metric nl-metric"><div class="label">Leagues</div><div class="value">', league_count, '</div><div class="note">', team_count, ' teams</div></div><div class="metric nl-metric"><div class="label">Groups</div><div class="value">', length(definitions), '</div><div class="note">Accepted group roster</div></div><div class="metric nl-metric"><div class="label">Fixtures</div><div class="value">', fixture_count, '</div><div class="note">', completed_count, ' completed</div></div><div class="metric nl-metric"><div class="label">Match forecasts</div><div class="value">', forecast_label, '</div><div class="note">Available / scheduled</div></div><div class="metric nl-metric"><div class="label">Aggregate outlook</div><div class="value">', outlook_label, '</div><div class="note">Rank probabilities</div></div></div>',
-    '<nav class="tabs nl-tabs" aria-label="Dashboard sections">', tab_html, '</nav>',
-    phase17_nl_filter_toolbar(payload, context),
+    '<div class="hero nl-hero"><div class="metric nl-metric"><div class="label">Leagues</div><div class="value">', league_count, '</div><div class="note">', team_count, ' teams</div></div><div class="metric nl-metric"><div class="label">Groups</div><div class="value">', length(definitions), '</div><div class="note">Accepted group roster</div></div><div class="metric nl-metric"><div class="label">Fixtures</div><div class="value">', fixture_count, '</div><div class="note">', completed_count, ' completed</div></div><div class="metric nl-metric"><div class="label">Match forecasts</div><div class="value">', forecast_label, '</div><div class="note">Available / remaining fixtures</div></div><div class="metric nl-metric"><div class="label">Aggregate outlook</div><div class="value">', outlook_label, '</div><div class="note">Rank probabilities</div></div></div>',
+    '<nav class="tabs nl-tabs" role="tablist" aria-label="Dashboard sections">', tab_html, '</nav>',
+    phase17_nl_navigation(payload, context), phase17_nl_filter_toolbar(payload, context),
     phase17_nl_render_groups(payload, context), phase17_nl_render_fixtures(payload, context), phase17_nl_render_results(payload, context), phase17_nl_render_outlook(payload, context), phase17_nl_render_euro_safety_net(payload, context), phase17_nl_render_tree(payload, context), phase17_nl_render_format(payload, context),
     '<span class="contract-labels" aria-hidden="true">', contract_labels, '</span>',
     '<details id="source-lineage" class="nl-details"><summary>Source, model, and refresh lineage</summary><dl>', phase17_render_metadata(metadata), '</dl></details>',
     '<details id="data-credits" class="nl-details"><summary>Data credits</summary><div class="credits">', phase17_html_escape(phase17_canonical_json(payload$credits)), '</div></details>',
     '<script id="dashboard-data" type="application/json">', payload_json, '</script>',
-    '<script>(function(){',
-    'const root=document;',
-    'const tabs=[...root.querySelectorAll("[data-nl-tab]")];',
-    'const views=[...root.querySelectorAll("[data-nl-view]")];',
-    'const validTabs=new Set(tabs.map(tab=>tab.dataset.nlTab));',
-    'const filterToolbar=root.getElementById("nl-filters");',
-    'function setTab(name,write){const selected=validTabs.has(name)?name:"groups";tabs.forEach(tab=>{const active=tab.dataset.nlTab===selected;tab.classList.toggle("active",active);tab.classList.toggle("is-active",active);tab.setAttribute("aria-selected",active?"true":"false")});views.forEach(view=>{view.hidden=view.dataset.nlView!==selected});if(filterToolbar)filterToolbar.hidden=!(["fixtures","results"].includes(selected));if(write&&location.hash!=="#"+selected)history.replaceState(null,"","#"+selected);applyFilters()}',
-    'function requestedTab(){const value=location.hash.replace(/^#/,"");return validTabs.has(value)?value:"groups"}',
-    'tabs.forEach(tab=>tab.addEventListener("click",()=>setTab(tab.dataset.nlTab,true)));',
-    'window.addEventListener("hashchange",()=>setTab(requestedTab(),false));',
-    'const search=root.getElementById("nl-team-search"),group=root.getElementById("nl-group-filter"),date=root.getElementById("nl-date-filter"),status=root.getElementById("nl-status-filter"),count=root.getElementById("nl-filter-result-count");',
-    'function applyFilters(){const query=(search.value||"").trim().toLowerCase(),selectedGroup=group.value,selectedDate=date.value,selectedStatus=status.value;let visible=0;const activeView=views.find(view=>!view.hidden&&["fixtures","results"].includes(view.dataset.nlView));if(!activeView)return;activeView.querySelectorAll(".nl-match-card").forEach(card=>{const teams=(card.dataset.filterTeam||"").toLowerCase().split("|");const exactTeamMatch=teams.includes(query),show=(!query||exactTeamMatch||teams.some(team=>team.includes(query)))&&(!selectedGroup||card.dataset.filterGroup===selectedGroup)&&(!selectedDate||card.dataset.filterDate===selectedDate)&&(!selectedStatus||card.dataset.filterStatus===selectedStatus);card.hidden=!show;if(show)visible++});count.textContent=visible?"Showing "+visible+" matching matches.":"No matches match the selected filters."}',
-    'search.addEventListener("input",applyFilters);group.addEventListener("change",applyFilters);date.addEventListener("change",applyFilters);status.addEventListener("change",applyFilters);',
-    'root.getElementById("nl-clear-filters").addEventListener("click",()=>{search.value="";[group,date,status].forEach(item=>item.value="");applyFilters()});',
-    'const euroSearch=root.getElementById("euro-team-search"),euroLeague=root.getElementById("euro-league-filter"),euroRows=[...root.querySelectorAll(".euro-priority-row")];',
-    'function filterEuro(){const query=(euroSearch.value||"").trim().toLowerCase(),league=euroLeague.value;let visible=0;euroRows.forEach(row=>{const show=(!query||row.dataset.euroTeam.toLowerCase().includes(query))&&(!league||row.dataset.euroLeague===league);row.hidden=!show;if(show)visible++});root.getElementById("euro-team-count").textContent="Showing "+visible+" of "+euroRows.length+" teams.";root.getElementById("euro-no-teams").hidden=visible>0}',
-    'euroSearch.addEventListener("input",filterEuro);euroLeague.addEventListener("change",filterEuro);root.getElementById("euro-clear-filters").addEventListener("click",()=>{euroSearch.value="";euroLeague.value="";filterEuro()});',
-    'setTab(requestedTab(),false)})();</script></main></body></html>')
+    '<script>', phase17_nl_browser_script(), '</script></main></body></html>')
 }
 
 phase17_render_metadata <- function(metadata) {
@@ -1565,12 +1674,36 @@ phase17_render_metadata <- function(metadata) {
                                                       phase17_display_value(metadata[[field]]), '</dd>'), character(1)), collapse = "")
 }
 
+phase17_euro_render_predraw <- function(payload, route) {
+  metadata <- payload$metadata
+  warnings <- paste(as.character(metadata$warnings %||% character()), collapse = " ")
+  expected <- phase17_public_scalar(metadata$expected_draw_date)
+  if (!nzchar(expected)) {
+    match <- regmatches(warnings, regexec("(?:^|[ |])expected_draw_date=([0-9]{4}-[0-9]{2}-[0-9]{2})(?:[ |]|$)", warnings, perl = TRUE))[[1L]]
+    if (length(match) > 1L) expected <- match[[2L]]
+  }
+  milestone <- if (nzchar(expected)) paste0('<p><strong>Expected draw:</strong> ', phase17_html_escape(phase17_nl_date_label(expected)), ' (according to the accepted source snapshot).</p>') else '<p>The draw date is not available in the accepted source snapshot.</p>'
+  payload_json <- phase17_json_script_escape(rawToChar(phase17_payload_bytes(payload)))
+  paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>EURO 2028 Qualifying Forecast</title><style>',
+    'body{font:16px/1.55 Arial,Helvetica,sans-serif;color:#222;background:#f7f6f2;margin:0}main{max-width:900px;margin:auto;padding:24px;box-sizing:border-box}h1{font-size:30px;line-height:1.15}h2{font-size:22px}.waiting-panel{padding:24px;background:#fff;border:1px solid #d8d8d8;border-top:4px solid #3573a8;margin:24px 0}.state{font-weight:bold;color:#24577e}.meta{font-size:13px;color:#555}a{color:#24577e}a:focus-visible,summary:focus-visible{outline:3px solid #24577e;outline-offset:3px}details{margin:16px 0;padding:12px;background:white;border:1px solid #d8d8d8}summary{cursor:pointer;padding:8px}dl{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:8px}dd{margin:0;overflow-wrap:anywhere}.evidence{overflow-wrap:anywhere}@media(max-width:650px){main{padding:16px}.waiting-panel{padding:16px}h1{font-size:26px}dl{grid-template-columns:1fr}}',
+    '</style></head><body><main class="euro-predraw" data-route="', phase17_html_escape(route), '"><header><h1>EURO 2028 Qualifying Forecast</h1><p id="dashboard-status" class="state" role="status">Awaiting the official draw</p></header>',
+    '<section id="overview" class="waiting-panel"><h2>Forecasts will follow the draw</h2><p>Official qualifying groups and the full schedule are not yet available in the accepted data. Match and qualification forecasts will appear after a complete official draw-and-schedule bundle is accepted.</p>', milestone,
+    '<p>In the meantime, explore <a href="../nations-league/#euro-2028">Nations League priority for EURO 2028</a>. It describes priority before other qualification routes, not a probability of receiving a play-off place.</p></section>',
+    '<p class="meta">Last accepted source snapshot: ', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), '.</p>',
+    '<details id="source-lineage"><summary>Source, model, and refresh lineage</summary><dl>', phase17_render_metadata(metadata), '</dl><p class="evidence">', phase17_html_escape(warnings), '</p></details>',
+    '<details id="data-credits"><summary>Data credits</summary><p class="evidence">', phase17_html_escape(phase17_canonical_json(payload$credits)), '</p></details>',
+    '<script id="dashboard-data" type="application/json">', payload_json, '</script></main></body></html>')
+}
+
 render_phase17_dashboard <- function(payload, route = NULL) {
   phase17_validate_payload(payload)
   metadata <- payload$metadata
   route <- route %||% unname(phase17_routes()[[payload$edition_id]])
   if (identical(payload$edition_id, "uefa_nations_league_2026_27")) {
     return(phase17_nl_render_dashboard(payload, route))
+  }
+  if (identical(payload$edition_id, "uefa_euro_2028_qualifying") && identical(phase17_public_scalar(metadata$lifecycle_state), "pre_draw") && identical(phase17_public_scalar(metadata$forecast_status), "pre_draw")) {
+    return(phase17_euro_render_predraw(payload, route))
   }
   title <- if (identical(payload$edition_id, "uefa_nations_league_2026_27")) {
     "UEFA Nations League 2026/27 Forecast"

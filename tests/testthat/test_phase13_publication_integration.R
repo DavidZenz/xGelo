@@ -54,10 +54,20 @@ phase13_integration_test_read_table <- function(path) {
 }
 
 phase13_integration_test_candidate <- function(acquire, bundle_id = "nl-2026-27-official-sample-v1") {
+  # Keep the synthetic snapshot consistent with the copied incumbent lifecycle;
+  # production has advanced since this scheduled August sample was recorded.
+  fixture_path <- tempfile("phase13-integration-candidate-", fileext = ".json")
+  on.exit(unlink(fixture_path), add = TRUE)
+  fixture <- jsonlite::fromJSON(file.path(phase13_integration_test_project_root,
+    "tests/fixtures/phase13/uefa_nations_league_sample.json"), simplifyVector = FALSE)
+  editions <- phase13_integration_test_read_table(file.path(phase13_integration_test_project_root,
+    "data/competition/registries/competition_editions.csv"))
+  fixture$resources$status[[1L]]$competition_status <- editions$lifecycle_state[editions$edition_id == "uefa_nations_league_2026_27"][[1L]]
+  jsonlite::write_json(fixture, fixture_path, auto_unbox = TRUE, pretty = TRUE)
   acquire$phase13_acquire_candidate(
     list(
       `fixture-dir` = file.path(phase13_integration_test_project_root, "tests/fixtures/phase13"),
-      `fixture-file` = NULL,
+      `fixture-file` = fixture_path,
       `fallback-file` = NULL,
       `bundle-id` = bundle_id
     ),

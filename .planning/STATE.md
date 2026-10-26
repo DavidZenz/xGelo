@@ -160,3 +160,11 @@ Progress: [██████████] 100%
 Last session: 2026-09-21T09:00:19.752Z
 Stopped at: Phase 20 context gathered
 Resume file: .planning/phases/20-ucl-rules-state-and-tournament-outcomes/20-CONTEXT.md
+
+## Active Dashboard Maintenance — 2026-10-26
+
+- [x] Implement Nations League filter/status fixes, team navigation and tree clarity, plus the EURO pre-draw waiting page.
+- [x] Add release safeguards, meaningful regression gates and benchmark diagnostics; preserve World Cup bytes and accepted payloads.
+- [ ] Production release: full 100,000-simulation validation and formal desktop/mobile browser acceptance remain outstanding; incumbent publication retained.
+
+See `.planning/dashboard-improvements/PLAN.md`, `SUMMARY.md`, `SCALE.md` and `RUNBOOK.md`. This maintenance work does not advance or replace the current UCL phase.

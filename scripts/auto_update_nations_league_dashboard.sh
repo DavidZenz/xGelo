@@ -6,12 +6,14 @@ cd "$ROOT_DIR"
 
 DRY_RUN=false
 SKIP_PUSH=false
-SIMULATIONS="${XGELO_NL_SIMULATIONS:-1000}"
+FORCE_REBUILD=false
+SIMULATIONS="${XGELO_NL_SIMULATIONS:-100000}"
 WORKERS="${XGELO_NL_WORKERS:-4}"
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
     --skip-push) SKIP_PUSH=true ;;
+    --force-rebuild) FORCE_REBUILD=true ;;
     --simulations=*) SIMULATIONS="${arg#*=}" ;;
     *) echo "Unsupported option: $arg" >&2; exit 2 ;;
   esac
@@ -26,8 +28,32 @@ done
   exit 2
 }
 
-R_SCRIPT="${XGELO_RSCRIPT:-/opt/homebrew/bin/Rscript}"
+if [[ "$DRY_RUN" != true && "$SIMULATIONS" -lt 100000 ]]; then
+  echo "Public Nations League updates require at least 100000 simulations; lower counts are dry-run only." >&2
+  exit 2
+fi
+
+R_SCRIPT="${XGELO_RSCRIPT:-}"
+if [[ -z "$R_SCRIPT" ]]; then
+  for candidate in /opt/homebrew/opt/r/bin/Rscript /opt/homebrew/bin/Rscript /usr/local/bin/Rscript; do
+    if [[ -x "$candidate" ]]; then R_SCRIPT="$candidate"; break; fi
+  done
+fi
 [[ -x "$R_SCRIPT" ]] || { echo "Missing absolute Rscript: $R_SCRIPT" >&2; exit 1; }
+
+# Atomic mkdir prevents overlapping scheduled/manual rebuilds. Never remove a
+# lock owned by another process; stale locks require explicit operator review.
+LOCK_DIR="$ROOT_DIR/.nations-league-update.lock"
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+  echo "Nations League updater already running (or stale lock): $LOCK_DIR" >&2
+  exit 1
+fi
+cleanup() { rm -f "$LOCK_DIR/pid"; rmdir "$LOCK_DIR"; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+printf '%s\n' "$$" > "$LOCK_DIR/pid"
+export XGELO_RSCRIPT="$R_SCRIPT"
 
 EDITION_ID="uefa_nations_league_2026_27"
 BUNDLE_ID="nl-2026-27-official-uefa-v2"
@@ -53,7 +79,7 @@ candidate_content_signature="$(printf '%s\n' "$probe_output" | sed -n 's/.*accep
 }
 
 current_content_signature="$("$R_SCRIPT" --vanilla -e 'source("R/competition/source_contracts.R"); required <- phase13_source_required_resource_types(); tables <- setNames(lapply(required, function(type) utils::read.csv(file.path("data/competition/accepted/uefa_nations_league_2026_27", paste0(type, ".csv")), stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")), required); hashes <- vapply(required, function(type) { table <- tables[[type]]; rows <- if ("row_sha256" %in% names(table)) sort(as.character(table$row_sha256)) else character(); phase13_source_sha256(paste(rows, collapse = "\n")) }, character(1)); cat(phase13_source_sha256(paste(paste(required, hashes, sep = "="), collapse = "\n")))')"
-if [[ "$candidate_content_signature" == "$current_content_signature" ]]; then
+if [[ "$candidate_content_signature" == "$current_content_signature" && "$FORCE_REBUILD" != true ]]; then
   echo "No Nations League source change detected; no publication or commit is needed."
   exit 0
 fi
@@ -63,6 +89,11 @@ if [[ "$DRY_RUN" == true ]]; then
   echo "--dry-run requested; downstream rebuild and publication were skipped."
   exit 0
 fi
+
+# Never start a public-scale rebuild until this exact implementation has a
+# completed 100k (or larger) validated benchmark. No silent sample fallback.
+SCALE_EVIDENCE="${XGELO_NL_SCALE_EVIDENCE:-$ROOT_DIR/outputs/benchmarks/nations_league_scale/measurement-100000.csv}"
+"$R_SCRIPT" --vanilla -e 'e <- new.env(parent = globalenv()); sys.source("scripts/refresh_competition_dashboards.R", e); a <- commandArgs(trailingOnly = TRUE); e$phase17_validate_scale_evidence(a[[1L]], as.numeric(a[[2L]]), as.numeric(a[[3L]]))' -- "$SCALE_EVIDENCE" "$SIMULATIONS" "$WORKERS"
 
 managed_path() {
   case "$1" in
@@ -109,9 +140,9 @@ git fetch --quiet
 "$R_SCRIPT" --vanilla scripts/build_nations_league_outcomes.R \
   --edition-id "$EDITION_ID" --simulations "$SIMULATIONS" --workers "$WORKERS" --seed 15017 --write
 
-# The dashboard coordinator intentionally remains read-only about Git.  Invoke
-# its production provider directly so this wrapper can own the single commit.
-"$R_SCRIPT" --vanilla -e 'e <- new.env(parent = globalenv()); sys.source("scripts/refresh_competition_dashboards.R", e); bundles <- e$phase17_load_accepted_production_bundles(project_root = "."); batch <- e$phase17_batch_identity(bundles); stage <- tempfile("xgelo-dashboard-", tmpdir = "docs"); dir.create(stage, recursive = TRUE); on.exit(unlink(stage, recursive = TRUE, force = TRUE), add = TRUE); materialized <- e$phase17_materialize_routes(bundles, stage, batch); e$phase17_write_batch_envelope(materialized$batch_root, materialized$payloads, materialized$routes, batch, generated_at_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")); e$phase17_promote_batch(stage, "docs/competitions", read_back = TRUE); cat("published dashboard batch", batch, "\n")'
+# Run the SAME source, probability, replay, browser, regression, envelope and
+# atomic promotion gates as the release coordinator. This wrapper owns Git only.
+"$R_SCRIPT" --vanilla -e 'e <- new.env(parent = globalenv()); sys.source("scripts/refresh_competition_dashboards.R", e); e$phase17_refresh_main(external_git_owner = TRUE, now = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))'
 
 git add -- \
   R/competition/state_bundle.R \
@@ -130,6 +161,13 @@ git add -- \
   scripts/refresh_nations_league_state.R \
   scripts/auto_update_nations_league_dashboard.sh
 
+# Refuse unrelated pre-staged files rather than including them in this commit.
+while IFS= read -r staged_path; do
+  if ! managed_path "$staged_path"; then
+    echo "Refusing commit of path outside nightly allowlist: $staged_path" >&2
+    exit 1
+  fi
+done < <(git diff --cached --name-only)
 git diff --cached --check
 git commit -m "Refresh UEFA Nations League dashboard"
 if [[ "$SKIP_PUSH" == true ]]; then

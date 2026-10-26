@@ -8,7 +8,7 @@ phase17_dashboard_schema_version <- "phase17-dashboard-v1"
 phase17_max_public_file_bytes <- 5L * 1024L * 1024L
 phase17_max_batch_bytes <- 20L * 1024L * 1024L
 phase17_safari_driver_path <- "/System/Cryptexes/App/usr/bin/safaridriver"
-phase17_safari_version <- "26.5.2"
+phase17_safari_version <- "26.6.2"
 
 if (!exists("%||%", mode = "function", inherits = TRUE)) {
   `%||%` <- function(left, right) if (is.null(left) || !length(left)) right else left

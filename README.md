@@ -240,12 +240,26 @@ XGELO_RUN_BENCHMARK=true scripts/auto_update_worldcup_dashboard.sh  # refresh fr
 XGELO_MATCH_SIMS=1000 XGELO_TOURNAMENT_SIMS=1000 scripts/auto_update_worldcup_dashboard.sh
 ```
 
-The Nations League refresh uses the registered UEFA source, 1,000 outcome
-simulations by default, and four bounded parallel workers:
+The Nations League public refresh requires 100,000 outcome simulations, seed
+15017, and four bounded parallel workers by default. Enabling that scale requires
+a successful full-scale benchmark receipt for the current simulator; the
+1,000-run benchmark currently takes about 14 minutes, so 100,000 is not yet
+validated or enabled for publication. The updater keeps the incumbent public
+batch when a required receipt or release check is missing.
 
 ```bash
-XGELO_NL_SIMULATIONS=1000 XGELO_NL_WORKERS=4 scripts/auto_update_nations_league_dashboard.sh
+# Read-only source probe; low counts are permitted only for dry runs.
+XGELO_NL_SIMULATIONS=1000 scripts/auto_update_nations_league_dashboard.sh --dry-run
+
+# After full-scale acceptance, rebuild even when source content is unchanged.
+scripts/auto_update_nations_league_dashboard.sh --force-rebuild
 ```
+
+The updater holds an exclusive process lock and stages both active routes. Real
+browser checks at verified desktop/mobile dimensions, non-empty regression
+suites, inventory/hash/size validation, and atomic promotion/read-back must pass
+before publication. See `.planning/dashboard-improvements/RUNBOOK.md` for the
+benchmark and recovery procedure.
 
 Production simulations use the accepted source cutoff in UTC, preserving the
 time and fractional seconds. Completed results at or before that cutoff count
@@ -258,6 +272,14 @@ and accepted fixtures. Promotion and relegation include play-off results;
 play-off participation overlaps those outcomes, so these columns do not sum to
 100%. Zero is displayed as `0.0%`, positive values below 0.1% as `<0.1%`, and
 unavailable probabilities as `—`.
+
+The shared **Follow team** selector highlights a team across views and filters
+Fixtures/Results to its matches. Groups also has an independent group selector.
+Fixtures contains upcoming matches; Results contains accepted completed games.
+Sampled 0%/100% values do not establish qualification or elimination. Unconfirmed
+draw candidates are expandable, and later tree slots are independent participant
+projections rather than one confirmed bracket. EURO qualifying presents a single
+waiting page until an accepted official draw and schedule are available.
 
 The **EURO 2028** tab (`#euro-2028`) shows the Nations League priority queue
 before teams qualify through other routes. Each simulation prioritizes A/B/C
