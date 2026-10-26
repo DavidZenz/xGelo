@@ -96,10 +96,40 @@ test_that("CL prepared sampling preserves reference rows and worker equality", {
   for (i in 1:3) {
     sampled <- sampler(i, 7L)
     expect_identical(sampled, .ucl_sim_iteration_graph(graph, ledger$ledger, seed = 7L, cutoff_utc = cutoff, iteration = i))
-    expect_identical(ranker(sampled), ucl_build_state(sampled, state_cutoff_utc = cutoff)$standings)
+    ranked <- ranker(sampled)
+    expect_identical(sum(ranked$played), 288L)
+    expect_equal(sum(ranked$goals_for), sum(sampled$fixtures$final_home_goals + sampled$fixtures$final_away_goals))
+    expect_equal(sum(ranked$points), 3 * sum(sampled$fixtures$final_home_goals != sampled$fixtures$final_away_goals) +
+      2 * sum(sampled$fixtures$final_home_goals == sampled$fixtures$final_away_goals))
   }
   state <- ucl_build_state(graph, state_cutoff_utc = cutoff)
   args <- list(state = state, ledger = ledger, simulations = 4L, seed = 7L, information_cutoff_utc = cutoff)
   expect_identical(do.call(ucl_run_simulation, c(args, list(workers = 1L))),
     do.call(ucl_run_simulation, c(args, list(workers = 4L, batch_size = 1L))))
+})
+
+
+test_that("CL projections count samples without admitting future actual evidence", {
+  source(file.path(optimization_root, "tests/testthat/helper_uefa_champions_league.R"), local = TRUE)
+  for (name in c("rules", "state", "simulation")) source(file.path(optimization_root,
+    paste0("R/competition/uefa_champions_league_", name, ".R")), local = TRUE)
+  for (expression in parse(file.path(optimization_root, "tests/testthat/test_phase20_simulation_review.R"))) {
+    if (is.call(expression) && identical(expression[[1L]], as.name("<-")) &&
+        identical(expression[[2L]], as.name("phase20_sim_review_ledger"))) eval(expression)
+  }
+  graph <- phase20_fixture_graph_36x144(); original <- graph
+  cutoff <- "2026-09-01T00:00:00Z"
+  ledger <- phase20_sim_review_ledger(graph)
+  sampler <- .ucl_sim_prepare_sampler(graph, ledger$ledger, cutoff)
+  ranker <- .ucl_sim_prepare_ranker(graph, .ucl_rule_contract(), cutoff)
+  a <- sampler(1L, 7L); b <- a
+  b$fixtures$final_home_goals[] <- 20L; b$fixtures$final_away_goals[] <- 0L
+  expect_false(identical(ranker(a)$goals_for, ranker(b)$goals_for))
+  expect_identical(graph, original)
+  expect_true(all(attr(a, "ucl_sampling")$sampled_fixture_ids %in% graph$fixtures$fixture_id))
+  graph$fixtures$match_status[1L] <- "completed"
+  graph$fixtures$final_home_goals[1L] <- 99L; graph$fixtures$final_away_goals[1L] <- 0L
+  future <- .ucl_sim_prepare_ranker(graph, .ucl_rule_contract(), cutoff)(graph)
+  expect_identical(sum(future$played), 0L)
+  expect_identical(sum(future$goals_for), 0L)
 })

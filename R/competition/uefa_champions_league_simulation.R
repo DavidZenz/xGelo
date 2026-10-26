@@ -717,22 +717,51 @@
 }
 
 .ucl_sim_prepare_ranker <- function(graph, rules, cutoff) {
-  # Schedule/source/ledger authority was validated by ucl_run_simulation. Only
-  # seeded scores change in this closure; recomputing a 144-row source graph
-  # hash per iteration is unused work. Preserve the public arithmetic/rules.
-  phase14_available <- isTRUE(.ucl_state_source_phase14())
+  # The accepted graph is immutable. Actual evidence must pass the historical
+  # cutoff; sampled results are a separate projection, never postdated facts.
+  .ucl_state_source_phase14()
+  original <- .ucl_state_to_phase14_matches(graph$fixtures, cutoff)
+  evidence <- vapply(original$evidence_completed_at_utc, .ucl_sim_parse_utc,
+    as.POSIXct(NA, origin = "1970-01-01", tz = "UTC"))
+  actual <- original$counts_for_standings %in% TRUE &
+    .ucl_state_status_completed(original$match_status) &
+    is.finite(original$final_home_goals) & is.finite(original$final_away_goals) &
+    !is.na(evidence) & evidence <= .ucl_sim_parse_utc(cutoff)
+  ids <- as.character(graph$clubs$club_id)
+  home_index <- match(graph$fixtures$home_club_id, ids)
+  away_index <- match(graph$fixtures$away_club_id, ids)
+  eligible <- .ucl_prepare_iteration_matches(graph$fixtures, cutoff)$eligible_open_fixture_ids
   function(graph_i) {
-    if (!phase14_available && !isTRUE(graph$fixture_authority)) return(NULL)
-    matches <- .ucl_state_to_phase14_matches(graph_i$fixtures, cutoff)
-    universal <- tryCatch({
-      if (phase14_available) phase14_compute_standings(matches = matches,
-        edition_id = graph$edition_id, group_id = "league_phase", state_cutoff_utc = cutoff,
-        source_bundle_id = graph$source_bundle_id, ruleset_adapter = NULL,
-        team_ids = graph$clubs$club_id)
-      else .ucl_state_fallback_standings(matches, as.character(graph$clubs$club_id))
-    }, error = function(error) NULL)
-    if (is.null(universal)) return(NULL)
-    ranking <- ucl_apply_article18(universal, matches = graph_i$fixtures, rules = rules)
+    sampled <- attr(graph_i, "ucl_sampling")
+    projected_ids <- as.character(sampled$sampled_fixture_ids %||% character())
+    # A caller cannot turn an accepted completed/postponed row into a projection.
+    if (length(setdiff(projected_ids, eligible))) stop("Ineligible CL projected result", call. = FALSE)
+    projected <- as.character(graph$fixtures$fixture_id) %in% projected_ids
+    counted <- actual | projected
+    matches <- graph_i$fixtures[counted, , drop = FALSE]
+    matches$projection_origin <- ifelse(projected[counted], "sampled_projection", "accepted_result")
+    hg <- as.integer(matches$final_home_goals); ag <- as.integer(matches$final_away_goals)
+    if (anyNA(c(hg, ag))) stop("CL counted projection has incomplete scores", call. = FALSE)
+    h <- home_index[counted]; a <- away_index[counted]
+    total <- function(index, values) {
+      out <- numeric(length(ids))
+      if (length(index)) {
+        sums <- rowsum(values, index, reorder = FALSE)
+        out[as.integer(row.names(sums))] <- sums[, 1L]
+      }
+      out
+    }
+    wins <- total(h, as.integer(hg > ag)) + total(a, as.integer(ag > hg))
+    draws <- total(h, as.integer(hg == ag)) + total(a, as.integer(hg == ag))
+    losses <- total(h, as.integer(hg < ag)) + total(a, as.integer(ag < hg))
+    gf <- total(h, hg) + total(a, ag); ga <- total(h, ag) + total(a, hg)
+    universal <- data.frame(team_id = ids, played = as.integer(wins + draws + losses),
+      wins = as.integer(wins), draws = as.integer(draws), losses = as.integer(losses),
+      goals_for = as.integer(gf), goals_against = as.integer(ga),
+      goal_difference = as.integer(gf - ga), points = as.integer(3 * wins + draws),
+      source_bundle_id = graph$source_bundle_id, stringsAsFactors = FALSE)
+    # The same counted rows supply away-goal/win and trace evidence criteria.
+    ranking <- ucl_apply_article18(universal, matches = matches, rules = rules)
     ranking$source_bundle_id <- graph$source_bundle_id
     ranking$ruleset_sha256 <- rules$ruleset_sha256
     ranking
@@ -804,10 +833,10 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
       ledger_check$model_release_id, ledger_check$model_sha256, ledger_check$calibrator_sha256,
       if (is.null(rules)) NA_character_ else rules$ruleset_sha256,
       draw_identity, if (identical(draw$status, "accepted")) draw$rank_input_sha256 else NA_character_,
-      as.integer(seed), simulations, cutoff$value, "ucl-conditional-league-v3"
+      as.integer(seed), simulations, cutoff$value, "ucl-conditional-league-v4"
     ),
     names = c("state_sha256", "ledger_sha256", "source_bundle_id", "model_release_id", "model_sha256", "calibrator_sha256", "ruleset_sha256", "draw_identity", "rank_input_sha256", "seed", "simulation_count", "information_cutoff_utc", "algorithm_version"),
-    domain = "ucl20-simulation-run-v3"
+    domain = "ucl20-simulation-run-v4"
   )
   sampler <- .ucl_sim_prepare_sampler(validation$graph, ledger_table, cutoff$value)
   ranker <- .ucl_sim_prepare_ranker(validation$graph, rules, cutoff$value)
@@ -872,7 +901,7 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     draw_policy_id = if (is.null(rules)) "ucl-2026-27-article19-annexb-v1" else rules$draw_policy_id,
     draw_artifact_id = if (identical(draw$status, "accepted")) draw$draw_artifact_id else NA_character_,
     draw_artifact_sha256 = if (identical(draw$status, "accepted")) draw$draw_artifact_sha256 else NA_character_,
-    information_cutoff_utc = cutoff$value, algorithm_version = "ucl-conditional-league-v3",
+    information_cutoff_utc = cutoff$value, algorithm_version = "ucl-conditional-league-v4",
     simulation_count = simulations, seed = as.integer(seed), path_policy_id = attr(path_state, "path_policy")$policy_id %||% "ucl-2026-27-article19-annexb-v1",
     path_policy_count = if (is.data.frame(path_state)) nrow(path_state) else 0L,
     path_policy_mode = attr(path_state, "path_policy")$mode %||% "unresolved",

@@ -39,3 +39,15 @@ rules with simpler World Cup rules to obtain a speedup.
 - [x] Save audit, tests and implementation after checks pass.
 
 No 100k certification or deployment is part of this completion claim.
+
+
+## Second pass — WC-style streaming (approved 2026-10-26)
+
+1. Correct CL simulated-result cutoff handling through a separate projection overlay; version the algorithm and test counted fixtures and immutable actual inputs.
+2. Add persistent bounded chunk execution (256 iterations), full disk traces, atomic checked commits, input/code/environment-bound resume and progress phases. Preserve the memory interface.
+3. Add NL and CL sufficient-statistic reducers, exact NA/ordering/percentile/modal-pair behavior, ordered trace readers and explicit legacy materialization. Stream canonical trace hashes.
+4. Wire streamed outcomes into real builders/validators and benchmarks without changing public schemas or WC/public bytes. Optimize indexed arithmetic and invariant hashing while preserving rule traces.
+5. Differential/recovery/adversarial tests plus national/CL regressions. Benchmark 1k then 10k; allow 100k only if conservative total time <=7200 seconds, combined RSS <50% physical RAM and sufficient disk. Enforce these bounds and preserve checkpoints on failure.
+6. Save actual evidence and limitations, update maintenance state and commit verified work. CL remains fixture-only without real production authority. No public promotion.
+
+Status: implementation started; no replacement long benchmark active.
