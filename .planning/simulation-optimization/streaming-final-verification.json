@@ -1,0 +1,24 @@
+{
+  "status": "passed",
+  "scales": [
+    1000,
+    10000,
+    100000
+  ],
+  "source_snapshot_sha256": "ea44d253cea8daf6dc80eb794d8b1738e70e831a721ba61c87570a1afdeb140f",
+  "implementation_sha256": "b5f48920dc8a3b91ed03bb42fd3e4c097a06b5a998cd688a093b973e538ece76",
+  "cl_algorithm_version": "ucl-conditional-league-v5",
+  "cl_100000_wall_seconds": 2907.547499207998,
+  "cl_100000_peak_process_tree_rss_bytes": 644120576,
+  "cl_100000_trace_bytes": 1191480594,
+  "cl_100000_chunks": 391,
+  "all_iterations_committed": true,
+  "candidate_validated": true,
+  "authority": "synthetic_fixture_only",
+  "production_certified": false,
+  "wc_publication_sha256": "bc540c9d1014095e5d10b2ddc06b73d105c13cd8db7efee6c46bf2d6e86f56b7",
+  "protected_tracked_paths_changed": [],
+  "nl_100000_status": "withheld_time_gate",
+  "nl_conservative_projected_seconds": 23499.8,
+  "owned_benchmark_processes_remaining": []
+}

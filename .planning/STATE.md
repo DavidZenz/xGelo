@@ -179,8 +179,9 @@ See `.planning/dashboard-improvements/PLAN.md`, `SUMMARY.md`, `SCALE.md` and `RU
   authority/simulation suites and 37 focused optimization assertions.
 - [x] Complete accepted NL 1k candidate validation and resource repeat: roughly
   2.5x faster; synthetic CL 50-run mechanics comparison roughly 5.7x faster.
-- [ ] Full 10k/100k certification, streaming trace/memory work and the documented
-  pre-existing CL simulated-result cutoff concern remain separate release work.
+- [x] Follow up with bounded streaming traces, CL cutoff/completeness corrections,
+  regression checks and staged scale evidence; results are recorded below.
+- [ ] NL full-scale performance remains blocked by the two-hour gate.
 
 See `.planning/simulation-optimization/AUDIT.md` and its CSV/JSON evidence.
 No replacement 100k run or public promotion is active.
@@ -191,7 +192,9 @@ No replacement 100k run or public promotion is active.
 - [x] Correct CL projected-result cutoff semantics separately (`9a19a04`, algorithm v4), retaining all authority guards.
 - [x] Implement bounded persistent chunks, complete disk audit traces, exact sufficient-statistic summaries, strict bound resume, actual/committed progress and legacy compatibility readers.
 - [x] Preserve accepted NL tables, hashes and candidate CSV bytes; pass the national gate (EURO replay + 16 suites), focused streaming/guard tests and watchdog tests.
-- [ ] Finish CL staged resource checks. NL 1k/10k validated (239 s / 1,954 s total); NL 100k withheld because the conservative projection is 6.53 hours. CL v4 1k/10k passed (49 s / 326 s total), then the 100k check was stopped after reproducing a missing-forecast uncertainty gap. The v5 completeness guard fixes it; current focused/CL regression checks precede a fresh staged CL run under `/private/tmp/xgelo-wc-style-certification-v5`. Old v4 chunks are not a v5 certificate. NL component hashes and its time-gate failure are unchanged.
+- [x] Finish CL v5 staged fixture checks: 1k/10k/100k validated in 50 s / 328 s / 2,908 s total. The 100k run committed all 100,000 iterations across 391 verified chunks; peak combined RSS was 644,120,576 bytes (0.600 GiB), below the 32 GiB limit. Full traces occupy 1,191,480,594 bytes. All 530 CL regression assertions and 44 focused streaming assertions pass. Fixture evidence remains production-ineligible; old v4 chunks are not a v5 certificate.
+- [ ] Meet NL's two-hour full-scale performance target. Accepted NL 1k/10k candidates validated (239 s / 1,954 s total), but 100k was withheld because the conservative projection is 6.53 hours. NL component hashes and exact reference/candidate-byte parity are unchanged by the CL-only v5 correction; the prior global receipt is retained as diagnostic evidence.
+- [x] Save final hash-bound evidence; no benchmark workers remain. WC/public and accepted competition artifacts remain unchanged.
 - [ ] Public promotion remains separate; CL source/model authority remains human_needed.
 
 See `.planning/simulation-optimization/STREAMING.md`. This maintenance does not advance the UCL milestone phases.

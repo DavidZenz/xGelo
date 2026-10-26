@@ -50,4 +50,11 @@ No 100k certification or deployment is part of this completion claim.
 5. Differential/recovery/adversarial tests plus national/CL regressions. Benchmark 1k then 10k; allow 100k only if conservative total time <=7200 seconds, combined RSS <50% physical RAM and sufficient disk. Enforce these bounds and preserve checkpoints on failure.
 6. Save actual evidence and limitations, update maintenance state and commit verified work. CL remains fixture-only without real production authority. No public promotion.
 
-Status: implementation started; no replacement long benchmark active.
+Status: implementation and regression work completed in `9a19a04`, `3ebd15f`
+and `26d2c50`. CL v5 completed the staged 1k/10k/100k fixture checks; 100k
+validated in 2,907.547 seconds (48.46 minutes) with peak combined RSS
+644,120,576 bytes. Accepted NL 1k/10k candidates validated with exact reference
+parity; its 100k run was withheld because the conservative projection is
+23,499.8 seconds (6.53 hours), beyond the two-hour gate. The NL full-scale
+performance goal remains unmet. No benchmark is active and no public promotion
+occurred. See `STREAMING.md` and its hash-bound resource receipts.
