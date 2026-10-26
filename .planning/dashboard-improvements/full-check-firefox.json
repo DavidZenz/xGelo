@@ -1,0 +1,222 @@
+[
+  {
+    "route": "euro-qualifying",
+    "viewport": [
+      1440,
+      900
+    ],
+    "valid": true,
+    "browser": {
+      "browserName": "firefox",
+      "browserVersion": "158.0.1",
+      "moz:geckodriverVersion": "0.37.1",
+      "moz:headless": true
+    },
+    "checks": {
+      "duplicateIds": [],
+      "errors": [],
+      "height": 900,
+      "overflow": false,
+      "ready": "complete",
+      "title": "EURO 2028 Qualifying Forecast",
+      "unlabeled": [],
+      "width": 1440
+    },
+    "screenshot": "/Users/davidzenz/.codex/visualizations/2026/10/26/01a1773c-2849-7c81-b46e-bfe586c7d35d/dashboard-full-check/euro-qualifying-1440x900.png",
+    "screenshot_sha256": "9a2fbe6388e4893c80d87885ea06eab61194beda8b1a13c6201fc57404368a75"
+  },
+  {
+    "route": "euro-qualifying",
+    "viewport": [
+      390,
+      844
+    ],
+    "valid": true,
+    "browser": {
+      "browserName": "firefox",
+      "browserVersion": "158.0.1",
+      "moz:geckodriverVersion": "0.37.1",
+      "moz:headless": true
+    },
+    "checks": {
+      "duplicateIds": [],
+      "errors": [],
+      "height": 844,
+      "overflow": false,
+      "ready": "complete",
+      "title": "EURO 2028 Qualifying Forecast",
+      "unlabeled": [],
+      "width": 390
+    },
+    "screenshot": "/Users/davidzenz/.codex/visualizations/2026/10/26/01a1773c-2849-7c81-b46e-bfe586c7d35d/dashboard-full-check/euro-qualifying-390x844.png",
+    "screenshot_sha256": "5394cc00ecb394f0ce89366b70bf11296a749642646981b178327e4cc55ed45d"
+  },
+  {
+    "route": "nations-league",
+    "viewport": [
+      1440,
+      900
+    ],
+    "valid": true,
+    "browser": {
+      "browserName": "firefox",
+      "browserVersion": "158.0.1",
+      "moz:geckodriverVersion": "0.37.1",
+      "moz:headless": true
+    },
+    "checks": {
+      "duplicateIds": [],
+      "errors": [],
+      "height": 900,
+      "overflow": false,
+      "ready": "complete",
+      "title": "UEFA Nations League 2026/27 Forecast",
+      "unlabeled": [],
+      "width": 1440,
+      "tab_checks": [
+        {
+          "tab": "groups",
+          "hash": "#groups",
+          "overflow": false,
+          "visible": [
+            "groups"
+          ]
+        },
+        {
+          "tab": "fixtures",
+          "hash": "#fixtures",
+          "overflow": false,
+          "visible": [
+            "fixtures"
+          ]
+        },
+        {
+          "tab": "results",
+          "hash": "#results",
+          "overflow": false,
+          "visible": [
+            "results"
+          ]
+        },
+        {
+          "tab": "outlook",
+          "hash": "#outlook",
+          "overflow": false,
+          "visible": [
+            "outlook"
+          ]
+        },
+        {
+          "tab": "euro-2028",
+          "hash": "#euro-2028",
+          "overflow": false,
+          "visible": [
+            "euro-2028"
+          ]
+        },
+        {
+          "tab": "tree",
+          "hash": "#tree",
+          "overflow": false,
+          "visible": [
+            "tree"
+          ]
+        },
+        {
+          "tab": "format",
+          "hash": "#format",
+          "overflow": false,
+          "visible": [
+            "format"
+          ]
+        }
+      ]
+    },
+    "screenshot": "/Users/davidzenz/.codex/visualizations/2026/10/26/01a1773c-2849-7c81-b46e-bfe586c7d35d/dashboard-full-check/nations-league-1440x900.png",
+    "screenshot_sha256": "7640d07d225d7bb61b932c616a2e99527843789b2622feaa2e6085b24486b522"
+  },
+  {
+    "route": "nations-league",
+    "viewport": [
+      390,
+      844
+    ],
+    "valid": true,
+    "browser": {
+      "browserName": "firefox",
+      "browserVersion": "158.0.1",
+      "moz:geckodriverVersion": "0.37.1",
+      "moz:headless": true
+    },
+    "checks": {
+      "duplicateIds": [],
+      "errors": [],
+      "height": 844,
+      "overflow": false,
+      "ready": "complete",
+      "title": "UEFA Nations League 2026/27 Forecast",
+      "unlabeled": [],
+      "width": 390,
+      "tab_checks": [
+        {
+          "tab": "groups",
+          "hash": "#groups",
+          "overflow": false,
+          "visible": [
+            "groups"
+          ]
+        },
+        {
+          "tab": "fixtures",
+          "hash": "#fixtures",
+          "overflow": false,
+          "visible": [
+            "fixtures"
+          ]
+        },
+        {
+          "tab": "results",
+          "hash": "#results",
+          "overflow": false,
+          "visible": [
+            "results"
+          ]
+        },
+        {
+          "tab": "outlook",
+          "hash": "#outlook",
+          "overflow": false,
+          "visible": [
+            "outlook"
+          ]
+        },
+        {
+          "tab": "euro-2028",
+          "hash": "#euro-2028",
+          "overflow": false,
+          "visible": [
+            "euro-2028"
+          ]
+        },
+        {
+          "tab": "tree",
+          "hash": "#tree",
+          "overflow": false,
+          "visible": [
+            "tree"
+          ]
+        },
+        {
+          "tab": "format",
+          "hash": "#format",
+          "overflow": false,
+          "visible": [
+            "format"
+          ]
+        }
+      ]
+    },
+    "screenshot": "/Users/davidzenz/.codex/visualizations/2026/10/26/01a1773c-2849-7c81-b46e-bfe586c7d35d/dashboard-full-check/nations-league-390x844.png",
+    "screenshot_sha256": "e43ba57d630fce7966a73d69589a18ac2765dc4e94124e5b74d468b56be71e7e"
+  }
+]

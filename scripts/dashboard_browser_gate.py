@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed staged dashboard smoke via the system Safari WebDriver.
+"""Fail-closed staged dashboard smoke via Safari or explicit Firefox WebDriver.
 
 No third-party runtime, driver installation, or automation preference changes.
 The server instruments a served copy (never the staged bytes) before page scripts
@@ -12,6 +12,7 @@ import http.server
 import json
 import pathlib
 import signal
+import shutil
 import socket
 import subprocess
 import sys
@@ -86,6 +87,33 @@ def require(value, message):
         raise RuntimeError(message)
 
 
+def firefox_viewport(capabilities, width, height):
+    # Firefox's outer-window API enforces a desktop minimum width. BiDi changes
+    # the real content viewport instead, including CSS media-query evaluation.
+    # Node's built-in WebSocket avoids an extra Python package for this opt-in.
+    node = shutil.which('node')
+    require(node, 'Firefox viewport checks require Node with built-in WebSocket')
+    url = capabilities.get('webSocketUrl')
+    require(url, 'Firefox did not expose its WebDriver BiDi connection')
+    code = '''
+const [url,width,height]=process.argv.slice(1);
+const ws=new WebSocket(url);
+const timer=setTimeout(()=>{console.error('BiDi viewport timeout');process.exit(1)},10000);
+ws.onerror=()=>{console.error('BiDi connection failed');process.exit(1)};
+ws.onopen=()=>ws.send(JSON.stringify({id:1,method:'browsingContext.getTree',params:{maxDepth:0}}));
+ws.onmessage=event=>{
+  const message=JSON.parse(event.data);
+  if(message.type==='error'){console.error(JSON.stringify(message));process.exit(1)}
+  if(message.id===1){
+    const contexts=message.result.contexts;
+    if(contexts.length!==1){console.error('Expected exactly one test tab');process.exit(1)}
+    ws.send(JSON.stringify({id:2,method:'browsingContext.setViewport',params:{context:contexts[0].context,viewport:{width:Number(width),height:Number(height)}}}));
+  }else if(message.id===2){clearTimeout(timer);ws.close()}
+};'''
+    subprocess.run([node, '-e', code, url, str(width), str(height)], check=True,
+                   capture_output=True, text=True, timeout=15)
+
+
 def check_page(driver, route):
     state = driver.js('''return {ready:document.readyState,title:document.querySelector('h1')?.textContent,
       errors:window.__dashboardErrors, width:innerWidth,height:innerHeight,
@@ -99,6 +127,17 @@ def check_page(driver, route):
     require(not state['unlabeled'], 'Unlabelled form controls: ' + str(state['unlabeled']))
     if route != 'nations-league':
         return state
+    state['tab_checks'] = []
+    tabs = driver.js("return [...document.querySelectorAll('[data-nl-tab]')].map(e=>e.dataset.nlTab)")
+    for tab in tabs:
+        driver.click('[data-nl-tab=' + json.dumps(tab) + ']')
+        tab_state = driver.js('''return {hash:location.hash,
+          visible:[...document.querySelectorAll('[role="tabpanel"]')].filter(e=>!e.hidden).map(e=>e.id),
+          overflow:document.documentElement.scrollWidth>innerWidth+1}''')
+        require(tab_state['hash'] == '#' + tab and tab_state['visible'] == [tab],
+                'Tab visibility/hash failed: ' + tab)
+        require(not tab_state['overflow'], 'Page-wide horizontal overflow in tab: ' + tab)
+        state['tab_checks'].append({'tab': tab, **tab_state})
     # Real pointer and keyboard events exercise tab handlers, direct hashes,
     # filtering/reset, and selection persistence rather than a static DOM read.
     driver.click('[data-nl-tab="fixtures"]')
@@ -121,6 +160,10 @@ def check_page(driver, route):
     driver.js("location.hash='results'")
     require(driver.js("return !document.getElementById('results').hidden"), 'Direct results hash failed')
     require(driver.js('return window.__dashboardErrors') == [], 'Interaction raised a JavaScript error')
+    driver.click('#nl-clear-team')
+    require(driver.js("return document.querySelector('#nl-selected-team').value") == '', 'Clear team failed')
+    driver.click('[data-nl-tab="groups"]')
+    driver.js('scrollTo(0,0)')
     return state
 
 
@@ -145,15 +188,25 @@ def run(args):
                 if time.monotonic() >= deadline:
                     raise RuntimeError('SafariDriver did not become available within 10 seconds')
                 time.sleep(0.1)
-        result = driver.call('POST', '/session', {'capabilities': {'alwaysMatch': {'browserName': 'safari'}}}, session=False)
+        capabilities = {'browserName': args.browser}
+        if args.browser == 'firefox':
+            capabilities['moz:firefoxOptions'] = {'args': ['-headless']}
+            capabilities['webSocketUrl'] = True
+        result = driver.call('POST', '/session', {'capabilities': {'alwaysMatch': capabilities}}, session=False)
         driver.session = result['sessionId']
+        actual_browser = result.get('capabilities', {})
+        require(actual_browser.get('browserName', '').lower() == args.browser,
+                'WebDriver returned a different browser than requested')
         driver.call('POST', '/timeouts', {'script': 10000, 'pageLoad': 20000, 'implicit': 0})
         driver.call('POST', '/url', {'url': 'http://127.0.0.1:' + str(server.server_port) + '/' + relative.as_posix()})
-        # WebDriver sizes the outer window; compensate, then VERIFY the viewport.
-        for _ in range(3):
-            viewport = driver.js('return [innerWidth,innerHeight]')
-            rect = driver.call('GET', '/window/rect')
-            driver.call('POST', '/window/rect', {'width': max(1, rect['width'] + args.width - viewport[0]), 'height': max(1, rect['height'] + args.height - viewport[1])})
+        if args.browser == 'firefox':
+            firefox_viewport(actual_browser, args.width, args.height)
+        else:
+            # WebDriver sizes the outer window; compensate, then VERIFY viewport.
+            for _ in range(3):
+                viewport = driver.js('return [innerWidth,innerHeight]')
+                rect = driver.call('GET', '/window/rect')
+                driver.call('POST', '/window/rect', {'width': max(1, rect['width'] + args.width - viewport[0]), 'height': max(1, rect['height'] + args.height - viewport[1])})
         actual = driver.js('return [innerWidth,innerHeight]')
         require(actual == [args.width, args.height], 'Requested viewport unavailable: requested %sx%s; actual %s' % (args.width, args.height, actual))
         evidence = pathlib.Path(args.evidence_dir)
@@ -164,7 +217,8 @@ def run(args):
         finally:
             png = driver.call('GET', '/screenshot')
             (evidence / (name + '.png')).write_bytes(base64.b64decode(png))
-        report = {'valid': True, 'route': route, 'viewport': actual, 'checks': state, 'screenshot': str(evidence / (name + '.png'))}
+        report = {'valid': True, 'route': route, 'browser': actual_browser,
+                  'viewport': actual, 'checks': state, 'screenshot': str(evidence / (name + '.png'))}
         (evidence / (name + '.json')).write_text(json.dumps(report, indent=2))
         return report
     finally:
@@ -189,6 +243,7 @@ def main():
     parser.add_argument('--path', required=True)
     parser.add_argument('--width', type=int, required=True)
     parser.add_argument('--height', type=int, required=True)
+    parser.add_argument('--browser', choices=('safari', 'firefox'), default='safari')
     parser.add_argument('--driver', default='/System/Cryptexes/App/usr/bin/safaridriver')
     parser.add_argument('--evidence-dir', default=tempfile.mkdtemp(prefix='xgelo-browser-'))
     args = parser.parse_args()
