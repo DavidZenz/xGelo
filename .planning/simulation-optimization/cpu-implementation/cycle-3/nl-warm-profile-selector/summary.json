@@ -1,0 +1,19 @@
+{
+  "kind": "private_diagnostic_only",
+  "warmup_iterations": 128,
+  "measured_iterations": 128,
+  "includes": ["kernel", "capture", "counter_update", "logical_trace_serialization"],
+  "excludes": ["preparation", "chunk_schema_and_checksums", "parent_aggregation", "candidate_validation"],
+  "elapsed_seconds": 21.207,
+  "user_seconds": 20.522,
+  "plans_before_profile": 750,
+  "plans_after_profile": 894,
+  "counters": {
+    "uefa_nl_sim_grid": 0,
+    "uefa_nl_rank_group": 29,
+    "uefa_nl_rank_preflight": 29,
+    "uefa_nl_rank_prepare_matches": 29
+  },
+  "R": "R version 4.6.1 (2026-06-24)",
+  "note": "Any remaining plan growth must be separated from steady-state attribution. No per-iteration system.time/forced gc was used."
+}

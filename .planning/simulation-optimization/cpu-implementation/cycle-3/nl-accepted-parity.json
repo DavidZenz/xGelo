@@ -1,0 +1,69 @@
+{
+  "reference": "6c13de0 frozen R snapshot",
+  "accepted_inputs_revalidated": true,
+  "runs": [
+    {
+      "seed": 7,
+      "workers": 1,
+      "count": 7,
+      "chunk_size": 2,
+      "complete_objects_identical": true,
+      "candidate_csv_bytes_identical": true,
+      "caller_rng_identical": true
+    },
+    {
+      "seed": 7,
+      "workers": 3,
+      "count": 7,
+      "chunk_size": 3,
+      "complete_objects_identical": true,
+      "candidate_csv_bytes_identical": true,
+      "caller_rng_identical": true
+    },
+    {
+      "seed": 31,
+      "workers": 1,
+      "count": 7,
+      "chunk_size": 2,
+      "complete_objects_identical": true,
+      "candidate_csv_bytes_identical": true,
+      "caller_rng_identical": true
+    },
+    {
+      "seed": 31,
+      "workers": 3,
+      "count": 7,
+      "chunk_size": 3,
+      "complete_objects_identical": true,
+      "candidate_csv_bytes_identical": true,
+      "caller_rng_identical": true
+    },
+    {
+      "seed": 15017,
+      "workers": 1,
+      "count": 7,
+      "chunk_size": 2,
+      "complete_objects_identical": true,
+      "candidate_csv_bytes_identical": true,
+      "caller_rng_identical": true
+    },
+    {
+      "seed": 15017,
+      "workers": 3,
+      "count": 7,
+      "chunk_size": 3,
+      "complete_objects_identical": true,
+      "candidate_csv_bytes_identical": true,
+      "caller_rng_identical": true
+    }
+  ],
+  "interrupted_resume": {
+    "count": 7,
+    "initial_workers": 1,
+    "resumed_workers": 3,
+    "complete_objects_identical": true,
+    "candidate_csv_bytes_identical": true
+  },
+  "source_snapshot_sha256": "9bac1d4f6f8c84b4f8d18ba7c11b51c311c63a8da858eec5745cb9680f11e404",
+  "implementation_sha256": "32cd661dd3aa7eb22d195bf45ac1f56355592a47fcd5a70b4d02c9675f1a0762"
+}

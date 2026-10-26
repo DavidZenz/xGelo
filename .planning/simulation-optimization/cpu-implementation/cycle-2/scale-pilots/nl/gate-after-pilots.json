@@ -1,0 +1,8 @@
+{
+  "status": "blocked",
+  "reason": "projected total 7642.7s exceeds 7200s",
+  "source_snapshot_sha256": "5e9cea95125135a2c1fa59ee28e386bdb053a3d9cd7e69f46b651b6c6cbd4c59",
+  "physical_memory_bytes": 68719476736,
+  "free_disk_bytes": 22645051392,
+  "production_certified": false
+}

@@ -46,6 +46,16 @@ using the same frozen source and verified pilot receipts. Recheck input,
 measurement and source hashes plus resource headroom before admission. No
 large runs overlap; no failed gate is bypassed or relaxed.
 
+Third cycle, after the second NL time gate: 10k validated in 612.5 seconds,
+but the 7,642.7-second conservative projection still exceeds 7,200. Retain all
+pilot evidence/checkpoints. Integrate the separately proved numeric transition
+selector only for complete, ready, canonical revised rankings with identical
+rules; use the existing selector for every unsupported or uncertain case.
+Recheck full rows/hashes, accepted objects/CSV bytes, RNG and resume, then the
+affected national/outcome/publication regressions. Reuse unchanged CL/common
+regression evidence explicitly, freeze the new source and repeat staged gates
+with the same four workers, chunk size and resource limits.
+
 Status: CL implementation committed (`ca9119a`, 578 passing assertions).
 NL numeric/path/counter and trace-storage changes are integrated. Complete
 accepted NL objects and candidate CSV bytes match the frozen reference for

@@ -1,0 +1,12 @@
+{
+  "status": "frozen_performance_regressions_verified",
+  "source_snapshot_sha256": "9bac1d4f6f8c84b4f8d18ba7c11b51c311c63a8da858eec5745cb9680f11e404",
+  "base": "fa7969a",
+  "changed_football_module": "R/competition/uefa_nations_league_simulation.R",
+  "new_module": "R/competition/uefa_nations_league_transition_selector.R",
+  "cl_common_python_code_unchanged": true,
+  "workers": 4,
+  "chunk_size": 256,
+  "performance_limits_unchanged": true,
+  "implementation_sha256": "32cd661dd3aa7eb22d195bf45ac1f56355592a47fcd5a70b4d02c9675f1a0762"
+}

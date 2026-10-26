@@ -1,0 +1,22 @@
+{
+  "status": "private_correctness_verified_not_integrated_or_benchmarked",
+  "repository_edits": false,
+  "performance_timings": false,
+  "focused": {
+    "assertions": 63,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0
+  },
+  "accepted_iterations": 9,
+  "accepted_fast_calls": 27,
+  "accepted_fallback_calls": 0,
+  "protected_inputs_and_source_bytes_unchanged": true,
+  "candidate_sha256": "37595cb6856326f3d566051b198772052444a5a93e05531f2b2e7975dea9f6fc",
+  "caveats": [
+    "correctness proof only; no performance certification",
+    "initial harness working-directory/module sourcing/named-column construction corrected without semantic candidate changes",
+    "candidate remains private pending actual NL10k gate"
+  ]
+}

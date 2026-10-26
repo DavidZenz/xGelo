@@ -91,6 +91,23 @@ available. Canonical merge intermediates created by the same process retain
 SHA, CRC, order and count checks while avoiding repeated key reconstruction.
 All storage metadata remains outside public football identities.
 
+The second-cycle source `5e9cea95125135a2c1fa59ee28e386bdb053a3d9cd7e69f46b651b6c6cbd4c59`
+passed complete accepted parity/resume and the regression gate (3,621 R
+assertions, 11 Python tests; the known authority failure remains separate).
+Accepted NL 1k/10k validated in 305.5/612.5 seconds. At 10k, simulation took
+418.1 seconds, aggregation 154.4 seconds and candidate validation 24.2 seconds.
+Trace storage fell to 187,716,238 bytes from 990,203,833 bytes. Peak combined
+RSS was 5.006 GiB. The 7,642.7-second conservative projection still withheld
+100k; all checkpoints and pilot receipts are retained.
+
+The follow-up selector replaces repeated row filtering with rank indexes and
+a prepared transition plan only for the identical revised rules and a complete,
+ready canonical ranking. Unknowns, missing evidence, custom schemas and legacy
+rules use the original selector. The private prototype passed 63 focused
+assertions and nine complete accepted iterations, with all 27 guarded selector
+calls producing identical full rows, hashes, types, attributes and RNG state.
+Integrated compatibility/regression and resource gates remain required.
+
 After regressions, freeze all R and benchmark/supervisor source bytes and run
 fresh CL then NL processes at 1k and 10k. Admit each 100k run only when the
 conservative 20% time margin projects at most 7,200 seconds including preparation

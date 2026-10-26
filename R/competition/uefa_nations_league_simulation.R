@@ -36,6 +36,7 @@ uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_streamin
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_numeric.R", "uefa_nl_sim_prepare_numeric_groups")
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_paths.R", "uefa_nl_sim_prepare_paths")
 uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_canonical.R", "uefa_nl_sim_prepare_canonical")
+uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_transition_selector.R", "uefa_nl_sim_prepare_transition_selector")
 
 uefa_nl_sim_null_coalesce <- function(left, right) {
   if (is.null(left) || !length(left)) right else left
@@ -2550,6 +2551,7 @@ uefa_nl_run_simulation <- function(
   runtime <- uefa_nl_sim_prepare_group_reducer(runtime, normalized_matches,
     normalized_groups, rules, source_bundle_id, cutoff_utc)
   runtime <- uefa_nl_sim_prepare_paths(runtime, rules, normalized_slots)
+  runtime <- uefa_nl_sim_prepare_transition_selector(runtime, rules)
   stream_metadata <- uefa_nl_stream_prepare_metadata(count, metadata)
   # The helpers above are scoped to this invocation. All immutable metadata is
   # prepared once; ranking-stage metadata added later does not change it.
