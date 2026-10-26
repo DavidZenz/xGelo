@@ -162,7 +162,9 @@ The verifier asserts exact set equality, no duplicate target names, no national/
 
 The production export registry is exactly this set (no missing or extra public entrypoint):
 
-`ucl_validate_schedule`, `ucl_build_state`, `ucl_apply_article18`, `ucl_build_forecast_ledger`, `ucl_run_simulation`, `ucl_aggregate_rank_distributions`, `ucl_enumerate_legal_knockout_paths`, `ucl_validate_draw_artifact`, `ucl_resolve_two_leg_tie`, `ucl_resolve_final`, `ucl_aggregate_stage_events`, `ucl_validate_progression_reconciliation`, `ucl_validate_outcome_candidate`, `ucl_write_outcome_candidate`, `ucl_outcomes_manifest`, `ucl20_parse_args`, `ucl20_build_outcomes`, `phase20_result_contract`, `phase20_verify_contracts`.
+`ucl_validate_schedule`, `ucl_build_state`, `ucl_apply_article18`, `ucl_build_forecast_ledger`, `ucl_run_simulation`, `ucl_materialize_simulation`, `ucl_aggregate_rank_distributions`, `ucl_enumerate_legal_knockout_paths`, `ucl_validate_draw_artifact`, `ucl_resolve_two_leg_tie`, `ucl_resolve_final`, `ucl_aggregate_stage_events`, `ucl_validate_progression_reconciliation`, `ucl_validate_outcome_candidate`, `ucl_write_outcome_candidate`, `ucl_outcomes_manifest`, `ucl20_parse_args`, `ucl20_build_outcomes`, `phase20_result_contract`, `phase20_verify_contracts`.
+
+Maintenance extension (2026-10-26): the exact registry now has 20 symbols. `ucl_materialize_simulation()` is the explicit compatibility reader for streamed audit traces; all other implementation helpers remain private. This does not change production authority or phase completion.
 
 All non-exported helpers use the demonstrable private convention `.ucl_*` (or are local closures); names beginning `ucl_` that are not in the registry are verifier failures. The test-only CR probes and EDGE test/verifier symbols live under `tests/` or the aggregate verifier inventory and are not production exports. The aggregate verifier first reads the explicit registry, then enumerates top-level functions and excludes only `.ucl_*` names and local closures; it must not use a broad prefix filter or silently omit another `ucl_*` symbol.
 

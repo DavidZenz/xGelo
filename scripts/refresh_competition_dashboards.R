@@ -24,6 +24,7 @@ phase17_cli_env <- environment()
 phase17_cli_source <- function(relative) {
   sys.source(file.path(phase17_cli_root, relative), phase17_cli_env)
 }
+phase17_cli_source("R/common/simulation_execution.R")
 phase17_cli_source("R/dashboard/payload_contract.R")
 phase17_cli_source("R/dashboard/payload_nations_league.R")
 phase17_cli_source("R/dashboard/payload_euro.R")
@@ -191,7 +192,7 @@ phase17_validate_scale_evidence <- function(path, simulations, workers, project_
   if (!file.exists(path)) fail(paste0("missing benchmark receipt: ", path))
   receipt <- tryCatch(utils::read.csv(path, stringsAsFactors = FALSE), error = function(error) fail("unreadable benchmark receipt"))
   required <- c("simulations", "seed", "workers", "source_bundle_id", "state_manifest_sha256",
-                "elapsed_seconds", "validated", "simulation_code_sha256", "execution_code_sha256")
+                "elapsed_seconds", "validated", "simulation_code_sha256", "execution_code_sha256", "reducer_code_sha256", "implementation_sha256")
   if (nrow(receipt) != 1L || !all(required %in% names(receipt))) fail("incomplete benchmark receipt")
   numeric_value <- function(name) suppressWarnings(as.numeric(receipt[[name]][[1L]]))
   count <- numeric_value("simulations"); seed <- numeric_value("seed"); worker_count <- numeric_value("workers")
@@ -207,6 +208,25 @@ phase17_validate_scale_evidence <- function(path, simulations, workers, project_
   if (!identical(tolower(as.character(receipt$simulation_code_sha256[[1L]])), hash)) fail("simulation implementation has changed since the benchmark")
   execution_hash <- digest::digest(file = file.path(project_root, "R/common/simulation_execution.R"), algo = "sha256")
   if (!identical(tolower(as.character(receipt$execution_code_sha256[[1L]])), execution_hash)) fail("execution implementation has changed since the benchmark")
+  reducer_hash <- digest::digest(file = file.path(project_root, "R/competition/uefa_nations_league_streaming.R"), algo = "sha256")
+  if (!identical(as.character(receipt$reducer_code_sha256[[1L]]), reducer_hash)) fail("reducer implementation has changed")
+  implementation_hash <- digest::digest(simulation_repository_identity(project_root), algo = "sha256")
+  if (!identical(as.character(receipt$implementation_sha256[[1L]]), implementation_hash)) fail("implementation dependencies have changed")
+  resource_path <- paste0(path, ".resources.json")
+  resource <- tryCatch(jsonlite::fromJSON(resource_path), error = function(e) NULL)
+  if (is.null(resource) || !is.list(resource) || !all(vapply(c("count", "wall_seconds", "physical_memory_bytes", "peak_process_tree_rss_bytes"), function(field) {
+    value <- resource[[field]]
+    is.numeric(value) && length(value) == 1L && !is.na(value) && is.finite(value)
+  }, logical(1)))) fail("missing or malformed resource certification")
+  if (!identical(resource$status, "passed") ||
+      !identical(resource$authority, "accepted_national") || !isTRUE(resource$production_certified) ||
+      !identical(as.numeric(resource$count), count) ||
+      !identical(resource$implementation_sha256, implementation_hash) ||
+      !identical(resource$measurement_sha256, digest::digest(file = path, algo = "sha256")) ||
+      !is.finite(resource$wall_seconds) || resource$wall_seconds <= 0 || resource$wall_seconds > 7200 ||
+      !is.finite(resource$physical_memory_bytes) || resource$physical_memory_bytes <= 0 ||
+      !is.finite(resource$peak_process_tree_rss_bytes) || resource$peak_process_tree_rss_bytes <= 0 ||
+      resource$peak_process_tree_rss_bytes >= resource$physical_memory_bytes / 2) fail("resource/candidate certification did not qualify")
   invisible(list(valid = TRUE, simulations = count, seed = seed, workers = worker_count, evidence = normalizePath(path)))
 }
 
@@ -275,7 +295,7 @@ phase17_run_regression_gate <- function(project_root = phase17_cli_root, execute
     "test_phase17_dashboards.R", "test_nations_league_dashboard_revision.R",
     "test_phase21_dashboard_publication.R", "test_dashboard_release_safety.R",
     "test_active_dashboard_improvements.R", "test_nl_simulation_scale.R",
-    "test_simulation_optimization.R"
+    "test_simulation_optimization.R", "test_simulation_streaming.R"
   )
   expressions <- vapply(suites, function(suite) {
     paste0('r <- testthat::test_file("tests/testthat/', suite,

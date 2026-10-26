@@ -31,7 +31,8 @@ uefa_nl_simulation_source_if_missing(
   "R/competition/uefa_euro_priority.R",
   c("uefa_euro_priority_capture", "uefa_euro_priority_aggregate")
 )
-uefa_nl_simulation_source_if_missing("R/common/simulation_execution.R", "simulation_execute")
+uefa_nl_simulation_source_if_missing("R/common/simulation_execution.R", c("simulation_execute", "simulation_execute_stream"))
+uefa_nl_simulation_source_if_missing("R/competition/uefa_nations_league_streaming.R", "uefa_nl_stream_reducer")
 
 uefa_nl_sim_null_coalesce <- function(left, right) {
   if (is.null(left) || !length(left)) right else left
@@ -2222,13 +2223,41 @@ uefa_nl_sim_prepare_runtime <- function(matches, forecasts, status, scores, cuto
   runtime <- new.env(parent = environment(uefa_nl_sim_iteration))
   module <- environment(uefa_nl_sim_iteration)
   symbols <- ls(module, all.names = TRUE)
-  symbols <- symbols[grepl("^uefa_nl_sim_|^uefa_nl_sample_stage_match$", symbols)]
+  symbols <- symbols[grepl("^uefa_nl_", symbols)]
   for (name in symbols) {
     value <- get(name, envir = module)
     if (is.function(value)) {
       environment(value) <- runtime
       assign(name, value, envir = runtime)
     }
+  }
+  # Hash identical canonical column vectors without allocating a data frame
+  # for every row. These functions exist only in this run's private namespace.
+  scalar <- if (exists("phase13_source_canonical_scalar", mode = "function")) phase13_source_canonical_scalar else uefa_nl_rules_scalar
+  columns <- function(data) lapply(data, function(column) vapply(column, scalar, character(1)))
+  row_text <- function(data, separator) {
+    cols <- columns(data)
+    if (!nrow(data)) return(character())
+    do.call(paste, c(cols, list(sep = separator)))
+  }
+  runtime$uefa_nl_rules_row_sha256 <- function(data, hash_col = "row_sha256") {
+    text <- row_text(data[, setdiff(names(data), hash_col), drop = FALSE], "|")
+    vapply(text, digest::digest, character(1), algo = "sha256", serialize = FALSE, USE.NAMES = FALSE)
+  }
+  has_phase13 <- exists("phase13_canonical_sha256", mode = "function")
+  runtime$uefa_nl_rules_canonical_sha256 <- function(data, key = NULL) {
+    if (is.null(key)) key <- names(data)[[1L]]
+    if (!has_phase13) data <- data[, sort(names(data)), drop = FALSE]
+    order_args <- columns(data[key])
+    if (nrow(data)) data <- data[do.call(order, c(order_args, list(na.last = TRUE, method = "radix"))), , drop = FALSE]
+    digest::digest(paste(c(paste(names(data), collapse = "\x1f"), row_text(data, "\x1f")), collapse = "\x1e"), algo = "sha256", serialize = FALSE)
+  }
+  original_rules_hash <- uefa_nl_ruleset_sha256
+  fixed_rules <- NULL; fixed_hash <- NULL
+  runtime$uefa_nl_ruleset_sha256 <- function(rules = uefa_nl_2026_27_rules(), topology = NULL) {
+    if (!is.null(topology)) return(original_rules_hash(rules, topology))
+    if (is.null(fixed_rules) || !identical(rules, fixed_rules)) { fixed_rules <<- rules; fixed_hash <<- original_rules_hash(rules) }
+    fixed_hash
   }
   prepared_matches <- uefa_nl_sim_prepare_iteration_matches(matches, cutoff)
   runtime$uefa_nl_sim_prepare_iteration_matches <- function(matches, cutoff_utc) prepared_matches
@@ -2343,6 +2372,8 @@ uefa_nl_sim_prepare_runtime <- function(matches, forecasts, status, scores, cuto
 }
 
 uefa_nl_sim_prepare_group_reducer <- function(runtime, matches, groups, rules, source, cutoff) {
+  scope <- environment()
+  parent.env(scope) <- runtime
   definitions <- lapply(sort(unique(as.character(groups$group_id)), method = "radix"), function(id) {
     group <- groups[groups$group_id == id, , drop = FALSE]
     ids <- which(matches$stage_id == "league_phase" & matches$group_id == id)
@@ -2373,8 +2404,18 @@ uefa_nl_sim_prepare_group_reducer <- function(runtime, matches, groups, rules, s
       for (index in seq_along(fields)) snapshot[[fields[[index]]]] <- metrics[index, ]
       provisional <- order(-snapshot$points, -snapshot$goal_difference, -snapshot$goals_for, -snapshot$wins, snapshot$team_id)
       snapshot$computed_rank[provisional] <- seq_len(nrow(snapshot))
-      snapshot <- phase14_standings_apply_hashes(phase14_standings_order(snapshot))
-      phase14_validate_standings_snapshot(snapshot)
+      snapshot <- phase14_standings_order(snapshot)
+      fields_hash <- setdiff(names(snapshot), c("row_sha256", "table_sha256"))
+      hash_columns <- lapply(snapshot[fields_hash], phase14_standings_hash_column)
+      header <- paste(fields_hash, collapse = "\x1f")
+      text <- do.call(paste, c(hash_columns, list(sep = "\x1f")))
+      snapshot$row_sha256 <- vapply(paste(header, text, sep = "\x1e"), digest::digest,
+        character(1), algo = "sha256", serialize = FALSE, USE.NAMES = FALSE)
+      sort_fields <- intersect(c(phase14_standings_snapshot_key_fields(), "team_id", "computed_rank"), names(snapshot))
+      order_args <- lapply(snapshot[sort_fields], phase14_standings_hash_column)
+      ordering <- do.call(order, c(order_args, list(na.last = TRUE)))
+      table_hash <- digest::digest(paste(c(header, text[ordering]), collapse = "\x1e"), algo = "sha256", serialize = FALSE)
+      snapshot$table_sha256 <- rep(table_hash, nrow(snapshot))
       preflight <- uefa_nl_rank_preflight(snapshot, rows, definition$discipline, definition$access, definition$id, rules)
       if (length(preflight$missing)) {
         ranking <- uefa_nl_blocked_ordering_result(snapshot, preflight$missing, rules, definition$id)
@@ -2400,8 +2441,19 @@ uefa_nl_run_simulation <- function(
     score_distributions, groups, rules = uefa_nl_2026_27_rules(), simulation_count = 1000L,
     seed = 15017L, workers = 1L, source_bundle_id, source_bundle_sha256, model_release_id,
     model_lineage = list(), state_manifest_sha256, euro_playoff_eligibility = NULL,
-    official_stage_slots = NULL, cutoff_utc = NULL, batch_size = 256L, progress = NULL) {
+    official_stage_slots = NULL, cutoff_utc = NULL, batch_size = 256L, progress = NULL,
+    execution_mode = c("memory", "stream"), run_dir = NULL, resume = FALSE, chunk_size = 256L) {
+  execution_mode <- match.arg(execution_mode)
+  # Builders source this module into a private namespace. Bind streaming
+  # helpers to the same namespace instead of assuming .GlobalEnv owns it.
+  scope <- environment()
+  helper_env <- environment(uefa_nl_stream_reducer)
+  for (name in ls(envir = helper_env, pattern = "^uefa_nl_stream_")) {
+    value <- get(name, envir = helper_env)
+    if (is.function(value)) { environment(value) <- scope; assign(name, value, envir = scope) }
+  }
   count <- uefa_nl_sim_normalize_count(simulation_count)
+  if (execution_mode == "stream" && count > 100000L) stop("Streaming supports at most 100000 simulations", call. = FALSE)
   worker_count <- uefa_nl_sim_normalize_workers(workers, count)
   simulation_seed <- uefa_nl_sim_normalize_seed(seed)
   source_bundle_id <- uefa_nl_sim_scalar_text(source_bundle_id, "source_bundle_id")
@@ -2463,6 +2515,43 @@ uefa_nl_run_simulation <- function(
         cutoff_utc, projection$projection_run_id, projection$draw_policy_id
       )
     }
+    if (execution_mode == "stream") {
+      code <- simulation_repository_identity(uefa_nl_rules_project_root("."))
+      store <- simulation_execute_stream(count, run_iteration, uefa_nl_stream_reducer(),
+        list(inputs = raw_input_hashes, canonical = canonical_input_hashes, metadata = metadata, code = code),
+        run_dir, workers = worker_count, chunk_size = chunk_size, resume = resume, progress = progress, batch_size = batch_size,
+        trace = function(value) c(value[c("stage_slots", "stage_matches", "stage_resolutions")],
+          list(mean_records = uefa_nl_stream_mean_records(value))))
+      statistics <- store$statistics
+      statistics$exact_means <- simulation_exact_trace_means(store)
+      projected_standings <- uefa_nl_stream_standings(statistics, count, metadata, normalized_groups, normalized_matches)
+      projected_rankings <- uefa_nl_stream_rankings(statistics, count, metadata)
+      metadata$ranking_stages <- sort(unique(as.character(projected_rankings$ranking_stage)), method = "radix")
+      metadata$final_ranking_stages <- sort(unique(as.character(projected_rankings$ranking_stage[as.character(projected_rankings$ranking_scope) == "final_overall"])), method = "radix")
+      transition_outcomes <- uefa_nl_stream_transitions(statistics, count, metadata)
+      team_paths <- uefa_nl_stream_paths(statistics, count, metadata, normalized_groups)
+      euro_priority_queue <- uefa_nl_stream_metadata(uefa_nl_stream_euro(statistics, normalized_groups, count), count, metadata)
+      euro_priority_queue$cutoff_utc <- cutoff_utc
+      fixture_outcomes <- uefa_nl_stream_fixtures(statistics, normalized_matches, normalized_status, normalized_forecasts, count, metadata)
+      output_tables <- list(projected_standings = projected_standings, projected_rankings = projected_rankings,
+        transition_outcomes = transition_outcomes, team_path_probabilities = team_paths,
+        euro_priority_queue = euro_priority_queue, fixture_forecast_form = fixture_outcomes, outcome_probabilities = fixture_outcomes)
+      output_hashes <- lapply(output_tables, uefa_nl_sim_hash_data)
+      trace_fields <- c("stage_slots", "stage_matches", "stage_resolutions")
+      trace_hashes <- simulation_trace_nl_hashes(store, trace_fields,
+        function(frame) uefa_nl_stream_metadata(frame, count, metadata), uefa_nl_sim_hash_column)
+      # Retain the legacy list order: it is part of the metadata serialization.
+      output_hashes <- c(output_hashes, as.list(trace_hashes))
+      refs <- setNames(lapply(trace_fields, function(field) simulation_trace_reference(store, field)), trace_fields)
+      result <- c(output_tables[c("projected_standings", "projected_rankings")], refs,
+        output_tables[c("transition_outcomes", "team_path_probabilities", "euro_priority_queue", "fixture_forecast_form", "outcome_probabilities")],
+        list(simulation_metadata = uefa_nl_sim_metadata_row(metadata, raw_input_hashes, canonical_input_hashes, output_hashes),
+          input_hashes = raw_input_hashes, canonical_input_hashes = canonical_input_hashes,
+          output_hashes = output_hashes, metadata = metadata))
+      attr(result, "trace_store") <- store
+      attr(result, "stage_slot_summary") <- uefa_nl_stream_metadata(uefa_nl_stream_modal_slots(statistics), count, metadata)
+      return(structure(result, class = c("uefa_nl_simulation_stream", "list")))
+    }
     iterations <- simulation_execute(count, run_iteration, workers = worker_count,
       batch_size = batch_size, progress = progress, compact = function(value) {
         # These duplicated construction records are not consumed by reducers.
@@ -2514,4 +2603,20 @@ uefa_nl_run_simulation <- function(
       metadata = metadata
     )
   })
+}
+
+
+uefa_nl_materialize_simulation <- function(simulation) {
+  if (!inherits(simulation, "uefa_nl_simulation_stream")) return(simulation)
+  for (field in c("stage_slots", "stage_matches", "stage_resolutions")) {
+    simulation[[field]] <- simulation_trace_table(simulation[[field]],
+      function(frame) {
+        metadata <- simulation$metadata
+        uefa_nl_sim_add_metadata(frame, metadata$edition_id, metadata$projection_run_id,
+          simulation$simulation_metadata$simulation_count[[1L]], metadata$simulation_seed,
+          metadata$rules, metadata$source_bundle_id, metadata$source_bundle_sha256, metadata$model_release_id)
+      })
+  }
+  attributes(simulation) <- list(names = names(simulation))
+  simulation
 }

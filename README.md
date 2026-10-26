@@ -534,6 +534,44 @@ records.
 
 See [`DATA-INVENTORY.md`](DATA-INVENTORY.md) for source-level details.
 
+## Bounded NL and CL simulations
+
+Library simulators retain their existing in-memory defaults. For large runs,
+pass `execution_mode = "stream"`, an explicit private `run_dir`, and optionally
+`resume = TRUE`. Both CLIs default to streaming with four workers and 256-iteration
+checkpoints; `--run-dir PATH --resume` resumes an exactly matching run. A run's
+inputs, code, rules, model, seed, count and R/RNG environment must match. Worker
+count can change during resume; chunk size cannot.
+
+Full audit traces remain in checksum-verified chunks. Summary counters stay in
+memory. NL canonical hashes use an external sort with a 16 MiB sorting buffer;
+exact R means use a disk pass and at most one 100k-value scalar column (0.8 MB).
+Streaming is bounded to 100,000 simulations. `uefa_nl_materialize_simulation()`
+and `ucl_materialize_simulation()` explicitly reconstruct legacy results for
+small diagnostics; production builders consume streamed summaries directly.
+Keep the private run directory while its trace references are needed.
+
+CL algorithm `ucl-conditional-league-v4` counts eligible sampled projections
+separately from accepted results available at the information cutoff. Accepted
+fixtures and their timestamps remain immutable. Missing ranking/draw/knockout
+information retains its unresolved or suppressed status.
+
+Run staged checks sequentially with the process-tree watchdog:
+
+```sh
+rtk proxy python3 scripts/validate_simulation_scale.py \
+  --root . --asset-root . --output /private/tmp/xgelo-scale-validation
+```
+
+The runner measures 1k and 10k before admitting 100k. Every run has a two-hour
+active wall-clock limit across resumed attempts (including preparation and candidate validation), a strict
+half-physical-RAM process-tree RSS limit, and measured peak disk checks. An unfinalized hard-crash resource attempt cannot certify a resumed performance run. RSS is sampled once
+per second and sums resident memory across the process tree, conservatively
+counting shared fork pages more than once. Interrupted chunks can be resumed;
+committed chunks are retained on failure. A blocked feasibility gate exits 2;
+a failed run exits 1. CL evidence remains synthetic and production-ineligible.
+No dashboard publication is performed by this command.
+
 ## Validation
 
 Recommended checks before trusting a forecast run:

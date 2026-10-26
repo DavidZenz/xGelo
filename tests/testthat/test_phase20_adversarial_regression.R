@@ -79,7 +79,7 @@ test_that("the target graph and ten-file output registry are exact", {
 })
 
 test_that("the public symbol and typed result registries remain closed", {
-  expect_identical(length(phase20_expected_public_symbols), 19L)
+  expect_identical(length(phase20_expected_public_symbols), 20L)
   expect_identical(phase20_expected_result_statuses, c(
     "mechanics_complete", "production_human_needed", "production_blocked",
     "unresolved_draw_procedure", "unexpected_failure"

@@ -719,7 +719,7 @@
 .ucl_sim_prepare_ranker <- function(graph, rules, cutoff) {
   # The accepted graph is immutable. Actual evidence must pass the historical
   # cutoff; sampled results are a separate projection, never postdated facts.
-  .ucl_state_source_phase14()
+  phase14_available <- isTRUE(.ucl_state_source_phase14())
   original <- .ucl_state_to_phase14_matches(graph$fixtures, cutoff)
   evidence <- vapply(original$evidence_completed_at_utc, .ucl_sim_parse_utc,
     as.POSIXct(NA, origin = "1970-01-01", tz = "UTC"))
@@ -732,6 +732,7 @@
   away_index <- match(graph$fixtures$away_club_id, ids)
   eligible <- .ucl_prepare_iteration_matches(graph$fixtures, cutoff)$eligible_open_fixture_ids
   function(graph_i) {
+    if (!phase14_available && !isTRUE(graph$fixture_authority)) return(NULL)
     sampled <- attr(graph_i, "ucl_sampling")
     projected_ids <- as.character(sampled$sampled_fixture_ids %||% character())
     # A caller cannot turn an accepted completed/postponed row into a projection.
@@ -772,7 +773,10 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
                                rules = NULL, draw_artifact = NULL, source_bundle_id = NULL,
                                information_cutoff_utc = NULL,
                                draw_authority_mode = "fixture", workers = 4L,
-                               batch_size = 256L, progress = NULL) {
+                               batch_size = 256L, progress = NULL,
+                               execution_mode = c("memory", "stream"), run_dir = NULL,
+                               resume = FALSE, chunk_size = 256L) {
+  execution_mode <- match.arg(execution_mode)
   if (is.list(state) && !is.data.frame(state) && !is.null(state$status) &&
       !identical(as.character(state$status), "ready")) {
     return(structure(list(
@@ -840,12 +844,24 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
   )
   sampler <- .ucl_sim_prepare_sampler(validation$graph, ledger_table, cutoff$value)
   ranker <- .ucl_sim_prepare_ranker(validation$graph, rules, cutoff$value)
-  iteration_results <- .ucl_sim_canonical_env$simulation_execute(simulations, function(iteration) {
+  iteration <- function(iteration) {
     graph_i <- sampler(iteration, seed)
     ranking <- ranker(graph_i)
     list(sampling = attr(graph_i, "ucl_sampling"), rows = if (is.null(ranking)) data.frame() else .ucl_sim_rank_rows(ranking, iteration, run_id))
-  }, workers = workers, batch_size = batch_size, progress = progress)
-  rows <- do.call(rbind, lapply(iteration_results, `[[`, "rows")); if (is.null(rows)) rows <- data.frame(); row.names(rows) <- NULL
+  }
+  store <- NULL
+  if (execution_mode == "stream") {
+    code <- .ucl_sim_canonical_env$simulation_repository_identity(.ucl_state_root())
+    store <- .ucl_sim_canonical_env$simulation_execute_stream(simulations, iteration,
+      .ucl_stream_reducer(validation$graph$clubs$club_id),
+      list(run_id = run_id, graph = graph_hash, state = state_hash, code = code),
+      run_dir, workers = workers, chunk_size = chunk_size, resume = resume, progress = progress, batch_size = batch_size)
+    rows <- store$statistics$last_rows
+  } else {
+    iteration_results <- .ucl_sim_canonical_env$simulation_execute(simulations, iteration,
+      workers = workers, batch_size = batch_size, progress = progress)
+    rows <- do.call(rbind, lapply(iteration_results, `[[`, "rows")); if (is.null(rows)) rows <- data.frame(); row.names(rows) <- NULL
+  }
   path_state <- ucl_enumerate_legal_knockout_paths(
     if (nrow(rows)) rows[rows$iteration == max(rows$iteration), , drop = FALSE] else data.frame(),
     draw_artifact = draw_artifact, rules = rules, source_bundle_id = source_bundle_id,
@@ -862,12 +878,21 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
   stage_inputs <- .ucl_sim_stage_inventory()
   stage_reconciliation <- ucl_aggregate_stage_events(stage_events, rules = rules, stage_inputs = stage_inputs, league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L), required_stage_ids = names(stage_inputs))
   progression <- .ucl_sim_build_progression(rows, validation$graph$clubs$club_id, rules, stage_draw, source_bundle_id, run_id, simulations, seed)
+  if (!is.null(store)) {
+    statistics <- store$statistics; club_ids <- sort(as.character(validation$graph$clubs$club_id), method = "radix")
+    for (i in seq_along(club_ids)) {
+      indexes <- which(progression$club_id == club_ids[[i]] & progression$stage_id %in% c("direct_round_of_16", "knockout_play_off", "eliminated"))
+      valid <- statistics$club_valid[[i]] && statistics$count == simulations
+      progression$probability[indexes] <- if (valid) c(sum(statistics$counts[i, 1:8]), sum(statistics$counts[i, 9:24]), sum(statistics$counts[i, 25:36])) / simulations else NA_real_
+      progression$status[indexes] <- if (valid) "resolved" else "unresolved"
+    }
+  }
   progression_reconciliation <- ucl_validate_progression_reconciliation(
     progression, stage_inputs = stage_inputs,
     league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
     required_stage_ids = names(stage_inputs)
   )
-  sampling <- lapply(iteration_results, `[[`, "sampling")
+  sampling <- if (is.null(store)) lapply(iteration_results, `[[`, "sampling") else .ucl_sim_canonical_env$simulation_trace_reference(store, "sampling")
   path_statuses <- if (is.data.frame(path_state) && nrow(path_state)) as.character(path_state$path_status) else character()
   unresolved_draw <- !draw_conditioned && (length(path_statuses) == 0L || any(path_statuses %in% c("pre_draw_legal", "unresolved")))
   if (!isTRUE(attr(stage_reconciliation, "valid")) || !isTRUE(progression_reconciliation$valid)) {
@@ -916,7 +941,9 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     draw_authority_mode = as.character(draw_authority_mode),
     component_hashes = component_hashes
   )
-  structure(list(status = metadata$status, run_id = run_id, rank_rows = rows, simulations = rows,
+  rank_summary <- if (!is.null(store)) .ucl_stream_rank_summary(store$statistics, validation$graph$clubs$club_id, rules, run_id) else NULL
+  if (!is.null(store)) rows <- .ucl_sim_canonical_env$simulation_trace_reference(store, "rows")
+  result <- structure(list(status = metadata$status, run_id = run_id, rank_rows = rows, simulations = rows,
                  knockout_paths = stage_events, legal_paths = path_state, stage_events = stage_events, progression_probabilities = progression,
                  stage_reconciliation = stage_reconciliation, progression_reconciliation = progression_reconciliation,
                  metadata = metadata, graph = validation$graph, state_sha256 = state_hash,
@@ -928,10 +955,19 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
                  club_ids = sort(as.character(validation$graph$clubs$club_id), method = "radix"),
                  fixture_authority = isTRUE(validation$graph$fixture_authority), production_eligible = FALSE),
             class = c("ucl_simulation_run", "list"))
+  if (!is.null(store)) {
+    result$trace_store <- store; result$rank_summary <- rank_summary
+    class(result) <- c("ucl_simulation_stream", class(result))
+  }
+  result
 }
 
 #' Aggregate rank, band, and cut-line probabilities from simulation rows.
 ucl_aggregate_rank_distributions <- function(simulation, rules = NULL, club_ids = NULL) {
+  if (inherits(simulation, "ucl_simulation_stream")) {
+    if (is.null(simulation$rank_summary) || !inherits(simulation$trace_store, "simulation_trace_store")) stop("Missing CL streaming summary/traces", call. = FALSE)
+    return(simulation$rank_summary)
+  }
   rows <- if (is.list(simulation) && is.data.frame(simulation$rank_rows)) simulation$rank_rows else simulation
   if (!is.data.frame(rows) || !nrow(rows)) return(list(status = "unresolved", reason = "rank_rows_empty", rank_distribution = data.frame(), band_probabilities = data.frame(), cutline_distributions = list(), cutline = data.frame()))
   required_columns <- c("iteration", "edition_id", "club_id", "rank", "rank_status", "qualification_band")
@@ -1516,4 +1552,62 @@ ucl_validate_progression_reconciliation <- function(progression, stage_inputs = 
   }
   errors <- unique(errors)
   list(status = if (length(errors)) "invalid" else "ready", valid = !length(errors), errors = errors)
+}
+
+.ucl_stream_reducer <- function(club_ids) {
+  ids <- sort(as.character(club_ids), method = "radix")
+  list(init = function() list(counts = matrix(0, length(ids), length(ids)),
+      club_valid = rep(TRUE, length(ids)), complete = TRUE, count = 0L,
+      last_id = 0L, last_rows = data.frame()),
+    update = function(a, value, iteration) {
+      rows <- value$rows; index <- match(ids, rows$club_id)
+      ranks <- as.integer(rows$rank[index])
+      valid <- !is.na(index) & is.finite(ranks) & rows$rank_status[index] == "resolved" & !is.na(rows$qualification_band[index])
+      a$club_valid <- a$club_valid & (valid %in% TRUE)
+      a$complete <- a$complete && nrow(rows) == length(ids) && !anyDuplicated(rows$club_id) && all(valid %in% TRUE) && !anyDuplicated(ranks) && identical(sort(ranks), seq_along(ids))
+      keep <- which(valid %in% TRUE & ranks >= 1L & ranks <= length(ids))
+      if (length(keep)) a$counts[cbind(keep, ranks[keep])] <- a$counts[cbind(keep, ranks[keep])] + 1
+      a$count <- a$count + 1L
+      if (iteration > a$last_id) { a$last_id <- iteration; a$last_rows <- rows }
+      a
+    }, merge = function(a, b) {
+      a$counts <- a$counts + b$counts; a$club_valid <- a$club_valid & b$club_valid
+      a$complete <- a$complete && b$complete; a$count <- a$count + b$count
+      if (b$last_id > a$last_id) { a$last_id <- b$last_id; a$last_rows <- b$last_rows }
+      a
+    })
+}
+.ucl_stream_rank_summary <- function(statistics, club_ids, rules, run_id) {
+  ids <- sort(as.character(club_ids), method = "radix")
+  result <- ucl_aggregate_rank_distributions(statistics$last_rows, rules, ids)
+  valid <- isTRUE(statistics$complete)
+  result$status <- if (valid) "ready" else "unresolved"
+  result$reason <- if (valid) NA_character_ else "rank_permutation_incomplete"
+  result$simulation_count <- statistics$count; result$run_id <- run_id
+  for (i in seq_along(ids)) {
+    index <- result$rank_distribution$club_id == ids[[i]]
+    result$rank_distribution$probability[index] <- if (valid) statistics$counts[i, ] / statistics$count else NA_real_
+    result$rank_distribution$status[index] <- if (valid) "resolved" else "unresolved"
+    index <- result$band_probabilities$club_id == ids[[i]]
+    result$band_probabilities$probability[index] <- if (valid) c(sum(statistics$counts[i, 1:8]), sum(statistics$counts[i, 9:24]), sum(statistics$counts[i, 25:36])) / statistics$count else NA_real_
+    result$band_probabilities$status[index] <- if (valid) "resolved" else "unresolved"
+    for (name in c("rank_8", "rank_24")) {
+      boundary <- if (name == "rank_8") 8L else 24L
+      index <- result$cutline_distributions[[name]]$club_id == ids[[i]]
+      result$cutline_distributions[[name]]$probability[index] <- if (valid) statistics$counts[i, boundary] / statistics$count else NA_real_
+      result$cutline_distributions[[name]]$status[index] <- if (valid) "resolved" else "unresolved"
+    }
+  }
+  result$cutline <- do.call(rbind, result$cutline_distributions)
+  result
+}
+ucl_materialize_simulation <- function(simulation) {
+  if (!inherits(simulation, "ucl_simulation_stream")) return(simulation)
+  records <- .ucl_sim_canonical_env$simulation_trace_materialize(simulation$trace_store)
+  rows <- do.call(rbind, lapply(records, `[[`, "rows")); row.names(rows) <- NULL
+  simulation$rank_rows <- rows; simulation$simulations <- rows
+  simulation$fixture_sampling <- lapply(records, `[[`, "sampling")
+  simulation$trace_store <- NULL; simulation$rank_summary <- NULL
+  class(simulation) <- c("ucl_simulation_run", "list")
+  simulation
 }

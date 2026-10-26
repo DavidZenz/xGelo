@@ -92,7 +92,7 @@ phase20_ucl_parse_integer <- function(value, option, minimum, maximum = Inf) {
 phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(
     edition_id = "ucl_2026_27", simulations = 1000L, seed = 20260921L,
-    workers = 4L, batch_size = 64L,
+    workers = 4L, batch_size = 64L, execution_mode = "stream", run_dir = NULL, resume = FALSE, chunk_size = 256L,
     information_cutoff_utc = "2026-09-21T00:00:00Z",
     dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE,
     mode = "dry-run"
@@ -101,7 +101,7 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     "fixture-root", "output-root", "selector-path", "trusted-root",
     "trusted-release-root", "production-root", "national-root", "source-root"
   )
-  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc", "workers", "batch-size")
+  value_options <- c("edition-id", "simulations", "seed", "information-cutoff-utc", "workers", "batch-size", "execution-mode", "run-dir", "chunk-size")
   saw_dry_run <- FALSE
   saw_write <- FALSE
   index <- 1L
@@ -112,6 +112,7 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       index <- index + 1L
       next
     }
+    if (argument == "--resume") { options$resume <- TRUE; index <- index + 1L; next }
     if (argument %in% c("--dry-run", "--replay-check", "--write")) {
       if (identical(argument, "--dry-run")) {
         options$dry_run <- TRUE
@@ -149,7 +150,14 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       value <- as.character(args[[index]])
     }
     value <- phase20_ucl_require_scalar(value, paste0("--", key))
-    if (identical(key, "edition-id")) {
+    if (key == "execution-mode") {
+      if (!value %in% c("stream", "memory")) phase20_ucl_stop("Invalid execution mode")
+      options$execution_mode <- value
+    } else if (key == "run-dir") {
+      options$run_dir <- value
+    } else if (key == "chunk-size") {
+      options$chunk_size <- phase20_ucl_parse_integer(value, "--chunk-size", 1L, 100000L)
+    } else if (identical(key, "edition-id")) {
       options$edition_id <- value
     } else if (identical(key, "simulations")) {
       options$simulations <- phase20_ucl_parse_integer(value, "--simulations", 1L, 100000L)
@@ -165,6 +173,7 @@ phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     index <- index + 1L
   }
 
+  if (isTRUE(options$resume) && is.null(options$run_dir)) phase20_ucl_stop("--resume requires --run-dir")
   if (isTRUE(options$help)) return(options)
   if (!identical(options$edition_id, "ucl_2026_27")) {
     phase20_ucl_stop(sprintf(
@@ -201,6 +210,9 @@ phase20_ucl_usage <- function() {
     "  --simulations N   Positive simulation count (default: 1000)",
     "  --seed N          Non-negative deterministic seed (default: 20260921)",
     "  --workers N       Parallel workers (default: 4; Windows uses serial fallback)",
+    "  --execution-mode memory|stream  Stream full audit traces by default",
+    "  --run-dir PATH    Private checkpoint directory; --resume reuses an exact matching run",
+    "  --chunk-size N    Iterations per checkpoint (default: 256)",
     "  --batch-size N    Progress reporting interval per worker (default: 64)",
     "  --information-cutoff-utc TS  Required UTC information cutoff (default: 2026-09-21T00:00:00Z)",
     "  --dry-run         Validate and build without writing (default)",
@@ -396,12 +408,17 @@ phase20_ucl_candidate_replay <- function(graph = NULL, release = NULL, rules = N
   builder <- phase20_ucl_get("ucl20_build_outcomes")
   first <- builder(graph = graph, release = release, simulations = options$simulations,
                   seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE,
-                  workers = options$workers, batch_size = options$batch_size, progress = TRUE)
+                  workers = options$workers, batch_size = options$batch_size, progress = TRUE,
+                  execution_mode = options$execution_mode, run_dir = options$run_dir,
+                  resume = options$resume, chunk_size = options$chunk_size)
   if (!isTRUE(options$replay_check)) return(list(candidate = first, replay_verified = NA))
   reversed <- phase20_ucl_reverse_semantic_input(graph, release)
+  reverse_run_dir <- if (is.null(options$run_dir)) NULL else paste0(options$run_dir, "-reverse")
   second <- builder(graph = reversed$graph, release = reversed$release, simulations = options$simulations,
                     seed = options$seed, information_cutoff_utc = options$information_cutoff_utc, write = FALSE,
-                    workers = options$workers, batch_size = options$batch_size, progress = TRUE)
+                    workers = options$workers, batch_size = options$batch_size, progress = TRUE,
+                  execution_mode = options$execution_mode, run_dir = reverse_run_dir,
+                  resume = options$resume, chunk_size = options$chunk_size)
   hashes_present <- length(first$artifact_hashes) == 10L && length(second$artifact_hashes) == 10L
   stable <- hashes_present && identical(first$artifact_hashes, second$artifact_hashes) &&
     isTRUE(phase20_ucl_get("phase20_verify_contracts")(first)) &&

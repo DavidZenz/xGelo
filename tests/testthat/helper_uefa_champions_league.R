@@ -818,6 +818,7 @@ phase20_expected_public_symbols <- c(
   "ucl_apply_article18",
   "ucl_build_forecast_ledger",
   "ucl_run_simulation",
+  "ucl_materialize_simulation",
   "ucl_aggregate_rank_distributions",
   "ucl_enumerate_legal_knockout_paths",
   "ucl_validate_draw_artifact",

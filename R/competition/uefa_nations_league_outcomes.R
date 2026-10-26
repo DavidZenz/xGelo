@@ -724,6 +724,12 @@ phase15_nl_capture_stage_slots <- function(stage_capture, topology, rules_lineag
 phase15_nl_simulation_stage_slots <- function(simulation, topology, rules_lineage) {
   schema <- phase15_nl_outcomes_schema()$stage_slots
   source <- simulation$stage_slots
+  if (inherits(simulation, "uefa_nl_simulation_stream")) {
+    store <- attr(simulation, "trace_store")
+    simulation_trace_validate(store)
+    source <- attr(simulation, "stage_slot_summary")
+    if (!is.data.frame(source)) stop("Missing streamed NL stage-slot summary", call. = FALSE)
+  }
   if (!is.data.frame(source) || !nrow(source)) return(phase15_nl_empty_table(schema))
   rows <- lapply(seq_len(nrow(source)), function(index) {
     input <- source[index, , drop = FALSE]

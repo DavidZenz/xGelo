@@ -143,22 +143,37 @@ test_that("missing scale certification blocks rebuild before accepted data mutat
 
 test_that("scale certification binds measured count, validation, lineage and implementation", {
   api <- release_safety_api()
-  receipt <- tempfile(fileext = ".csv"); on.exit(unlink(receipt), add = TRUE)
+  receipt <- tempfile(fileext = ".csv"); on.exit(unlink(c(receipt, paste0(receipt, ".resources.json"))), add = TRUE)
   valid <- data.frame(simulations = 100000L, seed = 15017L, workers = 4L,
     source_bundle_id = "accepted-benchmark-source", state_manifest_sha256 = strrep("a", 64L),
     elapsed_seconds = 120, validated = TRUE,
     simulation_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/competition/uefa_nations_league_simulation.R"), algo = "sha256"),
-    execution_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/common/simulation_execution.R"), algo = "sha256"))
+    execution_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/common/simulation_execution.R"), algo = "sha256"),
+    reducer_code_sha256 = digest::digest(file = file.path(release_safety_root, "R/competition/uefa_nations_league_streaming.R"), algo = "sha256"),
+    implementation_sha256 = digest::digest(api$simulation_repository_identity(release_safety_root), algo = "sha256"))
   check <- function(value) {
     write.csv(value, receipt, row.names = FALSE)
+    jsonlite::write_json(list(status = "passed", authority = "accepted_national", production_certified = TRUE,
+      count = 100000, implementation_sha256 = valid$implementation_sha256,
+      measurement_sha256 = digest::digest(file = receipt, algo = "sha256"),
+      wall_seconds = 150, physical_memory_bytes = 16000000000, peak_process_tree_rss_bytes = 4000000000),
+      paste0(receipt, ".resources.json"), auto_unbox = TRUE)
     api$phase17_validate_scale_evidence(receipt, 100000L, 4L, release_safety_root)
   }
   expect_true(check(valid)$valid)
-  for (field in c("simulations", "seed", "workers", "elapsed_seconds", "validated", "source_bundle_id", "state_manifest_sha256", "simulation_code_sha256", "execution_code_sha256")) {
+  for (field in c("simulations", "seed", "workers", "elapsed_seconds", "validated", "source_bundle_id", "state_manifest_sha256", "simulation_code_sha256", "execution_code_sha256", "reducer_code_sha256", "implementation_sha256")) {
     bad <- valid
     bad[[field]] <- switch(field, simulations = 1000L, seed = 1L, workers = 1L,
-      elapsed_seconds = 0, validated = FALSE, source_bundle_id = "", state_manifest_sha256 = "", simulation_code_sha256 = strrep("0", 64L), execution_code_sha256 = strrep("0", 64L))
+      elapsed_seconds = 0, validated = FALSE, source_bundle_id = "", state_manifest_sha256 = "", simulation_code_sha256 = strrep("0", 64L), execution_code_sha256 = strrep("0", 64L), reducer_code_sha256 = strrep("0", 64L), implementation_sha256 = strrep("0", 64L))
     expect_error(check(bad), "scale validation required", info = field)
+  }
+  check(valid)
+  resources <- jsonlite::fromJSON(paste0(receipt, ".resources.json"))
+  for (field in c("wall_seconds", "peak_process_tree_rss_bytes", "measurement_sha256")) {
+    bad <- resources
+    bad[[field]] <- switch(field, wall_seconds = 7201, peak_process_tree_rss_bytes = 8000000000, measurement_sha256 = strrep("0", 64L))
+    jsonlite::write_json(bad, paste0(receipt, ".resources.json"), auto_unbox = TRUE)
+    expect_error(api$phase17_validate_scale_evidence(receipt, 100000L, 4L, release_safety_root), "scale validation required")
   }
   write.csv(valid, receipt, row.names = FALSE)
   expect_error(api$phase17_validate_scale_evidence(receipt, 200000L, 4L, release_safety_root), "scale validation required")

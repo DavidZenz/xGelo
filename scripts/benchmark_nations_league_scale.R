@@ -19,7 +19,7 @@ sys.source("scripts/build_nations_league_outcomes.R", envir = entry)
 # handoff, bound to its complete accepted inputs and local implementation bytes.
 loaded <- entry$phase15_nl_default_inputs(project_root = asset_root)
 implementation <- c("scripts/build_nations_league_outcomes.R", "R/competition/forecast_layer.R",
-                    "R/competition/uefa_nations_league_simulation.R", "R/common/simulation_execution.R")
+                    "R/competition/uefa_nations_league_simulation.R", "R/competition/uefa_nations_league_streaming.R", "R/common/simulation_execution.R")
 implementation_hashes <- vapply(implementation, function(path) digest::digest(file = path, algo = "sha256"), character(1))
 cache_key <- digest::digest(list(loaded, implementation_hashes), algo = "sha256")
 handoff_path <- file.path(cache_dir, paste0("handoff-", cache_key, ".rds"))
@@ -34,6 +34,8 @@ execution_code_sha256 <- unname(implementation_hashes[["R/common/simulation_exec
 state <- loaded$state_bundle
 cat(sprintf("accepted_source=%s state_manifest=%s count=%d seed=15017 workers=%d\n",
   state$source_bundle_id, state$state_manifest_sha256, count, workers)); flush.console()
+message("simulation_phase phase=preparation_complete")
+frozen_implementation <- digest::digest(simulation_repository_identity("."), algo = "sha256")
 gc(reset = TRUE)
 profile <- Sys.getenv("NL_BENCH_PROFILE")
 if (nzchar(profile)) Rprof(profile)
@@ -48,13 +50,15 @@ elapsed <- system.time(simulation <- entry$uefa_nl_run_simulation(
   state_manifest_sha256 = state$state_manifest_sha256,
   official_stage_slots = loaded$stage_capture$stage_capture,
   cutoff_utc = max(as.character(loaded$source$manifest$accepted_at_utc)),
-  batch_size = 32L, progress = TRUE
+  batch_size = 32L, progress = TRUE, execution_mode = "stream",
+  run_dir = file.path(cache_dir, paste0("run-", count)), resume = identical(Sys.getenv("XGELO_SIM_RESUME"), "1"), chunk_size = 256L
 ))
 if (nzchar(profile)) Rprof(NULL)
 heap <- gc()
 peak_parent_r_heap_bytes <- sum(heap[, "max used"] * c(56, 8))
 cat(sprintf("simulation_elapsed_seconds=%.3f simulation_object_bytes=%.0f\n",
   elapsed[["elapsed"]], as.numeric(object.size(simulation)))); flush.console()
+message("simulation_phase phase=validation")
 candidate_time <- system.time({
   candidate <- entry$phase15_build_nl_outcomes_candidate(simulation = simulation,
     rules = loaded$rules, topology = loaded$topology, source = loaded$source,
@@ -72,6 +76,9 @@ measurement <- data.frame(simulations = count, seed = 15017L, workers = workers,
   source_bundle_id = state$source_bundle_id, state_manifest_sha256 = state$state_manifest_sha256,
   simulation_code_sha256 = simulation_code_sha256,
   execution_code_sha256 = execution_code_sha256,
+  reducer_code_sha256 = unname(implementation_hashes[["R/competition/uefa_nations_league_streaming.R"]]),
+  implementation_sha256 = frozen_implementation,
+  execution_mode = "stream", trace_bytes = sum(file.info(list.files(attr(simulation, "trace_store")$run_dir, recursive = TRUE, full.names = TRUE))$size),
   elapsed_seconds = elapsed[["elapsed"]], candidate_seconds = candidate_time[["elapsed"]],
   simulation_object_bytes = as.numeric(object.size(simulation)),
   peak_parent_r_heap_bytes = peak_parent_r_heap_bytes,

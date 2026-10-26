@@ -1,0 +1,20 @@
+parity_start
+entry_loaded
+inputs_verified_reference_start
+reference_complete_stream_start
+projected_standings TRUE 
+projected_rankings TRUE 
+stage_slots TRUE 
+stage_matches TRUE 
+stage_resolutions TRUE 
+transition_outcomes TRUE 
+team_path_probabilities TRUE 
+euro_priority_queue TRUE 
+fixture_forecast_form TRUE 
+outcome_probabilities TRUE 
+simulation_metadata TRUE 
+input_hashes TRUE 
+canonical_input_hashes TRUE 
+output_hashes TRUE 
+metadata TRUE 
+ALL_ACCEPTED_OUTPUTS_AND_CANDIDATE_BYTES_IDENTICAL

@@ -184,3 +184,14 @@ See `.planning/dashboard-improvements/PLAN.md`, `SUMMARY.md`, `SCALE.md` and `RU
 
 See `.planning/simulation-optimization/AUDIT.md` and its CSV/JSON evidence.
 No replacement 100k run or public promotion is active.
+
+
+## WC-style Streaming Maintenance — 2026-10-26
+
+- [x] Correct CL projected-result cutoff semantics separately (`9a19a04`, algorithm v4), retaining all authority guards.
+- [x] Implement bounded persistent chunks, complete disk audit traces, exact sufficient-statistic summaries, strict bound resume, actual/committed progress and legacy compatibility readers.
+- [x] Preserve accepted NL tables, hashes and candidate CSV bytes; pass the national gate (EURO replay + 16 suites), focused streaming/guard tests and watchdog tests.
+- [ ] Finish fresh staged 1k/10k/100k resource checks. Active private supervisor: `/private/tmp/xgelo-wc-style-certification`; NL/CL run sequentially, with 100k gated by <=2h active total and <32 GiB combined RSS on this 64 GiB host.
+- [ ] Public promotion remains separate; CL source/model authority remains human_needed.
+
+See `.planning/simulation-optimization/STREAMING.md`. This maintenance does not advance the UCL milestone phases.

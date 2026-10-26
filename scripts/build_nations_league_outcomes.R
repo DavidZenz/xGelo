@@ -64,7 +64,7 @@ phase15_nl_require_scalar <- function(value, option) {
 }
 
 phase15_nl_default_workers <- function() {
-  value <- suppressWarnings(as.integer(Sys.getenv("XGELO_NL_WORKERS", "1")))
+  value <- suppressWarnings(as.integer(Sys.getenv("XGELO_NL_WORKERS", "4")))
   if (is.na(value) || value < 1L) value <- 1L
   value
 }
@@ -75,6 +75,7 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     simulations = 1000L,
     seed = 15017L,
     workers = phase15_nl_default_workers(),
+    execution_mode = "stream", run_dir = NULL, resume = FALSE, chunk_size = 256L,
     dry_run = FALSE,
     replay_check = FALSE,
     write = FALSE,
@@ -89,6 +90,7 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       index <- index + 1L
       next
     }
+    if (argument == "--resume") { options$resume <- TRUE; index <- index + 1L; next }
     if (argument %in% c("--dry-run", "--replay-check", "--write")) {
       field <- switch(
         argument,
@@ -100,11 +102,11 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       index <- index + 1L
       next
     }
-    if (grepl("^--(edition-id|simulations|seed|workers)=", argument)) {
+    if (grepl("^--(edition-id|simulations|seed|workers|execution-mode|run-dir|chunk-size)=", argument)) {
       parts <- strsplit(argument, "=", fixed = TRUE)[[1L]]
       option <- parts[[1L]]
       value <- paste(parts[-1L], collapse = "=")
-    } else if (argument %in% c("--edition-id", "--simulations", "--seed", "--workers")) {
+    } else if (argument %in% c("--edition-id", "--simulations", "--seed", "--workers", "--execution-mode", "--run-dir", "--chunk-size")) {
       if (index == length(args)) {
         phase15_nl_fail(sprintf("Option %s requires one value.", argument))
       }
@@ -115,7 +117,16 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       phase15_nl_fail(sprintf("Unsupported argument: %s", argument))
     }
     value <- phase15_nl_require_scalar(value, option)
-    if (identical(option, "--edition-id")) {
+    if (option == "--execution-mode") {
+      if (!value %in% c("memory", "stream")) phase15_nl_fail("Invalid execution mode")
+      options$execution_mode <- value
+    } else if (option == "--run-dir") {
+      options$run_dir <- value
+    } else if (option == "--chunk-size") {
+      parsed <- suppressWarnings(as.integer(value))
+      if (is.na(parsed) || parsed < 1L || parsed > 100000L || as.character(parsed) != value) phase15_nl_fail("Invalid chunk size")
+      options$chunk_size <- parsed
+    } else if (identical(option, "--edition-id")) {
       options$edition_id <- value
     } else if (identical(option, "--simulations")) {
       parsed <- suppressWarnings(as.integer(value))
@@ -139,6 +150,7 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
     index <- index + 1L
   }
 
+  if (isTRUE(options$resume) && is.null(options$run_dir)) phase15_nl_fail("--resume requires --run-dir")
   if (isTRUE(options$help)) {
     return(options)
   }
@@ -175,7 +187,11 @@ phase15_nl_cli_usage <- function() {
     "Options:",
     "  --simulations N   Positive simulation count (default: 1000)",
     "  --seed N          Non-negative deterministic seed (default: 15017)",
-    "  --workers N       Parallel simulation workers (default: XGELO_NL_WORKERS or 1)",
+    "  --workers N       Parallel simulation workers (default: XGELO_NL_WORKERS or 4)",
+    "  --execution-mode memory|stream  Stream audit traces by default",
+    "  --run-dir PATH    Private checkpoint directory (default: data/cache/simulation-runs)",
+    "  --resume          Resume exactly matching checkpoints in --run-dir",
+    "  --chunk-size N    Iterations per checkpoint (default: 256)",
     "  --dry-run         Validate and build in memory (default mode)",
     "  --replay-check    Validate normal, reversed, and repeated replays",
     "  --write           Atomically publish the registered ten-file bundle",
@@ -593,6 +609,12 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
   forecasts <- knockout_handoff$forecasts
   forecast_status <- knockout_handoff$forecast_status
   score_distributions <- knockout_handoff$score_distributions
+  run_dir <- options$run_dir
+  if (is.null(run_dir) && identical(options$execution_mode %||% "stream", "stream")) {
+    cache <- file.path(loaded$project_root, "data/cache/simulation-runs")
+    dir.create(cache, recursive = TRUE, showWarnings = FALSE)
+    run_dir <- tempfile("nl-", tmpdir = cache)
+  }
   simulation <- uefa_nl_run_simulation(
     canonical_matches = state_bundle$canonical_matches,
     completed_results = source_override$results,
@@ -605,6 +627,8 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
     workers = options$workers,
     progress = TRUE,
     batch_size = 32L,
+    execution_mode = options$execution_mode %||% "stream", run_dir = run_dir,
+    resume = isTRUE(options$resume), chunk_size = options$chunk_size %||% 256L,
     seed = options$seed,
     source_bundle_id = state_bundle$source_bundle_id,
     source_bundle_sha256 = state_bundle$source_bundle_sha256,
@@ -793,8 +817,13 @@ phase15_build_nl_outcomes_main <- function(
   )
 
   if (identical(options$mode, "replay")) {
-    reversed <- phase15_nl_build_candidate(phase15_nl_reverse_inputs(loaded), options)
-    repeated <- phase15_nl_build_candidate(loaded, options)
+    reverse_options <- repeat_options <- options
+    if (!is.null(options$run_dir)) {
+      reverse_options$run_dir <- paste0(options$run_dir, "-reverse")
+      repeat_options$run_dir <- paste0(options$run_dir, "-repeat")
+    }
+    reversed <- phase15_nl_build_candidate(phase15_nl_reverse_inputs(loaded), reverse_options)
+    repeated <- phase15_nl_build_candidate(loaded, repeat_options)
     phase15_nl_compare_replays(normal, reversed, label = "reversed replay")
     phase15_nl_compare_replays(normal, repeated, label = "repeated replay")
     result$reversed <- reversed

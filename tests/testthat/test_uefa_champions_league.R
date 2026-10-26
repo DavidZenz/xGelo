@@ -367,7 +367,7 @@ test_that("Parent reasons and typed result contracts remain closed", {
   expect_error(ucl20_parse_args("--fixture-root=/tmp/forbidden"), "does not accept")
 })
 
-test_that("The module registry contains exactly the 19 declared public seams", {
+test_that("The module registry contains exactly the 20 declared public seams", {
   module_env <- new.env(parent = .GlobalEnv)
   for (relative in c("R/competition/uefa_champions_league_rules.R", "R/competition/uefa_champions_league_state.R", "R/competition/uefa_champions_league_simulation.R", "R/competition/uefa_champions_league_outcomes.R")) {
     sys.source(file.path(phase20_test_project_root, relative), envir = module_env)
