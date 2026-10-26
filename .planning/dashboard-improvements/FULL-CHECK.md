@@ -61,24 +61,31 @@ References: [Mozilla Firefox capabilities](https://developer.mozilla.org/en-US/d
 
 ## Remaining runtime check
 
-The complete registered regression gate (EURO replay plus 14 required suites)
-passed before the CSS repair. A second complete gate is running after the
-repair, in exec session 75741 (coordinator R PID 44129); the latest process check
-showed the real Phase 15 replay child still progressing. Its result will replace
-`/private/tmp/xgelo-full-check/regression.json` only after all suites succeed.
-The preserved `full-check-regression.json` is explicitly the first complete run,
-before the mobile CSS-only repair; do not treat it as the second run's result.
+The second complete registered regression gate (EURO replay plus all 14 required
+suites) **passed after the mobile repair**. The result is preserved in
+`full-check-regression.json`; the execution log confirms the post-repair run.
 
-The accepted 100,000 run is active in exec session 24566 (parent R PID 39423).
-Its four workers were observed using approximately one CPU core each. A
-`caffeinate -i -w 39423` process prevents idle sleep until the R process exits.
-There is no completed receipt yet. The earlier approximately 23-hour estimate
-is not a measured completion time and must not be recorded as a pass.
+At the subsequent status check, the original 100,000 benchmark and its four
+workers were no longer running. The original log contains no failure explanation
+or completion timings, and no validated receipt exists. Its cause is unknown;
+the original execution cannot be counted as passing or resumed from a checkpoint.
 
-Log: `/private/tmp/xgelo-full-check/scale-100000.log`.
+The requested benchmark has been restarted as a one-off persistent macOS job,
+`gui/501/local.xgelo.dashboard-scale-100000`, independent of the chat's exec
+session. It uses the same accepted inputs, 100,000 count, seed 15017 and four
+workers. Its log confirms entry into the accepted simulation. `caffeinate -i`
+prevents idle sleep for the duration. It does not automatically retry or run on
+a schedule. The job definition is
+`/private/tmp/xgelo-full-check/scale-100000-job.plist`.
+
+There is still no completed receipt. The earlier approximately 23-hour estimate
+is not a measured completion time or a reliable remaining-time estimate.
+
+Current log: `/private/tmp/xgelo-full-check/scale-100000-persistent.log`.
+Original interrupted log: `/private/tmp/xgelo-full-check/scale-100000.log`.
 Expected validated receipt: `/private/tmp/nl-scale-certification/measurement-100000.csv`.
 No public forecasts or dashboards are written by this benchmark.
 
-At the one-hour process check, parent plus four worker resident sets totalled
+At the original run's one-hour process check, parent plus four worker resident sets totalled
 approximately 5 GB. This is a point-in-time reading, not a measured peak or a
 progress percentage. The simulator has not been changed during this run.

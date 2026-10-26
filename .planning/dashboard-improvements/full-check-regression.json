@@ -21,5 +21,5 @@
   "environment": {
     "PHASE17_IN_REGRESSION_GATE": "1"
   },
-  "evidence_scope": "Complete registered gate before mobile CSS repair; second full gate is running. See FULL-CHECK.md."
+  "evidence_scope": "Complete registered gate after the mobile CSS repair: EURO replay and all 14 required suites passed."
 }
