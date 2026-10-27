@@ -1,0 +1,21 @@
+{
+  "schema_version": "phase19-club-fold-protocol-state-v1",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "forecast_domain": "club",
+  "authority_mode": "production",
+  "fixture_authority": false,
+  "state": "ready",
+  "reason_code": "",
+  "generation_id": "club-folds-867e300dccc09fa3f4f9d688",
+  "accepted_generation_id": "club-history-2026-10-27-b212f524034b31e7f0e1",
+  "corpus_manifest_sha256": "fd1804a0f81b511ae3d86f6e05fb2bb4ae4ded5c5ab6ae950212e83424793c79",
+  "snapshot_sha256": "29020732eb297e1694e58b801f6d4e8c6a5eafca236aad9d47d1bd9062afd81b",
+  "policy_review_sha256": "de4f280c1757551034bc08439e880ad7bf5de5b6480b10e797f78d0af8273fab",
+  "protocol_sha256": "34e084ab9e88de48ac26d57477a8d9ad03ca36972eac9245a13ddf8da719f9a2",
+  "calibration_recipe_sha256": "40f36e7fe70ff326c067ac88f3d79d54bf9e68b499d7d3640f40765b98ffb583",
+  "fold_registry_sha256": "2f49f0873fa855775dcd911cf2b1183d09091ac2422452f4d467611a5cf2a8fd",
+  "fold_review_sha256": "84c68d0c69af8c0a72b5432b7e2a87044e09fc8bbc90ef51b6ee11275ee5b7db",
+  "final_cutoff_utc": "2026-10-27T00:00:00Z",
+  "code_commit": "1e3587427a1202537446113eb4a857b0e93814eb",
+  "state_sha256": "0a43599d5d0837e747605da227e6104541682da2621b20b6c6bba6ac9ce53650"
+}

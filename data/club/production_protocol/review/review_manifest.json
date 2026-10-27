@@ -1,0 +1,29 @@
+{
+  "schema_version": "club-model-fold-review-package-v1",
+  "decision": "pending",
+  "fold_registry_sha256": "2f49f0873fa855775dcd911cf2b1183d09091ac2422452f4d467611a5cf2a8fd",
+  "code_sha256": "b4d4e3168ec5cc88668c1af13b4164fa0c73d1d278b562af34cf0ebc9147a93e",
+  "recipe_sha256": "c9817163a8b43f7cabbecb48201ce0ae0d35d65790060f7a7cc76574bf6a2482",
+  "files": [
+    {
+      "path": "data/club/production_protocol/review/fold_registry.csv",
+      "sha256": "840b75c9e911b7741b76649b3036ed19df5ba7bbbd6ff5d8e7b08b393ca9f02f"
+    },
+    {
+      "path": "data/club/production_protocol/review/fold_review.json",
+      "sha256": "f92785b8674065c1b3ee7b426412d52aed44bff7c705697df4ad0309f094d097"
+    },
+    {
+      "path": "data/club/production_protocol/review/role_inventory.csv",
+      "sha256": "401a52aa9011eac8d352c889f41fcc51b415b132079580821657640cb156de26"
+    },
+    {
+      "path": "data/club/production_protocol/review/production_recipe_v2.json",
+      "sha256": "d5426c03c30d955ccad4c5f4e29a188cf4590efccc68cee078c84a61dd092fdd"
+    },
+    {
+      "path": "data/club/production_protocol/review/README.md",
+      "sha256": "8665b2f2c6ab3bc8486d715dd514b53d437f34583fa964fb9bfc2401e99dfda9"
+    }
+  ]
+}
