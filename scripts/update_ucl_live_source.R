@@ -24,6 +24,8 @@ update_ucl_live_source <- function() {
   if (!identical(refresh$status, "accepted")) {
     stop("Live source refresh is blocked: ", refresh$reason_code, call. = FALSE)
   }
+  source("scripts/render_ucl_live_dashboard.R", local = .GlobalEnv)
+  render_ucl_live_dashboard()
   cat("UCL_LIVE_UPDATE source=accepted bundle=", bundle_id, " forecast_authority_unchanged=true\n", sep = "")
   invisible(refresh)
 }

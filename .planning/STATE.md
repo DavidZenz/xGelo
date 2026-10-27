@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Phase 20 context gathered
-last_updated: "2026-09-21T09:00:19.763Z"
-last_activity: 2026-09-21
-last_activity_desc: Plan 10 aggregate adversarial gate complete; production remains human_needed and national regression awaits a pre-existing model artifact
+stopped_at: Historical corpus prepared; owner source and identity review pending
+last_updated: "2026-10-27T12:42:10Z"
+last_activity: 2026-10-27
+last_activity_desc: Genuine historical source and production model pipeline implemented; exact source package awaits owner review before corpus activation and fold review
 progress:
   total_phases: 5
   completed_phases: 2
@@ -31,7 +31,7 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
 Plan: 10 of 10
 Status: Mechanics complete; production human_needed; Plans 01-10 complete
-Last activity: 2026-09-21 — Plan 10 aggregate adversarial gate complete; production remains human_needed and national regression awaits a pre-existing model artifact
+Last activity: 2026-10-27 — Real historical source package and production pipeline implemented; source/identity/policy and exact derived fold approvals remain required before production predictions.
 
 Progress: [██████████] 100%
 
@@ -136,8 +136,10 @@ Progress: [██████████] 100%
 
 - [2026-10-27 complete] Real `football_data_org_v4` acceptance and two atomic live UCL source promotions passed; approved current roster has 36 clubs and 144 league-phase fixtures.
 - [2026-10-27 complete] David Zenz approved the 36 current club mappings and league-phase counts; current registry and review evidence are generation-backed.
-- Supply and approve pinned/licensed historical club sources before Phase 19 model training.
-- Complete the production source-to-state adapter and Phase 19 evaluation/promotion controller; the live source view works while club forecasts remain unavailable.
+- [2026-10-27 prepared] Historical review package: 16,277 distinct regulation results from 432 pinned snapshots across 59 season files; 407 evidence-bound identity entries, 343 clubs, all 36 current clubs covered in one component. Package: `data/club/identity_reviews/history-2026-10-27/README.md`.
+- [2026-10-27 complete implementation] Native historical parsing, first-observation source selection, prior-only production tuning/calibration/evaluation, reproducible refitting, release installation, live inference and club targets are wired and tested.
+- Owner source/identity/policy approval remains pending; after activation, derive and review exact folds before running the production model evaluation and enabling forecasts.
+- [2026-10-27 owner decision] Require all 36 current clubs to have connected historical coverage before enabling any predictions; partial roster release is prohibited.
 
 ### Blockers/Concerns
 

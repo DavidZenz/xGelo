@@ -388,6 +388,8 @@ phase19_club_goal_fit_hash <- function(fit) {
     "mass_package_version",
     "unavailable_feature_ids_text"
   )
+  fields <- c(fields, intersect(c("production_eligible", "training_fixture_sha256",
+                                  "excluded_competition_id", "rating_engine"), names(fit)))
   phase19_club_goal_hash_scalars(
     unname(fit[fields]) |> setNames(fields), "phase19-club-goal-fit-v1"
   )
@@ -452,7 +454,9 @@ phase19_club_goal_empirical_grid_hash <- function(empirical_grid) {
 #'
 #' @export
 phase19_fit_club_goal_model <- function(registration, training_snapshot,
-                                        rating_evidence, protocol, cutoff_utc) {
+                                        rating_evidence, protocol, cutoff_utc,
+                                        training_fixture_ids = NULL,
+                                        excluded_competition_id = "") {
   phase19_club_goal_require_dependencies()
   registration <- phase19_club_goal_registration(registration, protocol)
   authority_mode <- as.character(training_snapshot$authority_mode)
@@ -472,6 +476,20 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
   )
   eligible <- phase19_club_goal_eligible_history(training_snapshot, cutoff_utc)
   history <- eligible$rows
+  if (!is.null(training_fixture_ids)) {
+    ids <- sort(as.character(training_fixture_ids), method = "radix")
+    if (!length(ids) || anyNA(ids) || anyDuplicated(ids) ||
+        any(!ids %in% history$match_id)) {
+      phase19_club_goal_model_abort("training_role_invalid", "Fit membership is not strictly prior accepted history")
+    }
+    history <- history[match(ids, history$match_id), , drop = FALSE]
+  }
+  if (length(excluded_competition_id) != 1L || is.na(excluded_competition_id)) {
+    phase19_club_goal_model_abort("training_role_invalid", "Fit exclusion must be one competition identity")
+  }
+  if (nzchar(excluded_competition_id)) {
+    history <- history[history$competition_id != excluded_competition_id, , drop = FALSE]
+  }
   ratings <- phase19_club_goal_join_rating(history, rating_evidence)
   model_id <- as.character(registration$model_id[[1L]])
   active_features <- phase19_club_goal_active_features(model_id)
@@ -609,6 +627,12 @@ phase19_fit_club_goal_model <- function(registration, training_snapshot,
     fit_warnings = fit_warnings,
     fit_sha256 = ""
   )
+  fit$production_eligible <- isTRUE(fit$promotion_eligible)
+  fit$rating_parameters <- rating_evidence$parameters
+  fit$training_fixture_sha256 <- phase19_fold_id_sha256(
+    sort(as.character(history$match_id), method = "radix"), "training"
+  )
+  fit$excluded_competition_id <- as.character(excluded_competition_id)
   if (any(as.character(rating_rows$parameter_sha256) != fit$rating_parameter_sha256) ||
       any(as.character(rating_rows$current_snapshot_sha256) != fit$current_snapshot_sha256)) {
     phase19_club_goal_model_abort(
@@ -630,6 +654,13 @@ phase19_validate_club_goal_fit <- function(fit) {
       !identical(fit$fit_sha256, phase19_club_goal_fit_hash(fit)) ||
       !identical(fit$fallback_status, "none")) {
       phase19_club_goal_model_abort("invalid_fit", "Club goal fit identity is invalid")
+  }
+  if (!is.null(fit$rating_parameters)) {
+    phase19_validate_club_rating_parameters(fit$rating_parameters)
+    if (!identical(fit$rating_parameter_sha256,
+                   fit$rating_parameters$parameter_sha256)) {
+      phase19_club_goal_model_abort("invalid_fit", "Stored rating parameters differ from fit evidence")
+    }
   }
   expected_coefficients <- phase19_club_goal_coefficients_hash(fit$coefficients)
   expected_grid <- phase19_club_goal_empirical_grid_hash(fit$empirical_grid)

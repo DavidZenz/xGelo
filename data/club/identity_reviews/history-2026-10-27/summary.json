@@ -1,0 +1,17 @@
+{
+  "native_file_count": 59,
+  "native_name_count": 406,
+  "proposal_count": 406,
+  "proposed_club_count": 343,
+  "unresolved_proposal_count": 0,
+  "current_club_count": 36,
+  "current_clubs_covered": 36,
+  "source_count": 432,
+  "selected_regulation_results": 16277,
+  "excluded_source_rows": 119680,
+  "generated_at_utc": "2026-10-27T12:37:29Z",
+  "current_clubs_with_played_history": 36,
+  "current_clubs_in_common_component": 36,
+  "acceptance_state": "pending_owner_review",
+  "accepted_authority_mutated": false
+}

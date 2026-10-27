@@ -52,7 +52,8 @@ phase19_cli_source(c(
   "R/club/goal_model.R",
   "R/club/calibration.R",
   "R/club/evaluation.R",
-  "R/club/release.R"
+  "R/club/release.R",
+  "R/club/production_runner.R"
 ))
 
 phase19_cli_usage <- function() {
@@ -245,37 +246,28 @@ phase19_cli_blocked_record <- function(reason_code) {
 }
 
 phase19_cli_production <- function() {
-  history <- tryCatch(phase19_load_club_training_snapshot(), error = function(error) {
-    structure(list(status = "blocked", reason_code = "no_accepted_club_history"), class = "phase19_cli_blocked")
-  })
-  history_status <- if (identical(history$status, "ready")) "ready" else "blocked"
-  current <- NULL
-  policy <- NULL
-  fold <- NULL
-  current_status <- policy_status <- fold_status <- "blocked"
-  if (identical(history_status, "ready")) {
-    current <- tryCatch(phase19_load_current_ucl_club_snapshot(), error = function(error) {
-      list(status = "blocked", reason_code = "no_accepted_current_ucl")
-    })
-    current_status <- if (identical(current$status, "ready")) "ready" else "blocked"
+  result <- tryCatch(phase19_run_club_production_pipeline(
+    progress = function(message) cat(paste0("PHASE19_PROGRESS ", message, "\n"))),
+    error = function(error) error)
+  output_path <- file.path(phase19_cli_root, "outputs/club_model/production/controller_result.json")
+  if (inherits(result, "error")) {
+    reason <- if (is.null(result$reason_code)) "production_execution_failed" else as.character(result$reason_code)
+    record <- phase19_cli_blocked_record(reason)
+    record$detail <- conditionMessage(result)
+    phase19_cli_emit(record, output_path)
+    return(invisible(record))
   }
-  if (identical(history_status, "ready") && identical(current_status, "ready")) {
-    policy <- tryCatch(phase19_load_club_evaluation_protocol(), error = function(error) {
-      list(status = "blocked", reason_code = "protocol_policy_not_approved")
-    })
-    policy_status <- if (identical(policy$status, "ready")) "ready" else "blocked"
-  }
-  if (identical(history_status, "ready") && identical(current_status, "ready") &&
-      identical(policy_status, "ready")) {
-    fold <- list(status = "blocked", reason_code = "fold_inventory_not_approved")
-    fold_status <- "blocked"
-  }
-  reason <- phase19_club_production_block_reason(
-    history_status, current_status, policy_status, fold_status
-  )
-  if (!nzchar(reason)) phase19_cli_abort("production controller reached an unsupported state", 5L)
-  record <- phase19_cli_blocked_record(reason)
-  output_path <- file.path(phase19_cli_root, "outputs/club_model/blocked/phase19-production-blocked.json")
+  decision <- result$decision
+  record <- list(schema_version = "phase19-club-controller-result-v2",
+    forecast_domain = "club", authority_mode = "production", fixture_authority = FALSE,
+    status = result$status, reason_code = result$reason_code,
+    diagnostic_gate_outcome = decision$diagnostic_gate_outcome,
+    authority_eligibility = decision$authority_eligibility,
+    promotion_status = decision$promotion_status, selected_model_id = decision$selected_model_id,
+    model_work_started = TRUE, release_mutated = isTRUE(result$release_mutated),
+    selector_mutated = isTRUE(result$selector_mutated),
+    decision_sha256 = decision$decision_sha256,
+    evaluation_sha256 = result$evidence$evaluation_sha256)
   phase19_cli_emit(record, output_path)
   invisible(record)
 }

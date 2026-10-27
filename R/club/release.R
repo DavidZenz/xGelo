@@ -1047,6 +1047,21 @@ phase19_validate_club_release <- function(
   if (length(load_models) != 1L || !is.logical(load_models) || is.na(load_models)) phase19_club_release_abort("release_argument_invalid", "load_models must be one logical value")
   if (!identical(expected_domain, "club")) phase19_club_release_abort("domain_mismatch", "Club release validator requires expected_domain=club")
   expected_authority_mode <- match.arg(expected_authority_mode)
+  if (identical(expected_authority_mode, "production")) {
+    manifest_path <- file.path(root, "release_manifest.csv")
+    if (file.exists(manifest_path) && !nzchar(Sys.readlink(manifest_path))) {
+      versioned <- utils::read.csv(manifest_path, stringsAsFactors = FALSE,
+        colClasses = "character", check.names = FALSE)
+      if ("schema_version" %in% names(versioned) && nrow(versioned) &&
+          all(versioned$schema_version == "phase19-club-release-manifest-v2")) {
+        if (!exists("phase19_validate_club_production_release_v2", mode = "function")) {
+          source(file.path(.phase19_club_project_root, "R/club/production_runner.R"), local = .GlobalEnv)
+        }
+        return(phase19_validate_club_production_release_v2(root,
+          validate_authority = isTRUE(load_models), load_models = load_models))
+      }
+    }
+  }
   inventory <- phase19_club_release_inventory(root)
   expected_inventory <- sort(phase19_club_release_required_artifacts(), method = "radix")
   if (!identical(inventory, expected_inventory)) {
@@ -1409,6 +1424,28 @@ phase19_resolve_production_club_release <- function(
     trusted_root = phase19_club_release_production_root(), selector_path = NULL,
     validated_preflight = NULL
 ) {
+  # V2 keeps the selector topology but carries an independently evaluated final
+  # full-history refit rather than publishing an arbitrary outer-fold model.
+  if (dir.exists(trusted_root)) {
+    path <- if (is.null(selector_path)) file.path(trusted_root, "approved_release.csv") else selector_path
+    if (file.exists(path)) {
+      selected <- phase19_read_club_selector(path, trusted_root, "club")
+      manifest <- utils::read.csv(selected$release_manifest_path,
+        stringsAsFactors = FALSE, colClasses = "character", check.names = FALSE)
+      if ("schema_version" %in% names(manifest) && nrow(manifest) &&
+          all(manifest$schema_version == "phase19-club-release-manifest-v2")) {
+        if (!exists("phase19_resolve_club_production_v2", mode = "function")) {
+          source(file.path(.phase19_club_project_root, "R/club/production_runner.R"), local = .GlobalEnv)
+        }
+        resolved <- phase19_resolve_club_production_v2(trusted_root, path)
+        if (!is.null(validated_preflight) &&
+            !identical(as.character(validated_preflight$model_contract$release_id), resolved$release_id)) {
+          phase19_club_release_abort("release_preflight_stale", "Production preflight is stale")
+        }
+        return(resolved)
+      }
+    }
+  }
   phase19_resolve_club_release(
     trusted_root, selector_path, validated_preflight,
     authority_mode = "production"

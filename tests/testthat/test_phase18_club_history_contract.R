@@ -81,6 +81,26 @@ test_that("history schemas and pins are exact and fail closed", {
   expect_error(phase18_validate_history_sources(unsafe), class = "unsafe_history_source_path")
 })
 
+test_that("raw source namespaces prevent cross-repository filename collisions", {
+  phase18_history_test_load()
+  root <- tempfile("history-namespaces-"); dir.create(root)
+  on.exit(unlink(root, recursive = TRUE))
+  source <- phase18_history_test_source()
+  source$relative_path <- "2025-26/1-bundesliga.txt"
+  target <- file.path(root, source$source_id, source$commit_sha, source$relative_path)
+  dir.create(dirname(target), recursive = TRUE)
+  writeLines("pinned source bytes", target)
+  source$bytes <- as.character(file.info(target)$size)
+  source$raw_sha256 <- digest::digest(file = target, algo = "sha256", serialize = FALSE)
+  source$row_sha256 <- phase18_history_row_sha256(source)
+  expect_identical(phase18_verify_history_source_file(source, root), normalizePath(target))
+  wrong <- file.path(root, source$relative_path); dir.create(dirname(wrong), recursive = TRUE)
+  writeLines("other repository's same path", wrong)
+  expect_identical(phase18_verify_history_source_file(source, root), normalizePath(target))
+  writeLines("changed scoped bytes", target)
+  expect_error(phase18_verify_history_source_file(source, root), class = "history_source_hash_mismatch")
+})
+
 test_that("date-only evidence uses next-day UTC and strict prior-information cutoff", {
   phase18_history_test_load()
   phase18_history_test_require("phase18_normalize_club_history")

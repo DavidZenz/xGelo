@@ -486,3 +486,43 @@ testthat::test_that("blank identity fields and exact canonical duplicates fail c
   duplicate <- phase18_hash_club_registry_rows(duplicate)
   testthat::expect_error(phase18_validate_club_registries(duplicate), class = "duplicate_club_identity")
 })
+
+
+testthat::test_that("approved historical evidence extends only a compatible continuous club lifetime", {
+  phase18_identity_test_load()
+  tokens <- phase18_identity_test_tokens()
+  review <- phase18_identity_test_review(tokens)
+  first <- phase18_apply_club_identity_review(tokens, review, phase18_identity_test_empty())
+  recent <- first$registries
+  recent$source_ids <- recent$source_ids[recent$source_ids$source_system != "openfootball", , drop = FALSE]
+  recent$aliases <- recent$aliases[recent$aliases$source_system != "openfootball", , drop = FALSE]
+  recent$clubs$valid_from_utc <- "2026-01-01T00:00:00Z"
+  recent$clubs$valid_to_utc <- "2027-07-01T00:00:00Z"
+  recent <- phase18_hash_club_registry_rows(recent)
+  keep <- tokens$source_system == "openfootball"
+  tokens <- tokens[keep, , drop = FALSE]
+  historical <- review[keep, , drop = FALSE]
+  historical$valid_from_utc <- "2000-01-01T00:00:00Z"
+  historical$valid_to_utc <- "2026-01-01T00:00:00Z"
+  historical <- phase18_hash_club_review_rows(historical)
+  extended <- phase18_apply_club_identity_review(tokens, historical, recent)
+  testthat::expect_true(all(extended$registries$clubs$valid_from_utc == "2000-01-01T00:00:00Z"))
+  testthat::expect_true(all(extended$registries$clubs$valid_to_utc == "2027-07-01T00:00:00Z"))
+  testthat::expect_silent(phase18_validate_club_registries(extended$registries))
+  pending <- historical
+  pending$review_state <- "pending"
+  pending <- phase18_hash_club_review_rows(pending)
+  unchanged <- phase18_apply_club_identity_review(tokens, pending, recent)
+  testthat::expect_identical(unchanged$registries, recent)
+  disjoint <- historical
+  disjoint$valid_to_utc <- "2025-12-31T23:59:59Z"
+  disjoint <- phase18_hash_club_review_rows(disjoint)
+  testthat::expect_error(phase18_apply_club_identity_review(tokens, disjoint, recent),
+    class = "club_identity_review_conflict")
+  incompatible <- historical
+  incompatible$association_code[[1L]] <- "DEU"
+  incompatible <- phase18_hash_club_review_rows(incompatible)
+  testthat::expect_error(phase18_apply_club_identity_review(tokens, incompatible, recent),
+    class = "club_identity_review_conflict")
+  testthat::expect_identical(recent$clubs$valid_from_utc, rep("2026-01-01T00:00:00Z", 2L))
+})

@@ -223,11 +223,12 @@ phase18_history_parse_score <- function(score_text, semantics) {
   result
 }
 
-phase18_history_identity <- function(registries, display_name, event_at_utc) {
+phase18_history_identity <- function(registries, display_name, event_at_utc, .registry_sha256 = NULL) {
   normalized <- phase18_normalize_club_name(display_name)
   source_id <- paste0("name:", gsub(" ", "_", normalized, fixed = TRUE))
   tryCatch(
-    phase18_resolve_club_identity(registries, "openfootball", source_id, display_name, event_at_utc),
+    phase18_resolve_club_identity(registries, "openfootball", source_id, display_name, event_at_utc,
+      .validated = !is.null(.registry_sha256), .registry_sha256 = .registry_sha256),
     error = function(error) structure(
       list(reason = if (is.null(error$reason)) class(error)[[1L]] else error$reason),
       class = "phase18_unresolved_history_identity"
@@ -245,6 +246,7 @@ phase18_normalize_club_history <- function(rows, source_row, club_registries, cu
     phase18_history_abort("inactive_history_source", "Normalization requires exactly one active source row")
   }
   phase18_validate_club_registries(club_registries)
+  registry_hash <- phase18_club_registry_hash(club_registries)
   cutoff <- phase18_history_parse_utc(cutoff_utc, "cutoff_utc")[[1L]]
   output <- lapply(seq_len(nrow(rows)), function(index) {
     row <- rows[index, , drop = FALSE]
@@ -278,8 +280,8 @@ phase18_normalize_club_history <- function(rows, source_row, club_registries, cu
     } else {
       max(observed_evidence, source_available)
     }
-    home <- phase18_history_identity(club_registries, row$home_name[[1L]], phase18_history_format_utc(event_at))
-    away <- phase18_history_identity(club_registries, row$away_name[[1L]], phase18_history_format_utc(event_at))
+    home <- phase18_history_identity(club_registries, row$home_name[[1L]], phase18_history_format_utc(event_at), registry_hash)
+    away <- phase18_history_identity(club_registries, row$away_name[[1L]], phase18_history_format_utc(event_at), registry_hash)
     identity_ok <- !inherits(home, "phase18_unresolved_history_identity") && !inherits(away, "phase18_unresolved_history_identity")
     temporal_ok <- !is.na(evidence) && !is.na(completion_floor) && evidence >= completion_floor && evidence < cutoff
     completed <- identical(as.character(row$status[[1L]]), "completed")
@@ -311,7 +313,7 @@ phase18_normalize_club_history <- function(rows, source_row, club_registries, cu
       final_home_goals = score$final[["home"]], final_away_goals = score$final[["away"]],
       shootout_home_goals = score$shootout[["home"]], shootout_away_goals = score$shootout[["away"]],
       completion_method = score$completion_method, score_semantics = as.character(row$score_semantics[[1L]]),
-      identity_registry_sha256 = phase18_club_registry_hash(club_registries), source_row_sha256 = source_row$row_sha256[[1L]],
+      identity_registry_sha256 = registry_hash, source_row_sha256 = source_row$row_sha256[[1L]],
       counts_for_model = identical(reason, ""), exclusion_reason = reason, row_sha256 = "",
       stringsAsFactors = FALSE, check.names = FALSE
     )
@@ -432,8 +434,8 @@ phase18_history_recompute_match_state <- function(matches, source_manifest, club
       identical(match$identity_registry_sha256[[1L]], registry_hash)
 
     event_at <- if (nzchar(match$kickoff_utc[[1L]])) match$kickoff_utc[[1L]] else paste0(match$event_date[[1L]], "T00:00:00Z")
-    home <- phase18_history_identity(club_registries, match$home_display_name[[1L]], event_at)
-    away <- phase18_history_identity(club_registries, match$away_display_name[[1L]], event_at)
+    home <- phase18_history_identity(club_registries, match$home_display_name[[1L]], event_at, registry_hash)
+    away <- phase18_history_identity(club_registries, match$away_display_name[[1L]], event_at, registry_hash)
     result$identity_ok[[index]] <- completed &&
       !inherits(home, "phase18_unresolved_history_identity") &&
       !inherits(away, "phase18_unresolved_history_identity") &&
@@ -659,6 +661,14 @@ phase18_verify_history_source_file <- function(source_row, raw_root) {
   if (!phase18_history_safe_relative_path(relative)) {
     phase18_history_abort("unsafe_history_source_path", "Historical source path is unsafe")
   }
+  # Git paths are repository-relative, so different repositories can contain
+  # the same filename. Keep each original path inside its source/commit scope.
+  prefix <- c(source_row$source_id[[1L]], source_row$commit_sha[[1L]])
+  if (!all(phase18_history_safe_relative_path(prefix))) {
+    phase18_history_abort("unsafe_history_source_path", "Historical source namespace is unsafe")
+  }
+  scoped_relative <- paste(c(prefix, relative), collapse = "/")
+  if (file.exists(file.path(root, scoped_relative))) relative <- scoped_relative
   candidate <- file.path(root, relative)
   if (!file.exists(candidate) || dir.exists(candidate)) {
     phase18_history_abort("missing_history_source_file", paste0("Declared historical source file is missing: ", relative))
@@ -735,7 +745,7 @@ phase18_history_replace_directory <- function(candidate_root, destination_root) 
   invisible(destination_root)
 }
 
-phase18_validate_club_history_corpus <- function(root) {
+.phase18_validate_club_history_corpus_uncached <- function(root) {
   if (!dir.exists(root) || nzchar(Sys.readlink(root))) {
     phase18_history_abort("invalid_history_corpus_root", "History corpus root must be a real directory")
   }
@@ -817,6 +827,37 @@ phase18_validate_club_history_corpus <- function(root) {
   )
   invisible(list(accepted_for_training = phase18_history_logical(manifest$accepted_for_training[[1L]]), tables = tables, gates = gates))
 }
+
+# Production role validation repeatedly visits the same immutable corpus.
+# Recheck every artifact's actual bytes before reusing the expensive semantic
+# audit. A timestamp-only cache could miss tampering and is deliberately avoided.
+phase18_validate_club_history_corpus <- local({
+  cache <- new.env(parent = emptyenv())
+  function(root) {
+    if (!dir.exists(root) || nzchar(Sys.readlink(root)))
+      phase18_history_abort("invalid_history_corpus_root", "History corpus root must be a real directory")
+    files <- phase18_history_bundle_files()
+    actual <- sort(list.files(root, all.files = TRUE, no.. = TRUE, recursive = TRUE, include.dirs = FALSE))
+    if (!identical(actual, sort(unname(files))))
+      phase18_history_abort("invalid_history_corpus_inventory", "History corpus must contain exactly the declared recursive artifacts")
+    paths <- file.path(root, files)
+    if (any(nzchar(Sys.readlink(paths))) || any(file.info(paths)$isdir))
+      phase18_history_abort("invalid_history_corpus_inventory", "Corpus artifacts must be regular non-symlinked files")
+    key <- normalizePath(root, winslash = "/", mustWork = TRUE)
+    fingerprints <- vapply(paths, function(path) digest::digest(file = path, algo = "sha256", serialize = FALSE), character(1))
+    if (exists(key, envir = cache, inherits = FALSE)) {
+      previous <- get(key, envir = cache, inherits = FALSE)
+      if (identical(previous$fingerprints, fingerprints)) return(invisible(previous$result))
+    }
+    result <- .phase18_validate_club_history_corpus_uncached(root)
+    # Refuse a concurrent edit during the independent semantic audit.
+    after <- vapply(paths, function(path) digest::digest(file = path, algo = "sha256", serialize = FALSE), character(1))
+    if (!identical(after, fingerprints))
+      phase18_history_abort("history_corpus_changed_during_validation", "Corpus bytes changed during validation")
+    assign(key, list(fingerprints = fingerprints, result = result), envir = cache)
+    invisible(result)
+  }
+})
 
 phase18_history_generation_manifest_schema <- function() {
   c(

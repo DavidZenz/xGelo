@@ -19,6 +19,8 @@ source(file.path(project_root, "R/competition/source_contracts.R"), local = .Glo
 source(file.path(project_root, "R/club/identity.R"), local = .GlobalEnv)
 source(file.path(project_root, "R/club/identity_bootstrap.R"), local = .GlobalEnv)
 source(file.path(project_root, "R/club/history_contract.R"), local = .GlobalEnv)
+source(file.path(project_root, "R/club/openfootball_parser.R"), local = .GlobalEnv)
+source(file.path(project_root, "R/club/history_ingestion.R"), local = .GlobalEnv)
 
 resolve_trusted <- function(value, default, must_exist = FALSE) {
   candidate <- value %||% default
@@ -35,6 +37,7 @@ resolve_trusted <- function(value, default, must_exist = FALSE) {
 }
 
 inventory_path <- resolve_trusted(options$inventory, "data/club/history_sources.csv", TRUE)
+scope_path <- resolve_trusted(options$scopes, "data/club/history_source_scopes.csv", FALSE)
 registry_root <- resolve_trusted(options$`registry-root`, "data/club/registries", TRUE)
 review_root <- resolve_trusted(options$`identity-review-root`, "data/club/identity_reviews", TRUE)
 raw_root <- resolve_trusted(options$`raw-root`, "data/club/local_raw", FALSE)
@@ -48,6 +51,7 @@ invisible(phase18_history_parse_utc(cutoff_utc, "cutoff"))
 
 run <- function() {
   inventory <- phase18_history_read_csv(inventory_path)
+  scopes <- phase18_history_read_csv(scope_path, phase18_history_scope_schema())
   phase18_validate_history_sources(inventory)
   registries <- phase18_load_club_registries(registry_root)
   current_tokens <- phase18_history_read_csv(
@@ -92,17 +96,14 @@ run <- function() {
   for (index in seq_len(nrow(active))) {
     source_row <- active[index, , drop = FALSE]
     path <- phase18_verify_history_source_file(source_row, raw_root)
-    rows <- phase18_history_read_csv(path)
-    required <- c(
-      "source_match_id", "event_date", "kickoff_utc", "stage", "status",
-      "home_name", "away_name", "score_text", "score_semantics", "evidence_updated_at_utc"
-    )
-    if (!identical(names(rows), required)) {
-      phase18_history_abort(
-        "unsupported_history_source_format",
-        "Pinned source is not the reviewed normalized OpenFootball exchange schema"
-      )
-    }
+    ingested <- phase18_ingest_pinned_club_source(path, source_row, scopes)
+    rows <- ingested$rows
+    diagnostics_root <- file.path(project_root, "data/club/history_audits/native", corpus_id)
+    dir.create(diagnostics_root, recursive = TRUE, showWarnings = FALSE)
+    if (ncol(ingested$diagnostics)) utils::write.csv(ingested$diagnostics,
+      file.path(diagnostics_root, paste0(source_row$source_id[[1L]], "-parser.csv")), row.names = FALSE)
+    if (ncol(ingested$exclusions)) utils::write.csv(ingested$exclusions,
+      file.path(diagnostics_root, paste0(source_row$source_id[[1L]], "-exclusions.csv")), row.names = FALSE)
     normalized_parts[[length(normalized_parts) + 1L]] <- phase18_normalize_club_history(
       rows, source_row, registries, cutoff_utc
     )

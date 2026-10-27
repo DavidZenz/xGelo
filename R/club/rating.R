@@ -314,6 +314,18 @@ phase19_club_rating_decay_to <- function(state, boundary_utc) {
     "last_evidence_available_at_utc", allow_empty = TRUE
   )
   active <- !is.na(prior)
+  # Ratings already include decay through as_of_boundary.  Decaying again from
+  # last result time would compound the same interval at every intervening
+  # prediction batch.
+  if (nzchar(state$as_of_boundary)) {
+    previous_boundary <- phase19_club_rating_parse_utc(
+      state$as_of_boundary, "as_of_boundary"
+    )[[1L]]
+    if (boundary < previous_boundary) {
+      phase19_club_rating_abort("invalid_time", "Rating state cannot move before its last decay boundary")
+    }
+    prior[active] <- previous_boundary
+  }
   elapsed_days <- as.numeric(difftime(boundary, prior, units = "days"))
   if (any(active & elapsed_days < 0)) {
     phase19_club_rating_abort("invalid_time", "Rating state cannot move before accepted evidence")
@@ -492,8 +504,8 @@ phase19_forecast_club_rating_batch <- function(state, fixtures) {
   completed <- fixtures$status == "completed" & counts
   if (any(completed)) {
     outcomes <- ifelse(
-      fixtures$regulation_home_goals > fixtures$regulation_away_goals, 1,
-      ifelse(fixtures$regulation_home_goals == fixtures$regulation_away_goals, 0.5, 0)
+      as.integer(fixtures$regulation_home_goals) > as.integer(fixtures$regulation_away_goals), 1,
+      ifelse(as.integer(fixtures$regulation_home_goals) == as.integer(fixtures$regulation_away_goals), 0.5, 0)
     )
     home_delta <- pre_state$parameters$k_factor * (outcomes - expected_home)
     contributions <- rbind(
@@ -865,7 +877,10 @@ phase19_replay_club_ratings <- function(
     current_snapshot,
     parameters,
     cutoff_utc = training_snapshot$cutoff_utc,
-    history = training_snapshot$matches
+    history = training_snapshot$matches,
+    history_fixture_ids = NULL,
+    excluded_competition_id = "",
+    enforce_current_coverage = TRUE
 ) {
   phase19_club_rating_require_dependencies()
   authority_mode <- as.character(training_snapshot$authority_mode)
@@ -896,6 +911,22 @@ phase19_replay_club_ratings <- function(
       "invalid_history", "Replay history is not the validated training snapshot"
     )
   }
+  # Scope ratings without manufacturing a different accepted snapshot.  Both
+  # membership and the held-out league are retained and replayed by validation.
+  if (!is.null(history_fixture_ids)) {
+    ids <- sort(as.character(history_fixture_ids), method = "radix")
+    if (!length(ids) || anyNA(ids) || anyDuplicated(ids) ||
+        any(!ids %in% canonical$match_id)) {
+      phase19_club_rating_abort("invalid_history", "Rating role membership is invalid")
+    }
+    canonical <- canonical[match(ids, canonical$match_id), , drop = FALSE]
+  }
+  if (length(excluded_competition_id) != 1L || is.na(excluded_competition_id)) {
+    phase19_club_rating_abort("invalid_history", "Rating exclusion must be one competition identity")
+  }
+  if (nzchar(excluded_competition_id)) {
+    canonical <- canonical[canonical$competition_id != excluded_competition_id, , drop = FALSE]
+  }
   counted <- vapply(canonical$counts_for_model, phase18_history_logical, logical(1))
   if (any(!counted) || any(as.character(canonical$status) != "completed")) {
     phase19_club_rating_abort(
@@ -915,7 +946,7 @@ phase19_replay_club_ratings <- function(
   component_audit <- phase19_club_rating_component_audit(
     training_snapshot, current_snapshot, canonical
   )
-  if (!isTRUE(component_audit$coverage_passed)) {
+  if (isTRUE(enforce_current_coverage) && !isTRUE(component_audit$coverage_passed)) {
     return(phase19_club_rating_replay_result(
       "blocked", "current_ucl_identity_incomplete",
       training_snapshot, current_snapshot, component_audit
@@ -971,10 +1002,25 @@ phase19_replay_club_ratings <- function(
         applied_batch_count = applied_batch_count,
         excluded_batch_count = excluded_batch_count
       )
+      details$history_fixture_ids <- sort(as.character(canonical$match_id), method = "radix")
+      details$excluded_competition_id <- as.character(excluded_competition_id)
+      details$enforce_current_coverage <- isTRUE(enforce_current_coverage)
       details$parameter_sha256 <- as.character(parameters$parameter_sha256)
       details$replay_digest_sha256 <- phase19_club_rating_replay_digest(
         parameters, cutoff_text, predictions, state, component_audit,
         applied_batch_count, excluded_batch_count
+      )
+      details$role_membership_sha256 <- phase18_hash_sequence_v2(
+        details$history_fixture_ids, domain = "phase19-club-rating-role-v1",
+        names = paste0("fixture_", seq_along(details$history_fixture_ids)),
+        types = rep("character", length(details$history_fixture_ids))
+      )
+      details$replay_digest_sha256 <- phase18_hash_sequence_v2(
+        c(details$replay_digest_sha256, details$role_membership_sha256,
+          details$excluded_competition_id, as.character(details$enforce_current_coverage)),
+        domain = "phase19-club-rating-scoped-replay-v1",
+        names = c("replay", "membership", "excluded_competition", "coverage_required"),
+        types = rep("character", 4L)
       )
       details
     }
@@ -1019,7 +1065,10 @@ phase19_validate_club_rating_replay <- function(replay, training_snapshot,
   expected <- tryCatch(
     phase19_replay_club_ratings(
       training_snapshot, current_snapshot, parameters,
-      cutoff_utc = cutoff_utc, history = history
+      cutoff_utc = cutoff_utc, history = history,
+      history_fixture_ids = replay$history_fixture_ids,
+      excluded_competition_id = if (is.null(replay$excluded_competition_id)) "" else replay$excluded_competition_id,
+      enforce_current_coverage = if (is.null(replay$enforce_current_coverage)) TRUE else replay$enforce_current_coverage
     ),
     error = function(error) error
   )

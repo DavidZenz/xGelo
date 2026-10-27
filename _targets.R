@@ -41,6 +41,7 @@ source("R/club/goal_model.R")
 source("R/club/calibration.R")
 source("R/club/evaluation.R")
 source("R/club/release.R")
+source("R/club/production_runner.R")
 
 tar_option_set(
   envir = phase19_target_runtime_envir,
@@ -241,31 +242,61 @@ phase19_targets_fold_state <- function(history, current, identity, protocol,
                                        registry_file, review_file) {
   reason <- phase19_targets_first_blocked(history, current, identity, protocol)
   if (nzchar(reason)) return(phase19_targets_blocked(reason))
-  registry <- tryCatch(
-    utils::read.csv(registry_file, stringsAsFactors = FALSE, check.names = FALSE),
-    error = function(error) NULL
-  )
-  review <- tryCatch(
-    phase19_protocol_read_review(review_file), error = function(error) NULL
-  )
-  if (is.null(registry) || is.null(review)) {
-    return(phase19_targets_blocked("fold_inventory_not_approved"))
+  phase19_targets_state(phase19_load_club_fold_protocol,"fold_inventory_not_approved")
+}
+
+phase19_targets_fold_files <- function(kind) {
+  root<-phase19_club_fold_runtime_root()
+  files<-if(dir.exists(root))list.files(root,recursive=TRUE,full.names=TRUE)else character()
+  wanted<-if(identical(kind,"registry"))c("fold_registry.csv","protocol_current.json","protocol_state.json")else c("fold_review.json","protocol_current.json")
+  files<-files[basename(files)%in%wanted]
+  if(!length(files))files<-file.path("data/club/model_protocol",if(identical(kind,"registry"))"fold_registry.csv"else"fold_review.json")
+  unname(files)
+}
+
+phase19_targets_roster_state <- function(current) {
+  reason<-phase19_targets_first_blocked(current)
+  if(nzchar(reason))return(phase19_targets_blocked(reason))
+  list(status="ready",reason_code="",forecast_domain="club",authority_mode="production",
+    fixture_authority=FALSE,production_eligible=TRUE,
+    roster_identity=phase19_production_roster_identity(current$authority),club_count=current$authority$club_count)
+}
+
+phase19_targets_production_state <- function(history,roster,protocol,folds) {
+  reason<-phase19_targets_first_blocked(history,roster,protocol,folds)
+  if(nzchar(reason))return(phase19_targets_blocked(reason))
+  accepted<-tryCatch(phase19_resolve_production_club_release(),error=function(error)NULL)
+  if(!is.null(accepted) && identical(accepted$model_contract$schema_version,"phase19-club-release-v2")) {
+    bundle<-readRDS(file.path(accepted$release_root,"production_evidence.rds"))
+    result<-list(status="ready",reason_code="",release=accepted,evidence=bundle$evidence,
+      decision=bundle$evidence$decision,execution_mode="approved_release_reused")
+  } else {
+    result<-tryCatch(phase19_run_club_production_pipeline(),error=function(error)error)
+    if(inherits(result,"error"))return(phase19_targets_blocked(
+      if(is.null(result$reason_code))"production_execution_failed"else result$reason_code))
+    if(!identical(result$status,"ready"))return(phase19_targets_blocked(result$reason_code,result))
+    result$execution_mode<-"new_evaluated_release"
   }
-  valid <- tryCatch({
-    phase19_validate_fold_registry(
-      registry, history$authority, protocol$authority, "production"
-    )
-    phase19_validate_fold_review(review, protocol$authority, registry,
-                                 history$authority, "production")
-    TRUE
-  }, error = function(error) FALSE)
-  if (!isTRUE(valid)) return(phase19_targets_blocked("fold_inventory_not_approved"))
-  list(
-    schema_version = "phase19-club-target-state-v1",
-    forecast_domain = "club", authority_mode = "production",
-    fixture_authority = FALSE, production_eligible = TRUE,
-    status = "ready", reason_code = "", registry = registry, review = review
-  )
+  result$forecast_domain<-"club";result$authority_mode<-"production";result$fixture_authority<-FALSE
+  result$production_eligible<-TRUE
+  result
+}
+
+phase19_targets_production_projection <- function(execution,role) {
+  reason<-phase19_targets_first_blocked(execution)
+  if(nzchar(reason))return(phase19_targets_blocked(reason))
+  evidence<-execution$evidence;release<-execution$release
+  authority<-switch(role,
+    rating=list(engine=evidence$recipe$rating_engine,parameters=release$rating_parameters,
+      final_fit_sha256=release$model$fit_sha256),
+    candidates=lapply(evidence$fold_results,function(fold)list(candidate=fold$candidate$fit,incumbent=fold$incumbent$fit)),
+    predictions=lapply(evidence$fold_results,function(fold)list(candidate=fold$candidate$predictions,incumbent=fold$incumbent$predictions)),
+    scores=lapply(evidence$fold_results,function(fold)list(candidate=fold$candidate$scores,incumbent=fold$incumbent$scores,summary=fold$summary)),
+    evaluation=evidence,decision=evidence$decision,release=release)
+  artifact_files<-switch(role,evaluation=file.path(release$release_root,c("production_evidence.rds","reports/fold_metrics.csv","reports/promotion_gates.csv")),
+    release=list.files(release$release_root,recursive=TRUE,full.names=TRUE),character())
+  list(status="ready",reason_code="",forecast_domain="club",authority_mode="production",fixture_authority=FALSE,
+    production_eligible=TRUE,authority=authority,artifact_files=artifact_files)
 }
 
 phase19_targets_passthrough_block <- function(...) {
@@ -1633,17 +1664,17 @@ list(
       "data/club/model_protocol",
       c("policy_review.json", "calibration_recipe.json", "candidate_registry.csv",
         "feature_contract.csv", "gate_registry.csv", "seed_registry.csv")
-    ),
+    ) |> c("data/club/production_protocol/production_recipe_v2.json"),
     format = "file"
   ),
   tar_target(
     club_fold_registry_file,
-    "data/club/model_protocol/fold_registry.csv",
+    phase19_targets_fold_files("registry"),
     format = "file"
   ),
   tar_target(
     club_fold_review_file,
-    "data/club/model_protocol/fold_review.json",
+    phase19_targets_fold_files("review"),
     format = "file"
   ),
   tar_target(
@@ -1678,57 +1709,31 @@ list(
     }
   ),
   tar_target(
+    club_current_roster_authority,
+    phase19_targets_roster_state(club_current_ucl_authority)
+  ),
+  tar_target(
+    club_production_execution,
+    {
+      club_policy_review_files
+      club_fold_registry_file
+      club_fold_review_file
+      phase19_targets_production_state(club_history_authority,club_current_roster_authority,
+        club_protocol_authority,club_fold_authority)
+    }
+  ),
+  tar_target(
     club_rating_replay,
     {
-      club_history_authority
-      club_current_ucl_authority
       club_protocol_authority
-      club_fold_authority
-      reason <- phase19_targets_first_blocked(
-        club_history_authority, club_current_ucl_authority,
-        club_protocol_authority, club_fold_authority
-      )
-      if (nzchar(reason)) phase19_targets_blocked(reason) else {
-        phase19_targets_state(
-          function() phase19_replay_club_ratings(
-            club_history_authority$authority,
-            club_current_ucl_authority$authority,
-            phase19_club_rating_parameters(),
-            cutoff_utc = club_history_authority$authority$cutoff_utc
-          ),
-          "fold_inventory_not_approved"
-        )
-      }
+      phase19_targets_production_projection(club_production_execution,"rating")
     }
   ),
   tar_target(
     club_model_candidates,
     {
-      club_history_authority
-      club_current_ucl_authority
-      club_protocol_authority
       club_rating_replay
-      reason <- phase19_targets_first_blocked(
-        club_history_authority, club_current_ucl_authority,
-        club_protocol_authority, club_rating_replay
-      )
-      if (nzchar(reason)) phase19_targets_blocked(reason) else {
-        registrations <- club_protocol_authority$authority$candidate_registry[
-          club_protocol_authority$authority$candidate_registry$model_id %in%
-            c("club_venue_nb", "club_elo_nb"), , drop = FALSE
-        ]
-        fits <- lapply(seq_len(nrow(registrations)), function(index) {
-          phase19_fit_club_goal_model(
-            registrations[index, , drop = FALSE],
-            club_history_authority$authority,
-            club_rating_replay$authority,
-            club_protocol_authority$authority,
-            club_history_authority$authority$cutoff_utc
-          )
-        })
-        names(fits) <- as.character(registrations$model_id)
-        list(status = "ready", forecast_domain = "club", models = fits)
-      }
+      phase19_targets_production_projection(club_production_execution,"candidates")
     }
   ),
   tar_target(
@@ -1736,66 +1741,48 @@ list(
     {
       club_model_candidates
       club_fold_authority
-      club_protocol_authority
-      phase19_targets_passthrough_block(
-        club_model_candidates, club_fold_authority, club_protocol_authority
-      )
+      phase19_targets_production_projection(club_production_execution,"predictions")
     }
   ),
   tar_target(
     club_fold_scores,
     {
       club_fold_predictions
-      club_fold_authority
-      phase19_targets_passthrough_block(club_fold_predictions, club_fold_authority)
+      phase19_targets_production_projection(club_production_execution,"scores")
     }
   ),
   tar_target(
     club_evaluation_set,
     {
       club_fold_scores
-      phase19_targets_passthrough_block(club_fold_scores)
+      phase19_targets_production_projection(club_production_execution,"evaluation")
     }
   ),
   tar_target(
     club_promotion_decision,
     {
       club_evaluation_set
-      club_protocol_authority
-      club_current_ucl_authority
-      reason <- phase19_targets_first_blocked(
-        club_evaluation_set, club_protocol_authority,
-        club_current_ucl_authority
-      )
-      if (nzchar(reason)) phase19_targets_blocked(reason) else {
-        phase19_targets_blocked("fold_inventory_not_approved")
-      }
+      phase19_targets_production_projection(club_production_execution,"decision")
     }
   ),
   tar_target(
     club_release_state,
     {
       club_promotion_decision
-      club_model_candidates
-      club_evaluation_set
-      club_protocol_authority
-      reason <- phase19_targets_first_blocked(
-        club_promotion_decision, club_model_candidates,
-        club_evaluation_set, club_protocol_authority
-      )
-      if (nzchar(reason)) phase19_targets_blocked(reason) else {
-        phase19_targets_blocked("fold_inventory_not_approved")
-      }
+      phase19_targets_production_projection(club_production_execution,"release")
     }
   ),
   tar_target(
     club_selector_state,
     {
       club_release_state
-      if (identical(club_release_state$status, "blocked")) {
-        phase19_targets_blocked(club_release_state$reason_code, club_release_state)
-      } else {
-        phase19_targets_blocked("fold_inventory_not_approved")
+      reason<-phase19_targets_first_blocked(club_release_state)
+      if(nzchar(reason))phase19_targets_blocked(reason)else {
+        resolved<-phase19_resolve_production_club_release()
+        list(status="ready",reason_code="",forecast_domain="club",authority_mode="production",fixture_authority=FALSE,
+          production_eligible=TRUE,release_id=resolved$release_id,
+          selector_path=file.path(phase19_club_release_production_root(),"approved_release.csv"),
+          selector=resolved$selector)
       }
     }
   ),
@@ -1803,7 +1790,10 @@ list(
     club_protocol_artifact_file,
     {
       club_protocol_authority
-      club_protocol_state_path <- "data/club/model_protocol/protocol_state.json"
+      club_fold_authority
+      club_protocol_state_path <- if(identical(club_fold_authority$status,"ready")) {
+        file.path(phase19_club_fold_runtime_root(),"protocol_current.json")
+      } else "data/club/model_protocol/protocol_state.json"
       if (!file.exists(club_protocol_state_path)) {
         stop("Phase 19 protocol artifact is missing", call. = FALSE)
       }

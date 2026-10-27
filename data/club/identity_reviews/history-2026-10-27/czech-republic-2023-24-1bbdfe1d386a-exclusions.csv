@@ -1,0 +1,8 @@
+"source_match_id","event_date","kickoff_utc","stage","status","home_name","away_name","score_text","score_semantics","evidence_updated_at_utc","selection_exclusion"
+"line_000508","2024-05-05","","SEMI_FINALS","completed","FK Teplice","Slovan Liberec","2-0","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"
+"line_000509","2024-05-05","","SEMI_FINALS","completed","FC Hradec Králové","Sigma Olomouc","3-1","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"
+"line_000511","2024-05-12","","SEMI_FINALS","completed","Sigma Olomouc","FC Hradec Králové","1-3","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"
+"line_000512","2024-05-12","","SEMI_FINALS","completed","Slovan Liberec","FK Teplice","1-2","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"
+"line_000517","2024-05-19","","FINAL","completed","FK Teplice","FC Hradec Králové","0-1","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"
+"line_000519","2024-05-25","","FINAL","completed","FC Hradec Králové","FK Teplice","2-0","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"
+"line_000526","2024-05-31","","FINAL","completed","FK Mladá Boleslav","FC Hradec Králové","3-1","unresolved_knockout_duration","","stage_outside_reviewed_training_scope"

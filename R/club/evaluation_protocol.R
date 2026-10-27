@@ -1096,6 +1096,30 @@ phase19_fold_raw_registry <- function(snapshot, protocol, authority_mode) {
       if (!nrow(prior)) next
       prior$.fold_boundary_utc <- phase19_fold_boundary_utc(prior)
       calibration_batch <- max(prior$.fold_boundary_utc)
+      if (identical(authority_mode, "production")) {
+        # Freeze two substantial chronological prior windows: the earlier half
+        # fits temperature, the later half chooses the probability view.  Outer
+        # outcomes never enter either decision.  Whole kickoff batches stay
+        # together and the reviewed registry binds their exact memberships.
+        prior_order <- prior[order(prior$.fold_boundary_utc, prior$match_id,
+                                   method = "radix"), , drop = FALSE]
+        reserve <- max(240L, as.integer(ceiling(nrow(prior_order) * 0.20)))
+        if (nrow(prior_order) - reserve < 600L) next
+        calibration_batch <- prior_order$.fold_boundary_utc[[nrow(prior_order) - reserve + 1L]]
+        # Pinned evidence may become available well after match dates. Move
+        # forward from the preferred split until the prior fit is actually
+        # knowable; never backdate source availability to create a fold.
+        candidates <- sort(unique(prior_order$.fold_boundary_utc[
+          prior_order$.fold_boundary_utc >= calibration_batch]), method = "radix")
+        knowable <- pmax(prior_order$.fold_boundary_utc,
+          prior_order$completion_not_before_utc, prior_order$evidence_available_at_utc)
+        supported <- candidates[vapply(candidates, function(boundary) {
+          sum(knowable < boundary) >= 600L &&
+            sum(prior_order$.fold_boundary_utc >= boundary) >= 240L
+        }, logical(1))]
+        if (!length(supported)) next
+        calibration_batch <- supported[[1L]]
+      }
       fit <- phase19_fold_eligible_before(prior, calibration_batch, heldout)
       calibration <- prior[
         prior$.fold_boundary_utc >= calibration_batch &
@@ -1103,6 +1127,23 @@ phase19_fold_raw_registry <- function(snapshot, protocol, authority_mode) {
         , drop = FALSE
       ]
       if (!nrow(fit) || !nrow(calibration)) next
+      if (identical(authority_mode, "production")) {
+        chronological <- calibration[order(calibration$.fold_boundary_utc,
+          calibration$match_id, method = "radix"), , drop = FALSE]
+        middle <- chronological$.fold_boundary_utc[[as.integer(floor(nrow(chronological)/2))]]
+        later <- chronological[chronological$.fold_boundary_utc > middle, , drop = FALSE]
+        if (nrow(later) < 60L) next
+        selection_start <- min(later$.fold_boundary_utc)
+        temperature <- chronological[chronological$.fold_boundary_utc <= middle &
+          chronological$completion_not_before_utc < selection_start &
+          chronological$evidence_available_at_utc < selection_start, , drop = FALSE]
+        outcome <- ifelse(as.integer(temperature$regulation_home_goals) > as.integer(temperature$regulation_away_goals),
+          "home", ifelse(as.integer(temperature$regulation_home_goals) == as.integer(temperature$regulation_away_goals),
+            "draw", "away"))
+        if (nrow(fit) < 600L || nrow(temperature) < 60L ||
+            any(table(factor(outcome, c("home", "draw", "away"))) < 10L) ||
+            length(unique(temperature$.fold_boundary_utc)) < 2L) next
+      }
       declared_ids <- phase19_fold_id_values(assessment$match_id, "declared_fixture_ids")
       fit_ids <- phase19_fold_id_values(fit$match_id, "training_fixture_ids")
       calibration_ids <- phase19_fold_id_values(

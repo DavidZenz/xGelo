@@ -124,7 +124,8 @@ phase21_build_ucl_payload <- phase21_payload_ucl
 # Display accepted current-state facts independently of model availability.
 # This view never creates forecast, draw, or tournament probability authority.
 phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
-    batch_id = "ucl-live-source", now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")) {
+    batch_id = "ucl-live-source", now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    forecasts = NULL) {
   if (!is.list(current) || !identical(as.character(current$pointer$accepted_status), "accepted") ||
       !is.list(current$accepted)) stop("An accepted UCL current-source generation is required", call. = FALSE)
   if (!exists("phase18_validate_ucl_refresh_current", mode = "function")) stop("UCL current-state validation is required", call. = FALSE)
@@ -188,6 +189,59 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
   payload$sections$results <- phase21_section("results", "Results", match_rows[completed, , drop = FALSE], status)
   payload$credits <- list(source_name = "football-data.org", source_url = "https://www.football-data.org/",
     attribution = "Football data provided by the Football-Data.org API.")
+  if (!is.null(forecasts)) payload <- phase21_ucl_attach_live_forecasts(payload, forecasts, matches, clubs)
   phase21_validate_payload(payload)
+  payload
+}
+
+
+# Presentation consumes already validated forecasts; accepted result rows remain
+# factual results and never gain retrospective pre-match probabilities.
+phase21_ucl_attach_live_forecasts <- function(payload, forecasts, matches, clubs) {
+  phase19_validate_live_club_forecasts(forecasts)
+  if (!identical(forecasts$status, "available")) {
+    reason <- as.character(forecasts$reason)
+    payload$metadata$forecast_status <- "unavailable"
+    payload$metadata$forecast_reason_code <- as.character(forecasts$reason_code)
+    payload$metadata$warnings <- unique(c(payload$metadata$warnings, reason))
+    payload$sections$match_forecasts$reason <- reason
+    return(payload)
+  }
+  predictions <- forecasts$predictions
+  if (any(predictions$authority_mode != "production") || any(predictions$fixture_authority) ||
+      !identical(as.character(forecasts$metadata$source_bundle_sha256), as.character(payload$metadata$source_bundle_sha256)))
+    stop("Dashboard forecasts require the approved production model and the displayed accepted source generation", call. = FALSE)
+  index <- match(predictions$fixture_id, as.character(matches$provider_match_id))
+  if (anyNA(index) || any(matches$status[index] == "FINISHED") ||
+      any(as.character(matches$kickoff_utc[index]) != predictions$kickoff_utc) ||
+      any(as.character(matches$home_club_id[index]) != predictions$home_club_id) ||
+      any(as.character(matches$away_club_id[index]) != predictions$away_club_id))
+    stop("Live forecast identities must match unplayed accepted fixtures", call. = FALSE)
+  rows <- data.frame(`Kickoff (UTC)` = predictions$kickoff_utc,
+    Home = unname(clubs[predictions$home_club_id]), Away = unname(clubs[predictions$away_club_id]),
+    `Home win` = sprintf("%.1f%%", 100 * predictions$p_home),
+    Draw = sprintf("%.1f%%", 100 * predictions$p_draw),
+    `Away win` = sprintf("%.1f%%", 100 * predictions$p_away),
+    `Expected home goals` = round(predictions$expected_home_goals, 2),
+    `Expected away goals` = round(predictions$expected_away_goals, 2),
+    `Most likely score` = paste(predictions$likely_home_goals, predictions$likely_away_goals, sep = "–"),
+    stringsAsFactors = FALSE, check.names = FALSE)
+  payload$sections$match_forecasts <- phase21_section("match_forecasts", "Match forecasts", rows,
+    "available", paste0(if (identical(forecasts$metadata$probability_view, "calibrated_1x2")) "Calibrated" else "Raw",
+      " match probabilities selected by the approved release; expected goals and likely scores use the raw negative-binomial score distribution."))
+  payload$metadata$forecast_status <- "available"
+  payload$metadata$production_eligible <- TRUE
+  payload$metadata$forecast_provenance <- forecasts$metadata
+  payload$metadata$forecast_sha256 <- forecasts$forecast_sha256
+  for (field in c("model_release_id", "model_sha256", "calibrator_sha256", "information_cutoff_utc"))
+    payload$metadata[[field]] <- forecasts$metadata[[field]]
+  payload$metadata$forecast_count <- nrow(predictions)
+  payload$metadata$forecast_unavailable_count <- nrow(forecasts$unavailable)
+  payload$metadata$forecast_unavailable <- phase21_rows(forecasts$unavailable)
+  unavailable_reason <- "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted."
+  payload$metadata$warnings <- setdiff(payload$metadata$warnings, unavailable_reason)
+  payload$sections$overview$reason <- "Accepted fixtures, results, provider standings and supported upcoming match forecasts are available."
+  for (id in c("structure", "rank_distributions", "qualification_bands", "knockout_paths", "progression_probabilities", "projected_outcomes"))
+    payload$sections[[id]]$reason <- "An accepted tournament simulation release is required for this section."
   payload
 }

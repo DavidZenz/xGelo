@@ -301,9 +301,24 @@ phase18_apply_club_identity_review <- function(tokens, review, registries) {
     existing_club <- candidate$clubs[candidate$clubs$club_id == mapping$club_id[[1L]], , drop = FALSE]
     if (nrow(existing_club)) {
       if (nrow(existing_club) != 1L || existing_club$canonical_name[[1L]] != mapping$canonical_name[[1L]] ||
-          existing_club$entity_kind[[1L]] != "club") {
+          existing_club$association_code[[1L]] != mapping$association_code[[1L]] ||
+          existing_club$entity_kind[[1L]] != mapping$entity_kind[[1L]]) {
         phase18_club_abort("club_identity_review_conflict", "Owner review conflicts with an existing canonical club")
       }
+      # Approved historical identity evidence may extend a continuous club
+      # lifetime. Disjoint periods require a separate explicit identity decision.
+      existing_start <- phase18_club_parse_time(existing_club$valid_from_utc, "existing valid_from_utc")
+      existing_end <- phase18_club_parse_time(existing_club$valid_to_utc, "existing valid_to_utc", allow_blank = TRUE)
+      proposed_start <- phase18_club_parse_time(mapping$valid_from_utc, "review valid_from_utc")
+      proposed_end <- phase18_club_parse_time(mapping$valid_to_utc, "review valid_to_utc", allow_blank = TRUE)
+      if ((!is.na(existing_end) && proposed_start > existing_end) ||
+          (!is.na(proposed_end) && existing_start > proposed_end)) {
+        phase18_club_abort("club_identity_review_conflict", "Owner review cannot bridge disjoint canonical club validity periods")
+      }
+      club_index <- which(candidate$clubs$club_id == mapping$club_id[[1L]])
+      candidate$clubs$valid_from_utc[club_index] <- min(existing_club$valid_from_utc, mapping$valid_from_utc)
+      candidate$clubs$valid_to_utc[club_index] <- if (is.na(existing_end) || is.na(proposed_end)) "" else
+        max(existing_club$valid_to_utc, mapping$valid_to_utc)
     } else {
       club <- data.frame(
         schema_version = phase18_club_identity_schema_version(),
@@ -377,6 +392,7 @@ phase18_validate_identity_bootstrap <- function(result, current_expectations = l
     phase18_club_abort("invalid_identity_bootstrap", "Identity bootstrap result is incomplete")
   }
   phase18_validate_club_registries(result$registries)
+  registry_hash <- phase18_club_registry_hash(result$registries)
   phase18_validate_club_tokens(result$tokens)
   if (!is.data.frame(result$unresolved) ||
       !identical(names(result$unresolved), phase18_unresolved_club_token_schema())) {
@@ -411,7 +427,8 @@ phase18_validate_identity_bootstrap <- function(result, current_expectations = l
         resolved <- tryCatch(
           phase18_resolve_club_identity(
             result$registries, tokens$source_system[[index]], tokens$source_club_id[[index]],
-            tokens$display_value[[index]], tokens$event_at_utc[[index]]
+            tokens$display_value[[index]], tokens$event_at_utc[[index]],
+            .validated = TRUE, .registry_sha256 = registry_hash
           ),
           error = function(error) NULL
         )
