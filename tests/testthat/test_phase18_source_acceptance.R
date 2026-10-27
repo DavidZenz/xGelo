@@ -244,10 +244,54 @@ test_that("production evidence enumerates every reviewed dimension and coverage 
   )
   expect_setequal(review$dimension, phase18_owner_review_dimensions())
   expect_equal(nrow(review), length(phase18_owner_review_dimensions()))
-  expect_true(all(review$status == "pending"))
+  expect_true(all(review$status == "approved"))
+  reviewed <- phase18_validate_terms_review(review)
+  expect_true(reviewed$valid)
+  expect_identical(accepted$manifest$review_sha256[[1L]], reviewed$review_sha256)
+  expect_false(accepted$manifest$automation_enabled[[1L]])
+  expect_identical(accepted$manifest$reason_code[[1L]], "missing_credential")
   expect_setequal(coverage$capability, expected_capabilities)
   expect_equal(nrow(coverage), length(expected_capabilities))
   expect_true(all(coverage$execution_mode == "not_run"))
+})
+
+test_that("review approval creates a coherent new generation and preserves historical evidence", {
+  phase18_test_load()
+  root <- file.path(phase18_test_root,
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27")
+  current <- phase18_read_acceptance_set(root)
+  original_relative <- "generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd"
+  original <- phase18_read_acceptance_generation(file.path(root, original_relative))
+
+  expect_false(identical(current$current_generation, original_relative))
+  expect_true(all(original$owner_review$status == "pending"))
+  expect_true(all(current$owner_review$status == "approved"))
+  expect_identical(original$manifest$review_sha256[[1L]],
+    "d8e20072656750b0891c616d4873871fd7b5c1697e70bdd86714d05c7bfd8f66")
+  expect_identical(original$manifest$row_sha256[[1L]],
+    "ad42bc7742eb490b8f7fe8c4b8a3cebd4d9606fb9ae6341a833ee646af463ba8")
+  expect_false(identical(current$manifest$review_sha256, original$manifest$review_sha256))
+  for (field in c("machine_checks", "edition_expectations", "schema_fingerprint")) {
+    expect_identical(current[[field]], original[[field]], info = field)
+  }
+  expect_false(current$manifest$automation_enabled[[1L]])
+  expect_identical(current$manifest$execution_mode[[1L]], "not_run")
+  expect_identical(current$manifest$credential_status[[1L]], "absent")
+  expect_identical(current$manifest$reason_code[[1L]], "missing_credential")
+  review_times <- as.POSIXct(current$owner_review$reviewed_at_utc,
+    format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  decision_time <- as.POSIXct(current$manifest$created_at_utc[[1L]],
+    format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  expect_false(anyNA(review_times))
+  expect_false(is.na(decision_time))
+  expect_true(all(review_times <= decision_time))
+
+  changed_review <- current$owner_review
+  changed_review$notes[[1L]] <- paste0(changed_review$notes[[1L]], " changed")
+  changed_review <- phase18_hash_terms_review(changed_review)
+  expect_error(phase18_validate_acceptance_manifest(current$manifest,
+    current$machine_checks, changed_review, current$edition_expectations,
+    current$schema_fingerprint), "manifest differs from recomputed evidence: review_sha256")
 })
 
 test_that("reviewed league-phase expectations reject every shortfall excess and unknown stage", {
