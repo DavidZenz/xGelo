@@ -14,6 +14,26 @@ phase19_live_club_absence <- function(reason_code, reason) {
 
 phase19_live_club_hash <- function(value) digest::digest(value, algo = "sha256", serialize = TRUE)
 
+# Keep the audited rating implementation in its own inference scope. Repeated
+# validations of an unchanged club table reuse its exact canonical checksum;
+# every numerical update and the independent replay still execute normally.
+phase19_live_club_rating_runtime <- function() {
+  runtime <- new.env(parent = environment(phase19_live_club_rating_runtime))
+  sys.source(file.path(.phase19_club_project_root, "R/club/rating.R"), envir = runtime)
+  raw_hash <- runtime$phase19_club_rating_clubs_hash
+  runtime$phase19_club_rating_clubs_hash <- local({
+    previous <- NULL
+    function(clubs) {
+      key <- digest::digest(clubs, algo = "sha256", serialize = TRUE)
+      if (!is.null(previous) && identical(key, previous$key)) return(previous$sha256)
+      sha256 <- raw_hash(clubs)
+      previous <<- list(key = key, sha256 = sha256)
+      sha256
+    }
+  })
+  runtime
+}
+
 # Internal inference boundary; production callers enter through the fixed resolver
 # below. Diagnostic callers enter through the explicitly named fixture API.
 .phase19_live_club_predict <- function(fit, calibrator, training, current, replay,
@@ -42,7 +62,8 @@ phase19_live_club_hash <- function(value) digest::digest(value, algo = "sha256",
     return(phase19_live_club_absence("rating_coverage_unavailable",
       "The accepted history does not support the current club rating roster."))
   }
-  phase19_validate_club_rating_replay(replay, training, current)
+  rating_runtime <- phase19_live_club_rating_runtime()
+  rating_runtime$phase19_validate_club_rating_replay(replay, training, current)
   if (replay$cutoff_utc > information_cutoff_utc ||
       !identical(as.character(replay$parameter_sha256), as.character(fit$rating_parameter_sha256))) {
     phase19_live_club_abort("rating_parent_mismatch", "Current rating evidence must use the frozen model parameters and prior information.")
@@ -83,7 +104,7 @@ phase19_live_club_hash <- function(value) digest::digest(value, algo = "sha256",
       status = "scheduled", counts_for_model = FALSE,
       regulation_home_goals = NA_integer_, regulation_away_goals = NA_integer_,
       stringsAsFactors = FALSE)
-    rated <- phase19_forecast_club_rating_batch(state, input)
+    rated <- rating_runtime$phase19_forecast_club_rating_batch(state, input)
     state <- rated$state
     means <- phase19_club_goal_nb_means(fit, rated$predictions)
     for (i in seq_len(nrow(rated$predictions))) {
@@ -204,7 +225,10 @@ phase19_forecast_current_ucl <- function(information_cutoff_utc = format(Sys.tim
       return(phase19_live_club_absence("release_rating_parameters_missing", "The approved release does not retain its selected Elo parameters."))
     phase19_validate_club_rating_parameters(parameters)
     replay_cutoff <- min(information_cutoff_utc, as.character(training$cutoff_utc))
-    replay <- phase19_replay_club_ratings(training, current, parameters, replay_cutoff)
+    message("UCL_FORECAST replaying accepted historical ratings")
+    rating_runtime <- phase19_live_club_rating_runtime()
+    replay <- rating_runtime$phase19_replay_club_ratings(training, current, parameters, replay_cutoff)
+    message("UCL_FORECAST independently verifying ratings and predicting fixtures")
     source <- phase18_read_ucl_refresh_current(file.path(.phase19_club_project_root, "data/competition/accepted"),
       file.path(.phase19_club_project_root, "data/competition/registries"))
     phase18_validate_ucl_refresh_current(source)

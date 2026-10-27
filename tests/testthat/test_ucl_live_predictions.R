@@ -45,6 +45,28 @@ live_prediction_test_predict <- function(x = live_prediction_test_context(), mat
     x$context$current, x$replay, matches, cutoff)
 }
 
+test_that("scoped checksum cache preserves exact audited replay and detects changed rows", {
+  x <- live_prediction_test_context()
+  runtime <- phase19_live_club_rating_runtime()
+  original_hash <- phase19_club_rating_clubs_hash
+  clubs <- data.frame(club_id = sprintf("club_cache_%03d", 1:343), rating = rep(1500, 343),
+    prior_match_count = integer(343), last_evidence_available_at_utc = rep("", 343))
+  expected <- original_hash(clubs)
+  expect_identical(runtime$phase19_club_rating_clubs_hash(clubs), expected)
+  expect_identical(runtime$phase19_club_rating_clubs_hash(clubs), expected)
+  changed <- clubs; changed$rating[[343L]] <- 1600
+  expect_false(identical(runtime$phase19_club_rating_clubs_hash(changed), expected))
+  expect_identical(runtime$phase19_club_rating_clubs_hash(changed), original_hash(changed))
+  expect_identical(runtime$phase19_club_rating_clubs_hash(clubs), expected)
+  expect_identical(phase19_club_rating_clubs_hash, original_hash)
+  replay <- runtime$phase19_replay_club_ratings(x$context$training, x$context$current,
+    x$context$parameters, x$replay$cutoff_utc)
+  expect_identical(replay, x$replay)
+  expect_silent(runtime$phase19_validate_club_rating_replay(replay, x$context$training, x$context$current))
+  replay$state$clubs$rating[[1L]] <- replay$state$clubs$rating[[1L]] + 1
+  expect_error(runtime$phase19_validate_club_rating_replay(replay, x$context$training, x$context$current))
+})
+
 test_that("live club forecasts use strict prior evidence and real normalized NB grids", {
   x <- live_prediction_test_context()
   result <- live_prediction_test_predict(x)
