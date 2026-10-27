@@ -229,6 +229,10 @@ phase21_ucl_attach_live_forecasts <- function(payload, forecasts, matches, clubs
   payload$sections$match_forecasts <- phase21_section("match_forecasts", "Match forecasts", rows,
     "available", paste0(if (identical(forecasts$metadata$probability_view, "calibrated_1x2")) "Calibrated" else "Raw",
       " match probabilities selected by the approved release; expected goals and likely scores use the raw negative-binomial score distribution."))
+  if (identical(unique(as.character(predictions$model_id)), "club_venue_nb"))
+    payload$sections$match_forecasts$reason <- paste(
+      "Venue baseline: probabilities use historical home/away scoring rates and do not distinguish team strength.",
+      payload$sections$match_forecasts$reason)
   payload$metadata$forecast_status <- "available"
   payload$metadata$production_eligible <- TRUE
   payload$metadata$forecast_provenance <- forecasts$metadata

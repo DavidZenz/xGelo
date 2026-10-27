@@ -827,6 +827,7 @@ phase19_validate_club_production_v2 <- function(evidence, refit, snapshot, curre
     if(!identical(r$summary,expected_summary))
       phase19_production_abort("assessment_summary_invalid","Stored fold summary differs from paired predictions and accepted outcomes")
     if(isTRUE(verify_fold_predictions)) {
+      message("PHASE19_VALIDATE fold ",i," of ",length(evidence$fold_results))
       forward<-rbind(roles$temperature,roles$selection,roles$assessment)
       rating<-phase19_production_rating(roles$fit,r$tuning$parameters,r$fold$training_cutoff_exclusive,forward)
       for(a in r[c("candidate","incumbent")]) {
@@ -1008,7 +1009,12 @@ phase19_validate_club_production_release_v2 <- function(root,validate_authority=
   # Metadata and byte inventory are validated before any RDS is deserialized.
   bundle<-readRDS(file.path(root,"production_evidence.rds"))
   model<-readRDS(file.path(root,contract$model_artifact));calibrator<-readRDS(file.path(root,contract$calibrator_artifact))
-  if(!identical(bundle$refit$model,model) || !identical(bundle$refit$calibrator,calibrator) ||
+  # MASS family closures acquire distinct environment addresses when the same
+  # model is deserialized from the standalone artifact and lineage bundle.
+  # Compare their exact R contents without closure addresses; byte inventories,
+  # fit/calibrator hashes and independent source-backed fits are checked too.
+  if(!identical(bundle$refit$model,model,ignore.environment=TRUE) ||
+     !identical(bundle$refit$calibrator,calibrator,ignore.environment=TRUE) ||
      !identical(model$fit_sha256,contract$fit_sha256) || !identical(calibrator$calibrator_sha256,contract$fitted_calibrator_sha256) ||
      !identical(contract$primary_probability_view,bundle$refit$primary_probability_view) ||
      !identical(contract$selected_model_id,model$model_id) || !identical(contract$final_refit_sha256,bundle$refit$lineage$lineage_sha256))

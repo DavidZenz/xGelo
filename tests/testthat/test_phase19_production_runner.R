@@ -113,6 +113,24 @@ test_that("fast finite-support NB probabilities match the complete score grid",{
   }
 })
 
+test_that("saved NB family environments do not change fitted model contents",{
+  set.seed(1903001)
+  h<-data.frame(match_id=sprintf("saved-%03d",1:200),
+    regulation_home_goals=rnbinom(200,mu=1.7,size=3),regulation_away_goals=rnbinom(200,mu=1.1,size=3))
+  fit<-phase19_club_goal_nb_fit(goals~venue_role,
+    phase19_club_goal_long_training(h,data.frame(rating_difference=rep(60,200)),"venue_role"),"club_venue_nb")
+  attr(fit$model$terms,".Environment")<-baseenv()
+  attr(fit$model$model,"terms")<-fit$model$terms
+  standalone<-tempfile();bundle<-tempfile()
+  on.exit(unlink(c(standalone,bundle)),add=TRUE)
+  saveRDS(fit,standalone);saveRDS(list(fit=fit),bundle)
+  a<-readRDS(standalone);b<-readRDS(bundle)$fit
+  expect_true(identical(a,b,ignore.environment=TRUE))
+  expect_identical(phase19_club_goal_nested_hash(a$model,"test"),phase19_club_goal_nested_hash(b$model,"test"))
+  b$model$theta<-b$model$theta+1
+  expect_false(identical(a,b,ignore.environment=TRUE))
+})
+
 test_that("incumbent retention never bypasses absolute coverage or integrity gates",{
   protocol<-production_test_context()$protocol
   values<-as.list(rep(1,length(phase19_club_evaluation_metric_names())));names(values)<-phase19_club_evaluation_metric_names()

@@ -61,7 +61,7 @@ Rscript scripts/render_ucl_live_dashboard.R
 The controller tunes the frozen Elo grid using prior data, fits both club Elo
 and venue-only negative-binomial models, fits temperature on an earlier prior
 window, selects the probability view on a separate later prior window, and
-scores untouched outer assessments. Transport folds exclude their held-out
+scores untouched outer assessments. Tuning requires both the declared row counts and an estimable full-rank Elo/venue design; delayed archive publication cannot be replaced with invented availability times. Transport folds exclude their held-out
 league. Every result must be available before its role's exclusive cutoff.
 
 Two separate R processes retune, refit and predict the same inventory. Checkpoints
@@ -87,3 +87,9 @@ The local dashboard is written to
 unavailable reasons are explicit. Live facts remain visible while model gates
 are pending or blocked. This render command does not publish the other public
 competition routes.
+
+## Accepted input evidence
+
+The 2026-10-27 production inputs contain 16,277 unique regulation results from 432 pinned snapshots across 59 season files and 343 canonical clubs. All 36 current clubs share one connected historical component. The source package and the separate exact 26-fold package each retain their actual owner decision beside their immutable review manifests. The folds contain 3,025 unique assessment matches across chronological and held-out-league families, with 104 explicit fit, temperature, selection and assessment role sets.
+
+Inspect `outputs/club_model/production/fold_metrics.csv` and `promotion_gates.csv` after execution; a successful run installs the immutable club release selected by `outputs/releases/club/approved_release.csv`.
