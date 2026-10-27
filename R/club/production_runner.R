@@ -504,7 +504,9 @@ phase19_production_fold_identity <- function(result) {
 }
 
 phase19_production_code_identity <- function() {
-  paths<-c("R/club/production_runner.R","R/club/goal_model.R","R/club/rating.R",
+  paths<-c("R/common/phase18_canonical_hash.R","R/club/identity.R","R/club/identity_bootstrap.R",
+    "R/club/history_contract.R","R/club/model_contract.R",
+    "R/club/production_runner.R","R/club/goal_model.R","R/club/rating.R",
     "R/club/calibration.R","R/club/evaluation_protocol.R","R/club/evaluation.R","R/club/release.R")
   root<-.phase19_club_project_root
   hashes<-vapply(file.path(root,paths),function(path)digest::digest(file=path,algo="sha256"),character(1))

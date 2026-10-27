@@ -190,3 +190,21 @@ test_that("the primitive contract loads only the common v2 module", {
   expect_false(exists("phase18_club_row_sha256", inherits = FALSE))
   expect_false(exists("phase18_accept_ucl_provider_main", inherits = FALSE))
 })
+
+test_that("large hash reuse preserves exact bytes and rejects changed content", {
+  phase18_canonical_test_load()
+  rows <- data.frame(id = sprintf("id-%04d", 1:500), value = rep(c("", "a|b", "é"), length.out = 500))
+  row_hash <- phase18_hash_row_v2(rows, schema_tag = "large-cache-v1")
+  table_hash <- phase18_hash_table_v2(rows, key = "id", schema_tag = "large-cache-v1")
+  expect_identical(row_hash, phase18_hash_row_v2_uncached(rows, schema_tag = "large-cache-v1"))
+  expect_identical(table_hash, phase18_hash_table_v2_uncached(rows, key = "id", schema_tag = "large-cache-v1"))
+  expect_identical(table_hash, phase18_hash_table_v2(rows, key = "id", schema_tag = "large-cache-v1"))
+  changed <- rows; changed$value[1L] <- "modified"
+  expect_false(identical(row_hash, phase18_hash_row_v2(changed, schema_tag = "large-cache-v1")))
+  expect_false(identical(table_hash, phase18_hash_table_v2(changed, key = "id", schema_tag = "large-cache-v1")))
+  changed$id[1L] <- ""
+  expect_error(phase18_hash_table_v2(changed, key = "id", schema_tag = "large-cache-v1"), "must not be blank")
+  private <- new.env(parent = baseenv())
+  sys.source(file.path(phase18_canonical_test_root, "R/common/phase18_canonical_hash.R"), envir = private)
+  expect_silent(for (i in 1:9) private$phase18_hash_table_v2(rows, key = "id", schema_tag = paste0("private-", i)))
+})

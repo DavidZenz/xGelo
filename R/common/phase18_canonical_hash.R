@@ -242,11 +242,11 @@ phase18_hash_table_v2 <- function(data, key, exclude = character(), schema_tag) 
     phase18_v2_key_bytes(data, index, key, schema_tag)
   })
   if (nrow(data)) {
-    ordering <- order(
-      vapply(key_bytes, phase18_v2_hex, character(1)),
-      vapply(row_bytes, phase18_v2_hex, character(1)),
-      method = "radix"
-    )
+    encoded_keys <- vapply(key_bytes, phase18_v2_hex, character(1))
+    # Row-byte tie breaking cannot affect unique keys. Avoid materializing
+    # enormous hexadecimal row strings for the common unique-fixture case.
+    ordering <- if (!anyDuplicated(encoded_keys)) order(encoded_keys, method = "radix") else order(
+      encoded_keys, vapply(row_bytes, phase18_v2_hex, character(1)), method = "radix")
     row_bytes <- row_bytes[ordering]
   }
 
@@ -275,3 +275,36 @@ phase18_hash_table_v2 <- function(data, key, exclude = character(), schema_tag) 
   ))
   phase18_v2_hash(payload)
 }
+
+# Exact-content, bounded, process-local memoization. These are speedups only:
+# canonical-v2 bytes and all uncached validation remain unchanged. Fingerprints
+# include values, types, attributes and every hash argument, never timestamps.
+phase18_v2_memoize_large_hash <- function(compute) {
+  keys <- character(); values <- list()
+  function(data, ...) {
+    arguments <- list(...)
+    if (!is.data.frame(data) || nrow(data) < 500L) return(do.call(compute, c(list(data), arguments)))
+    fingerprint <- digest::digest(list(data = data, arguments = arguments), algo = "sha256", serialize = TRUE)
+    index <- match(fingerprint, keys)
+    if (!is.na(index)) return(values[[index]])
+    result <- do.call(compute, c(list(data), arguments))
+    keys <<- c(keys, fingerprint); values <<- c(values, list(result))
+    if (length(keys) > 8L) {
+      keep <- seq.int(length(keys) - 7L, length(keys))
+      keys <<- keys[keep]; values <<- values[keep]
+    }
+    result
+  }
+}
+
+phase18_hash_row_v2_uncached <- phase18_hash_row_v2
+phase18_hash_table_v2_uncached <- phase18_hash_table_v2
+phase18_hash_row_v2 <- local({
+  compute <- phase18_v2_memoize_large_hash(phase18_hash_row_v2_uncached)
+  function(data, exclude = character(), schema_tag) compute(data, exclude = exclude, schema_tag = schema_tag)
+})
+phase18_hash_table_v2 <- local({
+  compute <- phase18_v2_memoize_large_hash(phase18_hash_table_v2_uncached)
+  function(data, key, exclude = character(), schema_tag)
+    compute(data, key = key, exclude = exclude, schema_tag = schema_tag)
+})
