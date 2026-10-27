@@ -1,0 +1,32 @@
+phase19_club_pipeline: ....
+
+══ DONE ════════════════════════════════════════════════════════════════════════
+phase19_club_pipeline: .......
+
+══ DONE ════════════════════════════════════════════════════════════════════════
+phase19_club_pipeline: W1
+
+══ Warnings ════════════════════════════════════════════════════════════════════
+1. blocked club targets complete truthfully without release or selector files ('test_phase19_club_pipeline.R:163:3') - no non-missing arguments to max; returning -Inf
+
+══ Failed ══════════════════════════════════════════════════════════════════════
+── 1. Error ('test_phase19_club_pipeline.R:163:3'): blocked club targets complet
+<tar_condition_validate/tar_condition_targets/rlang_error/tar_condition_run/rlang_error/error/condition>
+Error: Error in tar_make():
+  could not find packages glmnet, ranger in library paths /opt/homebrew/lib/R/4.6/site-library, /opt/homebrew/Cellar/r/4.6.1_2/lib/R/library
+  See https://books.ropensci.org/targets/debugging.html
+Backtrace:
+    ▆
+ 1. └─targets::tar_make(...) at test_phase19_club_pipeline.R:163:3
+ 2.   └─targets:::callr_outer(...)
+ 3.     ├─targets:::if_any(...)
+ 4.     └─targets:::callr_error(traced_condition = out, fun = fun)
+ 5.       └─targets::tar_throw_run(message, class = class(traced_condition$condition))
+ 6.         └─targets::tar_error(...)
+ 7.           └─rlang::abort(message = message, class = class, call = tar_envir_base)
+
+══ DONE ════════════════════════════════════════════════════════════════════════
+phase19_club_pipeline: ....
+
+══ DONE ════════════════════════════════════════════════════════════════════════
+PIPELINE_DIAGNOSTIC mode=authority tests=4 assertions=15 bad=2

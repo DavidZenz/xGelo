@@ -1,0 +1,10 @@
+{
+  "status": "mismatch_reproduced",
+  "message": "Phase 18 acceptance integrity error: manifest differs from recomputed evidence: review_sha256",
+  "historical_pending_review_validates_original_manifest": true,
+  "approved_review_valid": true,
+  "old_generation": "generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd",
+  "old_manifest_sha256": "ad42bc7742eb490b8f7fe8c4b8a3cebd4d9606fb9ae6341a833ee646af463ba8",
+  "old_review_sha256": "d8e20072656750b0891c616d4873871fd7b5c1697e70bdd86714d05c7bfd8f66",
+  "approved_review_sha256": "50d9abd25277f27247bc871a8fb7216684bc67c916e06399b6e196df000e4686"
+}

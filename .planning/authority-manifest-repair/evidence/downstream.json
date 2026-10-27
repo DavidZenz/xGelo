@@ -1,0 +1,23 @@
+{
+  "name": "downstream",
+  "exit_code": 1,
+  "wall_seconds": 1037.98941483401,
+  "command": [
+    "/opt/homebrew/opt/r/bin/Rscript",
+    "--vanilla",
+    "scripts/run_phase19_focused_test.R",
+    "tests/testthat/test_phase19_club_domain_contract.R",
+    "tests/testthat/test_phase19_club_pipeline.R",
+    "tests/testthat/test_phase19_club_release.R",
+    "tests/testthat/test_phase19_adversarial_regression.R",
+    "tests/testthat/test_phase20_state_authority_review.R",
+    "tests/testthat/test_phase20_final_boundary_review.R",
+    "tests/testthat/test_phase20_adversarial_regression.R",
+    "tests/testthat/test_phase20_outcomes_wiring_review.R",
+    "tests/testthat/test_phase20_simulation_review.R",
+    "tests/testthat/test_uefa_champions_league.R",
+    "tests/testthat/test_cl_prepared_execution.R"
+  ],
+  "credential_environment_cleared": true,
+  "output": "PASS test_phase19_club_domain_contract.R              PHASE19_FOCUSED_RESULT tests=10 assertions=105\nPhase 19 focused test failed: test_phase19_club_pipeline.R\n"
+}

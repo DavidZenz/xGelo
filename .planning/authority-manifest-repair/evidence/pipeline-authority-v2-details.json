@@ -1,0 +1,96 @@
+{
+  "root": "/private/tmp/xgelo-active-dashboards",
+  "mode": "authority",
+  "tests": 4,
+  "assertions": 15,
+  "failures": 0,
+  "errors": 1,
+  "warnings": 1,
+  "skips": 0,
+  "cases": [
+    {
+      "test": "the production controller is an explicit fail-closed entrypoint",
+      "conditions": [
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        }
+      ]
+    },
+    {
+      "test": "the target manifest contains a validated club-only authority chain",
+      "conditions": [
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        }
+      ]
+    },
+    {
+      "test": "blocked club targets complete truthfully without release or selector files",
+      "conditions": [
+        {
+          "classes": ["expectation_warning", "expectation", "condition"],
+          "message": "no non-missing arguments to max; returning -Inf"
+        }
+      ]
+    },
+    {
+      "test": "club file targets are explicit and downstream invalidation parents are visible",
+      "conditions": [
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        }
+      ]
+    }
+  ]
+}

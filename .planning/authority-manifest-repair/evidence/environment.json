@@ -1,0 +1,8 @@
+{
+  "R": "R version 4.6.1 (2026-06-24)",
+  "targets_version": "1.12.0",
+  "packages": {
+    "glmnet": false,
+    "ranger": false
+  }
+}

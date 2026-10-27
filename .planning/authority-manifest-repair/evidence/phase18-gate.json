@@ -1,0 +1,12 @@
+{
+  "name": "phase18-gate",
+  "exit_code": 0,
+  "wall_seconds": 401.35192562500015,
+  "command": [
+    "/opt/homebrew/opt/r/bin/Rscript",
+    "--vanilla",
+    "scripts/verify_phase18_contracts.R"
+  ],
+  "credential_environment_cleared": true,
+  "output": "PASS test_phase18_adversarial_regression.R            tests=21 assertions=60\nPASS test_phase18_canonical_hash.R                    tests=9 assertions=31\nPASS test_phase18_club_history_contract.R             tests=18 assertions=92\nPASS test_phase18_club_identity.R                     tests=19 assertions=84\nPASS test_phase18_football_data_adapter.R             tests=13 assertions=149\nPASS test_phase18_refresh_failure.R                   tests=16 assertions=82\nPASS test_phase18_source_acceptance.R                 tests=35 assertions=291\nPASS test_phase18_source_bundle.R                     tests=12 assertions=72\nPHASE18_GATE_OK critical=15 warnings=4 edges=15 prohibitions=50 original=20 gap=30 files=8 tests=143 assertions=861 production_fail_closed=true\n"
+}

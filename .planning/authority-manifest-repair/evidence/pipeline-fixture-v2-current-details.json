@@ -1,0 +1,147 @@
+{
+  "root": "/private/tmp/xgelo-active-dashboards",
+  "mode": "fixture",
+  "tests": 3,
+  "assertions": 30,
+  "failures": 0,
+  "errors": 0,
+  "warnings": 0,
+  "skips": 0,
+  "cases": [
+    {
+      "test": "explicit fixture mode completes through an isolated fixture release",
+      "conditions": [
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        }
+      ]
+    },
+    {
+      "test": "mode, root, domain, and mixed-root attacks fail before publication",
+      "conditions": [
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        }
+      ]
+    },
+    {
+      "test": "repeated fixture and blocked executions are deterministic and credential-free",
+      "conditions": [
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        },
+        {
+          "classes": ["expectation_success", "expectation", "condition"],
+          "message": "success"
+        }
+      ]
+    }
+  ]
+}

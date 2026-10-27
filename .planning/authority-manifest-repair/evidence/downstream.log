@@ -1,0 +1,2 @@
+PASS test_phase19_club_domain_contract.R              PHASE19_FOCUSED_RESULT tests=10 assertions=105
+Phase 19 focused test failed: test_phase19_club_pipeline.R

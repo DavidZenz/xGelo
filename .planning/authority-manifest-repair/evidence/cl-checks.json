@@ -1,0 +1,19 @@
+{
+  "name": "cl-checks",
+  "exit_code": 0,
+  "wall_seconds": 341.88288079199265,
+  "command": [
+    "/opt/homebrew/opt/r/bin/Rscript",
+    "--vanilla",
+    "scripts/run_phase19_focused_test.R",
+    "tests/testthat/test_phase20_state_authority_review.R",
+    "tests/testthat/test_phase20_final_boundary_review.R",
+    "tests/testthat/test_phase20_adversarial_regression.R",
+    "tests/testthat/test_phase20_outcomes_wiring_review.R",
+    "tests/testthat/test_phase20_simulation_review.R",
+    "tests/testthat/test_uefa_champions_league.R",
+    "tests/testthat/test_cl_prepared_execution.R"
+  ],
+  "credential_environment_cleared": true,
+  "output": "PASS test_phase20_state_authority_review.R            PHASE19_FOCUSED_RESULT tests=6 assertions=34\nPASS test_phase20_final_boundary_review.R             PHASE19_FOCUSED_RESULT tests=2 assertions=13\nPASS test_phase20_adversarial_regression.R            PHASE19_FOCUSED_RESULT tests=10 assertions=63\nPASS test_phase20_outcomes_wiring_review.R            PHASE19_FOCUSED_RESULT tests=5 assertions=24\nPASS test_phase20_simulation_review.R                 PHASE19_FOCUSED_RESULT tests=7 assertions=34\nPASS test_uefa_champions_league.R                     PHASE19_FOCUSED_RESULT tests=63 assertions=362\nPASS test_cl_prepared_execution.R                     PHASE19_FOCUSED_RESULT tests=2 assertions=48\nPHASE19_FOCUSED_OK files=7\n"
+}

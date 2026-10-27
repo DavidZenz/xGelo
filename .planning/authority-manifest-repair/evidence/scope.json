@@ -1,0 +1,39 @@
+{
+  "status": "passed",
+  "base_commit": "b63acd6649e89288c16273e8f21b1b2401049083",
+  "changed_original_data_paths": [
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/current.json",
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-ad42bc7742eb490b8f7fe8c4b8a3cebd/provider_terms_review.csv"
+  ],
+  "added_generation_files": {
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-7c7f9d26712aaf7595cbfcf598266658/ACCEPTANCE.md": "96a3b6d8988297c2edea0efd25a9426a8a2d365b8a172e3d53e41589f111ae43",
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-7c7f9d26712aaf7595cbfcf598266658/acceptance_manifest.csv": "6a2a28655d91982a88fe3d4868b9a74e1198a13ecfed62aa7d11a2c6847ecada",
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-7c7f9d26712aaf7595cbfcf598266658/coverage_matrix.csv": "738c2f1744e4d9d1f7f92e00689efff9623cc28eff3fcabda197ffa8877666f2",
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-7c7f9d26712aaf7595cbfcf598266658/edition_expectations.csv": "3b49e0f6685067cb64bc5aff20b4c5cf05e7d2f3ef9abf38eba8d446e678ff06",
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-7c7f9d26712aaf7595cbfcf598266658/provider_terms_review.csv": "9d57ac6b3d07db5c8eac23d088f114325f83eb40485e8aba0c5d24a6c981bbb7",
+    "data/competition/provider_acceptance/football_data_org_v4/ucl_2026_27/generations/g-7c7f9d26712aaf7595cbfcf598266658/schema_fingerprint.csv": "1f18d627d7082af516f03ddab0817157a3dd668955fd2f6f6145e8aaa3250702"
+  },
+  "approved_review_bytes_preserved": true,
+  "historical_review_bytes_restored_exactly": true,
+  "historical_machine_edition_schema_bytes_preserved": true,
+  "published_files_sha256": {
+    "docs/.nojekyll": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "docs/wc2026/index.html": "bc540c9d1014095e5d10b2ddc06b73d105c13cd8db7efee6c46bf2d6e86f56b7",
+    "docs/competitions/phase17-batch-manifest.json": "ec8b53a153076f55dbcd647fc4a7b34e2d8b635c0d1b89061fef24ab18abf6ae",
+    "docs/competitions/current.json": "a9c1154736b807a0f8e1eea912ea7cbf83008b2c22f40ca60f026aa6c82e59a7",
+    "docs/competitions/nations-league/index.html": "9af71054354724f21c324292c7df7a26518655e24ea2a2d5425bdffec2c7bc09",
+    "docs/competitions/nations-league/route-manifest.json": "0a347f42b7a5b867e11d35cf18090b1810d18e6c9fb8c65e210d3eb9d64436eb",
+    "docs/competitions/nations-league/current.json": "26adffd168ae9dd1ac702c492c515b97f5ed9ef624b6202a558cd79066bfd49d",
+    "docs/competitions/nations-league/payload.json": "fbd81e8a1bc50aa3853e6ba89cc2e276ca17c769b951a1ab2ee359d929f4c75e",
+    "docs/competitions/euro-qualifying/index.html": "17abed78d31dfa92cad5e2b468a330eb82698f1c86365b968bf0f0835f4996f4",
+    "docs/competitions/euro-qualifying/route-manifest.json": "b108cae36c60fdbc298206c783c91237be08ea8a374f79f092215df9c2771c2a",
+    "docs/competitions/euro-qualifying/current.json": "221a89f539c92e4ae09037812c050f4dcdfeaceb821b5fbd50a26b2deab2efcc",
+    "docs/competitions/euro-qualifying/payload.json": "8f1498d267c4dcec3f91717039c05a8d3270e8425bdc889366107e7eb3e8b323"
+  },
+  "published_inventory_and_bytes_unchanged": true,
+  "all_other_original_data_outputs_runtime_source_unchanged": true,
+  "fixture_inputs_unchanged": true,
+  "simulation_source_snapshot_sha256": "9bac1d4f6f8c84b4f8d18ba7c11b51c311c63a8da858eec5745cb9680f11e404",
+  "simulation_source_unchanged": true,
+  "public_promotion": false
+}

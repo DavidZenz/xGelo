@@ -250,9 +250,34 @@ See `.planning/simulation-optimization/DEEP-AUDIT.md` and `deep-audit/evidence/`
   compact hash-bound receipts at `cpu-implementation/cycle-3/final-scale/`.
   All benchmark workers have exited. WC source, public dashboards and accepted
   artifacts remain unchanged; no public promotion occurred.
-- [ ] Resolve the pre-existing Phase 18 provider review/manifest mismatch through
-  its separate authority workflow. Optimization does not rewrite those files.
+- [x] Resolve the pre-existing Phase 18 provider review/manifest mismatch through
+  the subsequently authorized authority repair (2026-10-27). Restore the original
+  historical review and select a coherent approved-review generation; validators
+  and runtime source remain unchanged. The official Phase 18 gate passes 143
+  tests / 861 assertions and all seven CL suites pass 95 tests / 578 assertions.
 
 See `.planning/simulation-optimization/CPU-IMPLEMENTATION-PLAN.md` and
 `CPU-IMPLEMENTATION.md`. Public dashboards and accepted artifacts are unchanged;
 CL production authority remains blocked independently of fixture performance.
+
+## CL Authority Manifest Repair — 2026-10-27
+
+- [x] Preserve the genuine approved review byte-for-byte in a new immutable
+  generation and restore the historical pending review exactly from Git.
+- [x] Validate both generations, manifest/review binding, pointer integrity and
+  the unchanged `not_run` / `missing_credential`, automation-disabled state.
+- [x] Pass the complete Phase 18 contract gate and all CL authority/simulation
+  suites in fresh processes, including the formerly failing acceptance paths.
+- [x] Verify published dashboard inventory/bytes, other football artifacts,
+  runtime code and accepted NL/CL-fixture benchmark inputs remain unchanged.
+- [x] Isolate the broader Phase 19 pipeline-suite failure: `tar_make()` rejects
+  missing `glmnet` and `ranger` in the R 4.6.1 environment. The exact case gives
+  the same error/warning on pre-repair `b63acd6`; runtime code is unchanged.
+  The domain-contract suite and all three fixture pipeline cases pass.
+- [ ] Full Phase 19 targets validation still requires the two genuine R
+  dependencies. This environment blocker is separate from the fixed manifest;
+  no production model/authority or all-regressions-green claim follows.
+
+See `.planning/authority-manifest-repair/PLAN.md` and `SUMMARY.md`. No live
+provider probe, dashboard publication or milestone advancement is authorized
+or performed by this repair.

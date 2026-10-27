@@ -1,0 +1,8 @@
+PASS test_phase20_state_authority_review.R            PHASE19_FOCUSED_RESULT tests=6 assertions=34
+PASS test_phase20_final_boundary_review.R             PHASE19_FOCUSED_RESULT tests=2 assertions=13
+PASS test_phase20_adversarial_regression.R            PHASE19_FOCUSED_RESULT tests=10 assertions=63
+PASS test_phase20_outcomes_wiring_review.R            PHASE19_FOCUSED_RESULT tests=5 assertions=24
+PASS test_phase20_simulation_review.R                 PHASE19_FOCUSED_RESULT tests=7 assertions=34
+PASS test_uefa_champions_league.R                     PHASE19_FOCUSED_RESULT tests=63 assertions=362
+PASS test_cl_prepared_execution.R                     PHASE19_FOCUSED_RESULT tests=2 assertions=48
+PHASE19_FOCUSED_OK files=7

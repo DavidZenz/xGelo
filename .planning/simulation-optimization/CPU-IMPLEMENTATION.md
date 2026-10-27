@@ -132,8 +132,9 @@ affected national scopes ran fresh in three independent test processes;
 unchanged CL/common/Python and two passing source-authority scopes were reused
 explicitly after byte comparison against `fa7969a`. Full accepted parity and
 interrupted resume were repeated at the final source identity. The separate
-pre-existing provider-acceptance failures below remain; an unconditional
-all-regressions-green claim is not made.
+pre-existing provider-acceptance failures below remained at certification; an
+unconditional all-regressions-green claim was not made. Their subsequent
+authority-data repair is recorded separately below.
 
 All 40 retained accepted 10k chunks across the three optimization cycles have
 identical reconstructed traces, schemas and semantic reducer statistics. Every
@@ -199,26 +200,34 @@ enforces those limits automatically. Failed gates retained checkpoints. Long
 jobs were checked every 30 minutes as requested.
 
 CL scale evidence remains explicitly synthetic and production-ineligible.
-Production authority and publication phases remain separate. Tracked `docs/`,
-`data/` and `outputs/` bytes are unchanged from `16f81f2`; WC publication SHA-256
+Production authority and publication phases remain separate. At certification,
+tracked `docs/`, `data/` and `outputs/` bytes were unchanged from `16f81f2`; WC publication SHA-256
 remains `bc540c9d1014095e5d10b2ddc06b73d105c13cd8db7efee6c46bf2d6e86f56b7`.
 
-## Pre-existing authority failure
+## Authority failure at certification and subsequent repair
 
-The expanded source-acceptance regression fails four cases with one warning:
+At certification, the expanded source-acceptance regression failed four cases with one warning:
 the stored provider acceptance manifest's `review_sha256` differs from the
-current owner review. Both frozen `6c13de0` and current modules reproduce the
-same integrity error in fresh R processes. The two modules and seven protected
-acceptance files match that baseline byte for byte.
+current owner review. Frozen `6c13de0` and the optimized modules reproduced the
+same integrity error in fresh R processes using the pre-repair data. The two
+modules and seven protected acceptance files matched that baseline byte for byte.
 
 Commit `9b06e48` approved seven rows of `provider_terms_review.csv` without
 updating its generation manifest or current pointer. The persisted hash exactly
-matches the preceding pending review. This is an authority-data repair for its
-separate workflow; optimization leaves those bytes intact and does not bypass
-the production rejection. Source-bundle and adversarial suites separately pass
+matches the preceding pending review. This required an authority-data repair
+through its separate workflow; optimization left those bytes intact and did
+not bypass the rejection. Source-bundle and adversarial suites separately passed
 72 and 60 assertions. Initial nested-R PATH failures were rerun successfully
 with the configured R binary directory, and are retained in the evidence.
 
-This prevents an unconditional all-regressions-green or CL production claim.
-It does not authorize or block fixture-only performance measurements, or change
-the accepted national inputs. See `cpu-implementation/authority-review.json`.
+Those failures prevented an unconditional all-regressions-green claim at
+certification. See `cpu-implementation/authority-review.json` for the unchanged
+historical evidence.
+
+The subsequent authorized [authority manifest repair](../authority-manifest-repair/SUMMARY.md)
+restores the original historical review and selects a coherent new generation
+containing the genuine approved review unchanged. The full Phase 18 gate now
+passes 143 tests and 861 assertions. Published bytes, runtime source and
+benchmark football inputs remain unchanged. The provider still records
+`missing_credential` with automation disabled; production source/model and
+publication gates remain separate.

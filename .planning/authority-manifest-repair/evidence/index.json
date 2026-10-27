@@ -1,0 +1,199 @@
+{
+  "status": "authority_repair_verified",
+  "requirement": "UCLSRC-01",
+  "base_commit": "b63acd6649e89288c16273e8f21b1b2401049083",
+  "repaired_generation": "generations/g-7c7f9d26712aaf7595cbfcf598266658",
+  "relevant_gates": {
+    "fresh_process_suites": 16,
+    "tests": 248,
+    "assertions": 1544,
+    "failures": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skips": 0,
+    "suites": [
+      {
+        "file": "test_phase18_adversarial_regression.R",
+        "tests": 21,
+        "assertions": 60,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_canonical_hash.R",
+        "tests": 9,
+        "assertions": 31,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_club_history_contract.R",
+        "tests": 18,
+        "assertions": 92,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_club_identity.R",
+        "tests": 19,
+        "assertions": 84,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_football_data_adapter.R",
+        "tests": 13,
+        "assertions": 149,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_refresh_failure.R",
+        "tests": 16,
+        "assertions": 82,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_source_acceptance.R",
+        "tests": 35,
+        "assertions": 291,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase18_source_bundle.R",
+        "tests": 12,
+        "assertions": 72,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "phase18"
+      },
+      {
+        "file": "test_phase20_state_authority_review.R",
+        "tests": 6,
+        "assertions": 34,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_phase20_final_boundary_review.R",
+        "tests": 2,
+        "assertions": 13,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_phase20_adversarial_regression.R",
+        "tests": 10,
+        "assertions": 63,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_phase20_outcomes_wiring_review.R",
+        "tests": 5,
+        "assertions": 24,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_phase20_simulation_review.R",
+        "tests": 7,
+        "assertions": 34,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_uefa_champions_league.R",
+        "tests": 63,
+        "assertions": 362,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_cl_prepared_execution.R",
+        "tests": 2,
+        "assertions": 48,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      },
+      {
+        "file": "test_phase19_club_domain_contract.R",
+        "tests": 10,
+        "assertions": 105,
+        "fresh_process": true,
+        "status": "passed",
+        "gate": "downstream"
+      }
+    ]
+  },
+  "official_phase18_gate_passed": true,
+  "downstream_authority_and_simulation_passed": true,
+  "all_extended_regressions_green": false,
+  "extended_pipeline": {
+    "status": "blocked_missing_environment_dependencies",
+    "missing_packages": [
+      "glmnet",
+      "ranger"
+    ],
+    "pre_repair_baseline_reproduces": true,
+    "full_suite_exit_code": 1,
+    "blocked_target_errors": 1,
+    "blocked_target_warnings": 1,
+    "fixture_subset_tests": 3,
+    "fixture_subset_assertions": 30,
+    "fixture_subset_passed": true
+  },
+  "published_dashboards_unchanged": true,
+  "runtime_source_unchanged": true,
+  "benchmark_fixture_inputs_unchanged": true,
+  "provider_authorized": false,
+  "reason_code": "missing_credential",
+  "automation_enabled": false,
+  "public_promotion": false,
+  "milestone_advanced": false,
+  "evidence_file_sha256": {
+    "baseline.json": "02e08abdaec9ec345efaa888bbcd4333b4db62a24f263bb5490889b24f875c81",
+    "repair.json": "9f077d8a84d90ad20f4fc301c29b7c998eac7fa9c757a78fd8577ee2f8f4ad5b",
+    "scope.json": "22fa4e31395671d6cc170169ffab92ee5bdb376780e848bf3d760aaaaea36619",
+    "phase18-gate.json": "ee651cdfc56110c70ab6ed9609fc4dfc177325e4c4b1c7aa288f7a0f4e7fc4cb",
+    "phase18-gate.log": "926858b299df5b39103c2bee0f72d10b8d72de6a739045c43d456bfe5d5e0a99",
+    "downstream.json": "2ac51ccbca6dd5352b03b2085e8ae9e8c51d8a23260b49fdd0f8476855b16630",
+    "downstream.log": "c1a0a9918f63a3f27835c10d3e417f993f9a06aaa9bf86897ad6f329abff0f9d",
+    "reproduce.R": "b6e9c9bc4aaac6466846ba8ff9b80222ffbca178a63e6e1fd6df937e81407f70",
+    "repair.R": "45b8b35193534961da86674767b41fbb23a19837e836de7fb86a8f22b996c5b1",
+    "verify-scope.py": "81a42d067b64dde7cc5daeaf4c41b003e0b752993643c127d029d0e15eaacf0a",
+    "run-check.py": "41d83598965ea4f95fc27a21f5ebe26b54405394f56ca892580fd405be3390ec",
+    "cl-checks.json": "484ca85d7ef43093da48c2fc0943a2a47ffceaafbac87a6efb310d0bf643ad21",
+    "cl-checks.log": "50785c08c3409451a1e5a34bd8759b175d77cc3c6f1d326500a7012033773360",
+    "environment.json": "10852eddfb8862488b34f83a06aec3ceb13f9ac76c54c97c85f52878f4a95a57",
+    "dependency-blocker-proof.json": "0a8150b8437dfe4627fbdac8b5d3dcabeacb0de50e63cb9453f65e97a3bc4f5a",
+    "pipeline-diagnostic.R": "bec393a2f890d6c435b0501e4cc04298e003d5bfc55b4f6c84adb1cc16f8ecc4",
+    "pipeline-authority-v2.json": "01f0b8d9b4c251bcf0c37f153af68e1e097963f92df072051e201dfba5205351",
+    "pipeline-authority-v2.log": "828695fb1cefaa9921c6c883444bc1a86db0067fcd3d318a0547e26488b4d50a",
+    "pipeline-authority-v2-details.json": "f098846631a8b776e1cec9dd67edc399da342c98053d8f4edf7315655b48f807",
+    "pipeline-fixture-v2-current.json": "1f83fe9d5103465e4168b8905b397e255b155a40cc410eb87eff62b9080697b4",
+    "pipeline-fixture-v2-current.log": "3e4b62af668e0a11d854ff848cbc6a1f00b4347d933c03635965235f9c1ed412",
+    "pipeline-fixture-v2-current-details.json": "79425990b707630289585384b21e0516d32097a95f8b1332edc8ee4aa335b333",
+    "baseline-targets-blocker.json": "3375ffab1e88e1575e014f3272a609a3e86fc67ef1a63652ebaafad76e7faea4",
+    "baseline-targets-blocker.log": "c12fd798131f7899cb34f58c8673e1e187aa6e1e50293b15c213a17a35b4cbbc",
+    "baseline-targets-blocker-details.json": "18228fc8cf2741a188d7ae773ea11d35f5f2fdd7fe918328b64184e0d4ebd33b"
+  },
+  "operator_markdown_eof_normalized_before_commit": true,
+  "generation_readback_after_formatting_passed": true
+}

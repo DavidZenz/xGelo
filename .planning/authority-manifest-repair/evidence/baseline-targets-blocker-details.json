@@ -1,0 +1,21 @@
+{
+  "root": "/private/tmp/xgelo-authority-manifest-repair/baseline-root",
+  "mode": "blocked",
+  "tests": 1,
+  "assertions": 0,
+  "failures": 0,
+  "errors": 1,
+  "warnings": 1,
+  "skips": 0,
+  "cases": [
+    {
+      "test": "blocked club targets complete truthfully without release or selector files",
+      "conditions": [
+        {
+          "classes": ["expectation_warning", "expectation", "condition"],
+          "message": "no non-missing arguments to max; returning -Inf"
+        }
+      ]
+    }
+  ]
+}

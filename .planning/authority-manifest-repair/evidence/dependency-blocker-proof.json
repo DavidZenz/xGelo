@@ -1,0 +1,44 @@
+{
+  "status": "preexisting_environment_blocker_reproduced",
+  "baseline_commit": "b63acd6",
+  "dependency_error": "could not find packages glmnet, ranger in library paths /opt/homebrew/lib/R/4.6/site-library, /opt/homebrew/Cellar/r/4.6.1_2/lib/R/library",
+  "missing_packages": [
+    "glmnet",
+    "ranger"
+  ],
+  "code_files": [
+    {
+      "path": "_targets.R",
+      "sha256": "d4024b0b80a834e5a8d81b4577372b534afd6bd23478c61e189338a2cac09f92",
+      "matches_pre_repair": true
+    },
+    {
+      "path": "tests/testthat/test_phase19_club_pipeline.R",
+      "sha256": "2072aa60e6da953f01d3a3f1855b3d31765204a59fc7443ed1f6083e9fb31cff",
+      "matches_pre_repair": true
+    },
+    {
+      "path": "scripts/run_phase19_club_evaluation.R",
+      "sha256": "93052c04cef2c4360c66656c59b5fbe1c331e24354465acc13f44fb6dba42efa",
+      "matches_pre_repair": true
+    },
+    {
+      "path": "R/club/model_contract.R",
+      "sha256": "7b6bafdea4ee640544bc357fcea0dc452f4a3a4368b12ca31aee0e90303e5749",
+      "matches_pre_repair": true
+    }
+  ],
+  "environment": {
+    "R": "R version 4.6.1 (2026-06-24)",
+    "targets_version": "1.12.0",
+    "packages": {
+      "glmnet": false,
+      "ranger": false
+    }
+  },
+  "baseline_root_marker": ".planning/PROJECT.md restored from b63acd6",
+  "baseline_target_test_errors": 1,
+  "baseline_target_test_warnings": 1,
+  "packages_installed_by_repair": false,
+  "authority_repair_cause": false
+}
