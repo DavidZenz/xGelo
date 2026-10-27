@@ -2,14 +2,14 @@
   "schema_version": "phase19-club-policy-review-v1",
   "hash_encoding_version": "phase18-canonical-v2",
   "forecast_domain": "club",
-  "reviewer": "",
-  "reviewed_at_utc": "",
-  "decision": "pending",
+  "reviewer": "David Zenz",
+  "reviewed_at_utc": "2026-10-27T12:45:36Z",
+  "decision": "accepted",
   "candidate_registry_sha256": "7e36f1432cb08c699ca681541051788f4ef0b5072727b26d080a3b643b30271e",
   "gate_registry_sha256": "32883babbf0b45229d84ed6409f26681ed6d3323d1578616892ba22bb699c8ae",
   "seed_registry_sha256": "01e838f1668e5b430396e16db78db5d9cdbe358b98118b3745452536a28f8812",
   "feature_contract_sha256": "f7b8b3474878076ae02efe30f1a484df7b1cf837ff513dc8f7579bf3fd72fb7b",
   "protocol_sha256": "34e084ab9e88de48ac26d57477a8d9ad03ca36972eac9245a13ddf8da719f9a2",
-  "rationale_code": "pending_owner_review",
-  "review_sha256": "234e11ce8f05d01e614b70957884290e378f240638bbb7a9da0aed01181c3b99"
+  "rationale_code": "owner_history_package:175d95264707e925b2213b26332070fd681399c1508875af110659cf4a3347f8",
+  "review_sha256": "de4f280c1757551034bc08439e880ad7bf5de5b6480b10e797f78d0af8273fab"
 }

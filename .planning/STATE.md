@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Historical corpus prepared; owner source and identity review pending
+stopped_at: Historical inputs approved; canonical corpus audit running
 last_updated: "2026-10-27T12:42:10Z"
 last_activity: 2026-10-27
-last_activity_desc: Genuine historical source and production model pipeline implemented; exact source package awaits owner review before corpus activation and fold review
+last_activity_desc: Owner approved and activated historical sources, identities and model policy; canonical corpus audit precedes exact fold review
 progress:
   total_phases: 5
   completed_phases: 2
@@ -31,7 +31,7 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
 Plan: 10 of 10
 Status: Mechanics complete; production human_needed; Plans 01-10 complete
-Last activity: 2026-10-27 — Real historical source package and production pipeline implemented; source/identity/policy and exact derived fold approvals remain required before production predictions.
+Last activity: 2026-10-27 — David approved the exact historical source/identity/policy package; canonical corpus audit is running before exact fold review and production fitting.
 
 Progress: [██████████] 100%
 
@@ -136,9 +136,9 @@ Progress: [██████████] 100%
 
 - [2026-10-27 complete] Real `football_data_org_v4` acceptance and two atomic live UCL source promotions passed; approved current roster has 36 clubs and 144 league-phase fixtures.
 - [2026-10-27 complete] David Zenz approved the 36 current club mappings and league-phase counts; current registry and review evidence are generation-backed.
-- [2026-10-27 prepared] Historical review package: 16,277 distinct regulation results from 432 pinned snapshots across 59 season files; 407 evidence-bound identity entries, 343 clubs, all 36 current clubs covered in one component. Package: `data/club/identity_reviews/history-2026-10-27/README.md`.
+- [2026-10-27 accepted] David approved the historical package: 16,277 distinct regulation results from 432 pinned snapshots across 59 season files; 407 evidence-bound identity entries, 343 clubs, all 36 current clubs covered in one component. Exact package SHA-256: `175d95264707e925b2213b26332070fd681399c1508875af110659cf4a3347f8`; genuine decision is stored in `data/club/identity_reviews/history-2026-10-27/accepted_owner_decision.json`.
 - [2026-10-27 complete implementation] Native historical parsing, first-observation source selection, prior-only production tuning/calibration/evaluation, reproducible refitting, release installation, live inference and club targets are wired and tested.
-- Owner source/identity/policy approval remains pending; after activation, derive and review exact folds before running the production model evaluation and enabling forecasts.
+- Canonical corpus audit is running; after acceptance, derive and review exact folds before running the production model evaluation and enabling forecasts.
 - [2026-10-27 owner decision] Require all 36 current clubs to have connected historical coverage before enabling any predictions; partial roster release is prohibited.
 
 ### Blockers/Concerns
