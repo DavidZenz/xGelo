@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Historical corpus and exact folds accepted; production fitting and independent replay running
-last_updated: "2026-10-27T14:07:00Z"
+stopped_at: Production venue baseline and local CL forecasts verified; tournament projection work remains separate
+last_updated: "2026-10-27T15:41:00Z"
 last_activity: 2026-10-27
-last_activity_desc: Owner-approved exact 26-fold inventory activated; production model evaluation and replay running
+last_activity_desc: Immutable venue NB release and targets passed; 90 forecasts across all 36 clubs verified in the browser
 progress:
   total_phases: 5
   completed_phases: 2
@@ -28,10 +28,10 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 ## Current Position
 
-Phase: 19 (independent-club-forecast-authority) — EXECUTING
+Phase: 19 (independent-club-forecast-authority) — PRODUCTION BASELINE READY
 Plan: 10 of 10
-Status: Mechanics complete; production human_needed; Plans 01-10 complete
-Last activity: 2026-10-27 — Owner-approved historical corpus accepted: all 16,277 matches passed coverage, duplicate, score, temporal, identity and lineage checks. The exact 26-fold inventory is now owner-approved and production fitting has started.
+Status: Production venue baseline ready; Plans 01-10 complete; local dashboard and browser verified
+Last activity: 2026-10-27 — Owner-approved historical corpus accepted: all 16,277 matches passed coverage, duplicate, score, temporal, identity and lineage checks. The exact 26-fold inventory is owner-approved, both fresh-process executions matched, and the immutable venue NB release is installed.
 
 Progress: [██████████] 100%
 
@@ -39,8 +39,8 @@ Progress: [██████████] 100%
 
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
-| 18 | Club and UCL Source Contracts | 6 | Automated implementation verified (6/6); human evidence pending |
-| 19 | Independent Club Forecast Authority | 5 | In progress (10/10 plans; production gate pending) |
+| 18 | Club and UCL Source Contracts | 6 | Accepted live and historical sources; audits passed (6/6) |
+| 19 | Independent Club Forecast Authority | 5 | Production baseline ready (10/10 plans; Elo calibration gate failed) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
 | 22 | Automated Refresh and Release Hardening | 4 | Not started |
@@ -139,13 +139,13 @@ Progress: [██████████] 100%
 - [2026-10-27 accepted] David approved the historical package: 16,277 distinct regulation results from 432 pinned snapshots across 59 season files; 407 evidence-bound identity entries, 343 clubs, all 36 current clubs covered in one component. Exact package SHA-256: `175d95264707e925b2213b26332070fd681399c1508875af110659cf4a3347f8`; genuine decision is stored in `data/club/identity_reviews/history-2026-10-27/accepted_owner_decision.json`.
 - [2026-10-27 complete implementation] Native historical parsing, first-observation source selection, prior-only production tuning/calibration/evaluation, reproducible refitting, release installation, live inference and club targets are wired and tested.
 - [2026-10-27 accepted] Canonical training generation `club-history-2026-10-27-b212f524034b31e7f0e1` passed every audit gate. Source, license, identity and lineage fractions are exactly 1.0; duplicate, score and temporal violation counts are zero.
-- [2026-10-27 accepted] David approved exact model-fold package `4ac073479fbcb71a4d913823ec7a279b0a061e7d4b8dbfbf8cdfc1772d50ef25`: 26 folds, 3,025 unique assessment matches, 104 disjoint role sets. Ready generation: `club-folds-867e300dccc09fa3f4f9d688`. Production fitting and fresh-process replay are running.
+- [2026-10-27 accepted] David approved exact model-fold package `4ac073479fbcb71a4d913823ec7a279b0a061e7d4b8dbfbf8cdfc1772d50ef25`: 26 folds, 3,025 unique assessment matches, 104 explicit role sets (four disjoint roles per fold). Ready generation: `club-folds-867e300dccc09fa3f4f9d688`. Both fresh-process executions matched; every absolute gate passed. Release `club-v2-7aff9c991e39f1b1459a9418` retains the venue NB incumbent; Elo failed the frozen calibration gate.
 - [2026-10-27 owner decision] Require all 36 current clubs to have connected historical coverage before enabling any predictions; partial roster release is prohibited.
 
 ### Blockers/Concerns
 
 - Production automation is conditional on provider rights, retention, attribution, quota, schema, completeness, and freshness acceptance.
-- Historical club coverage and cross-league connectivity must be measured before production model promotion can run.
+- All 36 clubs now have connected accepted history. Elo promotion remains withheld by the predeclared calibration gate; the approved venue baseline is available.
 - Late UEFA tie-break evidence needs either a permitted source or an explicit unresolved-rank release tolerance.
 - Required Phase 12/14 regression gate is blocked by pre-existing missing outputs/releases/phase12-wc2026-incumbent-retained-v1/model/approved_model.rds; restore the genuine artifact before rerunning.
 
@@ -163,3 +163,7 @@ Progress: [██████████] 100%
 Last session: 2026-09-21T09:00:19.752Z
 Stopped at: Phase 20 context gathered
 Resume file: .planning/phases/20-ucl-rules-state-and-tournament-outcomes/20-CONTEXT.md
+
+2026-10-27 runtime follow-through: standard targets completed 14 targets (8 skipped) in 7m53s; club release and selector states are ready and reused the approved release. The standalone dashboard command passed: 90 forecasts, 36 clubs, 54 completed results, zero unavailable upcoming fixtures. Browser read-back verified the available forecast table and explicit venue-baseline disclosure. Cold rendering took 634 seconds from the information cutoff.
+
+CL pipeline task complete: historical inputs and exact folds are owner-approved, the source-backed immutable release is installed, normal targets reuse it, and the local dashboard has working match predictions. Tournament simulation/public three-edition publication remain separate milestone work.

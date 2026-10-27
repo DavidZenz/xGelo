@@ -93,3 +93,11 @@ competition routes.
 The 2026-10-27 production inputs contain 16,277 unique regulation results from 432 pinned snapshots across 59 season files and 343 canonical clubs. All 36 current clubs share one connected historical component. The source package and the separate exact 26-fold package each retain their actual owner decision beside their immutable review manifests. The folds contain 3,025 unique assessment matches across chronological and held-out-league families, with 104 explicit fit, temperature, selection and assessment role sets.
 
 Inspect `outputs/club_model/production/fold_metrics.csv` and `promotion_gates.csv` after execution; a successful run installs the immutable club release selected by `outputs/releases/club/approved_release.csv`.
+
+## Current production release
+
+`club-v2-7aff9c991e39f1b1459a9418` uses the approved venue-only negative-binomial baseline with raw 1X2 probabilities. It does not distinguish team strength. The Elo candidate improved proper scores but failed the frozen calibration comparison, so it was not promoted. Every absolute integrity/coverage gate and both independent 26-fold executions passed.
+
+A cold local render revalidates the accepted corpus and independently replays the full rating history before live inference. Allow the command to finish before refreshing the browser; the previous validated dashboard remains visible during rendering. Tournament progression probabilities still require their separate accepted simulation release.
+
+The verified 2026-10-27 render produced 90 supported upcoming-match forecasts across all 36 clubs and preserved 54 completed results. The browser displayed the available forecast table and venue-baseline explanation. Cold rendering measured about 11 minutes on this machine, including source validation and two audited rating replays.

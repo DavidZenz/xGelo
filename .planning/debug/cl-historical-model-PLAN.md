@@ -64,3 +64,7 @@ an independently evaluated, source-backed club model and accepted live inputs.
   evaluation summaries from verified predictions and refits scoped NB models.
 - Model authority binds the frozen evaluation source plus stable reviewed roster;
   routine live fixture refreshes have separate inference source lineage.
+
+## Verified outcome, 2026-10-27
+
+All five execution steps are complete. The accepted corpus has 16,277 matches and connected coverage for all 36 current clubs. Exact owner-approved folds were executed twice in separate processes; all absolute gates passed. The venue NB incumbent was retained because Elo failed its calibration gate. The immutable release and standard targets resolve ready. The standalone render and browser show 90 genuine upcoming match forecasts, zero unavailable fixtures, and intact accepted live facts. Focused regression checks, actual source/model execution, full audited inference and browser proof are complete.
