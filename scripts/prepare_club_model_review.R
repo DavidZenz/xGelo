@@ -16,8 +16,13 @@ club_model_review_root <- "data/club/production_protocol/review"
 club_review_sha <- function(path) digest::digest(file = path, algo = "sha256", serialize = FALSE)
 
 prepare_club_model_review <- function() {
-  folds <- phase19_refresh_club_fold_protocol()
-  if (!identical(folds$status, "pending_review") || !nrow(folds$fold_registry))
+  folds <- tryCatch(phase19_load_club_fold_protocol(), error = function(error) NULL)
+  if (is.list(folds) && identical(folds$status, "ready"))
+    stop("The current exact model-fold inventory is already owner-accepted")
+  pending <- function(x) is.list(x) && identical(x$reason_code, "fold_inventory_not_approved") &&
+    is.list(x$protocol_state) && identical(x$protocol_state$state, "pending_review") && nrow(x$fold_registry) > 0L
+  if (!pending(folds)) folds <- phase19_refresh_club_fold_protocol()
+  if (!pending(folds))
     stop("Accepted sources, identities and policy must support a nonempty pending fold inventory")
   snapshot <- phase19_load_club_training_snapshot()
   roles <- do.call(rbind, lapply(seq_len(nrow(folds$fold_registry)), function(i) {
@@ -37,8 +42,9 @@ prepare_club_model_review <- function() {
   utils::write.csv(roles, file.path(club_model_review_root, "role_inventory.csv"), row.names = FALSE)
   phase19_production_recipe_write(file.path(club_model_review_root, "production_recipe_v2.json"))
   writeLines(c("# Pending club model fold review", "",
-    sprintf("%d outer folds; %d held-out fixtures across both fold families.", nrow(folds$fold_registry),
-      sum(as.integer(folds$fold_registry$declared_fixture_count))),
+    sprintf("%d outer folds; %d assessment rows across both fold families, representing %d unique matches.", nrow(folds$fold_registry),
+      sum(as.integer(folds$fold_registry$declared_fixture_count)),
+      length(unique(unlist(strsplit(folds$fold_registry$declared_fixture_ids, "|", fixed = TRUE))))),
     "The inventory freezes exact fit, temperature, primary-view selection and assessment memberships.",
     "Every role uses strict source-availability cutoffs. Held-out competitions are excluded from transport fitting.",
     "Production fitting begins only after this exact inventory and the production recipe are accepted.",
@@ -64,7 +70,9 @@ apply_club_model_review <- function(decision_path) {
   manifest <- jsonlite::fromJSON(manifest_path, simplifyVector = FALSE)
   for (file in manifest$files) if (!identical(club_review_sha(file$path), file$sha256)) stop("Pending fold review artifact changed")
   folds <- phase19_load_club_fold_protocol()
-  if (!identical(folds$status, "pending_review") || !identical(folds$fold_registry_sha256, manifest$fold_registry_sha256) ||
+  if (!identical(folds$reason_code, "fold_inventory_not_approved") ||
+      !identical(folds$protocol_state$state, "pending_review") ||
+      !identical(folds$fold_registry_sha256, manifest$fold_registry_sha256) ||
       !identical(phase19_production_code_identity(), manifest$code_sha256) ||
       !identical(phase19_production_recipe()$recipe_sha256, manifest$recipe_sha256)) stop("Pending fold parents or code changed")
   review <- phase19_build_fold_review(folds, "accepted", decision$reviewer, decision$reviewed_at_utc,

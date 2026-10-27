@@ -1208,6 +1208,24 @@ phase19_fold_raw_registry <- function(snapshot, protocol, authority_mode) {
   registry
 }
 
+.phase19_fold_raw_registry_uncached <- phase19_fold_raw_registry
+phase19_fold_raw_registry <- local({
+  previous <- NULL
+  function(snapshot, protocol, authority_mode) {
+    # Recheck accepted authority on every call, but derive exact memberships
+    # only once for identical complete snapshot/policy contents. Validation of
+    # a caller's registry still compares every field with this derived result.
+    phase19_validate_club_training_snapshot(snapshot, authority_mode)
+    phase19_fold_policy_parents(protocol)
+    fingerprint <- digest::digest(list(snapshot = snapshot, protocol = protocol,
+      authority_mode = authority_mode), algo = "sha256", serialize = TRUE)
+    if (!is.null(previous) && identical(previous$fingerprint, fingerprint)) return(previous$result)
+    result <- .phase19_fold_raw_registry_uncached(snapshot, protocol, authority_mode)
+    previous <<- list(fingerprint = fingerprint, result = result)
+    result
+  }
+})
+
 phase19_validate_fold_registry <- function(registry, snapshot, protocol,
                                            authority_mode = "fixture") {
   if (!authority_mode %in% c("fixture", "production")) {

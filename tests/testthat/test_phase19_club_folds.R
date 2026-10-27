@@ -16,6 +16,15 @@ phase19_fold_test_load <- function() {
   invisible(TRUE)
 }
 
+# Production control-flow tests replace only runtime loaders/writers. They must
+# never refresh the real accepted-history/fold pointer during ordinary tests.
+phase19_fold_test_with_bindings <- function(bindings, code) {
+  previous <- mget(names(bindings), envir = .GlobalEnv, inherits = FALSE)
+  on.exit(list2env(previous, envir = .GlobalEnv), add = TRUE)
+  list2env(bindings, envir = .GlobalEnv)
+  force(code)
+}
+
 phase19_fold_test_fixture <- function(label = "folds") {
   root <- phase19_test_fixture_root(label)
   snapshot <- phase19_load_fixture_club_training_snapshot(root)
@@ -56,6 +65,16 @@ test_that("fixture history freezes deterministic rolling and transport folds", {
     phase19_fold_registry_sha256(reversed, fixture$snapshot, fixture$protocol),
     phase19_fold_registry_sha256(folds, fixture$snapshot, fixture$protocol)
   )
+  phase19_fold_test_with_bindings(list(
+    .phase19_fold_raw_registry_uncached = function(...) stop("Identical reviewed inputs must reuse the derived inventory")
+  ), {
+    expect_identical(phase19_fold_raw_registry(fixture$snapshot, fixture$protocol, "fixture"), folds)
+    expect_identical(phase19_fold_raw_registry(fixture$snapshot, fixture$protocol, "fixture"), folds)
+    changed <- fixture$snapshot
+    changed$matches$regulation_home_goals[[1L]] <- "99"
+    expect_error(phase19_fold_raw_registry(changed, fixture$protocol, "fixture"),
+      class = "history_match_hash_mismatch")
+  })
 })
 
 test_that("fold role evidence is strictly prior nested and transport-excluded", {
@@ -175,36 +194,31 @@ test_that("declared fixture coverage cannot drop duplicate or add rows", {
   )
 })
 
-test_that("committed production fold protocol is truthfully blocked", {
+test_that("committed bootstrap fold artifacts remain truthful independent of runtime acceptance", {
   phase19_fold_test_load()
-  phase19_test_require(c(
-    "phase19_load_club_fold_protocol", "phase19_validate_protocol_state",
-    "phase19_validate_fold_review", "phase19_validate_calibration_recipe"
-  ))
   root <- file.path(phase19_fold_test_root, "data/club/model_protocol")
-  paths <- file.path(root, c(
-    "fold_registry.csv", "protocol_state.json", "calibration_recipe.json",
-    "fold_review.json"
-  ))
+  paths <- file.path(root, c("fold_registry.csv", "protocol_state.json",
+    "calibration_recipe.json", "fold_review.json"))
   expect_true(all(file.exists(paths)))
   before <- lapply(paths, readBin, what = "raw", n = file.info(paths)$size)
-  state <- phase19_load_club_fold_protocol()
-  after <- lapply(paths, readBin, what = "raw", n = file.info(paths)$size)
-
-  expect_s3_class(state, "phase19_club_fold_protocol")
-  expect_identical(state$status, "blocked")
+  registry <- phase19_read_fold_registry(paths[[1L]], allow_empty = TRUE)
+  state <- phase19_read_json_exact(paths[[2L]], phase19_protocol_state_schema(), "protocol_state_invalid")
+  recipe <- phase19_read_json_exact(paths[[3L]], phase19_calibration_recipe_schema(), "calibration_recipe_invalid")
+  review <- phase19_read_json_exact(paths[[4L]], phase19_fold_review_schema(), "fold_review_invalid")
+  expect_silent(phase19_validate_protocol_state(state))
+  expect_silent(phase19_validate_calibration_recipe(recipe))
+  expect_identical(review$review_sha256, phase19_fold_review_sha256(review))
+  expect_identical(state$state, "blocked")
   expect_identical(state$reason_code, "no_accepted_club_history")
   expect_identical(state$authority_mode, "production")
   expect_false(state$fixture_authority)
-  expect_false(state$production_eligible)
-  expect_identical(nrow(state$fold_registry), 0L)
-  expect_identical(state$protocol_state$state, "blocked")
-  expect_identical(state$protocol_state$accepted_generation_id, "")
-  expect_identical(state$protocol_state$fold_registry_sha256, "")
-  expect_identical(state$fold_review$decision, "pending")
-  expect_identical(state$fold_review$reviewer, "")
-  expect_identical(state$fold_review$reviewed_at_utc, "")
-  expect_identical(before, after)
+  expect_identical(nrow(registry), 0L)
+  expect_identical(state$accepted_generation_id, "")
+  expect_identical(state$fold_registry_sha256, "")
+  expect_identical(review$decision, "pending")
+  expect_identical(review$reviewer, "")
+  expect_identical(review$reviewed_at_utc, "")
+  expect_identical(before, lapply(paths, readBin, what = "raw", n = file.info(paths)$size))
 })
 
 test_that("fixture materialization stops pending review then accepts exact owner review", {
@@ -291,21 +305,69 @@ test_that("review parent drift partial publication and fixture escalation fail",
     phase19_assert_production_fold_protocol(candidate),
     class = "phase19_fold_contract_error"
   )
-  expect_error(
-    phase19_apply_club_fold_review(review),
-    class = "phase19_fold_contract_error"
-  )
+  production_writes <- 0L
+  phase19_fold_test_with_bindings(list(
+    phase19_load_club_fold_protocol = function(...) candidate,
+    phase19_protocol_write_generation = function(...) {
+      production_writes <<- production_writes + 1L
+      stop("Production writer must not run in fixture escalation test")
+    }
+  ), {
+    expect_error(phase19_apply_club_fold_review(review), class = "phase19_fold_contract_error")
+    expect_identical(production_writes, 0L)
+  })
 })
 
-test_that("production refresh remains fail closed without history and policy approval", {
+test_that("production refresh stops before writers when history is unavailable", {
   phase19_fold_test_load()
-  before <- phase19_load_club_fold_protocol()
-  refreshed <- phase19_refresh_club_fold_protocol()
-  after <- phase19_load_club_fold_protocol()
+  writes <- policy_reads <- candidate_builds <- 0L
+  blocked <- structure(list(status = "blocked", reason_code = "no_accepted_club_history",
+    authority_mode = "production", fixture_authority = FALSE, production_eligible = FALSE),
+    class = c("phase19_club_fold_protocol", "list"))
+  phase19_fold_test_with_bindings(list(
+    phase19_load_club_training_snapshot = function(...) list(status = "blocked"),
+    phase19_load_blocked_fold_protocol = function(...) blocked,
+    phase19_load_club_evaluation_protocol = function(...) {
+      policy_reads <<- policy_reads + 1L
+      stop("Policy must not load before accepted history")
+    },
+    phase19_protocol_candidate = function(...) {
+      candidate_builds <<- candidate_builds + 1L
+      stop("Candidate must not be built before accepted history")
+    },
+    phase19_protocol_write_generation = function(...) {
+      writes <<- writes + 1L
+      stop("Production writer must not run without accepted history")
+    }
+  ), {
+    refreshed <- phase19_refresh_club_fold_protocol()
+    expect_identical(refreshed, blocked)
+    expect_identical(policy_reads, 0L)
+    expect_identical(candidate_builds, 0L)
+    expect_identical(writes, 0L)
+  })
+})
 
-  expect_identical(refreshed$status, "blocked")
-  expect_identical(refreshed$reason_code, "no_accepted_club_history")
-  expect_identical(before$protocol_state, after$protocol_state)
-  expect_identical(before$fold_review, after$fold_review)
-  expect_identical(before$fold_registry, after$fold_registry)
+test_that("production refresh stops before writers when policy is unapproved", {
+  phase19_fold_test_load()
+  writes <- candidate_builds <- 0L
+  phase19_fold_test_with_bindings(list(
+    phase19_load_club_training_snapshot = function(...) list(status = "ready"),
+    phase19_load_club_evaluation_protocol = function(...) list(status = "blocked"),
+    phase19_protocol_candidate = function(...) {
+      candidate_builds <<- candidate_builds + 1L
+      stop("Candidate must not be built before owner policy approval")
+    },
+    phase19_protocol_write_generation = function(...) {
+      writes <<- writes + 1L
+      stop("Production writer must not run before owner policy approval")
+    }
+  ), {
+    refreshed <- phase19_refresh_club_fold_protocol()
+    expect_identical(refreshed$status, "blocked")
+    expect_identical(refreshed$reason_code, "protocol_policy_not_approved")
+    expect_false(refreshed$production_eligible)
+    expect_identical(candidate_builds, 0L)
+    expect_identical(writes, 0L)
+  })
 })
