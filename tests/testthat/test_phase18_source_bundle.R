@@ -17,13 +17,14 @@ phase18_bundle_test_load <- function() {
   invisible(TRUE)
 }
 
-phase18_bundle_test_provider_evidence <- function() {
+phase18_bundle_test_provider_evidence <- function(raw_cache = NULL) {
   review <- utils::read.csv(
     file.path(phase18_bundle_test_root, "tests/fixtures/phase18/provider_terms_review.csv"),
     stringsAsFactors = FALSE, check.names = FALSE
   )
   review <- review[review$review_set == "approved", setdiff(names(review), "review_set"), drop = FALSE]
   review$reviewer <- "bundle-owner-reviewer"
+  if (!is.null(raw_cache)) review$disposition[review$dimension == "raw_cache"] <- raw_cache
   review <- phase18_hash_terms_review(review)
   expectations <- phase18_hash_edition_expectations(data.frame(
     schema_version = "phase18-edition-expectation-v2",
@@ -350,6 +351,73 @@ test_that("provider-live projected resources write and fresh-process validate a 
   expect_identical(cli$reason_code, "candidate_validated")
   expect_true(cli$promotion_eligible)
   expect_true(dir.exists(cli$candidate_root))
+})
+
+test_that("no-cache provider bundles persist only normalized tables and exact hash receipts", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence("approved_no_durable_raw_cache")
+  candidate <- phase18_build_ucl_source_bundle(phase18_bundle_test_projected(evidence),
+    phase18_bundle_test_fetched(), list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+    evidence$edition_expectations, "ucl-no-raw-cache-fixture")
+  root <- tempfile("phase18-no-raw-cache-")
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  installed <- phase18_write_ucl_candidate(root, candidate)
+  expect_false(dir.exists(file.path(root, "raw")))
+  expect_equal(length(list.files(file.path(root, "receipts"))), 4L)
+  expect_length(installed$raw_bytes, 0L)
+  expect_length(installed$raw_receipts, 4L)
+  expect_silent(phase18_validate_ucl_source_bundle(installed))
+  expect_identical(installed$bundle$aggregate_raw_sha256, candidate$bundle$aggregate_raw_sha256)
+  expect_identical(installed$bundle$bundle_sha256, candidate$bundle$bundle_sha256)
+  resource <- "matches"
+  path <- file.path(root, "receipts", paste0(resource, ".json"))
+  receipt <- jsonlite::fromJSON(path, simplifyVector = FALSE)
+  expect_false(receipt$raw_retained)
+  receipt$raw_sha256 <- strrep("0", 64L)
+  jsonlite::write_json(receipt, path, auto_unbox = TRUE)
+  expect_error(phase18_validate_ucl_source_bundle(phase18_read_ucl_candidate(root)),
+    class = "phase18_ucl_bundle_error")
+  jsonlite::write_json(installed$raw_receipts[[resource]], path, auto_unbox = TRUE)
+  dir.create(file.path(root, "raw"))
+  expect_error(phase18_read_ucl_candidate(root), class = "phase18_ucl_bundle_error")
+})
+
+test_that("later schema observations preserve acceptance while actual schema drift is rejected", {
+  phase18_bundle_test_load()
+  evidence <- phase18_bundle_test_provider_evidence()
+  projected <- phase18_bundle_test_projected(evidence)
+  projected$schema_fingerprint$observed_at_utc <- "2026-09-20T12:30:00Z"
+  projected$schema_fingerprint <- phase18_hash_schema_fingerprint(projected$schema_fingerprint)
+  build <- function(value) phase18_build_ucl_source_bundle(value, phase18_bundle_test_fetched(),
+    list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+    evidence$edition_expectations, "later-schema-observation")
+  expect_silent(build(projected))
+  projected$schema_fingerprint$fingerprint_sha256[[1L]] <- strrep("0", 64L)
+  projected$schema_fingerprint <- phase18_hash_schema_fingerprint(projected$schema_fingerprint)
+  expect_error(build(projected), class = "blocked_authority")
+})
+
+test_that("typed source CSV round-trip distinguishes null, empty and literal NA text", {
+  phase18_bundle_test_load()
+  rows <- data.frame(label = c(NA_character_, "", "NA", "ordinary"),
+    goals = c(NA_integer_, 0L, 1L, 2L), stringsAsFactors = FALSE)
+  path <- tempfile(fileext = ".csv")
+  on.exit(unlink(path), add = TRUE)
+  phase18_ucl_write_csv(rows, path)
+  restored <- phase18_ucl_read_typed_csv(path, phase18_ucl_column_types_json(rows), phase18_ucl_null_rows_json(rows))
+  expect_identical(restored, rows)
+  evidence <- phase18_bundle_test_provider_evidence("approved_no_durable_raw_cache")
+  projected <- phase18_bundle_test_projected(evidence)
+  projected$matches$winner <- rep(NA_character_, nrow(projected$matches))
+  projected$matches$row_sha256 <- phase18_ucl_projected_row_hash(projected$matches)
+  candidate <- phase18_build_ucl_source_bundle(projected, phase18_bundle_test_fetched(),
+    list(authority_type = "provider_acceptance", provider_acceptance = evidence),
+    evidence$edition_expectations, "nullable-source-roundtrip")
+  root <- tempfile("phase18-null-roundtrip-")
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  installed <- phase18_write_ucl_candidate(root, candidate)
+  expect_true(all(is.na(installed$tables$matches$winner)))
+  expect_identical(installed$tables$matches$row_sha256, candidate$tables$matches$row_sha256)
 })
 
 test_that("manual and fixture authorities are closed, recomputed, and source-mode specific", {

@@ -76,6 +76,7 @@ testthat::test_that("Phase 21 renderer escapes hostile text and exposes all sect
   phase21_test_source(c("R/dashboard/edition_registry_v2.R", "R/dashboard/payload_contract_v2.R", "R/dashboard/renderer_v2.R"), env)
   registry <- env$phase21_default_edition_registry()
   payload <- env$phase21_blocked_payload("ucl_2026_27", "<script>alert(\"x\")</script>", registry[3L, , drop = FALSE], "render-batch")
+  payload$metadata$simulation_seed <- 20260921L
   html <- env$phase21_render_dashboard(payload, "champions-league")
   for (label in c("Standings", "Fixtures", "Results", "Form", "Match forecasts", "Rank distributions", "Qualification bands", "Knockout paths", "Progression probabilities")) testthat::expect_true(grepl(tolower(label), tolower(html), fixed = TRUE))
   testthat::expect_match(html, "@media", fixed = TRUE)

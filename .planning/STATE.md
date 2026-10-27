@@ -134,10 +134,10 @@ Progress: [██████████] 100%
 
 ### Pending Todos
 
-- Complete real provider terms/key acceptance for `football_data_org_v4`.
-- Approve real club identity mappings for the supported UCL edition.
+- [2026-10-27 complete] Real `football_data_org_v4` acceptance and two atomic live UCL source promotions passed; approved current roster has 36 clubs and 144 league-phase fixtures.
+- [2026-10-27 complete] David Zenz approved the 36 current club mappings and league-phase counts; current registry and review evidence are generation-backed.
 - Supply and approve pinned/licensed historical club sources before Phase 19 model training.
-- Complete the remaining fixture-backed Phase 19 evaluation/release mechanics while production authority stays fail-closed.
+- Complete the production source-to-state adapter and Phase 19 evaluation/promotion controller; the live source view works while club forecasts remain unavailable.
 
 ### Blockers/Concerns
 

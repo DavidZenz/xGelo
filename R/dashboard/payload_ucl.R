@@ -1,6 +1,6 @@
-# Phase 21 read-only adapter for the Phase 20 Champions League outcome
-# artifacts.  This file maps accepted artifact tables; it never computes rules,
-# draws, standings, forecasts, or probabilities.
+# Phase 21 read-only adapters for Champions League outcome artifacts and
+# accepted live source facts. This file maps accepted tables; it never computes
+# competition rules, draws, standings, forecasts, or probabilities.
 
 `%||%` <- function(left, right) if (is.null(left) || !length(left)) right else left
 
@@ -120,3 +120,74 @@ phase21_payload_ucl <- function(candidate = NULL, registry_row = NULL, batch_id 
 }
 
 phase21_build_ucl_payload <- phase21_payload_ucl
+
+# Display accepted current-state facts independently of model availability.
+# This view never creates forecast, draw, or tournament probability authority.
+phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
+    batch_id = "ucl-live-source", now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")) {
+  if (!is.list(current) || !identical(as.character(current$pointer$accepted_status), "accepted") ||
+      !is.list(current$accepted)) stop("An accepted UCL current-source generation is required", call. = FALSE)
+  if (!exists("phase18_validate_ucl_refresh_current", mode = "function")) stop("UCL current-state validation is required", call. = FALSE)
+  phase18_validate_ucl_refresh_current(current)
+  accepted <- current$accepted
+  if (!exists("phase18_validate_ucl_source_bundle", mode = "function")) stop("UCL source validation is required", call. = FALSE)
+  phase18_validate_ucl_source_bundle(accepted)
+  if (!identical(as.character(accepted$authority$authority_type[[1L]]), "provider_acceptance") ||
+      !isTRUE(accepted$authority$provider_automation_enabled[[1L]])) {
+    stop("Live dashboard facts require accepted provider authority", call. = FALSE)
+  }
+  edition <- as.character(accepted$bundle$edition_id[[1L]])
+  reason <- "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted."
+  payload <- phase21_payload_ucl(list(edition_id = edition, status = "production_blocked",
+    production_blocked_reason = reason, authority_mode = "production", production_eligible = FALSE), registry_row, batch_id)
+  tables <- accepted$tables
+  clubs <- setNames(as.character(tables$clubs$display_name), as.character(tables$clubs$club_id))
+  standing <- tables$standings[order(as.integer(tables$standings$position)), , drop = FALSE]
+  standing_rows <- data.frame(Position = standing$position, Club = unname(clubs[standing$club_id]),
+    Played = standing$played, Won = standing$won, Drawn = standing$drawn, Lost = standing$lost,
+    GF = standing$goals_for, GA = standing$goals_against, GD = standing$goal_difference,
+    Points = standing$points, stringsAsFactors = FALSE, check.names = FALSE)
+  matches <- tables$matches[order(tables$matches$kickoff_utc, tables$matches$provider_match_id), , drop = FALSE]
+  completed <- as.character(matches$status) == "FINISHED"
+  score <- rep(NA_character_, nrow(matches))
+  scored <- completed & !is.na(matches$home_score) & !is.na(matches$away_score)
+  score[scored] <- paste(matches$home_score[scored], matches$away_score[scored], sep = "–")
+  match_rows <- data.frame(Matchday = matches$matchday, `Kickoff (UTC)` = matches$kickoff_utc,
+    Home = unname(clubs[matches$home_club_id]), Away = unname(clubs[matches$away_club_id]),
+    Score = score, Status = tools::toTitleCase(gsub("_", " ", tolower(as.character(matches$status)))),
+    stringsAsFactors = FALSE, check.names = FALSE)
+  metadata <- payload$metadata
+  metadata$lifecycle_state <- "league_phase"
+  metadata$source_status <- "accepted"
+  metadata$source_confidence <- "provider_accepted"
+  metadata$source_bundle_id <- as.character(accepted$bundle$bundle_id[[1L]])
+  metadata$source_bundle_sha256 <- as.character(accepted$bundle$bundle_sha256[[1L]])
+  metadata$last_refresh_at_utc <- as.character(accepted$bundle$created_at_utc[[1L]])
+  metadata$generated_at_utc <- now_utc
+  age <- as.numeric(difftime(as.POSIXct(now_utc, tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ"),
+    as.POSIXct(metadata$last_refresh_at_utc, tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ"), units = "secs"))
+  metadata$delay_seconds <- age
+  stale <- !is.finite(age) || age < -3600 || age > 48 * 3600
+  metadata$freshness_status <- if (stale) "stale" else "fresh"
+  metadata$showing_last_accepted_snapshot <- stale || !is.null(current$sidecar)
+  metadata$warnings <- c(reason, if (stale) "The accepted source is outside the 48-hour refresh window.",
+    if (!is.null(current$sidecar)) "The latest source refresh was blocked; the last accepted source is shown.")
+  payload$metadata <- metadata
+  for (id in names(payload$sections)) {
+    payload$sections[[id]]$status <- "unavailable"
+    payload$sections[[id]]$reason <- reason
+  }
+  payload$sections$form$reason <- "Club form is not included in this live source view."
+  payload$sections$rank_distributions$reason <- reason
+  status <- if (stale) "stale" else "available"
+  payload$sections$overview <- phase21_section("overview", "Overview", status = status,
+    reason = "Accepted fixtures, results and provider standings are available. Forecast sections remain unavailable.")
+  payload$sections$standings <- phase21_section("standings", "Standings", standing_rows, status,
+    "Provider league-phase TOTAL table, reconciled with completed results.")
+  payload$sections$fixtures <- phase21_section("fixtures", "Fixtures", match_rows[!completed, , drop = FALSE], status)
+  payload$sections$results <- phase21_section("results", "Results", match_rows[completed, , drop = FALSE], status)
+  payload$credits <- list(source_name = "football-data.org", source_url = "https://www.football-data.org/",
+    attribution = "Football data provided by the Football-Data.org API.")
+  phase21_validate_payload(payload)
+  payload
+}

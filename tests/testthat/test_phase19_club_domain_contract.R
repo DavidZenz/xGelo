@@ -32,6 +32,9 @@ test_that("production history and current UCL authority fail closed before side 
   expect_false(file.exists(canary))
   expect_identical(file.exists(selector), selector_before)
 
+  original_reader <- phase18_read_ucl_refresh_current
+  on.exit(assign("phase18_read_ucl_refresh_current", original_reader, envir = .GlobalEnv), add = TRUE)
+  assign("phase18_read_ucl_refresh_current", function(...) NULL, envir = .GlobalEnv)
   current <- phase19_load_current_ucl_club_snapshot()
   expect_s3_class(current, "phase19_current_ucl_authority_result")
   expect_identical(current$status, "blocked")
@@ -39,6 +42,27 @@ test_that("production history and current UCL authority fail closed before side 
   expect_identical(current$authority_mode, "production")
   expect_false(current$fixture_authority)
   expect_identical(file.exists(selector), selector_before)
+})
+
+test_that("production current roster preserves separate source and identity pointer bindings", {
+  phase19_test_load()
+  selector <- file.path(phase19_domain_test_root, "outputs/releases/club/approved_release.csv")
+  before <- file.exists(selector)
+  current <- phase19_load_current_ucl_club_snapshot()
+  if (identical(current$status, "ready")) {
+    expect_silent(phase19_validate_current_ucl_club_snapshot(current, "production"))
+    expect_equal(current$club_count, 36L)
+    expect_identical(current$clubs, current$source_clubs)
+    expect_true(nzchar(current$accepted_generation_id))
+    expect_true(nzchar(current$identity_generation))
+    changed <- current
+    changed$accepted_generation_id <- changed$identity_generation
+    changed$snapshot_sha256 <- phase19_current_snapshot_sha256(changed)
+    expect_error(phase19_validate_current_ucl_club_snapshot(changed, "production"), class = "phase19_invalid_snapshot")
+  } else {
+    expect_identical(current$reason_code, "no_accepted_current_ucl")
+  }
+  expect_identical(file.exists(selector), before)
 })
 
 test_that("fixture history and current roster use explicit non-promotable authority", {

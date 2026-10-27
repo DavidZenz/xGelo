@@ -512,6 +512,22 @@ command does not approve a provider, publish raw API responses, change accepted
 registries or advance a dashboard/model selector. Preserve these exact tokens
 when reviewing their evidence-bound mappings.
 
+The current 36-club mappings and 36-club/144-match league-phase counts were
+approved on 2026-10-27. Live provider acceptance and source promotion passed.
+To refresh that accepted feed and render its local dashboard:
+
+```bash
+/opt/homebrew/opt/r/bin/Rscript scripts/update_ucl_live_source.R
+/opt/homebrew/opt/r/bin/Rscript --vanilla scripts/render_ucl_live_dashboard.R
+```
+
+The dashboard is written to
+`outputs/competition/ucl_2026_27/dashboard/index.html`. It shows accepted current
+standings, fixtures and results even while forecasts are unavailable. Raw API
+responses are not retained under the approved provider policy; durable bundles
+contain normalized tables and source-hash receipts. Null scores and absent winner
+fields remain null across CSV read-back.
+
 Live data and forecast authority are separate prerequisites. Forecasts require
 accepted historical club results, approved evaluation policy and fold inventory,
 completed club-only evaluation, and an immutable promoted club release. A working

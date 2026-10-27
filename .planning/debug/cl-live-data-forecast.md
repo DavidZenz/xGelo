@@ -1,5 +1,5 @@
 ---
-status: awaiting_owner_review
+status: investigating
 trigger: "can we fix the live data and forecast model issue for the CL dashboard?"
 created: 2026-10-27
 updated: 2026-10-27
@@ -17,8 +17,8 @@ and Phase 20 production outcome entrypoint.
 hypothesis: Confirmed separate adapter defects and incomplete production model wiring.
 test: Focused adapter and staging regressions plus a live projection with provisional
 in-memory mappings. Production remains untouched while owner review is pending.
-next_action: Obtain approval of the prepared 36-club mapping and league-phase counts;
-then create fresh provider acceptance evidence and promote the validated source.
+next_action: Implement the production source-to-state adapter and genuine historical
+club corpus/evaluation path. Live data acquisition, acceptance and promotion are working.
 
 ## Evidence
 
@@ -51,8 +51,39 @@ behind complete source-graph validation. Production installation still independe
 validates the graph and controls the approved selector. No production model was
 trained or promoted.
 
-Prepared the exact 36 mappings in proposed_current_ucl_review.csv with pending
-status and a reusable preparation script. Owner approval is pending in chat.
+Prepared the exact 36 mappings in proposed_current_ucl_review.csv. David Zenz
+explicitly approved these mappings and the 36-club/144-match expectation in chat
+on 2026-10-27. Applied that review to current_ucl_owner_review.csv and the
+generation-backed identity registry; preserved the original pending proposals.
+
+Published a fresh, validating acceptance generation, preserving the old edited
+generation unchanged. The real four-resource acceptance probe passed. Fixed three
+additional production defects revealed by activation: normalized-only storage now
+honors the approved no-durable-raw-cache policy through exact hash receipts;
+new schema observation timestamps no longer invalidate unchanged schemas; and
+explicit null-row evidence preserves absent winner/scores on CSV round-trip.
+
+The first live bundle and a second repeatable update both passed candidate
+validation and atomic accepted-source promotion. The current local source has
+36 clubs, 144 fixtures, 54 completed results and 90 upcoming fixtures. No raw
+response JSON is retained in candidate or accepted generations.
+
+Added update_ucl_live_source.R and render_ucl_live_dashboard.R. The local dashboard
+shows accepted facts independently of forecast availability, preserves null scores,
+uses provider attribution and exposes stale/last-accepted state. Browser checks
+passed at desktop and 390px widths; all counts reconcile, no page overflow, no
+forecast rows, and implementation metadata is collapsed.
+
+Fixed missing stats::setNames imports in the closed Phase 20 CLI/targets
+environments. They can now read the accepted source; the production outcome path
+truthfully blocks on fixture_schema_incomplete. The Phase 18 provider tables still
+need a source-backed adapter to the Phase 20 fixture/venue/lineage/score contract.
+
+Fixed production current-roster validation in model_contract.R: source-generation
+tables were incorrectly accessed through the bundle data frame, edition identity
+was read through a nonexistent nested bundle, and the source pointer was shadowed
+by the identity pointer. The genuine production club loader now returns ready
+with 36 clubs and validates both distinct source and identity generations.
 
 Verification: the complete adapter suite and existing complete club release suite
 passed. New staging serialization and invalid-graph tests passed separately
@@ -60,6 +91,18 @@ passed. New staging serialization and invalid-graph tests passed separately
 The final cache/future/missing-response-date checks also passed. Changed R sources
 parse and `git diff --check` passes.
 
-A broader source-acceptance attempt exposed the existing invalid review hash and
-missing Rscript PATH in subprocesses; subsequent test commands explicitly include
-the installed R binary directory. The broader acceptance suite is not claimed green.
+A broader source-acceptance attempt exposed the original invalid review hash and
+missing Rscript PATH in subprocesses; subsequent commands include the installed R
+directory. The new acceptance generation validates, but historical tests assuming
+committed pending/no-key production state require migration before the aggregate
+Phase 18 suite can be treated as a current-state production gate.
+
+Activation verification: full source-bundle, refresh-failure and club-domain suites
+passed; full Phase 21 publication and live-dashboard suites passed. New tests cover
+raw-receipt tampering/inventory, schema timestamp vs drift, null/empty/literal-NA
+round-trip, source-only facts without model authority, stale views and isolated
+runtime read-back. No national dashboard or approved-model selector was changed.
+
+Source diff hygiene passes. Generated immutable ACCEPTANCE.md files retain their
+writer-produced final blank line; these two generated-only EOF warnings are not
+repaired in place because accepted evidence generations are immutable.

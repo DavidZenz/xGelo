@@ -182,6 +182,36 @@ phase18_ucl_assert_no_symlink <- function(path, root) {
 }
 
 phase18_ucl_required_resources <- function() c("competition_metadata", "teams", "matches", "standings")
+
+phase18_ucl_raw_storage <- function(authority, evidence) {
+  if (identical(as.character(authority$authority_type[[1L]]), "provider_acceptance")) {
+    review <- evidence$owner_review
+    row <- review[as.character(review$dimension) == "raw_cache", , drop = FALSE]
+    if (nrow(row) == 1L && identical(as.character(row$disposition[[1L]]), "approved_no_durable_raw_cache")) {
+      return("receipts")
+    }
+  }
+  "raw"
+}
+
+phase18_ucl_raw_receipt <- function(artifact) {
+  list(schema_version = "phase18-ucl-raw-receipt-v1",
+    resource = as.character(artifact$resource_type[[1L]]),
+    bundle_id = as.character(artifact$bundle_id[[1L]]), raw_retained = FALSE,
+    bytes = as.integer(artifact$bytes[[1L]]), raw_sha256 = as.character(artifact$raw_sha256[[1L]]),
+    aggregate_raw_sha256 = as.character(artifact$aggregate_raw_sha256[[1L]]),
+    canonical_content_sha256 = as.character(artifact$canonical_content_sha256[[1L]]),
+    schema_fingerprint_sha256 = as.character(artifact$schema_fingerprint_sha256[[1L]]))
+}
+
+phase18_ucl_hash_aggregate <- function(hashes) {
+  resources <- phase18_ucl_required_resources()
+  hashes <- vapply(resources, function(resource) phase18_ucl_require_hash(hashes[[resource]], "raw receipt hash"), character(1))
+  phase18_ucl_hash_sequence(as.vector(rbind(resources, unname(hashes))),
+    domain = "phase18-ucl-ordered-raw-aggregate-v2",
+    names = as.vector(rbind(paste0("resource_", seq_along(resources)), paste0("raw_sha256_", seq_along(resources)))))
+}
+
 phase18_ucl_required_tables <- function() c("competition", "clubs", "matches", "standings", "lifecycle")
 phase18_ucl_resource_table <- function() c(
   competition_metadata = "competition", teams = "clubs", matches = "matches", standings = "standings"
@@ -426,7 +456,11 @@ phase18_ucl_column_types_json <- function(data) {
   ))
 }
 
-phase18_ucl_read_typed_csv <- function(path, types_json) {
+phase18_ucl_null_rows_json <- function(data) {
+  as.character(jsonlite::toJSON(lapply(data, function(value) as.integer(which(is.na(value)))), auto_unbox = FALSE))
+}
+
+phase18_ucl_read_typed_csv <- function(path, types_json, null_rows_json = NULL) {
   input <- path
   if (is.raw(path)) {
     input <- textConnection(rawToChar(path), open = "r", local = TRUE, encoding = "UTF-8")
@@ -457,6 +491,20 @@ phase18_ucl_read_typed_csv <- function(path, types_json) {
       data[[name]] <- ifelse(is.na(value), NA, value == "TRUE")
     } else if (!identical(type, "character")) {
       phase18_ucl_bundle_abort("blocked_schema", paste0("Unsupported durable table type: ", type))
+    }
+  }
+  if (!is.null(null_rows_json)) {
+    null_rows <- jsonlite::fromJSON(null_rows_json, simplifyVector = FALSE)
+    if (!identical(names(null_rows), names(data))) {
+      phase18_ucl_bundle_abort("blocked_schema", "Null-row evidence differs from table columns")
+    }
+    for (name in names(data)) {
+      rows <- unlist(null_rows[[name]], use.names = FALSE)
+      if (length(rows) && (!is.numeric(rows) || anyNA(rows) || any(!is.finite(rows)) ||
+          any(rows != as.integer(rows) | rows < 1L | rows > nrow(data)) || anyDuplicated(rows))) {
+        phase18_ucl_bundle_abort("blocked_schema", "Invalid null-row evidence")
+      }
+      data[[name]][as.integer(rows)] <- NA
     }
   }
   data
@@ -541,6 +589,7 @@ phase18_build_ucl_source_bundle <- function(projected, fetched, authority, editi
     aggregate_raw_sha256 = aggregate_raw_sha
   )
   record <- authority_result$record
+  raw_storage <- phase18_ucl_raw_storage(record, authority_result$evidence)
   phase18_ucl_validate_projected_graph(projected, edition_expectations)
   expectation_sha <- phase18_ucl_require_hash(edition_expectations$expectation_sha256, "expectation hash")
   parser_commit <- phase18_ucl_parser_commit()
@@ -554,12 +603,17 @@ phase18_build_ucl_source_bundle <- function(projected, fetched, authority, editi
     phase18_validate_schema_fingerprint(fingerprints),
     error = function(error) phase18_ucl_bundle_abort("blocked_schema", conditionMessage(error))
   )
-  if (identical(as.character(record$authority_type[[1L]]), "provider_acceptance") &&
-      !identical(
-        fingerprint_result$schema_fingerprint_sha256,
-        as.character(authority_result$evidence$manifest$schema_fingerprint_sha256[[1L]])
-      )) {
-    phase18_ucl_bundle_abort("blocked_authority", "Candidate fingerprint table differs from provider authority")
+  if (identical(as.character(record$authority_type[[1L]]), "provider_acceptance")) {
+    accepted_fingerprints <- authority_result$evidence$schema_fingerprint
+    fields <- c("resource", "endpoint", "observed", "fingerprint_sha256")
+    current_schema <- fingerprints[match(required_resources, fingerprints$resource), fields, drop = FALSE]
+    accepted_schema <- accepted_fingerprints[match(required_resources, accepted_fingerprints$resource), fields, drop = FALSE]
+    # A later observation has its own valid row/table hashes. Its timestamp
+    # changes on every refresh; the resource, endpoint and observed schema
+    # must still equal the independently validated acceptance generation.
+    if (!identical(unname(as.matrix(current_schema)), unname(as.matrix(accepted_schema)))) {
+      phase18_ucl_bundle_abort("blocked_authority", "Candidate schema differs from provider authority")
+    }
   }
   artifact_rows <- lapply(required_resources, function(resource) {
     item <- fetched[[resource]]
@@ -587,7 +641,7 @@ phase18_build_ucl_source_bundle <- function(projected, fetched, authority, editi
       aggregate_raw_sha256 = aggregate_raw_sha,
       canonical_content_sha256 = phase18_ucl_canonical_hash(table, key = phase18_ucl_table_keys()[[table_name]]),
       parser_commit_sha = parser_commit, row_count = as.integer(nrow(table)),
-      relative_raw_path = phase18_ucl_safe_relative_path(file.path("raw", paste0(resource, ".json"))),
+      relative_raw_path = phase18_ucl_safe_relative_path(file.path(raw_storage, paste0(resource, ".json"))),
       relative_table_path = phase18_ucl_safe_relative_path(file.path("tables", paste0(table_name, ".csv"))),
       authority_type = as.character(record$authority_type[[1L]]),
       authority_id = as.character(record$authority_id[[1L]]),
@@ -617,6 +671,7 @@ phase18_build_ucl_source_bundle <- function(projected, fetched, authority, editi
       row_count = as.integer(nrow(table)), column_count = as.integer(ncol(table)),
       schema_sha256 = phase18_ucl_table_schema_hash(table),
       column_types_json = phase18_ucl_column_types_json(table),
+      null_rows_json = phase18_ucl_null_rows_json(table),
       canonical_content_sha256 = phase18_ucl_canonical_hash(table, key = phase18_ucl_table_keys()[[table_name]]),
       row_set_sha256 = phase18_ucl_row_set_hash(table),
       row_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE
@@ -710,6 +765,7 @@ phase18_validate_ucl_source_bundle <- function(bundle, artifacts = NULL, tables 
     phase18_ucl_bundle_abort("blocked_incomplete_graph", "Candidate bundle graph is incomplete")
   }
   authority <- phase18_ucl_authority_from_candidate(candidate)
+  raw_storage <- phase18_ucl_raw_storage(authority, candidate$authority_evidence)
   bundle_row <- candidate$bundle
   artifacts <- candidate$artifacts
   table_manifest <- candidate$table_manifest
@@ -724,17 +780,19 @@ phase18_validate_ucl_source_bundle <- function(bundle, artifacts = NULL, tables 
       nrow(table_manifest) != length(phase18_ucl_required_tables()) || anyDuplicated(table_manifest$table_name)) {
     phase18_ucl_bundle_abort("blocked_incomplete_graph", "Candidate resource inventory is incomplete")
   }
-  if (!setequal(names(tables), phase18_ucl_required_tables()) ||
-      !setequal(names(candidate$raw_bytes), phase18_ucl_required_resources())) {
+  has_raw <- setequal(names(candidate$raw_bytes), phase18_ucl_required_resources())
+  has_receipts <- identical(raw_storage, "receipts") && !length(candidate$raw_bytes) &&
+    setequal(names(candidate$raw_receipts), phase18_ucl_required_resources())
+  if (!setequal(names(tables), phase18_ucl_required_tables()) || (!has_raw && !has_receipts)) {
     phase18_ucl_bundle_abort("blocked_incomplete_graph", "Candidate bytes or tables are incomplete")
   }
   edition_id <- as.character(bundle_row$edition_id[[1L]])
-  aggregate_raw_sha <- phase18_ucl_raw_aggregate_sha256(
+  aggregate_raw_sha <- if (has_raw) phase18_ucl_raw_aggregate_sha256(
     setNames(lapply(phase18_ucl_required_resources(), function(resource) list(
       body = candidate$raw_bytes[[resource]],
       raw_sha256 = phase18_ucl_hash(candidate$raw_bytes[[resource]])
     )), phase18_ucl_required_resources())
-  )
+  ) else phase18_ucl_hash_aggregate(setNames(as.character(artifacts$raw_sha256), as.character(artifacts$resource_type)))
   if (!identical(
     aggregate_raw_sha,
     phase18_ucl_require_hash(bundle_row$aggregate_raw_sha256, "bundle aggregate raw hash")
@@ -767,10 +825,17 @@ phase18_validate_ucl_source_bundle <- function(bundle, artifacts = NULL, tables 
     if (nrow(row) != 1L || !identical(as.character(row$row_sha256[[1L]]), phase18_ucl_row_hash(row)[[1L]])) {
       phase18_ucl_bundle_abort("blocked_row_hash", paste0("Artifact hash mismatch: ", resource))
     }
-    bytes <- candidate$raw_bytes[[resource]]
-    if (!is.raw(bytes) || length(bytes) != as.integer(row$bytes[[1L]]) ||
-        !identical(phase18_ucl_hash(bytes), tolower(as.character(row$raw_sha256[[1L]])))) {
-      phase18_ucl_bundle_abort("blocked_raw_hash", paste0("Raw artifact mismatch: ", resource))
+    if (!identical(as.character(row$relative_raw_path[[1L]]), file.path(raw_storage, paste0(resource, ".json")))) {
+      phase18_ucl_bundle_abort("blocked_retention_policy", "Raw storage path conflicts with accepted provider retention review")
+    }
+    if (has_raw) {
+      bytes <- candidate$raw_bytes[[resource]]
+      if (!is.raw(bytes) || length(bytes) != as.integer(row$bytes[[1L]]) ||
+          !identical(phase18_ucl_hash(bytes), tolower(as.character(row$raw_sha256[[1L]])))) {
+        phase18_ucl_bundle_abort("blocked_raw_hash", paste0("Raw artifact mismatch: ", resource))
+      }
+    } else if (!identical(candidate$raw_receipts[[resource]], phase18_ucl_raw_receipt(row))) {
+      phase18_ucl_bundle_abort("blocked_raw_hash", paste0("Raw receipt disagrees with source manifest: ", resource))
     }
     if (!identical(as.character(row$aggregate_raw_sha256[[1L]]), aggregate_raw_sha)) {
       phase18_ucl_bundle_abort("blocked_raw_hash", paste0("Artifact aggregate mismatch: ", resource))
@@ -796,6 +861,10 @@ phase18_validate_ucl_source_bundle <- function(bundle, artifacts = NULL, tables 
     if (!identical(as.character(manifest$schema_sha256[[1L]]), phase18_ucl_table_schema_hash(table)) ||
         !identical(as.character(manifest$column_types_json[[1L]]), phase18_ucl_column_types_json(table))) {
       phase18_ucl_bundle_abort("blocked_canonical_hash", paste0("Canonical table schema mismatch: ", table_name))
+    }
+    if ("null_rows_json" %in% names(manifest) &&
+        !identical(as.character(manifest$null_rows_json[[1L]]), phase18_ucl_null_rows_json(table))) {
+      phase18_ucl_bundle_abort("blocked_canonical_hash", paste0("Canonical null-row evidence mismatch: ", table_name))
     }
     if (!identical(as.character(manifest$canonical_content_sha256[[1L]]), phase18_ucl_canonical_hash(table, key = keys[[table_name]])) ||
         !identical(as.character(manifest$row_set_sha256[[1L]]), phase18_ucl_row_set_hash(table))) {
@@ -874,11 +943,12 @@ phase18_ucl_authority_inventory <- function(authority_type) {
   )
 }
 
-phase18_ucl_candidate_inventory <- function(authority_type) {
+phase18_ucl_candidate_inventory <- function(authority_type, raw_storage = "raw") {
+  if (!raw_storage %in% c("raw", "receipts")) phase18_ucl_bundle_abort("blocked_retention_policy", "Unknown raw storage mode")
   sort(gsub("\\\\", "/", c(
     "artifacts.csv", "authority.csv", "authority_evidence", "bundle.csv",
-    "raw", "table_manifest.csv", "tables",
-    file.path("raw", paste0(phase18_ucl_required_resources(), ".json")),
+    raw_storage, "table_manifest.csv", "tables",
+    file.path(raw_storage, paste0(phase18_ucl_required_resources(), ".json")),
     file.path("tables", paste0(phase18_ucl_required_tables(), ".csv")),
     phase18_ucl_authority_inventory(authority_type)
   )), method = "radix")
@@ -990,14 +1060,17 @@ phase18_read_ucl_candidate <- function(candidate_root) {
     phase18_ucl_bundle_abort("blocked_authority", "Candidate authority discriminator is missing")
   }
   type <- as.character(authority$authority_type[[1L]])
-  expected <- phase18_ucl_candidate_inventory(type)
+  artifact_snapshot <- phase18_ucl_snapshot_file(file.path(candidate_root, "artifacts.csv"), candidate_root)
+  artifacts <- phase18_ucl_read_csv(artifact_snapshot$bytes)
+  raw_storage <- if (all(startsWith(as.character(artifacts$relative_raw_path), "receipts/"))) "receipts" else "raw"
+  expected <- phase18_ucl_candidate_inventory(type, raw_storage)
   if (!identical(observed, expected)) {
     phase18_ucl_bundle_abort("blocked_inventory", "Candidate recursive authority-specific inventory is not exact")
   }
-  directories <- c("authority_evidence", "raw", "tables")
+  directories <- c("authority_evidence", raw_storage, "tables")
   files <- setdiff(expected, directories)
   snapshots <- setNames(lapply(files, function(relative) {
-    if (identical(relative, "authority.csv")) authority_snapshot else {
+    if (identical(relative, "authority.csv")) authority_snapshot else if (identical(relative, "artifacts.csv")) artifact_snapshot else {
       phase18_ucl_snapshot_file(file.path(candidate_root, relative), candidate_root)
     }
   }), files)
@@ -1024,9 +1097,12 @@ phase18_read_ucl_candidate <- function(candidate_root) {
   } else if (identical(type, "fixture_contract")) {
     list(fixture_contract = phase18_ucl_read_csv(snapshot_bytes("authority_evidence/fixture_contract.csv")))
   } else phase18_ucl_bundle_abort("blocked_authority", "Candidate authority discriminator is unknown")
-  raw_bytes <- setNames(lapply(phase18_ucl_required_resources(), function(resource) {
+  raw_bytes <- if (identical(raw_storage, "raw")) setNames(lapply(phase18_ucl_required_resources(), function(resource) {
     snapshot_bytes(file.path("raw", paste0(resource, ".json")))
-  }), phase18_ucl_required_resources())
+  }), phase18_ucl_required_resources()) else list()
+  raw_receipts <- if (identical(raw_storage, "receipts")) setNames(lapply(phase18_ucl_required_resources(), function(resource) {
+    jsonlite::fromJSON(rawToChar(snapshot_bytes(file.path("receipts", paste0(resource, ".json")))), simplifyVector = FALSE)
+  }), phase18_ucl_required_resources()) else NULL
   table_manifest <- phase18_ucl_read_csv(snapshot_bytes("table_manifest.csv"))
   tables <- setNames(lapply(phase18_ucl_required_tables(), function(table) {
     manifest <- table_manifest[as.character(table_manifest$table_name) == table, , drop = FALSE]
@@ -1035,16 +1111,17 @@ phase18_read_ucl_candidate <- function(candidate_root) {
     }
     phase18_ucl_read_typed_csv(
       snapshot_bytes(file.path("tables", paste0(table, ".csv"))),
-      as.character(manifest$column_types_json[[1L]])
+      as.character(manifest$column_types_json[[1L]]),
+      if ("null_rows_json" %in% names(manifest)) as.character(manifest$null_rows_json[[1L]]) else NULL
     )
   }), phase18_ucl_required_tables())
   list(
     root = candidate_root,
     bundle = phase18_ucl_read_csv(snapshot_bytes("bundle.csv")),
-    artifacts = phase18_ucl_read_csv(snapshot_bytes("artifacts.csv")),
+    artifacts = artifacts,
     table_manifest = table_manifest,
     authority = authority, authority_evidence = evidence, tables = tables,
-    raw_bytes = raw_bytes
+    raw_bytes = raw_bytes, raw_receipts = raw_receipts
   )
 }
 
@@ -1054,6 +1131,7 @@ phase18_write_ucl_candidate <- function(candidate_root, bundle, artifacts = NULL
     list(bundle = bundle, artifacts = artifacts, tables = tables)
   }
   phase18_validate_ucl_source_bundle(candidate)
+  raw_storage <- phase18_ucl_raw_storage(candidate$authority, candidate$authority_evidence)
   candidate_root <- gsub("\\\\", "/", phase18_ucl_scalar(candidate_root, "candidate_root"))
   supplied_parent <- dirname(candidate_root)
   dir.create(supplied_parent, recursive = TRUE, showWarnings = FALSE)
@@ -1082,14 +1160,18 @@ phase18_write_ucl_candidate <- function(candidate_root, bundle, artifacts = NULL
   stage <- tempfile(paste0(".", basename(target), "-stage-"), tmpdir = parent)
   if (!dir.create(stage, recursive = FALSE, showWarnings = FALSE)) phase18_ucl_bundle_abort("blocked_writer", "Could not create candidate stage")
   on.exit(if (dir.exists(stage)) unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
-  dir.create(file.path(stage, "raw"), recursive = TRUE, showWarnings = FALSE)
+  dir.create(file.path(stage, raw_storage), recursive = TRUE, showWarnings = FALSE)
   dir.create(file.path(stage, "tables"), recursive = TRUE, showWarnings = FALSE)
   phase18_ucl_write_csv(candidate$bundle, file.path(stage, "bundle.csv"))
   phase18_ucl_write_csv(candidate$artifacts, file.path(stage, "artifacts.csv"))
   phase18_ucl_write_csv(candidate$table_manifest, file.path(stage, "table_manifest.csv"))
   phase18_ucl_write_csv(candidate$authority, file.path(stage, "authority.csv"))
   for (resource in phase18_ucl_required_resources()) {
-    writeBin(candidate$raw_bytes[[resource]], file.path(stage, "raw", paste0(resource, ".json")))
+    path <- file.path(stage, raw_storage, paste0(resource, ".json"))
+    if (identical(raw_storage, "raw")) writeBin(candidate$raw_bytes[[resource]], path) else {
+      row <- candidate$artifacts[candidate$artifacts$resource_type == resource, , drop = FALSE]
+      jsonlite::write_json(phase18_ucl_raw_receipt(row), path, auto_unbox = TRUE, pretty = TRUE)
+    }
   }
   for (table in phase18_ucl_required_tables()) {
     phase18_ucl_write_csv(candidate$tables[[table]], file.path(stage, "tables", paste0(table, ".csv")))

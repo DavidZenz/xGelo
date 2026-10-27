@@ -1,0 +1,2 @@
+"schema_version","hash_encoding_version","edition_id","lifecycle","observed_club_count","observed_match_count","observed_standings_rows","observed_stages","expectation_sha256","source_as_of_utc","retrieved_at_utc","row_sha256"
+"phase18-fd-lifecycle-v2","phase18-canonical-v2","ucl_2026_27","league_phase",36,144,36,"LEAGUE_STAGE","48837629ab247b91dd255f5e5e65d416b861cea319061e0af96a9ebc5a9e8d13","2026-10-27T09:25:00Z","2026-10-27T10:48:30Z","a6c59bc6e1b0a4ea6c7753a282556f6b7c23f2a2e390f83bb3ef89b8465a70a2"

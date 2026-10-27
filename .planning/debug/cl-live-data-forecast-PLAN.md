@@ -38,9 +38,12 @@ real source evidence. Keep model validation and publication evidence inspectable
 - Complete: changed source parsing and diff hygiene.
 - Production check: model controller remains `no_accepted_club_history`; no
   approved club selector or accepted live bundle was created by this repair.
-- Pending owner review: prepared club mappings and edition expectations. The live
-  activation question is pending in chat; no approval has been inferred.
-- Remaining production work: fresh provider acceptance generation, historical
-  corpus and reviews, production evaluation/promotion implementation and genuine
-  forecast release. Broader acceptance tests expose the pre-existing edited
-  acceptance-generation review hash and are not reported as passing.
+- Complete: explicit owner approval of 36 mappings and the 36/144 expectation;
+  generation-backed identity review and fresh validating provider acceptance.
+- Complete: first live source promotion and second repeatable update, normalized
+  storage without raw responses, schema-observation comparison and null read-back.
+- Complete: local source-only dashboard (36 clubs, 90 fixtures, 54 results), desktop
+  and mobile browser checks, source-bundle/refresh/publication/live-view tests.
+- Remaining production work: source-to-Phase-20 state adapter, historical corpus
+  and reviews, production evaluation/promotion implementation and genuine forecast
+  release. No forecast or national dashboard selector was advanced.

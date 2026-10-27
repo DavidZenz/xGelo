@@ -21,6 +21,9 @@ phase20_ucl_project_root <- normalizePath(
   winslash = "/", mustWork = FALSE
 )
 phase20_ucl_runtime <- new.env(parent = baseenv())
+# Explicitly import the small standard-library seam required by the source
+# contracts; the private environment deliberately does not inherit search().
+phase20_ucl_runtime$setNames <- stats::setNames
 
 phase20_ucl_source <- function(relative_path) {
   path <- file.path(phase20_ucl_project_root, relative_path)

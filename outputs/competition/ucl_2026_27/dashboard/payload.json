@@ -1,0 +1,1725 @@
+{
+  "schema_version": "phase21-dashboard-v2",
+  "edition_id": "ucl_2026_27",
+  "metadata": {
+    "batch_id": "ucl-live-0838712adc17e384",
+    "edition_id": "ucl_2026_27",
+    "competition_display_name": "UEFA Champions League 2026/27",
+    "lifecycle_state": "league_phase",
+    "forecast_status": "unavailable",
+    "last_refresh_at_utc": "2026-10-27T10:48:30Z",
+    "generated_at_utc": "2026-10-27T10:49:22Z",
+    "source_confidence": "provider_accepted",
+    "source_status": "accepted",
+    "source_bundle_id": "ucl-live-20261027104809",
+    "source_bundle_sha256": "65aaa8282124176a01c615dc4e68f48f3fa1adf8201d893df992c6d89229a06b",
+    "model_release_id": null,
+    "model_sha256": null,
+    "calibrator_sha256": null,
+    "release_manifest_sha256": null,
+    "ruleset_version": null,
+    "ruleset_sha256": null,
+    "projection_run_id": null,
+    "simulation_seed": null,
+    "simulation_count": null,
+    "information_cutoff_utc": null,
+    "feature_cutoff_utc": null,
+    "draw_artifact_sha256": null,
+    "authority_mode": "production",
+    "production_eligible": false,
+    "freshness_status": "fresh",
+    "delay_seconds": 52,
+    "showing_last_accepted_snapshot": false,
+    "warnings": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted."
+  },
+  "sections": {
+    "overview": {
+      "id": "overview",
+      "label": "Overview",
+      "status": "available",
+      "reason": "Accepted fixtures, results and provider standings are available. Forecast sections remain unavailable.",
+      "rows": [],
+      "filter_dimensions": []
+    },
+    "structure": {
+      "id": "structure",
+      "label": "Structure",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "standings": {
+      "id": "standings",
+      "label": "Standings",
+      "status": "available",
+      "reason": "Provider league-phase TOTAL table, reconciled with completed results.",
+      "rows": [
+        {
+          "Position": 1,
+          "Club": "Paris Saint-Germain FC",
+          "Played": 3,
+          "Won": 3,
+          "Drawn": 0,
+          "Lost": 0,
+          "GF": 14,
+          "GA": 5,
+          "GD": 9,
+          "Points": 9
+        },
+        {
+          "Position": 2,
+          "Club": "Aston Villa FC",
+          "Played": 3,
+          "Won": 3,
+          "Drawn": 0,
+          "Lost": 0,
+          "GF": 12,
+          "GA": 3,
+          "GD": 9,
+          "Points": 9
+        },
+        {
+          "Position": 3,
+          "Club": "Liverpool FC",
+          "Played": 3,
+          "Won": 3,
+          "Drawn": 0,
+          "Lost": 0,
+          "GF": 12,
+          "GA": 7,
+          "GD": 5,
+          "Points": 9
+        },
+        {
+          "Position": 4,
+          "Club": "Real Madrid CF",
+          "Played": 3,
+          "Won": 3,
+          "Drawn": 0,
+          "Lost": 0,
+          "GF": 10,
+          "GA": 5,
+          "GD": 5,
+          "Points": 9
+        },
+        {
+          "Position": 5,
+          "Club": "Real Betis Balompié",
+          "Played": 3,
+          "Won": 3,
+          "Drawn": 0,
+          "Lost": 0,
+          "GF": 7,
+          "GA": 4,
+          "GD": 3,
+          "Points": 9
+        },
+        {
+          "Position": 6,
+          "Club": "VfB Stuttgart",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 1,
+          "Lost": 0,
+          "GF": 7,
+          "GA": 2,
+          "GD": 5,
+          "Points": 7
+        },
+        {
+          "Position": 7,
+          "Club": "Arsenal FC",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 1,
+          "Lost": 0,
+          "GF": 6,
+          "GA": 2,
+          "GD": 4,
+          "Points": 7
+        },
+        {
+          "Position": 8,
+          "Club": "FC Barcelona",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 0,
+          "Lost": 1,
+          "GF": 11,
+          "GA": 6,
+          "GD": 5,
+          "Points": 6
+        },
+        {
+          "Position": 9,
+          "Club": "Como 1907",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 0,
+          "Lost": 1,
+          "GF": 10,
+          "GA": 5,
+          "GD": 5,
+          "Points": 6
+        },
+        {
+          "Position": 10,
+          "Club": "Manchester City FC",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 0,
+          "Lost": 1,
+          "GF": 9,
+          "GA": 5,
+          "GD": 4,
+          "Points": 6
+        },
+        {
+          "Position": 11,
+          "Club": "Club Brugge KV",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 0,
+          "Lost": 1,
+          "GF": 9,
+          "GA": 6,
+          "GD": 3,
+          "Points": 6
+        },
+        {
+          "Position": 12,
+          "Club": "Sporting Clube de Portugal",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 0,
+          "Lost": 1,
+          "GF": 7,
+          "GA": 4,
+          "GD": 3,
+          "Points": 6
+        },
+        {
+          "Position": 13,
+          "Club": "Borussia Dortmund",
+          "Played": 3,
+          "Won": 2,
+          "Drawn": 0,
+          "Lost": 1,
+          "GF": 5,
+          "GA": 4,
+          "GD": 1,
+          "Points": 6
+        },
+        {
+          "Position": 14,
+          "Club": "FC Bayern München",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 2,
+          "Lost": 0,
+          "GF": 10,
+          "GA": 5,
+          "GD": 5,
+          "Points": 5
+        },
+        {
+          "Position": 15,
+          "Club": "AS Roma",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 1,
+          "Lost": 1,
+          "GF": 8,
+          "GA": 5,
+          "GD": 3,
+          "Points": 4
+        },
+        {
+          "Position": 16,
+          "Club": "Club Atlético de Madrid",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 1,
+          "Lost": 1,
+          "GF": 4,
+          "GA": 3,
+          "GD": 1,
+          "Points": 4
+        },
+        {
+          "Position": 17,
+          "Club": "FK Shakhtar Donetsk",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 1,
+          "Lost": 1,
+          "GF": 4,
+          "GA": 3,
+          "GD": 1,
+          "Points": 4
+        },
+        {
+          "Position": 18,
+          "Club": "PSV",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 1,
+          "Lost": 1,
+          "GF": 2,
+          "GA": 2,
+          "GD": 0,
+          "Points": 4
+        },
+        {
+          "Position": 19,
+          "Club": "Villarreal CF",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 8,
+          "GA": 8,
+          "GD": 0,
+          "Points": 3
+        },
+        {
+          "Position": 20,
+          "Club": "FC Internazionale Milano",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 5,
+          "GA": 6,
+          "GD": -1,
+          "Points": 3
+        },
+        {
+          "Position": 21,
+          "Club": "Manchester United FC",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 5,
+          "GA": 6,
+          "GD": -1,
+          "Points": 3
+        },
+        {
+          "Position": 22,
+          "Club": "SSC Napoli",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 5,
+          "GA": 7,
+          "GD": -2,
+          "Points": 3
+        },
+        {
+          "Position": 23,
+          "Club": "LASK Linz",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 6,
+          "GA": 9,
+          "GD": -3,
+          "Points": 3
+        },
+        {
+          "Position": 24,
+          "Club": "Galatasaray SK",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 6,
+          "GA": 9,
+          "GD": -3,
+          "Points": 3
+        },
+        {
+          "Position": 25,
+          "Club": "Sabah FK",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 3,
+          "GA": 6,
+          "GD": -3,
+          "Points": 3
+        },
+        {
+          "Position": 26,
+          "Club": "Feyenoord Rotterdam",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 4,
+          "GA": 8,
+          "GD": -4,
+          "Points": 3
+        },
+        {
+          "Position": 27,
+          "Club": "Racing Club de Lens",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 3,
+          "GA": 7,
+          "GD": -4,
+          "Points": 3
+        },
+        {
+          "Position": 28,
+          "Club": "FK Bodø/Glimt",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 4,
+          "GA": 9,
+          "GD": -5,
+          "Points": 3
+        },
+        {
+          "Position": 29,
+          "Club": "PAE AEK",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 3,
+          "GA": 8,
+          "GD": -5,
+          "Points": 3
+        },
+        {
+          "Position": 30,
+          "Club": "RB Leipzig",
+          "Played": 3,
+          "Won": 1,
+          "Drawn": 0,
+          "Lost": 2,
+          "GF": 3,
+          "GA": 8,
+          "GD": -5,
+          "Points": 3
+        },
+        {
+          "Position": 31,
+          "Club": "Fenerbahçe SK",
+          "Played": 3,
+          "Won": 0,
+          "Drawn": 2,
+          "Lost": 1,
+          "GF": 3,
+          "GA": 9,
+          "GD": -6,
+          "Points": 2
+        },
+        {
+          "Position": 32,
+          "Club": "SK Slavia Praha",
+          "Played": 3,
+          "Won": 0,
+          "Drawn": 1,
+          "Lost": 2,
+          "GF": 4,
+          "GA": 7,
+          "GD": -3,
+          "Points": 1
+        },
+        {
+          "Position": 33,
+          "Club": "Viking FK",
+          "Played": 3,
+          "Won": 0,
+          "Drawn": 1,
+          "Lost": 2,
+          "GF": 5,
+          "GA": 9,
+          "GD": -4,
+          "Points": 1
+        },
+        {
+          "Position": 34,
+          "Club": "FC Porto",
+          "Played": 3,
+          "Won": 0,
+          "Drawn": 0,
+          "Lost": 3,
+          "GF": 2,
+          "GA": 6,
+          "GD": -4,
+          "Points": 0
+        },
+        {
+          "Position": 35,
+          "Club": "Lille OSC",
+          "Played": 3,
+          "Won": 0,
+          "Drawn": 0,
+          "Lost": 3,
+          "GF": 4,
+          "GA": 10,
+          "GD": -6,
+          "Points": 0
+        },
+        {
+          "Position": 36,
+          "Club": "ŠK Slovan Bratislava",
+          "Played": 3,
+          "Won": 0,
+          "Drawn": 0,
+          "Lost": 3,
+          "GF": 1,
+          "GA": 13,
+          "GD": -12,
+          "Points": 0
+        }
+      ],
+      "filter_dimensions": []
+    },
+    "fixtures": {
+      "id": "fixtures",
+      "label": "Fixtures",
+      "status": "available",
+      "reason": "",
+      "rows": [
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T17:45:00Z",
+          "Home": "FK Shakhtar Donetsk",
+          "Away": "Sporting Clube de Portugal",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T17:45:00Z",
+          "Home": "Galatasaray SK",
+          "Away": "VfB Stuttgart",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "Feyenoord Rotterdam",
+          "Away": "FC Internazionale Milano",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "FC Barcelona",
+          "Away": "Aston Villa FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "Club Atlético de Madrid",
+          "Away": "FC Bayern München",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "Villarreal CF",
+          "Away": "Paris Saint-Germain FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "Manchester United FC",
+          "Away": "AS Roma",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "FK Bodø/Glimt",
+          "Away": "Lille OSC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-03T20:00:00Z",
+          "Home": "LASK Linz",
+          "Away": "ŠK Slovan Bratislava",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T17:45:00Z",
+          "Home": "PAE AEK",
+          "Away": "Real Madrid CF",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T17:45:00Z",
+          "Home": "Fenerbahçe SK",
+          "Away": "Liverpool FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "RB Leipzig",
+          "Away": "Manchester City FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "SK Slavia Praha",
+          "Away": "Arsenal FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "PSV",
+          "Away": "Club Brugge KV",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "Borussia Dortmund",
+          "Away": "Real Betis Balompié",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "FC Porto",
+          "Away": "SSC Napoli",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "Racing Club de Lens",
+          "Away": "Como 1907",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 4,
+          "Kickoff (UTC)": "2026-11-04T20:00:00Z",
+          "Home": "Viking FK",
+          "Away": "Sabah FK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T17:45:00Z",
+          "Home": "Galatasaray SK",
+          "Away": "Aston Villa FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T17:45:00Z",
+          "Home": "FK Bodø/Glimt",
+          "Away": "LASK Linz",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "Real Madrid CF",
+          "Away": "PSV",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "Manchester City FC",
+          "Away": "SSC Napoli",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "Arsenal FC",
+          "Away": "Borussia Dortmund",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "Feyenoord Rotterdam",
+          "Away": "FC Porto",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "ŠK Slovan Bratislava",
+          "Away": "Real Betis Balompié",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "RB Leipzig",
+          "Away": "Racing Club de Lens",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-24T20:00:00Z",
+          "Home": "Como 1907",
+          "Away": "PAE AEK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T17:45:00Z",
+          "Home": "Sabah FK",
+          "Away": "FC Barcelona",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T17:45:00Z",
+          "Home": "SK Slavia Praha",
+          "Away": "Villarreal CF",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "FC Internazionale Milano",
+          "Away": "VfB Stuttgart",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "Club Atlético de Madrid",
+          "Away": "Viking FK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "Paris Saint-Germain FC",
+          "Away": "AS Roma",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "Club Brugge KV",
+          "Away": "Liverpool FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "Lille OSC",
+          "Away": "FC Bayern München",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "Sporting Clube de Portugal",
+          "Away": "Manchester United FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 5,
+          "Kickoff (UTC)": "2026-11-25T20:00:00Z",
+          "Home": "FK Shakhtar Donetsk",
+          "Away": "Fenerbahçe SK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T17:45:00Z",
+          "Home": "Villarreal CF",
+          "Away": "Sabah FK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T17:45:00Z",
+          "Home": "Viking FK",
+          "Away": "Feyenoord Rotterdam",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "FC Barcelona",
+          "Away": "Manchester City FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "Aston Villa FC",
+          "Away": "Paris Saint-Germain FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "FC Bayern München",
+          "Away": "SK Slavia Praha",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "SSC Napoli",
+          "Away": "Club Brugge KV",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "AS Roma",
+          "Away": "Sporting Clube de Portugal",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "Manchester United FC",
+          "Away": "RB Leipzig",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-08T20:00:00Z",
+          "Home": "PAE AEK",
+          "Away": "Galatasaray SK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T17:45:00Z",
+          "Home": "Real Betis Balompié",
+          "Away": "Como 1907",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T17:45:00Z",
+          "Home": "ŠK Slovan Bratislava",
+          "Away": "FK Shakhtar Donetsk",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "Arsenal FC",
+          "Away": "Real Madrid CF",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "Borussia Dortmund",
+          "Away": "FC Internazionale Milano",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "PSV",
+          "Away": "Club Atlético de Madrid",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "Liverpool FC",
+          "Away": "FC Porto",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "Racing Club de Lens",
+          "Away": "FK Bodø/Glimt",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "LASK Linz",
+          "Away": "Fenerbahçe SK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 6,
+          "Kickoff (UTC)": "2026-12-09T20:00:00Z",
+          "Home": "VfB Stuttgart",
+          "Away": "Lille OSC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T17:45:00Z",
+          "Home": "FK Bodø/Glimt",
+          "Away": "Club Atlético de Madrid",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T17:45:00Z",
+          "Home": "Galatasaray SK",
+          "Away": "Feyenoord Rotterdam",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "Real Madrid CF",
+          "Away": "LASK Linz",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "FC Internazionale Milano",
+          "Away": "Liverpool FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "VfB Stuttgart",
+          "Away": "Club Brugge KV",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "Aston Villa FC",
+          "Away": "Borussia Dortmund",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "PAE AEK",
+          "Away": "AS Roma",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "FC Porto",
+          "Away": "SK Slavia Praha",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-19T20:00:00Z",
+          "Home": "Lille OSC",
+          "Away": "ŠK Slovan Bratislava",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T17:45:00Z",
+          "Home": "Fenerbahçe SK",
+          "Away": "Villarreal CF",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T17:45:00Z",
+          "Home": "Sabah FK",
+          "Away": "SSC Napoli",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "Racing Club de Lens",
+          "Away": "Manchester City FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "Sporting Clube de Portugal",
+          "Away": "FC Barcelona",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "Como 1907",
+          "Away": "Paris Saint-Germain FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "Real Betis Balompié",
+          "Away": "Arsenal FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "Manchester United FC",
+          "Away": "FC Bayern München",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "Viking FK",
+          "Away": "PSV",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 7,
+          "Kickoff (UTC)": "2027-01-20T20:00:00Z",
+          "Home": "RB Leipzig",
+          "Away": "FK Shakhtar Donetsk",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "FK Shakhtar Donetsk",
+          "Away": "Real Madrid CF",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Manchester City FC",
+          "Away": "Sporting Clube de Portugal",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "ŠK Slovan Bratislava",
+          "Away": "FC Internazionale Milano",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "FC Barcelona",
+          "Away": "Como 1907",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Club Atlético de Madrid",
+          "Away": "Fenerbahçe SK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Paris Saint-Germain FC",
+          "Away": "Galatasaray SK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Liverpool FC",
+          "Away": "Racing Club de Lens",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Arsenal FC",
+          "Away": "Sabah FK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "FC Bayern München",
+          "Away": "Real Betis Balompié",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Club Brugge KV",
+          "Away": "FK Bodø/Glimt",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Borussia Dortmund",
+          "Away": "PAE AEK",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "SK Slavia Praha",
+          "Away": "Aston Villa FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "AS Roma",
+          "Away": "Lille OSC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "LASK Linz",
+          "Away": "FC Porto",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Villarreal CF",
+          "Away": "Manchester United FC",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "PSV",
+          "Away": "VfB Stuttgart",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "Feyenoord Rotterdam",
+          "Away": "RB Leipzig",
+          "Score": null,
+          "Status": "Timed"
+        },
+        {
+          "Matchday": 8,
+          "Kickoff (UTC)": "2027-01-27T20:00:00Z",
+          "Home": "SSC Napoli",
+          "Away": "Viking FK",
+          "Score": null,
+          "Status": "Timed"
+        }
+      ],
+      "filter_dimensions": []
+    },
+    "results": {
+      "id": "results",
+      "label": "Results",
+      "status": "available",
+      "reason": "",
+      "rows": [
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-08T16:45:00Z",
+          "Home": "Club Brugge KV",
+          "Away": "Aston Villa FC",
+          "Score": "2–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-08T16:45:00Z",
+          "Home": "PAE AEK",
+          "Away": "LASK Linz",
+          "Score": "1–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-08T19:00:00Z",
+          "Home": "Real Madrid CF",
+          "Away": "FC Internazionale Milano",
+          "Score": "2–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-08T19:00:00Z",
+          "Home": "FC Porto",
+          "Away": "Manchester City FC",
+          "Score": "0–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-08T19:00:00Z",
+          "Home": "Borussia Dortmund",
+          "Away": "Villarreal CF",
+          "Score": "3–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-08T19:00:00Z",
+          "Home": "Lille OSC",
+          "Away": "Real Betis Balompié",
+          "Score": "2–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-09T16:45:00Z",
+          "Home": "FC Barcelona",
+          "Away": "Feyenoord Rotterdam",
+          "Score": "5–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-09T16:45:00Z",
+          "Home": "VfB Stuttgart",
+          "Away": "Viking FK",
+          "Score": "3–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-09T19:00:00Z",
+          "Home": "Liverpool FC",
+          "Away": "Club Atlético de Madrid",
+          "Score": "2–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-09T19:00:00Z",
+          "Home": "Paris Saint-Germain FC",
+          "Away": "ŠK Slovan Bratislava",
+          "Score": "6–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-09T19:00:00Z",
+          "Home": "SSC Napoli",
+          "Away": "Arsenal FC",
+          "Score": "0–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-09T19:00:00Z",
+          "Home": "Sporting Clube de Portugal",
+          "Away": "Galatasaray SK",
+          "Score": "3–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-10T16:45:00Z",
+          "Home": "Fenerbahçe SK",
+          "Away": "AS Roma",
+          "Score": "1–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-10T16:45:00Z",
+          "Home": "PSV",
+          "Away": "FK Shakhtar Donetsk",
+          "Score": "1–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-10T19:00:00Z",
+          "Home": "FC Bayern München",
+          "Away": "FK Bodø/Glimt",
+          "Score": "5–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-10T19:00:00Z",
+          "Home": "Manchester United FC",
+          "Away": "Sabah FK",
+          "Score": "4–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-10T19:00:00Z",
+          "Home": "Como 1907",
+          "Away": "RB Leipzig",
+          "Score": "4–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 1,
+          "Kickoff (UTC)": "2026-09-10T19:00:00Z",
+          "Home": "SK Slavia Praha",
+          "Away": "Racing Club de Lens",
+          "Score": "2–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T16:45:00Z",
+          "Home": "Racing Club de Lens",
+          "Away": "Sporting Clube de Portugal",
+          "Score": "0–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T16:45:00Z",
+          "Home": "Sabah FK",
+          "Away": "SK Slavia Praha",
+          "Score": "2–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "FC Internazionale Milano",
+          "Away": "Club Brugge KV",
+          "Score": "3–4",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "Galatasaray SK",
+          "Away": "FC Barcelona",
+          "Score": "1–4",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "Club Atlético de Madrid",
+          "Away": "Manchester United FC",
+          "Score": "2–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "Arsenal FC",
+          "Away": "Lille OSC",
+          "Score": "3–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "Viking FK",
+          "Away": "FC Bayern München",
+          "Score": "3–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "RB Leipzig",
+          "Away": "PSV",
+          "Score": "1–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-13T19:00:00Z",
+          "Home": "Villarreal CF",
+          "Away": "SSC Napoli",
+          "Score": "3–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T16:45:00Z",
+          "Home": "LASK Linz",
+          "Away": "Liverpool FC",
+          "Score": "3–6",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T16:45:00Z",
+          "Home": "Feyenoord Rotterdam",
+          "Away": "Como 1907",
+          "Score": "3–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "AS Roma",
+          "Away": "Real Madrid CF",
+          "Score": "3–4",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "Manchester City FC",
+          "Away": "Paris Saint-Germain FC",
+          "Score": "2–4",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "FK Bodø/Glimt",
+          "Away": "Borussia Dortmund",
+          "Score": "1–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "Aston Villa FC",
+          "Away": "Fenerbahçe SK",
+          "Score": "6–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "Real Betis Balompié",
+          "Away": "FC Porto",
+          "Score": "3–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "FK Shakhtar Donetsk",
+          "Away": "PAE AEK",
+          "Score": "3–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 2,
+          "Kickoff (UTC)": "2026-10-14T19:00:00Z",
+          "Home": "ŠK Slovan Bratislava",
+          "Away": "VfB Stuttgart",
+          "Score": "0–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T16:45:00Z",
+          "Home": "Sabah FK",
+          "Away": "Borussia Dortmund",
+          "Score": "1–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T16:45:00Z",
+          "Home": "Fenerbahçe SK",
+          "Away": "SK Slavia Praha",
+          "Score": "2–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "Manchester City FC",
+          "Away": "PAE AEK",
+          "Score": "5–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "VfB Stuttgart",
+          "Away": "Club Atlético de Madrid",
+          "Score": "1–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "Liverpool FC",
+          "Away": "Villarreal CF",
+          "Score": "4–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "AS Roma",
+          "Away": "ŠK Slovan Bratislava",
+          "Score": "4–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "FC Porto",
+          "Away": "PSV",
+          "Score": "0–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "SSC Napoli",
+          "Away": "FK Bodø/Glimt",
+          "Score": "4–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-20T19:00:00Z",
+          "Home": "Paris Saint-Germain FC",
+          "Away": "FC Barcelona",
+          "Score": "4–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T16:45:00Z",
+          "Home": "Como 1907",
+          "Away": "Manchester United FC",
+          "Score": "4–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T16:45:00Z",
+          "Home": "Lille OSC",
+          "Away": "Galatasaray SK",
+          "Score": "2–4",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "Real Madrid CF",
+          "Away": "RB Leipzig",
+          "Score": "4–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "FC Internazionale Milano",
+          "Away": "FK Shakhtar Donetsk",
+          "Score": "1–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "FC Bayern München",
+          "Away": "Arsenal FC",
+          "Score": "2–2",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "Club Brugge KV",
+          "Away": "Racing Club de Lens",
+          "Score": "3–0",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "Aston Villa FC",
+          "Away": "Viking FK",
+          "Score": "3–1",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "Sporting Clube de Portugal",
+          "Away": "LASK Linz",
+          "Score": "2–3",
+          "Status": "Finished"
+        },
+        {
+          "Matchday": 3,
+          "Kickoff (UTC)": "2026-10-21T19:00:00Z",
+          "Home": "Real Betis Balompié",
+          "Away": "Feyenoord Rotterdam",
+          "Score": "1–0",
+          "Status": "Finished"
+        }
+      ],
+      "filter_dimensions": []
+    },
+    "form": {
+      "id": "form",
+      "label": "Form",
+      "status": "unavailable",
+      "reason": "Club form is not included in this live source view.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "match_forecasts": {
+      "id": "match_forecasts",
+      "label": "Match forecasts",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "rank_distributions": {
+      "id": "rank_distributions",
+      "label": "Rank distributions",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "qualification_bands": {
+      "id": "qualification_bands",
+      "label": "Qualification bands",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "knockout_paths": {
+      "id": "knockout_paths",
+      "label": "Knockout paths",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "progression_probabilities": {
+      "id": "progression_probabilities",
+      "label": "Progression probabilities",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    },
+    "projected_outcomes": {
+      "id": "projected_outcomes",
+      "label": "Projected outcomes",
+      "status": "unavailable",
+      "reason": "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted.",
+      "rows": [],
+      "filter_dimensions": ["section", "club", "team", "stage", "matchday", "status"]
+    }
+  },
+  "credits": {
+    "source_name": "football-data.org",
+    "source_url": "https://www.football-data.org/",
+    "attribution": "Football data provided by the Football-Data.org API."
+  }
+}

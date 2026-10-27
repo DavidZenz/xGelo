@@ -798,12 +798,13 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
       )
     }
     pointer <- accepted$pointer
-    source_bundle <- accepted$accepted$bundle
+    source_generation <- accepted$accepted
+    source_bundle <- source_generation$bundle
     source_authority <- accepted$accepted$authority
     identity <- tryCatch({
-      pointer <- phase19_read_identity_pointer(fixed$club_registries)
+      identity_pointer <- phase19_read_identity_pointer(fixed$club_registries)
       registries <- phase18_load_club_registries(fixed$club_registries)
-      list(pointer = pointer, registries = registries)
+      list(pointer = identity_pointer, registries = registries)
     }, error = function(error) error)
     if (inherits(identity, "error") ||
         identical(as.character(source_authority$authority_type[[1L]]), "fixture_contract") ||
@@ -814,7 +815,7 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
       )
     }
     source_clubs <- phase19_current_ucl_canonical_clubs(
-      source_bundle$tables$clubs, as.character(source_bundle$bundle$edition_id[[1L]]),
+      source_generation$tables$clubs, as.character(source_bundle$edition_id[[1L]]),
       "Accepted Phase 18 current-UCL"
     )
     if (!identical(as.character(snapshot$accepted_generation_id),
@@ -833,7 +834,7 @@ phase19_validate_current_ucl_club_snapshot <- function(snapshot,
         !identical(as.character(snapshot$identity_registry_sha256),
                    as.character(identity$pointer$registry_sha256)) ||
         !identical(as.character(snapshot$edition_id),
-                   as.character(source_bundle$bundle$edition_id[[1L]])) ||
+                   as.character(source_bundle$edition_id[[1L]])) ||
         !identical(as.character(snapshot$source_club_table_sha256),
                    phase19_current_ucl_source_clubs_sha256(source_clubs))) {
       phase19_club_abort(

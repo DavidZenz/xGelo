@@ -1,13 +1,13 @@
 {
   "schema_version": "phase18-ucl-source-current-v2",
   "hash_encoding_version": "phase18-canonical-v2",
-  "committed_at_utc": "2026-09-20T10:00:00Z",
-  "transaction_generation_id": "ucl-refresh-20260920-disabled-missing-credential-v2",
-  "transaction_generation_path": "transactions/ucl-refresh-20260920-disabled-missing-credential-v2",
-  "transaction_generation_sha256": "fdd7fce719bc7a7dbeec6f005c4aa407eabf1a0f88843e220166cdc3a137a701",
-  "accepted_status": "no_incumbent",
-  "accepted_generation_id": "",
-  "accepted_generation_path": "",
-  "accepted_generation_sha256": "",
-  "pointer_sha256": "624dceb7619410fd70d87731148b18efda1b4923ae31c87df95d7cb19608c58d"
+  "committed_at_utc": "2026-10-27T10:48:49Z",
+  "transaction_generation_id": "ucl-refresh-20261027104849-2c71bb7f967328384319",
+  "transaction_generation_path": "transactions/ucl-refresh-20261027104849-2c71bb7f967328384319",
+  "transaction_generation_sha256": "7a2a5d18356bd18d92c3adb7712ca6487a3b48a90c76e53d11a71f70126faf29",
+  "accepted_status": "accepted",
+  "accepted_generation_id": "ucl-refresh-20261027104849-2c71bb7f967328384319-accepted",
+  "accepted_generation_path": "accepted/ucl-refresh-20261027104849-2c71bb7f967328384319-accepted",
+  "accepted_generation_sha256": "0838712adc17e384d8f63404306fd51b62a62d0a606e7ee4bdd0dfcf072d2294",
+  "pointer_sha256": "92fbb658a6923cbdd86adb9654e30c6d1cd886182c5d9091762be223b94ae4ff"
 }

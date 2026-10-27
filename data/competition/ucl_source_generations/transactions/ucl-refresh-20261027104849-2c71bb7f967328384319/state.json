@@ -1,0 +1,11 @@
+{
+  "schema_version": "phase18-ucl-refresh-transaction-state-v2",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "transaction_generation_id": "ucl-refresh-20261027104849-2c71bb7f967328384319",
+  "history_sha256": "f1ecfbd6ebd97be154fe2ec40890d33b64504d130b199115af02d44676ce689a",
+  "sidecar_sha256": "",
+  "accepted_status": "accepted",
+  "accepted_generation_id": "ucl-refresh-20261027104849-2c71bb7f967328384319-accepted",
+  "accepted_generation_sha256": "0838712adc17e384d8f63404306fd51b62a62d0a606e7ee4bdd0dfcf072d2294",
+  "state_sha256": "9011788f6f2a2c4af53967efc3c40aab76320730e135f114eb3c1057f701434b"
+}

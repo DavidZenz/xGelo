@@ -280,6 +280,7 @@ phase19_targets_passthrough_block <- function(...) {
 # never imported into it.  The target bodies below carry typed blocked and
 # unresolved values instead of manufacturing a schedule, release, or output.
 ucl20_target_runtime_envir <- new.env(parent = baseenv())
+ucl20_target_runtime_envir$setNames <- stats::setNames
 for (ucl20_target_dependency in c(
   "R/common/phase18_canonical_hash.R",
   "R/competition/source_contracts.R",

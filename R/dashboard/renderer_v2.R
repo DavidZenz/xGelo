@@ -52,14 +52,22 @@ phase21_render_table <- function(section) {
 }
 
 phase21_render_metadata <- function(metadata) {
-  preferred <- c("source_status", "freshness_status", "last_refresh_at_utc", "information_cutoff_utc",
-                 "ruleset_version", "model_release_id", "feature_cutoff_utc", "simulation_seed",
-                 "simulation_count", "projection_run_id", "authority_mode", "production_eligible",
-                 "batch_id", "showing_last_accepted_snapshot")
-  fields <- unique(c(preferred, names(metadata)))
-  fields <- fields[fields %in% names(metadata)]
-  rows <- vapply(fields, function(field) paste0("<dt>", phase21_html_escape(gsub("_", " ", tools::toTitleCase(field))), "</dt><dd>", phase21_display_scalar(metadata[[field]]), "</dd>"), character(1))
-  paste0('<dl class="metadata-grid">', paste(rows, collapse = ""), "</dl>")
+  preferred <- c("source_status", "freshness_status", "last_refresh_at_utc", "forecast_status",
+                 "model_release_id", "simulation_count")
+  populated <- function(field) length(metadata[[field]]) &&
+    any(!is.na(metadata[[field]]) & nzchar(as.character(metadata[[field]])))
+  fields <- names(metadata)[vapply(names(metadata), populated, logical(1))]
+  rows <- function(selected) vapply(selected, function(field) paste0("<div><dt>",
+    phase21_html_escape(gsub("_", " ", tools::toTitleCase(field))), "</dt><dd>",
+    phase21_display_scalar(metadata[[field]]), "</dd></div>"), character(1))
+  primary <- intersect(preferred, fields)
+  details <- setdiff(fields, c(primary, "warnings", "competition_display_name"))
+  warnings <- as.character(metadata$warnings %||% character())
+  warnings <- warnings[!is.na(warnings) & nzchar(warnings)]
+  paste0('<dl class="metadata-grid">', paste(rows(primary), collapse = ""), '</dl>',
+    if (length(warnings)) paste0('<p class="section-reason">', phase21_html_escape(paste(warnings, collapse = " ")), '</p>') else "",
+    if (length(details)) paste0('<details class="source-details"><summary>Source and model details</summary><dl class="metadata-grid">',
+      paste(rows(details), collapse = ""), '</dl></details>') else "")
 }
 
 phase21_render_dashboard <- function(payload, route = NULL) {
@@ -73,7 +81,7 @@ phase21_render_dashboard <- function(payload, route = NULL) {
     reason <- if (nzchar(as.character(section$reason %||% ""))) paste0('<p class="section-reason">', phase21_html_escape(section$reason), '</p>') else ""
     paste0('<section id="', phase21_html_escape(section$id), '" class="dashboard-section" data-status="', phase21_html_escape(section$status), '">',
            '<div class="section-heading"><h2>', phase21_html_escape(section$label), '</h2><span class="status-badge status-', phase21_html_escape(section$status), '" role="status">', phase21_html_escape(section_status), '</span></div>',
-           reason, phase21_render_table(section), '</section>')
+           reason, if (!length(section$rows) && nzchar(section$reason %||% "")) "" else phase21_render_table(section), '</section>')
   }, character(1))
   json <- if (requireNamespace("jsonlite", quietly = TRUE)) jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null", na = "null", dataframe = "rows", digits = 16, pretty = FALSE) else "{}"
   json <- phase21_json_script_escape(json)
