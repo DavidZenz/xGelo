@@ -374,7 +374,7 @@ phase18_accept_ucl_provider_main <- function(
       source_row = paste0("teams:", projected$clubs$provider_club_id),
       source_club_id = projected$clubs$provider_club_id,
       display_name = projected$clubs$display_name,
-      event_at_utc = projected$clubs$last_updated_utc,
+      event_at_utc = rep(now_utc, nrow(projected$clubs)),
       stringsAsFactors = FALSE, check.names = FALSE
     )
     current_tokens <- phase18_extract_club_tokens(current_resources = current_resources)

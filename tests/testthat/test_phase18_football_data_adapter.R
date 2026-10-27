@@ -225,6 +225,120 @@ test_that("missing independent standings freshness blocks projection", {
   )
 })
 
+phase18_fd_test_live_shape <- function() {
+  payloads <- phase18_fd_test_payloads()
+  payloads$competition_metadata$lastUpdated <- "2026-05-31T11:41:29Z"
+  for (index in seq_along(payloads$teams$teams)) {
+    payloads$teams$teams[[index]]$lastUpdated <- "2021-11-24T14:55:58Z"
+  }
+  for (index in seq_along(payloads$matches$matches)) {
+    match <- payloads$matches$matches[[index]]
+    match$status <- "TIMED"
+    match$utcDate <- "2026-10-01T18:00:00Z"
+    match$score$fullTime <- list(home = NULL, away = NULL)
+    match$score$winner <- NULL
+    payloads$matches$matches[[index]] <- match
+  }
+  total <- payloads$standings$standings[[1L]]
+  for (index in seq_along(total$table)) {
+    for (field in c("playedGames", "won", "draw", "lost", "points", "goalsFor", "goalsAgainst", "goalDifference")) {
+      total$table[[index]][[field]] <- 0L
+    }
+  }
+  home <- total; home$type <- "HOME"
+  away <- total; away$type <- "AWAY"
+  payloads$standings$standings <- list(home, total, away)
+  payloads$standings$lastUpdated <- NULL
+  payloads
+}
+
+phase18_fd_test_live_fetch <- function(payloads = phase18_fd_test_live_shape(), overrides = list()) {
+  performer <- phase18_fd_test_performer(payloads)
+  wrapped <- function(request, attempt) {
+    response <- performer(request, attempt)
+    response$headers$date <- "Sat, 19 Sep 2026 12:00:00 GMT"
+    response$headers$age <- "0"
+    for (field in names(overrides)) response$headers[[field]] <- overrides[[field]]
+    response
+  }
+  phase18_fd_fetch_window(phase18_fd_request_plan(), wrapped,
+    function() as.POSIXct("2026-09-19T12:00:00Z", tz = "UTC"), function(...) invisible(NULL))
+}
+
+test_that("live response freshness accepts stable metadata and selects the TOTAL table", {
+  phase18_fd_test_load()
+  projected <- phase18_fd_project_resources(phase18_fd_test_live_fetch(), "ucl_2026_27",
+    phase18_fd_test_registries(), phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z")
+  expect_equal(nrow(projected$standings), 36L)
+  expect_true(all(projected$standings$table_type == "TOTAL"))
+  expect_true(all(projected$freshness_evidence$evidence_kind == "http_response"))
+  expect_identical(projected$competition$last_updated_utc, "2026-05-31T11:41:29Z")
+  expect_true(all(projected$clubs$last_updated_utc == "2021-11-24T14:55:58Z"))
+})
+
+test_that("live responses reject stale cache, mismatched standings and overdue results", {
+  phase18_fd_test_load()
+  project <- function(payloads = phase18_fd_test_live_shape(), overrides = list()) {
+    phase18_fd_project_resources(phase18_fd_test_live_fetch(payloads, overrides), "ucl_2026_27",
+      phase18_fd_test_registries(), phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z")
+  }
+  expect_identical(phase18_fd_test_reason(project(overrides = list(age = "172801"))), "blocked_stale_resource")
+  expect_identical(phase18_fd_test_reason(project(overrides = list(age = "invalid"))), "blocked_malformed_freshness")
+  expect_identical(phase18_fd_test_reason(project(overrides = list(date = "Wed, 16 Sep 2026 12:00:00 GMT"))), "blocked_stale_resource")
+  expect_identical(phase18_fd_test_reason(project(overrides = list(date = "Sun, 20 Sep 2026 12:00:00 GMT"))), "blocked_future_resource")
+  fetched <- phase18_fd_test_live_fetch()
+  fetched$teams$response_date <- NA_character_
+  expect_identical(phase18_fd_test_reason(phase18_fd_project_resources(fetched, "ucl_2026_27",
+    phase18_fd_test_registries(), phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z")),
+    "blocked_freshness_unavailable")
+  payloads <- phase18_fd_test_live_shape()
+  payloads$standings$standings[[2L]]$table[[1L]]$points <- 3L
+  expect_identical(phase18_fd_test_reason(project(payloads)), "blocked_standings")
+  payloads <- phase18_fd_test_live_shape()
+  payloads$matches$matches[[1L]]$utcDate <- "2026-09-15T18:00:00Z"
+  expect_identical(phase18_fd_test_reason(project(payloads)), "blocked_stale_resource")
+  payloads <- phase18_fd_test_live_shape()
+  payloads$standings$standings <- payloads$standings$standings[c(1L, 3L)]
+  expect_identical(phase18_fd_test_reason(project(payloads)), "blocked_standings")
+  payloads <- phase18_fd_test_live_shape()
+  payloads$standings$filters$season <- "2025"
+  expect_identical(phase18_fd_test_reason(project(payloads)), "blocked_edition_identity")
+})
+
+test_that("live TOTAL standings reconcile a completed match in either row order", {
+  phase18_fd_test_load()
+  payloads <- phase18_fd_test_live_shape()
+  match <- payloads$matches$matches[[1L]]
+  match$status <- "FINISHED"
+  match$utcDate <- "2026-09-18T18:00:00Z"
+  match$score$fullTime <- list(home = 2L, away = 1L)
+  match$score$winner <- "HOME_TEAM"
+  payloads$matches$matches[[1L]] <- match
+  total <- payloads$standings$standings[[2L]]
+  for (index in seq_along(total$table)) {
+    row <- total$table[[index]]
+    if (row$team$id %in% c(match$homeTeam$id, match$awayTeam$id)) {
+      home <- row$team$id == match$homeTeam$id
+      values <- list(playedGames = 1L, won = as.integer(home), draw = 0L,
+        lost = as.integer(!home), points = if (home) 3L else 0L,
+        goalsFor = if (home) 2L else 1L, goalsAgainst = if (home) 1L else 2L,
+        goalDifference = if (home) 1L else -1L)
+      for (field in names(values)) row[[field]] <- values[[field]]
+    }
+    total$table[[index]] <- row
+  }
+  payloads$standings$standings[[2L]] <- total
+  project <- function(p) phase18_fd_project_resources(phase18_fd_test_live_fetch(p), "ucl_2026_27",
+    phase18_fd_test_registries(), phase18_fd_test_expectations(), now_utc = "2026-09-19T12:00:00Z")
+  one <- project(payloads)
+  payloads$standings$standings[[2L]]$table <- rev(total$table)
+  two <- project(payloads)
+  semantic <- setdiff(names(one$standings), "source_raw_sha256")
+  expect_identical(one$standings[, semantic], two$standings[, semantic])
+  expect_equal(sum(one$standings$played), 2L)
+  expect_equal(sum(one$standings$points), 3L)
+})
+
 test_that("semantic shortfall excess enum pagination freshness and identity failures are typed", {
   phase18_fd_test_load()
   expect_reason <- function(payloads, expected) {

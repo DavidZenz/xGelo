@@ -140,6 +140,8 @@ phase18_fd_validate_response <- function(response, request, retrieved_at_utc, ma
     bytes = as.integer(length(body)),
     raw_sha256 = digest::digest(body, algo = "sha256", serialize = FALSE),
     rate_limit_remaining = phase18_fd_response_header(headers, "x-requests-available-minute"),
+    response_date = phase18_fd_response_header(headers, "date"),
+    response_age = phase18_fd_response_header(headers, "age"),
     body = body,
     parsed = parsed
   )
@@ -218,15 +220,21 @@ phase18_fd_live_performer <- function() {
     }
     req <- httr2::request(url)
     req <- httr2::req_headers_redacted(req, `X-Auth-Token` = token)
+    req <- httr2::req_timeout(req, seconds = 30)
     req <- httr2::req_throttle(req, capacity = 9, fill_time_s = 60, realm = "football-data.org-v4-ucl")
     req <- httr2::req_error(req, is_error = function(response) FALSE)
     response <- httr2::req_perform(req)
+    if (is.null(httr2::resp_header(response, "date"))) {
+      phase18_fd_abort("blocked_freshness_unavailable", "Live provider response has no HTTP Date")
+    }
     list(
       status = httr2::resp_status(response),
       content_type = phase18_fd_or(httr2::resp_header(response, "content-type"), ""),
       final_url = httr2::resp_url(response),
       body = httr2::resp_body_raw(response),
       headers = list(
+        date = phase18_fd_or(httr2::resp_header(response, "date"), NA_character_),
+        age = phase18_fd_or(httr2::resp_header(response, "age"), NA_character_),
         `retry-after` = phase18_fd_or(httr2::resp_header(response, "retry-after"), NA_character_),
         `x-requests-available-minute` = phase18_fd_or(httr2::resp_header(response, "x-requests-available-minute"), NA_character_)
       ),
@@ -408,6 +416,79 @@ phase18_fd_canonical_projection <- function(data, key, label) {
   data
 }
 
+# HTTP Date measures response currency, whereas lastUpdated on a club profile
+# or competition describes edits to that entity. It is not a match-data clock.
+# Preserve that distinction in the evidence and independently reconcile the
+# returned table against the complete results window before accepting it.
+phase18_fd_response_freshness <- function(fetched, now_utc) {
+  do.call(rbind, lapply(names(fetched), function(resource) {
+    response <- fetched[[resource]]
+    date <- response$response_date
+    instant <- if (length(date) == 1L && !is.na(date)) {
+      suppressWarnings(curl::parse_date(date))
+    } else as.POSIXct(NA, tz = "UTC")
+    if (length(instant) != 1L || is.na(instant)) {
+      phase18_fd_abort("blocked_freshness_unavailable", paste0(resource, " has no valid HTTP Date"))
+    }
+    age <- response$response_age
+    if (is.null(age) || !length(age) || is.na(age)) age <- "0"
+    if (length(age) != 1L || !grepl("^[0-9]+$", age) || !is.finite(as.numeric(age))) {
+      phase18_fd_abort("blocked_malformed_freshness", paste0(resource, " has invalid HTTP Age"))
+    }
+    retrieved <- phase18_fd_parse_time(response$retrieved_at_utc, "retrieved_at_utc")
+    phase18_fd_freshness_evidence(resource,
+      list(format(instant, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
+      "http_response", "HTTP.Date", response$retrieved_at_utc, now_utc, max_age_hours = Inf)
+    effective <- min(instant, retrieved - as.numeric(age))
+    phase18_fd_freshness_evidence(
+      resource, list(format(effective, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
+      "http_response", "min(HTTP.Date,retrieved_at-HTTP.Age)", response$retrieved_at_utc, now_utc
+    )
+  }))
+}
+
+phase18_fd_reconcile_standings <- function(standings, matches, club_ids, now_utc) {
+  fields <- c("played", "won", "drawn", "lost", "points", "goals_for", "goals_against", "goal_difference")
+  expected <- as.data.frame(matrix(0L, nrow = length(club_ids), ncol = length(fields)))
+  names(expected) <- fields
+  rownames(expected) <- club_ids
+  now <- phase18_fd_parse_time(now_utc, "now_utc")
+  for (index in seq_len(nrow(matches))) {
+    match <- matches[index, , drop = FALSE]
+    kickoff <- phase18_fd_parse_time(match$kickoff_utc, "match.kickoff_utc")
+    if (match$status %in% c("SCHEDULED", "TIMED", "IN_PLAY", "PAUSED") &&
+        as.numeric(difftime(now, kickoff, units = "hours")) > 48) {
+      phase18_fd_abort("blocked_stale_resource", "An overdue fixture has no completed or exceptional status")
+    }
+    if (match$status == "AWARDED") {
+      phase18_fd_abort("blocked_standings", "Awarded results require an explicit standings adjustment review")
+    }
+    if (match$status != "FINISHED") next
+    goals <- c(match$home_score, match$away_score)
+    if (anyNA(goals) || any(goals < 0) || kickoff > now) {
+      phase18_fd_abort("blocked_standings", "Completed result has invalid scores or future kickoff")
+    }
+    ids <- c(match$home_club_id, match$away_club_id)
+    if (any(!ids %in% club_ids) || ids[[1L]] == ids[[2L]]) {
+      phase18_fd_abort("blocked_unresolved_club", "Result has invalid club participants")
+    }
+    for (side in 1:2) {
+      id <- ids[[side]]
+      gf <- goals[[side]]
+      ga <- goals[[3L - side]]
+      expected[id, ] <- expected[id, ] + c(1L, as.integer(gf > ga), as.integer(gf == ga),
+        as.integer(gf < ga), if (gf > ga) 3L else as.integer(gf == ga), gf, ga, gf - ga)
+    }
+  }
+  if (!setequal(standings$club_id, club_ids) || anyDuplicated(standings$club_id) ||
+      anyNA(standings[, fields, drop = FALSE]) ||
+      !isTRUE(all.equal(unname(as.matrix(standings[, fields, drop = FALSE])),
+        unname(as.matrix(expected[standings$club_id, fields, drop = FALSE])), check.attributes = FALSE))) {
+    phase18_fd_abort("blocked_standings", "TOTAL standings do not reconcile with completed league-phase results")
+  }
+  invisible(TRUE)
+}
+
 #' Project the four provider resources into edition-scoped canonical tables.
 phase18_fd_project_resources_impl <- function(
     fetched,
@@ -431,12 +512,30 @@ phase18_fd_project_resources_impl <- function(
   season <- phase18_fd_nested(competition, c("currentSeason"))
   start_date <- phase18_fd_scalar(season$startDate, "currentSeason.startDate")
   if (!startsWith(start_date, "2026-")) phase18_fd_abort("blocked_edition_identity", "Provider season does not start in 2026")
+  for (resource in c("teams", "matches", "standings")) {
+    item <- payload[[resource]]
+    if (!is.null(item$competition$code) && !identical(as.character(item$competition$code), "CL")) {
+      phase18_fd_abort("blocked_edition_identity", paste0(resource, " belongs to another competition"))
+    }
+    if ((!is.null(item$season$startDate) && !startsWith(as.character(item$season$startDate), "2026-")) ||
+        (!is.null(item$filters$season) && !identical(as.character(item$filters$season), "2026"))) {
+      phase18_fd_abort("blocked_edition_identity", paste0(resource, " belongs to another season"))
+    }
+  }
   team_objects <- phase18_fd_list_rows(payload$teams$teams, "teams")
   match_objects <- phase18_fd_list_rows(payload$matches$matches, "matches")
   standing_groups <- phase18_fd_list_rows(payload$standings$standings, "standings")
+  standing_groups <- Filter(function(group) identical(group$stage, "LEAGUE_STAGE") &&
+    identical(group$type, "TOTAL"), standing_groups)
+  if (length(standing_groups) != 1L) {
+    phase18_fd_abort("blocked_standings", "Exactly one league-phase TOTAL standings table is required")
+  }
   standing_objects <- unlist(lapply(standing_groups, function(group) phase18_fd_or(group$table, list())), recursive = FALSE)
   if (!length(standing_objects)) phase18_fd_abort("blocked_empty_resource", "standings table is empty")
-  freshness_evidence <- do.call(rbind, list(
+  response_evidence <- any(vapply(fetched, function(item) {
+    length(item$response_date) == 1L && !is.na(item$response_date)
+  }, logical(1)))
+  freshness_evidence <- if (response_evidence) phase18_fd_response_freshness(fetched, now_utc) else do.call(rbind, list(
     phase18_fd_freshness_evidence(
       "competition_metadata", list(competition$lastUpdated), "resource", "competition_metadata.lastUpdated",
       fetched$competition_metadata$retrieved_at_utc, now_utc
@@ -454,6 +553,17 @@ phase18_fd_project_resources_impl <- function(
       fetched$standings$retrieved_at_utc, now_utc
     )
   ))
+  if (response_evidence) {
+    # Old but valid entity timestamps are retained, with malformed/future edits
+    # still rejected. They do not determine response freshness.
+    for (resource in c("competition_metadata", "teams", "matches")) {
+      values <- switch(resource, competition_metadata = list(competition$lastUpdated),
+        teams = lapply(team_objects, `[[`, "lastUpdated"),
+        matches = lapply(match_objects, `[[`, "lastUpdated"))
+      phase18_fd_freshness_evidence(resource, values, "entity_edits", paste0(resource, ".lastUpdated"),
+        fetched[[resource]]$retrieved_at_utc, now_utc, max_age_hours = Inf)
+    }
+  }
   if (!phase18_fd_pagination_complete(payload$teams, length(team_objects)) ||
       !phase18_fd_pagination_complete(payload$matches, length(match_objects)) ||
       !phase18_fd_pagination_complete(payload$standings, length(standing_objects))) {
@@ -491,7 +601,7 @@ phase18_fd_project_resources_impl <- function(
     display_name <- phase18_fd_scalar(team$name, "team.name")
     resolution <- tryCatch(
       phase18_resolve_club_identity(
-        club_registries, "football_data_org_v4", provider_id, display_name, event_at,
+        club_registries, "football_data_org_v4", provider_id, display_name, now_utc,
         .validated = TRUE, .registry_sha256 = club_registry_sha256
       ),
       error = function(error) phase18_fd_abort("blocked_unresolved_club", conditionMessage(error))
@@ -578,8 +688,12 @@ phase18_fd_project_resources_impl <- function(
   })
   standings <- do.call(rbind, standing_rows)
   if (anyDuplicated(standings$club_id)) phase18_fd_abort("blocked_duplicate_id", "Standings contain duplicate clubs")
+  if (anyNA(standings$position) || !setequal(standings$position, seq_len(nrow(standings)))) {
+    phase18_fd_abort("blocked_standings", "TOTAL standings positions must be a complete unique ranking")
+  }
   standings$row_sha256 <- phase18_fd_row_hash(standings)
   standings <- phase18_fd_canonical_projection(standings, c("position", "club_id"), "standings")
+  if (response_evidence) phase18_fd_reconcile_standings(standings, matches, clubs$club_id, now_utc)
 
   competition_table <- data.frame(
     schema_version = "phase18-fd-competition-v2", hash_encoding_version = phase18_canonical_encoding_v2(), edition_id = edition_id,

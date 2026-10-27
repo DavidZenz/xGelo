@@ -505,6 +505,66 @@ test_that("fixture authority cannot be staged through the production writer", {
   )
 })
 
+test_that("production staging serializes a validated graph without writing a selector", {
+  phase19_release_test_load(require_release = TRUE)
+  hash <- strrep("a", 64L)
+  bundle <- list(decision = phase19_release_test_minimal_decision(),
+    model = phase19_release_test_model(), calibrator = phase19_release_test_calibrator(),
+    training = list(accepted_generation_id = "serialization-only-history", snapshot_sha256 = hash,
+      corpus_manifest_sha256 = hash, club_registry_sha256 = hash),
+    current = list(generation_id = "serialization-only-current", snapshot_sha256 = hash,
+      bundle_sha256 = hash, source_authority = "serialization_test_only",
+      identity_generation_id = "serialization-only-identity", roster_sha256 = hash),
+    protocol = list(), aggregate = list(), authority = list())
+  decision <- bundle$decision
+  decision$authority_mode <- "production"
+  decision$fixture_authority <- FALSE
+  decision$authority_eligibility <- "production"
+  decision$promotion_status <- "promoted"
+  decision$diagnostic_gate_outcome <- "pass"
+  root <- tempfile("phase19-production-serialization-")
+  dir.create(root)
+  on.exit(unlink(root, recursive = TRUE), add = TRUE)
+  marker <- list(serialization_test_only = TRUE)
+  calls <- 0L
+  # This test isolates serialization after the authority boundary. Actual
+  # fixture/forged graph rejection is covered by the production boundary tests.
+  original <- phase19_club_release_validate_production_parent_graph
+  assign("phase19_club_release_validate_production_parent_graph", function(source_authority, model, calibrator) {
+    expect_identical(source_authority, marker)
+    calls <<- calls + 1L
+    invisible(TRUE)
+  }, envir = .GlobalEnv)
+  on.exit(assign("phase19_club_release_validate_production_parent_graph", original, envir = .GlobalEnv), add = TRUE)
+  staged <- .phase19_stage_club_release(decision, bundle$model, bundle$calibrator,
+    root, "production-serialization-only", bundle$training, bundle$current,
+    bundle$protocol, bundle$aggregate, bundle$authority,
+    authority_mode = "production", source_authority = marker)
+  expect_identical(calls, 1L)
+  checked <- phase19_validate_club_release(staged$release_root, load_models = FALSE,
+    expected_authority_mode = "production")
+  expect_true(checked$model_contract$production_eligible)
+  expect_false(checked$model_contract$fixture_authority)
+  expect_false(file.exists(file.path(root, "approved_release.csv")))
+  provenance <- jsonlite::fromJSON(file.path(staged$release_root, "manifests/provenance.json"))
+  expect_identical(provenance$authority_mode, "production")
+  expect_false(provenance$fixture_authority)
+})
+
+test_that("production staging rejects a graph before creating output directories", {
+  phase19_release_test_load(require_release = TRUE)
+  decision <- phase19_release_test_minimal_decision()
+  decision$authority_mode <- "production"
+  decision$fixture_authority <- FALSE
+  decision$authority_eligibility <- "production"
+  decision$promotion_status <- "promoted"
+  root <- tempfile("phase19-production-invalid-graph-")
+  expect_error(.phase19_stage_club_release(decision, phase19_release_test_model(),
+    phase19_release_test_calibrator(), root, authority_mode = "production",
+    source_authority = list()), class = "phase19_club_release_error")
+  expect_false(dir.exists(root))
+})
+
 test_that("fixture release rejects traversal, surplus, missing, symlink, and hash attacks", {
   phase19_release_test_load(require_release = TRUE)
   fixture <- phase19_release_test_stage("attacks")

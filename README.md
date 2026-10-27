@@ -490,6 +490,39 @@ from this repository. StatsBomb Open Data is licensed under Creative Commons
 Attribution-NonCommercial-ShareAlike 4.0. Check upstream source licenses before
 redistributing data or using the project commercially.
 
+### Champions League live data and model readiness
+
+The UCL adapter requests the fixed 2026/27 competition, teams, matches and
+standings window. Live response freshness uses the provider's HTTP Date and
+cache Age. Club-profile and competition `lastUpdated` values describe entity
+edits and can legitimately be old. The adapter selects the league-phase TOTAL
+standings and reconciles every club's totals with completed results; missing,
+stale, inconsistent or overdue data still blocks acceptance.
+
+To prepare the concrete club mappings for owner review, run from the project
+root with normal R startup so the ignored local `.Renviron` is loaded:
+
+```bash
+/opt/homebrew/opt/r/bin/Rscript scripts/prepare_ucl_live_review.R
+```
+
+This writes `data/club/identity_reviews/proposed_current_ucl_tokens.csv` and
+`proposed_current_ucl_review.csv`. All proposed mappings remain pending; the
+command does not approve a provider, publish raw API responses, change accepted
+registries or advance a dashboard/model selector. Preserve these exact tokens
+when reviewing their evidence-bound mappings.
+
+Live data and forecast authority are separate prerequisites. Forecasts require
+accepted historical club results, approved evaluation policy and fold inventory,
+completed club-only evaluation, and an immutable promoted club release. A working
+API key does not supply a trained model. Production release staging validates the
+complete source/evaluation graph and writes a candidate; installation independently
+revalidates that graph before advancing the club selector.
+
+The current club evaluation CLI and downstream targets still contain blocked
+evaluation/promotion placeholders. Complete those production paths along with the
+historical corpus before treating the UCL forecast dashboard as release-ready.
+
 The project intentionally avoids automated scraping of restricted sources. If
 manually cached World Cup Qualifier data is used, keep it local and do not
 redistribute it unless the upstream terms allow that use.

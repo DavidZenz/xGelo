@@ -760,41 +760,47 @@ phase19_club_release_benchmark_report <- function(decision, evaluation = NULL) {
   )
 }
 
-#' Stage a fixture-only club release below a temporary root.
+#' Serialize a club release after validating its complete authority graph.
 #'
-#' The staged generation is never written beneath the production club root.
-#' Its selector is created only by `phase19_install_club_release()` and is
-#' intentionally accepted by the fixture resolver only.
-#' @export
-phase19_stage_fixture_club_release <- function(
+#' Fixture callers must use the public temporary-root wrapper. Production
+#' callers must use the public source-bound wrapper. Neither staging path
+#' writes or advances an approved selector.
+.phase19_stage_club_release <- function(
     decision, model, calibrator, output_root, release_id = NULL,
     history_snapshot = NULL, current_snapshot = NULL, protocol = NULL,
     evaluation = NULL, authority = NULL, replay = NULL, integrity = NULL,
-    source_evidence = NULL, model_card = NULL
+    source_evidence = NULL, model_card = NULL,
+    authority_mode = c("fixture", "production"), source_authority = NULL
 ) {
-  phase19_club_release_decision_check(decision, "fixture")
+  authority_mode <- match.arg(authority_mode)
+  fixture <- identical(authority_mode, "fixture")
+  phase19_club_release_decision_check(decision, authority_mode)
   phase19_club_release_source_dependencies()
-  if (!isTRUE(phase19_club_release_is_temporary_root(output_root))) {
+  if (fixture && !isTRUE(phase19_club_release_is_temporary_root(output_root))) {
     phase19_club_release_abort(
       "fixture_root_invalid",
       "Fixture club release output must be below a process-temporary root"
     )
   }
-  phase19_club_release_assert_parent_evidence(
-    decision, model, calibrator, history_snapshot, current_snapshot,
-    protocol, evaluation, authority, replay, integrity, source_evidence
-  )
+  if (fixture) {
+    phase19_club_release_assert_parent_evidence(
+      decision, model, calibrator, history_snapshot, current_snapshot,
+      protocol, evaluation, authority, replay, integrity, source_evidence
+    )
+  } else {
+    phase19_club_release_validate_production_parent_graph(source_authority, model, calibrator)
+  }
   assert_forecast_domain(model, "club")
   assert_forecast_domain(calibrator, "club")
   if (!identical(as.character(model$model_id), as.character(decision$selected_model_id)) ||
       !identical(as.character(calibrator$candidate_id), as.character(decision$selected_model_id))) {
-    phase19_club_release_abort("release_object_invalid", "Fixture model/calibrator IDs do not match promotion decision")
+    phase19_club_release_abort("release_object_invalid", "Club model/calibrator IDs do not match promotion decision")
   }
   release_id <- phase19_club_release_safe_id(
-    if (is.null(release_id)) paste0("fixture-club-", format(Sys.time(), "%Y%m%d%H%M%S")) else release_id
+    if (is.null(release_id)) paste0(if (fixture) "fixture-club-" else "club-", format(Sys.time(), "%Y%m%d%H%M%S")) else release_id
   )
   output_root <- phase19_club_release_real_root(output_root, create = TRUE)
-  if (identical(normalizePath(output_root, winslash = "/", mustWork = TRUE),
+  if (fixture && identical(normalizePath(output_root, winslash = "/", mustWork = TRUE),
                 normalizePath(file.path(getwd(), "outputs/releases/club"), winslash = "/", mustWork = FALSE))) {
     phase19_club_release_abort("fixture_root_invalid", "Fixture release cannot use the production club root")
   }
@@ -804,7 +810,7 @@ phase19_stage_fixture_club_release <- function(
 
   metadata <- list(
     release_id = release_id, selected_model_id = as.character(decision$selected_model_id),
-    authority_mode = "fixture", fixture_authority = TRUE, production_eligible = FALSE
+    authority_mode = authority_mode, fixture_authority = fixture, production_eligible = !fixture
   )
   parents <- phase19_club_release_snapshot_fields(history_snapshot, current_snapshot, model)
   if (any(!nzchar(vapply(parents[c(
@@ -814,7 +820,7 @@ phase19_stage_fixture_club_release <- function(
     "current_ucl_identity_generation_id", "current_ucl_roster_sha256"
   )], as.character, character(1))))) {
     phase19_club_release_abort(
-      "release_parent_invalid", "Fixture release parent identities cannot be blank"
+      "release_parent_invalid", "Club release parent identities cannot be blank"
     )
   }
   parents$protocol_sha256 <- phase19_club_release_hash_or_blank(protocol, c("protocol_sha256"), as.character(decision$protocol_sha256))
@@ -878,13 +884,14 @@ phase19_stage_fixture_club_release <- function(
   phase19_club_release_write_text(c(
     "# Phase 19 Club Release Limitations", "",
     paste0("- authority_mode: ", metadata$authority_mode),
-    "- Fixture releases are diagnostic-only and cannot authorize production forecasting.",
+    if (fixture) "- Fixture releases are diagnostic-only and cannot authorize production forecasting." else
+      "- Production use requires the accepted source graph and immutable approved selector.",
     "- Current xG, injury, lineup, suspension, and player evidence is unavailable and non-imputable.",
     "- Goal support is frozen at G=40; no match labels are embedded."
   ), file.path(staged_root, "limitations.md"))
   phase19_club_release_write_json(list(
     schema_version = "phase19-club-release-reproducibility-v1", forecast_domain = "club",
-    authority_mode = metadata$authority_mode, fixture_authority = TRUE, production_eligible = FALSE,
+    authority_mode = metadata$authority_mode, fixture_authority = fixture, production_eligible = !fixture,
     release_id = release_id, protocol_sha256 = parents$protocol_sha256,
     evaluation_set_sha256 = parents$evaluation_set_sha256,
     promotion_decision_sha256 = as.character(decision$decision_sha256),
@@ -892,7 +899,7 @@ phase19_stage_fixture_club_release <- function(
   ), file.path(staged_root, "reproducibility.json"))
   provenance <- list(
     schema_version = "phase19-club-release-provenance-v1", forecast_domain = "club",
-    authority_mode = metadata$authority_mode, fixture_authority = TRUE, production_eligible = FALSE,
+    authority_mode = metadata$authority_mode, fixture_authority = fixture, production_eligible = !fixture,
     release_id = release_id, selected_model_id = as.character(decision$selected_model_id),
     history_generation_id = parents$history_generation_id, history_snapshot_sha256 = parents$history_snapshot_sha256,
     current_ucl_generation_id = parents$current_ucl_generation_id, current_ucl_snapshot_sha256 = parents$current_ucl_snapshot_sha256,
@@ -920,14 +927,26 @@ phase19_stage_fixture_club_release <- function(
   # are checked by the validator; release_manifest_sha256 is set after the
   # manifest exists and therefore remains an explicit projection, not a
   # circular input to the manifest itself.
-  validated <- phase19_validate_club_release(staged_root, load_models = FALSE, expected_domain = "club")
+  validated <- phase19_validate_club_release(staged_root, load_models = FALSE, expected_domain = "club",
+    expected_authority_mode = authority_mode)
   on.exit(NULL)
   structure(list(
     release_root = staged_root, release_id = release_id,
     release_manifest_path = file.path(staged_root, "release_manifest.csv"),
     model_contract = validated$model_contract, manifest = validated$release_manifest,
-    authority_mode = "fixture", fixture_authority = TRUE, production_eligible = FALSE
+    authority_mode = authority_mode, fixture_authority = fixture, production_eligible = !fixture
   ), class = c("phase19_club_staged_release", "list"))
+}
+
+phase19_stage_fixture_club_release <- function(
+    decision, model, calibrator, output_root, release_id = NULL,
+    history_snapshot = NULL, current_snapshot = NULL, protocol = NULL,
+    evaluation = NULL, authority = NULL, replay = NULL, integrity = NULL,
+    source_evidence = NULL, model_card = NULL
+) {
+  .phase19_stage_club_release(decision, model, calibrator, output_root, release_id,
+    history_snapshot, current_snapshot, protocol, evaluation, authority, replay,
+    integrity, source_evidence, model_card, authority_mode = "fixture")
 }
 
 # Short aliases used by the Phase 19 controller and tests.
@@ -1451,7 +1470,7 @@ phase19_stage_production_club_release <- function(
     decision, model, calibrator, output_root = file.path("outputs", "releases", "club"),
     history_snapshot = NULL, current_snapshot = NULL, protocol = NULL,
     evaluation = NULL, authority = NULL, fold_protocol = NULL, rating_replay = NULL,
-    release_id = NULL
+    release_id = NULL, source_authority = NULL
 ) {
   phase19_club_release_decision_check(decision, "production")
   required <- list(
@@ -1495,10 +1514,22 @@ phase19_stage_production_club_release <- function(
       !identical(authority$source_evidence$current_snapshot$snapshot_sha256, current_snapshot$snapshot_sha256)) {
     phase19_club_release_abort("production_authority_invalid", "Production authority is not independently bound to supplied snapshots")
   }
-  phase19_club_release_abort(
-    "production_authority_invalid",
-    "No genuine accepted Phase 18 history/current-UCL and owner-reviewed Phase 19 protocol are available for production publication"
-  )
+  # The graph is independently validated by the fixed production loaders in
+  # the shared writer, and again by the installer before selector mutation.
+  # Scalar claims or a fixture bundle can never authorize this path.
+  parents <- c(required, list(decision = decision))
+  if (!is.list(source_authority) ||
+      !identical(names(source_authority), phase19_club_release_production_parent_schema()) ||
+      any(!vapply(names(parents), function(name) identical(parents[[name]], source_authority[[name]]), logical(1)))) {
+    phase19_club_release_abort("production_authority_invalid", "Production staging parents differ from the complete source authority graph")
+  }
+  release_protocol <- protocol
+  release_protocol$fold_registry_sha256 <- fold_protocol$fold_registry_sha256
+  release_protocol$fold_review_sha256 <- fold_protocol$fold_review$review_sha256
+  .phase19_stage_club_release(decision, model, calibrator, output_root, release_id,
+    history_snapshot, current_snapshot, release_protocol, evaluation, authority,
+    integrity = source_authority$integrity, source_evidence = source_authority$fold_source_evidence,
+    authority_mode = "production", source_authority = source_authority)
 }
 
 stage_phase19_production_release <- phase19_stage_production_club_release
