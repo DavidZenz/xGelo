@@ -181,7 +181,8 @@ See `.planning/dashboard-improvements/PLAN.md`, `SUMMARY.md`, `SCALE.md` and `RU
   2.5x faster; synthetic CL 50-run mechanics comparison roughly 5.7x faster.
 - [x] Follow up with bounded streaming traces, CL cutoff/completeness corrections,
   regression checks and staged scale evidence; results are recorded below.
-- [ ] NL full-scale performance remains blocked by the two-hour gate.
+- [x] Meet NL's two-hour full-scale performance gate in the subsequent CPU
+  optimization cycle (2026-10-27); see final maintenance evidence below.
 
 See `.planning/simulation-optimization/AUDIT.md` and its CSV/JSON evidence.
 No replacement 100k run or public promotion is active.
@@ -193,7 +194,10 @@ No replacement 100k run or public promotion is active.
 - [x] Implement bounded persistent chunks, complete disk audit traces, exact sufficient-statistic summaries, strict bound resume, actual/committed progress and legacy compatibility readers.
 - [x] Preserve accepted NL tables, hashes and candidate CSV bytes; pass the national gate (EURO replay + 16 suites), focused streaming/guard tests and watchdog tests.
 - [x] Finish CL v5 staged fixture checks: 1k/10k/100k validated in 50 s / 328 s / 2,908 s total. The 100k run committed all 100,000 iterations across 391 verified chunks; peak combined RSS was 644,120,576 bytes (0.600 GiB), below the 32 GiB limit. Full traces occupy 1,191,480,594 bytes. All 530 CL regression assertions and 44 focused streaming assertions pass. Fixture evidence remains production-ineligible; old v4 chunks are not a v5 certificate.
-- [ ] Meet NL's two-hour full-scale performance target. Accepted NL 1k/10k candidates validated (239 s / 1,954 s total), but 100k was withheld because the conservative projection is 6.53 hours. NL component hashes and exact reference/candidate-byte parity are unchanged by the CL-only v5 correction; the prior global receipt is retained as diagnostic evidence.
+- [x] Meet NL's two-hour full-scale performance target in the subsequent CPU
+  cycle: accepted 100k validated in 5,144.1 seconds. The earlier accepted NL
+  1k/10k checks (239 s / 1,954 s) and failed 6.53-hour conservative projection
+  remain historical evidence; exact reference/candidate-byte parity is preserved.
 - [x] Save final hash-bound evidence; no benchmark workers remain. WC/public and accepted competition artifacts remain unchanged.
 - [ ] Public promotion remains separate; CL source/model authority remains human_needed.
 
@@ -209,9 +213,9 @@ See `.planning/simulation-optimization/STREAMING.md`. This maintenance does not 
   showed no reliable overall gain.
 - [x] Record CL's degenerate two-score benchmark behavior (deep ties and explicit
   unresolved ranks) and distinguish it from production forecasting evidence.
-- [ ] Implement/certify the next CPU changes. The NL two-hour target remains
-  unmet; existing production code, WC/public bytes and authority state are
-  unchanged by this audit. No scale run is active.
+- [x] Implement/certify the next CPU changes in the subsequent maintenance
+  cycle. Both 100k performance gates pass; WC/public bytes and source authority
+  remain unchanged. No scale run is active.
 
 See `.planning/simulation-optimization/DEEP-AUDIT.md` and `deep-audit/evidence/`.
 
@@ -228,9 +232,24 @@ See `.planning/simulation-optimization/DEEP-AUDIT.md` and `deep-audit/evidence/`
   27.8/128.2/1,044.1 seconds; NL accepted 1k/10k validated in 316.8/864.4
   seconds. NL 100k withheld by the 10,649.8-second conservative projection;
   checkpoints retained and dashboards unchanged.
-- [ ] Verify the follow-up private canonical/typed-row CPU and compressed
-  statistics changes, then repeat frozen staged certification. No scale
-  benchmark or promotion is active during implementation.
+- [x] Verify follow-up private canonical/typed-row CPU, compressed statistics
+  and guarded numeric transition selection; complete the final frozen staged
+  certification (2026-10-27). Final passing scopes cover 3,684 R assertions,
+  11 Python tests and EURO replay, with unchanged CL/common scopes explicitly
+  reused after the final NL-only change. Accepted parity/resume and all 40
+  retained 10k chunks across the three cycles match exactly in logical traces
+  and semantic reducer statistics.
+- [x] Pass final CL fixture 1k/10k/100k in 30.0/127.5/1,073.0 seconds and
+  accepted NL 1k/10k/100k in 298.0/569.0/5,144.1 seconds, including candidate
+  validation. NL's 7,117.1-second conservative admission projection passed
+  without relaxing any limit. Final 100k peak combined RSS: CL 0.635 GiB;
+  NL 5.311 GiB, both below the 32 GiB cap.
+- [x] Independently reverify every payload hash, manifest/source binding and
+  all 100,000 iterations across each run's 391 committed chunks after process
+  exit. Retain checkpoints at `/private/tmp/xgelo-cpu-certification-v3/` and
+  compact hash-bound receipts at `cpu-implementation/cycle-3/final-scale/`.
+  All benchmark workers have exited. WC source, public dashboards and accepted
+  artifacts remain unchanged; no public promotion occurred.
 - [ ] Resolve the pre-existing Phase 18 provider review/manifest mismatch through
   its separate authority workflow. Optimization does not rewrite those files.
 

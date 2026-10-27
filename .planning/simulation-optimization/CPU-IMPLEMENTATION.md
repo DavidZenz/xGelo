@@ -1,10 +1,15 @@
-# CL then NL CPU implementation — 2026-10-26
+# CL then NL CPU implementation — 2026-10-27
 
-The CL optimization is committed as `ca9119a`. NL numeric ranking, prepared
-knockout paths, chunk counters and trace storage are integrated. Exact
-compatibility checks pass. The first frozen cycle validated CL through 100k
-and NL through 10k; NL's conservative time gate withheld 100k. A second CPU and
-storage cycle is undergoing verification. No public promotion is active.
+Both competitions passed the full 1k → 10k → 100k performance gates on the
+final frozen source. NL's 100k run took 5,144.1 seconds (85.7 minutes), including
+candidate validation, with 5.31 GiB peak combined RSS. CL's fixture 100k took
+1,073.0 seconds (17.9 minutes), with 0.64 GiB peak combined RSS. Exact reference
+compatibility checks pass, and dashboards and accepted artifacts are unchanged.
+All benchmark processes have exited. No public promotion occurred.
+
+Implementation commits, in order: `ca9119a` (CL first), `08d5a35` (NL numeric
+paths/counters and bounded traces), `fa7969a` (NL canonical/typed rows and
+compressed statistics), and `8e36a58` (guarded numeric transition selection).
 
 ## Changes
 
@@ -56,16 +61,93 @@ on PATH; ordinary in-memory library calls keep their existing return shape.
   workers also matches exactly. Accepted source/model inputs were revalidated.
 - A separate accepted three-iteration comparison matches the earlier saved
   legacy reference and candidate bytes.
-- Focused storage checks pass 81 assertions, including format downgrade,
+- First-cycle focused storage checks passed 81 assertions, including format downgrade,
   corruption, missing/overlapping/trailing records, selective decoding and
   exact canonical hashes under Unicode, schema changes and multiple merge
-  passes. The existing streaming suite passes 44 assertions; the Python merge
-  helper passes five tests with instrumented merge fan-in and failure coverage.
+  passes. The streaming suite passed 44 assertions; the Python merge helper
+  passed five first-cycle tests with instrumented fan-in and failure coverage.
 - The 32-iteration kernel profile is diagnostic only: it includes cold caches,
   profiler instrumentation and concurrent test activity. It is not a scale
   certificate or an overall speed estimate. See `cpu-implementation/`.
 
-## Scale gate
+## Final frozen scale certification
+
+Source snapshot:
+`9bac1d4f6f8c84b4f8d18ba7c11b51c311c63a8da858eec5745cb9680f11e404`.
+Implementation identity:
+`32cd661dd3aa7eb22d195bf45ac1f56355592a47fcd5a70b4d02c9675f1a0762`.
+
+Every stage ran in a fresh R 4.6.1 process, with four persistent workers and
+256-iteration chunks. Large competition jobs ran sequentially. Final NL pilots
+ran first; their unchanged conservative gate admitted 100k at a projected
+7,117.1 seconds. Final CL 1k/10k/100k then ran sequentially, followed by NL 100k
+after rechecking pilot measurement hashes, accepted inputs, source and disk
+headroom. No time, memory, disk or correctness gate was relaxed.
+
+| Competition | 1k wall | 10k wall | 100k wall | 100k peak combined RSS |
+| --- | ---: | ---: | ---: | ---: |
+| CL fixture | 30.0 s | 127.5 s | 1,073.0 s | 0.635 GiB |
+| NL accepted | 298.0 s | 569.0 s | 5,144.1 s | 5.311 GiB |
+
+Both 100k runs are below the 7,200-second limit and the 32 GiB memory limit
+(half this machine's 64 GiB). Wall times include preparation, simulation,
+aggregation, candidate validation and process overhead. The watchdog measured
+the combined parent/worker/helper process tree, enforced limits automatically,
+and checked disk headroom. Manual progress checks were 30 minutes apart.
+
+| 100k phase / storage | CL fixture | NL accepted |
+| --- | ---: | ---: |
+| Preparation | 7.614 s | 13.660 s |
+| Simulation | 968.471 s | 3,542.797 s |
+| Aggregation | 5.799 s | 1,411.431 s |
+| Candidate validation | 90.761 s | 174.411 s |
+| Complete audit traces | 1,186,058,078 bytes | 1,876,334,542 bytes |
+| Peak measured stage-directory disk use | 1,317,306,117 bytes | 2,981,589,544 bytes |
+
+NL uses accepted bundle `nl-2026-27-official-uefa-v2`, seed 15017 and state
+manifest `3089fdfdd8e073991c23e62812bd28e324b3c118e6a3ac6d141d44691c3f4c8a`.
+Its first pilot prepared the forecast handoff (209.778 seconds); subsequent
+fresh processes reused the identical validated handoff cache. The 100k wall
+includes its own 13.660-second preparation. This certifies the accepted-input
+pipeline, with no new data acquisition or model training.
+
+CL retains corrected football algorithm `ucl-conditional-league-v5`, seed 7,
+cutoff `2026-09-01T00:00:00Z` and the same synthetic graph/ledger/rules identities
+across all stages. Its status remains `unresolved_draw_procedure`; unavailable
+knockout forecasts and missing draw evidence remain explicit. The final 100k
+is 2.71 times faster than the prior corrected v5 2,907.5-second receipt. Fixture
+performance is not production source/model authority.
+
+Each 100k run contains exactly 100,000 iterations in 391 committed chunks,
+including the final 160-iteration chunk. Candidate validation completed before
+the success receipt. After the benchmark processes exited, an independent
+bounded pass reverified every payload checksum, manifest fingerprint, source
+binding, inventory and exact iteration coverage. This extra post-run audit is
+separate from the required candidate validation already included in wall time.
+Complete checkpoints remain at `/private/tmp/xgelo-cpu-certification-v3/`.
+
+The final regression gate records 3,684 passing R assertions across 33 suite
+scopes, 11 Python tests and the EURO replay. After the selector change, all 22
+affected national scopes ran fresh in three independent test processes;
+unchanged CL/common/Python and two passing source-authority scopes were reused
+explicitly after byte comparison against `fa7969a`. Full accepted parity and
+interrupted resume were repeated at the final source identity. The separate
+pre-existing provider-acceptance failures below remain; an unconditional
+all-regressions-green claim is not made.
+
+All 40 retained accepted 10k chunks across the three optimization cycles have
+identical reconstructed traces, schemas and semantic reducer statistics. Every
+payload hash was reverified against its own manifest. The private storage
+changes altered compressed trace bytes. Exact public candidate CSV byte
+comparisons are covered by the accepted reference/resume checks above.
+
+Compact measurements, resource receipts, checkpoint coverage proof and the
+exact staged driver are in
+[`cycle-3/final-scale/index.json`](cpu-implementation/cycle-3/final-scale/index.json).
+The final gate is [`final-regressions-v3.json`](cpu-implementation/final-regressions-v3.json).
+No full traces, private model binaries or accepted football data are committed.
+
+## Historical scale iterations
 
 First-cycle frozen source `43c48ab34a0f0b78951cdf35df5d73d5f010e8362687a8c44f1a9a12134999c5`
 and implementation `da6eb5327bebce1c0886c1c5b63185e9617640c71079e75af65fa1320d8d1d8b`:
@@ -106,14 +188,15 @@ ready canonical ranking. Unknowns, missing evidence, custom schemas and legacy
 rules use the original selector. The private prototype passed 63 focused
 assertions and nine complete accepted iterations, with all 27 guarded selector
 calls producing identical full rows, hashes, types, attributes and RNG state.
-Integrated compatibility/regression and resource gates remain required.
+Integrated accepted parity/resume, affected regressions and all final resource
+gates subsequently passed on the frozen identity recorded above.
 
-After regressions, freeze all R and benchmark/supervisor source bytes and run
-fresh CL then NL processes at 1k and 10k. Admit each 100k run only when the
-conservative 20% time margin projects at most 7,200 seconds including preparation
-and candidate validation, observed memory is below half RAM, and disk headroom
-passes. The watchdog enforces those limits automatically. Failed gates retain
-checkpoints. Long jobs are checked every 30 minutes as requested.
+The admission policy requires frozen R/benchmark/supervisor source bytes and
+fresh 1k/10k processes before 100k. Its conservative 20% time margin must project
+at most 7,200 seconds including preparation and candidate validation, observed
+memory must stay below half RAM, and disk headroom must pass. The watchdog
+enforces those limits automatically. Failed gates retained checkpoints. Long
+jobs were checked every 30 minutes as requested.
 
 CL scale evidence remains explicitly synthetic and production-ineligible.
 Production authority and publication phases remain separate. Tracked `docs/`,

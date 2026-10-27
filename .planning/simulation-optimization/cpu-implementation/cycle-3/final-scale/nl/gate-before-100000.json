@@ -1,0 +1,8 @@
+{
+  "status": "passed",
+  "reason": "projected total 7117.1s qualifies",
+  "source_snapshot_sha256": "9bac1d4f6f8c84b4f8d18ba7c11b51c311c63a8da858eec5745cb9680f11e404",
+  "physical_memory_bytes": 68719476736,
+  "free_disk_bytes": 20731154432,
+  "production_certified": false
+}

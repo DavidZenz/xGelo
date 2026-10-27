@@ -56,9 +56,21 @@ affected national/outcome/publication regressions. Reuse unchanged CL/common
 regression evidence explicitly, freeze the new source and repeat staged gates
 with the same four workers, chunk size and resource limits.
 
-Status: CL implementation committed (`ca9119a`, 578 passing assertions).
-NL numeric/path/counter and trace-storage changes are integrated. Complete
-accepted NL objects and candidate CSV bytes match the frozen reference for
-three seeds, one/three workers, uneven chunks and interrupted resume. Frozen performance regressions pass; the expanded provider-acceptance suite
-retains its proven pre-existing review/manifest failure. Source bytes are frozen
-at the recorded identity. Staged CL checks precede staged NL checks.
+Status — completed 2026-10-27: CL implementation was committed first
+(`ca9119a`, 578 initial passing assertions), followed by NL numeric/path/counter,
+canonical, selector and trace-storage changes. Complete accepted NL objects
+and candidate CSV bytes match the frozen reference for three seeds, one/three
+workers, uneven chunks and interrupted resume. The final gate records 3,684
+passing R assertions, 11 Python tests and EURO replay, with explicit reuse of
+unchanged scopes after the final selector change. The separate provider review
+and manifest failure remains proven pre-existing.
+
+Both final 1k/10k/100k stages passed on one frozen source identity. CL fixture
+100k took 1,073.0 seconds with 0.635 GiB peak combined RSS; accepted NL 100k
+took 5,144.1 seconds with 5.311 GiB. Wall times include candidate validation.
+Each committed all 100,000 iterations across 391 chunks, with an independent
+post-run checksum/coverage audit. Retained NL 10k traces and reducer statistics
+are also identical across all three optimization cycles. All benchmark workers
+have exited; public dashboards, accepted artifacts and WC source are unchanged.
+Receipts and the exact staged driver are in `cpu-implementation/cycle-3/final-scale/`.
+Public promotion and CL production authority remain separate.
