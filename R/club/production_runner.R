@@ -91,7 +91,11 @@ phase19_production_rating_prepare <- function(history) {
   boundaries<-phase19_club_rating_history_boundaries(history)
   time_num<-function(x)as.numeric(as.POSIXct(x,tz="UTC",format="%Y-%m-%dT%H:%M:%SZ"))
   evidence<-pmax(time_num(history$completion_not_before_utc),time_num(history$evidence_available_at_utc))
-  indices<-split(seq_len(nrow(history)),boundaries$boundary_id,drop=TRUE)
+  # Prediction batches share a kickoff, but results can arrive from different
+  # sources years apart. A late archive must not quarantine already available
+  # results from unrelated matches on the same date. Equal evidence instants
+  # still update simultaneously, strictly after the prediction boundary.
+  indices<-split(seq_len(nrow(history)),paste(boundaries$boundary_id,evidence,sep="|"),drop=TRUE)
   batches<-lapply(indices,function(index)list(
     boundary_utc=boundaries$boundary_utc[index[[1L]]],
     boundary_num=time_num(boundaries$boundary_utc[index[[1L]]]),
@@ -278,6 +282,21 @@ phase19_production_tune <- function(history, protocol, recipe = phase19_producti
     sum(boundary<at & history$completion_not_before_utc<at & history$evidence_available_at_utc<at)>=recipe$tuning_minimum_fit_rows &&
       sum(boundary>=at)>=recipe$tuning_minimum_validation_rows
   },logical(1))]
+  if(length(supported)) {
+    # Row counts alone do not make the registered design estimable: archives
+    # first published after their matches can have entirely base Elo features.
+    # Training differences depend only on strictly earlier available evidence,
+    # so compute them once and choose the first full-rank prior fit window.
+    probe<-phase19_production_rating(history,phase19_club_rating_parameters(),
+      max(history$completion_not_before_utc,history$evidence_available_at_utc))$training_difference
+    supported<-supported[vapply(supported,function(at) {
+      take<-boundary<at & history$completion_not_before_utc<at & history$evidence_available_at_utc<at
+      design<-data.frame(elo=c(probe[take],-probe[take]),venue=rep(c(1,0),each=sum(take)))
+      qr(cbind(1,as.matrix(design)))$rank==3L
+    },logical(1))]
+    if(!length(supported))phase19_production_abort("tuning_design_not_estimable",
+      "No prior tuning window supports the full registered Elo and venue design")
+  }
   if(length(supported)) {
     cutoff<-supported[[1L]]
     split<-list(early=history[boundary<cutoff,,drop=FALSE],later=history[boundary>=cutoff,,drop=FALSE])

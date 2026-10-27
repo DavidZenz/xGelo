@@ -46,6 +46,32 @@ test_that("vectorized parameter grid matches independent rating states",{
   }
 })
 
+test_that("late archives do not quarantine timely same-date results",{
+  history<-production_test_context()$snapshot$matches[rep(1,3),,drop=FALSE]
+  history$match_id<-c("timely","late-archive","later-match")
+  history$home_club_id<-c("club_a","club_c","club_a")
+  history$away_club_id<-c("club_b","club_d","club_b")
+  history$event_date<-c("2021-01-01","2021-01-01","2021-01-03")
+  history$kickoff_precision<-"date";history$kickoff_utc<-""
+  history$completion_not_before_utc<-paste0(as.Date(history$event_date)+1,"T00:00:00Z")
+  history$evidence_available_at_utc<-c("2021-01-02T00:00:00Z","2024-01-01T00:00:00Z","2021-01-04T00:00:00Z")
+  history$regulation_home_goals<-2L;history$regulation_away_goals<-0L
+  p<-phase19_club_rating_parameters()
+  full<-phase19_production_rating(history,p,"2021-01-05T00:00:00Z")
+  timely<-phase19_production_rating(history[-2,,drop=FALSE],p,"2021-01-05T00:00:00Z")
+  expect_equal(full$training_difference[c(1,3)],timely$training_difference,tolerance=0)
+  expect_equal(full$training_difference[1:2],rep(p$home_advantage,2))
+  expect_gt(full$training_difference[[3]],p$home_advantage)
+  expect_equal(full$state$prior_match_count[full$state$club_id=="club_c"],0L)
+  grid<-phase19_production_recipe()$rating_grid[1,,drop=FALSE]
+  forward<-history[3,,drop=FALSE];forward$event_date<-"2021-01-06"
+  together<-phase19_production_rating_grid(history,grid,"2021-01-05T00:00:00Z",forward)
+  scalar<-phase19_production_rating(history,phase19_club_rating_parameters(
+    home_advantage=grid$home_advantage,k_factor=grid$k_factor,inactivity_factor=grid$inactivity_factor),
+    "2021-01-05T00:00:00Z",forward)
+  expect_equal(unname(together$training_difference[,1]),scalar$training_difference,tolerance=1e-12)
+})
+
 test_that("decay has one-step versus split-interval equivalence",{
   context<-production_test_context();p<-phase19_club_rating_parameters()
   state<-phase19_replay_club_ratings(context$snapshot,context$current,p,
@@ -195,4 +221,18 @@ test_that("complete diagnostic fold refits twice with prior-only temperature and
   expect_identical(first$candidate$view_selection$primary_probability_view,perturbed$candidate$view_selection$primary_probability_view)
   expect_equal(first$candidate$predictions[,1:3],perturbed$candidate$predictions[,1:3],tolerance=0)
   expect_false(identical(first$candidate$scores,perturbed$candidate$scores))
+})
+
+test_that("tuning skips count-supported but rank-deficient archive windows",{
+  context<-production_test_large_fixture()
+  h<-context$snapshot$matches
+  h<-h[order(h$kickoff_utc,method="radix"),,drop=FALSE][1:800,,drop=FALSE]
+  archive_time<-h$evidence_available_at_utc[[660L]]
+  h$evidence_available_at_utc[1:660]<-archive_time
+  tuned<-phase19_production_tune(h,context$protocol)
+  expect_gt(tuned$cutoff,archive_time)
+  expect_true(all(is.finite(tuned$table$rps)))
+  expect_equal(nrow(tuned$table),27L)
+  expect_true(all(h$evidence_available_at_utc[match(tuned$fit_ids,h$match_id)]<tuned$cutoff))
+  expect_length(intersect(tuned$fit_ids,tuned$selection_ids),0L)
 })

@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Historical corpus accepted; exact model folds await preparation and owner review
-last_updated: "2026-10-27T13:10:56Z"
+stopped_at: Historical corpus and exact folds accepted; production fitting and independent replay running
+last_updated: "2026-10-27T14:07:00Z"
 last_activity: 2026-10-27
-last_activity_desc: Owner-approved historical corpus accepted with every audit gate passing; exact folds precede production evaluation
+last_activity_desc: Owner-approved exact 26-fold inventory activated; production model evaluation and replay running
 progress:
   total_phases: 5
   completed_phases: 2
@@ -31,7 +31,7 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
 Plan: 10 of 10
 Status: Mechanics complete; production human_needed; Plans 01-10 complete
-Last activity: 2026-10-27 — Owner-approved historical corpus accepted: all 16,277 matches passed coverage, duplicate, score, temporal, identity and lineage checks. Exact fold review precedes production fitting.
+Last activity: 2026-10-27 — Owner-approved historical corpus accepted: all 16,277 matches passed coverage, duplicate, score, temporal, identity and lineage checks. The exact 26-fold inventory is now owner-approved and production fitting has started.
 
 Progress: [██████████] 100%
 
@@ -139,7 +139,7 @@ Progress: [██████████] 100%
 - [2026-10-27 accepted] David approved the historical package: 16,277 distinct regulation results from 432 pinned snapshots across 59 season files; 407 evidence-bound identity entries, 343 clubs, all 36 current clubs covered in one component. Exact package SHA-256: `175d95264707e925b2213b26332070fd681399c1508875af110659cf4a3347f8`; genuine decision is stored in `data/club/identity_reviews/history-2026-10-27/accepted_owner_decision.json`.
 - [2026-10-27 complete implementation] Native historical parsing, first-observation source selection, prior-only production tuning/calibration/evaluation, reproducible refitting, release installation, live inference and club targets are wired and tested.
 - [2026-10-27 accepted] Canonical training generation `club-history-2026-10-27-b212f524034b31e7f0e1` passed every audit gate. Source, license, identity and lineage fractions are exactly 1.0; duplicate, score and temporal violation counts are zero.
-- Derive and review exact folds before running the production model evaluation and enabling forecasts.
+- [2026-10-27 accepted] David approved exact model-fold package `4ac073479fbcb71a4d913823ec7a279b0a061e7d4b8dbfbf8cdfc1772d50ef25`: 26 folds, 3,025 unique assessment matches, 104 disjoint role sets. Ready generation: `club-folds-867e300dccc09fa3f4f9d688`. Production fitting and fresh-process replay are running.
 - [2026-10-27 owner decision] Require all 36 current clubs to have connected historical coverage before enabling any predictions; partial roster release is prohibited.
 
 ### Blockers/Concerns
