@@ -271,15 +271,29 @@ test_that("semantic duplicates and pending source review are auditable but block
   expect_match(blocked$corpus_manifest$blocked_reasons, "license_fraction")
 })
 
-test_that("declared production panel is five seasons by six source families and stays blocked", {
+test_that("production inventory is pending or binds its exact accepted owner package", {
   phase18_history_test_load()
   inventory <- phase18_history_read_csv(file.path(phase18_history_test_root, "data/club/history_sources.csv"))
-  expect_equal(nrow(inventory), 30L)
-  expect_setequal(unique(inventory$season_id), c("2021-22", "2022-23", "2023-24", "2024-25", "2025-26"))
-  expect_equal(length(unique(inventory$repository_url)), 6L)
-  expect_true(all(inventory$source_status == "blocked_pending_review"))
   expect_true(all(!grepl("(^|/)(main|master|HEAD)($|/)", inventory$commit_sha)))
   expect_silent(phase18_validate_history_sources(inventory))
+  if (!any(inventory$source_status == "active")) {
+    expect_true(all(inventory$source_status == "blocked_pending_review"))
+  } else {
+    root <- file.path(phase18_history_test_root, "data/club/identity_reviews/history-2026-10-27")
+    decision <- jsonlite::fromJSON(file.path(root, "accepted_owner_decision.json"))
+    expect_identical(decision$decision, "accepted")
+    expect_identical(decision$review_manifest_sha256,
+      digest::digest(file = file.path(root, "review_manifest.json"), algo = "sha256", serialize = FALSE))
+    expected <- phase18_history_read_csv(file.path(root, "proposed_history_sources.csv"))
+    fields <- c("source_id", "repository_url", "commit_sha", "commit_utc", "relative_path",
+      "competition_id", "season_id", "raw_sha256", "bytes", "license_sha256", "expected_completed_matches")
+    expect_identical(phase18_history_canonical_table(inventory[fields], "source_id"),
+      phase18_history_canonical_table(expected[fields], "source_id"))
+    expect_true(all(inventory$source_status == "active"))
+    expect_true(all(inventory$coverage_reviewed_by == decision$reviewer))
+    expect_true(all(inventory$license_reviewed_by == decision$reviewer))
+    expect_true(all(inventory$coverage_reviewed_at_utc == decision$reviewed_at_utc))
+  }
 })
 
 test_that("blocked audits publish complete generations without claiming accepted state", {

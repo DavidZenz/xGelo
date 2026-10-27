@@ -99,7 +99,7 @@ phase18_club_table_sha256 <- function(data, key) {
   )
 }
 
-phase18_club_registry_hash <- function(registries) {
+.phase18_club_registry_hash_uncached <- function(registries) {
   phase18_validate_club_registries(registries)
   keys <- phase18_club_sort_keys()
   hashes <- vapply(names(keys), function(name) {
@@ -110,6 +110,17 @@ phase18_club_registry_hash <- function(registries) {
     names = names(hashes), types = rep("character", length(hashes))
   )
 }
+
+phase18_club_registry_hash <- local({
+  previous <- NULL
+  function(registries) {
+    fingerprint <- digest::digest(registries, algo = "sha256", serialize = TRUE)
+    if (!is.null(previous) && identical(previous$fingerprint, fingerprint)) return(previous$result)
+    result <- .phase18_club_registry_hash_uncached(registries)
+    previous <<- list(fingerprint = fingerprint, result = result)
+    result
+  }
+})
 
 phase18_club_parse_time <- function(value, field, allow_blank = FALSE) {
   value <- as.character(value)
@@ -168,7 +179,7 @@ phase18_validate_nonoverlap <- function(data, group_fields, label) {
   invisible(TRUE)
 }
 
-phase18_validate_club_registries <- function(registries) {
+.phase18_validate_club_registries_uncached <- function(registries) {
   phase18_club_require_exact_schema(registries)
   expected_version <- phase18_club_identity_schema_version()
   for (name in names(registries)) {
@@ -254,6 +265,20 @@ phase18_validate_club_registries <- function(registries) {
   }
   invisible(TRUE)
 }
+
+# Reuse a semantic audit only for an exactly identical in-memory registry.
+# Hash all values, types and attributes on every call; changed objects always
+# receive the complete row-hash, review, validity and overlap checks above.
+phase18_validate_club_registries <- local({
+  previous <- NULL
+  function(registries) {
+    fingerprint <- digest::digest(registries, algo = "sha256", serialize = TRUE)
+    if (!is.null(previous) && identical(previous, fingerprint)) return(invisible(TRUE))
+    .phase18_validate_club_registries_uncached(registries)
+    previous <<- fingerprint
+    invisible(TRUE)
+  }
+})
 
 phase18_club_at_instant <- function(data, event_at) {
   if (!nrow(data)) return(data)
