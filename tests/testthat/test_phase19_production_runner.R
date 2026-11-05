@@ -148,6 +148,27 @@ test_that("incumbent retention never bypasses absolute coverage or integrity gat
   expect_true("current_ucl_club_coverage"%in%blocked$failed_gate_ids)
 })
 
+test_that("prior calibration selection preserves logical integrity and statistical vetoes",{
+  protocol<-production_test_context()$protocol
+  rows<-data.frame(match_id=c("prior-home","prior-draw","prior-away"),
+    regulation_home_goals=c(2L,1L,0L),regulation_away_goals=c(0L,1L,2L),
+    evidence_available_at_utc=rep("2025-01-01T20:00:00Z",3),stringsAsFactors=FALSE)
+  raw<-data.frame(p_home=rep(.7,3),p_draw=rep(.2,3),p_away=rep(.1,3))
+  calibrator<-list(temperature=1,calibrator_sha256=strrep("a",64))
+  chosen<-phase19_production_select_view(raw,calibrator,rows,protocol)
+  integrity<-chosen$gates[chosen$gates$gate_id%in%c("probability_integrity","distribution_integrity","cutoff_integrity"),]
+  expect_identical(chosen$primary_probability_view,"calibrated_1x2")
+  expect_true(all(integrity$passed))
+  expect_equal(integrity$value,rep(1,3))
+  expect_true(all(vapply(chosen$metrics[c("probability_integrity","distribution_integrity","cutoff_integrity")],isTRUE,logical(1))))
+  # Sharpening a constant home-favoured prediction on balanced prior outcomes
+  # worsens proper scores. Valid integrity must never override those vetoes.
+  calibrator$temperature<-.1
+  vetoed<-phase19_production_select_view(raw,calibrator,rows,protocol)
+  expect_identical(vetoed$primary_probability_view,"raw_1x2")
+  expect_true(any(!vetoed$gates$passed[vetoed$gates$gate_id%in%c("equal_fold_brier_relative_regression","equal_fold_log_loss_relative_regression")]))
+})
+
 test_that("production refuses diagnostic parents and unapproved recipe",{
   context<-production_test_context()
   expect_error(phase19_production_assert_parents(context$snapshot,context$current,context$protocol,list()),

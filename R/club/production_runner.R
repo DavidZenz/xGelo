@@ -455,7 +455,9 @@ phase19_production_select_view <- function(raw, calibrator, rows, protocol) {
     brier_relative_regression=relative(mean(b$brier),mean(a$brier)),
     log_loss_relative_regression=relative(mean(b$log_loss),mean(a$log_loss)),
     calibration_delta=phase19_production_calibration_error(calibrated,classes)-phase19_production_calibration_error(raw,classes),
-    declared_fixture_coverage=1,probability_integrity=1,distribution_integrity=1,cutoff_integrity=1)
+    # The calibration gate deliberately accepts logical evidence via isTRUE().
+    # Numeric 1 would be read as FALSE and silently veto every calibrated view.
+    declared_fixture_coverage=1,probability_integrity=TRUE,distribution_integrity=TRUE,cutoff_integrity=TRUE)
   gate<-phase19_club_calibration_gate_decision(metrics,protocol)
   result<-list(primary_probability_view=as.character(gate$primary_probability_view),metrics=metrics,gates=gate$gates,
     selection_fixture_ids=sort(rows$match_id,method="radix"),

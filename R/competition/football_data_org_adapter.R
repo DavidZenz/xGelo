@@ -341,6 +341,110 @@ phase18_fd_fingerprint <- function(payload) {
   )
 }
 
+# The v2 function above is an exact observed JSON-shape digest. It remains
+# available for historic evidence, but array indices and null scores make it
+# unsuitable as a refresh contract: ordinary results and squad edits change it.
+# V3 binds the structure and JSON types actually consumed by normalization.
+# Extra provider metadata is explicitly outside this contract. Cardinalities,
+# identity, enum, pagination, freshness and standings gates still run below.
+phase18_fd_schema_contract_version <- function() "phase18-fd-consumed-json-contract-v3"
+
+phase18_fd_consumed_contract <- function(resource) {
+  scalar <- function(type, nullable = FALSE, optional = FALSE)
+    list(type = type, nullable = nullable, optional = optional)
+  object <- function(fields, optional = FALSE)
+    list(type = "object", fields = fields, nullable = FALSE, optional = optional)
+  array <- function(element) list(type = "array", element = element, nullable = FALSE, optional = FALSE)
+  text <- function(nullable = FALSE, optional = FALSE) scalar("string", nullable, optional)
+  integer <- function(nullable = FALSE, optional = FALSE) scalar("integer_number", nullable, optional)
+  context <- list(
+    competition = object(list(code = text(optional = TRUE)), optional = TRUE),
+    season = object(list(startDate = text(optional = TRUE)), optional = TRUE),
+    filters = object(list(season = scalar("string_or_integer", optional = TRUE)), optional = TRUE),
+    count = integer(optional = TRUE),
+    resultSet = object(list(count = integer(optional = TRUE)), optional = TRUE),
+    pagination = object(list(currentPage = integer(optional = TRUE), totalPages = integer(optional = TRUE)), optional = TRUE)
+  )
+  team_reference <- object(list(id = integer(), name = text()))
+  contracts <- list(
+    competition_metadata = object(list(
+      id = integer(), code = text(), name = text(), type = text(), lastUpdated = text(),
+      currentSeason = object(list(id = integer(), startDate = text(), endDate = text(), currentMatchday = integer(nullable = TRUE)))
+    )),
+    teams = object(c(context, list(teams = array(object(list(
+      id = integer(), name = text(), shortName = text(nullable = TRUE),
+      tla = text(nullable = TRUE), crest = text(nullable = TRUE), lastUpdated = text()
+    )))))),
+    matches = object(c(context, list(matches = array(object(list(
+      id = integer(), utcDate = text(), status = text(), stage = text(),
+      matchday = integer(nullable = TRUE), lastUpdated = text(),
+      homeTeam = team_reference, awayTeam = team_reference,
+      score = object(list(winner = text(nullable = TRUE),
+        fullTime = object(list(home = integer(nullable = TRUE), away = integer(nullable = TRUE)))))
+    )))))),
+    standings = object(c(context, list(lastUpdated = text(optional = TRUE), standings = array(object(list(
+      stage = text(), type = text(), table = array(object(list(
+        position = integer(), team = object(list(id = integer())), playedGames = integer(),
+        won = integer(), draw = integer(), lost = integer(), points = integer(),
+        goalsFor = integer(), goalsAgainst = integer(), goalDifference = integer()
+      )))
+    ))))))
+  )
+  if (length(resource) != 1L || is.na(resource) || !resource %in% names(contracts))
+    phase18_fd_abort("blocked_resource_window", "Schema contract resource is outside the fixed window")
+  contracts[[resource]]
+}
+
+phase18_fd_contract_fingerprint <- function(payload, resource) {
+  contract <- phase18_fd_consumed_contract(resource)
+  fail <- function(path) {
+    reason <- if (grepl("^matches\\.matches\\[[0-9]+\\]\\.(homeTeam|awayTeam)$", path))
+      "blocked_missing_team" else "blocked_schema"
+    phase18_fd_abort(reason, paste0("Consumed provider schema/type differs at ", path))
+  }
+  integer_number <- function(value) is.numeric(value) && length(value) == 1L &&
+    !is.na(value) && is.finite(value) && value == trunc(value)
+  validate <- function(value, spec, path) {
+    if (is.null(value)) {
+      if (!isTRUE(spec$nullable)) fail(path)
+      return(invisible(TRUE))
+    }
+    if (spec$type == "object") {
+      if (!is.list(value) || is.data.frame(value) ||
+          (length(value) && (is.null(names(value)) || any(!nzchar(names(value))) || anyDuplicated(names(value))))) fail(path)
+      for (field in names(spec$fields)) {
+        child <- spec$fields[[field]]
+        if (!field %in% names(value)) {
+          if (!isTRUE(child$optional)) fail(paste0(path, ".", field))
+        } else validate(value[[field]], child, paste0(path, ".", field))
+      }
+    } else if (spec$type == "array") {
+      if (!is.list(value) || is.data.frame(value) || (!is.null(names(value)) && length(value))) fail(path)
+      for (index in seq_along(value)) validate(value[[index]], spec$element, paste0(path, "[", index, "]"))
+    } else {
+      valid <- switch(spec$type,
+        string = is.character(value) && length(value) == 1L && !is.na(value),
+        integer_number = integer_number(value),
+        string_or_integer = (is.character(value) && length(value) == 1L && !is.na(value)) || integer_number(value),
+        FALSE)
+      if (!isTRUE(valid)) fail(path)
+    }
+    invisible(TRUE)
+  }
+  validate(payload, contract, resource)
+  rows <- list()
+  describe <- function(spec, path) {
+    rows[[length(rows) + 1L]] <<- data.frame(
+      path = path, type = spec$type, nullable = isTRUE(spec$nullable), optional = isTRUE(spec$optional),
+      extra_object_fields = if (spec$type == "object") "outside_normalized_contract" else "not_applicable",
+      stringsAsFactors = FALSE)
+    if (spec$type == "object") for (field in names(spec$fields)) describe(spec$fields[[field]], paste0(path, ".", field))
+    if (spec$type == "array") describe(spec$element, paste0(path, "[*]"))
+  }
+  describe(contract, resource)
+  phase18_hash_table_v2(do.call(rbind, rows), key = "path", schema_tag = phase18_fd_schema_contract_version())
+}
+
 phase18_fd_freshness_schema <- function() c(
   "schema_version", "hash_encoding_version", "resource", "evidence_kind",
   "evidence_path", "source_timestamp_utc", "retrieved_at_utc", "checked_at_utc",
@@ -505,6 +609,11 @@ phase18_fd_project_resources_impl <- function(
   phase18_validate_club_registries(club_registries)
   club_registry_sha256 <- phase18_club_registry_hash(club_registries)
   payload <- lapply(fetched, `[[`, "parsed")
+  # Validate before scalar coercion or nullable-integer projection can conceal
+  # a consumed-field type change. Old acceptance hashes intentionally mismatch
+  # this version; only a genuine new live acceptance generation can bind it.
+  contract_fingerprints <- vapply(expected_names, function(resource)
+    phase18_fd_contract_fingerprint(payload[[resource]], resource), character(1))
   competition <- payload$competition_metadata
   if (!identical(phase18_fd_scalar(competition$code, "competition.code"), "CL")) {
     phase18_fd_abort("blocked_edition_identity", "Provider competition code is not CL")
@@ -726,7 +835,7 @@ phase18_fd_project_resources_impl <- function(
     endpoint = unname(phase18_probe_endpoints()[expected_names]),
     observed = TRUE,
     observed_at_utc = now_utc,
-    fingerprint_sha256 = vapply(payload, phase18_fd_fingerprint, character(1)),
+    fingerprint_sha256 = unname(contract_fingerprints),
     stringsAsFactors = FALSE, check.names = FALSE
   ))
   raw_resource_hashes <- data.frame(

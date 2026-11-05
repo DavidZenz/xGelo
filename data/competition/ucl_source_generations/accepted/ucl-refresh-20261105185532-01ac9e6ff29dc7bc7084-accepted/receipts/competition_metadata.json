@@ -1,0 +1,11 @@
+{
+  "schema_version": "phase18-ucl-raw-receipt-v1",
+  "resource": "competition_metadata",
+  "bundle_id": "ucl-live-20261105185505",
+  "raw_retained": false,
+  "bytes": 6157,
+  "raw_sha256": "7d091a7e1671fa88987bb687fb73018ced9f2bfdb9fe67393f8f980ae007892f",
+  "aggregate_raw_sha256": "1f33c7de7f0d0c03ba1f0e8fb941711e12ac6c410310ce6f27bdead06347faea",
+  "canonical_content_sha256": "22ecf2a6b1da5486dc55b2408944970d9d82bf8a5bd0ceb0c91d33272137bb0d",
+  "schema_fingerprint_sha256": "0b41de5071706c29188badb22f4cae121b86e0cfdc80b83e7fe957c0fc48d2c9"
+}

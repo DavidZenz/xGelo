@@ -236,7 +236,9 @@ phase18_fd_test_live_shape <- function() {
     match$status <- "TIMED"
     match$utcDate <- "2026-10-01T18:00:00Z"
     match$score$fullTime <- list(home = NULL, away = NULL)
-    match$score$winner <- NULL
+    # Preserve an explicit JSON null; assigning $winner <- NULL removes the
+    # consumed field and now correctly represents schema drift instead.
+    match$score["winner"] <- list(NULL)
     payloads$matches$matches[[index]] <- match
   }
   total <- payloads$standings$standings[[1L]]
@@ -543,6 +545,56 @@ test_that("schema fingerprints bind node types, array cardinality, and every ele
     phase18_fd_fingerprint(list(rows = list(list(a = 1L), list(a = 1L)))),
     phase18_fd_fingerprint(list(rows = list(list(a = 1L), list(a = 1L, late = TRUE))))
   ))
+})
+
+test_that("v3 consumed schema survives result lifecycle and unconsumed metadata edits", {
+  phase18_fd_test_load()
+  payloads <- phase18_fd_test_payloads()
+  initial <- vapply(names(payloads), function(resource)
+    phase18_fd_contract_fingerprint(payloads[[resource]], resource), character(1))
+  changed <- payloads
+  changed$matches$matches[[1L]]$status <- "FINISHED"
+  changed$matches$matches[[1L]]$score$winner <- "HOME_TEAM"
+  changed$matches$matches[[1L]]$score$fullTime <- list(home = 3L, away = 0L)
+  changed$matches$matches[[1L]]$referees <- list(list(id = 123L, name = "Fixture referee"))
+  changed$teams$teams[[1L]]$squad <- list(list(id = 987L, name = "Unconsumed fixture player"))
+  changed$teams$teams[[1L]]$coach <- list(name = "Unconsumed fixture coach")
+  changed$teams$teams <- rev(changed$teams$teams)
+  changed$matches$matches <- rev(changed$matches$matches)
+  actual <- vapply(names(changed), function(resource)
+    phase18_fd_contract_fingerprint(changed[[resource]], resource), character(1))
+  expect_identical(actual, initial)
+  expect_identical(phase18_fd_schema_contract_version(), "phase18-fd-consumed-json-contract-v3")
+  # Historic shape digests remain exact and are never rewritten to v3.
+  expect_false(identical(phase18_fd_fingerprint(payloads$matches), phase18_fd_fingerprint(changed$matches)))
+})
+
+test_that("v3 schema rejects consumed drift in every row before projection coercion", {
+  phase18_fd_test_load()
+  original <- phase18_fd_test_payloads()
+  bad <- original$matches
+  bad$matches[[144L]]$homeTeam$id <- "1036"
+  expect_error(phase18_fd_contract_fingerprint(bad, "matches"), class = "blocked_schema")
+  bad <- original$matches
+  bad$matches[[144L]]$score$fullTime$home <- 1.5
+  expect_error(phase18_fd_contract_fingerprint(bad, "matches"), class = "blocked_schema")
+  bad <- original$matches
+  bad$matches[[144L]]$score$fullTime$home <- NULL
+  expect_error(phase18_fd_contract_fingerprint(bad, "matches"), class = "blocked_schema")
+  bad <- original$teams
+  bad$teams[[36L]]$lastUpdated <- list(value = "2026-09-19T11:00:00Z")
+  expect_error(phase18_fd_contract_fingerprint(bad, "teams"), class = "blocked_schema")
+  bad <- original$standings
+  bad$standings[[1L]]$table[[36L]]$points <- "14"
+  expect_error(phase18_fd_contract_fingerprint(bad, "standings"), class = "blocked_schema")
+  bad <- original$matches
+  bad$pagination <- list(currentPage = "1", totalPages = 1L)
+  expect_error(phase18_fd_contract_fingerprint(bad, "matches"), class = "blocked_schema")
+  # A JSON integer represented by R as a whole double has the same semantics.
+  good <- original$matches
+  good$matches[[144L]]$id <- as.double(good$matches[[144L]]$id)
+  expect_identical(phase18_fd_contract_fingerprint(good, "matches"),
+    phase18_fd_contract_fingerprint(original$matches, "matches"))
 })
 
 test_that("adapter projection enters bundle builder without fingerprint substitution", {
