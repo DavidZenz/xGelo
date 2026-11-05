@@ -302,7 +302,9 @@
     if (is.null(reason) && !isTRUE(cutoff_check$valid)) reason <- cutoff_check$reason
     if (is.null(reason) && !.ucl_sim_before(run_cutoff, kickoff)) reason <- "information_cutoff_violation"
     if (is.null(reason) && !.ucl_sim_before(feature_cutoff, kickoff)) reason <- "cutoff_violation"
-    if (is.null(reason) && !.ucl_sim_before(feature_cutoff, run_cutoff)) reason <- "feature_after_information_cutoff"
+    # Evidence known exactly at the run cutoff is available to that forecast.
+    # Both information boundaries must still be strictly before kickoff.
+    if (is.null(reason) && .ucl_sim_parse_utc(feature_cutoff) > .ucl_sim_parse_utc(run_cutoff)) reason <- "feature_after_information_cutoff"
     if (is.null(reason) && is.null(.ucl_sim_score_grid(row))) reason <- "insufficient_model_evidence"
     if (!is.null(reason)) {
       suppressed <- c(suppressed, fixture_id)
@@ -352,11 +354,24 @@
 
 .ucl_sim_rank_rows <- function(ranking, iteration, run_id) {
   if (!is.data.frame(ranking) || !nrow(ranking)) return(data.frame())
+  trace <- attr(ranking,"trace",exact=TRUE)
+  missing_criterion <- vapply(seq_len(nrow(ranking)),function(i) {
+    if (!is.na(ranking$rank[[i]])) return(NA_character_)
+    if (!is.data.frame(trace) || !nrow(trace)) return(NA_character_)
+    at <- which(trace$evidence_status=="missing" & trace$rank_interval_min==ranking$rank_interval_min[[i]] &
+      trace$rank_interval_max==ranking$rank_interval_max[[i]])
+    at <- at[vapply(at,function(j)ranking$club_id[[i]] %in% strsplit(trace$subset_before[[j]],";",fixed=TRUE)[[1L]],logical(1))]
+    if(length(at)==1L)as.character(trace$criterion_id[[at]])else NA_character_
+  },character(1))
   data.frame(
     run_id = run_id, iteration = as.integer(iteration), edition_id = as.character(ranking$edition_id),
     club_id = as.character(ranking$club_id), rank = as.integer(ranking$rank),
     rank_interval_min = as.integer(ranking$rank_interval_min), rank_interval_max = as.integer(ranking$rank_interval_max),
     rank_status = as.character(ranking$rank_status), qualification_band = as.character(ranking$qualification_band),
+    missing_criterion_id=missing_criterion,
+    ranking_scope=as.character(ranking$ranking_scope %||% "current_cutoff_state"),
+    observed_source_eligible=as.logical(ranking$observed_source_eligible %||% FALSE),training_eligible=as.logical(ranking$training_eligible %||% FALSE),
+    article18_score_metrics_sha256=as.character(attr(ranking,"score_metrics_sha256",exact=TRUE) %||% NA_character_),
     stringsAsFactors = FALSE, check.names = FALSE
   )
 }
@@ -524,7 +539,7 @@
     feature_times <- vapply(feature_values, .ucl_sim_parse_utc, as.POSIXct(NA, origin = "1970-01-01", tz = "UTC"))
     kickoff_times <- vapply(as.character(ordered$kickoff_utc[available]), .ucl_sim_parse_utc, as.POSIXct(NA, origin = "1970-01-01", tz = "UTC"))
     cutoff_time <- .ucl_sim_parse_utc(information_cutoff_utc)
-    if (any(is.na(feature_times)) || any(is.na(kickoff_times)) || any(!(feature_times < kickoff_times)) || any(!(feature_times < cutoff_time))) {
+    if (any(is.na(feature_times)) || any(is.na(kickoff_times)) || any(!(feature_times < kickoff_times)) || any(feature_times > cutoff_time)) {
       return(list(valid = FALSE, reason = "ledger_cutoff_invalid"))
     }
   }
@@ -689,7 +704,7 @@
 ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20260921L,
                                rules = NULL, draw_artifact = NULL, source_bundle_id = NULL,
                                information_cutoff_utc = NULL,
-                               draw_authority_mode = "fixture") {
+                               draw_authority_mode = "fixture", future_context = NULL, future_slots = NULL) {
   if (is.list(state) && !is.data.frame(state) && !is.null(state$status) &&
       !identical(as.character(state$status), "ready")) {
     return(structure(list(
@@ -758,7 +773,9 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
   iteration_results <- lapply(seq_len(simulations), function(iteration) {
     graph_i <- .ucl_sim_iteration_graph(validation$graph, ledger_table, seed = seed, cutoff_utc = cutoff$value, iteration = iteration)
     built <- if (exists("ucl_build_state", mode = "function")) ucl_build_state(graph_i, rules = rules, state_cutoff_utc = cutoff$value) else NULL
-    list(graph = graph_i, rows = if (is.null(built) || !identical(built$status, "ready")) data.frame() else .ucl_sim_rank_rows(built$standings, iteration, run_id))
+    ranking <- if (is.null(built) || !identical(built$status,"ready")) NULL else
+      if (is.null(future_context)) built$standings else ucl_future_complete_score_ranking(built,graph_i,rules,future_context)
+    list(graph=graph_i,rows=if(is.null(ranking))data.frame()else .ucl_sim_rank_rows(ranking,iteration,run_id))
   })
   rows <- do.call(rbind, lapply(iteration_results, `[[`, "rows")); if (is.null(rows)) rows <- data.frame(); row.names(rows) <- NULL
   path_state <- ucl_enumerate_legal_knockout_paths(
@@ -831,7 +848,7 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
     draw_authority_mode = as.character(draw_authority_mode),
     component_hashes = component_hashes
   )
-  structure(list(status = metadata$status, run_id = run_id, rank_rows = rows, simulations = rows,
+  result <- structure(list(status = metadata$status, run_id = run_id, rank_rows = rows, simulations = rows,
                  knockout_paths = stage_events, legal_paths = path_state, stage_events = stage_events, progression_probabilities = progression,
                  stage_reconciliation = stage_reconciliation, progression_reconciliation = progression_reconciliation,
                  metadata = metadata, graph = validation$graph, state_sha256 = state_hash,
@@ -843,6 +860,8 @@ ucl_run_simulation <- function(state, ledger = NULL, simulations = 1L, seed = 20
                  club_ids = sort(as.character(validation$graph$clubs$club_id), method = "radix"),
                  fixture_authority = isTRUE(validation$graph$fixture_authority), production_eligible = FALSE),
             class = c("ucl_simulation_run", "list"))
+  if (!is.null(future_context)) result <- ucl_future_attach_to_simulation(result, future_context, rules, future_slots)
+  result
 }
 
 #' Aggregate rank, band, and cut-line probabilities from simulation rows.
@@ -1213,7 +1232,7 @@ ucl_resolve_two_leg_tie <- function(first_leg, second_leg, rules = NULL, penalty
   if (identical(as.numeric(regulation[[participant_a]]), as.numeric(regulation[[participant_b]]))) {
     pen_home <- second_payload$shootout_home; pen_away <- second_payload$shootout_away
     if (any(!vapply(c(et_home, et_away), .ucl_sim_valid_goal, logical(1), allow_na = FALSE))) {
-      if (.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) {
+      if (.ucl_sim_valid_goal(pen_home, allow_na = FALSE) && .ucl_sim_valid_goal(pen_away, allow_na = FALSE) && pen_home != pen_away) {
         et_home <- 0L; et_away <- 0L
       } else if (!is.null(penalty_winner) && length(penalty_winner) == 1L && as.character(penalty_winner) %in% c(participant_a, participant_b)) {
         et_home <- 0L; et_away <- 0L
@@ -1230,7 +1249,7 @@ ucl_resolve_two_leg_tie <- function(first_leg, second_leg, rules = NULL, penalty
   if (final[[participant_b]] > final[[participant_a]]) winner <- participant_b
   pen_home <- second_payload$shootout_home; pen_away <- second_payload$shootout_away
   if (is.na(winner)) {
-    if (.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) {
+    if (.ucl_sim_valid_goal(pen_home, allow_na = FALSE) && .ucl_sim_valid_goal(pen_away, allow_na = FALSE) && pen_home != pen_away) {
       penalty_applied <- TRUE; resolution <- "penalties"
       winner <- if (pen_home > pen_away) home_second else away_second
     } else if (!is.null(penalty_winner) && length(penalty_winner) == 1L && as.character(penalty_winner) %in% c(participant_a, participant_b)) {
@@ -1262,7 +1281,7 @@ ucl_resolve_final <- function(match, rules = NULL, penalty_winner = NULL) {
   if (regulation_tied) {
     pen_home <- payload$shootout_home; pen_away <- payload$shootout_away
     if (any(!vapply(c(et_home, et_away), .ucl_sim_valid_goal, logical(1), allow_na = FALSE))) {
-      if ((.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) || (!is.null(penalty_winner) && as.character(penalty_winner) %in% c(home, away))) {
+      if ((.ucl_sim_valid_goal(pen_home, allow_na = FALSE) && .ucl_sim_valid_goal(pen_away, allow_na = FALSE) && pen_home != pen_away) || (!is.null(penalty_winner) && as.character(penalty_winner) %in% c(home, away))) {
         et_home <- 0L; et_away <- 0L
       } else {
         return(list(status = "unresolved", reason = "extra_time_evidence_missing", winner = NA_character_, neutral = TRUE, home_club_id = home, away_club_id = away, venue_id = venue))
@@ -1273,7 +1292,7 @@ ucl_resolve_final <- function(match, rules = NULL, penalty_winner = NULL) {
   }
   pen_home <- payload$shootout_home; pen_away <- payload$shootout_away
   if (is.na(winner)) {
-    if (.ucl_sim_valid_goal(pen_home) && .ucl_sim_valid_goal(pen_away) && pen_home != pen_away) { penalty_applied <- TRUE; resolution <- "penalties"; winner <- if (pen_home > pen_away) home else away }
+    if (.ucl_sim_valid_goal(pen_home, allow_na = FALSE) && .ucl_sim_valid_goal(pen_away, allow_na = FALSE) && pen_home != pen_away) { penalty_applied <- TRUE; resolution <- "penalties"; winner <- if (pen_home > pen_away) home else away }
     else if (!is.null(penalty_winner) && as.character(penalty_winner) %in% c(home, away)) { penalty_applied <- TRUE; resolution <- "penalties"; winner <- as.character(penalty_winner) }
   }
   if (is.na(winner)) return(list(status = "unresolved", reason = "penalty_evidence_missing", winner = NA_character_, neutral = TRUE, home_club_id = home, away_club_id = away, venue_id = venue, extra_time_applied = extra_applied, penalty_applied = penalty_applied))
@@ -1372,7 +1391,7 @@ ucl_aggregate_stage_events <- function(events, rules = NULL, stage_inputs = NULL
 }
 
 #' Validate probability conservation and monotone progression.
-ucl_validate_progression_reconciliation <- function(progression, stage_inputs = NULL, league_bands = NULL, tolerance = 1e-10, required_stage_ids = NULL) {
+ucl_validate_progression_reconciliation <- function(progression, stage_inputs = NULL, league_bands = NULL, tolerance = 1e-10, required_stage_ids = NULL, probability_totals = NULL) {
   if (!is.data.frame(progression) || !nrow(progression)) return(list(status = "unresolved", valid = FALSE, errors = "progression_empty"))
   required <- c("club_id", "stage_id", "probability")
   if (!all(required %in% names(progression))) return(list(status = "blocked", valid = FALSE, errors = "progression_schema_incomplete"))
@@ -1414,10 +1433,15 @@ ucl_validate_progression_reconciliation <- function(progression, stage_inputs = 
       if (length(values) && all(is.finite(values)) && abs(sum(values) - 1) > tolerance) errors <- c(errors, paste0("band_sum:", club))
     }
   }
-  if (!is.null(stage_inputs) && all(status_values == "resolved")) {
-    for (stage_id in intersect(names(stage_inputs), unique(as.character(progression$stage_id)))) {
+  if ((!is.null(stage_inputs) || !is.null(probability_totals)) && all(status_values == "resolved")) {
+    totals <- if (is.null(probability_totals)) stats::setNames(rep(1, length(stage_inputs)), names(stage_inputs)) else probability_totals
+    if (!is.numeric(totals) || is.null(names(totals)) || anyDuplicated(names(totals)) || any(!is.finite(totals) | totals < 0) ||
+        !setequal(names(totals), unique(as.character(progression$stage_id)))) {
+      if (!is.null(probability_totals)) errors <- c(errors, "stage_probability_totals_invalid")
+    }
+    for (stage_id in intersect(names(totals), unique(as.character(progression$stage_id)))) {
       values <- suppressWarnings(as.numeric(progression$probability[as.character(progression$stage_id) == stage_id]))
-      if (length(values) > 1L && all(is.finite(values)) && abs(sum(values) - 1) > tolerance) errors <- c(errors, paste0("stage_sum:", stage_id))
+      if (length(values) > 1L && all(is.finite(values)) && abs(sum(values) - totals[[stage_id]]) > tolerance) errors <- c(errors, paste0("stage_sum:", stage_id))
     }
   }
   if (!is.null(stage_inputs)) {

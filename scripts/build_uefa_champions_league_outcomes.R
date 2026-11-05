@@ -10,17 +10,46 @@
 
 phase20_ucl_command_args <- commandArgs(trailingOnly = FALSE)
 phase20_ucl_file_arg <- phase20_ucl_command_args[grepl("^--file=", phase20_ucl_command_args)]
-phase20_ucl_script_path <- if (length(phase20_ucl_file_arg) == 1L) {
-  sub("^--file=", "", phase20_ucl_file_arg[[1L]])
-} else {
-  "scripts/build_uefa_champions_league_outcomes.R"
+# Resolve this file from the active source frame before consulting --file,
+# which belongs to the outer Rscript when this CLI is imported by a wrapper.
+# No cwd search, environment override, or caller-selected project root is used.
+phase20_ucl_locate_script <- function() {
+  script_name <- "build_uefa_champions_league_outcomes.R"
+  frames <- sys.frames()
+  for (index in rev(seq_along(frames))) {
+    frame <- frames[[index]]
+    for (field in c("ofile", "file")) {
+      if (!base::exists(field,envir=frame,inherits=FALSE)) next
+      value <- get(field,envir=frame,inherits=FALSE)
+      if (!is.character(value) || length(value)!=1L || is.na(value) || !identical(basename(value),script_name)) next
+      paths <- value
+      if (!grepl("^/",value) && base::exists("owd",envir=frame,inherits=FALSE))
+        paths <- c(file.path(get("owd",envir=frame,inherits=FALSE),value),paths)
+      for (path in paths) if (file.exists(path)) return(normalizePath(path,winslash="/",mustWork=TRUE))
+    }
+  }
+  if (length(phase20_ucl_file_arg)==1L) {
+    path <- sub("^--file=","",phase20_ucl_file_arg[[1L]])
+    if (identical(basename(path),script_name) && file.exists(path))
+      return(normalizePath(path,winslash="/",mustWork=TRUE))
+  }
+  stop("Cannot resolve the fixed UCL CLI file from its source frame or direct --file.",call.=FALSE)
 }
-phase20_ucl_script_path <- normalizePath(phase20_ucl_script_path, winslash = "/", mustWork = FALSE)
+phase20_ucl_script_path <- phase20_ucl_locate_script()
 phase20_ucl_project_root <- normalizePath(
   file.path(dirname(phase20_ucl_script_path), ".."),
   winslash = "/", mustWork = FALSE
 )
 phase20_ucl_runtime <- new.env(parent = baseenv())
+# Preserve lexical scope when exists is passed as a base::vapply callback.
+phase20_ucl_runtime$exists <- local({
+  scope <- phase20_ucl_runtime
+  function(x, where = -1, envir, frame, mode = "any", inherits = TRUE) {
+    target <- if (!missing(envir)) envir else if (!missing(frame)) base::sys.frame(frame) else
+      if (!missing(where)) base::as.environment(where) else scope
+    base::exists(x, envir = target, mode = mode, inherits = inherits)
+  }
+})
 # Explicitly import the small standard-library seam required by the source
 # contracts; the private environment deliberately does not inherit search().
 phase20_ucl_runtime$setNames <- stats::setNames
@@ -40,6 +69,7 @@ phase20_ucl_source <- function(relative_path) {
 phase20_ucl_source("R/common/phase18_canonical_hash.R")
 phase20_ucl_source("R/release/domain_contract.R")
 phase20_ucl_source("R/competition/source_contracts.R")
+phase20_ucl_source("R/competition/edition_registry.R")
 phase20_ucl_source("R/competition/ucl_source_acceptance.R")
 phase20_ucl_source("R/competition/ucl_source_bundle.R")
 phase20_ucl_source("R/competition/ucl_source_refresh.R")
@@ -63,6 +93,15 @@ phase20_ucl_source("R/club/goal_model.R")
 phase20_ucl_source("R/club/calibration.R")
 phase20_ucl_source("R/club/evaluation.R")
 phase20_ucl_source("R/club/release.R")
+phase20_ucl_source("R/competition/football_data_org_adapter.R")
+phase20_ucl_source("R/evaluation/proper_scores.R")
+phase20_ucl_source("R/evaluation/benchmark_scores.R")
+phase20_ucl_source("R/club/production_runner.R")
+phase20_ucl_source("R/club/live_predictions.R")
+phase20_ucl_source("R/competition/ucl_joint_score_view.R")
+phase20_ucl_source("R/competition/ucl_live_bridge.R")
+phase20_ucl_source("R/competition/ucl_live_outcomes.R")
+phase20_ucl_source("R/competition/ucl_future_matchups.R")
 
 phase20_ucl_get <- function(name) {
   get(name, envir = phase20_ucl_runtime, inherits = TRUE)
@@ -95,7 +134,7 @@ phase20_ucl_parse_integer <- function(value, option, minimum, maximum = Inf) {
 phase20_ucl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(
     edition_id = "ucl_2026_27", simulations = 1000L, seed = 20260921L,
-    information_cutoff_utc = "2026-09-21T00:00:00Z",
+    information_cutoff_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
     dry_run = TRUE, replay_check = FALSE, write = FALSE, help = FALSE,
     mode = "dry-run"
   )
@@ -198,7 +237,7 @@ phase20_ucl_usage <- function() {
     "  --edition-id ID   Supported edition (default: ucl_2026_27)",
     "  --simulations N   Positive simulation count (default: 1000)",
     "  --seed N          Non-negative deterministic seed (default: 20260921)",
-    "  --information-cutoff-utc TS  Required UTC information cutoff (default: 2026-09-21T00:00:00Z)",
+    "  --information-cutoff-utc TS  UTC information cutoff (default: current UTC time)",
     "  --dry-run         Validate and build without writing (default)",
     "  --replay-check    Compare normal/reversed/repeated canonical identities",
     "  --write           Publish only an eligible, source-backed candidate",
@@ -420,6 +459,11 @@ phase20_ucl_build_fixed <- function(options) {
     ))
   }
   candidate <- replay$candidate
+  if (identical(candidate$schema_version, "ucl-live-production-result-v1")) {
+    if (isTRUE(options$write)) candidate <- phase20_ucl_get(".ucl_live_publish_result")(candidate)
+    candidate$replay_verified <- replay$replay_verified
+    return(candidate)
+  }
   if (isTRUE(options$write) && !isTRUE(candidate$production_eligible)) {
     return(phase20_ucl_contract(
       "production_blocked", mechanics_complete = FALSE,
@@ -518,7 +562,8 @@ phase20_ucl_cli_main <- function(args = commandArgs(trailingOnly = TRUE)) {
 }
 
 phase20_ucl_is_direct <- function() {
-  length(phase20_ucl_file_arg) == 1L &&
+  sys.nframe() == 1L && identical(basename(phase20_ucl_script_path),"build_uefa_champions_league_outcomes.R") &&
+    length(phase20_ucl_file_arg) == 1L &&
     identical(normalizePath(sub("^--file=", "", phase20_ucl_file_arg[[1L]]), winslash = "/", mustWork = FALSE),
               phase20_ucl_script_path)
 }

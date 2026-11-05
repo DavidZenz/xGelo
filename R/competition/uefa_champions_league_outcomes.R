@@ -138,13 +138,14 @@
   NULL
 }
 
-.ucl_out_validate_ledger_lineage <- function(ledger) {
+.ucl_out_validate_ledger_lineage <- function(ledger, allow_outcome_only = FALSE) {
   table <- .ucl_out_table(ledger)
   if (is.null(table) || !nrow(table)) return(list(valid = TRUE, errors = character()))
   available <- if ("forecast_status" %in% names(table)) {
     as.character(table$forecast_status) %in% c("available", "eligible", "eligible_fixture", "eligible_production", "forecast_available")
   } else rep(TRUE, nrow(table))
   errors <- character()
+  if (!any(available) && isTRUE(allow_outcome_only)) return(list(valid = TRUE, errors = character()))
   one_identity <- function(field, required = FALSE) {
     if (!field %in% names(table)) return(if (required) "missing" else character())
     values <- as.character(table[[field]][available])
@@ -290,8 +291,10 @@
   list(valid = !length(errors), errors = unique(errors))
 }
 
-.ucl_out_validate_artifact_tables <- function(artifacts, graph = NULL, rules = NULL, simulation = NULL) {
+.ucl_out_validate_artifact_tables <- function(artifacts, graph = NULL, rules = NULL, simulation = NULL, production_authority = NULL) {
   errors <- character()
+  allow_production <- !is.null(production_authority) && exists(".ucl_live_full_simulation_authority", mode = "function") &&
+    isTRUE(.ucl_live_full_simulation_authority(production_authority, graph, rules, simulation))
   if (!is.list(artifacts) || !identical(sort(names(artifacts), method = "radix"), sort(.ucl_out_inventory, method = "radix"))) return(list(valid = FALSE, errors = "artifact_inventory"))
   for (name in .ucl_out_inventory[.ucl_out_inventory != "outcomes_manifest"]) {
     table <- artifacts[[name]]
@@ -310,7 +313,8 @@
   if (is.data.frame(artifacts$simulation_metadata) && nrow(artifacts$simulation_metadata) == 1L) {
     metadata <- artifacts$simulation_metadata
     if (is.na(metadata$run_id[[1L]]) || !nzchar(as.character(metadata$run_id[[1L]])) || is.na(metadata$source_bundle_id[[1L]]) || !nzchar(as.character(metadata$source_bundle_id[[1L]])) || is.na(metadata$ruleset_sha256[[1L]]) || !grepl("^[0-9a-f]{64}$", as.character(metadata$ruleset_sha256[[1L]]))) errors <- c(errors, "metadata_lineage")
-    if (is.na(metadata$production_eligible[[1L]]) || isTRUE(as.logical(metadata$production_eligible[[1L]]))) errors <- c(errors, "production_promotion")
+    if (is.na(metadata$production_eligible[[1L]]) ||
+        !identical(as.logical(metadata$production_eligible[[1L]]), allow_production)) errors <- c(errors, "production_promotion")
   }
   if (is.data.frame(artifacts$league_schedule) && is.data.frame(artifacts$fixture_forecast_ledger) && nrow(artifacts$league_schedule) == 144L && nrow(artifacts$fixture_forecast_ledger) == 144L && !identical(sort(as.character(artifacts$league_schedule$fixture_id)), sort(as.character(artifacts$fixture_forecast_ledger$fixture_id)))) errors <- c(errors, "forecast_fixture_coverage")
   manifest_check <- .ucl_out_validate_manifest(artifacts$outcomes_manifest, graph = graph)
@@ -333,7 +337,7 @@
       }
     }
     manifest_production <- suppressWarnings(as.logical(artifacts$outcomes_manifest$production_eligible))
-    if (any(is.na(manifest_production) | manifest_production)) errors <- c(errors, "manifest_production_promotion")
+    if (any(is.na(manifest_production) | manifest_production != allow_production)) errors <- c(errors, "manifest_production_promotion")
   }
   if (is.data.frame(artifacts$outcomes_manifest) && is.data.frame(artifacts$simulation_metadata) && nrow(artifacts$simulation_metadata) == 1L) {
     manifest_runs <- as.character(artifacts$outcomes_manifest$run_id)
@@ -348,7 +352,7 @@
   list(valid = !length(errors), errors = unique(errors))
 }
 
-.ucl_out_build_manifest <- function(artifacts, graph, simulation, metadata, fixture_authority = TRUE) {
+.ucl_out_build_manifest <- function(artifacts, graph, simulation, metadata, fixture_authority = TRUE, production_eligible = FALSE) {
   fields <- .ucl_out_schemas$outcomes_manifest
   run_id <- as.character(metadata$run_id[[1L]] %||% NA_character_)
   edition_id <- as.character(metadata$edition_id[[1L]] %||% graph$edition_id)
@@ -357,7 +361,7 @@
   if (!grepl("^[0-9a-f]{64}$", parent_hash)) parent_hash <- .ucl_out_hash(parent_hash)
   manifest_id <- paste0("ucl-outcomes-", substr(.ucl_out_hash(c(edition_id, run_id)), 1L, 16L))
   rows <- lapply(.ucl_out_inventory, function(name) {
-    data.frame(manifest_id = manifest_id, edition_id = edition_id, run_id = run_id, artifact_path = paste0(name, ".csv"), artifact_schema_version = "ucl-outcome-candidate-v2", artifact_sha256 = if (name == "outcomes_manifest") "" else .ucl_out_artifact_hash(artifacts[[name]]), parent_id = parent_id, parent_sha256 = parent_hash, authority_mode = if (fixture_authority) "fixture" else "production", production_eligible = FALSE, information_cutoff_utc = as.character(metadata$information_cutoff_utc[[1L]] %||% NA_character_), canonical_hash_version = "ucl-canonical-v2", manifest_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE)
+    data.frame(manifest_id = manifest_id, edition_id = edition_id, run_id = run_id, artifact_path = paste0(name, ".csv"), artifact_schema_version = "ucl-outcome-candidate-v2", artifact_sha256 = if (name == "outcomes_manifest") "" else .ucl_out_artifact_hash(artifacts[[name]]), parent_id = parent_id, parent_sha256 = parent_hash, authority_mode = if (fixture_authority) "fixture" else "production", production_eligible = !fixture_authority && isTRUE(production_eligible), information_cutoff_utc = as.character(metadata$information_cutoff_utc[[1L]] %||% NA_character_), canonical_hash_version = "ucl-canonical-v2", manifest_sha256 = "", stringsAsFactors = FALSE, check.names = FALSE)
   })
   manifest <- do.call(rbind, rows)
   self <- match("outcomes_manifest.csv", as.character(manifest$artifact_path))
@@ -540,9 +544,9 @@
   fields <- c("run_id", "edition_id", "source_bundle_id", "ruleset_version", "ruleset_sha256", "model_release_id", "model_sha256", "calibrator_sha256", "draw_policy_id", "draw_artifact_id", "draw_artifact_sha256", "information_cutoff_utc", "algorithm_version", "simulation_count", "seed", "path_policy_id", "path_policy_count", "authority_mode", "production_eligible", "status", "run_sha256")
   metadata <- if (is.list(simulation)) simulation$metadata else list()
   table <- .ucl_out_table(ledger)
-  release_id <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$model_release_id))) else NA_character_
-  model_hash <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$model_sha256))) else NA_character_
-  calibrator_hash <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$calibrator_sha256))) else NA_character_
+  release_id <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$model_release_id)), .ucl_out_first(metadata$model_release_id)) else .ucl_out_first(metadata$model_release_id)
+  model_hash <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$model_sha256)), .ucl_out_first(metadata$model_sha256)) else .ucl_out_first(metadata$model_sha256)
+  calibrator_hash <- if (is.data.frame(table) && nrow(table)) .ucl_out_first(unique(as.character(table$calibrator_sha256)), .ucl_out_first(metadata$calibrator_sha256)) else .ucl_out_first(metadata$calibrator_sha256)
   data <- data.frame(
     run_id = as.character(.ucl_out_first(metadata$run_id %||% if (is.list(simulation)) simulation$run_id else NULL)),
     edition_id = as.character(.ucl_out_first(metadata$edition_id %||% graph$edition_id)),
@@ -614,7 +618,9 @@
     ucl_validate_progression_reconciliation(
       progression, stage_inputs = inventory,
       league_bands = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L),
-      required_stage_ids = required
+      required_stage_ids = required,
+      probability_totals = c(direct_round_of_16 = 8L, knockout_play_off = 16L, eliminated = 12L,
+        round_of_16 = 16L, quarter_final = 8L, semi_final = 4L, final = 2L, champion = 1L)
     )
   } else list(valid = FALSE, errors = "progression_validator_missing")
   if (!isTRUE(reconciliation$valid)) errors <- c(errors, reconciliation$errors)
@@ -701,12 +707,22 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   fixture_authority <- isTRUE(graph$fixture_authority) || identical(as.character(graph$authority_mode), "fixture") || isTRUE(candidate$fixture_authority)
   authority <- if (is.list(candidate$ledger)) candidate$ledger$authority else NULL
   parent <- .ucl_out_parent_reason(authority, candidate)
+  full_live_authority <- !fixture_authority && exists(".ucl_live_full_simulation_authority", mode = "function") &&
+    isTRUE(.ucl_live_full_simulation_authority(ledger_object, graph, rules, simulation))
+  if (full_live_authority) {
+    metadata$production_eligible <- TRUE
+    metadata$run_sha256 <- .ucl_out_canonical_hash(metadata[, setdiff(names(metadata), "run_sha256"), drop = FALSE])
+  }
   expected_artifacts <- list(competition_topology = topology, league_schedule = schedule, tie_break_trace = trace, projected_standings = standings, projected_rankings = rankings, knockout_paths = paths, progression_probabilities = progression, fixture_forecast_ledger = forecasts, simulation_metadata = metadata)
-  expected_artifacts$outcomes_manifest <- .ucl_out_build_manifest(expected_artifacts, graph, simulation_for_metadata, metadata, fixture_authority = fixture_authority)
+  expected_artifacts$outcomes_manifest <- .ucl_out_build_manifest(expected_artifacts, graph, simulation_for_metadata, metadata,
+    fixture_authority = fixture_authority, production_eligible = full_live_authority)
   supplied <- is.list(candidate$artifacts) && length(candidate$artifacts)
   failures <- character()
   if (!isTRUE(cutoff$valid)) failures <- c(failures, cutoff$reason)
-  lineage_check <- .ucl_out_validate_ledger_lineage(ledger)
+  outcome_only <- !is.null(ledger_object) && all(.ucl_state_status_completed(graph$fixtures$match_status)) &&
+    ((isTRUE(graph$fixture_authority) && isTRUE(.ucl_sim_validate_ledger(ledger_object, graph, cutoff$value)$valid)) ||
+      (exists(".ucl_live_verify_simulation_ledger", mode = "function") && .ucl_live_verify_simulation_ledger(ledger_object, graph)))
+  lineage_check <- .ucl_out_validate_ledger_lineage(ledger, allow_outcome_only = outcome_only)
   if (!isTRUE(lineage_check$valid)) failures <- c(failures, lineage_check$errors)
   component_binding <- .ucl_out_validate_component_binding(candidate, graph, state, ledger_object, ledger, simulation)
   failures <- c(failures, component_binding)
@@ -727,7 +743,8 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   } else {
     artifacts <- expected_artifacts
   }
-  table_check <- .ucl_out_validate_artifact_tables(artifacts, graph = graph, rules = rules, simulation = simulation)
+  table_check <- .ucl_out_validate_artifact_tables(artifacts, graph = graph, rules = rules, simulation = simulation,
+    production_authority = if (full_live_authority) ledger_object else NULL)
   if (!isTRUE(table_check$valid)) failures <- c(failures, table_check$errors)
   if (nrow(topology) != 36L || nrow(schedule) != 144L) failures <- c(failures, "topology_or_schedule_cardinality")
   if (nrow(forecasts) != 144L) failures <- c(failures, "forecast_ledger_cardinality")
@@ -741,6 +758,7 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   stage_check <- .ucl_out_validate_stage_events(stage_events, rules)
   if (!isTRUE(stage_check$valid)) failures <- c(failures, stage_check$errors)
   status <- if (length(failures)) "production_blocked" else if (draw_unresolved) "unresolved_draw_procedure" else if (fixture_authority) "mechanics_complete" else parent$status
+  if (!length(failures) && full_live_authority) status <- "production_ready"
   if (!fixture_authority && status == "mechanics_complete") status <- parent$status
   artifact_hashes <- vapply(artifacts, .ucl_out_canonical_hash, character(1))
   unresolved_reason <- if (draw_unresolved) unique(as.character(paths_for_events$unresolved_reason)) else character()
@@ -748,6 +766,12 @@ ucl_validate_outcome_candidate <- function(candidate, rules = NULL, information_
   if (!length(unresolved_reason) && draw_unresolved) unresolved_reason <- "missing_edition_draw_procedure"
   result <- list(valid = !length(failures), status = status, failures = unique(failures), warnings = character(), skips = character(), unexpected_failures = character(), mechanics_complete = !length(failures), production_eligible = FALSE, fixture_authority = fixture_authority, authority_mode = if (fixture_authority) "fixture" else parent$status, original_parent_reason = parent$original_parent_reason, human_needed = identical(parent$status, "production_human_needed"), human_needed_reason = parent$human_needed_reason, production_blocked_reason = if (identical(status, "production_blocked")) parent$production_blocked_reason else NA_character_, normalization_error = parent$normalization_error, unresolved = unresolved_reason, selector_changed = FALSE, incumbent_changed = FALSE, edition_id = graph$edition_id, source_bundle_id = graph$source_bundle_id, ruleset_version = rules$ruleset_version, ruleset_sha256 = rules$ruleset_sha256, model_release_id = metadata$model_release_id, model_sha256 = metadata$model_sha256, calibrator_sha256 = metadata$calibrator_sha256, draw_policy_id = metadata$draw_policy_id, draw_artifact_id = metadata$draw_artifact_id, draw_artifact_sha256 = metadata$draw_artifact_sha256, information_cutoff_utc = metadata$information_cutoff_utc, simulation_run_id = simulation$run_id %||% NA_character_, simulation_count = metadata$simulation_count, seed = metadata$seed, artifact_hashes = artifact_hashes, artifacts = artifacts, stage_events = stage_events, stage_reconciliation = stage_check$aggregate, progression_reconciliation = reconciliation)
   class(result) <- c("ucl_outcome_candidate", "list")
+  result$production_eligible <- !length(failures) && full_live_authority
+  if (result$production_eligible) {
+    result$authority_mode <- "production"
+    result$normalization_error <- FALSE
+    result$production_blocked_reason <- NA_character_
+  }
   result
 }
 
@@ -844,6 +868,8 @@ phase20_result_contract <- function(status = "mechanics_complete", exit_code = 0
 #' Verify the zero-failure typed result contract.
 phase20_verify_contracts <- function(result) {
   if (!is.list(result)) return(FALSE)
+  if (identical(result$schema_version, "ucl-live-production-result-v1") &&
+      exists("ucl_live_validate_result", mode = "function")) return(ucl_live_validate_result(result))
   allowed <- c("mechanics_complete", "production_human_needed", "production_blocked", "unresolved_draw_procedure", "unexpected_failure")
   if (!identical(as.character(result$status), result$status) || !result$status %in% allowed) return(FALSE)
   if (identical(result$status, "unexpected_failure")) {
@@ -997,6 +1023,10 @@ phase20_verify_contracts <- function(result) {
 #' Build the fixed production outcome contract or a mechanics-only fixture candidate.
 ucl20_build_outcomes <- function(graph = NULL, release = NULL, simulations = 1L, seed = 20260921L, draw_artifact = NULL, information_cutoff_utc = NULL, write = FALSE, output_root = NULL) {
   if (is.null(graph)) {
+    if (exists("ucl20_build_live_outcomes", mode = "function")) {
+      if (!is.null(output_root)) return(.ucl_out_blocked_result("production_output_root_is_fixed", information_cutoff_utc = information_cutoff_utc))
+      return(ucl20_build_live_outcomes(simulations, seed, information_cutoff_utc, write))
+    }
     authority <- .ucl_out_production_authority()
     if (!is.null(authority$error)) {
       parent <- .ucl_out_parent_reason(list(original_parent_reason = authority$error))

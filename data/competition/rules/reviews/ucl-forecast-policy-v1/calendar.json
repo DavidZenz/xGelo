@@ -1,0 +1,84 @@
+{
+  "schema_version": "ucl-future-calendar-v1",
+  "edition_id": "ucl_2026_27",
+  "evidence_status": "transcribed_official_annex_c",
+  "source_url": "https://documents.uefa.com/r/Regulations-of-the-UEFA-Champions-League-2026/27/Annex-C-2026/27-UEFA-Match-Calendar-Online",
+  "raw_sha256": "3e8b02e9813b45d050fa463202c715b40928f3bfc4e8eb3546d3c04482cc528c",
+  "raw_artifact_url": "https://documents.uefa.com/api/khub/maps/TgUbiDSFke4HkEO0YzKgMg/resources/1HFvFsR8G8pILtEe~ZkdHw-TgUbiDSFke4HkEO0YzKgMg/content?v=6d4e0ee25130ea9be777b5e6cadc887755a871cb4059464e2b80b48dbc623a35",
+  "evidence_available_at_utc": "2026-11-05T19:33:25Z",
+  "time_semantics": "earliest_calendar_date_at_00_UTC_bound_not_official_kickoff",
+  "slots": [
+    {
+      "slot_id": "knockout_play_off_1",
+      "stage_id": "knockout_play_off",
+      "leg_number": 1,
+      "kickoff_lower_bound_utc": "2027-02-16T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "knockout_play_off_2",
+      "stage_id": "knockout_play_off",
+      "leg_number": 2,
+      "kickoff_lower_bound_utc": "2027-02-23T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "round_of_16_1",
+      "stage_id": "round_of_16",
+      "leg_number": 1,
+      "kickoff_lower_bound_utc": "2027-03-09T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "round_of_16_2",
+      "stage_id": "round_of_16",
+      "leg_number": 2,
+      "kickoff_lower_bound_utc": "2027-03-16T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "quarter_final_1",
+      "stage_id": "quarter_final",
+      "leg_number": 1,
+      "kickoff_lower_bound_utc": "2027-04-06T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "quarter_final_2",
+      "stage_id": "quarter_final",
+      "leg_number": 2,
+      "kickoff_lower_bound_utc": "2027-04-13T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "semi_final_1",
+      "stage_id": "semi_final",
+      "leg_number": 1,
+      "kickoff_lower_bound_utc": "2027-04-27T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "semi_final_2",
+      "stage_id": "semi_final",
+      "leg_number": 2,
+      "kickoff_lower_bound_utc": "2027-05-04T00:00:00Z",
+      "neutral": false,
+      "venue_context": "dynamic_conditional_home_designation_not_stadium"
+    },
+    {
+      "slot_id": "final_1",
+      "stage_id": "final",
+      "leg_number": 1,
+      "kickoff_lower_bound_utc": "2027-06-05T00:00:00Z",
+      "neutral": true,
+      "venue_context": "regulatory_neutral_final_not_stadium"
+    }
+  ]
+}

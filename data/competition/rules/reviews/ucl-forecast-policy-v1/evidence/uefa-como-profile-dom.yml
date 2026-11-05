@@ -1,0 +1,106 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e2]:
+    - button "navigation close icon" [ref=f8e4] [cursor=pointer]:
+      - generic:
+        - img "navigation close icon"
+    - generic [ref=f8e7]:
+      - generic [ref=f8e8]: Champions League Official
+      - generic [ref=f8e9]: Live football scores & Fantasy
+    - generic "Get" [ref=f8e10]:
+      - button "Get" [ref=f8e11] [cursor=pointer]
+  - generic [ref=f8e12]:
+    - link "Skip to main content" [ref=f8e13] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f8e14]:
+      - generic [ref=f8e16]:
+        - 'button "Image: UEFA.COM navigation dropdown indicator icon" [ref=f8e18] [cursor=pointer]':
+          - generic:
+            - 'img "Image: UEFA.COM" [ref=f8e19]'
+            - img "navigation dropdown indicator icon"
+        - generic [ref=f8e22]:
+          - generic [ref=f8e23]:
+            - generic [ref=f8e24]
+            - generic [ref=f8e70]
+          - generic [ref=f8e110]:
+            - generic [ref=f8e111]: UEFA competitions
+            - generic [ref=f8e112]
+            - generic [ref=f8e157]
+            - generic [ref=f8e195]
+            - generic [ref=f8e254]
+            - generic [ref=f8e278]
+        - generic [ref=f8e331]:
+          - button "Log in login" [ref=f8e333] [cursor=pointer]:
+            - generic
+          - button "close" [ref=f8e337] [cursor=pointer]:
+            - generic
+    - generic [ref=f8e339]:
+      - navigation "Main navigation" [ref=f8e342]:
+        - link "UEFA Champions League" [ref=f8e343] [cursor=pointer]:
+          - /url: /uefachampionsleague/
+        - menu [ref=f8e345]:
+          - menuitem "Matches" [ref=f8e346]:
+            - link "Matches" [ref=f8e347]
+          - menuitem "Table" [ref=f8e351]:
+            - link "Table" [ref=f8e352]
+          - menuitem "UEFA.tv" [ref=f8e356]:
+            - link "UEFA.tv" [ref=f8e357]
+          - menuitem "Draws" [ref=f8e361]:
+            - link "Draws" [ref=f8e362]
+          - menuitem [ref=f8e366]:
+            - button "Gaming" [ref=f8e367] [cursor=pointer]
+          - menuitem [ref=f8e378]:
+            - button "Stats" [ref=f8e379] [cursor=pointer]
+          - menuitem "Teams" [ref=f8e390]:
+            - link "Teams" [ref=f8e391]
+          - menuitem "News" [ref=f8e395]:
+            - link "News" [ref=f8e396]
+          - menuitem [ref=f8e400]:
+            - button "History" [ref=f8e401] [cursor=pointer]
+          - menuitem "About" [ref=f8e412]:
+            - link "About" [ref=f8e413]
+          - menuitem "Store (clubs)" [ref=f8e417]:
+            - link "Store (clubs)" [ref=f8e418]
+      - generic [ref=f8e422]:
+        - region [ref=f8e423]:
+          - generic [ref=f8e426]:
+            - link "Go back button" [ref=f8e428]
+            - heading "Como 1907 UEFA Champions League 2026/27" [level=1]
+            - generic [ref=f8e431]
+            - generic [ref=f8e1491]
+        - region [ref=f8e452]:
+          - tablist [ref=f8e458]:
+            - tab "Overview" [ref=f8e460]
+            - tab "Matches" [ref=f8e463]
+            - tab "Table" [ref=f8e466]
+            - tab "Stats" [ref=f8e469]
+            - tab "Squad" [ref=f8e472]
+            - tab "Domestic" [ref=f8e475]
+      - generic [ref=f8e477]:
+        - region [ref=f8e480]:
+          - iframe [ref=f8e1520]:
+            - generic [ref=f16e1]:
+              - generic [ref=f16e2] [cursor=pointer]
+              - button [ref=f16e9] [cursor=pointer]
+              - iframe [ref=f16e20]
+          - generic [ref=f8e485]:
+            - generic
+          - generic [ref=f8e680]:
+            - generic
+          - generic [ref=f8e809]:
+            - generic [ref=f8e810]
+            - generic [ref=f8e818]
+          - generic [ref=f8e1076]:
+            - generic [ref=f8e1077]
+            - generic [ref=f8e1085]
+            - link "See full squad" [ref=f8e1352] [cursor=pointer]:
+              - /url: /uefachampionsleague/clubs/79946--como/squad/
+          - heading "Features" [level=2] [ref=f8e1355]
+        - region [ref=f8e1362]
+      - contentinfo [ref=f8e1363]:
+        - generic [ref=f8e1365]:
+          - generic [ref=f8e1366]:
+            - generic [ref=f8e1368]
+            - generic [ref=f8e1410]
+          - generic [ref=f8e1473]:
+            - generic [ref=f8e1478]
+            - generic [ref=f8e1488]

@@ -82,6 +82,30 @@ phase20_sim_review_draw <- function(source_bundle_id = phase20_test_source_bundl
   artifact
 }
 
+test_that("live feature evidence may equal run cutoff but never follow it or kickoff", {
+  graph <- phase20_fixture_graph_36x144()
+  cutoff <- "2026-09-01T00:00:00Z"
+  ledger <- phase20_sim_review_ledger(graph, cutoff)
+  ledger$ledger$feature_cutoff_utc <- cutoff
+  refresh_hashes <- function(x) {
+    x$ledger$row_sha256 <- vapply(seq_len(nrow(x$ledger)), function(i)
+      .ucl_sim_canonical_row_hash(x$ledger[i, , drop = FALSE], schema_tag = "ucl20-forecast-ledger-row-v1"), character(1))
+    x$table_sha256 <- .ucl_sim_canonical_table_hash(x$ledger, key = "fixture_id", schema_tag = "ucl20-forecast-ledger-v1")
+    x$graph_sha256 <- .ucl_sim_graph_content_hash(graph)
+    x
+  }
+  ledger <- refresh_hashes(ledger)
+  expect_true(.ucl_sim_validate_ledger(ledger, graph, cutoff)$valid)
+  sampled <- .ucl_sample_open_fixtures(graph$fixtures, ledger, seed = 7L, cutoff_utc = cutoff)
+  expect_length(sampled$suppressed_fixture_ids, 0L)
+  future <- ledger
+  future$ledger$feature_cutoff_utc[[1L]] <- "2026-09-01T00:00:01Z"
+  future <- refresh_hashes(future)
+  expect_identical(.ucl_sim_validate_ledger(future, graph, cutoff)$reason, "ledger_cutoff_invalid")
+  sampled <- .ucl_sample_open_fixtures(graph$fixtures, future, seed = 7L, cutoff_utc = cutoff)
+  expect_true("feature_after_information_cutoff" %in% sampled$records$suppression_reason)
+})
+
 test_that("CR-02 accepts only complete same-edition draw content and recomputed hashes", {
   draw <- phase20_sim_review_draw()
   expect_identical(ucl_validate_draw_artifact(draw, source_bundle_id = phase20_test_source_bundle_id)$status, "accepted")

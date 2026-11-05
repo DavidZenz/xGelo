@@ -1,0 +1,15 @@
+{
+  "schema_version": "ucl-unconditioned-regulations-prior-v1",
+  "edition_id": "ucl_2026_27",
+  "forecast_scope": "unconditioned_regulations_prior",
+  "law": "twelve_independent_pair_orientations_half_v1",
+  "regulations_canonical_sha256": "28a68c384fe59296f8e7994b57e330ebb23d87a52cc27a243ed0136c4bd16d16",
+  "template_raw_sha256": "d4592de4d76c21db70cfc192c081186d5315882787a6cd70ba13ad671e1827cf",
+  "official_procedure_claimed": false,
+  "observed_draw_claimed": false,
+  "future_tie_policy": "exchangeable_final_disciplinary_weak_order_v1",
+  "factual_completed_league_prior_allowed": false,
+  "known_coefficients_required": true,
+  "administrative_restrictions_conditioned": false,
+  "model_uncertainty_included": false
+}

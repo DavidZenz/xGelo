@@ -1,0 +1,163 @@
+{
+  "source_page": "https://www.uefa.com/nationalassociations/uefarankings/club/?year=2026",
+  "observed_at_utc": "2026-11-05T20:09:59.311821+00:00",
+  "method": "Manual official historical page, exact observed successful browser response bodies; no guessed requests",
+  "scope": "fixed preseason2026/27 coefficient evidence, not an automated match-state source",
+  "approval": "not_reviewed",
+  "pages": [
+    {
+      "page": 1,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=1&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page1.json",
+      "sha256": "3e5fc973a892c17d08d3ad0613a0e62b5ab95e368442d3f923b28a77cce98b6a",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 2,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=2&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page2.json",
+      "sha256": "2120ee91e916707cd38ddf2f64a1fc2099a45ada836ec4c43fde7519232ef1cb",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 3,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=3&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page3.json",
+      "sha256": "db89a8313181c82672cc0f52822c7bceee695713f0f751057d890770feaa49b3",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 4,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=4&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page4.json",
+      "sha256": "2080d9a7c1cb2b526c8be60c8d42876eb8cea152fd4bf95208dc9d322af05b80",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 5,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=5&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page5.json",
+      "sha256": "a68614817e1896dd5c33749cb50c18b0d027200c41a9939d2104c9020a0ed507",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 6,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=6&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page6.json",
+      "sha256": "2ac3db43023a7e30feac2d472c49db47a19137dfdd1e9a9fa2a7d0420115f927",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 7,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=7&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page7.json",
+      "sha256": "6336af9649e487b2760451bf38a1246d4c24ff6c9a115f0f3095f77661c812fc",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 8,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=8&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page8.json",
+      "sha256": "9805e572ce68f4fcf18663a52d9532d09ef05f76060bf72beb42542ed3ad1d10",
+      "member_count": 50,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    },
+    {
+      "page": 9,
+      "url": "https://comp.uefa.com/v2/coefficients?coefficientRange=OVERALL&coefficientType=MEN_CLUB&language=EN&page=9&pagesize=50&seasonYear=2026",
+      "file": "logs/competition-refresh/uefa-coefficients-2026-page9.json",
+      "sha256": "a9dcbc555692ef993c5d91509df323dbdcdb2a66e04d1cfc4cf7922429e4800e",
+      "member_count": 15,
+      "last_update": "2026-07-03T14:22:35+0000",
+      "windows": [
+        [
+          2022,
+          2026
+        ]
+      ]
+    }
+  ],
+  "total_members": 415,
+  "unique_club_ids": 415,
+  "supplemental_evidence": [
+    {
+      "path": "logs/competition-refresh/uefa-coefficients-2026-dom.yml",
+      "sha256": "ba30985c17b24c401f1d188def3599b36a8bd6c6de77389d822be7cc44e680b0"
+    },
+    {
+      "path": "logs/competition-refresh/uefa-coefficients-2026-page.png",
+      "sha256": "255c4f122ab031dcc409a7a531fe7901a01c29501294d33399691f281ab8d90c"
+    },
+    {
+      "path": "logs/competition-refresh/uefa-como-profile-dom.yml",
+      "sha256": "8e28f0f2a98ee6fedfd514041b889f6771cacff94f27d8f5a80f31d4a6a79539"
+    },
+    {
+      "path": "logs/competition-refresh/uefa-como-profile-text.json",
+      "sha256": "e6d722c9bbf065ac41d7dbf0f6cbc31835f3e6fbdd2562838b3e19805310c104"
+    },
+    {
+      "path": "logs/competition-refresh/uefa-como-debut-evidence.json",
+      "sha256": "284e1aa6c831b409f8271487b720f66836dca8b11ed26fba716a73acbae53fc0"
+    },
+    {
+      "path": "logs/competition-refresh/uefa-como-debut-page.png",
+      "sha256": "6caa14e2e1c9e44fd79f5565c6dd4df2fd425b9b578b4d378d9dea0a6e5f6388"
+    }
+  ]
+}

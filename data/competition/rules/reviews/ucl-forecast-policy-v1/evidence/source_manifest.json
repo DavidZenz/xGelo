@@ -1,0 +1,29 @@
+[
+  {
+    "name": "annex_b_system",
+    "source_url": "https://documents.uefa.com/api/khub/maps/TgUbiDSFke4HkEO0YzKgMg/resources/1ahC54UMFyqHyEb59dVrGA-TgUbiDSFke4HkEO0YzKgMg/content?v=e17eb90ac59dd9fdd3b19c4bb5a55040e25fb416ca6075eb9e03b1ee3f7d19e3",
+    "content_type": "image/jpeg",
+    "bytes": 543284,
+    "raw_sha256": "7749fcfaddbcf08f2fe28ebfe314236b07853a8f3c729e901c687f49e3612521",
+    "private_path": "/private/tmp/xgelo-cl9-future-forecast/evidence/annex_b_system.jpg",
+    "review_state": "unreviewed"
+  },
+  {
+    "name": "annex_b_bracket",
+    "source_url": "https://documents.uefa.com/api/khub/maps/TgUbiDSFke4HkEO0YzKgMg/resources/P2qwCS~Lx_pvOTot0pCd_Q-TgUbiDSFke4HkEO0YzKgMg/content?v=82e821565fc91ca34d881414e8274d69bb03a762b7f8a070cfa0d2494b997184",
+    "content_type": "image/png",
+    "bytes": 279833,
+    "raw_sha256": "d4592de4d76c21db70cfc192c081186d5315882787a6cd70ba13ad671e1827cf",
+    "private_path": "/private/tmp/xgelo-cl9-future-forecast/evidence/annex_b_bracket.png",
+    "review_state": "unreviewed"
+  },
+  {
+    "name": "annex_c_calendar",
+    "source_url": "https://documents.uefa.com/api/khub/maps/TgUbiDSFke4HkEO0YzKgMg/resources/1HFvFsR8G8pILtEe~ZkdHw-TgUbiDSFke4HkEO0YzKgMg/content?v=6d4e0ee25130ea9be777b5e6cadc887755a871cb4059464e2b80b48dbc623a35",
+    "content_type": "image/png",
+    "bytes": 626463,
+    "raw_sha256": "3e8b02e9813b45d050fa463202c715b40928f3bfc4e8eb3546d3c04482cc528c",
+    "private_path": "/private/tmp/xgelo-cl9-future-forecast/evidence/annex_c_calendar.png",
+    "review_state": "unreviewed"
+  }
+]

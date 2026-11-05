@@ -1,0 +1,7 @@
+{
+  "edition_id": "ucl_2026_27",
+  "accepted_sidecar_sha256": "5a77b6b5a7c97d35a8afa49d35e120ccba880a833b31b2f022e667a3291ffbf8",
+  "accepted_sidecar_path": "data/competition/rules/ucl_2026_27_rules_and_draw_evidence.json",
+  "draw_procedure_remains_unresolved": true,
+  "note": "Reference existing accepted factual rules; this package does not edit or reapprove old evidence."
+}

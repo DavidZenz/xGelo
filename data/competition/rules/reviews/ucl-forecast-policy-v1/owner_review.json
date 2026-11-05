@@ -1,0 +1,10 @@
+{
+  "schema_version": "ucl-forecast-policy-owner-review-v1",
+  "policy_id": "ucl-conditional-tournament-forecast-v1",
+  "decision": "pending",
+  "approval_basis": null,
+  "reviewer": null,
+  "reviewed_at_utc": null,
+  "review_manifest_sha256": "bc62459a23f7516c9f74d0df945cb6baf12b388ddef86189eb2cc291a77cd9d2",
+  "note": "Only an explicit owner decision on this exact consolidated package can approve these assumptions. Current venue release remains tournament-ineligible."
+}

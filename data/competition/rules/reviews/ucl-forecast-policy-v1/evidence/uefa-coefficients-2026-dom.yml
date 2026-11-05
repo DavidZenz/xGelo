@@ -1,0 +1,716 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e29]:
+    - link "Skip to main content" [ref=f2e30] [cursor=pointer]:
+      - /url: "#main-content"
+    - banner [ref=f2e31]:
+      - generic [ref=f2e316]:
+        - generic [ref=f2e317]:
+          - generic [ref=f2e318]:
+            - link "Live scores" [ref=f2e1042] [cursor=pointer]:
+              - /url: /match-calendar/
+            - generic [ref=f2e320]:
+              - link "UEFA Europa League" [ref=f2e321] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/14/
+                - img "UEFA Europa League" [ref=f2e322]
+                - generic [ref=f2e323]: "9"
+              - generic [aria-hidden]:
+                - generic: UEFA Europa League
+            - generic [ref=f2e326]:
+              - link "UEFA Conference League" [ref=f2e327] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2019/
+                - img "UEFA Conference League" [ref=f2e328]
+                - generic [ref=f2e329]: "9"
+              - generic [aria-hidden]:
+                - generic: UEFA Conference League
+            - generic [ref=f2e332]:
+              - link "UEFA Champions League" [ref=f2e333] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/1/
+                - img "UEFA Champions League" [ref=f2e334]
+              - generic [aria-hidden]:
+                - generic: UEFA Champions League
+            - generic [ref=f2e336]:
+              - link "UEFA European Women's Under-17 Championship" [ref=f2e337] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/101/
+                - img "UEFA European Women's Under-17 Championship" [ref=f2e338]
+              - generic [aria-hidden]:
+                - generic: UEFA European Women's Under-17 Championship
+            - generic [ref=f2e340]:
+              - link "FIFA Futsal World Cup" [ref=f2e341] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/38/
+                - img "FIFA Futsal World Cup" [ref=f2e342]
+              - generic [aria-hidden]:
+                - generic: FIFA Futsal World Cup
+            - generic [ref=f2e344]:
+              - link "Futsal Finalissima" [ref=f2e345] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2022/
+                - img "Futsal Finalissima" [ref=f2e346]
+              - generic [aria-hidden]:
+                - generic: Futsal Finalissima
+            - generic [ref=f2e348]:
+              - link "UEFA Women's Nations League" [ref=f2e349] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/18/?phase=PREQUALIFYING
+                - img "UEFA Women's Nations League" [ref=f2e350]
+              - generic [aria-hidden]:
+                - generic: UEFA Women's Nations League
+            - generic [ref=f2e352]:
+              - link "UEFA Regions' Cup" [ref=f2e353] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/22/
+                - img "UEFA Regions' Cup" [ref=f2e354]
+              - generic [aria-hidden]:
+                - generic: UEFA Regions' Cup
+            - generic [ref=f2e356]:
+              - link "UEFA Youth League" [ref=f2e357] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2008/
+                - img "UEFA Youth League" [ref=f2e358]
+              - generic [aria-hidden]:
+                - generic: UEFA Youth League
+            - generic [ref=f2e360]:
+              - link "UEFA Women's Champions League" [ref=f2e361] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/28/
+                - img "UEFA Women's Champions League" [ref=f2e362]
+              - generic [aria-hidden]:
+                - generic: UEFA Women's Champions League
+            - generic [ref=f2e364]:
+              - link "UEFA Women's Europa Cup" [ref=f2e365] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2027/
+                - img "UEFA Women's Europa Cup" [ref=f2e366]
+              - generic [aria-hidden]:
+                - generic: UEFA Women's Europa Cup
+            - generic [ref=f2e368]:
+              - link "UEFA Women's EURO" [ref=f2e369] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/18/?phase=TOURNAMENT
+                - img "UEFA Women's EURO" [ref=f2e370]
+              - generic [aria-hidden]:
+                - generic: UEFA Women's EURO
+            - generic [ref=f2e372]:
+              - link "UEFA Futsal Champions League" [ref=f2e373] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/27/
+                - img "UEFA Futsal Champions League" [ref=f2e374]
+              - generic [aria-hidden]:
+                - generic: UEFA Futsal Champions League
+            - generic [ref=f2e376]:
+              - link "UEFA European Under-19 Championship" [ref=f2e377] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/24/
+                - img "UEFA European Under-19 Championship" [ref=f2e378]
+              - generic [aria-hidden]:
+                - generic: UEFA European Under-19 Championship
+            - generic [ref=f2e380]:
+              - link "European Qualifiers" [ref=f2e381] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/17/?phase=QUALIFYING
+                - img "European Qualifiers" [ref=f2e382]
+              - generic [aria-hidden]:
+                - generic: European Qualifiers
+            - generic [ref=f2e384]:
+              - link "UEFA Women's Futsal EURO" [ref=f2e385] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2017/
+                - img "UEFA Women's Futsal EURO" [ref=f2e386]
+              - generic [aria-hidden]:
+                - generic: UEFA Women's Futsal EURO
+            - generic [ref=f2e388]:
+              - link "UEFA European Under-19 Futsal Championship" [ref=f2e389] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2018/
+                - img "UEFA European Under-19 Futsal Championship" [ref=f2e390]
+              - generic [aria-hidden]:
+                - generic: UEFA European Under-19 Futsal Championship
+            - generic [ref=f2e392]:
+              - link "Women's European Qualifiers" [ref=f2e393] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/18/?phase=QUALIFYING
+                - img "Women's European Qualifiers" [ref=f2e394]
+              - generic [aria-hidden]:
+                - generic: Women's European Qualifiers
+            - generic [ref=f2e396]:
+              - link "UEFA EURO" [ref=f2e397] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/3/?phase=TOURNAMENT
+                - img "UEFA EURO" [ref=f2e398]
+              - generic [aria-hidden]:
+                - generic: UEFA EURO
+            - generic [ref=f2e400]:
+              - link "UEFA European Under-17 Championship" [ref=f2e401] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/23/
+                - img "UEFA European Under-17 Championship" [ref=f2e402]
+              - generic [aria-hidden]:
+                - generic: UEFA European Under-17 Championship
+            - generic [ref=f2e404]:
+              - link "UEFA Futsal EURO" [ref=f2e405] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/5/
+                - img "UEFA Futsal EURO" [ref=f2e406]
+              - generic [aria-hidden]:
+                - generic: UEFA Futsal EURO
+            - generic [ref=f2e408]:
+              - link "Preparatory Friendly Tournament U19" [ref=f2e409] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/35/
+                - img "Preparatory Friendly Tournament U19" [ref=f2e410]
+              - generic [aria-hidden]:
+                - generic: Preparatory Friendly Tournament U19
+            - generic [ref=f2e412]:
+              - link "Intercontinental U20" [ref=f2e413] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2021/
+                - img "Intercontinental U20" [ref=f2e414]
+              - generic [aria-hidden]:
+                - generic: Intercontinental U20
+            - generic [ref=f2e416]:
+              - link "UEFA European Women's Under-19 Championship" [ref=f2e417] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/25/
+                - img "UEFA European Women's Under-19 Championship" [ref=f2e418]
+              - generic [aria-hidden]:
+                - generic: UEFA European Women's Under-19 Championship
+            - generic [ref=f2e420]:
+              - link "UEFA European Under-21 Championship" [ref=f2e421] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/13/
+                - img "UEFA European Under-21 Championship" [ref=f2e422]
+              - generic [aria-hidden]:
+                - generic: UEFA European Under-21 Championship
+            - generic [ref=f2e424]:
+              - link "Friendly Matches" [ref=f2e425] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/19/
+                - img "Friendly Matches" [ref=f2e426]
+              - generic [aria-hidden]:
+                - generic: Friendly Matches
+            - generic [ref=f2e428]:
+              - link "Women’s Futsal European Qualifiers" [ref=f2e429] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/2026/?phase=QUALIFYING
+                - img "Women’s Futsal European Qualifiers" [ref=f2e430]
+              - generic [aria-hidden]:
+                - generic: Women’s Futsal European Qualifiers
+            - generic [ref=f2e432]:
+              - link "World Cup Women's Nations League" [ref=f2e433] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/39/?phase=PREQUALIFYING
+                - img "World Cup Women's Nations League" [ref=f2e434]
+              - generic [aria-hidden]:
+                - generic: World Cup Women's Nations League
+            - generic [ref=f2e436]:
+              - link "World Cup Women's European Qualifiers" [ref=f2e437] [cursor=pointer]:
+                - /url: /api/v1/linkrules/competition/39/?phase=QUALIFYING
+                - img "World Cup Women's European Qualifiers" [ref=f2e438]
+              - generic [aria-hidden]:
+                - generic: World Cup Women's European Qualifiers
+          - generic [ref=f2e440]:
+            - button "All competitions navigation chevron down icon" [ref=f2e442] [cursor=pointer]:
+              - generic:
+                - generic [ref=f2e443]: All competitions
+                - img "navigation chevron down icon"
+            - generic [ref=f2e446]:
+              - generic [ref=f2e453]:
+                - link "Match calendar" [ref=f2e454] [cursor=pointer]:
+                  - /url: /match-calendar/
+                  - generic [ref=f2e455]:
+                    - img "tab bar matches icon" [ref=f2e456]
+                    - generic [ref=f2e460]: Live
+                - link "Store (national teams)" [ref=f2e462] [cursor=pointer]:
+                  - /url: https://www.shopuefa.com/en/?_s=bm-fi-psc-uefa-hpshopnav
+                  - img "features store icon" [ref=f2e464]
+                - link "Store (clubs)" [ref=f2e469] [cursor=pointer]:
+                  - /url: https://clubcompetitions-shop.com/en-eu?utm_source=uefa&utm_medium=website&utm_campaign=UCL-store
+                  - img "features store icon" [ref=f2e471]
+                - link "UEFA rankings" [ref=f2e476] [cursor=pointer]:
+                  - /url: /nationalassociations/uefarankings/
+                  - img "features stats icon" [ref=f2e478]
+                - link "Tickets and hospitality" [ref=f2e483] [cursor=pointer]:
+                  - /url: /tickets/
+                  - img "features tickets icon" [ref=f2e485]
+              - generic [ref=f2e490]:
+                - generic [ref=f2e491]: UEFA competitions
+                - generic [ref=f2e492]:
+                  - generic [ref=f2e493]: Clubs
+                  - generic [ref=f2e494]:
+                    - link "UEFA Champions League" [ref=f2e495] [cursor=pointer]:
+                      - /url: /uefachampionsleague/
+                      - generic [ref=f2e497]:
+                        - img "Image:" [ref=f2e499]
+                        - generic [ref=f2e500]: UEFA Champions League
+                    - link "UEFA Europa League" [ref=f2e502] [cursor=pointer]:
+                      - /url: /uefaeuropaleague/
+                      - generic [ref=f2e504]:
+                        - img "Image:" [ref=f2e506]
+                        - generic [ref=f2e507]: UEFA Europa League
+                    - link "UEFA Conference League" [ref=f2e509] [cursor=pointer]:
+                      - /url: /uefaconferenceleague/
+                      - generic [ref=f2e511]:
+                        - img "Image:" [ref=f2e513]
+                        - generic [ref=f2e514]: UEFA Conference League
+                    - link "UEFA Super Cup" [ref=f2e516] [cursor=pointer]:
+                      - /url: /uefasupercup/
+                      - generic [ref=f2e518]:
+                        - img "Image:" [ref=f2e520]
+                        - generic [ref=f2e521]: UEFA Super Cup
+                    - link "UEFA Youth League" [ref=f2e523] [cursor=pointer]:
+                      - /url: /uefayouthleague/
+                      - generic [ref=f2e525]:
+                        - img "Image:" [ref=f2e527]
+                        - generic [ref=f2e528]: UEFA Youth League
+                    - link "Under-20 Intercontinental Cup" [ref=f2e530] [cursor=pointer]:
+                      - /url: /under20intercontinental/
+                      - generic [ref=f2e532]:
+                        - img "Image:" [ref=f2e534]
+                        - generic [ref=f2e535]: Under-20 Intercontinental Cup
+                - generic [ref=f2e538]:
+                  - generic [ref=f2e539]: National
+                  - generic [ref=f2e540]:
+                    - link "European Qualifiers" [ref=f2e541] [cursor=pointer]:
+                      - /url: /european-qualifiers/
+                      - generic [ref=f2e543]:
+                        - img "Image:" [ref=f2e545]
+                        - generic [ref=f2e546]: European Qualifiers
+                    - link "UEFA EURO 2028" [ref=f2e548] [cursor=pointer]:
+                      - /url: /euro2028/
+                      - generic [ref=f2e550]:
+                        - img "Image:" [ref=f2e552]
+                        - generic [ref=f2e553]: UEFA EURO 2028
+                    - link "UEFA Nations League" [ref=f2e555] [cursor=pointer]:
+                      - /url: /uefanationsleague/
+                      - generic [ref=f2e557]:
+                        - img "Image:" [ref=f2e559]
+                        - generic [ref=f2e560]: UEFA Nations League
+                    - link "Finalissima" [ref=f2e562] [cursor=pointer]:
+                      - /url: /finalissima/
+                      - generic [ref=f2e564]:
+                        - img "Image:" [ref=f2e566]
+                        - generic [ref=f2e567]: Finalissima
+                    - link "UEFA Under-21" [ref=f2e569] [cursor=pointer]:
+                      - /url: /under21/
+                      - generic [ref=f2e571]:
+                        - img "Image:" [ref=f2e573]
+                        - generic [ref=f2e574]: UEFA Under-21
+                - generic [ref=f2e577]:
+                  - generic [ref=f2e578]: Women
+                  - generic [ref=f2e579]:
+                    - link "UEFA Women's Champions League" [ref=f2e580] [cursor=pointer]:
+                      - /url: /womenschampionsleague/
+                      - generic [ref=f2e582]:
+                        - img "Image:" [ref=f2e584]
+                        - generic [ref=f2e585]: UEFA Women's Champions League
+                    - link "UEFA Women's EURO" [ref=f2e587] [cursor=pointer]:
+                      - /url: /womenseuro/
+                      - generic [ref=f2e589]:
+                        - img "Image:" [ref=f2e591]
+                        - generic [ref=f2e592]: UEFA Women's EURO
+                    - link "UEFA Women’s Europa Cup" [ref=f2e594] [cursor=pointer]:
+                      - /url: /womenseuropacup/
+                      - generic [ref=f2e596]:
+                        - img "Image:" [ref=f2e598]
+                        - generic [ref=f2e599]: UEFA Women’s Europa Cup
+                    - link "Women's European Qualifiers" [ref=f2e601] [cursor=pointer]:
+                      - /url: /womenseuropeanqualifiers/
+                      - generic [ref=f2e603]:
+                        - img "Image:" [ref=f2e605]
+                        - generic [ref=f2e606]: Women's European Qualifiers
+                    - link "UEFA Women's Nations League" [ref=f2e608] [cursor=pointer]:
+                      - /url: /womensnationsleague/
+                      - generic [ref=f2e610]:
+                        - img "Image:" [ref=f2e612]
+                        - generic [ref=f2e613]: UEFA Women's Nations League
+                    - link "Women's Finalissima" [ref=f2e615] [cursor=pointer]:
+                      - /url: /womensfinalissima/
+                      - generic [ref=f2e617]:
+                        - img "Image:" [ref=f2e619]
+                        - generic [ref=f2e620]: Women's Finalissima
+                    - link "UEFA Women's Under-19" [ref=f2e622] [cursor=pointer]:
+                      - /url: /womensunder19/
+                      - generic [ref=f2e624]:
+                        - img "Image:" [ref=f2e626]
+                        - generic [ref=f2e627]: UEFA Women's Under-19
+                    - link "UEFA Women's Under-17" [ref=f2e629] [cursor=pointer]:
+                      - /url: /womensunder17/
+                      - generic [ref=f2e631]:
+                        - img "Image:" [ref=f2e633]
+                        - generic [ref=f2e634]: UEFA Women's Under-17
+                - generic [ref=f2e637]:
+                  - generic [ref=f2e638]: Youth & Amateur
+                  - generic [ref=f2e639]:
+                    - link "UEFA Under-19" [ref=f2e640] [cursor=pointer]:
+                      - /url: /under19/
+                      - generic [ref=f2e642]:
+                        - img "Image:" [ref=f2e644]
+                        - generic [ref=f2e645]: UEFA Under-19
+                    - link "UEFA Under-17" [ref=f2e647] [cursor=pointer]:
+                      - /url: /under17/
+                      - generic [ref=f2e649]:
+                        - img "Image:" [ref=f2e651]
+                        - generic [ref=f2e652]: UEFA Under-17
+                    - link "UEFA Regions' Cup" [ref=f2e654] [cursor=pointer]:
+                      - /url: /regionscup/
+                      - generic [ref=f2e656]:
+                        - img "Image:" [ref=f2e658]
+                        - generic [ref=f2e659]: UEFA Regions' Cup
+                - generic [ref=f2e662]:
+                  - generic [ref=f2e663]: Futsal
+                  - generic [ref=f2e664]:
+                    - link "UEFA Futsal Champions League" [ref=f2e665] [cursor=pointer]:
+                      - /url: /uefafutsalchampionsleague/
+                      - generic [ref=f2e667]:
+                        - img "Image:" [ref=f2e669]
+                        - generic [ref=f2e670]: UEFA Futsal Champions League
+                    - link "UEFA Futsal EURO" [ref=f2e672] [cursor=pointer]:
+                      - /url: /futsaleuro/
+                      - generic [ref=f2e674]:
+                        - img "Image:" [ref=f2e676]
+                        - generic [ref=f2e677]: UEFA Futsal EURO
+                    - link "Futsal Finalissima" [ref=f2e679] [cursor=pointer]:
+                      - /url: /futsalfinalissima/
+                      - generic [ref=f2e681]:
+                        - img "Image:" [ref=f2e683]
+                        - generic [ref=f2e684]: Futsal Finalissima
+                    - link "UEFA Women's Futsal EURO" [ref=f2e686] [cursor=pointer]:
+                      - /url: /womensfutsaleuro/
+                      - generic [ref=f2e688]:
+                        - img "Image:" [ref=f2e690]
+                        - generic [ref=f2e691]: UEFA Women's Futsal EURO
+                    - link "UEFA U-19 Futsal EURO" [ref=f2e693] [cursor=pointer]:
+                      - /url: /futsalunder19/
+                      - generic [ref=f2e695]:
+                        - img "Image:" [ref=f2e697]
+                        - generic [ref=f2e698]: UEFA U-19 Futsal EURO
+                    - link "FIFA Futsal World Cup" [ref=f2e700] [cursor=pointer]:
+                      - /url: /futsalworldcup/
+                      - generic [ref=f2e702]:
+                        - img "Image:" [ref=f2e704]
+                        - generic [ref=f2e705]: FIFA Futsal World Cup
+                    - link "Women’s Futsal European Qualifiers" [ref=f2e707] [cursor=pointer]:
+                      - /url: /womensfutsalqualifiers/
+                      - generic [ref=f2e709]:
+                        - img "Image:" [ref=f2e711]
+                        - generic [ref=f2e712]: Women’s Futsal European Qualifiers
+        - link [ref=f2e1048] [cursor=pointer]:
+          - /url: https://links.uefa.tv/uefacom-header
+          - img "UEFA.tv" [ref=f2e1049]
+        - link [ref=f2e1050] [cursor=pointer]:
+          - /url: https://gaming.uefa.com/en
+          - img "UEFA Gaming" [ref=f2e1051]
+        - generic "Store" [ref=f2e1052]:
+          - generic [ref=f2e1054] [cursor=pointer]:
+            - img "features store icon" [ref=f2e1055]
+            - text: Store
+    - generic [ref=f2e35]:
+      - link "Home" [ref=f2e1058] [cursor=pointer]:
+        - /url: /
+      - region [ref=f2e49]:
+        - generic [ref=f2e50]:
+          - heading "UEFA rankings" [level=1] [ref=f2e52]
+          - tablist [ref=f2e1069]:
+            - tab "Overview" [ref=f2e1071]:
+              - link "Overview" [ref=f2e1072] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/
+            - tab "Access list (men’s)" [ref=f2e1074]:
+              - link "Access list (men’s)" [ref=f2e1075] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/accesslist/uefachampionsleague/
+            - tab "Access List (women's)" [ref=f2e1077]:
+              - link "Access List (women's)" [ref=f2e1078] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/womensaccesslist/allcompetitions/
+            - tab "Associations (men’s)" [ref=f2e1080]:
+              - link "Associations (men’s)" [ref=f2e1081] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/country/
+            - tab "Clubs (men’s)" [ref=f2e1083]:
+              - link "Clubs (men’s)" [ref=f2e1084] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/club/
+            - tab "Associations (women’s)" [ref=f2e1086]:
+              - link "Associations (women’s)" [ref=f2e1087] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/womenscountry/
+            - tab "Clubs (women’s)" [ref=f2e1089]:
+              - link "Clubs (women’s)" [ref=f2e1090] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/womensclub/
+            - tab "Futsal national teams (men’s)" [ref=f2e1092]:
+              - link "Futsal national teams (men’s)" [ref=f2e1093] [cursor=pointer]:
+                - /url: /nationalassociations/uefarankings/futsal/
+      - region [ref=f2e83]:
+        - generic [ref=f2e180]:
+          - generic [ref=f2e729]:
+            - generic:
+              - generic [ref=f2e730]:
+                - button "Table view Club coefficients Open dropdown" [ref=f2e733] [cursor=pointer]:
+                  - generic [ref=f2e734]:
+                    - generic [ref=f2e735]: Table view
+                    - generic [ref=f2e736]: Club coefficients
+                  - img "Open dropdown" [ref=f2e737]
+                - button "Season 2025/26 Open dropdown" [ref=f2e743] [cursor=pointer]:
+                  - generic [ref=f2e744]:
+                    - generic [ref=f2e745]: Season
+                    - generic [ref=f2e746]: 2025/26
+                  - img "Open dropdown" [ref=f2e747]
+                - button "actions filter icon Filter by country" [ref=f2e1094] [cursor=pointer]:
+                  - generic:
+                    - img "actions filter icon"
+                    - generic [ref=f2e1095]: Filter by country
+              - generic [ref=f2e1097]:
+                - grid [ref=f2e1099]:
+                  - rowgroup [ref=f2e1101]:
+                    - row "Pos Club 21/22 22/23 23/24 24/25 25/26 Pts ? NA ?" [ref=f2e1102]:
+                      - columnheader "Pos" [ref=f2e1103]:
+                        - text: 
+                        - generic [ref=f2e1105] [cursor=pointer]:  
+                      - columnheader "Club" [ref=f2e1109]:
+                        - text: 
+                        - generic: 
+                      - columnheader "21/22" [ref=f2e1111]:
+                        - text: 
+                        - generic:  
+                      - columnheader "22/23" [ref=f2e1113]:
+                        - text: 
+                        - generic:  
+                      - columnheader "23/24" [ref=f2e1115]:
+                        - text: 
+                        - generic:  
+                      - columnheader "24/25" [ref=f2e1117]:
+                        - text: 
+                        - generic:  
+                      - columnheader "25/26" [ref=f2e1119]:
+                        - text: 
+                        - generic:  
+                      - columnheader "Pts ?" [ref=f2e1121]:
+                        - text: 
+                        - generic [ref=f2e1122] [cursor=pointer]: Pts
+                        - generic:  
+                        - text: "?"
+                      - columnheader "NA ?" [ref=f2e1123]:
+                        - text: 
+                        - generic [ref=f2e1124] [cursor=pointer]: NA
+                        - generic:  
+                        - text: "?"
+                  - rowgroup [ref=f2e1125]:
+                    - row "1 Bayern München Germany 26.000 27.000 28.000 27.250 39.250 147.500 18.580" [ref=f2e1126]:
+                      - gridcell "1" [ref=f2e1127]
+                      - gridcell "Bayern München Germany" [ref=f2e1130]:
+                        - generic [ref=f2e1136]
+                      - gridcell "26.000" [ref=f2e1140]
+                      - gridcell "27.000" [ref=f2e1141]
+                      - gridcell "28.000" [ref=f2e1142]
+                      - gridcell "27.250" [ref=f2e1143]
+                      - gridcell "39.250" [ref=f2e1144]
+                      - gridcell "147.500" [ref=f2e1145]
+                      - gridcell "18.580" [ref=f2e1146]
+                    - row "2 Real Madrid Spain 30.000 29.000 34.000 24.500 27.000 144.500 19.409" [ref=f2e1147]:
+                      - gridcell "2" [ref=f2e1148]
+                      - gridcell "Real Madrid Spain" [ref=f2e1151]:
+                        - generic [ref=f2e1157]
+                      - gridcell "30.000" [ref=f2e1161]
+                      - gridcell "29.000" [ref=f2e1162]
+                      - gridcell "34.000" [ref=f2e1163]
+                      - gridcell "24.500" [ref=f2e1164]
+                      - gridcell "27.000" [ref=f2e1165]
+                      - gridcell "144.500" [ref=f2e1166]
+                      - gridcell "19.409" [ref=f2e1167]
+                    - row "3 Paris France 19.000 19.000 23.000 33.500 37.500 132.000 16.699" [ref=f2e1168]:
+                      - gridcell "3" [ref=f2e1169]
+                      - gridcell "Paris France" [ref=f2e1172]:
+                        - generic [ref=f2e1178]
+                      - gridcell "19.000" [ref=f2e1182]
+                      - gridcell "19.000" [ref=f2e1183]
+                      - gridcell "23.000" [ref=f2e1184]
+                      - gridcell "33.500" [ref=f2e1185]
+                      - gridcell "37.500" [ref=f2e1186]
+                      - gridcell "132.000" [ref=f2e1187]
+                      - gridcell "16.699" [ref=f2e1188]
+                    - row "4 Liverpool England 33.000 19.000 20.000 29.500 28.500 130.000 23.903" [ref=f2e1189]:
+                      - gridcell "4" [ref=f2e1190]
+                      - gridcell "Liverpool England" [ref=f2e1193]:
+                        - generic [ref=f2e1199]
+                      - gridcell "33.000" [ref=f2e1203]
+                      - gridcell "19.000" [ref=f2e1204]
+                      - gridcell "20.000" [ref=f2e1205]
+                      - gridcell "29.500" [ref=f2e1206]
+                      - gridcell "28.500" [ref=f2e1207]
+                      - gridcell "130.000" [ref=f2e1208]
+                      - gridcell "23.903" [ref=f2e1209]
+                    - row "5 Inter Italy 18.000 29.000 20.000 40.250 19.750 127.000 19.989" [ref=f2e1210]:
+                      - gridcell "5" [ref=f2e1211]
+                      - gridcell "Inter Italy" [ref=f2e1214]:
+                        - generic [ref=f2e1220]
+                      - gridcell "18.000" [ref=f2e1224]
+                      - gridcell "29.000" [ref=f2e1225]
+                      - gridcell "20.000" [ref=f2e1226]
+                      - gridcell "40.250" [ref=f2e1227]
+                      - gridcell "19.750" [ref=f2e1228]
+                      - gridcell "127.000" [ref=f2e1229]
+                      - gridcell "19.989" [ref=f2e1230]
+                    - row "6 Man City England 27.000 33.000 28.000 14.750 22.750 125.500 23.903" [ref=f2e1231]:
+                      - gridcell "6" [ref=f2e1232]
+                      - gridcell "Man City England" [ref=f2e1235]:
+                        - generic [ref=f2e1241]
+                      - gridcell "27.000" [ref=f2e1245]
+                      - gridcell "33.000" [ref=f2e1246]
+                      - gridcell "28.000" [ref=f2e1247]
+                      - gridcell "14.750" [ref=f2e1248]
+                      - gridcell "22.750" [ref=f2e1249]
+                      - gridcell "125.500" [ref=f2e1250]
+                      - gridcell "23.903" [ref=f2e1251]
+                    - row "7 Arsenal England - 17.000 22.000 36.000 44.000 119.000 23.903" [ref=f2e1252]:
+                      - gridcell "7" [ref=f2e1253]
+                      - gridcell "Arsenal England" [ref=f2e1256]:
+                        - generic [ref=f2e1262]
+                      - gridcell "-" [ref=f2e1266]
+                      - gridcell "17.000" [ref=f2e1267]
+                      - gridcell "22.000" [ref=f2e1268]
+                      - gridcell "36.000" [ref=f2e1269]
+                      - gridcell "44.000" [ref=f2e1270]
+                      - gridcell "119.000" [ref=f2e1271]
+                      - gridcell "23.903" [ref=f2e1272]
+                    - row "8 Barcelona Spain 15.000 9.000 23.000 36.250 30.000 113.250 19.409" [ref=f2e1273]:
+                      - gridcell "8" [ref=f2e1274]
+                      - gridcell "Barcelona Spain" [ref=f2e1277]:
+                        - generic [ref=f2e1283]
+                      - gridcell "15.000" [ref=f2e1287]
+                      - gridcell "9.000" [ref=f2e1288]
+                      - gridcell "23.000" [ref=f2e1289]
+                      - gridcell "36.250" [ref=f2e1290]
+                      - gridcell "30.000" [ref=f2e1291]
+                      - gridcell "113.250" [ref=f2e1292]
+                      - gridcell "19.409" [ref=f2e1293]
+                    - row "9 Leverkusen Germany 14.000 19.000 29.000 23.250 19.750 105.000 18.580" [ref=f2e1294]:
+                      - gridcell "9" [ref=f2e1295]
+                      - gridcell "Leverkusen Germany" [ref=f2e1298]:
+                        - generic [ref=f2e1304]
+                      - gridcell "14.000" [ref=f2e1308]
+                      - gridcell "19.000" [ref=f2e1309]
+                      - gridcell "29.000" [ref=f2e1310]
+                      - gridcell "23.250" [ref=f2e1311]
+                      - gridcell "19.750" [ref=f2e1312]
+                      - gridcell "105.000" [ref=f2e1313]
+                      - gridcell "18.580" [ref=f2e1314]
+                    - row "10 Atleti Spain 19.000 8.000 24.000 26.500 27.250 104.750 19.409" [ref=f2e1315]:
+                      - gridcell "10" [ref=f2e1316]
+                      - gridcell "Atleti Spain" [ref=f2e1319]:
+                        - generic [ref=f2e1325]
+                      - gridcell "19.000" [ref=f2e1329]
+                      - gridcell "8.000" [ref=f2e1330]
+                      - gridcell "24.000" [ref=f2e1331]
+                      - gridcell "26.500" [ref=f2e1332]
+                      - gridcell "27.250" [ref=f2e1333]
+                      - gridcell "104.750" [ref=f2e1334]
+                      - gridcell "19.409" [ref=f2e1335]
+                  - rowgroup
+                  - rowgroup [ref=f2e1336]
+                  - rowgroup
+                - text:    
+              - button "View full rankings navigation chevron down icon" [ref=f2e1020] [cursor=pointer]:
+                - generic:
+                  - text: View full rankings
+                  - img "navigation chevron down icon"
+          - generic [ref=f2e1021]:
+            - generic [ref=f2e1022]: "Last updated: 03/07/2026 16:22"
+            - generic [ref=f2e1024]:
+              - heading "About the ranking" [level=3] [ref=f2e1025]
+              - paragraph [ref=f2e1026]:
+                - text: The rankings are based on each club's results in European competition (in the UEFA Champions League, UEFA Europa League and UEFA Conference League). The places allocated to each country are based on performance over the previous five seasons.
+                - link "Learn more" [ref=f2e1027] [cursor=pointer]:
+                  - /url: /#
+            - generic [ref=f2e1029]: "*Due to the suspension of all Russian national teams and clubs from UEFA competitions until further notice, as decided by the UEFA Executive Committee on 28 February 2022, having as a consequence that no Russian clubs are participating in the current 2025/26 UEFA club competitions season, Russia will be assigned with the lowest amount of coefficient points they have earned over the last five seasons, i.e. 4.333 points for the men’s association club coefficient and 1.750 for the women’s association club coefficient upon completion of the 2025/26 season."
+      - contentinfo [ref=f2e187]:
+        - generic [ref=f2e189]:
+          - generic [ref=f2e190]:
+            - generic [ref=f2e192]:
+              - generic [ref=f2e194]:
+                - link "Home" [ref=f2e197] [cursor=pointer]:
+                  - /url: /
+                - list [ref=f2e198]:
+                  - listitem [ref=f2e199]:
+                    - link "About" [ref=f2e200] [cursor=pointer]:
+                      - /url: /about/
+                  - listitem [ref=f2e201]:
+                    - link "National associations" [ref=f2e202] [cursor=pointer]:
+                      - /url: /nationalassociations/
+                  - listitem [ref=f2e203]:
+                    - link "Running competitions" [ref=f2e204] [cursor=pointer]:
+                      - /url: /running-competitions/
+                  - listitem [ref=f2e205]:
+                    - link "Development" [ref=f2e206] [cursor=pointer]:
+                      - /url: /development/
+                  - listitem [ref=f2e207]:
+                    - link "Sustainability" [ref=f2e208] [cursor=pointer]:
+                      - /url: /sustainability/
+                  - listitem [ref=f2e209]:
+                    - link "News & media" [ref=f2e210] [cursor=pointer]:
+                      - /url: /news-media/
+              - generic [ref=f2e213]:
+                - heading "Explore" [level=3] [ref=f2e214]
+                - list [ref=f2e215]:
+                  - listitem [ref=f2e216]:
+                    - link "UEFA.tv" [ref=f2e217] [cursor=pointer]:
+                      - /url: https://www.uefa.tv/
+                  - listitem [ref=f2e218]:
+                    - link "Match calendar" [ref=f2e219] [cursor=pointer]:
+                      - /url: /match-calendar/
+                  - listitem [ref=f2e220]:
+                    - link "Rankings" [ref=f2e221] [cursor=pointer]:
+                      - /url: /nationalassociations/uefarankings/
+                  - listitem [ref=f2e222]:
+                    - link "Tickets/Hospitality" [ref=f2e223] [cursor=pointer]:
+                      - /url: /tickets/
+                  - listitem [ref=f2e224]:
+                    - link "UEFA National Team Football store" [ref=f2e225] [cursor=pointer]:
+                      - /url: https://www.shopuefa.com/
+                  - listitem [ref=f2e226]:
+                    - link "UEFA Men’s Club Competitions store" [ref=f2e227] [cursor=pointer]:
+                      - /url: https://www.uefa-store.com/
+                  - listitem [ref=f2e228]:
+                    - link "UEFA Men's Club Competitions Memorabilia" [ref=f2e229] [cursor=pointer]:
+                      - /url: https://clubcompetitions-memorabilia.com/?utm_source=www.UEFA.COM&utm_medium=uefa_website_referral&utm_campaign=UEFA%20Website%20referral%20&utm_id=The%20official%20website%20for%20European%20football%20|%20UEFA.com
+              - generic [ref=f2e231]:
+                - heading "More" [level=3] [ref=f2e232]
+                - list [ref=f2e233]:
+                  - listitem [ref=f2e234]:
+                    - link "MyUEFA" [ref=f2e235] [cursor=pointer]:
+                      - /url: /myuefa/
+                  - listitem [ref=f2e236]:
+                    - link "UC3" [ref=f2e237] [cursor=pointer]:
+                      - /url: https://www.uc3.com/
+            - generic [ref=f2e239]:
+              - generic [ref=f2e242]:
+                - heading "Change language" [level=3] [ref=f2e243]
+                - generic [ref=f2e245]:
+                  - button "English navigation chevron down icon" [ref=f2e247]:
+                    - generic [ref=f2e248]: English
+                    - img "navigation chevron down icon" [ref=f2e251]
+                  - generic:
+                    - generic: Français
+                    - generic: Deutsch
+                    - generic: Русский
+                    - generic: Español
+                    - generic: Italiano
+                    - generic: Português
+              - generic [ref=f2e257]:
+                - heading "Follow us on" [level=3] [ref=f2e258]
+                - list [ref=f2e259]:
+                  - listitem [ref=f2e260]:
+                    - link "social twitter icon" [ref=f2e261] [cursor=pointer]:
+                      - /url: https://x.com/uefa?lang=en-gb
+                      - button "social twitter icon" [ref=f2e263]:
+                        - img "social twitter icon" [ref=f2e264]
+                  - listitem [ref=f2e268]:
+                    - link "social facebook icon" [ref=f2e269] [cursor=pointer]:
+                      - /url: https://www.facebook.com/uefa/?fref=ts
+                      - button "social facebook icon" [ref=f2e271]:
+                        - img "social facebook icon" [ref=f2e272]
+                  - listitem [ref=f2e276]:
+                    - link "social instagram icon" [ref=f2e277] [cursor=pointer]:
+                      - /url: https://www.instagram.com/uefa/
+                      - button "social instagram icon" [ref=f2e279]:
+                        - img "social instagram icon" [ref=f2e280]
+                  - listitem [ref=f2e284]:
+                    - link "social linkedin icon" [ref=f2e285] [cursor=pointer]:
+                      - /url: https://www.linkedin.com/company/uefa
+                      - button "social linkedin icon" [ref=f2e287]:
+                        - img "social linkedin icon" [ref=f2e288]
+                  - listitem [ref=f2e292]:
+                    - link "social youtube icon" [ref=f2e293] [cursor=pointer]:
+                      - /url: https://www.youtube.com/user/UEFA
+                      - button "social youtube icon" [ref=f2e295]:
+                        - img "social youtube icon" [ref=f2e296]
+          - generic [ref=f2e300]:
+            - list [ref=f2e303]:
+              - listitem [ref=f2e304]:
+                - link "Terms and conditions" [ref=f2e305] [cursor=pointer]:
+                  - /url: /termsconditions/
+              - listitem [ref=f2e306]:
+                - link "Privacy Policies" [ref=f2e307] [cursor=pointer]:
+                  - /url: /privacypolicies/
+              - listitem [ref=f2e308]:
+                - link "Cookie policy" [ref=f2e309] [cursor=pointer]:
+                  - /url: /cookiepolicy/
+              - listitem [ref=f2e310]:
+                - link "Privacy settings" [ref=f2e311] [cursor=pointer]:
+                  - /url: "#"
+            - generic [ref=f2e313]:
+              - paragraph [ref=f2e314]: © 1998-2026 UEFA. All rights reserved
+              - paragraph [ref=f2e315]: The UEFA word, the UEFA logo and all marks related to UEFA competitions, are protected by trademarks and/or copyright of UEFA. No use for commercial purposes may be made of such trademarks. Use of UEFA.com signifies your agreement to the Terms and Conditions and Privacy Policy.
+  - generic:
+    - generic: Apply selection
+    - generic: Reset filters
