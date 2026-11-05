@@ -1,0 +1,41 @@
+{
+  "schema_version": "xgelo-competition-refresh-v1",
+  "run_id": "20261105T192030Z-054ac634",
+  "trigger": "manual",
+  "status": "failed",
+  "phase": "dashboard_stage",
+  "error": "dashboard_stage failed (exit 1); see logs/competition-refresh/runs/20261105T192030Z-054ac634.log",
+  "started_at_utc": "2026-11-05T19:20:30Z",
+  "completed_at_utc": "2026-11-05T20:21:04Z",
+  "publication": null,
+  "precision_report_dir": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634",
+  "stages": [
+    {
+      "elapsed_seconds": 61.281,
+      "exit_code": 0,
+      "phase": "nations_league_source"
+    },
+    {
+      "elapsed_seconds": 30.225,
+      "exit_code": 0,
+      "phase": "champions_league_source"
+    },
+    {
+      "elapsed_seconds": 100.96,
+      "exit_code": 0,
+      "phase": "nations_league_state"
+    },
+    {
+      "elapsed_seconds": 3433.799,
+      "exit_code": 0,
+      "phase": "nations_league_outcomes"
+    },
+    {
+      "elapsed_seconds": 0.325,
+      "exit_code": 1,
+      "phase": "dashboard_stage"
+    }
+  ],
+  "publication_verified": false,
+  "scope": "Controller reached a successful private outcomes write, then failed during dashboard staging; these artifacts do not establish public deployment."
+}

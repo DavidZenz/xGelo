@@ -8,13 +8,21 @@ phase17_provider_read_csv <- function(path) {
 }
 
 phase17_provider_source_authorities <- function(project_root) {
+  project_root <- normalizePath(project_root, winslash = "/", mustWork = TRUE)
+  before <- getwd(); setwd(project_root); on.exit(setwd(before), add = TRUE)
   target <- if (exists("phase17_cli_env", inherits = TRUE)) get("phase17_cli_env", inherits = TRUE) else parent.frame()
   files <- c(
     "R/competition/publication_hashes.R", "R/competition/source_contracts.R",
+    # Import prerequisites into this same runtime before consumer modules.
+    # Their standalone compatibility bootstraps search filesystem .git markers
+    # and .GlobalEnv; neither is a dependency of a clean private refresh copy.
+    "R/release/domain_contract.R", "R/release/release_bundle.R", "R/release/release_install.R",
+    "R/evaluation/proper_scores.R", "R/forecast/features.R", "R/benchmark/contracts.R",
+    "R/benchmark/baselines.R", "R/competition/form.R",
     "R/competition/uefa_nations_league_rules.R", "R/competition/uefa_nations_league_rule_inputs.R", "R/competition/standings.R",
     "R/competition/edition_registry.R", "R/competition/team_identity.R",
-    "R/release/release_contract.R", "R/competition/state_bundle.R",
-    "R/competition/forecast_layer.R", "R/competition/uefa_euro_rules.R", "R/competition/uefa_euro_priority.R",
+    "R/release/release_contract.R", "R/competition/forecast_layer.R",
+    "R/competition/state_bundle.R", "R/competition/uefa_euro_rules.R", "R/competition/uefa_euro_priority.R",
     "R/competition/uefa_euro_outcomes.R", "R/competition/uefa_nations_league_outcomes.R"
   )
   for (relative in files) {

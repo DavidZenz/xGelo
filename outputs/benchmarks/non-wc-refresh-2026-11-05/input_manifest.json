@@ -1,0 +1,23 @@
+{
+  "schema_version": "nl-production-precision-benchmark-v1",
+  "source_bundle_id": "nl-2026-27-official-uefa-v2",
+  "source_bundle_sha256": "6cdb25a02864aea7e342cc7d05f565fcc3942d8d4c01b31cb2be396183c62bfd",
+  "state_manifest_sha256": "5a2a888a547ff15ef1e0383fe1cd2a655cbfd3c67b60c1aab9484e99b7538f21",
+  "cutoff_utc": "2026-11-05T19:20:39Z",
+  "model_release_id": "phase14-open-nb-incumbent-calibrated-v1",
+  "seed": 15017,
+  "workers": 4,
+  "input_sha256": "7f18e52cae03db58bc8f76a023ad0fe2bde717b4c01172f912e0df3b10a4580e",
+  "r_version": "4.6.2",
+  "precision_policy": {
+    "schema_version": "nl-monte-carlo-policy-v1",
+    "confidence": 0.94999999999999996,
+    "max_pointwise_half_width": 0.01,
+    "minimum_simulations": 9600,
+    "recommended_simulations": 10000,
+    "interval_method": "wilson_score",
+    "coverage_scope": "pointwise_sampling_only"
+  },
+  "selected_simulations": 10000,
+  "runs": []
+}

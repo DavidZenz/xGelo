@@ -1,0 +1,48 @@
+{
+  "schema_version": "non-wc-refresh-benchmark-evidence-v1",
+  "origin_run_id": "20261105T192030Z-054ac634",
+  "origin_report_directory": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634",
+  "controller_record_sha256": "36ea68079600fe45fbc3a8fe70acdcea19547e422af9e4278ef0c7b85b6536e1",
+  "collected_at_utc": "2026-11-05T20:25:55.721221+00:00",
+  "controller_status": "failed",
+  "failed_phase": "dashboard_stage",
+  "publication_verified": false,
+  "copied_artifacts": [
+    {
+      "path": "benchmark_report.json",
+      "bytes": 4406,
+      "sha256": "4adedc0a553e011756cbe82d550e4575819b7629d672aa4e475e7f0705bac96f",
+      "source_path": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634/benchmark_report.json"
+    },
+    {
+      "path": "event_intervals_1000.csv",
+      "bytes": 105203,
+      "sha256": "7ffc55df9a5e0a688435618797b65b89f6637873c1716f014811b97bebc670ee",
+      "source_path": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634/event_intervals_1000.csv"
+    },
+    {
+      "path": "event_intervals_10000.csv",
+      "bytes": 107952,
+      "sha256": "004ae34665113f204c6387ca4db7aa327cfbe3cb916a860e1df826ee297733a8",
+      "source_path": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634/event_intervals_10000.csv"
+    },
+    {
+      "path": "event_probabilities_1000.csv",
+      "bytes": 59583,
+      "sha256": "59d4723eb5332706b27e57b4147b570ef4edaf88daac53f6823791913a863231",
+      "source_path": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634/event_probabilities_1000.csv"
+    },
+    {
+      "path": "event_probabilities_10000.csv",
+      "bytes": 60881,
+      "sha256": "38754f9ada41624be214c3e28cd7fa883fb504651487b7d6d50f91389afd99bb",
+      "source_path": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634/event_probabilities_10000.csv"
+    },
+    {
+      "path": "input_manifest.json",
+      "bytes": 914,
+      "sha256": "5075301d9142cd54eaf318954b666bb8becb983f36dc949ab5737c19f2ee78fc",
+      "source_path": "logs/competition-refresh/benchmarks/20261105T192030Z-054ac634/input_manifest.json"
+    }
+  ]
+}

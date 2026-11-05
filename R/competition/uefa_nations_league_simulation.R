@@ -1627,7 +1627,8 @@ uefa_nl_sim_build_league_state <- function(matches, groups, rules, source_bundle
         group_matches, discipline_points = discipline, access_list = access, group_id = group_id,
         rules = rules, edition_id = rules$edition_id, state_cutoff_utc = cutoff_utc,
         source_bundle_id = source_bundle_id, team_ids = as.character(group$team_id),
-        .universal_standings = if (!is.null(group_contexts)) uefa_nl_sim_universal_from_context(group_matches, group_contexts[[group_id]]) else NULL
+        .universal_standings = if (!is.null(group_contexts)) uefa_nl_sim_universal_from_context(group_matches, group_contexts[[group_id]]) else NULL,
+        .standings_hashes = uefa_nl_sim_universal_hashes
       )
       # Bound each worker's memory. A miss after the limit still executes the
       # authoritative rule function, so eviction cannot change probabilities.

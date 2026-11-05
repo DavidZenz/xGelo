@@ -129,7 +129,7 @@ phase21_render_dashboard <- function(payload, route = NULL) {
   }, character(1))
   json <- if (requireNamespace("jsonlite", quietly = TRUE)) jsonlite::toJSON(payload, auto_unbox = TRUE, null = "null", na = "null", dataframe = "rows", digits = 16, pretty = FALSE) else "{}"
   json <- phase21_json_script_escape(json)
-  paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">',
+  paste0('<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="icon" href="data:,"><meta name="viewport" content="width=device-width, initial-scale=1">',
          '<title>', title, '</title><style>',
          ':root{color-scheme:light;--ink:#132238;--muted:#5b6b7f;--line:#d9e1ea;--surface:#f5f8fb;--accent:#173f7a}',
          '*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--surface)}',

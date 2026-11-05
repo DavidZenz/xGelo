@@ -155,7 +155,7 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
     stop("Live dashboard facts require accepted provider authority", call. = FALSE)
   }
   edition <- as.character(accepted$bundle$edition_id[[1L]])
-  reason <- "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted."
+  reason <- "Club match and tournament projections are unavailable until model and tournament readiness checks pass."
   payload <- phase21_payload_ucl(list(edition_id = edition, status = "production_blocked",
     production_blocked_reason = reason, authority_mode = "production", production_eligible = FALSE), registry_row, batch_id)
   tables <- accepted$tables
@@ -300,7 +300,7 @@ phase21_ucl_attach_live_forecasts <- function(payload, forecasts, matches, clubs
       if (!nrow(predictions)) "No supported forecast has kickoff after this page generation time." else "Current-source data is stale. Refresh the accepted feed before using match predictions.")
     payload$metadata$forecast_count <- 0L
   }
-  unavailable_reason <- "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted."
+  unavailable_reason <- "Club match and tournament projections are unavailable until model and tournament readiness checks pass."
   payload$metadata$warnings <- setdiff(payload$metadata$warnings, unavailable_reason)
   payload$sections$overview$reason <- if (identical(payload$metadata$forecast_status, "available"))
     "Accepted fixtures, results, provider standings and supported upcoming match forecasts are available." else

@@ -1,0 +1,55 @@
+{
+  "schema_version": "non-wc-benchmark-independent-validation-v1",
+  "run_id": "20261105T192030Z-054ac634",
+  "runs": {
+    "1000": {
+      "event_rows": 966,
+      "finite_event_rows": 966,
+      "interval_rows": 966,
+      "teams": 54,
+      "all_probabilities_bounded": true,
+      "all_probabilities_are_counted_events": true,
+      "all_wilson_intervals_match_independent_formula": true,
+      "maximum_interval_numeric_difference": 5.551115123125783e-16,
+      "each_team_rank_mass_one": true,
+      "each_group_position_mass_one": true,
+      "knockout_participant_mass": {
+        "p_quarter_final": 8.0,
+        "p_semi_final": 4.0,
+        "p_third_place": 2.0,
+        "p_final": 1.9999999999999998,
+        "p_champion": 1.0
+      },
+      "knockout_paths_nested": true,
+      "worst_pointwise_half_width_pp": 3.09303996318958
+    },
+    "10000": {
+      "event_rows": 966,
+      "finite_event_rows": 966,
+      "interval_rows": 966,
+      "teams": 54,
+      "all_probabilities_bounded": true,
+      "all_probabilities_are_counted_events": true,
+      "all_wilson_intervals_match_independent_formula": true,
+      "maximum_interval_numeric_difference": 1.5543122344752192e-15,
+      "each_team_rank_mass_one": true,
+      "each_group_position_mass_one": true,
+      "knockout_participant_mass": {
+        "p_quarter_final": 8.000000000000002,
+        "p_semi_final": 4.0,
+        "p_third_place": 1.9999999999999987,
+        "p_final": 2.0000000000000004,
+        "p_champion": 0.9999999999999987
+      },
+      "knockout_paths_nested": true,
+      "worst_pointwise_half_width_pp": 0.979793818459521
+    }
+  },
+  "comparison_matches_report": true,
+  "comparison": {
+    "compared_events": 966,
+    "maximum_absolute_change": 0.03920000000000001,
+    "mean_absolute_change": 0.004120910973084891,
+    "p95_absolute_change": 0.017975000000000112
+  }
+}

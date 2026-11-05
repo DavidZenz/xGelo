@@ -1,0 +1,120 @@
+{
+  "schema_version": "nl-production-precision-benchmark-v1",
+  "source_bundle_id": "nl-2026-27-official-uefa-v2",
+  "source_bundle_sha256": "6cdb25a02864aea7e342cc7d05f565fcc3942d8d4c01b31cb2be396183c62bfd",
+  "state_manifest_sha256": "5a2a888a547ff15ef1e0383fe1cd2a655cbfd3c67b60c1aab9484e99b7538f21",
+  "cutoff_utc": "2026-11-05T19:20:39Z",
+  "model_release_id": "phase14-open-nb-incumbent-calibrated-v1",
+  "seed": 15017,
+  "workers": 4,
+  "input_sha256": "7f18e52cae03db58bc8f76a023ad0fe2bde717b4c01172f912e0df3b10a4580e",
+  "r_version": "4.6.2",
+  "precision_policy": {
+    "schema_version": "nl-monte-carlo-policy-v1",
+    "confidence": 0.94999999999999996,
+    "max_pointwise_half_width": 0.01,
+    "minimum_simulations": 9600,
+    "recommended_simulations": 10000,
+    "interval_method": "wilson_score",
+    "coverage_scope": "pointwise_sampling_only"
+  },
+  "selected_simulations": 10000,
+  "runs": {
+    "1000": {
+      "simulations": 1000,
+      "elapsed_seconds": 296.77199999999999,
+      "user_seconds": 37.748999999999995,
+      "system_seconds": 1.0999999999999979,
+      "output_size_bytes": 18033656,
+      "output_sha256": "b08f7b3da2a05678b013fb22c4f9d5f9124b661e580117a7247cca1fa7a37e39",
+      "resolved_event_count": 966,
+      "unavailable_event_count": 0,
+      "monte_carlo_precision": {
+        "schema_version": "nl-monte-carlo-policy-v1",
+        "confidence": 0.94999999999999996,
+        "max_pointwise_half_width": 0.01,
+        "minimum_simulations": 9600,
+        "recommended_simulations": 10000,
+        "interval_method": "wilson_score",
+        "coverage_scope": "pointwise_sampling_only",
+        "simulation_count": 1000,
+        "worst_case_half_width": 0.030930399631895804,
+        "sufficient": false,
+        "status": "preview_only"
+      },
+      "probability_audit": {
+        "probabilities_bounded": true,
+        "each_team_rank_mass_one": true,
+        "each_group_position_mass_one": true,
+        "expected_knockout_participant_mass": true,
+        "knockout_paths_nested": true,
+        "knockout_expected_mass": {
+          "p_quarter_final": 8,
+          "p_semi_final": 4,
+          "p_third_place": 2,
+          "p_final": 2,
+          "p_champion": 1
+        },
+        "knockout_observed_mass": {
+          "p_quarter_final": 8,
+          "p_semi_final": 3.9999999999999991,
+          "p_third_place": 2,
+          "p_final": 2,
+          "p_champion": 1
+        }
+      }
+    },
+    "10000": {
+      "simulations": 10000,
+      "elapsed_seconds": 2629.2730000000001,
+      "user_seconds": 194.39399999999998,
+      "system_seconds": 6.4110000000000014,
+      "output_size_bytes": 125982448,
+      "output_sha256": "e5e8746ccd9c09509a161145e1e0abad0555da3950a3d5a8e5fce5dca257ab34",
+      "resolved_event_count": 966,
+      "unavailable_event_count": 0,
+      "monte_carlo_precision": {
+        "schema_version": "nl-monte-carlo-policy-v1",
+        "confidence": 0.94999999999999996,
+        "max_pointwise_half_width": 0.01,
+        "minimum_simulations": 9600,
+        "recommended_simulations": 10000,
+        "interval_method": "wilson_score",
+        "coverage_scope": "pointwise_sampling_only",
+        "simulation_count": 10000,
+        "worst_case_half_width": 0.0097979381845952097,
+        "sufficient": true,
+        "status": "production_precision"
+      },
+      "probability_audit": {
+        "probabilities_bounded": true,
+        "each_team_rank_mass_one": true,
+        "each_group_position_mass_one": true,
+        "expected_knockout_participant_mass": true,
+        "knockout_paths_nested": true,
+        "knockout_expected_mass": {
+          "p_quarter_final": 8,
+          "p_semi_final": 4,
+          "p_third_place": 2,
+          "p_final": 2,
+          "p_champion": 1
+        },
+        "knockout_observed_mass": {
+          "p_quarter_final": 8,
+          "p_semi_final": 4,
+          "p_third_place": 1.9999999999999991,
+          "p_final": 2.0000000000000004,
+          "p_champion": 0.99999999999999878
+        }
+      },
+      "comparison": {
+        "earlier_count": 1000,
+        "compared_events": 966,
+        "maximum_absolute_change": 0.039200000000000013,
+        "mean_absolute_change": 0.0041209109730849002,
+        "p95_absolute_change": 0.017975000000000046,
+        "description": "Observed nested fixed-seed sample change; not a bound on model error or simultaneous convergence"
+      }
+    }
+  }
+}

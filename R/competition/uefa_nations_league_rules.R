@@ -1389,7 +1389,7 @@ uefa_nl_make_standings_adapter <- function(match_rows, discipline_points, access
   adapter
 }
 
-uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = NULL, access_list = NULL, group_id = NULL, rules = uefa_nl_2026_27_rules(), edition_id = NULL, state_cutoff_utc = NULL, source_bundle_id = NULL, team_ids = NULL, .universal_standings = NULL) {
+uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = NULL, access_list = NULL, group_id = NULL, rules = uefa_nl_2026_27_rules(), edition_id = NULL, state_cutoff_utc = NULL, source_bundle_id = NULL, team_ids = NULL, .universal_standings = NULL, .standings_hashes = phase14_standings_apply_hashes) {
   rules <- uefa_nl_rank_rules(rules)
   if (!exists("phase14_compute_standings", mode = "function", inherits = TRUE)) stop("Phase 14 standings reducer must be loaded before building Nations League state", call. = FALSE)
   if (!is.data.frame(match_rows)) stop("Nations League state matches must be a data frame", call. = FALSE)
@@ -1423,7 +1423,7 @@ uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = 
   phase14_standings$ordering_status <- "ruleset_adapter"
   phase14_standings$ruleset_adapter_id <- "uefa_nl_article15_v2"
   phase14_standings <- phase14_standings_order(phase14_standings)
-  phase14_standings <- phase14_standings_apply_hashes(phase14_standings)
+  phase14_standings <- .standings_hashes(phase14_standings)
   ranking$ruleset_adapter_id <- "uefa_nl_article15_v2"
   ranking <- uefa_nl_rank_finalize(ranking, rules)
   list(edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, universal_standings = universal, phase14_standings = phase14_standings, standings = ranking, ranking = ranking, ordering_status = "ready", block_status = "not_blocked", missing_rule_input = "", tiebreak_trace = attr(ranking, "tiebreak_trace", exact = TRUE), ruleset_version = rules$ruleset_version, ruleset_sha256 = uefa_nl_ruleset_sha256(rules))

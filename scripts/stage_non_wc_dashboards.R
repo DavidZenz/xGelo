@@ -4,7 +4,8 @@
 # not acquire sources, change owner authority, run Git or touch WC routes.
 non_wc_file <- commandArgs(trailingOnly = FALSE)
 non_wc_file <- non_wc_file[startsWith(non_wc_file, "--file=")]
-non_wc_root <- if (length(non_wc_file)) dirname(dirname(normalizePath(sub("^--file=", "", non_wc_file[[1L]]), winslash = "/", mustWork = TRUE))) else getwd()
+non_wc_root <- if (length(non_wc_file)) dirname(dirname(normalizePath(gsub("~+~", " ",
+  sub("^--file=", "", non_wc_file[[1L]]), fixed = TRUE), winslash = "/", mustWork = TRUE))) else getwd()
 non_wc_root <- normalizePath(non_wc_root, winslash = "/", mustWork = TRUE)
 while (!file.exists(file.path(non_wc_root, "R/dashboard/non_wc_publication.R"))) {
   parent <- dirname(non_wc_root)

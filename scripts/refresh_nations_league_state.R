@@ -304,17 +304,26 @@ phase14_refresh_nl_main <- function(args = phase14_refresh_nl_args) {
   candidate <- phase14_refresh_nl_prepare_candidate(environment, candidate)
   environment$phase14_validate_competition_state_bundle(candidate)
   repin <- phase14_refresh_nl_repin_stage_capture(environment, source_bundle)
+  written_state <- NULL
+  installed_hash <- NULL
   if (!isTRUE(options$dry_run)) {
     phase14_refresh_nl_write_stage_capture(environment, repin)
-    phase14_refresh_nl_write_state(environment, candidate)
+    written_state <- phase14_refresh_nl_write_state(environment, candidate)
+    installed_hash <- attr(written_state, "manifest_sha256", exact = TRUE)
+    if (length(installed_hash) != 1L || is.na(installed_hash) ||
+        !grepl("^[0-9a-fA-F]{64}$", as.character(installed_hash))) {
+      stop("Published Nations League state did not return its canonical installed manifest hash", call. = FALSE)
+    }
   }
   cat(sprintf(
-    "Nations League state %s: source_bundle_sha256=%s state_manifest_sha256=%s\n",
+    "Nations League state %s: source_bundle_sha256=%s %s=%s\n",
     if (isTRUE(options$dry_run)) "validated" else "published",
     as.character(source_bundle$source_bundle_sha256[[1L]]),
-    as.character(candidate$state_manifest_sha256)
+    if (isTRUE(options$dry_run)) "candidate_state_manifest_sha256" else "state_manifest_sha256",
+    if (isTRUE(options$dry_run)) as.character(candidate$state_manifest_sha256) else as.character(installed_hash)
   ))
-  invisible(list(candidate = candidate, source_bundle = source_bundle, repin = repin))
+  invisible(list(candidate = candidate, source_bundle = source_bundle, repin = repin,
+    written_state = written_state, installed_state_manifest_sha256 = installed_hash))
 }
 
 if (identical(environment(), globalenv()) && !interactive()) {

@@ -3,7 +3,7 @@
 script <- commandArgs(trailingOnly = FALSE)
 script <- script[startsWith(script, "--file=")]
 if (length(script) != 1L) stop("Use the standalone publication validator")
-root <- dirname(dirname(normalizePath(sub("^--file=", "", script), mustWork = TRUE)))
+root <- dirname(dirname(normalizePath(gsub("~+~", " ", sub("^--file=", "", script), fixed = TRUE), mustWork = TRUE)))
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) != 2L || !identical(args[[1L]], "--public-root") || !startsWith(args[[2L]], "/"))
   stop("Use --public-root <absolute validated candidate directory>")

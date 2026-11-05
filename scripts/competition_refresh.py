@@ -257,6 +257,60 @@ def copy_workspace(root, destination):
         shutil.copy2(root/baseline, destination/baseline)
 
 
+def approved_release_inventory(root, include_club=False):
+    inventory = file_inventory(root, [Path("outputs/releases"),
+        Path("outputs/benchmarks/rolling_tournaments/phase09-baselines-frozen/manifests/model_manifests.csv")])
+    return {path:digest for path,digest in inventory.items()
+            if include_club or not path.startswith("outputs/releases/club/")}
+
+
+@contextlib.contextmanager
+def retained_workspace(run):
+    parent = Path(tempfile.mkdtemp(prefix="xgelo-refresh-"+run.id+"-"))
+    parent.chmod(0o700)
+    workspace = parent/"project"
+    workspace.mkdir()
+    run.record.update(private_workspace_path=str(workspace), workspace_retained=True)
+    run.save()
+    try:
+        yield workspace
+    finally:
+        # Once installed, accepted inputs/outcomes are durable in the operator
+        # checkout and a push retry uses the exact install receipt. Before that,
+        # keep every failed computation intact for an explicitly validated retry.
+        if run.record.get("workspace_installed"):
+            try:
+                shutil.rmtree(parent)
+                run.record["workspace_retained"] = False
+            except OSError as error:
+                run.record["workspace_cleanup_error"] = str(error)
+                run.record["workspace_retained"] = True
+        else:
+            run.record["workspace_retained"] = True
+        run.save()
+
+
+def resolve_failed_workspace(root, run_id, before, releases):
+    if not re.fullmatch(r"\d{8}T\d{6}Z-[0-9a-f]{8}", run_id):
+        raise RefreshError("A failed refresh must be identified by its exact run id")
+    record = read_json(root/"logs/competition-refresh/runs"/(run_id+".json"))
+    completed = any(stage.get("phase")=="nations_league_outcomes" and stage.get("exit_code")==0
+                    for stage in record.get("stages", []))
+    if (record.get("schema_version") != SCHEMA or record.get("run_id") != run_id or record.get("status") != "failed" or
+        not record.get("workspace_retained") or not completed):
+        raise RefreshError("No retained failed computation with completed production outcomes exists for that run")
+    workspace = Path(record.get("private_workspace_path", ""))
+    temporary = Path(tempfile.gettempdir()).resolve()
+    if (not workspace.is_absolute() or workspace.is_symlink() or workspace.parent.is_symlink() or not workspace.is_dir() or
+        workspace.name!="project" or not workspace.parent.name.startswith("xgelo-refresh-"+run_id+"-") or
+        workspace.parent.parent.resolve()!=temporary or not workspace.resolve().is_relative_to(temporary) or
+        workspace.stat().st_uid!=os.getuid()):
+        raise RefreshError("Retained workspace path/ownership is invalid; no recovery attempted")
+    if record.get("managed_inputs_before") != before or record.get("approved_releases_before") != releases:
+        raise RefreshError("Accepted inputs or approved releases changed after that failed run; recovery would overwrite newer state")
+    return workspace
+
+
 def validate_payloads(public, now=None):
     validate_public_bytes(public)
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -428,6 +482,18 @@ def validate_git_index(checkout, expected):
             raise RefreshError("Publisher index bytes differ from the validated batch: "+path)
 
 
+def validate_git_commit(checkout, expected, commit):
+    names = subprocess.check_output(["git", "ls-tree", "-r", "--name-only", commit,
+                                     "--", str(PUBLIC)], cwd=checkout, text=True).splitlines()
+    paths = {str(PUBLIC/relative): digest for relative, digest in expected.items()}
+    if set(names) != set(paths):
+        raise RefreshError("Publisher commit inventory differs from the validated batch")
+    for path, digest in paths.items():
+        content = subprocess.check_output(["git", "show", commit+":"+path], cwd=checkout)
+        if hashlib.sha256(content).hexdigest() != digest:
+            raise RefreshError("Publisher commit bytes differ from the validated batch: "+path)
+
+
 def public_readback(expected, run_id):
     def read_one(item):
         path, digest = item
@@ -497,7 +563,9 @@ def publish_pages(root, run):
             raise RefreshError("Publication bytes changed before commit")
         run.command("publisher_commit", ["git", "commit", "-m", "Refresh validated non-WC dashboards " + run.id], cwd=checkout)
         run.record["publication_commit"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=checkout, text=True).strip()
-        run.command("publisher_push", ["git", "push", "origin", "HEAD:master"], cwd=checkout, timeout=120)
+        commit = run.record["publication_commit"]
+        validate_git_commit(checkout, frozen_hashes, commit)
+        run.command("publisher_push", ["git", "push", "origin", commit+":refs/heads/master"], cwd=checkout, timeout=120)
         run.record["publication"] = "pushed"
         run.save()
         verify_publication(run, frozen_hashes)
@@ -534,12 +602,23 @@ def refresh(args, root=ROOT):
             targets = managed_paths(root)
             before = file_inventory(root, targets)
             code_before = file_inventory(root, [Path("R"), Path("scripts")])
-            with tempfile.TemporaryDirectory(prefix="xgelo-refresh-") as temp:
-                workspace = Path(temp)/"project"
-                workspace.mkdir()
+            releases_before = approved_release_inventory(root, args.cl_forecasts=="approved")
+            run.record["managed_inputs_before"] = before
+            run.record["approved_releases_before"] = releases_before
+            resume = resolve_failed_workspace(root, args.resume_failed, before, releases_before) if args.resume_failed else None
+            with retained_workspace(run) as workspace:
                 run.record["phase"] = "workspace_snapshot"
                 run.save()
-                copy_workspace(root, workspace)
+                copy_workspace(resume or root, workspace)
+                if resume:
+                    # Preserve the original failed candidate; retry with the
+                    # current tested runtime while retaining exact source times,
+                    # model/outcome identities and real completed MC evidence.
+                    for relative in ("R", "scripts"):
+                        shutil.rmtree(workspace/relative)
+                        shutil.copytree(root/relative, workspace/relative,
+                                        ignore=shutil.ignore_patterns("__pycache__"))
+                    run.record["resumed_failed_run_id"] = args.resume_failed
                 normal_env = os.environ.copy()
                 # Acquisition records a genuine immutable parser Git commit;
                 # the private workspace does not need or modify its own .git.
@@ -548,25 +627,31 @@ def refresh(args, root=ROOT):
                 normal_env.update(stage_env)
                 if (root/".Renviron").is_file():
                     normal_env["R_ENVIRON_USER"] = str(root/".Renviron")
-                run.command("nations_league_source", [executable,"--vanilla","scripts/acquire_uefa_snapshot.R",
-                    "--official-uefa-nations-league","--edition-id","uefa_nations_league_2026_27",
-                    "--operator","automation","--operator-action","validated non-WC refresh",
-                    "--validation-passed","true","--publish-accepted"], cwd=workspace, env=stage_env)
-                run.command("champions_league_source", [executable,"--no-init-file","--no-site-file",
-                    "scripts/update_ucl_live_source.R","--source-only"], cwd=workspace, env=normal_env)
-                run.command("nations_league_state", [executable,"--vanilla","scripts/refresh_nations_league_state.R"], cwd=workspace, env=stage_env)
-                report_dir = workspace/"outputs/non-wc-precision-evidence"
-                try:
-                    run.command("nations_league_outcomes", [executable,"--vanilla","scripts/build_nations_league_outcomes.R",
-                        "--edition-id","uefa_nations_league_2026_27","--simulations",str(args.simulations),
-                        "--workers",str(args.workers),"--seed","15017","--write",
-                        "--precision-report-dir",str(report_dir)], cwd=workspace, env=stage_env)
-                finally:
-                    if report_dir.is_dir():
-                        evidence = run.base/"benchmarks"/run.id
-                        shutil.copytree(report_dir,evidence,dirs_exist_ok=True)
-                        run.record["precision_report_dir"] = evidence.relative_to(root).as_posix()
-                        run.save()
+                run.record["reused_accepted_outcomes"] = bool(args.restage_only or resume)
+                if args.restage_only or resume:
+                    receipt = read_json(run.base/"validated-install.json")
+                    run.record["reused_install_run_id"] = receipt.get("run_id")
+                    run.save()
+                else:
+                    run.command("nations_league_source", [executable,"--vanilla","scripts/acquire_uefa_snapshot.R",
+                        "--official-uefa-nations-league","--edition-id","uefa_nations_league_2026_27",
+                        "--operator","automation","--operator-action","validated non-WC refresh",
+                        "--validation-passed","true","--publish-accepted"], cwd=workspace, env=stage_env)
+                    run.command("champions_league_source", [executable,"--no-init-file","--no-site-file",
+                        "scripts/update_ucl_live_source.R","--source-only"], cwd=workspace, env=normal_env)
+                    run.command("nations_league_state", [executable,"--vanilla","scripts/refresh_nations_league_state.R"], cwd=workspace, env=stage_env)
+                    report_dir = workspace/"outputs/non-wc-precision-evidence"
+                    try:
+                        run.command("nations_league_outcomes", [executable,"--vanilla","scripts/build_nations_league_outcomes.R",
+                            "--edition-id","uefa_nations_league_2026_27","--simulations",str(args.simulations),
+                            "--workers",str(args.workers),"--seed","15017","--write",
+                            "--precision-report-dir",str(report_dir)], cwd=workspace, env=stage_env)
+                    finally:
+                        if report_dir.is_dir():
+                            evidence = run.base/"benchmarks"/run.id
+                            shutil.copytree(report_dir,evidence,dirs_exist_ok=True)
+                            run.record["precision_report_dir"] = evidence.relative_to(root).as_posix()
+                            run.save()
                 run.command("dashboard_stage", [executable,"--vanilla","scripts/stage_non_wc_dashboards.R",
                     "--stage-root",str(workspace/"docs/non-wc-candidate"),
                     "--cl-forecasts="+args.cl_forecasts,"--publish"], cwd=workspace, env=stage_env)
@@ -583,9 +668,12 @@ def refresh(args, root=ROOT):
                     shutil.copy2(workspace/PUBLIC/"champions-league"/name, preview/name)
                 if file_inventory(root, [Path("R"), Path("scripts")]) != code_before:
                     raise RefreshError("Runtime code changed during refresh; candidate not installed")
+                if approved_release_inventory(root, args.cl_forecasts=="approved") != releases_before:
+                    raise RefreshError("Approved releases changed during refresh; candidate not installed")
                 run.record["phase"] = "validated_install"
                 run.save()
                 install_workspace(root, workspace, before, run)
+                run.record["workspace_installed"] = True
             if not args.skip_push:
                 publish_pages(root, run)
             else:
@@ -605,12 +693,18 @@ def parse_args(arguments=None):
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--skip-push", action="store_true")
     parser.add_argument("--publish-only", action="store_true")
+    parser.add_argument("--restage-only", action="store_true")
+    parser.add_argument("--resume-failed", metavar="RUN_ID")
     parser.add_argument("--simulations", type=int, default=int(os.environ.get("XGELO_NL_SIMULATIONS", "10000")))
     parser.add_argument("--workers", type=int, default=int(os.environ.get("XGELO_NL_WORKERS", "4")))
     parser.add_argument("--cl-forecasts", choices=("disabled", "approved"), default="disabled")
     args = parser.parse_args(arguments)
     if args.simulations < 9600 or args.workers < 1:
         parser.error("Production requires >=9,600 simulations and >=1 worker")
+    if args.restage_only and (args.publish_only or args.scheduled or args.dry_run):
+        parser.error("--restage-only is a manual rendering retry; use --skip-push to defer publication")
+    if args.resume_failed and (args.restage_only or args.publish_only or args.scheduled or args.dry_run):
+        parser.error("--resume-failed is a manual validated recovery; use --skip-push to defer publication")
     if args.publish_only and (args.skip_push or args.dry_run):
         parser.error("--publish-only cannot be combined with --skip-push or --dry-run")
     return args

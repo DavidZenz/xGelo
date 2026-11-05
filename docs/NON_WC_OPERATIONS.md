@@ -34,6 +34,12 @@ bash scripts/auto_update_competition_dashboards.sh --skip-push
 
 # Retry the exact validated installed batch after a push/deployment failure.
 bash scripts/auto_update_competition_dashboards.sh --publish-only
+
+# Re-render accepted production outputs after a presentation correction.
+bash scripts/auto_update_competition_dashboards.sh --restage-only --skip-push
+
+# Resume a retained failed computation whose outcome-writing stage completed.
+bash scripts/auto_update_competition_dashboards.sh --resume-failed RUN_ID --skip-push
 ```
 
 The default is 10,000 simulations, four workers and seed 15017. Use
@@ -60,6 +66,14 @@ probability policy and fixture lifecycle. It refuses installation when
 managed inputs or runtime code changed during the build. Atomic directory
 exchanges keep each incumbent directory visible until its replacement is
 ready; the public three-route directory is installed last as one batch.
+
+Approved release bytes are also checked for concurrent changes. When CL
+predictions are disabled, unrelated club-release work cannot invalidate an
+otherwise unchanged national-team refresh. Failed private workspaces are
+retained in owner-only temporary directories; their exact paths appear in run
+records. After installation, accepted data/outcomes are durable in the operator
+checkout and the temporary copy is removed. Cleanup errors are recorded
+separately and do not prevent valid publication.
 
 An isolated publisher checks out current remote `master`, replaces only
 `docs/competitions/`, verifies the actual Git index bytes, commits that scoped
@@ -88,6 +102,9 @@ Inspect `logs/competition-refresh/`:
 - `validated-install.json`: exact installed-batch receipt used for push retry.
 - `alert.json` and `health.json`: latest failure/local-only/health observations.
 - `install-journal.json` and `backups/`: interrupted installation recovery.
+- `private_workspace_path`, `workspace_retained`, `managed_inputs_before` and
+  `approved_releases_before` in a run: retained-computation provenance and the
+  comparisons required before resuming it.
 - `benchmarks/<run-id>/`: simulation timing, convergence, probabilities and
   sampling intervals, retained even if a later rendering/publication fails.
 
@@ -131,6 +148,13 @@ launchd exit code; a loaded plist is not proof of a successful run.
    substitute preview projections to obtain a green status.
 2. If source/build validation failed, accepted local inputs and public pages
    were never installed. Rerun the normal controller after resolving the cause.
+   If outcome-writing completed and the workspace was retained, use
+   `--resume-failed RUN_ID` to clone that computation with the current repaired
+   runtime. It repeats full production gates, never invents source timestamps,
+   and never reconstructs simulation outputs from summary probabilities.
+   Recovery rejects changed accepted operator inputs/approved releases, invalid
+   retained paths/ownership, stale sources and inadequate precision. The original
+   failed workspace is preserved for inspection.
 3. If installation was interrupted, rerun the controller. Under its exclusive
    lock, it restores an `installing` transaction from the durable backups.
    A `preparing` transaction has not swapped any roots and is left untouched,
@@ -143,6 +167,11 @@ launchd exit code; a loaded plist is not proof of a successful run.
    an unchanged valid publication retry.
 5. On non-fast-forward push, retry publication so the isolated publisher starts
    from the new remote head. Never force-push or reset the operator checkout.
+6. For presentation-only changes to already installed accepted inputs, use
+   `--restage-only`. It performs all ordinary authority, precision, freshness,
+   byte, input/code comparison and installation gates without source acquisition
+   or new Monte Carlo work. It is a manual retry mode and cannot be selected by
+   the scheduled job.
 
 An installation rollback restores every managed root from the same backup.
 Public rollback also uses an atomic directory exchange. Errors preserve the
