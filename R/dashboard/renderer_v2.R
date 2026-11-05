@@ -81,6 +81,15 @@ phase21_competition_navigation <- function(edition_id, registry = phase21_defaul
   paste0('<nav class="competition-navigation" aria-label="Competitions">', paste(links, collapse = ""), '</nav>')
 }
 
+phase21_competition_navigation_css <- function() {
+  paste0('.competition-navigation{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;padding:0;margin:0 0 12px;overflow:visible}',
+    '.competition-navigation a{display:inline-flex;align-items:center;min-height:44px;max-width:100%;padding:8px 12px;border:1px solid #d9e1ea;border-radius:999px;background:#fff;color:#173f7a;text-decoration:none;font:inherit;font-weight:600;white-space:normal;overflow-wrap:anywhere}',
+    '.competition-navigation a:hover{background:#e8eef7}',
+    '.competition-navigation a[aria-current="page"]{background:#173f7a;border-color:#173f7a;color:#fff}',
+    '.competition-navigation a:focus-visible{outline:3px solid #f2a900;outline-offset:3px}',
+    '@media(max-width:640px){.competition-navigation a{border-radius:12px}}')
+}
+
 # Static publication must not keep claiming freshness or future kickoff after a
 # failed later refresh. Browser-time status changes never infer match outcomes.
 phase21_freshness_script <- function(metadata) {
@@ -110,6 +119,8 @@ phase21_decorate_legacy_html <- function(html, metadata, registry = phase21_defa
     ' · Page generated: ', phase21_html_escape(metadata$generated_at_utc), ' (UTC)</p>',
     '<p>Freshness: <strong data-metadata-field="freshness_status">', phase21_html_escape(metadata$freshness_status %||% "unknown"), '</strong></p>',
     '<p id="current-freshness-notice" role="status" hidden></p></div>')
+  html <- sub('</head>', paste0('<style id="non-wc-competition-navigation">',
+    phase21_competition_navigation_css(), '</style></head>'), html, fixed = TRUE)
   html <- sub('<body>', paste0('<body>', banner), html, fixed = TRUE)
   sub('</body>', paste0(phase21_freshness_script(metadata), '</body>'), html, fixed = TRUE)
 }
@@ -135,7 +146,7 @@ phase21_render_dashboard <- function(payload, route = NULL) {
          '*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--surface)}',
          '.shell{max-width:1440px;margin:auto;padding:24px}.hero{background:#fff;border:1px solid var(--line);border-radius:16px;padding:24px;margin-bottom:18px}.eyebrow{color:var(--muted);font-size:.8rem;letter-spacing:.08em;text-transform:uppercase}.hero h1{margin:.2rem 0 .5rem;font-size:clamp(1.7rem,4vw,2.6rem)}.status-badge{display:inline-flex;align-items:center;border-radius:999px;padding:.2rem .65rem;font-size:.8rem;font-weight:650;background:#e8eef7;color:var(--accent)}.status-blocked,.status-unavailable,.status-unresolved,.status-stale{background:#fff0e8;color:#8e3b16}.status-available{background:#e6f5eb;color:#1c6336}.status-pre_draw{background:#fff8d9;color:#775d00}',
          'nav{display:flex;gap:.5rem;overflow:auto;padding:4px 0 16px;scrollbar-width:thin}nav a{color:var(--accent);white-space:nowrap;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:.4rem .7rem;background:#fff}nav a:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid #f2a900;outline-offset:2px}.metadata-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:18px 0 0}.metadata-grid dt{color:var(--muted);font-size:.78rem;text-transform:capitalize}.metadata-grid dd{margin:0;font-weight:600;overflow-wrap:anywhere}.dashboard-section{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;margin:18px 0;scroll-margin-top:12px}.section-heading{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.section-heading h2{margin:0;font-size:1.25rem}.section-reason{color:var(--muted);margin:.7rem 0}.table-scroll{overflow-x:auto;margin-top:12px}table{border-collapse:collapse;width:100%;min-width:640px;font-size:.92rem}th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:9px 10px}th{background:#f0f4f8;position:sticky;top:0}.empty-state{border:1px dashed var(--line);border-radius:10px;color:var(--muted);padding:14px;margin-top:12px}.credits{color:var(--muted);font-size:.9rem}.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}@media (max-width:700px){.shell{padding:12px}.hero,.dashboard-section{border-radius:12px;padding:16px}.metadata-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}',
-         '</style></head><body><main class="shell" data-route="', route, '">', phase21_competition_navigation(payload$edition_id), '<header class="hero"><div class="eyebrow">xGelo competition dashboard</div><h1>', title, '</h1><span class="status-badge">', status, '</span>', phase21_render_metadata(payload$metadata), '<p id="current-freshness-notice" role="status" hidden></p><p class="credits">', phase21_html_escape(paste(unlist(payload$credits), collapse = " · ")), '</p></header><nav aria-label="Dashboard sections">', paste(nav, collapse = ""), '</nav>', paste(panels, collapse = ""), '<script type="application/json" id="dashboard-payload">', json, '</script>', phase21_freshness_script(payload$metadata), '</main></body></html>')
+         phase21_competition_navigation_css(), '</style></head><body><main class="shell" data-route="', route, '">', phase21_competition_navigation(payload$edition_id), '<header class="hero"><div class="eyebrow">xGelo competition dashboard</div><h1>', title, '</h1><span class="status-badge">', status, '</span>', phase21_render_metadata(payload$metadata), '<p id="current-freshness-notice" role="status" hidden></p><p class="credits">', phase21_html_escape(paste(unlist(payload$credits), collapse = " · ")), '</p></header><nav aria-label="Dashboard sections">', paste(nav, collapse = ""), '</nav>', paste(panels, collapse = ""), '<script type="application/json" id="dashboard-payload">', json, '</script>', phase21_freshness_script(payload$metadata), '</main></body></html>')
 }
 
 phase21_render_route_html <- phase21_render_dashboard

@@ -237,7 +237,16 @@ test_that("Fixture authority supplies mechanics but production remains fail-clos
   expect_false(isTRUE(fixture$candidate$production_eligible))
   expect_true(isTRUE(fixture$candidate$fixture_authority))
   expect_identical(nrow(fixture$ledger$ledger), 144L)
-  production <- ucl_build_forecast_ledger(fixture$state)
+  # This case specifies the missing-history boundary. The real project's
+  # accepted history must not determine which parent failure it exercises.
+  missing_history <- function() stop(structure(
+    list(message = "Fixture case has no accepted club history", call = NULL,
+         reason_code = "no_accepted_club_history"),
+    class = c("error", "condition")
+  ))
+  production <- ucl_build_forecast_ledger(
+    fixture$state, production_resolver = missing_history
+  )
   expect_identical(production$authority$original_parent_reason, "no_accepted_club_history")
   expect_identical(production$authority$status, "production_human_needed")
   expect_false(isTRUE(production$production_eligible))

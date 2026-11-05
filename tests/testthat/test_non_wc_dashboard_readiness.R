@@ -177,3 +177,44 @@ test_that("publication QA rejects a resealed payload that changes accepted linea
   env$phase21_non_wc_stage_payloads(altered,x$legacy,stage,x$now)
   expect_error(env$phase21_non_wc_validate_production_publication(stage,non_wc_test_root,x$now),"rows differ")
 })
+
+test_that("real cold authority imports cannot coerce custom route renderer functions", {
+  env <- non_wc_test_runtime()
+  # The real dependency import installs EURO's scalar coalescer. Renderer
+  # dispatch must support functions independently of that scalar helper.
+  env$phase17_provider_source_authorities(non_wc_test_root)
+  x <- non_wc_test_payloads(env)
+  root <- tempfile("non-wc-cold-renderers-");dir.create(root)
+  on.exit(unlink(root,recursive=TRUE),add=TRUE)
+  candidate <- env$phase21_non_wc_stage_payloads(x$payloads,x$legacy,file.path(root,"candidate"),x$now)
+  expect_true(candidate$valid)
+  expect_true(env$phase21_validate_batch(file.path(root,"candidate"))$valid)
+  html <- paste(readLines(file.path(root,"candidate/nations-league/index.html"),warn=FALSE),collapse="\n")
+  expect_match(html,"nl-dashboard",fixed=TRUE)
+})
+
+test_that("legacy rendering uses current human section reasons without changing rows or labels", {
+  env <- non_wc_test_runtime();x <- non_wc_test_payloads(env)
+  id <- "uefa_euro_2028_qualifying"
+  internal <- "INTERNAL_SECTION_REASON | expected_draw_date=2026-12-06 | last_refresh_at_utc=2026-08-14T15:10:13Z"
+  human <- "Forecasting is inactive until official EURO groups and fixtures are accepted."
+  common <- intersect(names(x$legacy[[id]]$sections),names(x$payloads[[id]]$sections))
+  for (section_id in common) {
+    x$legacy[[id]]$sections[[section_id]]$reason <- internal
+    x$payloads[[id]]$sections[[section_id]]$reason <- human
+  }
+  root <- tempfile("non-wc-human-reasons-");dir.create(root)
+  on.exit(unlink(root,recursive=TRUE),add=TRUE)
+  env$phase21_non_wc_stage_payloads(x$payloads,x$legacy,file.path(root,"candidate"),x$now)
+  html <- paste(readLines(file.path(root,"candidate/euro-qualifying/index.html"),warn=FALSE),collapse="\n")
+  expect_match(html,human,fixed=TRUE)
+  expect_false(grepl("INTERNAL_SECTION_REASON",html,fixed=TRUE))
+  encoded <- regmatches(html,regexec('<script id="dashboard-data" type="application/json">(.*?)</script>',html,perl=TRUE))[[1L]][[2L]]
+  rendered <- jsonlite::fromJSON(encoded,simplifyVector=FALSE)
+  for (section_id in common) {
+    expect_identical(rendered$sections[[section_id]]$reason,human)
+    expect_identical(rendered$sections[[section_id]]$label,x$legacy[[id]]$sections[[section_id]]$label)
+    expect_identical(env$phase21_canonical_value_bytes(rendered$sections[[section_id]]$rows),
+      env$phase21_canonical_value_bytes(x$legacy[[id]]$sections[[section_id]]$rows))
+  }
+})

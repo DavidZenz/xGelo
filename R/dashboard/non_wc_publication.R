@@ -65,6 +65,8 @@ phase21_non_wc_stage_payloads <- function(payloads, legacy_payloads, stage_root,
     legacy <- legacy_payloads[[id]]
     function(payload, route) {
       legacy$metadata <- payload$metadata
+      for (section_id in intersect(names(legacy$sections),names(payload$sections)))
+        legacy$sections[[section_id]]$reason <- payload$sections[[section_id]]$reason
       phase21_decorate_legacy_html(render_phase17_dashboard(legacy, route), payload$metadata, registry)
     }
   })

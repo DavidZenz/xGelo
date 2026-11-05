@@ -87,6 +87,19 @@ approved release and all forecast gates; the flag cannot grant authority.
 Tournament projections need their own connected model/rules/draw authority.
 EURO remains pre-draw until accepted official structure and fixtures exist.
 
+The installed R4.6.2 native `iconv` was observed producing different normalized
+keys for the same reviewed accented club name. This can fail the history
+identity audit and surface as `protocol_state_invalid` / `Runtime fold authority
+exists without accepted history`, even when the protocol JSON and its self-hash
+are valid. Do not retry until an intermittent pass or rewrite approval hashes.
+The repair must use deterministic normalization, audit derived alias keys against
+every approved raw-name identity, and regenerate affected history/fold parents.
+The project requires exact review of replacement fold parents and a genuine
+evaluation/refit/release after the core code identity changes. The current
+repair and evidence are tracked in the non-WC operations ledger linked above.
+CL match and tournament forecasts stay disabled until their independent runtime,
+model-quality and tournament-readiness checks pass.
+
 ## Run records and monitoring
 
 ```bash

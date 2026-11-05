@@ -171,8 +171,12 @@ phase21_stage_batch <- function(payloads, registry = phase21_default_edition_reg
   rendered <- list()
   if (nrow(rows)) for (index in seq_len(nrow(rows))) {
     row <- rows[index, , drop = FALSE]
+    # Authority imports may provide a scalar/string-only coalescer. Route
+    # renderers are callable objects; select them without scalar coercion.
+    renderer <- renderers[[row$edition_id[[1L]]]]
+    if (is.null(renderer)) renderer <- phase21_render_dashboard
     rendered[[row$edition_id[[1L]]]] <- phase21_render_route_v2(ordered_payloads[[row$edition_id[[1L]]]], stage_root, row, batch_id,
-      renderer = renderers[[row$edition_id[[1L]]]] %||% phase21_render_dashboard)
+      renderer = renderer)
   }
   manifest <- list(schema_version = phase21_dashboard_schema_version, batch_id = batch_id,
                    generated_at_utc = generated_at_utc, routes = as.character(rows$route_slug),
