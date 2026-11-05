@@ -65,3 +65,41 @@ exact inputs; failed model gates must not be weakened after seeing assessments.
 Workers must read this plan and relevant files before edits, preserve others'
 changes, and report exact checks and remaining requirements. Never treat fixture
 data, plan summaries or status flags as proof of production acceptance.
+
+## Current evidence, 5 November
+
+- Source/calibration foundation committed as `edbd9e9`. The v3 consumed-field
+  provider contract accepted a genuine fresh probe and source: 36 clubs,
+  72 completed and 72 future fixtures. Past forecasts are suppressed locally.
+  Team-strength forecasts remain explicitly disabled. The corrected full
+  production model evaluation is still running; no promotion is inferred.
+- Runtime discovery found R4.6.2 at `/opt/homebrew/opt/r/bin/Rscript` in the
+  minimal environment. The former `/opt/homebrew/bin/Rscript` path is missing.
+- Operational independent tests: 34 passed. NL precision/integration:54 passed.
+  NL lifecycle:17; readiness/authority:42; NL revision:197 passed. Updated legacy
+  dashboard suite:213 passed, no warnings, after replacing obsolete wrapper-text
+  assertions with the independent current controller/scheduler failure cases.
+- Actual old-parent production1k benchmark:305.119 seconds, four workers,
+  966 resolved numeric events, zero unavailable. The old-parent10k attempt was
+  deliberately stopped to avoid duplication. It is not a completed10k result.
+- Full fresh manual local refresh started as `20261105T192030Z-054ac634`;
+  source/state/1k+10k/validation/install are one private transaction. Its log is
+  `logs/competition-refresh/runs/20261105T192030Z-054ac634.log`. Publication is
+  deferred for QA; this is not yet an end-to-end success or public deployment.
+- Existing daily100-simulation app heartbeat was updated using the app tool:
+  `refresh-uefa-nations-league-dashboard`, now **Monitor non-WC dashboards**,
+  hourly, retaining its original chat and `failed_runs_only` preference. It
+  inspects health and never refreshes/publishes. Production launchd still needs
+  installation and a real successful calendar occurrence after manual QA.
+- Public HTTP check today: NL200, EURO200, CL404. NL public metadata still
+  shows8October and100simulations; EURO is pre-draw. No repaired public batch
+  has been pushed yet. All34 protected artifact hashes remain unchanged.
+
+Concrete follow-through: complete the manual run; inspect its1k/10k evidence
+and all three local views; push and verify all14HTTP hashes plus desktop/mobile;
+install/observe the real calendar run, restore ordinary03:00 scheduling, and
+audit the complete requirement ledger. One monitoring correction is queued
+after the current runtime-code CAS run: sandbox `PermissionError` on kill(pid,0)
+must report a process-observation gap rather than incorrectly call a live
+controller absent. Escalated observation confirms the current controller is
+alive and owns its lock. Do not edit runtime code during the long manual run.

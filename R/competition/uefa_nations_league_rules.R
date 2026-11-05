@@ -887,11 +887,19 @@ uefa_nl_build_topology <- function(
   )
 }
 
-uefa_nl_ruleset_sha256 <- function(rules = uefa_nl_2026_27_rules(), topology = NULL) {
-  if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Nations League ruleset hashes", call. = FALSE)
-  value <- if (is.null(topology)) rules else list(rules = rules, topology = topology)
-  digest::digest(uefa_nl_rules_canonical_object(value), algo = "sha256", serialize = FALSE)
-}
+uefa_nl_ruleset_sha256 <- local({
+  cache <- new.env(parent = emptyenv())
+  function(rules = uefa_nl_2026_27_rules(), topology = NULL) {
+    if (!requireNamespace("digest", quietly = TRUE)) stop("digest is required for Nations League ruleset hashes", call. = FALSE)
+    value <- if (is.null(topology)) rules else list(rules = rules, topology = topology)
+    key <- digest::digest(value, algo = "sha256")
+    if (exists(key, envir = cache, inherits = FALSE)) return(get(key, envir = cache, inherits = FALSE))
+    hash <- digest::digest(uefa_nl_rules_canonical_object(value), algo = "sha256", serialize = FALSE)
+    if (length(cache) >= 64L) rm(list = ls(cache, all.names = TRUE), envir = cache)
+    assign(key, hash, envir = cache)
+    hash
+  }
+})
 
 `%||%` <- function(left, right) if (is.null(left) || !length(left)) right else left
 
@@ -1153,14 +1161,40 @@ uefa_nl_group_tiebreak_trace <- function(
   )
 }
 
+uefa_nl_rank_canonical_column <- function(column, scalar) {
+  # as.character() can choose a different floating-point format for a whole
+  # vector than for scalar values. Football counts fit 32-bit integers; keep
+  # the scalar contract for every other numeric representation.
+  if ((is.double(column) && !inherits(column, c("Date", "POSIXt")) &&
+      any(!is.na(column) & (!is.finite(column) | abs(column) > .Machine$integer.max | column != trunc(column)))) || is.complex(column))
+    return(vapply(seq_along(column), function(index) scalar(column[index]), character(1)))
+  if (inherits(column, "Date")) values <- format(column, "%Y-%m-%d") else
+  if (inherits(column, "POSIXt")) values <- format(column, "%Y-%m-%dT%H:%M:%SZ", tz = "UTC") else
+  if (is.logical(column)) values <- ifelse(is.na(column), "", ifelse(column, "true", "false")) else
+  if ((is.atomic(column) && !is.object(column)) || is.factor(column)) values <- as.character(column) else
+    return(vapply(seq_along(column), function(index) scalar(column[index]), character(1)))
+  values[is.na(values)] <- ""
+  values
+}
+
 uefa_nl_rank_finalize <- function(data, rules) {
   data <- as.data.frame(data, stringsAsFactors = FALSE, check.names = FALSE)
   data$row_sha256 <- NULL
   data$table_sha256 <- NULL
-  data$row_sha256 <- uefa_nl_rules_row_sha256(data)
+  # Transpose scalar canonical values once. The former per-row data-frame
+  # slicing was repeated for every simulated group and ranking scope.
+  scalar <- if (exists("phase13_source_canonical_scalar", mode = "function", inherits = TRUE)) phase13_source_canonical_scalar else uefa_nl_rules_scalar
+  columns <- lapply(data, uefa_nl_rank_canonical_column, scalar = scalar)
+  row_payloads <- if (!nrow(data)) character() else do.call(paste, c(columns, sep = "|"))
+  data$row_sha256 <- vapply(row_payloads, digest::digest, character(1), algo = "sha256", serialize = FALSE, USE.NAMES = FALSE)
   key <- intersect(c("ranking_scope", "league", "group_id", "interim_rank", "computed_rank", "team_id"), names(data))
   if (!length(key)) key <- names(data)[[1L]]
-  data$table_sha256 <- rep(uefa_nl_rules_canonical_sha256(data, key = key), nrow(data))
+  columns$row_sha256 <- data$row_sha256
+  if (!exists("phase13_canonical_sha256", mode = "function", inherits = TRUE)) columns <- columns[sort(names(columns))]
+  ordering <- if (nrow(data)) do.call(order, c(columns[key], list(na.last = TRUE, method = "radix"))) else integer()
+  rows <- if (!nrow(data)) character() else do.call(paste, c(lapply(columns, `[`, ordering), sep = "\x1f"))
+  table_payload <- paste(c(paste(names(columns), collapse = "\x1f"), rows), collapse = "\x1e")
+  data$table_sha256 <- rep(digest::digest(table_payload, algo = "sha256", serialize = FALSE), nrow(data))
   row.names(data) <- NULL
   data
 }
@@ -1355,7 +1389,7 @@ uefa_nl_make_standings_adapter <- function(match_rows, discipline_points, access
   adapter
 }
 
-uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = NULL, access_list = NULL, group_id = NULL, rules = uefa_nl_2026_27_rules(), edition_id = NULL, state_cutoff_utc = NULL, source_bundle_id = NULL, team_ids = NULL) {
+uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = NULL, access_list = NULL, group_id = NULL, rules = uefa_nl_2026_27_rules(), edition_id = NULL, state_cutoff_utc = NULL, source_bundle_id = NULL, team_ids = NULL, .universal_standings = NULL) {
   rules <- uefa_nl_rank_rules(rules)
   if (!exists("phase14_compute_standings", mode = "function", inherits = TRUE)) stop("Phase 14 standings reducer must be loaded before building Nations League state", call. = FALSE)
   if (!is.data.frame(match_rows)) stop("Nations League state matches must be a data frame", call. = FALSE)
@@ -1374,15 +1408,24 @@ uefa_nl_build_group_standings_state <- function(match_rows, discipline_points = 
     }
   }
   state_cutoff_utc <- state_cutoff_utc %||% "2099-12-31T23:59:59Z"
-  universal <- phase14_compute_standings(matches = rows, edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, ruleset_adapter = NULL, team_ids = team_ids)
+  universal <- if (is.null(.universal_standings)) phase14_compute_standings(matches = rows, edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, ruleset_adapter = NULL, team_ids = team_ids) else .universal_standings
   preflight <- uefa_nl_rank_preflight(universal, rows, discipline_points, access_list, group_id, rules)
   if (length(preflight$missing)) {
     blocked <- uefa_nl_blocked_ordering_result(universal, preflight$missing, rules, group_id)
     return(list(edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, universal_standings = universal, standings = blocked, ranking = blocked, ordering_status = "blocked", block_status = "blocked", missing_rule_input = paste(preflight$missing, collapse = ";"), tiebreak_trace = attr(blocked, "tiebreak_trace", exact = TRUE), ruleset_version = rules$ruleset_version, ruleset_sha256 = uefa_nl_ruleset_sha256(rules)))
   }
-  adapter <- uefa_nl_make_standings_adapter(rows, discipline_points, access_list, group_id, rules)
-  phase14_standings <- phase14_compute_standings(matches = rows, edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, ruleset_adapter = adapter, team_ids = team_ids)
-  ranking <- uefa_nl_rank_group(phase14_standings, rows, discipline_points, access_list, rules, group_id)
+  # The adapter only supplies Article 15 ranks; it never changes universal
+  # arithmetic. Reuse the already validated universal reduction instead of
+  # reducing the same matches twice and applying the same ranker twice.
+  ranking <- uefa_nl_rank_group(universal, rows, discipline_points, access_list, rules, group_id)
+  phase14_standings <- universal
+  phase14_standings$computed_rank <- ranking$computed_rank[match(phase14_standings$team_id, ranking$team_id)]
+  phase14_standings$ordering_status <- "ruleset_adapter"
+  phase14_standings$ruleset_adapter_id <- "uefa_nl_article15_v2"
+  phase14_standings <- phase14_standings_order(phase14_standings)
+  phase14_standings <- phase14_standings_apply_hashes(phase14_standings)
+  ranking$ruleset_adapter_id <- "uefa_nl_article15_v2"
+  ranking <- uefa_nl_rank_finalize(ranking, rules)
   list(edition_id = edition_id, group_id = group_id, state_cutoff_utc = state_cutoff_utc, source_bundle_id = source_bundle_id, universal_standings = universal, phase14_standings = phase14_standings, standings = ranking, ranking = ranking, ordering_status = "ready", block_status = "not_blocked", missing_rule_input = "", tiebreak_trace = attr(ranking, "tiebreak_trace", exact = TRUE), ruleset_version = rules$ruleset_version, ruleset_sha256 = uefa_nl_ruleset_sha256(rules))
 }
 

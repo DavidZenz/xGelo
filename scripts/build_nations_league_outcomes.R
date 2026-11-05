@@ -49,6 +49,7 @@ phase15_nl_source_if_missing("R/competition/uefa_nations_league_rules.R", "uefa_
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_rule_inputs.R", "phase15_nl_read_rule_inputs")
 phase15_nl_source_if_missing("R/competition/standings.R", "phase14_compute_standings")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_simulation.R", "uefa_nl_run_simulation")
+phase15_nl_source_if_missing("R/competition/nl_simulation_precision.R", "uefa_nl_mc_precision")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_adapter.R", "phase14_uefa_nl_validate_response")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_outcomes.R", "phase15_build_nl_outcomes_candidate")
 
@@ -69,12 +70,21 @@ phase15_nl_default_workers <- function() {
   value
 }
 
+phase15_nl_default_simulations <- function() {
+  value <- Sys.getenv("XGELO_NL_SIMULATIONS", "10000")
+  count <- suppressWarnings(as.integer(value))
+  if (is.na(count) || count < 1L || !identical(as.character(count), value))
+    phase15_nl_fail("XGELO_NL_SIMULATIONS must be a positive integer.")
+  count
+}
+
 phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   options <- list(
     edition_id = NULL,
-    simulations = 1000L,
+    simulations = phase15_nl_default_simulations(),
     seed = 15017L,
     workers = phase15_nl_default_workers(),
+    precision_report_dir = NULL,
     dry_run = FALSE,
     replay_check = FALSE,
     write = FALSE,
@@ -100,11 +110,11 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
       index <- index + 1L
       next
     }
-    if (grepl("^--(edition-id|simulations|seed|workers)=", argument)) {
+    if (grepl("^--(edition-id|simulations|seed|workers|precision-report-dir)=", argument)) {
       parts <- strsplit(argument, "=", fixed = TRUE)[[1L]]
       option <- parts[[1L]]
       value <- paste(parts[-1L], collapse = "=")
-    } else if (argument %in% c("--edition-id", "--simulations", "--seed", "--workers")) {
+    } else if (argument %in% c("--edition-id", "--simulations", "--seed", "--workers", "--precision-report-dir")) {
       if (index == length(args)) {
         phase15_nl_fail(sprintf("Option %s requires one value.", argument))
       }
@@ -135,6 +145,9 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
         phase15_nl_fail("--workers must be a positive integer.")
       }
       options$workers <- parsed
+    } else if (identical(option, "--precision-report-dir")) {
+      if (!startsWith(value, "/")) phase15_nl_fail("--precision-report-dir must be an absolute path.")
+      options$precision_report_dir <- value
     }
     index <- index + 1L
   }
@@ -162,6 +175,8 @@ phase15_nl_parse_args <- function(args = commandArgs(trailingOnly = TRUE)) {
   } else {
     "dry-run"
   }
+  if (!is.null(options$precision_report_dir) && !identical(options$mode, "write"))
+    phase15_nl_fail("--precision-report-dir requires --write so the selected simulation is published once.")
   options
 }
 
@@ -173,9 +188,11 @@ phase15_nl_cli_usage <- function() {
     "--edition-id uefa_nations_league_2026_27 [options]",
     "",
     "Options:",
-    "  --simulations N   Positive simulation count (default: 1000)",
+    "  --simulations N   Simulation count (default: XGELO_NL_SIMULATIONS or 10000)",
+    "                    Publication requires 95% pointwise MC precision within +/-1 percentage point",
     "  --seed N          Non-negative deterministic seed (default: 15017)",
     "  --workers N       Parallel simulation workers (default: XGELO_NL_WORKERS or 1)",
+    "  --precision-report-dir PATH  Absolute private report directory; compare 1000 to the selected production count once",
     "  --dry-run         Validate and build in memory (default mode)",
     "  --replay-check    Validate normal, reversed, and repeated replays",
     "  --write           Atomically publish the registered ten-file bundle",
@@ -587,13 +604,13 @@ phase15_nl_attach_stage_capture_lineage <- function(candidate, stage_capture) {
   candidate
 }
 
-phase15_nl_build_candidate <- function(loaded, options, source_override = loaded$source) {
+phase15_nl_simulation_inputs <- function(loaded, options, source_override = loaded$source) {
   state_bundle <- loaded$state_bundle
   knockout_handoff <- phase15_nl_knockout_forecast_handoff(loaded)
   forecasts <- knockout_handoff$forecasts
   forecast_status <- knockout_handoff$forecast_status
   score_distributions <- knockout_handoff$score_distributions
-  simulation <- uefa_nl_run_simulation(
+  list(
     canonical_matches = state_bundle$canonical_matches,
     completed_results = source_override$results,
     forecast_status = forecast_status,
@@ -613,6 +630,12 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
     official_stage_slots = loaded$stage_capture$stage_capture,
     cutoff_utc = max(as.character(loaded$source$manifest$accepted_at_utc))
   )
+}
+
+phase15_nl_build_candidate <- function(loaded, options, source_override = loaded$source, simulation_override = NULL) {
+  state_bundle <- loaded$state_bundle
+  simulation <- if (is.null(simulation_override)) do.call(uefa_nl_run_simulation,
+    phase15_nl_simulation_inputs(loaded, options, source_override)) else simulation_override
   candidate <- phase15_build_nl_outcomes_candidate(
     simulation = simulation,
     rules = loaded$rules,
@@ -767,6 +790,7 @@ phase15_build_nl_outcomes_main <- function(
     return(list(help = TRUE, usage = phase15_nl_cli_usage(), durable_mutation = FALSE))
   }
   project_root <- normalizePath(project_root, mustWork = TRUE)
+  if (isTRUE(options$write)) uefa_nl_mc_require_publication(options$simulations)
   rng_before <- phase15_nl_rng_snapshot()
   on.exit(phase15_nl_rng_restore(rng_before), add = TRUE)
 
@@ -774,13 +798,21 @@ phase15_build_nl_outcomes_main <- function(
     edition_id = options$edition_id,
     project_root = project_root
   )
-  normal <- phase15_nl_build_candidate(loaded, options)
+  precision_run <- NULL
+  if (!is.null(options$precision_report_dir)) {
+    phase15_nl_source_if_missing("scripts/benchmark_nl_precision.R", "nl_benchmark_run_for_publication")
+    inputs <- phase15_nl_simulation_inputs(loaded, options)
+    precision_run <- nl_benchmark_run_for_publication(inputs, options$precision_report_dir)
+  }
+  normal <- phase15_nl_build_candidate(loaded, options,
+    simulation_override = if (!is.null(precision_run)) precision_run$simulation else NULL)
   result <- list(
     edition_id = options$edition_id,
     mode = options$mode,
     simulations = options$simulations,
     seed = options$seed,
     workers = options$workers,
+    monte_carlo_precision = uefa_nl_mc_precision(options$simulations),
     candidate = normal$candidate,
     simulation = normal$simulation,
     validation = TRUE,
@@ -789,6 +821,10 @@ phase15_build_nl_outcomes_main <- function(
     state_manifest_sha256 = loaded$state_bundle$state_manifest_sha256,
     stage_capture_lineage = normal$candidate$stage_capture_lineage
   )
+  if (!is.null(precision_run)) {
+    result$precision_report <- precision_run$report
+    result$precision_report_dir <- options$precision_report_dir
+  }
 
   if (identical(options$mode, "replay")) {
     reversed <- phase15_nl_build_candidate(phase15_nl_reverse_inputs(loaded), options)
@@ -823,12 +859,20 @@ phase15_nl_print_result <- function(result) {
   cat(sprintf("simulations=%d\n", result$simulations))
   cat(sprintf("seed=%d\n", result$seed))
   cat(sprintf("workers=%d\n", result$workers %||% 1L))
+  precision <- result$monte_carlo_precision
+  if (is.list(precision)) {
+    cat(sprintf("mc_precision_status=%s\n", precision$status))
+    cat(sprintf("mc_confidence=%.2f\n", precision$confidence))
+    cat(sprintf("mc_worst_case_half_width_pp=%.6f\n", 100 * precision$worst_case_half_width))
+    cat("mc_coverage_scope=pointwise_sampling_only\n")
+  }
   cat(sprintf("artifact_count=%d\n", length(result$candidate$artifacts)))
   cat(sprintf("validation=%s\n", if (isTRUE(result$validation)) "TRUE" else "FALSE"))
   cat(sprintf("durable_mutation=%s\n", if (isTRUE(result$durable_mutation)) "TRUE" else "FALSE"))
   if (isTRUE(result$replay_verified)) {
     cat("replay_verified=TRUE\n")
   }
+  if (!is.null(result$precision_report_dir)) cat(sprintf("precision_report_dir=%s\n", result$precision_report_dir))
   if (!is.null(result$written)) {
     cat(sprintf("written_root=%s\n", result$written$output_root))
   }

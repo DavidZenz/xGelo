@@ -587,15 +587,13 @@ test_that("launchd|Safari policy|browser smoke|scheduler conflict", {
   old_plist <- api$phase17_validate_plist(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist"))
   expect_true(new_plist$valid && old_plist$valid)
   expect_identical(new_plist$label, "com.xgelo.competition-dashboards")
-  expect_true(all(c("/bin/bash", "/Users/davidzenz/R/xGelo/scripts/auto_update_nations_league_dashboard.sh") %in% unlist(new_plist$arguments)))
+  expect_true(all(c("/bin/bash", file.path(phase17_test_project_root, "scripts/auto_update_competition_dashboards.sh"), "--scheduled") %in% unlist(new_plist$arguments)))
   new_plist_text <- paste(readLines(file.path(phase17_test_project_root, "scripts/com.xgelo.competition-dashboards.plist")), collapse = " ")
   expect_true(grepl("StartCalendarInterval", new_plist_text, fixed = TRUE))
   expect_false(grepl("<key>StartInterval</key>", new_plist_text, fixed = TRUE))
   expect_true(grepl("<false/>", new_plist_text, fixed = TRUE))
   expect_identical(old_plist$label, "com.xgelo.dashboard-update")
   expect_true(grepl("Disabled", paste(readLines(file.path(phase17_test_project_root, "scripts/com.xgelo.dashboard-update.plist")), collapse = " "), fixed = TRUE))
-  installer <- paste(readLines(file.path(phase17_test_project_root, "scripts/install_competition_dashboards.sh")), collapse = "\n")
-  expect_true(all(vapply(c("bootout", "disable", "bootstrap", "print-disabled", "com.xgelo.dashboard-update"), grepl, logical(1), x = installer, fixed = TRUE)))
 })
 
 test_that("Safari policy", {
@@ -677,6 +675,10 @@ test_that("Git preflight", {
   writeLines("clean", file.path(root, "README"))
   system2("git", c("-C", root, "add", "README"))
   system2("git", c("-C", root, "-c", "user.email=phase17@example.test", "-c", "user.name=Phase17", "commit", "-q", "-m", "fixture"))
+  branch <- system2("git", c("-C", root, "branch", "--show-current"), stdout = TRUE)
+  system2("git", c("-C", root, "remote", "add", "origin", root))
+  system2("git", c("-C", root, "update-ref", paste0("refs/remotes/origin/", branch), "HEAD"))
+  system2("git", c("-C", root, "branch", "--set-upstream-to", paste0("origin/", branch)), stdout = TRUE)
   result <- script$phase17_git_preflight(root, fetch = FALSE)
   expect_true(result$valid && identical(result$status, "clean_upstream_aligned"))
   writeLines("dirty", file.path(root, "dirty.txt"))
@@ -693,15 +695,17 @@ test_that("exact allowlist", {
   expect_error(script$phase17_validate_git_allowlist(c(allowlist, "logs/refresh.log"), allowlist), "exact allowlist")
   expect_error(script$phase17_validate_git_allowlist(c(allowlist, "data/competition/raw/source.json"), allowlist), "exact allowlist")
   expect_false(any(grepl("raw|refresh_batches|score_distributions|logs", allowlist)))
-  wrapper <- paste(readLines(file.path(phase17_test_project_root, "scripts/auto_update_competition_dashboards.sh")), collapse = "\n")
-  expect_true(all(vapply(c("--emit-git-allowlist", "git add --", "git push", "--skip-push"), grepl, logical(1), x = wrapper, fixed = TRUE)))
 })
 
-test_that("push failure", {
-  wrapper <- paste(readLines(file.path(phase17_test_project_root, "scripts/auto_update_competition_dashboards.sh")), collapse = "\n")
-  expect_true(grepl("push failed", wrapper, fixed = TRUE))
-  expect_false(grepl("git push --force|git push -f", wrapper))
-  expect_true(grepl("no retry", wrapper, fixed = TRUE))
+test_that("current operational scheduler and publisher reject independent failure cases", {
+  # The shell now delegates to the closed Python controller. Its behavior is
+  # exercised with temporary actual processes/Git indices and fault injection,
+  # rather than requiring legacy shell implementation strings to survive.
+  python <- Sys.which("python3")
+  expect_true(nzchar(python))
+  before <- getwd(); setwd(phase17_test_project_root); on.exit(setwd(before), add = TRUE)
+  output <- system2(python, c("-m", "unittest", "discover", "-s", "tests/operations", "-q"), stdout = TRUE, stderr = TRUE)
+  expect_null(attr(output, "status"), info = paste(output, collapse = "\n"))
 })
 
 test_that("no mutation", {

@@ -1,6 +1,18 @@
 # Nations League adapter. Competition-specific field selection stops here;
 # downstream payload validation and rendering are shared with EURO.
 
+phase17_nl_load_precision <- function(envir = parent.frame()) {
+  precision_root <- normalizePath(getwd(), winslash = "/", mustWork = TRUE)
+  while (!file.exists(file.path(precision_root, "R/competition/nl_simulation_precision.R"))) {
+    parent <- dirname(precision_root)
+    if (identical(parent, precision_root)) stop("Nations League precision module is missing", call. = FALSE)
+    precision_root <- parent
+  }
+  sys.source(file.path(precision_root, "R/competition/nl_simulation_precision.R"), envir = envir)
+  invisible(TRUE)
+}
+if (!exists("uefa_nl_mc_precision", mode = "function", inherits = TRUE)) phase17_nl_load_precision()
+
 phase17_validate_nations_league_bundle <- function(bundle) {
   if (!is.list(bundle) || !identical(as.character(bundle$edition_id), "uefa_nations_league_2026_27")) {
     stop("Phase 17 Nations League adapter received the wrong edition", call. = FALSE)
@@ -18,6 +30,23 @@ phase17_payload_nations_league <- function(bundle, batch_id = "phase17-fixture-b
   payload$progression_probabilities <- phase17_bundle_rows(bundle, "progression_probabilities")
   payload$tournament_tree <- phase17_bundle_rows(bundle, "tournament_tree")
   payload$tournament_topology <- phase17_bundle_rows(bundle, "tournament_topology")
+  payload$metadata$monte_carlo_precision <- uefa_nl_mc_precision(payload$metadata$simulation_count)
+  precision <- payload$metadata$monte_carlo_precision
+  if (!isTRUE(precision$sufficient)) payload$metadata$warnings <- unique(c(
+    payload$metadata$warnings,
+    sprintf("Low-precision preview: %d simulations; 95%% pointwise Monte Carlo error can be +/-%.2f percentage points. Production publication requires at least %d simulations.",
+      precision$simulation_count, 100 * precision$worst_case_half_width, precision$minimum_simulations)))
+  intervals <- list()
+  for (row in payload$progression_probabilities) for (field in grep("^p_", names(row), value = TRUE)) {
+    interval <- tryCatch(uefa_nl_mc_interval(row[[field]], precision$simulation_count), error = function(e) NULL)
+    if (is.null(interval) || !nrow(interval)) next
+    interval$team_id <- as.character(row$team_id %||% "")
+    interval$metric <- field
+    intervals[[length(intervals) + 1L]] <- interval
+  }
+  interval_table <- if (length(intervals)) do.call(rbind, intervals) else data.frame()
+  payload$monte_carlo_intervals <- unname(lapply(seq_len(nrow(interval_table)),
+    function(i) as.list(interval_table[i, , drop = FALSE])))
   queue <- phase17_bundle_rows(bundle, "euro_priority_queue")
   first <- if (length(queue)) queue[[1L]] else list()
   for (field in intersect(c("priority_policy_version", "priority_policy_sha256"), names(first))) payload$metadata[[field]] <- first[[field]]

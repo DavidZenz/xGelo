@@ -121,6 +121,23 @@ phase21_payload_ucl <- function(candidate = NULL, registry_row = NULL, batch_id 
 
 phase21_build_ucl_payload <- phase21_payload_ucl
 
+phase21_ucl_utc_seconds <- function(value) {
+  value <- as.character(value)
+  valid <- !is.na(value) & grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$", value)
+  result <- rep(NA_real_, length(value))
+  result[valid] <- as.numeric(as.POSIXct(value[valid], tz = "UTC", format = "%Y-%m-%dT%H:%M:%OSZ"))
+  result
+}
+
+phase21_ucl_partition_forecasts <- function(predictions, now_utc) {
+  now <- phase21_ucl_utc_seconds(now_utc)
+  times <- phase21_ucl_utc_seconds(predictions$kickoff_utc)
+  if (length(now) != 1L || !is.finite(now) || any(!is.finite(times)))
+    stop("Forecast presentation requires canonical UTC instants", call. = FALSE)
+  list(upcoming = predictions[times > now, , drop = FALSE],
+    archived = predictions[times <= now, , drop = FALSE])
+}
+
 # Display accepted current-state facts independently of model availability.
 # This view never creates forecast, draw, or tournament probability authority.
 phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
@@ -150,6 +167,13 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
     Points = standing$points, stringsAsFactors = FALSE, check.names = FALSE)
   matches <- tables$matches[order(tables$matches$kickoff_utc, tables$matches$provider_match_id), , drop = FALSE]
   completed <- as.character(matches$status) == "FINISHED"
+  now_seconds <- phase21_ucl_utc_seconds(now_utc)
+  kickoff_seconds <- phase21_ucl_utc_seconds(matches$kickoff_utc)
+  if (length(now_seconds) != 1L || !is.finite(now_seconds) || any(!is.finite(kickoff_seconds)))
+    stop("CL dashboard requires canonical UTC kickoff and generation instants", call. = FALSE)
+  expired <- !completed & kickoff_seconds <= now_seconds
+  upcoming <- !completed & !expired & as.character(matches$status) %in% c("SCHEDULED", "TIMED")
+  confirmation_pending <- expired & !as.character(matches$status) %in% c("CANCELLED", "POSTPONED", "AWARDED")
   score <- rep(NA_character_, nrow(matches))
   scored <- completed & !is.na(matches$home_score) & !is.na(matches$away_score)
   score[scored] <- paste(matches$home_score[scored], matches$away_score[scored], sep = "–")
@@ -157,6 +181,9 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
     Home = unname(clubs[matches$home_club_id]), Away = unname(clubs[matches$away_club_id]),
     Score = score, Status = tools::toTitleCase(gsub("_", " ", tolower(as.character(matches$status)))),
     stringsAsFactors = FALSE, check.names = FALSE)
+  match_rows$Status[confirmation_pending] <- "Result awaiting source confirmation"
+  live <- confirmation_pending & as.character(matches$status) %in% c("IN_PLAY", "PAUSED", "SUSPENDED")
+  match_rows$Status[live] <- paste0(tools::toTitleCase(tolower(as.character(matches$status[live]))), " — final result pending")
   metadata <- payload$metadata
   metadata$lifecycle_state <- "league_phase"
   metadata$source_status <- "accepted"
@@ -164,7 +191,18 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
   metadata$source_bundle_id <- as.character(accepted$bundle$bundle_id[[1L]])
   metadata$source_bundle_sha256 <- as.character(accepted$bundle$bundle_sha256[[1L]])
   metadata$last_refresh_at_utc <- as.character(accepted$bundle$created_at_utc[[1L]])
+  metadata$source_as_of_utc <- metadata$last_refresh_at_utc
+  if (is.data.frame(accepted$artifacts) && all(c("resource_type", "source_as_of_utc") %in% names(accepted$artifacts))) {
+    source_instants <- as.character(accepted$artifacts$source_as_of_utc[accepted$artifacts$resource_type == "matches"])
+    if (length(source_instants) && all(is.finite(phase21_ucl_utc_seconds(source_instants))))
+      metadata$source_as_of_utc <- max(source_instants)
+  }
   metadata$generated_at_utc <- now_utc
+  metadata$freshness_as_of_utc <- now_utc
+  metadata$freshness_threshold_seconds <- 48 * 3600
+  metadata$result_confirmation_pending_count <- sum(confirmation_pending)
+  metadata$completed_result_count <- sum(completed)
+  metadata$upcoming_fixture_count <- sum(upcoming)
   age <- as.numeric(difftime(as.POSIXct(now_utc, tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ"),
     as.POSIXct(metadata$last_refresh_at_utc, tz = "UTC", format = "%Y-%m-%dT%H:%M:%SZ"), units = "secs"))
   metadata$delay_seconds <- age
@@ -172,7 +210,8 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
   metadata$freshness_status <- if (stale) "stale" else "fresh"
   metadata$showing_last_accepted_snapshot <- stale || !is.null(current$sidecar)
   metadata$warnings <- c(reason, if (stale) "The accepted source is outside the 48-hour refresh window.",
-    if (!is.null(current$sidecar)) "The latest source refresh was blocked; the last accepted source is shown.")
+    if (!is.null(current$sidecar)) "The latest source refresh was blocked; the last accepted source is shown.",
+    if (any(expired)) sprintf("%d past-kickoff fixtures await accepted result confirmation; they are not upcoming fixtures.", sum(expired)))
   payload$metadata <- metadata
   for (id in names(payload$sections)) {
     payload$sections[[id]]$status <- "unavailable"
@@ -185,8 +224,9 @@ phase21_payload_ucl_live_source <- function(current, registry_row = NULL,
     reason = "Accepted fixtures, results and provider standings are available. Forecast sections remain unavailable.")
   payload$sections$standings <- phase21_section("standings", "Standings", standing_rows, status,
     "Provider league-phase TOTAL table, reconciled with completed results.")
-  payload$sections$fixtures <- phase21_section("fixtures", "Fixtures", match_rows[!completed, , drop = FALSE], status)
-  payload$sections$results <- phase21_section("results", "Results", match_rows[completed, , drop = FALSE], status)
+  payload$sections$fixtures <- phase21_section("fixtures", "Upcoming fixtures", match_rows[upcoming, , drop = FALSE], status)
+  payload$sections$results <- phase21_section("results", "Results and fixture status", match_rows[!upcoming, , drop = FALSE], status,
+    if (any(expired)) "Rows awaiting source confirmation have no inferred score or completed-result claim." else "")
   payload$credits <- list(source_name = "football-data.org", source_url = "https://www.football-data.org/",
     attribution = "Football data provided by the Football-Data.org API.")
   if (!is.null(forecasts)) payload <- phase21_ucl_attach_live_forecasts(payload, forecasts, matches, clubs)
@@ -217,6 +257,14 @@ phase21_ucl_attach_live_forecasts <- function(payload, forecasts, matches, clubs
       any(as.character(matches$home_club_id[index]) != predictions$home_club_id) ||
       any(as.character(matches$away_club_id[index]) != predictions$away_club_id))
     stop("Live forecast identities must match unplayed accepted fixtures", call. = FALSE)
+  # A saved forecast envelope is evidence of its earlier information cutoff,
+  # never permission to keep a past fixture in the live upcoming table.
+  partition <- phase21_ucl_partition_forecasts(predictions, payload$metadata$generated_at_utc)
+  archived <- partition$archived
+  predictions <- partition$upcoming
+  payload$metadata$archived_forecast_count <- nrow(archived)
+  if (nrow(archived)) payload$forecast_archive <- phase21_rows(archived[, intersect(
+    c("fixture_id", "kickoff_utc", "home_club_id", "away_club_id", "p_home", "p_draw", "p_away", "information_cutoff_utc", "model_release_id"), names(archived)), drop = FALSE])
   rows <- data.frame(`Kickoff (UTC)` = predictions$kickoff_utc,
     Home = unname(clubs[predictions$home_club_id]), Away = unname(clubs[predictions$away_club_id]),
     `Home win` = sprintf("%.1f%%", 100 * predictions$p_home),
@@ -233,6 +281,8 @@ phase21_ucl_attach_live_forecasts <- function(payload, forecasts, matches, clubs
     payload$sections$match_forecasts$reason <- paste(
       "Venue baseline: probabilities use historical home/away scoring rates and do not distinguish team strength.",
       payload$sections$match_forecasts$reason)
+  payload$metadata$forecast_model_quality <- if (identical(unique(as.character(forecasts$predictions$model_id)), "club_venue_nb"))
+    "Venue baseline only; team-strength model did not pass promotion QA" else "Approved club model"
   payload$metadata$forecast_status <- "available"
   payload$metadata$production_eligible <- TRUE
   payload$metadata$forecast_provenance <- forecasts$metadata
@@ -242,9 +292,19 @@ phase21_ucl_attach_live_forecasts <- function(payload, forecasts, matches, clubs
   payload$metadata$forecast_count <- nrow(predictions)
   payload$metadata$forecast_unavailable_count <- nrow(forecasts$unavailable)
   payload$metadata$forecast_unavailable <- phase21_rows(forecasts$unavailable)
+  if (!nrow(predictions) || identical(payload$metadata$freshness_status, "stale")) {
+    payload$metadata$forecast_status <- "unavailable"
+    payload$metadata$forecast_reason_code <- if (!nrow(predictions)) "no_future_forecasts" else "stale_current_source"
+    payload$metadata$production_eligible <- FALSE
+    payload$sections$match_forecasts <- phase21_section("match_forecasts", "Match forecasts", list(), "unavailable",
+      if (!nrow(predictions)) "No supported forecast has kickoff after this page generation time." else "Current-source data is stale. Refresh the accepted feed before using match predictions.")
+    payload$metadata$forecast_count <- 0L
+  }
   unavailable_reason <- "Club forecasts are unavailable until the historical training data and an evaluated club model release are accepted."
   payload$metadata$warnings <- setdiff(payload$metadata$warnings, unavailable_reason)
-  payload$sections$overview$reason <- "Accepted fixtures, results, provider standings and supported upcoming match forecasts are available."
+  payload$sections$overview$reason <- if (identical(payload$metadata$forecast_status, "available"))
+    "Accepted fixtures, results, provider standings and supported upcoming match forecasts are available." else
+    "Accepted source facts are shown with their freshness and confirmation status. Match predictions are unavailable."
   for (id in c("structure", "rank_distributions", "qualification_bands", "knockout_paths", "progression_probabilities", "projected_outcomes"))
     payload$sections[[id]]$reason <- "An accepted tournament simulation release is required for this section."
   payload

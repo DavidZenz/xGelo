@@ -492,6 +492,10 @@ redistributing data or using the project commercially.
 
 ### Champions League live data and model readiness
 
+For the shared Nations League, EURO and Champions League refresh, scheduler,
+run records, precision policy and recovery commands, see
+[Non-WC operations](docs/NON_WC_OPERATIONS.md). World Cup updates are separate.
+
 The UCL adapter requests the fixed 2026/27 competition, teams, matches and
 standings window. Live response freshness uses the provider's HTTP Date and
 cache Age. Club-profile and competition `lastUpdated` values describe entity

@@ -224,14 +224,7 @@ uefa_nl_condition_score_distribution <- function(
   grid
 }
 
-uefa_nl_sample_stage_match <- function(
-    forecast,
-    score_distribution,
-    seed = NULL,
-    stage_id = "league_phase",
-    stage_status = "projected",
-    projection_run_id = "",
-    draw_policy_id = "") {
+uefa_nl_sim_prepare_stage_sample <- function(forecast, score_distribution) {
   row <- uefa_nl_sim_forecast_row(forecast)
   if (!"forecast_status" %in% names(row) || !identical(tolower(as.character(row$forecast_status[[1L]])), "available")) stop("Nations League stage sampling requires forecast_status = available", call. = FALSE)
   if (!"primary_probability_view" %in% names(row) || !identical(as.character(row$primary_probability_view[[1L]]), "calibrated_1x2")) stop("Nations League stage sampling requires primary_probability_view = calibrated_1x2", call. = FALSE)
@@ -242,9 +235,18 @@ uefa_nl_sample_stage_match <- function(
   home_team <- if ("home_team_id" %in% names(row)) as.character(row$home_team_id[[1L]]) else NA_character_
   away_team <- if ("away_team_id" %in% names(row)) as.character(row$away_team_id[[1L]]) else NA_character_
   if (is.na(home_team) || !nzchar(home_team) || is.na(away_team) || !nzchar(away_team) || identical(home_team, away_team)) stop("Nations League stage sampling requires two distinct team IDs", call. = FALSE)
+  conditioned <- uefa_nl_condition_score_distribution(grid, calibrated_probabilities = probabilities)
+  list(row = row, fixture_id = fixture_id, probabilities = probabilities,
+    home_team = home_team, away_team = away_team, conditioned = conditioned)
+}
+
+uefa_nl_sim_sample_prepared_stage_match <- function(
+    plan, seed = NULL, stage_id = "league_phase", stage_status = "projected",
+    projection_run_id = "", draw_policy_id = "") {
+  row <- plan$row; fixture_id <- plan$fixture_id; probabilities <- plan$probabilities
+  home_team <- plan$home_team; away_team <- plan$away_team; conditioned <- plan$conditioned
   uefa_nl_sim_with_seed(seed, function() {
     outcome <- uefa_nl_sample_calibrated_outcome(probabilities, n = 1L)
-    conditioned <- uefa_nl_condition_score_distribution(grid, outcome_class = outcome, calibrated_probabilities = probabilities)
     indexes <- which(conditioned$outcome_class == outcome)
     chosen <- sample(indexes, size = 1L, prob = conditioned$conditional_probability[indexes])
     score <- conditioned[chosen, , drop = FALSE]
@@ -267,6 +269,13 @@ uefa_nl_sample_stage_match <- function(
       stringsAsFactors = FALSE, check.names = FALSE
     )
   })
+}
+
+uefa_nl_sample_stage_match <- function(
+    forecast, score_distribution, seed = NULL, stage_id = "league_phase",
+    stage_status = "projected", projection_run_id = "", draw_policy_id = "") {
+  plan <- uefa_nl_sim_prepare_stage_sample(forecast, score_distribution)
+  uefa_nl_sim_sample_prepared_stage_match(plan, seed, stage_id, stage_status, projection_run_id, draw_policy_id)
 }
 
 uefa_nl_sim_row_value <- function(row, fields, default = NA) {
@@ -1143,7 +1152,12 @@ uefa_nl_sim_fixture_grid <- function(score_distributions, forecast_row) {
 }
 
 uefa_nl_sim_forecast_status_for_id <- function(status, fixture_id) {
-  row <- status[as.character(status$fixture_id) == as.character(fixture_id), , drop = FALSE]
+  index <- attr(status, "uefa_nl_fixture_rows", exact = TRUE)
+  if (!is.null(index)) {
+    row_index <- unname(index[as.character(fixture_id)])
+    if (length(row_index) != 1L || is.na(row_index)) return(NULL)
+    row <- status[row_index, , drop = FALSE]
+  } else row <- status[as.character(status$fixture_id) == as.character(fixture_id), , drop = FALSE]
   if (nrow(row) != 1L) return(NULL)
   row
 }
@@ -1152,7 +1166,27 @@ uefa_nl_sim_find_forecast <- function(
     forecasts, status, stage_id, home_team_id = NULL, away_team_id = NULL,
     fixture_id = NULL, leg_number = NULL, participant_slot_home = NULL, participant_slot_away = NULL) {
   if (!is.data.frame(forecasts) || !nrow(forecasts)) return(NULL)
+  lookup <- attr(forecasts, "uefa_nl_lookup_cache", exact = TRUE)
+  lookup_key <- if (!is.null(lookup)) digest::digest(list(stage_id, home_team_id, away_team_id,
+    fixture_id, leg_number, participant_slot_home, participant_slot_away), algo = "sha256") else NULL
+  if (!is.null(lookup_key) && exists(lookup_key, envir = lookup, inherits = FALSE)) return(get(lookup_key, envir = lookup, inherits = FALSE))
+  resolved <- NULL
+  if (!is.null(lookup_key)) on.exit(assign(lookup_key, resolved, envir = lookup), add = TRUE)
   candidate <- forecasts
+  index <- attr(forecasts, "uefa_nl_fixture_rows", exact = TRUE)
+  if (!is.null(index) && !is.null(fixture_id) && length(fixture_id) == 1L && !is.na(fixture_id) && nzchar(as.character(fixture_id))) {
+    row_index <- unname(index[as.character(fixture_id)])
+    if (is.na(row_index)) return(NULL)
+    candidate <- candidate[row_index, , drop = FALSE]
+  } else {
+    pair_rows <- attr(forecasts, "uefa_nl_pair_rows", exact = TRUE)
+    if (!is.null(pair_rows) && !is.null(home_team_id) && !is.null(away_team_id)) {
+      pair_key <- paste(uefa_nl_rank_final_stage_id(stage_id), home_team_id, away_team_id, sep = "\x1f")
+      rows <- pair_rows[[pair_key]]
+      if (!length(rows)) return(NULL)
+      candidate <- candidate[rows, , drop = FALSE]
+    }
+  }
   if (!is.null(fixture_id) && length(fixture_id) && !is.na(fixture_id) && nzchar(as.character(fixture_id))) candidate <- candidate[as.character(candidate$fixture_id) == as.character(fixture_id), , drop = FALSE]
   if ("stage_id" %in% names(candidate)) candidate <- candidate[uefa_nl_rank_final_stage_id(candidate$stage_id) == uefa_nl_rank_final_stage_id(stage_id), , drop = FALSE]
   if (!is.null(home_team_id) && "home_team_id" %in% names(candidate)) candidate <- candidate[as.character(candidate$home_team_id) == as.character(home_team_id), , drop = FALSE]
@@ -1172,7 +1206,8 @@ uefa_nl_sim_find_forecast <- function(
   if (nrow(candidate) != 1L) return(NULL)
   status_row <- uefa_nl_sim_forecast_status_for_id(status, candidate$fixture_id[[1L]])
   if (is.null(status_row) || !identical(as.character(status_row$forecast_status[[1L]]), "available")) return(NULL)
-  candidate
+  resolved <- candidate
+  resolved
 }
 
 uefa_nl_sim_stage_tie_id <- function(rows, stage_id, index = 1L) {
@@ -1264,11 +1299,17 @@ uefa_nl_sim_forecast_match_row <- function(
     participant_slot_home = participant_slot_home, participant_slot_away = participant_slot_away
   )
   if (is.null(forecast)) return(NULL)
-  grid <- uefa_nl_sim_fixture_grid(score_distributions, forecast)
-  if (is.null(grid)) return(NULL)
-  sampled <- uefa_nl_sample_stage_match(
-    forecast = forecast,
-    score_distribution = grid,
+  cache <- attr(forecasts, "uefa_nl_sampling_cache", exact = TRUE)
+  cache_key <- as.character(forecast$fixture_id[[1L]])
+  plan <- if (!is.null(cache) && exists(cache_key, envir = cache, inherits = FALSE)) get(cache_key, envir = cache, inherits = FALSE) else NULL
+  if (is.null(plan)) {
+    grid <- uefa_nl_sim_fixture_grid(score_distributions, forecast)
+    if (is.null(grid)) return(NULL)
+    plan <- uefa_nl_sim_prepare_stage_sample(forecast, grid)
+    if (!is.null(cache)) assign(cache_key, plan, envir = cache)
+  }
+  sampled <- uefa_nl_sim_sample_prepared_stage_match(
+    plan = plan,
     seed = seed,
     stage_id = stage_id,
     stage_status = "projected",
@@ -1434,8 +1475,8 @@ uefa_nl_sim_prepare_iteration_matches <- function(matches, cutoff_utc) {
 
 uefa_nl_sim_sample_league_matches <- function(
     matches, forecast_status, forecasts, score_distributions, rules, seed,
-    projection_run_id, draw_policy_id, cutoff_utc, iteration = 1L) {
-  output <- uefa_nl_sim_prepare_iteration_matches(matches, cutoff_utc)
+    projection_run_id, draw_policy_id, cutoff_utc, iteration = 1L, prepared_matches = NULL) {
+  output <- if (is.null(prepared_matches)) uefa_nl_sim_prepare_iteration_matches(matches, cutoff_utc) else prepared_matches
   open <- output$stage_id == "league_phase" & uefa_nl_sim_status_is_open(output$match_status)
   records <- list()
   record_index <- 0L
@@ -1454,8 +1495,7 @@ uefa_nl_sim_sample_league_matches <- function(
       } else {
         NULL
       }
-      grid <- if (!is.null(forecast)) uefa_nl_sim_fixture_grid(score_distributions, forecast) else NULL
-      sampled <- if (!is.null(forecast) && !is.null(grid)) {
+      sampled <- if (!is.null(forecast)) {
         uefa_nl_sim_forecast_match_row(
           forecasts, forecast_status, score_distributions, "league_phase",
           output$home_team_id[[index]], output$away_team_id[[index]],
@@ -1509,7 +1549,64 @@ uefa_nl_sim_sample_league_matches <- function(
   list(matches = output, fixture_rows = uefa_nl_sim_bind_rows(records))
 }
 
-uefa_nl_sim_build_league_state <- function(matches, groups, rules, source_bundle_id, cutoff_utc) {
+uefa_nl_sim_universal_hashes <- function(data) {
+  fields <- setdiff(names(data), c("row_sha256", "table_sha256"))
+  columns <- lapply(data[fields], phase14_standings_hash_column)
+  header <- paste(fields, collapse = "\x1f")
+  rows <- do.call(paste, c(columns, sep = "\x1f"))
+  data$row_sha256 <- vapply(paste(header, rows, sep = "\x1e"), digest::digest,
+    character(1), algo = "sha256", serialize = FALSE, USE.NAMES = FALSE)
+  keys <- intersect(c(phase14_standings_snapshot_key_fields(), "team_id", "computed_rank"), fields)
+  ordering <- do.call(order, c(columns[keys], list(na.last = TRUE)))
+  hash <- digest::digest(paste(c(header, rows[ordering]), collapse = "\x1e"), algo = "sha256", serialize = FALSE)
+  data$table_sha256 <- rep(hash, nrow(data))
+  data
+}
+
+uefa_nl_sim_prepare_group_contexts <- function(matches, groups, rules, source_bundle_id, cutoff_utc) {
+  contexts <- list()
+  for (id in sort(unique(as.character(groups$group_id)), method = "radix")) {
+    group <- groups[groups$group_id == id, , drop = FALSE]
+    rows <- matches[matches$stage_id == "league_phase" & matches$group_id == id, , drop = FALSE]
+    template <- phase14_compute_standings(rows, rules$edition_id, id, cutoff_utc,
+      source_bundle_id, team_ids = as.character(group$team_id))
+    home <- match(rows$home_team_id, template$team_id); away <- match(rows$away_team_id, template$team_id)
+    # This context is built only from the validated, cutoff-safe preparation
+    # used by the sampler. Open fixtures can only gain a sampled completed
+    # score with evidence at this exact cutoff; other evidence is immutable.
+    contexts[[id]] <- list(template = template, fixture_ids = as.character(rows$fixture_id),
+      home_team_ids = as.character(rows$home_team_id), away_team_ids = as.character(rows$away_team_id),
+      home = outer(seq_len(nrow(template)), home, `==`),
+      away = outer(seq_len(nrow(template)), away, `==`))
+  }
+  contexts
+}
+
+uefa_nl_sim_universal_from_context <- function(matches, context) {
+  if (!identical(as.character(matches$fixture_id), context$fixture_ids) ||
+      !identical(as.character(matches$home_team_id), context$home_team_ids) ||
+      !identical(as.character(matches$away_team_id), context$away_team_ids))
+    stop("Nations League numeric standings context does not match its immutable fixtures", call. = FALSE)
+  eligible <- !is.na(matches$counts_for_standings) & matches$counts_for_standings
+  hg <- matches$final_home_goals; ag <- matches$final_away_goals
+  hg[!eligible] <- 0L; ag[!eligible] <- 0L
+  hwin <- eligible & hg > ag; awin <- eligible & ag > hg; draw <- eligible & hg == ag
+  sum_teams <- function(home, away) as.integer(context$home %*% home + context$away %*% away)
+  out <- context$template
+  out$played <- sum_teams(eligible, eligible)
+  out$wins <- sum_teams(hwin, awin)
+  out$draws <- sum_teams(draw, draw)
+  out$losses <- sum_teams(awin, hwin)
+  out$goals_for <- sum_teams(hg, ag)
+  out$goals_against <- sum_teams(ag, hg)
+  out$goal_difference <- out$goals_for - out$goals_against
+  out$points <- 3L * out$wins + out$draws
+  provisional <- order(-out$points, -out$goal_difference, -out$goals_for, -out$wins, out$team_id)
+  out$computed_rank[provisional] <- seq_len(nrow(out))
+  uefa_nl_sim_universal_hashes(phase14_standings_order(out))
+}
+
+uefa_nl_sim_build_league_state <- function(matches, groups, rules, source_bundle_id, cutoff_utc, group_state_cache = NULL, group_contexts = NULL) {
   group_ids <- sort(unique(as.character(groups$group_id)), method = "radix")
   states <- list()
   group_rankings <- list()
@@ -1519,11 +1616,23 @@ uefa_nl_sim_build_league_state <- function(matches, groups, rules, source_bundle
     group_matches <- league_matches[as.character(league_matches$group_id) == group_id, , drop = FALSE]
     discipline <- group[, intersect(c("team_id", "discipline_points"), names(group)), drop = FALSE]
     access <- group[, intersect(c("team_id", "access_list_position"), names(group)), drop = FALSE]
-    state <- uefa_nl_build_group_standings_state(
-      group_matches, discipline_points = discipline, access_list = access, group_id = group_id,
-      rules = rules, edition_id = rules$edition_id, state_cutoff_utc = cutoff_utc,
-      source_bundle_id = source_bundle_id, team_ids = as.character(group$team_id)
-    )
+    # Hash every argument to the authoritative rule function, including all
+    # match evidence and tie-break inputs, rather than a score-only summary.
+    cache_key <- if (!is.null(group_state_cache)) digest::digest(list(group_matches,
+      discipline, access, group_id, rules, rules$edition_id, cutoff_utc,
+      source_bundle_id, as.character(group$team_id)), algo = "sha256") else NULL
+    state <- if (!is.null(cache_key) && exists(cache_key, envir = group_state_cache, inherits = FALSE)) get(cache_key, envir = group_state_cache, inherits = FALSE) else NULL
+    if (is.null(state)) {
+      state <- uefa_nl_build_group_standings_state(
+        group_matches, discipline_points = discipline, access_list = access, group_id = group_id,
+        rules = rules, edition_id = rules$edition_id, state_cutoff_utc = cutoff_utc,
+        source_bundle_id = source_bundle_id, team_ids = as.character(group$team_id),
+        .universal_standings = if (!is.null(group_contexts)) uefa_nl_sim_universal_from_context(group_matches, group_contexts[[group_id]]) else NULL
+      )
+      # Bound each worker's memory. A miss after the limit still executes the
+      # authoritative rule function, so eviction cannot change probabilities.
+      if (!is.null(cache_key) && length(group_state_cache) < 4096L) assign(cache_key, state, envir = group_state_cache)
+    }
     # Phase 14's universal standings snapshot is deliberately league-neutral;
     # Article 19 needs the admitted group league carried back at this boundary.
     if (is.data.frame(state$standings) && nrow(state$standings)) {
@@ -1803,12 +1912,13 @@ uefa_nl_sim_iteration_paths <- function(
 uefa_nl_sim_iteration <- function(
     iteration, matches, groups, forecast_status, forecasts, score_distributions, rules,
     seed, source_bundle_id, official_stage_slots, euro_playoff_eligibility,
-    cutoff_utc, projection_run_id, draw_policy_id) {
+    cutoff_utc, projection_run_id, draw_policy_id, prepared_matches = NULL, group_state_cache = NULL, group_contexts = NULL) {
   sampled <- uefa_nl_sim_sample_league_matches(
     matches, forecast_status, forecasts, score_distributions, rules, seed,
-    projection_run_id, draw_policy_id, cutoff_utc, iteration = iteration
+    projection_run_id, draw_policy_id, cutoff_utc, iteration = iteration, prepared_matches = prepared_matches
   )
-  state <- uefa_nl_sim_build_league_state(sampled$matches, groups, rules, source_bundle_id, cutoff_utc)
+  state <- uefa_nl_sim_build_league_state(sampled$matches, groups, rules, source_bundle_id, cutoff_utc,
+    group_state_cache = group_state_cache, group_contexts = group_contexts)
   interim <- state$interim
   # A complete finish needs every league match counted, either from accepted
   # completed evidence or a successful forecast sample. This also catches
@@ -2268,14 +2378,39 @@ uefa_nl_run_simulation <- function(
     model_release_id = model_release_id, model_lineage = model_lineage,
     state_manifest_sha256 = state_manifest_sha256, cutoff_utc = cutoff_utc
   )
+  # Runtime-only indexes are attached after canonical input hashing. They do
+  # not alter accepted data, output identity, or per-iteration random streams.
+  attr(normalized_status, "uefa_nl_fixture_rows") <- stats::setNames(seq_len(nrow(normalized_status)), normalized_status$fixture_id)
+  if (nrow(normalized_forecasts)) {
+    attr(normalized_forecasts, "uefa_nl_sampling_cache") <- new.env(parent = emptyenv())
+    attr(normalized_forecasts, "uefa_nl_lookup_cache") <- new.env(parent = emptyenv())
+    attr(normalized_forecasts, "uefa_nl_fixture_rows") <- stats::setNames(seq_len(nrow(normalized_forecasts)), normalized_forecasts$fixture_id)
+    pair_fields <- c("stage_id", "home_team_id", "away_team_id")
+    if (all(pair_fields %in% names(normalized_forecasts)) && !anyNA(normalized_forecasts[pair_fields])) {
+      pair_keys <- do.call(paste, c(normalized_forecasts[pair_fields], sep = "\x1f"))
+      attr(normalized_forecasts, "uefa_nl_pair_rows") <- split(seq_len(nrow(normalized_forecasts)), pair_keys)
+    }
+  }
+  prepared_matches <- uefa_nl_sim_prepare_iteration_matches(normalized_matches, cutoff_utc)
+  group_contexts <- uefa_nl_sim_prepare_group_contexts(prepared_matches, normalized_groups, rules, source_bundle_id, cutoff_utc)
+  group_state_cache <- new.env(parent = emptyenv())
   uefa_nl_sim_with_seed(simulation_seed, function() {
     run_iteration <- function(iteration) {
       iter_seed <- uefa_nl_sim_seed_for(simulation_seed, iteration = iteration)
-      uefa_nl_sim_iteration(
+      result <- uefa_nl_sim_iteration(
         iteration, normalized_matches, normalized_groups, normalized_status, normalized_forecasts, normalized_scores,
         rules, iter_seed, source_bundle_id, normalized_slots, euro_playoff_eligibility,
-        cutoff_utc, projection$projection_run_id, projection$draw_policy_id
+        cutoff_utc, projection$projection_run_id, projection$draw_policy_id, prepared_matches = prepared_matches,
+        group_state_cache = group_state_cache, group_contexts = group_contexts
       )
+      # These construction objects are not consumed by any output reducer.
+      # Keep the full iteration API for diagnostics, but do not retain or send
+      # duplicate universal snapshots and match tables for 10,000 iterations.
+      result$matches <- NULL
+      result$state$states <- NULL
+      result$interim <- NULL
+      result$transition_slots <- NULL
+      result
     }
     iterations <- if (worker_count > 1L && count > 1L) {
       parallel::mclapply(

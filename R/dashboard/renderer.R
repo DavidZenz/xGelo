@@ -560,8 +560,10 @@ phase17_nl_group_fixtures <- function(payload, group, context) {
       home <- phase17_nl_team_name(row, "home", context)
       away <- phase17_nl_team_name(row, "away", context)
       terminal <- phase17_nl_completed_result(row)
+      lifecycle <- phase17_nl_fixture_lifecycle(row, payload$metadata$generated_at_utc)
+      if (!isTRUE(lifecycle$completed)) terminal <- NULL
       score <- if (!is.null(terminal)) paste(terminal$home_goals, terminal$away_goals, sep = "–") else "v"
-      status <- if (!is.null(terminal)) "Final" else phase17_public_status(phase17_nl_value(row, c("match_status", "source_status", "status")))
+      status <- lifecycle$label
       date <- kickoff(row)
       date_label <- phase17_nl_date_label(date)
       if (nchar(date) >= 16L) date_label <- paste(date_label, substr(date, 12L, 16L), "UTC")
@@ -569,10 +571,10 @@ phase17_nl_group_fixtures <- function(payload, group, context) {
         value <- phase17_nl_team_flag(payload, name, context)
         if (nzchar(value)) paste0('<span class="team-flag" aria-hidden="true">', value, '</span>') else ""
       }
-      paste0('<div class="nl-group-fixture"><div class="nl-compact-teams"><span>', flag(home), phase17_html_escape(home),
+      paste0('<div class="nl-group-fixture"', phase17_nl_lifecycle_attributes(lifecycle), '><div class="nl-compact-teams"><span>', flag(home), phase17_html_escape(home),
              '</span><strong class="nl-compact-score', if (!is.null(terminal)) ' completed' else '', '">', phase17_html_escape(score),
              '</strong><span>', flag(away), phase17_html_escape(away), '</span></div><small>',
-             phase17_html_escape(paste(date_label, status, sep = " · ")), '</small></div>')
+             phase17_html_escape(date_label), ' · <span data-nl-current-status>', phase17_html_escape(status), '</span></small></div>')
     }, character(1))
     paste0('<div class="nl-fixture-day"><h4>', phase17_html_escape(day), '</h4><div class="nl-compact-fixtures">', paste(items, collapse = ""), '</div></div>')
   }, character(1))
@@ -994,17 +996,49 @@ phase17_nl_forecast_for_fixture <- function(payload, fixture_id) {
   if (length(matching)) matching[[1L]] else list()
 }
 
+phase17_nl_fixture_lifecycle <- function(row, now_utc) {
+  status <- tolower(phase17_nl_value(row, c("match_status", "source_status", "fixture_status", "status")))
+  kickoff <- phase17_nl_value(row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc"))
+  instant <- function(x) {
+    if (length(x) != 1L || is.na(x) || !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$", x)) return(NA_real_)
+    as.numeric(as.POSIXct(x, format="%Y-%m-%dT%H:%M:%OSZ", tz="UTC"))
+  }
+  at <- instant(kickoff); cutoff <- instant(now_utc)
+  if (!is.finite(cutoff)) cutoff <- as.numeric(Sys.time())
+  pending_states <- c("scheduled", "timed", "upcoming", "not_started", "postponed", "cancelled", "canceled", "abandoned", "awarded", "in_play", "live", "suspended", "paused")
+  completed <- !is.null(phase17_nl_completed_result(row)) && !status %in% pending_states
+  state <- if (completed) "completed" else if (status %in% c("postponed", "cancelled", "canceled", "abandoned", "awarded")) status else
+    if (is.finite(at) && at <= cutoff) "result_pending" else if (!is.finite(at)) "kickoff_unconfirmed" else
+      if (status %in% c("in_play", "live", "suspended", "paused")) "in_progress" else
+        if (status %in% c("scheduled", "timed", "upcoming", "not_started")) "scheduled" else "status_unconfirmed"
+  label <- switch(state, completed="Final", result_pending="Past kickoff — result confirmation pending",
+    kickoff_unconfirmed="Kickoff unconfirmed", status_unconfirmed="Fixture status unconfirmed",
+    in_progress="In progress — final result pending", phase17_public_status(status))
+  list(state=state, label=label, kickoff_utc=if (is.finite(at)) kickoff else "", completed=completed,
+    forecast_eligible=identical(state,"scheduled") && is.finite(at) && at > cutoff)
+}
+
+phase17_nl_lifecycle_attributes <- function(lifecycle) {
+  paste0(' data-nl-fixture-state="', phase17_html_escape(lifecycle$state), '" data-nl-expirable="',
+    if (isTRUE(lifecycle$forecast_eligible)) 'true' else 'false', '"',
+    if (nzchar(lifecycle$kickoff_utc)) paste0(' data-nl-kickoff-utc="', phase17_html_escape(lifecycle$kickoff_utc), '"') else '')
+}
+
 phase17_nl_match_card <- function(payload, row, context, result = FALSE) {
   fixture <- phase17_public_fixture(row, context)
   match_row <- if (length(fixture)) modifyList(fixture, row) else row
+  fixture_id <- phase17_nl_value(match_row, "fixture_id")
+  accepted_results <- phase17_nl_rows(payload,"results")
+  accepted_results <- accepted_results[vapply(accepted_results,function(r) identical(phase17_nl_value(r,"fixture_id"),fixture_id),logical(1))]
+  if (nzchar(fixture_id) && length(accepted_results) == 1L) match_row <- modifyList(match_row,accepted_results[[1L]])
+  lifecycle <- phase17_nl_fixture_lifecycle(match_row,payload$metadata$generated_at_utc)
   home <- phase17_nl_team_name(match_row, "home", context)
   away <- phase17_nl_team_name(match_row, "away", context)
   group <- phase17_nl_group_key(match_row, context)
   matchday <- phase17_nl_value(match_row, c("matchday", "match_day"))
   date_value <- phase17_nl_value(match_row, c("confirmed_kickoff_at_utc", "scheduled_at_utc", "kickoff_at_utc", "date"))
   date_label <- phase17_nl_date_label(date_value)
-  status_value <- if (result) phase17_nl_value(match_row, c("match_status", "source_status", "status")) else phase17_nl_value(match_row, c("source_status", "fixture_status", "status"))
-  status_label <- phase17_public_status(status_value)
+  status_label <- lifecycle$label
   fixture_id <- phase17_nl_value(match_row, "fixture_id")
   forecast <- phase17_nl_forecast_for_fixture(payload, fixture_id)
   score_home <- phase17_nl_value(match_row, c("final_home_goals", "home_goals", "regulation_home_goals"))
@@ -1038,19 +1072,23 @@ phase17_nl_match_card <- function(payload, row, context, result = FALSE) {
     if (nzchar(display)) forecast_chips <- c(forecast_chips, paste0('<span class="chip">', label, ' ', phase17_html_escape(display), '</span>'))
   }
   forecast_status <- tolower(phase17_nl_value(forecast, c("forecast_status", "status")))
-  forecast_html <- if (length(forecast) && !result && length(forecast_chips)) {
+  forecast_available <- isTRUE(lifecycle$forecast_eligible) && !result &&
+    all(vapply(c(forecast_home,forecast_draw,forecast_away),finite_probability,logical(1)))
+  forecast_html <- if (length(forecast) && !result && isTRUE(lifecycle$forecast_eligible) && length(forecast_chips)) {
     wdl <- if (finite_probability(forecast_home) && finite_probability(forecast_draw) && finite_probability(forecast_away)) paste0(
       '<div class="wdl"><span style="width:', phase17_nl_css_percentage(forecast_home), '"></span><span style="width:',
       phase17_nl_css_percentage(forecast_draw), '"></span><span style="width:', phase17_nl_css_percentage(forecast_away), '"></span></div>') else ""
     paste0(wdl, '<div class="chips">', paste(forecast_chips, collapse = ""), '</div>')
-  } else if (result && nzchar(score_home) && nzchar(score_away)) paste0('<div class="chips"><span class="chip primary">Final ',
+  } else if (isTRUE(lifecycle$completed) && nzchar(score_home) && nzchar(score_away)) paste0('<div class="chips"><span class="chip primary">Final ',
       phase17_html_escape(score), '</span><span class="chip">Fixed in standings</span></div>') else
-    paste0('<div class="chips"><span class="chip">', if (forecast_status %in% c("suppressed", "unavailable", "unresolved")) "Forecast unavailable" else "Forecast pending", '</span></div>')
-  paste0('<article class="nl-match-card" data-filter-team="', phase17_html_escape(paste(unique(c(home, away)), collapse = "|")),
+    paste0('<div class="chips"><span class="chip">', if (!isTRUE(lifecycle$forecast_eligible)) "Forecast unavailable" else if (forecast_status %in% c("suppressed", "unavailable", "unresolved")) "Forecast unavailable" else "Forecast pending", '</span></div>')
+  if (!isTRUE(lifecycle$completed)) forecast_html <- paste0('<div data-nl-forecast-display>',forecast_html,'</div>')
+  paste0('<article class="nl-match-card"', phase17_nl_lifecycle_attributes(lifecycle),
+         ' data-nl-forecast-available="', if (forecast_available) 'true' else 'false', '" data-filter-team="', phase17_html_escape(paste(unique(c(home, away)), collapse = "|")),
          '" data-filter-group="', phase17_html_escape(group), '" data-filter-matchday="', phase17_html_escape(matchday), '" data-filter-date="', phase17_html_escape(date_label),
          '" data-filter-status="', phase17_html_escape(status_label), '"><div class="match-title">', phase17_html_escape(home), ' vs ',
          phase17_html_escape(away), '</div><div class="match-meta">', phase17_html_escape(group), ' | ', phase17_html_escape(date_label), ' | ',
-         phase17_html_escape(status_label), '</div>', forecast_html, '</article>')
+         '<span data-nl-current-status>', phase17_html_escape(status_label), '</span></div>', forecast_html, '</article>')
 }
 
 phase17_nl_filter_toolbar <- function(payload, context) {
@@ -1110,6 +1148,26 @@ phase17_nl_path_team_name <- function(row, context) {
   name
 }
 
+phase17_nl_mc_precision_note <- function(payload) {
+  precision <- payload$metadata$monte_carlo_precision
+  if (is.null(precision) && exists("uefa_nl_mc_precision", mode = "function"))
+    precision <- tryCatch(uefa_nl_mc_precision(payload$metadata$simulation_count), error = function(e) NULL)
+  if (is.null(precision)) return('<p class="nl-table-note">Monte Carlo precision is unavailable.</p>')
+  prefix <- if (isTRUE(precision$sufficient)) "" else "Low-precision preview: not suitable for reliable tournament forecasts. "
+  paste0('<p class="nl-table-note nl-mc-precision"', if (!isTRUE(precision$sufficient)) ' role="status"' else '', '>',
+    phase17_html_escape(paste0(prefix, format(precision$simulation_count, big.mark = ",", scientific = FALSE, trim = TRUE),
+      " simulations; 95% pointwise Monte Carlo interval half-width is at most ",
+      sprintf("%.2f", 100 * precision$worst_case_half_width),
+      " percentage points. These intervals describe simulation sampling error, exclude model uncertainty, and do not provide simultaneous coverage for every team.")), '</p>')
+}
+
+phase17_nl_mc_interval_label <- function(payload, probability) {
+  if (!exists("uefa_nl_mc_interval", mode = "function")) return("")
+  interval <- tryCatch(uefa_nl_mc_interval(probability, payload$metadata$simulation_count), error = function(e) NULL)
+  if (is.null(interval) || !nrow(interval) || !is.finite(interval$mc_lower_95[[1L]])) return("")
+  sprintf("95%% pointwise Monte Carlo interval %.2f%% to %.2f%%", 100 * interval$mc_lower_95[[1L]], 100 * interval$mc_upper_95[[1L]])
+}
+
 phase17_nl_render_title_chart <- function(payload, context) {
   definitions <- phase17_nl_group_definitions(payload, context)
   definitions <- definitions[vapply(definitions, function(group) identical(group$league, "League A"), logical(1))]
@@ -1134,10 +1192,13 @@ phase17_nl_render_title_chart <- function(payload, context) {
   body <- if (length(rows)) paste(vapply(rows, function(row) {
     flag <- phase17_nl_team_flag(payload, row$name, context)
     label <- paste0(row$name, ": title ", phase17_nl_percentage(row$title), "; reach the Finals ", phase17_nl_percentage(row$finals))
+    intervals <- c(phase17_nl_mc_interval_label(payload, row$title), phase17_nl_mc_interval_label(payload, row$finals))
+    intervals <- intervals[nzchar(intervals)]
+    if (length(intervals)) label <- paste(label, paste(intervals, collapse = "; "), sep = "; ")
     paste0('<div class="nl-title-row"><div class="team-ident">', if (nzchar(flag)) paste0('<span class="team-flag" aria-hidden="true">', flag, '</span>') else '',
            '<span class="team-name">', phase17_html_escape(row$name), '</span></div>',
            '<div class="nl-title-track" role="img" aria-label="', phase17_html_escape(label), '">', bar(row$finals, "finals"), bar(row$title, "title"), '</div>',
-           '<span class="nl-title-value">', phase17_html_escape(phase17_nl_percentage(row$title)), '</span><span class="nl-finals-value">', phase17_html_escape(phase17_nl_percentage(row$finals)), '</span></div>')
+           '<span class="nl-title-value" title="', phase17_html_escape(phase17_nl_mc_interval_label(payload, row$title)), '">', phase17_html_escape(phase17_nl_percentage(row$title)), '</span><span class="nl-finals-value" title="', phase17_html_escape(phase17_nl_mc_interval_label(payload, row$finals)), '">', phase17_html_escape(phase17_nl_percentage(row$finals)), '</span></div>')
   }, character(1)), collapse = "") else '<p class="nl-table-note">The accepted League A roster is unavailable.</p>'
   cutoff <- phase17_public_scalar(payload$metadata$accepted_data_cutoff_utc %||% payload$metadata$last_refresh_at_utc)
   count <- phase17_public_scalar(payload$metadata$simulation_count)
@@ -1146,7 +1207,8 @@ phase17_nl_render_title_chart <- function(payload, context) {
          '<div class="nl-title-legend"><span><i class="title"></i>Win the title</span><span><i class="finals"></i>Reach the Finals</span></div>',
          '<div class="nl-title-heading"><span>Team</span><span>Probability</span><span>Title</span><span>Finals</span></div>', body,
          '<div class="nl-title-axis"><span></span><div><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></div><span></span><span></span></div>',
-         '<p class="nl-table-note">Accepted data cutoff: ', phase17_html_escape(cutoff), ' · ', phase17_html_escape(count), ' simulations.</p></div>')
+         '<p class="nl-table-note">Accepted data cutoff: ', phase17_html_escape(cutoff), ' · ', phase17_html_escape(count), ' simulations.</p>',
+         phase17_nl_mc_precision_note(payload), '</div>')
 }
 
 phase17_nl_render_outlook_summary <- function(payload, context) {
@@ -1269,7 +1331,7 @@ phase17_nl_render_euro_safety_net <- function(payload, context) {
   paste0('<section id="euro-2028" class="section nl-view" data-nl-view="euro-2028"><div class="section-heading"><div><p class="eyebrow">EURO 2028 safety net</p><h2>Your Nations League route to EURO 2028</h2></div></div>',
     '<p class="euro-priority-note"><strong>Priority before teams qualify elsewhere. This is not a play-off entry probability.</strong></p>',
     '<p>The Nations League can provide a second route to EURO play-offs. This table projects candidate priority before teams qualify through other routes. Average positions describe uncertainty across simulations; they are not confirmed rankings.</p>',
-    '<p class="euro-meta">Accepted data cutoff: ', phase17_html_escape(cutoff), ' · ', phase17_html_escape(count), ' simulations · <a href="../euro-qualifying/">EURO qualifying dashboard</a></p>', unavailable,
+    '<p class="euro-meta">Accepted data cutoff: ', phase17_html_escape(cutoff), ' · ', phase17_html_escape(count), ' simulations · <a href="../euro-qualifying/">EURO qualifying dashboard</a></p>', phase17_nl_mc_precision_note(payload), unavailable,
     '<div class="euro-filters"><label for="euro-team-search">Team search<input id="euro-team-search" type="search" placeholder="Search teams"></label><label for="euro-league-filter">League<select id="euro-league-filter"><option value="">All leagues</option><option>A</option><option>B</option><option>C</option><option>D</option></select></label><button id="euro-clear-filters" type="button">Clear filters</button><p id="euro-team-count" role="status">Showing ', length(rows), ' teams.</p></div>',
     '<div class="nl-table-scroll euro-table-panel" tabindex="0" role="region" aria-label="EURO 2028 Nations League priority table. Scroll horizontally for all columns."><table class="nl-group-table euro-priority-table"><colgroup><col style="width:26%"><col style="width:10%"><col style="width:16%"><col style="width:16%"><col style="width:16%"><col style="width:16%"></colgroup><caption class="contract-labels">Projected priority before exclusions for other qualification routes</caption><thead><tr><th scope="col">Team</th><th scope="col">NL group</th><th scope="col">Win group</th><th scope="col">Winner priority</th><th scope="col">Avg. NL rank</th><th scope="col">Avg. queue position</th></tr></thead><tbody>', body, '</tbody></table></div>',
     '<p id="euro-no-teams" hidden>No teams match the selected filters.</p>',
@@ -1523,7 +1585,7 @@ phase17_nl_render_dashboard <- function(payload, route) {
     '.euro-priority-note{padding:14px 16px;background:var(--blue-soft);border-left:4px solid var(--blue-dark);color:var(--blue-dark)}.euro-meta{font-size:12px;color:#555}.euro-meta a{color:#24577e}.euro-filters{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:20px 0 14px}.euro-filters label{font-size:12px;font-weight:700}.euro-filters input,.euro-filters select{display:block;min-height:42px;margin-top:4px;padding:8px;border:1px solid #aaa;background:white;font:inherit}.euro-filters button{min-height:42px;padding:8px 12px;background:white;border:1px solid #aaa;font:inherit;cursor:pointer}.euro-filters p{margin:0 0 8px;color:#555;font-size:12px}.euro-table-panel{max-width:100%;min-width:0;background:white;border:1px solid var(--line);padding:10px}.euro-priority-table{width:100%;min-width:820px;table-layout:fixed;font-variant-numeric:tabular-nums}.euro-priority-table th:first-child{width:26%}.euro-priority-table .heat-cell,.euro-priority-table .standing-cell{width:auto}.euro-priority-table th:nth-child(2),.euro-priority-table td:nth-child(2){text-align:center}.euro-priority-table th,.euro-priority-table td{padding:12px 10px}.euro-priority-table .heat-cell:not(.empty){background:rgba(39,91,181,calc(.08 + var(--prob)*.18));color:#14345d}.euro-group{display:inline-block;padding:4px 9px;color:white;font-size:12px;font-weight:700;border-radius:3px;white-space:nowrap}.euro-group.league-a{background:#24577e}.euro-group.league-b{background:#236951}.euro-group.league-c{background:#8c4c10}.euro-group.league-d{background:#704099}.euro-range{max-width:180px;margin-left:auto}.euro-range summary{cursor:pointer}.euro-range span{display:block;font-size:11px;color:#555;margin-top:5px}.euro-range summary:focus-visible,.euro-filters :focus-visible{outline:2px solid #24577e;outline-offset:3px}.euro-priority-row[hidden],#euro-no-teams[hidden]{display:none!important}@media(max-width:650px){.euro-table-panel{padding:4px}.euro-filters input{max-width:100%}.euro-priority-table .team-cell{min-width:140px}}',
     '</style></head><body><header class="nl-header"><h1>', phase17_html_escape(title), '</h1><div class="subhead">Forecast-led group tables, fixtures, and tournament outlook. <strong>', phase17_html_escape(status_label), '</strong></div><div class="meta">Source: ', phase17_html_escape(phase17_public_scalar(metadata$source_confidence)), ' | Last accepted refresh: ', phase17_html_escape(phase17_nl_date_label(metadata$last_refresh_at_utc)), ' | Model release: ', phase17_html_escape(phase17_public_scalar(metadata$model_release_id)), '</div><span id="dashboard-status" role="status" class="contract-labels">', phase17_html_escape(status_label), '</span></header><main class="nl-dashboard" data-route="', phase17_html_escape(route), '">',
     warning_html,
-    '<div class="hero nl-hero"><div class="metric nl-metric"><div class="label">Leagues</div><div class="value">', league_count, '</div><div class="note">', team_count, ' teams</div></div><div class="metric nl-metric"><div class="label">Groups</div><div class="value">', length(definitions), '</div><div class="note">Accepted group roster</div></div><div class="metric nl-metric"><div class="label">Fixtures</div><div class="value">', fixture_count, '</div><div class="note">', completed_count, ' completed</div></div><div class="metric nl-metric"><div class="label">Match forecasts</div><div class="value">', forecast_label, '</div><div class="note">Available / scheduled</div></div><div class="metric nl-metric"><div class="label">Aggregate outlook</div><div class="value">', outlook_label, '</div><div class="note">Rank probabilities</div></div></div>',
+    '<div class="hero nl-hero"><div class="metric nl-metric"><div class="label">Leagues</div><div class="value">', league_count, '</div><div class="note">', team_count, ' teams</div></div><div class="metric nl-metric"><div class="label">Groups</div><div class="value">', length(definitions), '</div><div class="note">Accepted group roster</div></div><div class="metric nl-metric"><div class="label">Fixtures</div><div class="value">', fixture_count, '</div><div class="note">', completed_count, ' completed</div></div><div class="metric nl-metric"><div class="label">Match forecasts</div><div class="value" data-nl-forecast-count>', forecast_label, '</div><div class="note">Available / scheduled</div></div><div class="metric nl-metric"><div class="label">Aggregate outlook</div><div class="value">', outlook_label, '</div><div class="note">Rank probabilities</div></div></div>',
     '<nav class="tabs nl-tabs" aria-label="Dashboard sections">', tab_html, '</nav>',
     phase17_nl_filter_toolbar(payload, context),
     phase17_nl_render_groups(payload, context), phase17_nl_render_fixtures(payload, context), phase17_nl_render_results(payload, context), phase17_nl_render_outlook(payload, context), phase17_nl_render_euro_safety_net(payload, context), phase17_nl_render_tree(payload, context), phase17_nl_render_format(payload, context),

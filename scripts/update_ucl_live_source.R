@@ -6,7 +6,7 @@
 source("scripts/accept_ucl_provider.R", local = TRUE)
 source("scripts/refresh_ucl_source.R", local = TRUE)
 
-update_ucl_live_source <- function() {
+update_ucl_live_source <- function(render = TRUE) {
   stamp <- format(Sys.time(), "%Y%m%d%H%M%S", tz = "UTC")
   bundle_id <- paste0("ucl-live-", stamp)
   candidate_root <- file.path("data/competition/candidates", bundle_id)
@@ -24,13 +24,17 @@ update_ucl_live_source <- function() {
   if (!identical(refresh$status, "accepted")) {
     stop("Live source refresh is blocked: ", refresh$reason_code, call. = FALSE)
   }
-  source("scripts/render_ucl_live_dashboard.R", local = .GlobalEnv)
-  render_ucl_live_dashboard()
+  if (isTRUE(render)) {
+    source("scripts/render_ucl_live_dashboard.R", local = .GlobalEnv)
+    render_ucl_live_dashboard()
+  }
   cat("UCL_LIVE_UPDATE source=accepted bundle=", bundle_id, " forecast_authority_unchanged=true\n", sep = "")
   invisible(refresh)
 }
 
 if (sys.nframe() == 0L) {
-  if (length(commandArgs(trailingOnly = TRUE))) stop("This fixed-edition command accepts no arguments", call. = FALSE)
-  update_ucl_live_source()
+  args <- commandArgs(trailingOnly = TRUE)
+  if (length(args) && !identical(args, "--source-only"))
+    stop("Use no arguments or --source-only for the fixed-edition source handoff", call. = FALSE)
+  update_ucl_live_source(render = !identical(args, "--source-only"))
 }

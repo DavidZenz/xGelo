@@ -49,13 +49,16 @@ phase21_route_files <- function(root, route) {
   file.path(root, route, c("index.html", "payload.json", "route-manifest.json", "current.json"))
 }
 
-phase21_render_route_v2 <- function(payload, root, registry_row, batch_id) {
+phase21_render_route_v2 <- function(payload, root, registry_row, batch_id, renderer = phase21_render_dashboard) {
   phase21_validate_payload(payload)
   root <- phase21_public_root(root, create = TRUE)
   route <- as.character(registry_row$route_slug[[1L]])
   route_root <- file.path(root, route)
   dir.create(route_root, recursive = TRUE, showWarnings = FALSE)
-  html <- phase21_render_dashboard(payload, route = route)
+  if (!is.function(renderer)) stop("Phase 21 route renderer must be callable", call. = FALSE)
+  html <- renderer(payload, route = route)
+  if (!is.character(html) || length(html) != 1L || is.na(html) || !nzchar(html))
+    stop("Phase 21 renderer did not return one complete HTML document", call. = FALSE)
   payload_bytes <- phase21_payload_bytes(payload)
   manifest <- list(schema_version = phase21_dashboard_schema_version, edition_id = payload$edition_id,
                    route = paste0("/competitions/", route, "/"), batch_id = batch_id,
@@ -101,6 +104,12 @@ phase21_validate_batch <- function(root, registry = phase21_default_edition_regi
   names(paths) <- relative
   manifest <- phase21_read_json(file.path(root, "phase21-batch-manifest.json"))
   current <- phase21_read_json(file.path(root, "current.json"))
+  if (!identical(phase21_safe_scalar(manifest$schema_version), phase21_dashboard_schema_version) ||
+      !identical(phase21_safe_scalar(current$schema_version), phase21_dashboard_schema_version) ||
+      !identical(phase21_safe_scalar(current$status), "accepted") ||
+      !identical(phase21_safe_scalar(current$manifest_sha256), phase21_public_hash(phase21_public_file_bytes(file.path(root, "phase21-batch-manifest.json")))) ||
+      !identical(sort(as.character(current$inventory %||% character())), sort(phase21_expected_public_inventory(registry))))
+    stop("Phase 21 current pointer does not bind the accepted batch manifest", call. = FALSE)
   batch_id <- as.character(manifest$batch_id %||% "")
   if (!nzchar(batch_id) || !identical(batch_id, as.character(current$batch_id %||% ""))) stop("Phase 21 batch identity is missing or mixed", call. = FALSE)
   if (!is.null(expected_batch_id) && !identical(batch_id, as.character(expected_batch_id)[[1L]])) stop("Phase 21 batch identity does not match expected identity", call. = FALSE)
@@ -126,6 +135,11 @@ phase21_validate_batch <- function(root, registry = phase21_default_edition_regi
     html_hash <- phase21_public_hash(phase21_public_file_bytes(file.path(route_root, "index.html")))
     if (!identical(tolower(as.character(route_manifest$payload_sha256)), tolower(payload_hash)) || !identical(tolower(as.character(route_manifest$html_sha256)), tolower(html_hash))) stop("Phase 21 route hash mismatch", call. = FALSE)
     if (!identical(as.character(route_manifest$batch_id), batch_id) || !identical(as.character(current_route$batch_id), batch_id) || !identical(as.character(current_route$payload_sha256), as.character(route_manifest$payload_sha256))) stop("Phase 21 route batch identity mismatch", call. = FALSE)
+    declared <- manifest$route_manifests[[row$edition_id[[1L]]]]
+    if (is.null(declared) || !identical(declared, route_manifest) ||
+        !identical(phase21_safe_scalar(route_manifest$edition_id), phase21_safe_scalar(row$edition_id)) ||
+        !identical(phase21_safe_scalar(route_manifest$route), paste0("/competitions/", route, "/")))
+      stop("Phase 21 route manifest differs from its batch declaration", call. = FALSE)
     payloads[[as.character(row$edition_id)]] <- payload
     route_manifests[[route]] <- route_manifest
   }
@@ -144,7 +158,7 @@ phase21_validate_batch <- function(root, registry = phase21_default_edition_regi
        payloads = payloads, route_manifests = route_manifests, total_bytes = total, limits = limits)
 }
 
-phase21_stage_batch <- function(payloads, registry = phase21_default_edition_registry(), stage_root, batch_id = NULL, generated_at_utc = "2026-09-25T00:00:00Z") {
+phase21_stage_batch <- function(payloads, registry = phase21_default_edition_registry(), stage_root, batch_id = NULL, generated_at_utc = "2026-09-25T00:00:00Z", renderers = list()) {
   registry <- phase21_validate_registry(registry)
   rows <- phase21_enabled_registry(registry)
   stage_root <- phase21_public_root(stage_root, create = TRUE)
@@ -157,7 +171,8 @@ phase21_stage_batch <- function(payloads, registry = phase21_default_edition_reg
   rendered <- list()
   if (nrow(rows)) for (index in seq_len(nrow(rows))) {
     row <- rows[index, , drop = FALSE]
-    rendered[[row$edition_id[[1L]]]] <- phase21_render_route_v2(ordered_payloads[[row$edition_id[[1L]]]], stage_root, row, batch_id)
+    rendered[[row$edition_id[[1L]]]] <- phase21_render_route_v2(ordered_payloads[[row$edition_id[[1L]]]], stage_root, row, batch_id,
+      renderer = renderers[[row$edition_id[[1L]]]] %||% phase21_render_dashboard)
   }
   manifest <- list(schema_version = phase21_dashboard_schema_version, batch_id = batch_id,
                    generated_at_utc = generated_at_utc, routes = as.character(rows$route_slug),
@@ -167,7 +182,7 @@ phase21_stage_batch <- function(payloads, registry = phase21_default_edition_reg
                    lineage = if (length(ordered_payloads)) lapply(ordered_payloads, function(payload) payload$metadata[c("source_bundle_id", "source_bundle_sha256", "model_release_id", "ruleset_version", "ruleset_sha256", "projection_run_id")]) else list())
   phase21_write_json(manifest, file.path(stage_root, "phase21-batch-manifest.json"))
   phase21_write_json(list(schema_version = phase21_dashboard_schema_version, batch_id = batch_id,
-                          status = "accepted", manifest_sha256 = phase21_public_hash(phase21_canonical_value_bytes(manifest)),
+                          status = "accepted", manifest_sha256 = phase21_public_hash(phase21_public_file_bytes(file.path(stage_root, "phase21-batch-manifest.json"))),
                           inventory = phase21_expected_public_inventory(registry)), file.path(stage_root, "current.json"))
   validation <- phase21_validate_batch(stage_root, registry, expected_batch_id = batch_id)
   list(valid = TRUE, batch_id = batch_id, stage_root = stage_root, rendered = rendered, validation = validation)
@@ -181,6 +196,11 @@ phase21_promote_batch <- function(candidate_root, public_root, registry = phase2
   parent <- dirname(normalizePath(public_root, winslash = "/", mustWork = FALSE))
   if (!dir.exists(parent)) dir.create(parent, recursive = TRUE, showWarnings = FALSE)
   parent <- normalizePath(parent, winslash = "/", mustWork = TRUE)
+  lock <- file.path(parent, ".phase21-publication.lock")
+  if (!dir.create(lock, showWarnings = FALSE)) stop("Another competition publication holds the lock", call. = FALSE)
+  on.exit(unlink(lock, recursive = TRUE, force = TRUE), add = TRUE)
+  phase21_write_json(list(pid = Sys.getpid(), started_at_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
+    public_root = public_root), file.path(lock, "owner.json"))
   if (!identical(normalizePath(dirname(candidate_root), winslash = "/", mustWork = TRUE), parent)) stop("Phase 21 candidate and public roots must share a filesystem parent", call. = FALSE)
   validation <- phase21_validate_batch(candidate_root, registry)
   backup <- tempfile("phase21-incumbent-", tmpdir = parent)
@@ -201,14 +221,14 @@ phase21_promote_batch <- function(candidate_root, public_root, registry = phase2
   list(valid = TRUE, public_root = public_root, batch_id = validation$batch_id, validation = validation)
 }
 
-phase21_publish_batch <- function(payloads, registry = phase21_default_edition_registry(), public_root, batch_id = NULL, generated_at_utc = "2026-09-25T00:00:00Z", injectors = list()) {
+phase21_publish_batch <- function(payloads, registry = phase21_default_edition_registry(), public_root, batch_id = NULL, generated_at_utc = "2026-09-25T00:00:00Z", injectors = list(), renderers = list()) {
   public_root <- as.character(public_root)[[1L]]
   parent <- dirname(normalizePath(public_root, winslash = "/", mustWork = FALSE))
   if (!dir.exists(parent)) dir.create(parent, recursive = TRUE, showWarnings = FALSE)
   stage <- tempfile("phase21-candidate-", tmpdir = parent)
   dir.create(stage, recursive = TRUE, showWarnings = FALSE)
   on.exit(if (dir.exists(stage)) unlink(stage, recursive = TRUE, force = TRUE), add = TRUE)
-  staged <- phase21_stage_batch(payloads, registry, stage, batch_id = batch_id, generated_at_utc = generated_at_utc)
+  staged <- phase21_stage_batch(payloads, registry, stage, batch_id = batch_id, generated_at_utc = generated_at_utc, renderers = renderers)
   promoted <- phase21_promote_batch(stage, public_root, registry, injectors = injectors)
   list(valid = TRUE, batch_id = promoted$batch_id, staged = staged, promoted = promoted)
 }

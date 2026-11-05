@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Production venue baseline and local CL forecasts verified; tournament projection work remains separate
-last_updated: "2026-10-27T15:41:00Z"
-last_activity: 2026-10-27
-last_activity_desc: Immutable venue NB release and targets passed; 90 forecasts across all 36 clubs verified in the browser
+stopped_at: Active non-WC operational repair; fresh CL facts accepted, model reevaluation and full precision production refresh pending
+last_updated: "2026-11-05T19:22:00Z"
+last_activity: 2026-11-05
+last_activity_desc: Runtime/publication failure gates verified; all 34 protected WC and unrelated artifact hashes unchanged
 progress:
   total_phases: 5
   completed_phases: 2
@@ -27,6 +27,15 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 **Current focus:** Phase 19 — independent club forecast authority
 
 ## Current Position
+
+Active user goal (5 November): repair the shared non-WC refresh and public
+Nations League / CL / EURO dashboards. The complete acceptance ledger is
+`.planning/operations/non-wc-refresh-2026-11-05-PLAN.md`; formal milestone
+completion below is not inferred from implementation or fixture tests.
+Fresh CL source has 36 clubs, 72 completed and 72 future fixtures. Team-strength
+predictions are explicitly disabled while corrected genuine model evaluation
+runs. The 10,000-draw fresh NL run, actual scheduled execution, public deployment
+and local/published browser verification remain outstanding.
 
 Phase: 19 (independent-club-forecast-authority) — PRODUCTION BASELINE READY
 Plan: 10 of 10

@@ -2820,3 +2820,75 @@ test_that("aggregate team paths hide unresolved and suppressed probabilities", {
     rep(0.5, length(path_fields))
   )
 })
+
+test_that("group-state memoization preserves authoritative results and binds all evidence", {
+  inputs <- phase15_test_simulation_inputs()
+  matches <- uefa_nl_sim_normalize_matches(inputs$canonical_matches, NULL, inputs$rules, inputs$source_bundle_id)
+  groups <- uefa_nl_sim_normalize_groups(inputs$groups, matches, inputs$rules)
+  cutoff <- uefa_nl_sim_cutoff(matches)
+  matches <- uefa_nl_sim_prepare_iteration_matches(matches, cutoff)
+  args <- list(matches = matches, groups = groups, rules = inputs$rules,
+    source_bundle_id = inputs$source_bundle_id, cutoff_utc = cutoff)
+  reference <- do.call(uefa_nl_sim_build_league_state, args)
+  cache <- new.env(parent = emptyenv())
+  first <- do.call(uefa_nl_sim_build_league_state, c(args, list(group_state_cache = cache)))
+  size <- length(cache)
+  repeated <- do.call(uefa_nl_sim_build_league_state, c(args, list(group_state_cache = cache)))
+  expect_identical(first, reference)
+  expect_identical(repeated, reference)
+  expect_identical(length(cache), size)
+  expect_gt(size, 0L)
+  # Reusing a cache with another source or tie-break input must miss, even
+  # where scorelines happen to be identical.
+  other <- args; other$source_bundle_id <- "independent-source-for-cache-test"
+  expect_error(do.call(uefa_nl_sim_build_league_state, c(other, list(group_state_cache = cache))), "foreign source_bundle_id")
+  other$matches$source_bundle_id <- other$source_bundle_id
+  alternate <- do.call(uefa_nl_sim_build_league_state, c(other, list(group_state_cache = cache)))
+  expect_identical(alternate, do.call(uefa_nl_sim_build_league_state, other))
+  expect_gt(length(cache), size)
+  size <- length(cache)
+  other <- args; other$groups$discipline_points[[1L]] <- other$groups$discipline_points[[1L]] + 1L
+  alternate <- do.call(uefa_nl_sim_build_league_state, c(other, list(group_state_cache = cache)))
+  expect_identical(alternate, do.call(uefa_nl_sim_build_league_state, other))
+  expect_gt(length(cache), size)
+})
+
+test_that("numeric simulation standings equal the independent universal reducer", {
+  inputs <- phase15_test_simulation_inputs()
+  matches <- uefa_nl_sim_normalize_matches(inputs$canonical_matches, NULL, inputs$rules, inputs$source_bundle_id)
+  groups <- uefa_nl_sim_normalize_groups(inputs$groups, matches, inputs$rules)
+  cutoff <- uefa_nl_sim_cutoff(matches)
+  matches <- uefa_nl_sim_prepare_iteration_matches(matches, cutoff)
+  contexts <- uefa_nl_sim_prepare_group_contexts(matches, groups, inputs$rules, inputs$source_bundle_id, cutoff)
+  set.seed(20261105)
+  for (id in names(contexts)) {
+    rows <- matches[matches$stage_id == "league_phase" & matches$group_id == id, , drop = FALSE]
+    teams <- groups$team_id[groups$group_id == id]
+    for (scenario in seq_len(4L)) {
+      rows$counts_for_standings <- if (scenario == 1L) FALSE else if (scenario == 2L) TRUE else sample(c(TRUE, FALSE), nrow(rows), replace = TRUE)
+      rows$match_status <- "completed"; rows$evidence_completed_at_utc <- cutoff
+      rows$final_home_goals <- sample.int(9L, nrow(rows), replace = TRUE) - 1L
+      rows$final_away_goals <- sample.int(9L, nrow(rows), replace = TRUE) - 1L
+      reference <- phase14_compute_standings(rows, inputs$rules$edition_id, id, cutoff,
+        inputs$source_bundle_id, team_ids = teams)
+      numeric <- uefa_nl_sim_universal_from_context(rows, contexts[[id]])
+      expect_identical(numeric, reference, info = paste(id, scenario))
+    }
+  }
+})
+
+test_that("ranking hash batching preserves the independent canonical hash contract", {
+  rows <- data.frame(team_id = c("b", "a"), value = c(NA_real_, 1.25), flag = c(TRUE, FALSE),
+    day = as.Date(c("2026-01-01", "2026-12-12")), label = c("abc", "é"))
+  for (data in list(rows, rows[FALSE, ])) {
+    final <- uefa_nl_rank_finalize(data, uefa_nl_2026_27_rules())
+    expect_identical(final$row_sha256, uefa_nl_rules_row_sha256(data))
+    data$row_sha256 <- final$row_sha256
+    expect_identical(final$table_sha256, rep(uefa_nl_rules_canonical_sha256(data, key = "team_id"), nrow(data)))
+  }
+  rules <- uefa_nl_2026_27_rules()
+  hash <- uefa_nl_ruleset_sha256(rules)
+  expect_identical(hash, digest::digest(uefa_nl_rules_canonical_object(rules), algo = "sha256", serialize = FALSE))
+  rules$edition_id <- "changed-only-for-cache-test"
+  expect_false(identical(uefa_nl_ruleset_sha256(rules), hash))
+})
