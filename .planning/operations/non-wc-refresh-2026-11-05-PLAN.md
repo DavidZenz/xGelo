@@ -103,3 +103,24 @@ after the current runtime-code CAS run: sandbox `PermissionError` on kill(pid,0)
 must report a process-observation gap rather than incorrectly call a live
 controller absent. Escalated observation confirms the current controller is
 alive and owns its lock. Do not edit runtime code during the long manual run.
+
+19:46UTC update: the genuine CL evaluation completed and installed retained
+venue release `club-v2-626fedd0dd54b8309923855e`; candidate Elo passes23/24 gates,
+with calibrationdelta0.0261580183 against0.01. Before/after metrics and exact
+evidence are in `cl-model-evaluation-2026-11-05.md` and the diagnostics JSON.
+All seven release artifacts pass independent byte-count/SHA checks. Cold
+production R resolution completed with exit0 (session75975), returning the
+exact selected club release. Direct RDS inspection verified probability views.
+
+The fresh1k NL run took296.772seconds and passed all probability/rank/knockout
+mass/nesting audits,966resolved probabilities and0unavailable. Its10k run is
+live in controller97123; no10k completion or public success is claimed.
+
+Post-freeze patches are prepared and separately tested for truthful PID
+observation gaps, installed-vs-candidate state-hash logging, and immutable Git
+commit-byte verification/pinned pushes. The publisher proof also exercises
+actual local bare-Git rejection, dirty operator preservation and process death
+after both early and final directory exchanges. These private candidates must
+be applied and their final production tests rerun after97123's install CAS.
+Private CL9 work continues on real future-matchup/neutral/ET/penalty support;
+the existing integration alone is not completion of that requirement.

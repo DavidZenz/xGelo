@@ -1,0 +1,8 @@
+"schema_version","forecast_domain","release_id","relative_path","bytes","sha256"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","model/approved_model.rds","173046","52acfda8f80d437e4bc745b71554d5d19c2ed84b0bd5ba5d9d1374696ca89c3d"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","model/calibrator.rds","1374","f1ee12fe7f53d64421636229eb79bdeb5b9212760fb518faca94e17f89f1ca9e"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","model_contract.json","2513","24ce75952912e6b747e30ac4a7e91519cdda08dd33435969d5f8dd1e0a00be55"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","production_evidence.rds","42515111","e0a67fdd84fc9c4709c58ed660c9eb3203aa9327cd07b46acfdad82e14f05945"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","reports/fold_metrics.csv","7240","2c15d45bf434bc022b317326d3a7a85b379da7a37a367ba3280b2c7a94f029a5"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","reports/model_card.md","938","7b7111a51dcc7f6520d5c81d467b15d6dd2389167265059140644400c1bba75f"
+"phase19-club-release-manifest-v2","club","club-v2-626fedd0dd54b8309923855e","reports/promotion_gates.csv","3396","1081529cb3b19c7b4dbe9a4e355b66ac07989164c42ab3aa7ce8e6a3cd453017"

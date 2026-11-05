@@ -1,0 +1,77 @@
+{
+  "schema_version": "club-calibration-fix-before-after-v1",
+  "authority": "genuine_owner_approved_26_fold_production_evaluation",
+  "result": {
+    "schema_version": "phase19-club-controller-result-v2",
+    "forecast_domain": "club",
+    "authority_mode": "production",
+    "fixture_authority": false,
+    "status": "ready",
+    "reason_code": "",
+    "diagnostic_gate_outcome": "fail",
+    "authority_eligibility": "production",
+    "promotion_status": "retained",
+    "selected_model_id": "club_venue_nb",
+    "model_work_started": true,
+    "release_mutated": true,
+    "selector_mutated": true,
+    "decision_sha256": "c696665cec894e15b62ad2af9499d636dbfc10da47e62eb519438decee17945e",
+    "evaluation_sha256": "72d5397b992692b0ab86b679d93044d0d6bca318d2998420f4fe73b06d7e4d91"
+  },
+  "fold_metrics_sha256": "2c15d45bf434bc022b317326d3a7a85b379da7a37a367ba3280b2c7a94f029a5",
+  "families": [
+    {
+      "fold_family": "heldout_league_transport",
+      "before": {
+        "candidate_brier": 0.6267128982778856,
+        "incumbent_brier": 0.6475905100397383,
+        "candidate_log_loss": 1.042173330759865,
+        "incumbent_log_loss": 1.0704324920684638,
+        "candidate_calibration_error": 0.04022800105914926,
+        "incumbent_calibration_error": 0.023578389559419728
+      },
+      "after": {
+        "candidate_brier": 0.6301976699160076,
+        "incumbent_brier": 0.6479037914594623,
+        "candidate_log_loss": 1.0468277135107342,
+        "incumbent_log_loss": 1.070854192218607,
+        "candidate_calibration_error": 0.042097844245504196,
+        "incumbent_calibration_error": 0.023833312082808436
+      }
+    },
+    {
+      "fold_family": "rolling_origin_league_season",
+      "before": {
+        "candidate_brier": 0.6019406835961763,
+        "incumbent_brier": 0.6475128211461273,
+        "candidate_log_loss": 1.0085197737588294,
+        "incumbent_log_loss": 1.0703207759936992,
+        "candidate_calibration_error": 0.06438760945262176,
+        "incumbent_calibration_error": 0.023415851416363282
+      },
+      "after": {
+        "candidate_brier": 0.6037408686014282,
+        "incumbent_brier": 0.647586267585843,
+        "candidate_log_loss": 1.01047274356138,
+        "incumbent_log_loss": 1.0703715803642977,
+        "candidate_calibration_error": 0.05666475500709675,
+        "incumbent_calibration_error": 0.022613250497052133
+      }
+    }
+  ],
+  "failed_gates": [
+    {
+      "gate_order": "8",
+      "gate_id": "fixed_bin_calibration_delta",
+      "gate_category": "calibration",
+      "metric_id": "fixed_bin_calibration_error_delta",
+      "value": "0.0261580183363702",
+      "operator": "<=",
+      "threshold": "0.01",
+      "applicable": "TRUE",
+      "required": "TRUE",
+      "passed": "FALSE",
+      "failure_reason_code": "calibration_delta_failed"
+    }
+  ]
+}
