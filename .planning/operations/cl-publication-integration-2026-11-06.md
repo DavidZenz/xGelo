@@ -48,6 +48,22 @@ are unchanged.
 CL forecasts remain disabled by default. Genuine eligible tournament production,
 performance, final coordinated model/policy review and observed draw/knockout
 conditioning remain unverified. These negative-authority and mechanical tests
-do not complete the full forecasting goal. A presentation-only publication
-exercise is the next step; it must reuse the accepted numerical outputs and
-preserve their original source and projection timestamps.
+do not complete the full forecasting goal.
+
+The presentation-only publication exercise subsequently passed. Restage
+20261106T034207Z-24154d77 completed at03:43:18UTC; publish-only
+20261106T034443Z-8114e911 completed at03:45:42UTC, with14exact HTTPS bytes
+verified at03:45:41. Current public commit6ba71fd708ff3eac69836a5e33fc6fb1ce2db1a1
+changes only14competition paths; Pages42158439510 succeeded. All12 actual
+local/public desktop/mobile screenshots were viewed and browser checks pass.
+The immutable76-file archive is
+logs/competition-refresh/browser-evidence/publication-integration-6ba71fd708ff/.
+
+Independent payload comparison proves numerical and accepted-source semantics
+unchanged: only batch/page/freshness clocks and the exactly derived CL source
+age changed. No source capture, fitting, historical evaluation or Monte Carlo
+ran. Original source and projection timestamps remain intact. All190runtime
+files stayed fixed throughout;4501club data/release files,34protected files,
+both LaunchAgents and the public WC page stayed unchanged. Health is
+healthy/verified and the refresh lock is unheld. The pending normalization
+repair still passes its separate77-change/12-core read-only preflight.

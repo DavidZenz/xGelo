@@ -44,11 +44,26 @@ exact inputs; failed model gates must not be weakened after seeing assessments.
 | NL-03 / user 6 | Independent probability/standings/outcome checks; no reliable-looking demo projections | Focused tests and publication precision gate | Corrected independent966events/rank/KO/Wilson plus432stats/52forecasts/local-rating replay pass; internal state/generation discrepancy repaired |
 | CL-01 / user 7 | Defensible differentiated probabilities or explicit inadequate-forecast status | Chronological Brier/log-loss/calibration evidence and UI | Diagnosed; public predictions explicitly disabled; deterministic core repair awaits exact review |
 | CL-02 / user 8 | No past kickoff remains upcoming; results reconciled | Fresh accepted results, timezone/lifecycle tests and UI | Public36clubs/72results/72future; no expired upcoming or unconfirmed kickoff rows |
-| CL-03 / user 9 | QA-gated qualification/winner simulations, rules/ties/probability/uncertainty checks | Genuine accepted parents; independent simulation checks; truthful absence if unfinished | Pending |
+| CL-03 / user 9 | QA-gated qualification/winner simulations, rules/ties/probability/uncertainty checks | Genuine accepted parents; independent simulation checks; truthful absence if unfinished | Guarded persisted-reader publication installed d04604f;33Rcases/232assertions and98Pythoncases on both runtimes pass. Genuine eligible model/tournament production remains pending exact review/calibration |
 | CL-04 / user 10 | Validated public CL route and navigation/assets | Published HTTP checks; desktop/mobile screenshots | Public200; both viewports, navigation, assets and console passed |
 | EURO-01 / user 11 | Truthful pre-draw placeholder; strict official structure/fixture activation gate | Readiness tests and published placeholder | Gate and public empty pre-draw page verified; actual old source timestamp retained |
 | QA-01 | All named regression/integration concerns and local/public UI verification | Test reports, run logs, screenshots and URL results | Corrected ordinary-calendar77-file archive includes12viewed screenshots,14public files, independent numeric checks and exact deployment proof; genuine eligible CL validation remains open |
 | SCOPE-01 | Preserve WC and unrelated work; document deployment/monitoring/fallbacks | Before/after byte inventory and Git scope audit | Corrected calendar preserved all187 runtime files/HEAD,34protected files, public WC and both LaunchAgent bytes; Git59a3099 changes only14competition paths |
+
+6November03:49UTC follow-through: compatible CL publication/current-clock repairs
+are installed in d04604f. A genuine presentation-only restage reused all accepted
+numerical outputs and preserved their source/projection clocks. Current public
+commit6ba71fd708ff3eac69836a5e33fc6fb1ce2db1a1/batch7c5d428f… has14exact HTTPS
+files, successful Pages42158439510 and12viewed local/public desktop/mobile
+screenshots. Independent comparison permits only batch/page/freshness metadata
+and the exactly derived CL age to change. The76-file archive is
+logs/competition-refresh/browser-evidence/publication-integration-6ba71fd708ff/.
+All190runtime files stayed fixed,4501club data/release files and34protected files
+stayed identical; both LaunchAgents and publicWC are unchanged. Health is
+healthy/verified. This supersedes current-public references in historical entries
+below; the ordinary scheduled59a3099/77-file proof remains valid historical
+computation/calendar evidence. CL forecasts remain explicitly disabled, pending
+replacement exact-fold/normalization owner review and unchanged calibration QA.
 
 ## Parallel ownership
 

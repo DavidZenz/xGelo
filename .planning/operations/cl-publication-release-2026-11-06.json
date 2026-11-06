@@ -1,0 +1,39 @@
+{
+  "schema_version": "cl-publication-release-verification-v1",
+  "recorded_at_utc": "2026-11-06T03:51:17.941393+00:00",
+  "code_commit": "d04604f8d6b97f48d0204211c853ee45fb7793c4",
+  "publication_commit": "6ba71fd708ff3eac69836a5e33fc6fb1ce2db1a1",
+  "batch_id": "phase21-7c5d428f81d9cc8f3c8d8fe8",
+  "restage_run": "20261106T034207Z-24154d77",
+  "publish_run": "20261106T034443Z-8114e911",
+  "public_verified_at_utc": "2026-11-06T03:45:41Z",
+  "pages_workflow_id": 42158439510,
+  "public_file_count": 14,
+  "screenshots_viewed": 12,
+  "all_browser_checks_passed": true,
+  "accepted_numerical_and_source_semantics_unchanged": true,
+  "source_acquisition_fitting_evaluation_or_monte_carlo_rerun": false,
+  "archive_path": "logs/competition-refresh/browser-evidence/publication-integration-6ba71fd708ff",
+  "archive_file_count": 76,
+  "archive_manifest_sha256": "2449972a20a6c6289bcb4f96af4714ad47e70db11f1ef0dd0f56bc5f48a29356",
+  "preservation": {
+    "observed_at_utc": "2026-11-06T03:47:59.905535+00:00",
+    "status": "passed",
+    "runtime_file_count": 190,
+    "protected_count": 34,
+    "unchanged_club_data_release_count": 4501,
+    "managed_non_presentation_changes": [],
+    "refresh_terminal_success": true,
+    "refresh_lock_unheld": true,
+    "launchagent_sha256": {
+      "com.xgelo.dashboard-update.plist": "cfc5436ed4f07ac09da2014f9b8625785fa09b3c64d673cac3f18098d842e8e5",
+      "com.xgelo.competition-dashboards.plist": "e63ed3ed14c389f26bc86947974db4492c6e7dc31faf2258993f6b7e4044357e"
+    },
+    "model_or_review_activation": false
+  },
+  "health_state": "healthy",
+  "model_or_review_activation": false,
+  "genuine_eligible_cl_tournament_production_verified": false,
+  "remaining_owner_review_manifest": "19943dc932e0ae29d3bfa89425139b899eeecdd86024b065efe1f955ac0b1af6",
+  "whole_goal_complete": false
+}

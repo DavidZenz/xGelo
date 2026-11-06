@@ -1,12 +1,48 @@
 # Non-WC release acceptance evidence
 
-Evidence cutoff: 6 November 2026, 03:19 UTC. This is an ongoing acceptance
+Evidence cutoff: 6 November 2026, 03:49 UTC. This is an ongoing acceptance
 audit, not a declaration that the complete goal has been achieved. The full
 scope remains in `non-wc-refresh-2026-11-05-PLAN.md`.
 
-## Current corrected release
+## Current publication after technical CL integration
 
-The latest release is the genuine ordinary calendar run
+Code commitd04604f installs12 compatible publication/current-clock runtime/test
+files against actual main. Normal R test_dir passes33cases/232assertions, and
+all98 operational cases pass on both Python3.9.6 and3.15.2. The genuine read-only
+R validator accepted the previous14-file public batch before restaging. No
+normalization, model, fold, policy, CLI, targets or scheduler activation occurred.
+
+Presentation-only run20261106T034207Z-24154d77 completed03:43:18UTC, reusing the
+accepted scheduled outputs. Publish-only20261106T034443Z-8114e911 completed
+03:45:42UTC; all14HTTPS hashes matched at03:45:41, after2attempts/21.852seconds.
+The current public commit is6ba71fd708ff3eac69836a5e33fc6fb1ce2db1a1, batch
+phase21-7c5d428f81d9cc8f3c8d8fe8. Pages push run42158439510 succeeded. The
+connected GitHub check confirms exactly14 changed competition paths.
+
+An independent second read-back matches all14files and the unchanged WC page.
+All12 local/public desktop/mobile screenshots were viewed; metadata, visible
+dates, navigation, assets, console, overflow and fixture lifecycle checks pass.
+The76-file byte-verified immutable archive is
+logs/competition-refresh/browser-evidence/publication-integration-6ba71fd708ff/,
+manifest SHA2562449972a20a6c6289bcb4f96af4714ad47e70db11f1ef0dd0f56bc5f48a29356.
+
+Independent payload comparison proves accepted facts, forecasts, probabilities,
+model/source/projection identities and original dates are unchanged. Only batch,
+page/freshness clocks and the exactly derived CL source-check age changed.
+There was no acquisition, fitting, historical evaluation or new Monte Carlo.
+All190runtime files stayed fixed throughout the release;4501club data/release
+files,34protected files and both LaunchAgents stayed byte-identical. No managed
+non-presentation input/output changed. Health is healthy/verified; no refresh is
+active and the lock is unheld. The separate normalization preflight still passes
+77changes/12core files; the actual owner decision remains pending.
+
+These publication checks do not prove genuine eligible CL tournament production.
+CL-03 and the full forecasting goal remain incomplete. Detailed implementation
+and test evidence are in cl-publication-integration-2026-11-06.md.
+
+## Corrected ordinary scheduled release
+
+The accepted numerical inputs come from the genuine ordinary calendar run
 `20261106T020002Z-6a4b8a15`, commit
 `59a3099ee231a70846ffe6465d77806436cd303c`, batch
 `phase21-4b26fbad383457fa09414ce3`. It started at02:00:02UTC /03:00:02Vienna
