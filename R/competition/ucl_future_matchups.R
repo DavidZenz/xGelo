@@ -237,6 +237,28 @@ ucl_future_policy_status <- function() {
   }, error = function(e) .ucl_future_block("future_matchup_policy_not_approved"))
 }
 
+# Pure current-roster selection; it grants no model or publication authority.
+# The caller validates the full replay separately and retains its full state/hash.
+.ucl_future_current_roster_ratings <- function(state, current) {
+  if (!is.list(current) || !is.data.frame(current$clubs) || !"club_id" %in% names(current$clubs))
+    .ucl_future_abort("current_roster_invalid")
+  ids <- as.character(current$clubs$club_id)
+  if (length(ids) != 36L || anyNA(ids) || anyDuplicated(ids) ||
+      any(!grepl("^club_[a-z0-9][a-z0-9_]*$", ids))) .ucl_future_abort("current_roster_invalid")
+  if (!is.list(state)) .ucl_future_abort("rating_state_roster_invalid")
+  clubs <- state$clubs
+  if (!is.data.frame(clubs) || !all(c("club_id", "rating", "prior_match_count") %in% names(clubs)) ||
+      anyNA(clubs$club_id) || anyDuplicated(as.character(clubs$club_id)) ||
+      !is.numeric(clubs$rating) || any(!is.finite(clubs$rating)) || !is.numeric(clubs$prior_match_count) ||
+      any(!is.finite(clubs$prior_match_count) | clubs$prior_match_count < 0 | clubs$prior_match_count != floor(clubs$prior_match_count)))
+    .ucl_future_abort("rating_state_roster_invalid")
+  ids <- sort(ids, method = "radix")
+  index <- match(ids, as.character(clubs$club_id))
+  if (anyNA(index)) .ucl_future_abort("current_roster_rating_missing")
+  if (any(clubs$prior_match_count[index] <= 0L)) .ucl_future_abort("current_roster_history_incomplete")
+  stats::setNames(as.numeric(clubs$rating[index]), ids)
+}
+
 ucl_future_production_context <- function(information_cutoff_utc) {
   cutoff <- .ucl_future_time(information_cutoff_utc)
   if (!is.finite(cutoff) || cutoff > as.numeric(Sys.time()) + 60) return(.ucl_future_block("invalid_current_information_cutoff"))
@@ -264,13 +286,14 @@ ucl_future_production_context <- function(information_cutoff_utc) {
     runtime <- phase19_live_club_rating_runtime()
     replay <- runtime$phase19_replay_club_ratings(training, roster, parameters, min(information_cutoff_utc, as.character(training$cutoff_utc)))
     runtime$phase19_validate_club_rating_replay(replay, training, roster)
-    if (!identical(replay$status, "ready") || any(replay$state$clubs$prior_match_count <= 0L)) return(.ucl_future_block("current_roster_history_incomplete"))
+    if (!identical(replay$status, "ready")) return(.ucl_future_block("current_roster_history_incomplete"))
     state <- replay$state
+    current_ratings <- .ucl_future_current_roster_ratings(state, roster)
     rating_cache <- new.env(parent = emptyenv())
     rating_at <- function(instant) {
       if (!exists(instant, envir = rating_cache, inherits = FALSE)) {
         decayed <- runtime$phase19_club_rating_decay_to(state, instant)
-        assign(instant, list(ratings = stats::setNames(as.numeric(decayed$clubs$rating), decayed$clubs$club_id),
+        assign(instant, list(ratings = .ucl_future_current_roster_ratings(decayed, roster),
           state_sha256 = decayed$state_sha256), envir = rating_cache)
       }
       get(instant, envir = rating_cache, inherits = FALSE)
@@ -279,10 +302,10 @@ ucl_future_production_context <- function(information_cutoff_utc) {
       calibrator_sha256 = release$model_contract$calibrator_sha256, source_bundle_sha256 = as.character(source$accepted$bundle$bundle_sha256[[1L]]),
       rating_state_sha256 = state$state_sha256, future_policy_sha256 = policy$policy_sha256,
       joint_policy_sha256 = policy$policy_sha256)
-    coefficient_inputs <- ucl_future_read_coefficient_inputs(policy,state$clubs$club_id)
+    coefficient_inputs <- ucl_future_read_coefficient_inputs(policy,names(current_ratings))
     if (.ucl_future_time(coefficient_inputs$available_at_utc)>cutoff) return(.ucl_future_block("coefficient_evidence_after_information_cutoff"))
     context <- .ucl_future_context(stats::coef(release$model$model), release$model$theta,
-      stats::setNames(as.numeric(state$clubs$rating), state$clubs$club_id), parameters$home_advantage,
+      current_ratings, parameters$home_advantage,
       release$calibrator$temperature, release$model_contract$primary_probability_view, information_cutoff_utc, source_available,
       lineage, "production", rating_at, draw_settings$future_tie_policy, coefficient_inputs$values)
     context$.authority_token <- .ucl_future_authority$token
