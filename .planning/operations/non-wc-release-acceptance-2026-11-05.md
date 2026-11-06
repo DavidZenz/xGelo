@@ -1,8 +1,32 @@
 # Non-WC release acceptance evidence
 
-Evidence cutoff: 6 November 2026, 00:29 UTC. This is an ongoing acceptance
+Evidence cutoff: 6 November 2026, 01:31 UTC. This is an ongoing acceptance
 audit, not a declaration that the complete goal has been achieved. The full
 scope remains in `non-wc-refresh-2026-11-05-PLAN.md`.
+
+## Current corrected release
+
+The latest release is commitbb580182d3a84ed89823569e82992203527d70b9, batch
+phase21-5cc30fca814405a15485699f. Publish-onlybda3b9f8 verified all14 HTTPS
+bytes at01:26:06UTC; Pages42143741110 succeeded and the14 changed Git paths
+are all competitions files. New local/public desktop/mobile browser checks
+passed; all12 screenshots were viewed. The51-file byte-bound archive is
+logs/competition-refresh/browser-evidence/corrected-bb580182d3a8/.
+
+This release includes the actual NL local-input correction:54teams,104consumed
+results,52new forecasts, valid11-row durable state, populated factual/form
+artifacts and genuine1k/10k outcomes. It has real input/state/outcome/page clocks
+and strict causal source/parent checks. The full independent checks and parent-
+schema staging repair are recorded in the dated followthrough below. The failed
+first corrected run remains failed; successful guarded recovery reused its valid
+computed outcomes before publishing. The original July-input release evidence
+below is historical and no longer the current public forecast.
+
+Health is healthy/verified with no problems.34protected files and WC public/plist
+bytes remain unchanged. The ordinary03:00Vienna job is loaded for02:00UTC; an
+actual successful corrected calendar run remains required. CL predictions and
+production tournament activation remain separately blocked/uncompleted, and EURO
+remains pre-draw. No whole-goal completion is claimed.
 
 ## Public release already verified
 

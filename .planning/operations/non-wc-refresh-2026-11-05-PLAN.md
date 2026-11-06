@@ -37,17 +37,17 @@ exact inputs; failed model gates must not be weakened after seeing assessments.
 | ID | Required final behavior | Evidence required | State |
 |---|---|---|---|
 | OPS-01 / user 1 | Configurable Rscript with safe discovery and diagnostics | Runtime tests; real minimal launchd environment | Verified in actual calendar sources/state: system Python3.9, resolved R4.6.2 |
-| OPS-02 / user 2 | Manual and real scheduled end-to-end runs; idempotent atomic publication | Run records/logs; failure injection; public byte inventories | Manual and original real calendar publication passed; corrected NL-input run and scheduled verification remain |
+| OPS-02 / user 2 | Manual and real scheduled end-to-end runs; idempotent atomic publication | Run records/logs; failure injection; public byte inventories | Original manual/calendar and corrected manual recovery/publication passed; corrected real calendar verification remains |
 | OPS-03 / user 3 | Last success/source date/errors/freshness, failed/stale alerts and recovery | Durable status, observable alert, documented retry | Status/runbook and actual automatic failure+recovery reports verified |
-| NL-01 / user 4 | Fresh synchronized facts/forecasts/outlooks and truthful timestamps | Accepted source; state/outcome/payload lineage; public read-back | Local Elo replay, state/generation repair and strict publication checks installed/tested; genuine corrected full refresh pending |
-| NL-02 / user 5 | Configurable production simulations backed by convergence/precision | Fixed-seed 1k/10k+ benchmarks and Monte Carlo interval output | Two genuine10k runs; public10000 with visible0.98pp95%pointwise sampling disclosure |
-| NL-03 / user 6 | Independent probability/standings/outcome checks; no reliable-looking demo projections | Focused tests and publication precision gate | Independent966events/rank/KO/Wilson checks plus432current standings statistics and52future 1X2 rows passed; internal state readiness discrepancy still open |
+| NL-01 / user 4 | Fresh synchronized facts/forecasts/outlooks and truthful timestamps | Accepted source; state/outcome/payload lineage; public read-back | Corrected54-team/104-result/52-forecast/10k public batch verified; true state/outcome/page clocks and valid11-row state |
+| NL-02 / user 5 | Configurable production simulations backed by convergence/precision | Fixed-seed 1k/10k+ benchmarks and Monte Carlo interval output | Corrected genuine1k/10k runs243.194/2115.445s; public10000 with visible0.98pp95%pointwise disclosure |
+| NL-03 / user 6 | Independent probability/standings/outcome checks; no reliable-looking demo projections | Focused tests and publication precision gate | Corrected independent966events/rank/KO/Wilson plus432stats/52forecasts/local-rating replay pass; internal state/generation discrepancy repaired |
 | CL-01 / user 7 | Defensible differentiated probabilities or explicit inadequate-forecast status | Chronological Brier/log-loss/calibration evidence and UI | Diagnosed; public predictions explicitly disabled; deterministic core repair awaits exact review |
 | CL-02 / user 8 | No past kickoff remains upcoming; results reconciled | Fresh accepted results, timezone/lifecycle tests and UI | Public36clubs/72results/72future; no expired upcoming or unconfirmed kickoff rows |
 | CL-03 / user 9 | QA-gated qualification/winner simulations, rules/ties/probability/uncertainty checks | Genuine accepted parents; independent simulation checks; truthful absence if unfinished | Pending |
 | CL-04 / user 10 | Validated public CL route and navigation/assets | Published HTTP checks; desktop/mobile screenshots | Public200; both viewports, navigation, assets and console passed |
 | EURO-01 / user 11 | Truthful pre-draw placeholder; strict official structure/fixture activation gate | Readiness tests and published placeholder | Gate and public empty pre-draw page verified; actual old source timestamp retained |
-| QA-01 | All named regression/integration concerns and local/public UI verification | Test reports, run logs, screenshots and URL results | Original calendar success and12new browser views verified; installed correction checks passed; new-input public verification pending |
+| QA-01 | All named regression/integration concerns and local/public UI verification | Test reports, run logs, screenshots and URL results | Corrected public51-file evidence archive includes12viewed screenshots and independent checks; corrected calendar verification pending |
 | SCOPE-01 | Preserve WC and unrelated work; document deployment/monitoring/fallbacks | Before/after byte inventory and Git scope audit |34protected local files, WC public HTML and plist unchanged after calendar run and code installation; recheck next release |
 
 ## Parallel ownership
@@ -273,3 +273,14 @@ state hash, source and true clocks; tests now use the actual10-row schema and
 blank-cell readback. A direct read-only check of the real retained outcome
 bundle passes. Resume that exact failed run through the guarded controller;
 do not change probabilities or rerun/rebind the simulation.
+
+2026-11-06T01:32:05Z corrected public acceptance: recovery20261106T012028Z-0a4894f1 installed
+validated batch5cc30fca… without repeating acquisition or MC. Publish-only
+20261106T012446Z-bda3b9f8 pushed commitbb580182d3a84ed89823569e82992203527d70b9;
+all14HTTPS hashes matched01:26:06UTC and Pages42143741110 succeeded. All12
+new local/public1440/390 screenshots viewed; no DOM/navigation/assets/console/
+fixture failures.51-file archive corrected-bb580182d3a8 binds the evidence.
+Health is healthy/verified/no problems.34protected files, WCpublic/plist bytes
+unchanged. Ordinary03:00Vienna loaded, next02:00UTC corrected calendar run still
+requires actual completion. CL has six separately sealed private repair/consumer/
+target proposals; no new model/core/policy activation or owner answer inferred.
