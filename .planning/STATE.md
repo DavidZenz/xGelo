@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Corrected NL public release and health verified; ordinary03:00 corrected scheduled verification next; CL exact review and downstream integration pending
-last_updated: "2026-11-06T01:48:21Z"
+stopped_at: Corrected ordinary scheduled/public release verified; CL exact review and final technical integration remain open
+last_updated: "2026-11-06T03:21:31Z"
 last_activity: 2026-11-06
-last_activity_desc: Verified real scheduled/public release and installed tested NL local Elo, state, timestamp and publication repair
+last_activity_desc: Verified ordinary corrected scheduled publication, independent 10k replay, all public/local views and WC preservation
 progress:
   total_phases: 5
   completed_phases: 2
@@ -33,27 +33,36 @@ Nations League / CL / EURO dashboards. The complete acceptance ledger is
 `.planning/operations/non-wc-refresh-2026-11-05-PLAN.md`; formal milestone
 completion below is not inferred from implementation or fixture tests.
 The three public routes now serve corrected batch
-`phase21-5cc30fca814405a15485699f`, published by commit
-`bb580182d3a84ed89823569e82992203527d70b9`. All14 HTTPS files matched at
-01:26:06UTC6November. Pages run42143741110 succeeded; all14 Git paths are
-under docs/competitions. All12 local/public desktop/mobile screenshots were
-viewed, with matching embedded/fetched metadata, visible timestamps and no
-navigation/resource/console/overflow/lifecycle failures. The51-file evidence
-archive is logs/competition-refresh/browser-evidence/corrected-bb580182d3a8/.
-Health reports healthy/verified with no problems. WC public HTML, its separate
-LaunchAgent and all34 protected local files remain byte-identical.
+`phase21-4b26fbad383457fa09414ce3`, published by the actual ordinary03:00Vienna
+run `20261106T020002Z-6a4b8a15`, commit
+`59a3099ee231a70846ffe6465d77806436cd303c`. It started02:00:02UTC and finished
+03:12:53UTC6November. All14 HTTPS files matched; Pages push run42155042623
+succeeded and the connected GitHub check confirms exactly14 competition paths.
+All12 local/public desktop/mobile screenshots were viewed, matching the new
+embedded/fetched batch metadata and timestamps with no navigation, resource,
+console, overflow or lifecycle failures. The77-file byte-verified archive is
+logs/competition-refresh/browser-evidence/scheduled-corrected-59a3099ee231/.
+Health is healthy/verified with no problems. All187 runtime files and HEAD stayed
+fixed through the transaction; all34 protected files, public WC and its separate
+LaunchAgent stayed byte-identical. The earlier corrected manual release bb580182
+and its51-file archive remain historical evidence.
 
 Nations League is now synchronized end to end. Edition-local Elo replays all104
 accepted completed results for54 teams, preserving global/WC ratings and model
-releases. All52 forecasts cite actual October evidence and changed numerically;
+releases. All52 forecasts cite actual October evidence; corrected probabilities
+differ from the old July inputs.
 all11 durable state rows are valid, and standings/form tables are populated.
-The genuine new1k/10k simulations took243.194/2115.445seconds,966events all
-resolved. Independent Python checks pass rating replay (max5e-12rounding),
+The corrected manual1k/10k simulations took243.194/2115.445seconds; the genuine
+scheduled stages took266.297/3390.636seconds with966events all resolved. Both
+1k and10k event-probability CSVs reproduce the corrected manual computation
+byte-for-byte under the unchanged result semantics and seed. Independent Python
+checks pass rating replay (max5e-12rounding),
 432 factual statistics, future coverage, probability/rank/stage mass, nesting
 and Wilson intervals. Worst95%pointwise sampling half-width0.979794pp; model
 and simultaneous uncertainty are excluded. New10k differs from old July-input
 10k on486events, max10.12pp; this proves synchronized recomputation, not accuracy.
-Public source-as-of00:27:29, real projection clock00:29:24, page generation01:21:00UTC.
+Current public source-as-of02:00:11, state/forecast generation02:01:28, real
+projection clock02:02:08 and page generation03:10:28UTC.
 
 The first corrected run43260883 completed its validated outcomes then failed
 safely on a new validator's incorrect manifest-column expectation. The repair
@@ -64,12 +73,14 @@ complete sources/forecasts/10k output, passed staging/current authority and
 installed it; publish-onlybda3b9f8 then verified the public release. The failure
 remains recorded as failed. No probabilities or outcomes were rebound.
 
-An earlier actual calendar run223105Z-d54f2aca proved launchd/runtime/push/readback
-with exit0, but used the old NL inputs. The corrected runtime still needs its
-own real calendar verification. Ordinary03:00Vienna/02:00UTC is loaded; at01:31
-its fresh service has runs0/never exited. Do not claim success before that run.
-Private CL work continues; keep the main runtime/HEAD/managed inputs/outputs/docs
-fixed once the scheduled transaction starts.
+The corrected ordinary calendar run is now verified end to end. Parent PID1,
+its actual matching-PID held lock and four live R workers were observed. Launchd
+records runs1/exit0 and its unchanged03:00 calendar; the lock is released. The
+run used system Python3.9.6 and discovered R4.6.2, with no manual dispatch or
+render-only shortcut. Its total elapsed time was72minutes51seconds. All installed
+input/factual/probability/precision checks passed independently. Earlier actual
+calendar223105Z-d54f2aca used old July inputs and remains historical only. The
+runtime/HEAD freeze for the corrected transaction has ended.
 
 CL has36clubs,72completed/72future fixtures and explicit disabled predictions.
 The corrected genuine26-fold evaluation retained venue release
@@ -83,24 +94,31 @@ No core activation or new fitting has occurred. The CL current-roster scope
 fix is installed. Reader, lossless writer/final semantics, fixed runtime and
 persisted-outcome presentation/validator repairs are now installed after33cases/
 205assertions through normal test_dir, plus installed runtime/consumer83 and
-existing live-outcome/future-integration regression checks. Tests use code-only
+existing live-outcome/future-integration regression checks. These CL tests use code-only
 temporary roots; no source/model/fitting/production MC or owner decision changes.
 All16R/club sources and34protected files are unchanged. The exact77-change/12-core
 normalization preflight still passes. CLI replay and targets remain private
-pending their exact post-normalization prerequisites. Renderer/publisher/scheduler
-wiring, genuine eligible validation/performance and observed conditioning remain
-unfinished; no predictions are activated. No pending CL9 policy inventory is treated as approved.
+pending their exact post-normalization prerequisites. Private renderer/publication/
+count-QA and approved-mode scheduler packages now
+pass111 operational cases on each Python runtime. A combined code-only future
+normalization/CLI/targets/runtime/consumer/clock overlay passes56cases/412assertions
+through ordinary test_dir, including the real14-node/14-edge scoped target run.
+The clock follow-through preserves current-time guards and repartitions fixtures
+after slow work; it is private and uninstalled. Genuine eligible validation,
+performance, final coordinated installation and observed conditioning remain
+unfinished. No predictions or pending CL9 policy inventory are activated.
 
 EURO remains a truthful pre-draw placeholder with its actual August source
 timestamp. It cannot infer groups, schedules or predictions before accepted
 complete official inputs. All three public routes were rechecked HTTP200 at
-00:25UTC on6November. Complete release evidence remains in
+03:15UTC on6November, with all14 deployed bytes independently verified. Complete
+release evidence remains in
 `.planning/operations/non-wc-release-acceptance-2026-11-05.md`.
 
 Phase: 19 (independent-club-forecast-authority) — VENUE BASELINE RETAINED; RUNTIME REPAIR PENDING
 Plan: 10 of 10
 Status: Plans 01-10 implemented; venue baseline retained; deterministic identity repair awaits exact replacement review; public facts verified
-Last activity: 2026-11-06 — Corrected NL public/health release verified; corrected real calendar run pending; CL fold review and downstream integration open
+Last activity: 2026-11-06 — Corrected ordinary scheduled/public release verified; CL exact review and final integration remain open
 
 Progress: [██████████] 100%
 
@@ -112,7 +130,7 @@ Progress: [██████████] 100%
 | 19 | Independent Club Forecast Authority | 5 | Venue baseline retained (10/10 plans; Elo calibration failed; deterministic identity repair pending) |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Mechanics under QA; genuine tournament production incomplete/gated |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Three-route factual release published; full milestone verification pending |
-| 22 | Automated Refresh and Release Hardening | 4 | Original manual/calendar release verified; corrected NL-input end-to-end run pending |
+| 22 | Automated Refresh and Release Hardening | 4 | Corrected manual and ordinary scheduled publication verified; full CL milestone hardening remains gated |
 
 ## Performance Metrics
 

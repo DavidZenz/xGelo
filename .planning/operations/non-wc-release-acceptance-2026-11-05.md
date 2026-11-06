@@ -1,12 +1,59 @@
 # Non-WC release acceptance evidence
 
-Evidence cutoff: 6 November 2026, 01:31 UTC. This is an ongoing acceptance
+Evidence cutoff: 6 November 2026, 03:19 UTC. This is an ongoing acceptance
 audit, not a declaration that the complete goal has been achieved. The full
 scope remains in `non-wc-refresh-2026-11-05-PLAN.md`.
 
 ## Current corrected release
 
-The latest release is commitbb580182d3a84ed89823569e82992203527d70b9, batch
+The latest release is the genuine ordinary calendar run
+`20261106T020002Z-6a4b8a15`, commit
+`59a3099ee231a70846ffe6465d77806436cd303c`, batch
+`phase21-4b26fbad383457fa09414ce3`. It started at02:00:02UTC /03:00:02Vienna
+and completed successfully at03:12:53UTC /04:12:53Vienna. Parent PID1, the
+loaded calendar service and its held matching-PID lock were observed during
+execution. Launchd now records runs1/exit0, the lock is released and the ordinary
+03:00 calendar is unchanged. System Python3.9.6 resolved R4.6.2 through the fixed
+runtime discovery. No manual launch or rendering-only shortcut produced this run.
+
+Both sources, NL state, genuine1k/10k outcomes, dashboard staging, accepted
+source/model QA, atomic installation, immutable scoped Git publication and HTTPS
+read-back passed. All14 deployed bytes matched after4attempts/63.444seconds.
+GitHub Pages push run42155042623 succeeded; the connected GitHub commit check
+independently confirms exactly14 changed paths, all under docs/competitions.
+An independent second HTTPS check also matched all14 files and the unchanged WC
+page. All12 local/public desktop/mobile screenshots were viewed; DOM/network,
+inline/fetched metadata, timestamps, navigation, assets, console and lifecycle
+checks passed. The77-file archive, including the actual14 public files and six
+benchmark inputs/outputs, is
+`logs/competition-refresh/browser-evidence/scheduled-corrected-59a3099ee231/`.
+
+Installed NL evidence independently passes54-team/104-result local-rating replay,
+52 future forecasts,432 factual statistics,14 group rank permutations and11 valid
+durable state rows. Each of966 events at both sample counts passes independent
+count/Wilson/rank/stage/nesting checks. The genuinely recomputed1k and10k event
+probability CSVs exactly reproduce the corrected manual computation under the
+same result semantics and fixed seed. New source-as-of is02:00:11, state/forecast
+generation02:01:28, projection clock02:02:08, page generation03:10:28UTC.
+
+Observed1k/10k times were266.297/3390.636seconds with four workers; total run
+time was72minutes51seconds. Runtime varies with machine conditions; these are
+actual elapsed observations, not latency guarantees. Worst95% pointwise sampling
+half-width is0.979794pp, excluding model and simultaneous uncertainty. Independent
+1k→10k max/mean/p95 changes are0.0433/0.0043540373/0.019575, descriptive sample
+changes rather than accuracy or convergence bounds.
+
+Health is healthy/verified with no problems. All187 runtime files and HEAD stayed
+fixed throughout the transaction;34 protected local files, public WC HTML and its
+LaunchAgent stayed byte-identical. The competition calendar also stayed byte-
+identical. CL remains36clubs/72results/72future with predictions explicitly
+disabled; its provider data-as-of is00:20:27 and check02:01:21UTC6November.
+EURO remains a truthful pre-draw placeholder. CL model/review and genuine
+tournament production remain open; no whole-goal completion is claimed.
+
+### Earlier corrected manual release
+
+The earlier corrected release is commitbb580182d3a84ed89823569e82992203527d70b9, batch
 phase21-5cc30fca814405a15485699f. Publish-onlybda3b9f8 verified all14 HTTPS
 bytes at01:26:06UTC; Pages42143741110 succeeded and the14 changed Git paths
 are all competitions files. New local/public desktop/mobile browser checks
@@ -22,13 +69,12 @@ first corrected run remains failed; successful guarded recovery reused its valid
 computed outcomes before publishing. The original July-input release evidence
 below is historical and no longer the current public forecast.
 
-Health is healthy/verified with no problems.34protected files and WC public/plist
-bytes remain unchanged. The ordinary03:00Vienna job is loaded for02:00UTC; an
-actual successful corrected calendar run remains required. CL predictions and
-production tournament activation remain separately blocked/uncompleted, and EURO
-remains pre-draw. No whole-goal completion is claimed.
+That manual release was healthy/verified and preserved all34 protected files and
+WC public/plist bytes. Its corrected calendar verification was still pending at
+the time; the ordinary run above now supplies that missing evidence. CL
+predictions and production tournament activation remain separately blocked.
 
-## Public release already verified
+## Earlier manual public release, 5 November
 
 All three canonical routes serve HTTP200:
 
@@ -77,7 +123,7 @@ This is real calendar/publication proof for the original inputs. It does not
 close the NL predictor defect below. The new input correction requires its own
 genuine refresh, simulation/publication and real calendar verification.
 
-## Nations League precision and factual checks
+## Earlier Nations League precision and factual checks
 
 The published snapshot has104 completed matches,52 future matches and52
 eligible future match forecasts. The source check is20:42:40UTC and page
@@ -97,7 +143,7 @@ coverage. The1k-to10k changes are descriptive sample changes, not model-error
 bounds. See `outputs/benchmarks/non-wc-refresh-2026-11-05/README.md` and
 `logs/competition-refresh/nl-{1000,10000}-independent-current.json`.
 
-**New final-audit issue, not yet resolved:** the durable state manifest labels
+**Historical 5 November issue, resolved by the corrected releases above:** the durable state manifest labels
 all11 artifacts invalid even though its104 suppressed forecasts are completed
 matches and its52 future forecasts are available. It chooses reason `none`
 from an available row. Durable factual/form tables are empty, while the

@@ -164,6 +164,18 @@ After the real verification occurrence completes, reinstall without
 `trigger=scheduled`, terminal status, log, source dates, public read-back and
 launchd exit code; a loaded plist is not proof of a successful run.
 
+The corrected pipeline passed the ordinary 03:00 Vienna occurrence on
+6 November 2026: run `20261106T020002Z-6a4b8a15` completed at04:12:53Vienna,
+with launchd exit0 and all14 public files verified. Its fixed-seed1k/10k stages
+took266.297/3390.636seconds on this Mac with four workers; the full run took
+72minutes51seconds. These elapsed observations are not latency guarantees.
+Both numeric outputs reproduce the corrected manual computation exactly.
+The source check, projection clock and page generation remain separate.
+Detailed evidence is recorded in
+`.planning/operations/non-wc-release-acceptance-2026-11-05.md` and the immutable
+`logs/competition-refresh/browser-evidence/scheduled-corrected-59a3099ee231/`
+archive. The ordinary calendar has no extra verification entry.
+
 ## Failure recovery
 
 1. Read the latest run JSON and its exact log. Fix the reported runtime,
