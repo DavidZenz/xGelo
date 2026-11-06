@@ -59,6 +59,16 @@ production Monte Carlo run within one refresh. Measured runtime depends on
 the machine and simultaneous work; consult that run's report rather than
 estimating completion from a small smoke test.
 
+Nations League ratings are rebuilt locally for this edition from pre-edition
+national Elo seeds and accepted completed NL results, under the existing Elo
+policy. Global national ratings and WC artifacts are not rewritten. The state
+binds the local ratings, provenance, source and policy bytes and verifies a
+read-only rating replay. Per-team latest evidence and consumed-result counts
+must reconcile with accepted results. Outcomes must bind that exact state and
+source; a new rating input requires new simulations. Publication also requires
+real UTC timestamps ordered from source capture through outcome generation to
+page generation. A recent feed check cannot conceal stale predictor inputs.
+
 The controller acquires sources and builds state, outcomes and all three
 routes inside a private workspace. Before installing, it checks exact public
 inventory and hashes, accepted source/release/outcome authority, freshness,
@@ -197,9 +207,16 @@ confirming no controller holds the refresh lock and the journal is not
 
 ```bash
 python3 -m unittest discover -s tests/operations -v
-Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_nl_simulation_precision.R")'
-Rscript --vanilla -e 'testthat::test_file("tests/testthat/test_non_wc_dashboard_readiness.R")'
+bash <<'BASH'
+  source scripts/lib/rscript_runtime.sh
+  xgelo_resolve_rscript || exit 1
+  "$R_SCRIPT" --vanilla -e 'testthat::test_file("tests/testthat/test_nl_simulation_precision.R")' || exit 1
+  "$R_SCRIPT" --vanilla -e 'testthat::test_file("tests/testthat/test_non_wc_dashboard_readiness.R")'
+BASH
 ```
+
+The regression commands use the same probed runtime resolver as production;
+they do not require a bare `Rscript` command on PATH.
 
 Operational tests use temporary files and independent fault cases: runtime
 discovery, timeouts, locking, stale sources, hash/inventory tampering, preview

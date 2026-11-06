@@ -1,0 +1,56 @@
+{
+  "applied_at_utc": "2026-11-06T00:18:49.633812+00:00",
+  "authorization": "Active user goal; coordinator released terminal scheduled-run freeze",
+  "files": {
+    "R/competition/nl_forecast_inputs.R": "e63f62870266f80fa01f031f7225336d3248f461cd6e7b11e60414ebe59e1786",
+    "R/competition/forecast_layer.R": "6fd04248be9f74ba416ee5c58f0d5129a797a2fff2d5777f33831744e56b5e54",
+    "R/competition/state_bundle.R": "11161f7639904ba175235fe59cf4c97eb4f7aac7b0d0bd113cf6b14ebd5ae1db",
+    "R/competition/uefa_nations_league_outcomes.R": "0c6a070ea4edddc56ebeb702ef3f4fa8bc99ed1323dc870fe44260d6c862ea52",
+    "scripts/build_competition_state.R": "2439ccdebfb65347916c2c1657b929c07b073716e12952c8b986cde5834d2114",
+    "scripts/refresh_nations_league_state.R": "e39781997b100cf1ac7623d03f7c02b8e76263a12a8df4cd34a82a50ae0ac965",
+    "scripts/build_nations_league_outcomes.R": "941682c53ad53868fee59022681845fa042c352d2e9ee0b88af192ac2e734fa2",
+    "R/dashboard/payload_contract.R": "d6a19597e444fe712b29e723990ac3aa7ce90e925f8f4f94fe4584463df3243c",
+    "R/dashboard/payload_nations_league.R": "042caf02808b213cf25c26fb36144609dcba30a91b061a3430e97847078b0f31",
+    "R/dashboard/production_provider.R": "aa7ba3602f226d982ca4e87e5ff23df68c069803785fc8260f45549831656a65",
+    "R/dashboard/non_wc_publication.R": "c63fdee05c31aaa1fc07f8a6179a6c85bc1431e7fd4d6dbd03b65317e3879939",
+    "tests/testthat/test_nl_forecast_inputs.R": "48f0862e5a1e512f71144917e364868ae59abe44123c7c109a5d2d8d9b6494b4",
+    "tests/testthat/test_nl_state_hash_reporting.R": "b29b0c24d4dfd03f056060cbaad19bb9e7cd9f0f9c5050a4e1d5b1d5a4cb2cc3",
+    "tests/testthat/test_phase14_state_bundle.R": "f0c62406d86f413a04788a17c982b438529a7c320eef56f689c3b606610a16a2",
+    "scripts/competition_refresh.py": "70fb3b41a5614ca42f68cddc64eda022440a680c9f1651b288a1c5d0e1d0cfd6",
+    "tests/operations/test_refresh_review.py": "7dda90ea0bad891ca5288c7b2ed9c1a22a9184f7297003cf04f309e568bf010b",
+    "tests/operations/test_refresh_recovery.py": "382cd4c214a9ecbebcc815907ea98d8ab710bc4d9816a93ac767687d3c7c1b1d",
+    "tests/operations/test_nl_forecast_input_publication.py": "15538cb9069a6b322932c81d7caa1bd52efc772fbf9279f66a894bf1f5021602",
+    "R/competition/ucl_future_matchups.R": "2ebe2c57040ade60512640b736d0bd4ae01d39e005e60413c624745a19ce5e21",
+    "tests/testthat/test_ucl_future_current_roster_scope.R": "719a291c1a433220450799a10374e6af68523feaf12116657a35f366d5fee5c9",
+    "tests/fixtures/cl9_current_roster_scope/historical_club_ids.csv": "394b5c353f75fd32c14ad2a2e2611c867ae6db5fa857b0d5c43a2bcaedd421d9",
+    "tests/fixtures/cl9_current_roster_scope/current_coefficient_inputs.csv": "059dc31a3f1f1fc034ef98677bf72a8c2c339a42cab0deadc80d61069ed992b8"
+  },
+  "fixture_line_endings": [
+    {
+      "path": "tests/fixtures/cl9_current_roster_scope/historical_club_ids.csv",
+      "installed_sha256": "394b5c353f75fd32c14ad2a2e2611c867ae6db5fa857b0d5c43a2bcaedd421d9",
+      "proposed_sha256": "c7de03c1cc5f61828671ea82fcb2f695ffe3c55542c60cd8729b8931c5afa9c9",
+      "installed_CRLF": 0,
+      "proposed_CRLF": 344,
+      "installed_bytes": 7111,
+      "proposed_bytes": 7455,
+      "LF_normalization_exact": true,
+      "parsed_rows_equal": true
+    },
+    {
+      "path": "tests/fixtures/cl9_current_roster_scope/current_coefficient_inputs.csv",
+      "installed_sha256": "059dc31a3f1f1fc034ef98677bf72a8c2c339a42cab0deadc80d61069ed992b8",
+      "proposed_sha256": "61a3a12c8eaefc714d86e8321cdd8626be334c012303506a705b1321ba648de5",
+      "installed_CRLF": 0,
+      "proposed_CRLF": 37,
+      "installed_bytes": 12888,
+      "proposed_bytes": 12925,
+      "LF_normalization_exact": true,
+      "parsed_rows_equal": true
+    }
+  ],
+  "protected_files_checked": 34,
+  "owner_or_model_approvals_changed": false,
+  "selected_data_or_publication_changed": false,
+  "remaining": "Installed checks and genuine corrected full refresh; CL exact-fold/policy and tournament integration gates remain"
+}

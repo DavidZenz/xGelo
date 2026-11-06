@@ -5,10 +5,10 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: First NL10k passed; cold staging failed safely; startup and retained-workspace recovery fixed, next full run pending
-last_updated: "2026-11-05T20:39:00Z"
-last_activity: 2026-11-05
-last_activity_desc: Runtime/publication failure gates verified; all 34 protected WC and unrelated artifact hashes unchanged
+stopped_at: Original calendar publication verified; NL predictor correction installed and tested; genuine new-input refresh next; exact CL replacement review pending
+last_updated: "2026-11-06T00:29:00Z"
+last_activity: 2026-11-06
+last_activity_desc: Verified real scheduled/public release and installed tested NL local Elo, state, timestamp and publication repair
 progress:
   total_phases: 5
   completed_phases: 2
@@ -32,22 +32,57 @@ Active user goal (5 November): repair the shared non-WC refresh and public
 Nations League / CL / EURO dashboards. The complete acceptance ledger is
 `.planning/operations/non-wc-refresh-2026-11-05-PLAN.md`; formal milestone
 completion below is not inferred from implementation or fixture tests.
-Fresh CL source has 36 clubs, 72 completed and 72 future fixtures. Team-strength
-predictions are explicitly disabled. The corrected genuine26-fold evaluation
-completed and retained venue release `club-v2-626fedd0dd54b8309923855e`;
-Elo23/24 gates pass but calibration delta0.026158 exceeds0.01. The fresh NL
-1k run passed all audits in296.772seconds;10k passed in2629.273seconds,
-966resolved probabilities and0unavailable,95%pointwise half-width0.9798pp.
-The controller then failed cold dashboard startup without installing anything.
-Explicit dependency imports and retained-workspace recovery are now fixed and
-tested; the deleted first candidate is not reconstructed from summaries.
-The successful complete manual run, actual scheduled execution, public deployment
-and local/published browser verification remain outstanding.
+The three public routes serve batch `phase21-98173793c36912da063458cf`,
+published by scheduled commit `4a5cea993b633b3abe8ae71ad7b62f1359d173ce`.
+Actual calendar run `20261105T223105Z-d54f2aca` completed at23:52:07UTC,
+with launchd exit0, all14 HTTPS files matching and a successful Pages workflow.
+It ran under system Python3.9 and discovered R4.6.2. The ordinary03:00 Vienna
+calendar is restored. All12 new local/public desktop/mobile screenshots were
+viewed; navigation/assets/console/overflow/lifecycle checks passed. Embedded
+rendered metadata matches the fetched payload. WC public HTML, all34 protected
+local files and the separate WC LaunchAgent remain unchanged.
 
-Phase: 19 (independent-club-forecast-authority) — PRODUCTION BASELINE READY
+The original calendar run proves operational publication, not corrected NL
+predictor freshness. Its52 forecasts still use July Elo evidence; its internal
+state/generation defects remain recorded in the acceptance report. The tested
+repair is now installed: edition-local Elo replay from pre-edition seeds and
+all104 accepted completed results, actual per-team evidence times, durable
+standings/form, semantic state validity, real generation timestamps, and strict
+source/state/input/outcome publication checks. Global ratings and national model
+release bytes are preserved. New forecast probabilities require genuine new
+1k/10k simulations; no old outcomes may be rebound. This full corrected refresh
+and another real calendar verification remain required.
+
+Installed checks passed:121 R assertions across local inputs, state reporting,
+CL roster scoping and cold startup; all87 operational tests on actual scheduler
+Python3.9.6. Earlier private regressions and actual54-team/104-result replay
+also passed. The synthetic state-test lifecycle mismatch was reproduced on the
+unchanged baseline, then fixed in that fixture only; no one-shot full-state
+suite pass is claimed. See the installed-corrections report and test logs.
+Code commits: `29eb45e` (CL343-history/36-current scope) and `9948648` (NL repair).
+
+CL has36clubs,72completed/72future fixtures and explicit disabled predictions.
+The corrected genuine26-fold evaluation retained venue release
+`club-v2-626fedd0dd54b8309923855e`; Elo23/24 gates pass but calibration
+delta0.026158 exceeds0.01. Tournament production remains incomplete/gated.
+The deterministic club-name repair preserves407raw mappings,343club IDs,
+16277match semantics and26/104 exact roles. Replacement fold review manifest
+19943dc9… still awaits the real owner decision requested in this chat. Its
+read-only77-change/12-core-file preflight still passes after the NL integration.
+No core activation or new fitting has occurred. The CL current-roster scope
+fix is installed; durable tournament reading/writing and downstream integration
+remain unfinished. No pending CL9 policy inventory is treated as approved.
+
+EURO remains a truthful pre-draw placeholder with its actual August source
+timestamp. It cannot infer groups, schedules or predictions before accepted
+complete official inputs. All three public routes were rechecked HTTP200 at
+00:25UTC on6November. Complete release evidence remains in
+`.planning/operations/non-wc-release-acceptance-2026-11-05.md`.
+
+Phase: 19 (independent-club-forecast-authority) — VENUE BASELINE RETAINED; RUNTIME REPAIR PENDING
 Plan: 10 of 10
-Status: Production venue baseline ready; Plans 01-10 complete; local dashboard and browser verified
-Last activity: 2026-10-27 — Owner-approved historical corpus accepted: all 16,277 matches passed coverage, duplicate, score, temporal, identity and lineage checks. The exact 26-fold inventory is owner-approved, both fresh-process executions matched, and the immutable venue NB release is installed.
+Status: Plans 01-10 implemented; venue baseline retained; deterministic identity repair awaits exact replacement review; public facts verified
+Last activity: 2026-11-06 — Real calendar publication verified; NL correction installed/tested; corrected full run pending; new CL fold review awaits owner
 
 Progress: [██████████] 100%
 
@@ -56,10 +91,10 @@ Progress: [██████████] 100%
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Accepted live and historical sources; audits passed (6/6) |
-| 19 | Independent Club Forecast Authority | 5 | Production baseline ready (10/10 plans; Elo calibration gate failed) |
-| 20 | UCL Rules, State, and Tournament Outcomes | 9 | Not started |
-| 21 | N-Edition Dashboard and Atomic Publication | 5 | Not started |
-| 22 | Automated Refresh and Release Hardening | 4 | Not started |
+| 19 | Independent Club Forecast Authority | 5 | Venue baseline retained (10/10 plans; Elo calibration failed; deterministic identity repair pending) |
+| 20 | UCL Rules, State, and Tournament Outcomes | 9 | Mechanics under QA; genuine tournament production incomplete/gated |
+| 21 | N-Edition Dashboard and Atomic Publication | 5 | Three-route factual release published; full milestone verification pending |
+| 22 | Automated Refresh and Release Hardening | 4 | Original manual/calendar release verified; corrected NL-input end-to-end run pending |
 
 ## Performance Metrics
 
