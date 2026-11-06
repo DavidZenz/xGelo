@@ -282,7 +282,8 @@ phase14_build_competition_state_main <- function(
     project_root = phase14_build_competition_state_project_root,
     input_loader_fn = phase14_build_competition_state_default_inputs,
     build_batch_fn = phase14_build_competition_state_script_environment$phase14_build_competition_state_batch,
-    validate_fn = phase14_validate_competition_state_bundle) {
+    validate_fn = phase14_validate_competition_state_bundle,
+    generated_at_utc = NULL) {
   options <- phase14_build_competition_state_parse_args(args)
   if (isTRUE(options$help)) {
     return(list(
@@ -304,6 +305,7 @@ phase14_build_competition_state_main <- function(
     list(edition_ids = ids, project_root = project_root)
   )
   if (!is.list(loaded)) stop("Phase 14 state build input loader must return a list", call. = FALSE)
+  if (!is.null(generated_at_utc)) loaded$generated_at_utc <- generated_at_utc
   normal <- phase14_build_competition_state_run(ids, loaded, registry, build_batch_fn, validate_fn)
   if (isTRUE(options$replay_check)) {
     reversed <- phase14_build_competition_state_run(

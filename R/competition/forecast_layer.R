@@ -105,7 +105,7 @@ phase14_forecast_column <- function(data, candidates, default = NA_character_) {
 phase14_forecast_parse_utc <- function(value, field = "UTC timestamp") {
   value <- phase14_forecast_text(value)
   if (is.na(value)) stop("Phase 14 ", field, " is missing", call. = FALSE)
-  parsed <- as.POSIXct(value, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  parsed <- as.POSIXct(value, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
   if (is.na(parsed)) parsed <- as.POSIXct(value, tz = "UTC")
   if (is.na(parsed)) stop("Phase 14 ", field, " is not an RFC3339 UTC timestamp: ", value, call. = FALSE)
   parsed
@@ -371,16 +371,23 @@ phase14_forecast_elo_rows_before <- function(elo_ratings, team, cutoff_utc) {
   evidence_col <- c("evidence_at_utc", "evidence_completed_at_utc", "updated_at_utc", "timestamp_utc")
   evidence_col <- evidence_col[evidence_col %in% names(rows)]
   if (length(evidence_col)) {
-    evidence <- as.POSIXct(as.character(rows[[evidence_col[[1L]]]]), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
-    evidence[is.na(evidence)] <- as.POSIXct(paste(as.Date(rows[[date_col]][is.na(evidence)]), "00:00:00"), tz = "UTC")
+    evidence <- as.POSIXct(as.character(rows[[evidence_col[[1L]]]]), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+    if (anyNA(evidence)) evidence[is.na(evidence)] <- as.POSIXct(paste(as.Date(rows[[date_col]][is.na(evidence)]), "00:00:00"), tz = "UTC")
   } else {
     evidence <- as.POSIXct(paste(as.Date(rows[[date_col]]), "00:00:00"), tz = "UTC")
   }
   rating <- suppressWarnings(as.numeric(rows$rating))
   keep <- !is.na(evidence) & evidence < cutoff & is.finite(rating)
+  # Date-only seeds cannot establish intraday availability on that same day.
+  if ("evidence_precision" %in% names(rows)) keep <- keep &
+    (as.character(rows$evidence_precision) != "date" | as.Date(rows[[date_col]]) < as.Date(cutoff, tz = "UTC"))
   rows <- rows[keep, , drop = FALSE]
   if (!nrow(rows)) return(rows)
   rows$.__phase14_evidence_at_utc <- evidence[keep]
+  rows$.__phase14_evidence_text <- if (length(evidence_col)) as.character(rows[[evidence_col[[1L]]]]) else
+    paste0(as.Date(rows[[date_col]]), "T00:00:00Z")
+  missing_text <- is.na(rows$.__phase14_evidence_text) | !nzchar(rows$.__phase14_evidence_text)
+  if (any(missing_text)) rows$.__phase14_evidence_text[missing_text] <- paste0(as.Date(rows[[date_col]][missing_text]), "T00:00:00Z")
   rows <- rows[order(rows$.__phase14_evidence_at_utc, method = "radix"), , drop = FALSE]
   rows
 }
@@ -400,6 +407,8 @@ phase14_forecast_elo_evidence <- function(elo_ratings, home_team, away_team, cut
     value = value,
     available = is.finite(value),
     latest = max(home$.__phase14_evidence_at_utc[[1L]], away$.__phase14_evidence_at_utc[[1L]]),
+    latest_text = if (home$.__phase14_evidence_at_utc[[1L]] >= away$.__phase14_evidence_at_utc[[1L]])
+      as.character(home$.__phase14_evidence_text[[1L]]) else as.character(away$.__phase14_evidence_text[[1L]]),
     source_id = "elo_ratings"
   )
 }
@@ -525,7 +534,7 @@ phase14_build_release_features <- function(
     features$elo_diff__imputation_reason[[row]] <- if (evidence$available) "" else "missing_source_row"
     feature_source_dates[[row]] <- evidence$latest
     features$elo_diff__source_date[[row]] <- as.Date(evidence$latest)
-    features$elo_diff__evidence_at_utc[[row]] <- if (evidence$available) phase14_forecast_format_utc(evidence$latest) else NA_character_
+    features$elo_diff__evidence_at_utc[[row]] <- if (evidence$available) evidence$latest_text else NA_character_
   }
   features <- phase14_forecast_set_missing_xg(features)
   active_ids <- unique(vapply(manifest$active_predictors, phase14_forecast_active_feature_id, character(1)))
@@ -1167,6 +1176,28 @@ phase14_forecast_batch_enrich_features <- function(feature_result, manifest, res
   feature_result
 }
 
+phase14_forecast_fixture_evidence_text <- function(adapted, feature_result) {
+  table <- feature_result$feature_table
+  if (!is.data.frame(table) || !nrow(table)) return("")
+  key <- if ("fixture_id" %in% names(table)) "fixture_id" else if ("match_id" %in% names(table)) "match_id" else ""
+  if (!nzchar(key) || !key %in% names(adapted)) return("")
+  row <- table[as.character(table[[key]]) == as.character(adapted[[key]][[1L]]), , drop = FALSE]
+  if (nrow(row) != 1L) return("")
+  active <- unique(vapply(feature_result$active_predictors, phase14_forecast_active_feature_id, character(1)))
+  fields <- paste0(active, "__evidence_at_utc")
+  if (!length(fields) || !all(fields %in% names(row))) {
+    # A scalar legacy callback is attributable only to its single fixture.
+    if (nrow(table) == 1L) return(phase14_forecast_text(feature_result$latest_evidence_at_utc, ""))
+    return("")
+  }
+  values <- vapply(fields, function(field) phase14_forecast_text(row[[field]][[1L]], ""), character(1))
+  if (any(!nzchar(values))) return("")
+  parsed <- as.POSIXct(values, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+  if (anyNA(parsed) || any(parsed >= phase14_forecast_parse_utc(adapted$feature_cutoff_utc[[1L]])))
+    stop("Phase 14 per-fixture feature evidence is not strictly prior", call. = FALSE)
+  values[[which.max(parsed)]]
+}
+
 phase14_forecast_batch_lineage_row <- function(
     adapted,
     feature_result,
@@ -1225,7 +1256,7 @@ phase14_forecast_batch_lineage_row <- function(
     calibration_gate_sha256 = phase14_forecast_text(calibrator_identity$calibration_gate_sha256, ""),
     model_data_cutoff = phase14_forecast_text(model_cutoff, ""),
     feature_evidence_source = paste(source, collapse = "|"),
-    latest_evidence_at_utc = phase14_forecast_text(if (is.list(feature_result)) feature_result$latest_evidence_at_utc else "", ""),
+    latest_evidence_at_utc = phase14_forecast_fixture_evidence_text(adapted, feature_result),
     national_team_xg_status = phase14_forecast_text(xg_status, "unavailable"),
     national_team_xg_source_id = phase14_forecast_text(xg_source, "national_team_xg_sources.csv"),
     national_team_xg_sample_count = as.integer(xg_samples),

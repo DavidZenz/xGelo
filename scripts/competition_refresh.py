@@ -9,6 +9,7 @@ import datetime as dt
 import fcntl
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -311,6 +312,151 @@ def resolve_failed_workspace(root, run_id, before, releases):
     return workspace
 
 
+def validate_nl_forecast_input_evidence(payload, now):
+    """Check input coherence; this alone cannot certify an outcome or a page.
+
+    A recent feed check alone cannot establish that forecasts consumed its
+    completed results. This projection is also used by the read-only monitor.
+    Actual private CSV/JSON bytes and rating replay are validated by R before
+    publication; these public fields cannot grant model/source authority.
+    """
+    meta = payload.get("metadata", {})
+    evidence = payload.get("forecast_input_evidence")
+
+    def fail(reason):
+        raise RefreshError("Nations League forecast inputs: " + reason)
+
+    def timestamp(value, label):
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", value):
+            fail(label + " must be canonical UTC")
+        try:
+            return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            fail(label + " is not a valid UTC instant")
+
+    def count(value, label, minimum=0):
+        if (isinstance(value, bool) or not isinstance(value, (int, float)) or
+                not math.isfinite(value) or not float(value).is_integer() or value < minimum):
+            fail(label + " must be an integer >= " + str(minimum))
+        return int(value)
+
+    if (meta.get("forecast_input_contract") != "nl-local-elo-v1" or
+            meta.get("forecast_input_status") != "validated" or not isinstance(evidence, dict) or
+            evidence.get("schema_version") != "nl-local-elo-v1"):
+        fail("validated local rating evidence is missing or unsupported")
+    hashes = ("forecast_input_sha256", "forecast_input_provenance_sha256", "forecast_input_seed_sha256",
+              "forecast_input_results_sha256", "forecast_input_source_bundle_sha256", "forecast_input_policy_sha256")
+    for key in hashes:
+        value = meta.get(key)
+        if not isinstance(value, str) or not re.fullmatch("[0-9a-f]{64}", value) or evidence.get(key) != value:
+            fail("missing or inconsistent parent hash: " + key)
+    if meta["forecast_input_source_bundle_sha256"] != meta.get("source_bundle_sha256"):
+        fail("rating evidence belongs to a different accepted source")
+
+    time_keys = ("forecast_input_as_of_utc", "forecast_input_base_cutoff_utc",
+                 "forecast_input_base_latest_evidence_at_utc", "forecast_input_earliest_team_evidence_at_utc",
+                 "forecast_input_latest_evidence_at_utc")
+    times = {key: timestamp(meta.get(key), key) for key in time_keys}
+    as_of, boundary = times[time_keys[0]], times[time_keys[1]]
+    for key in ("last_refresh_at_utc", "source_as_of_utc", "accepted_data_cutoff_utc"):
+        if timestamp(meta.get(key), key) != as_of:
+            fail("rating evidence is not synchronized with " + key)
+    if not times["forecast_input_base_latest_evidence_at_utc"] < boundary <= as_of:
+        fail("seed evidence must precede the pre-edition boundary and source cutoff")
+    if not (times["forecast_input_earliest_team_evidence_at_utc"] <= times["forecast_input_latest_evidence_at_utc"] <=
+            as_of <= now + dt.timedelta(minutes=5)):
+        fail("rating/source evidence chronology is inconsistent")
+
+    team_count = count(meta.get("forecast_input_team_count"), "team count", minimum=2)
+    completed_count = count(meta.get("forecast_input_completed_result_count"), "completed result count")
+    teams = evidence.get("per_team")
+    if not isinstance(teams, list) or len(teams) != team_count or any(not isinstance(row, dict) for row in teams):
+        fail("per-team evidence does not cover the complete roster")
+    team_ids = [row.get("team_id") for row in teams]
+    if any(not isinstance(team, str) or not re.fullmatch("team_[a-z0-9_]+", team) for team in team_ids):
+        fail("per-team national identity is malformed")
+    if len(set(team_ids)) != team_count:
+        fail("per-team evidence contains duplicate identities")
+    standings = payload.get("current_standings")
+    if not isinstance(standings, list) or any(not isinstance(row, dict) for row in standings):
+        fail("current standings roster is missing")
+    roster = [row.get("team_id") for row in standings]
+    if len(roster) != team_count or set(roster) != set(team_ids):
+        fail("per-team evidence and current standings roster differ")
+    results = payload.get("sections", {}).get("results", {}).get("rows")
+    if not isinstance(results, list) or any(not isinstance(row, dict) for row in results):
+        fail("accepted result evidence is missing")
+    participant_dates = {team: [] for team in team_ids}
+    fixture_ids, admitted = set(), 0
+    for row in results:
+        fixture = row.get("fixture_id")
+        if not isinstance(fixture, str) or not fixture or fixture in fixture_ids:
+            fail("accepted result fixture identities are missing or duplicated")
+        fixture_ids.add(fixture)
+        if row.get("counts_for_form") is not True:
+            continue
+        if row.get("match_status") != "completed":
+            fail("an unconfirmed result cannot update ratings")
+        completion = timestamp(row.get("evidence_completed_at_utc"), "accepted result completion")
+        if completion > as_of:
+            fail("accepted result evidence is later than the source cutoff")
+        if completion <= boundary:
+            continue
+        home, away = row.get("home_team_id"), row.get("away_team_id")
+        if home == away or home not in participant_dates or away not in participant_dates:
+            fail("completed result participants do not match the current roster")
+        participant_dates[home].append(completion)
+        participant_dates[away].append(completion)
+        admitted += 1
+    seed_times, latest_times, consumed_counts = [], [], []
+    for row in teams:
+        seed = timestamp(row.get("seed_evidence_at_utc"), "team seed evidence")
+        latest = timestamp(row.get("latest_evidence_at_utc"), "team latest evidence")
+        consumed = count(row.get("consumed_result_count"), "team consumed result count")
+        if not seed < boundary or not seed <= latest <= as_of:
+            fail("per-team evidence is outside its causal window")
+        if (consumed == 0 and latest != seed) or (consumed > 0 and not boundary < latest):
+            fail("per-team evidence does not agree with its consumed results")
+        seed_times.append(seed)
+        latest_times.append(latest)
+        consumed_counts.append(consumed)
+    if (max(seed_times) != times["forecast_input_base_latest_evidence_at_utc"] or
+            min(latest_times) != times["forecast_input_earliest_team_evidence_at_utc"] or
+            max(latest_times) != times["forecast_input_latest_evidence_at_utc"]):
+        fail("aggregate evidence dates differ from the per-team dates")
+    if sum(consumed_counts) != 2 * completed_count or any(value > completed_count for value in consumed_counts):
+        fail("completed-result participant accounting is inconsistent")
+    if admitted != completed_count:
+        fail("completed-result count differs from accepted result evidence")
+    for row, seed, latest, consumed in zip(teams, seed_times, latest_times, consumed_counts):
+        actual = participant_dates[row["team_id"]]
+        if consumed != len(actual) or latest != max([seed] + actual):
+            fail("per-team ratings did not consume their accepted completed results")
+    return {key: meta[key] for key in time_keys +
+            ("forecast_input_contract", "forecast_input_status", "forecast_input_team_count",
+             "forecast_input_completed_result_count") + hashes}
+
+
+def validate_nl_forecast_inputs(payload, now):
+    """Require both synchronized inputs and genuine projection/page chronology."""
+    evidence = validate_nl_forecast_input_evidence(payload, now)
+    meta = payload["metadata"]
+    times = []
+    for key in ("projection_generated_at_utc", "generated_at_utc"):
+        value = meta.get(key)
+        if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z", value):
+            raise RefreshError("Nations League forecast inputs: " + key + " must be canonical UTC")
+        try:
+            times.append(dt.datetime.fromisoformat(value.replace("Z", "+00:00")))
+        except ValueError:
+            raise RefreshError("Nations League forecast inputs: " + key + " is not a valid UTC instant")
+        evidence[key] = value
+    as_of = dt.datetime.fromisoformat(evidence["forecast_input_as_of_utc"].replace("Z", "+00:00"))
+    if not as_of <= times[0] <= times[1] <= now + dt.timedelta(minutes=5):
+        raise RefreshError("Nations League forecast inputs: rating/source/projection/page evidence chronology is inconsistent")
+    return evidence
+
+
 def validate_payloads(public, now=None):
     validate_public_bytes(public)
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -343,6 +489,7 @@ def validate_payloads(public, now=None):
             # whether a historical 100-simulation output already exists.
             if n < 9600:
                 raise RefreshError(f"Nations League precision gate failed: {n} simulations")
+            dates[route].update(validate_nl_forecast_inputs(p, now))
         if route == "euro-qualifying" and meta.get("lifecycle_state") == "pre_draw":
             if any(sections.get(s, {}).get("rows") for s in ("fixtures", "match_forecasts", "projected_outcomes")):
                 raise RefreshError("EURO pre-draw route contains invented fixtures or forecasts")

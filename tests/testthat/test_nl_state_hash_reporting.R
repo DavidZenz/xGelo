@@ -10,11 +10,12 @@ nl_state_reporting_fixture <- function() {
   api$phase14_refresh_nl_root <- nl_state_reporting_root
   candidate_hash <- paste(rep("a", 64L), collapse = "")
   installed_hash <- digest::digest("independently serialized canonical state fixture", algo = "sha256", serialize = FALSE)
-  candidate <- list(state_manifest_sha256 = candidate_hash)
+  candidate <- list(state_manifest_sha256 = candidate_hash, candidate_status = "valid")
   backend <- new.env(parent = globalenv())
   backend$phase14_build_competition_state_main <- function(...) list(validation = TRUE,
     batch = list(candidates = setNames(list(candidate), "uefa_nations_league_2026_27")))
   backend$phase14_validate_competition_state_bundle <- function(...) invisible(TRUE)
+  api$phase14_refresh_nl_build_current_state <- function(...) list(candidate = candidate, validation = TRUE)
   api$phase14_refresh_nl_load <- function() backend
   api$phase14_refresh_nl_read_source_bundle <- function(...) data.frame(source_bundle_sha256 = paste(rep("c", 64L), collapse = ""))
   api$phase14_refresh_nl_prepare_candidate <- function(environment, candidate) candidate
@@ -70,4 +71,14 @@ test_that("missing or malformed installed hashes cannot produce a success identi
     })
     expect_error(fixture$api$phase14_refresh_nl_main(character()), "canonical installed manifest hash")
   }
+})
+
+
+test_that("invalid NL state cannot repin or promote any durable artifacts", {
+  fixture <- nl_state_reporting_fixture()
+  fixture$api$phase14_refresh_nl_build_current_state <- function(...) list(validation=TRUE,
+    candidate=list(candidate_status="invalid",failure_reason="feature_evidence_unavailable"))
+  expect_error(fixture$api$phase14_refresh_nl_main(character()),"state candidate is invalid: feature_evidence_unavailable",fixed=TRUE)
+  expect_identical(fixture$writes$stage,0L)
+  expect_identical(fixture$writes$state,0L)
 })

@@ -22,7 +22,7 @@ phase17_provider_source_authorities <- function(project_root) {
     "R/competition/uefa_nations_league_rules.R", "R/competition/uefa_nations_league_rule_inputs.R", "R/competition/standings.R",
     "R/competition/edition_registry.R", "R/competition/team_identity.R",
     "R/release/release_contract.R", "R/competition/forecast_layer.R",
-    "R/competition/state_bundle.R", "R/competition/uefa_euro_rules.R", "R/competition/uefa_euro_priority.R",
+    "R/competition/state_bundle.R", "R/competition/nl_forecast_inputs.R", "R/competition/uefa_euro_rules.R", "R/competition/uefa_euro_priority.R",
     "R/competition/uefa_euro_outcomes.R", "R/competition/uefa_nations_league_outcomes.R"
   )
   for (relative in files) {
@@ -237,6 +237,14 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
   state_tables <- state$artifacts
   outcome_tables <- outcomes$artifacts
   metadata <- phase17_provider_metadata(source, state, outcomes, registry, edition_id)
+  local_evidence <- NULL
+  if (identical(edition_id, "uefa_nations_league_2026_27")) {
+    input <- nl_elo_validate_accepted_state(project_root, source, state, registry$team_identity)
+    nl_elo_validate_projection(state, outcomes, source)
+    public <- nl_elo_public_evidence(input)
+    metadata <- c(metadata, public$metadata)
+    local_evidence <- public$evidence
+  }
   queue <- outcome_tables[["outcomes/euro_priority_queue.csv"]]
   if (edition_id == "uefa_nations_league_2026_27" && is.data.frame(queue) && nrow(queue)) {
     metadata$priority_policy_version <- as.character(queue$priority_policy_version[[1L]])
@@ -261,6 +269,7 @@ phase17_provider_bundle <- function(project_root, edition_id, source, state, out
     tournament_topology = phase17_provider_alias_rows(outcome_tables[["outcomes/competition_topology.csv"]], edition_id)
   )
   c(metadata, list(artifacts = artifacts, credits = metadata$credits,
+                   forecast_input_evidence = local_evidence,
                    source = source, state = state, outcomes = outcomes))
 }
 
@@ -338,7 +347,7 @@ phase17_production_callbacks <- function(
     canonical_matches = nl$source$tables$fixtures,
     team_registry = registry$team_identity,
     resolved_release = phase14_release(), selector_path = file.path(project_root, "outputs/releases/approved_release.csv"),
-    trusted_release_root = file.path(project_root, "outputs/releases"), elo_ratings = registry$elo_ratings,
+    trusted_release_root = file.path(project_root, "outputs/releases"), elo_ratings = nl_elo_validate_accepted_state(project_root, nl$source, nl$state, registry$team_identity)$ratings,
     national_team_xg_registry = registry$national_team_xg_sources, national_team_xg_history = NULL,
     model_manifest = phase14_manifest, model_manifest_path = phase14_manifest_path,
     results = nl$source$tables$results, groups = nl$source$tables$groups,
@@ -356,6 +365,7 @@ phase17_production_callbacks <- function(
   }
   phase14_state_candidate <- function() {
     if (identical(phase14_state_mode, "accepted")) {
+      nl_elo_validate_accepted_state(project_root, nl$source, nl$state, registry$team_identity)
       return(phase14_validate_competition_state_bundle(
         phase14_state_root,
         resolved_release = phase14_release(),

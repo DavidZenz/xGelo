@@ -897,7 +897,7 @@ phase15_nl_build_team_paths <- function(simulation, common) {
   if (nrow(output)) phase15_nl_add_row_hashes(output) else output
 }
 
-phase15_nl_build_simulation_metadata <- function(simulation, state, source, rules_lineage, common, output_hash = "") {
+phase15_nl_build_simulation_metadata <- function(simulation, state, source, rules_lineage, common, output_hash = "", generated_at_utc = NULL) {
   schema <- phase15_nl_outcomes_schema()$simulation_metadata
   input <- phase15_nl_simulation_metadata_row(simulation)
   output <- phase15_nl_empty_table(schema)
@@ -925,7 +925,8 @@ phase15_nl_build_simulation_metadata <- function(simulation, state, source, rule
   output$release_selector_sha256 <- phase15_nl_scalar(input, "release_selector_sha256", default = phase15_nl_scalar(state$state_manifest, "release_selector_sha256"))
   output$model_data_cutoff <- phase15_nl_scalar(input, "model_data_cutoff", default = phase15_nl_scalar(state$state_manifest, "model_data_cutoff"))
   output$feature_cutoff_sha256 <- phase15_nl_scalar(input, "feature_cutoff_sha256", default = phase15_nl_parent_value(state$parent_graph, "phase14_feature_cutoff"))
-  output$generated_at_utc <- phase15_nl_scalar(input, "generated_at_utc", default = phase15_nl_scalar(state$state_manifest, "generated_at_utc"))
+  # Operational generation is an explicit replay input, never a source/model date.
+  output$generated_at_utc <- generated_at_utc %||% phase15_nl_scalar(input, "generated_at_utc", default = "")
   output$output_sha256 <- if (nzchar(output_hash)) output_hash else phase15_nl_scalar(input, "output_sha256", default = phase15_nl_sha256(simulation$output_hashes, serialize = TRUE))
   phase15_nl_add_row_hashes(output)
 }
@@ -1047,7 +1048,7 @@ phase15_build_nl_outcomes_candidate <- function(
     score_distributions = state$score_distributions,
     source = source
   )
-  simulation_metadata <- phase15_nl_build_simulation_metadata(simulation, state, source, rules_lineage, common)
+  simulation_metadata <- phase15_nl_build_simulation_metadata(simulation, state, source, rules_lineage, common, generated_at_utc = generated_at_utc)
   parent_graph <- phase15_nl_parent_graph_from_state(
     state, source, stage_capture, rules_lineage, simulation, simulation_metadata,
     rule_inputs = rule_inputs

@@ -253,13 +253,17 @@ test_that("production state candidate builder retains the edition-scoped entry p
 phase14_state_tracer_root <- phase14_state_test_project_root
 
 phase14_state_tracer_inputs <- function() {
+  editions <- utils::read.csv(
+    file.path(phase14_state_tracer_root, "data/competition/registries/competition_editions.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = ""
+  )
+  # These are fixed synthetic scheduled/pre-draw mechanics fixtures. Live
+  # calendar progression must not silently change their lifecycle premise;
+  # actual production input authority is verified by its separate readers.
+  editions$lifecycle_state[editions$edition_id == "uefa_nations_league_2026_27"] <- "scheduled"
+  editions$lifecycle_state[editions$edition_id == "uefa_euro_2028_qualifying"] <- "pre_draw"
   list(
-    editions = utils::read.csv(
-      file.path(phase14_state_tracer_root, "data/competition/registries/competition_editions.csv"),
-      stringsAsFactors = FALSE,
-      check.names = FALSE,
-      na.strings = ""
-    ),
+    editions = editions,
     teams = utils::read.csv(
       file.path(phase14_state_tracer_root, "data/competition/registries/team_identity.csv"),
       stringsAsFactors = FALSE,

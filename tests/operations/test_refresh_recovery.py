@@ -41,7 +41,7 @@ class RetainedRecoveryTests(unittest.TestCase):
 import datetime as dt,json,shutil,sys
 from pathlib import Path
 sys.path.insert(0,TESTS)
-from test_refresh_review import review_batch,seal_review_batch,utc
+from test_refresh_review import review_batch,seal_review_batch,utc,add_nl_forecast_input_evidence
 config=json.loads(Path(CONFIG).read_text());root=Path.cwd()
 script=next((Path(x).name for x in sys.argv if x.endswith(".R")),"")
 with Path(TRACE).open("a") as h:h.write(json.dumps(dict(script=script,cwd=str(root),runtime=(root/"R/runtime_marker.txt").read_text()))+"\\n")
@@ -61,6 +61,7 @@ elif script=="stage_non_wc_dashboards.R":
     captured=json.loads((root/"data/competition/mechanical-source.json").read_text())["at"]
     for route in ("nations-league","champions-league"):
         p=public/route/"payload.json";data=json.loads(p.read_text());data["metadata"]["last_refresh_at_utc"]=captured;data["metadata"]["source_as_of_utc"]=captured
+        if route=="nations-league":add_nl_forecast_input_evidence(data,now,dt.datetime.fromisoformat(captured.replace("Z","+00:00")))
         if config.get("stale"):data["metadata"]["last_refresh_at_utc"]=utc(now-dt.timedelta(days=4))
         if config.get("preview") and route=="nations-league":data["metadata"]["simulation_count"]=100
         p.write_text(json.dumps(data))

@@ -299,7 +299,7 @@ phase14_state_bundle_elo_index <- function(elo_ratings) {
   evidence_col <- c("evidence_at_utc", "evidence_completed_at_utc", "updated_at_utc", "timestamp_utc")
   evidence_col <- evidence_col[evidence_col %in% names(elo_ratings)]
   evidence <- if (length(evidence_col)) {
-    parsed <- as.POSIXct(as.character(elo_ratings[[evidence_col[[1L]]]]), format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    parsed <- as.POSIXct(as.character(elo_ratings[[evidence_col[[1L]]]]), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
     missing <- is.na(parsed)
     if (any(missing)) parsed[missing] <- as.POSIXct(paste(as.Date(elo_ratings[[date_col]][missing]), "00:00:00"), tz = "UTC")
     parsed
@@ -1317,6 +1317,30 @@ phase14_state_bundle_euro_activation_gate <- function(
   )
 }
 
+phase14_state_bundle_expected_completed_suppression <- function(status, fixtures, results, edition_id, source_manifest = NULL) {
+  expected <- rep(FALSE, nrow(status))
+  if (!identical(as.character(edition_id), "uefa_nations_league_2026_27") || !is.data.frame(results) || !nrow(results) ||
+      !is.data.frame(source_manifest) || !"retrieved_at_utc" %in% names(source_manifest)) return(expected)
+  fields <- c("fixture_id", "match_status", "counts_for_standings", "final_home_goals", "final_away_goals", "evidence_completed_at_utc")
+  if (!all(fields %in% names(results))) return(expected)
+  cutoff <- max(as.POSIXct(source_manifest$retrieved_at_utc, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
+  for (i in seq_len(nrow(status))) {
+    if (!identical(as.character(status$forecast_status[[i]]), "suppressed") ||
+        !identical(as.character(status$suppression_reason[[i]]), "status_ineligible")) next
+    fixture <- fixtures[as.character(fixtures$fixture_id) == as.character(status$fixture_id[[i]]), , drop = FALSE]
+    result <- results[as.character(results$fixture_id) == as.character(status$fixture_id[[i]]), , drop = FALSE]
+    if (nrow(fixture) != 1L || nrow(result) != 1L) next
+    token <- tolower(phase14_forecast_status_token(fixture, 1L))
+    if (!token %in% c("finished", "completed", "complete", "full_time", "awarded")) next
+    goals <- suppressWarnings(as.numeric(c(result$final_home_goals[[1L]], result$final_away_goals[[1L]])))
+    evidence <- as.POSIXct(as.character(result$evidence_completed_at_utc[[1L]]), format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC")
+    expected[[i]] <- identical(as.character(result$match_status[[1L]]), "completed") &&
+      isTRUE(phase14_forecast_logical(result$counts_for_standings[[1L]])) &&
+      all(is.finite(goals) & goals >= 0 & goals == floor(goals)) && !is.na(evidence) && !is.na(cutoff) && evidence <= cutoff
+  }
+  expected
+}
+
 phase14_state_bundle_candidate_production <- function(
     edition_id,
     edition_row,
@@ -1473,12 +1497,16 @@ phase14_state_bundle_candidate_production <- function(
   forecast$local_score_distributions <- forecast$local_score_distributions %||% forecast$score_distributions
   forecast_status <- forecast$fixture_status
   valid <- is.null(shared_input_audit$failure_reason) || is.na(shared_input_audit$failure_reason)
-  if (nrow(forecast_status) && any(as.character(forecast_status$forecast_status) == "suppressed")) valid <- FALSE
+  expected_completed <- phase14_state_bundle_expected_completed_suppression(forecast_status, fixture_rows, result_rows, edition_id, source_bundle_manifest)
+  blocked <- as.character(forecast_status$forecast_status) != "available" & !expected_completed
+  if (any(blocked)) valid <- FALSE
   failure_reason <- if (valid) NA_character_ else {
     if (!is.null(shared_input_audit$failure_reason) && !is.na(shared_input_audit$failure_reason)) {
       as.character(shared_input_audit$failure_reason)
     } else {
-      as.character(unique(forecast_status$suppression_reason)[[1L]])
+      reasons <- as.character(forecast_status$suppression_reason[blocked])
+      reasons <- unique(reasons[!is.na(reasons) & nzchar(reasons) & !reasons %in% c("none", "available")])
+      if (length(reasons)) reasons[[1L]] else "edition_local_build_failed"
     }
   }
   candidate <- list(
@@ -1761,6 +1789,9 @@ phase14_state_bundle_manifest_rows <- function(
   output <- do.call(rbind, rows)
   output$row_count <- as.integer(output$row_count)
   output$national_team_xg_sample_count <- as.integer(output$national_team_xg_sample_count)
+  if (is.list(candidate$nl_forecast_inputs$hashes)) {
+    for (field in names(candidate$nl_forecast_inputs$hashes)) output[[field]] <- candidate$nl_forecast_inputs$hashes[[field]]
+  }
   output
 }
 
@@ -2001,6 +2032,9 @@ phase14_validate_competition_state_bundle <- function(
     if (!all(file.exists(present))) stop("Phase 14 durable state bundle is missing an inventory artifact", call. = FALSE)
     relative <- gsub("\\\\", "/", list.files(root, recursive = TRUE, all.files = FALSE, include.dirs = FALSE))
     allowed <- c(expected, phase14_state_bundle_registered_outcomes_inventory())
+    manifest_identity <- utils::read.csv(file.path(root, "audit/state_manifest.csv"), nrows = 1L, stringsAsFactors = FALSE)
+    if (nrow(manifest_identity) && identical(as.character(manifest_identity$edition_id[[1L]]), "uefa_nations_league_2026_27"))
+      allowed <- c(allowed, "forecast_inputs/elo_ratings.csv", "forecast_inputs/elo_provenance.json")
     unexpected <- relative[!relative %in% allowed]
     if (length(unexpected)) stop("Phase 14 durable state bundle contains an unexpected inventory artifact", call. = FALSE)
     artifacts <- lapply(expected, function(path) {

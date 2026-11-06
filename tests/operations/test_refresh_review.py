@@ -34,6 +34,37 @@ def write_json(path, value):
     path.write_text(json.dumps(value, separators=(",", ":")))
 
 
+def add_nl_forecast_input_evidence(payload, now, source_as_of=None):
+    """Independent two-team evidence fixture; it cannot create R production rights."""
+    source = now if source_as_of is None else source_as_of
+    meta = payload["metadata"]
+    parent_fields = ("forecast_input_sha256", "forecast_input_provenance_sha256",
+                     "forecast_input_seed_sha256", "forecast_input_results_sha256",
+                     "forecast_input_source_bundle_sha256", "forecast_input_policy_sha256")
+    parents = {field: str(index + 1) * 64 for index, field in enumerate(parent_fields)}
+    parents["forecast_input_source_bundle_sha256"] = meta["source_bundle_sha256"]
+    meta.update(parents)
+    meta.update(forecast_input_contract="nl-local-elo-v1", forecast_input_status="validated",
+                forecast_input_as_of_utc=utc(source), accepted_data_cutoff_utc=utc(source),
+                source_as_of_utc=utc(source), last_refresh_at_utc=utc(source),
+                generated_at_utc=utc(now), projection_generated_at_utc=utc(now),
+                forecast_input_base_cutoff_utc=utc(source-dt.timedelta(days=2)),
+                forecast_input_base_latest_evidence_at_utc=utc(source-dt.timedelta(days=3)),
+                forecast_input_earliest_team_evidence_at_utc=utc(source-dt.timedelta(hours=1)),
+                forecast_input_latest_evidence_at_utc=utc(source-dt.timedelta(hours=1)),
+                forecast_input_team_count=2, forecast_input_completed_result_count=1)
+    payload["forecast_input_evidence"] = dict(schema_version="nl-local-elo-v1", **parents,
+        per_team=[dict(team_id="team_aaa", seed_evidence_at_utc=utc(source-dt.timedelta(days=4)),
+                       latest_evidence_at_utc=utc(source-dt.timedelta(hours=1)), consumed_result_count=1),
+                  dict(team_id="team_bbb", seed_evidence_at_utc=utc(source-dt.timedelta(days=3)),
+                       latest_evidence_at_utc=utc(source-dt.timedelta(hours=1)), consumed_result_count=1)])
+    payload["current_standings"] = [dict(team_id="team_aaa"), dict(team_id="team_bbb")]
+    payload["sections"]["results"]["rows"] = [dict(fixture_id="independent-result-1", home_team_id="team_aaa",
+        away_team_id="team_bbb", counts_for_form=True, match_status="completed",
+        evidence_completed_at_utc=utc(source-dt.timedelta(hours=1)))]
+    return payload
+
+
 def seal_review_batch(public, now):
     """Mechanical manifest fixtures, never source/model authority or public artifacts."""
     batch = "independent-operational-review"
@@ -79,8 +110,10 @@ def review_batch(root, now):
                     showing_last_accepted_snapshot=False)
         sections = {s: dict(id=s, label=s, status="unavailable", reason="Test-only empty section", rows=[])
                     for s in SECTIONS}
-        write_json(folder / "payload.json", dict(schema_version=SCHEMA, edition_id=edition,
-                   metadata=meta, sections=sections, credits={}))
+        payload = dict(schema_version=SCHEMA, edition_id=edition, metadata=meta, sections=sections, credits={})
+        if route == "nations-league":
+            add_nl_forecast_input_evidence(payload, now)
+        write_json(folder / "payload.json", payload)
         (folder / "index.html").write_text("<!doctype html><title>Independent review " + route + "</title>")
     seal_review_batch(public, now)
     return public

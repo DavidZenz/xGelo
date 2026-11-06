@@ -43,6 +43,7 @@ phase15_nl_source_if_missing("R/competition/source_contracts.R", "phase13_source
 phase15_nl_source_if_missing("R/competition/publication_hashes.R", "phase13_publication_write_csv")
 phase15_nl_source_if_missing("R/competition/forecast_layer.R", "phase14_build_fixture_forecasts")
 phase15_nl_source_file("R/competition/form.R")
+phase15_nl_source_if_missing("R/competition/nl_forecast_inputs.R", "nl_elo_validate_accepted_state")
 phase15_nl_source_file("R/competition/match_state.R")
 phase15_nl_source_if_missing("R/competition/state_bundle.R", "phase14_build_competition_state_candidate")
 phase15_nl_source_if_missing("R/competition/uefa_nations_league_rules.R", "uefa_nl_2026_27_rules")
@@ -260,6 +261,8 @@ phase15_nl_default_inputs <- function(
     project_root = project_root,
     edition_id = edition_id
   )
+  local_elo <- nl_elo_validate_accepted_state(project_root, source, state_bundle,
+    unique(utils::read.csv(file.path(project_root, "data/competition/registries/team_identity.csv"), stringsAsFactors = FALSE)[c("team_id", "canonical_name")]))
   topology_base <- uefa_nl_build_topology(
     groups = source$groups,
     fixtures = source$fixtures,
@@ -285,6 +288,7 @@ phase15_nl_default_inputs <- function(
     raw_hashes = raw_hashes,
     stage_capture = stage_capture,
     state_bundle = state_bundle,
+    local_elo = local_elo,
     rule_inputs = rule_inputs,
     topology = topology,
     rules = uefa_nl_2026_27_rules()
@@ -436,9 +440,12 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
     phase15_nl_fail("Knockout forecast handoff requires loaded Nations League inputs.")
   }
   state <- loaded$state_bundle
+  if (!is.list(loaded$local_elo) || !is.data.frame(loaded$local_elo$ratings))
+    phase15_nl_fail("Knockout forecast handoff requires validated local Elo inputs.")
   cache_key <- paste(
     phase15_nl_text(state$state_manifest_sha256, ""),
     phase15_nl_text(state$model_release_id, ""),
+    phase15_nl_text(loaded$generated_at_utc, ""),
     uefa_nl_ruleset_sha256(loaded$rules),
     sep = "::"
   )
@@ -491,7 +498,9 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
     national_team_xg_registry = file.path(loaded$project_root, "data/competition/registries/national_team_xg_sources.csv"),
     edition_registry = file.path(loaded$project_root, "data/competition/registries/competition_editions.csv"),
     edition_lifecycle_state = "scheduled",
-    invalid_score_support = "suppress"
+    invalid_score_support = "suppress",
+    elo_ratings = loaded$local_elo$ratings,
+    generated_at_utc = loaded$generated_at_utc
   )
   if (!is.data.frame(generated$forecasts) || any(!generated$forecasts$fixture_id %in% pairs$fixture_id) ||
       !is.data.frame(generated$fixture_status) || nrow(generated$fixture_status) != nrow(pairs) ||
@@ -502,6 +511,7 @@ phase15_nl_knockout_forecast_handoff <- function(loaded) {
     phase15_nl_fail("Nations League knockout forecast status does not cover every pairing.")
   }
 
+  nl_elo_validate_forecast_evidence(loaded$local_elo, generated$forecasts, pairs)
   base_forecasts <- generated$forecasts
   base_forecasts$home_team_id <- pairs$home_team_id[match(base_forecasts$fixture_id, pairs$fixture_id)]
   base_forecasts$away_team_id <- pairs$away_team_id[match(base_forecasts$fixture_id, pairs$fixture_id)]
@@ -644,7 +654,7 @@ phase15_nl_build_candidate <- function(loaded, options, source_override = loaded
     stage_capture = loaded$stage_capture,
     state_bundle = state_bundle,
     project_root = loaded$project_root,
-    generated_at_utc = NULL,
+    generated_at_utc = loaded$generated_at_utc,
     rule_inputs = loaded$rule_inputs
   )
   candidate <- phase15_nl_attach_stage_capture_lineage(candidate, loaded$stage_capture)
@@ -783,7 +793,8 @@ phase15_nl_rng_restore <- function(snapshot) {
 
 phase15_build_nl_outcomes_main <- function(
     args = commandArgs(trailingOnly = TRUE),
-    project_root = phase15_nl_project_root
+    project_root = phase15_nl_project_root,
+    generated_at_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 ) {
   options <- phase15_nl_parse_args(args)
   if (isTRUE(options$help)) {
@@ -798,6 +809,8 @@ phase15_build_nl_outcomes_main <- function(
     edition_id = options$edition_id,
     project_root = project_root
   )
+  nl_elo_time(generated_at_utc)
+  loaded$generated_at_utc <- as.character(generated_at_utc)
   precision_run <- NULL
   if (!is.null(options$precision_report_dir)) {
     phase15_nl_source_if_missing("scripts/benchmark_nl_precision.R", "nl_benchmark_run_for_publication")

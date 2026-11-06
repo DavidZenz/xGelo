@@ -76,7 +76,29 @@ phase14_refresh_nl_load <- function() {
   phase14_refresh_nl_source("R/competition/uefa_nations_league_adapter.R", environment)
   state_script <- file.path(phase14_refresh_nl_root, "scripts/build_competition_state.R")
   sys.source(state_script, envir = environment)
+  for (path in c("R/competition/form.R", "R/competition/nl_forecast_inputs.R", "R/competition/standings.R",
+      "R/competition/uefa_nations_league_rules.R", "R/competition/uefa_nations_league_rule_inputs.R"))
+    phase14_refresh_nl_source(path, environment)
   environment
+}
+
+phase14_refresh_nl_build_current_state <- function(environment, source_bundle, generated_at_utc) {
+  loaded <- environment$phase14_build_competition_state_default_inputs(phase14_refresh_nl_edition_id, phase14_refresh_nl_root)
+  source <- list(results = loaded$results, source_bundle_sha256 = as.character(source_bundle$source_bundle_sha256[[1L]]),
+    as_of_utc = max(as.character(loaded$source_bundle_manifest$retrieved_at_utc)))
+  registry <- environment$phase14_forecast_team_registry(loaded$team_registry)
+  teams <- environment$nl_elo_team_projection(registry, loaded$canonical_matches)
+  input <- environment$nl_elo_build_from_project(phase14_refresh_nl_root, source, teams, source$as_of_utc)
+  serialized <- environment$nl_elo_serialize(input)
+  loaded$elo_ratings <- input$ratings
+  result <- environment$phase14_build_competition_state_main(
+    args = c("--edition-id", phase14_refresh_nl_edition_id, "--dry-run"), project_root = phase14_refresh_nl_root,
+    input_loader_fn = function(...) loaded, generated_at_utc = generated_at_utc)
+  candidate <- result$batch$candidates[[phase14_refresh_nl_edition_id]]
+  candidate$nl_forecast_inputs <- list(ratings = input$ratings, teams = teams, per_team = input$per_team,
+    provenance = serialized$provenance, hashes = serialized$hashes, artifacts = serialized$artifacts)
+  candidate$operational_generated_at_utc <- generated_at_utc
+  list(candidate = candidate, validation = result$validation)
 }
 
 phase14_refresh_nl_read_source_bundle <- function(environment) {
@@ -141,6 +163,34 @@ phase14_refresh_nl_empty_schema <- function(columns) {
 }
 
 phase14_refresh_nl_prepare_candidate <- function(environment, candidate) {
+  if (is.list(candidate$nl_forecast_inputs)) {
+    inputs <- environment$phase15_nl_read_rule_inputs(project_root = phase14_refresh_nl_root)
+    topology <- environment$uefa_nl_build_topology(groups = candidate$groups, fixtures = candidate$fixtures,
+      access_list = inputs$access_list, discipline_points = inputs$discipline_points, project_root = phase14_refresh_nl_root)
+    cutoff <- candidate$nl_forecast_inputs$provenance$as_of_utc
+    frames <- lapply(split(topology$teams, topology$teams$group_id), function(teams) {
+      rows <- candidate$results[as.character(candidate$results$group_id) == as.character(teams$group_id[[1L]]), , drop = FALSE]
+      computed <- environment$uefa_nl_build_group_standings_state(rows,
+        discipline_points = teams[c("team_id", "discipline_points")], access_list = teams[c("team_id", "access_list_position")],
+        group_id = teams$group_id[[1L]], edition_id = candidate$edition_id, state_cutoff_utc = cutoff,
+        source_bundle_id = environment$uefa_nl_source_bundle_id(), team_ids = teams$team_id)$phase14_standings
+      # Accepted official standings are absent; retain computed Article 15 ranks
+      # with explicit provisional reconciliation rather than imply official confirmation.
+      computed$ordering_status <- "provisional"
+      reconciled <- environment$phase14_reconcile_standings(computed, official = NULL)
+      reconciled$group_position <- reconciled$computed_rank
+      reconciled$league <- as.character(teams$league[[1L]])
+      environment$phase14_standings_apply_hashes(reconciled)
+    })
+    candidate$standings <- do.call(rbind, frames); rownames(candidate$standings) <- NULL
+    candidate$standings_reconciliation <- candidate$standings[c("edition_id", "group_id", "team_id", environment$phase14_standings_reconciliation_schema())]
+    candidate$competition_form <- environment$phase14_build_display_form(candidate$results, teams = topology$teams$team_id,
+      edition_id = candidate$edition_id, feature_cutoff_utc = cutoff, form_scope = "competition")
+    candidate$all_senior_form <- environment$phase14_build_display_form(data.frame(), teams = topology$teams$team_id,
+      edition_id = candidate$edition_id, feature_cutoff_utc = cutoff, form_scope = "all_senior_international")
+    candidate$all_senior_form$availability_reason <- "complete_current_international_history_not_accepted"
+    candidate$all_senior_form <- environment$phase14_form_add_hashes(candidate$all_senior_form)
+  }
   form_columns <- c(
     "edition_id", "team_id", "form_scope", "window_type", "window_size",
     "window_span", "sample_count", "eligible_sample_count", "result_sequence",
@@ -173,7 +223,7 @@ phase14_refresh_nl_prepare_candidate <- function(environment, candidate) {
   }
   # Rebuild the manifest after schema-filling so row counts, content hashes,
   # and parent hashes describe exactly what will be written to disk.
-  environment$phase14_state_bundle_attach_manifest(candidate)
+  environment$phase14_state_bundle_attach_manifest(candidate, generated_at_utc = candidate$operational_generated_at_utc)
 }
 
 phase14_refresh_nl_canonicalize_stage_manifest <- function(environment, stage_root) {
@@ -193,6 +243,19 @@ phase14_refresh_nl_canonicalize_stage_manifest <- function(environment, stage_ro
     stop("The staged Nations League state manifest is incomplete", call. = FALSE)
   }
 
+  # Bind every content/parent hash to the exact disk-roundtrip projection.
+  # Nonempty factual tables contain unavailable cells whose CSV read types
+  # differ from their in-memory classes, just as header-only tables can.
+  parents <- environment$phase14_state_bundle_parent_map()
+  for (i in seq_along(expected)) {
+    relative <- expected[[i]]
+    if (identical(relative, "audit/state_manifest.csv")) next
+    manifest$row_count[[i]] <- environment$phase14_state_bundle_value_rows(artifacts[[relative]])
+    manifest$content_sha256[[i]] <- environment$phase14_state_bundle_hash_value(artifacts[[relative]])
+    parent_paths <- parents[[relative]]
+    if (length(parent_paths)) manifest$parent_sha256[[i]] <- paste(vapply(parent_paths,
+      function(parent) environment$phase14_state_bundle_hash_value(artifacts[[parent]]), character(1)), collapse = "|")
+  }
   # Compute the self hash from the serialized artifacts, matching the Phase 15
   # reader's seed projection.  This removes any dependence on in-memory CSV
   # column classes (header-only tables are read back as logical columns).
@@ -221,6 +284,8 @@ phase14_refresh_nl_canonicalize_stage_manifest <- function(environment, stage_ro
 }
 
 phase14_refresh_nl_write_state <- function(environment, candidate) {
+  if (!identical(candidate$candidate_status, "valid") || !is.list(candidate$nl_forecast_inputs$artifacts))
+    stop("NL state publication requires a valid semantic candidate and genuine local forecast inputs", call. = FALSE)
   target_root <- file.path(
     phase14_refresh_nl_root,
     "outputs/competition",
@@ -248,9 +313,15 @@ phase14_refresh_nl_write_state <- function(environment, candidate) {
       environment$phase13_publication_write_csv(artifacts[[relative]], target)
     }
   }
+  if (!identical(names(candidate$nl_forecast_inputs$artifacts), environment$nl_elo_inventory()))
+    stop("NL forecast-input auxiliary inventory is not registered", call. = FALSE)
+  for (relative in names(candidate$nl_forecast_inputs$artifacts)) {
+    target <- file.path(stage_root, relative); dir.create(dirname(target), recursive = TRUE, showWarnings = FALSE)
+    writeBin(candidate$nl_forecast_inputs$artifacts[[relative]], target)
+  }
   canonical_manifest_hash <- phase14_refresh_nl_canonicalize_stage_manifest(environment, stage_root)
 
-  directories <- c("state", "audit", "local")
+  directories <- c("state", "audit", "local", "forecast_inputs")
   promoted <- setNames(logical(length(directories)), directories)
   backed_up <- setNames(logical(length(directories)), directories)
   rollback <- function() {
@@ -282,12 +353,18 @@ phase14_refresh_nl_write_state <- function(environment, candidate) {
     promoted[[directory]] <- TRUE
   }
   environment$phase14_validate_competition_state_bundle(target_root)
+  manifest <- utils::read.csv(file.path(target_root, "audit/state_manifest.csv"), stringsAsFactors = FALSE, na.strings = "")
+  source <- list(results = candidate$results, source_bundle_sha256 = as.character(manifest$source_bundle_sha256[[1L]]),
+    as_of_utc = candidate$nl_forecast_inputs$provenance$as_of_utc)
+  verified <- environment$nl_elo_read_validate(phase14_refresh_nl_root, target_root, source, candidate$nl_forecast_inputs$teams, manifest)
+  environment$nl_elo_validate_forecast_evidence(verified, candidate$forecast$forecasts, candidate$fixtures)
   success <- TRUE
   attr(target_root, "manifest_sha256") <- canonical_manifest_hash
   invisible(target_root)
 }
 
-phase14_refresh_nl_main <- function(args = phase14_refresh_nl_args) {
+phase14_refresh_nl_main <- function(args = phase14_refresh_nl_args,
+    generated_at_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")) {
   options <- phase14_refresh_nl_parse_args(args)
   if (isTRUE(options$help)) {
     cat(phase14_refresh_nl_usage(), "\n", sep = "")
@@ -295,14 +372,14 @@ phase14_refresh_nl_main <- function(args = phase14_refresh_nl_args) {
   }
   environment <- phase14_refresh_nl_load()
   source_bundle <- phase14_refresh_nl_read_source_bundle(environment)
-  state_result <- environment$phase14_build_competition_state_main(
-    args = c("--edition-id", phase14_refresh_nl_edition_id, "--dry-run"),
-    project_root = phase14_refresh_nl_root
-  )
+  generated_at_utc <- as.character(generated_at_utc)
+  state_result <- phase14_refresh_nl_build_current_state(environment, source_bundle, generated_at_utc)
   if (!isTRUE(state_result$validation)) stop("Nations League state build did not validate", call. = FALSE)
-  candidate <- state_result$batch$candidates[[phase14_refresh_nl_edition_id]]
+  candidate <- state_result$candidate
   candidate <- phase14_refresh_nl_prepare_candidate(environment, candidate)
   environment$phase14_validate_competition_state_bundle(candidate)
+  if (!identical(candidate$candidate_status, "valid"))
+    stop("Nations League state candidate is invalid: ", candidate$failure_reason, call. = FALSE)
   repin <- phase14_refresh_nl_repin_stage_capture(environment, source_bundle)
   written_state <- NULL
   installed_hash <- NULL

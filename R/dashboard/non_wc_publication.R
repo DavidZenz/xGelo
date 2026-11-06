@@ -143,7 +143,8 @@ phase21_non_wc_assert_rows <- function(actual, expected, edition_id, section_ids
 }
 
 # Read-only publication QA: accepted source/release/outcome authorities are
-# resolved afresh. It never fits a model, replays ratings, generates forecasts
+# resolved afresh. It recomputes the causal local Elo input parents read-only;
+# it never fits a model, generates forecasts
 # or reruns tournament Monte Carlo. Public status flags are not authority.
 phase21_non_wc_validate_production_publication <- function(public_root, project_root = getwd(),
     now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")) {
@@ -162,7 +163,8 @@ phase21_non_wc_validate_production_publication <- function(public_root, project_
     "article15_discipline_points_sha256", "article15_rule_inputs_manifest_sha256")
   for (id in names(accepted)) {
     payload <- validated$payloads[[id]]
-    phase21_non_wc_assert_lineage(payload$metadata, accepted[[id]]$metadata, fields, id)
+    input_fields <- grep("^forecast_input_", names(accepted[[id]]$metadata), value = TRUE)
+    phase21_non_wc_assert_lineage(payload$metadata, accepted[[id]]$metadata, unique(c(fields, input_fields)), id)
     phase21_non_wc_assert_rows(payload, accepted[[id]], id, phase21_section_ids())
     for (field in setdiff(names(accepted[[id]]), c("schema_version", "edition_id", "metadata", "sections", "credits")))
       if (!identical(phase21_canonical_value_bytes(payload[[field]]), phase21_canonical_value_bytes(accepted[[id]][[field]])))
