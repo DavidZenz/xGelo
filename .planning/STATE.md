@@ -4,11 +4,11 @@ milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
-status: executing
-stopped_at: Guarded CL publication repair installed and public release verified; exact model review and coordinated activation remain open
-last_updated: "2026-11-06T03:49:00Z"
+status: blocked
+stopped_at: Awaiting exact replacement normalization/fold review; live publication is verified and CL statistical gates remain enforced
+last_updated: "2026-11-06T03:54:03Z"
 last_activity: 2026-11-06
-last_activity_desc: Verified CL publication integration, presentation-only public release, twelve views and preservation
+last_activity_desc: Audited the pending exact owner decision and downstream model/tournament gates; independent publication work is complete
 progress:
   total_phases: 5
   completed_phases: 2
@@ -27,6 +27,17 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 **Current focus:** Phase 19 — independent club forecast authority
 
 ## Current Position
+
+Further CL production work is blocked on the pending exact replacement
+normalization/fold owner decision19943dc9…, distinct from the accepted original
+4ac07347… review. The actual fixed runtime still reports
+future_matchup_policy_not_approved and publication_missing; the selected venue
+baseline remains retained after Elo calibration0.026158>0.01. All independent
+publication work is installed and verified. The complete goal is not achieved.
+The current blocker audit is
+.planning/operations/cl-production-blocker-audit-2026-11-06.md. Resume the exact
+production evaluation and coordinated integration when the real decision arrives;
+do not transfer earlier approvals or apply stale proposal preconditions.
 
 Active user goal (5 November): repair the shared non-WC refresh and public
 Nations League / CL / EURO dashboards. The complete acceptance ledger is
