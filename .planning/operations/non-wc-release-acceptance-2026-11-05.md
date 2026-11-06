@@ -213,3 +213,19 @@ not yet established. New52 match probabilities and tournament outcomes must be
 genuinely regenerated together; the existing July-input public outlook is not
 accepted as evidence of synchronized forecasting. The next action is a complete
 fresh source/state/1k+10k/stage/QA transaction, inspection and public read-back.
+
+2026-11-06T01:20:21Z corrected-input followthrough: genuine run20261106T002720Z-43260883
+completed fresh accepted sources, valid state and1k/10k simulations in243.194/
+2115.445seconds. All966events resolved; independent rank/stage/count/Wilson
+checks pass. Worst95%pointwise half-width0.979794pp; nested1k→10k maximum
+change4.33pp, mean0.4354pp, p951.9575pp (descriptive, no model/simultaneous
+convergence bound). Compared to the old genuine10k,486events changed, max10.12pp.
+The valid10-artifact outcomes stage completed. Staging then failed safely because
+nl_elo_validate_projection incorrectly required a state_manifest_sha256 column
+in the durable outcome manifest, whose real schema uses aligned parent links.
+Public/accepted main data was preserved and the full workspace retained.
+The repair checks all seven actual state-dependent artifact edges, simulation
+state hash, source and true clocks; tests now use the actual10-row schema and
+blank-cell readback. A direct read-only check of the real retained outcome
+bundle passes. Resume that exact failed run through the guarded controller;
+do not change probabilities or rerun/rebind the simulation.

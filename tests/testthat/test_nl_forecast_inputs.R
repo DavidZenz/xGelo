@@ -158,13 +158,37 @@ test_that("feature evidence is per fixture, fractional and strictly prior", {
 test_that("fresh local inputs cannot certify old outcomes or fabricated projection clocks", {
  f <- state_authority_fixture();on.exit(unlink(f$project,recursive=TRUE),add=TRUE)
  meta <- data.frame(state_manifest_sha256=f$state$state_manifest_sha256,source_bundle_sha256=f$source$source_bundle_sha256,generated_at_utc="2026-09-28T11:00:00Z")
- out <- list(manifest=meta,artifacts=list("outcomes/simulation_metadata.csv"=meta))
+ artifacts <- paste0("outcomes/",c("competition_topology","stage_slots","projected_standings","projected_rankings",
+   "transition_outcomes","team_path_probabilities","fixture_forecast_form","euro_priority_queue","simulation_metadata","outcomes_manifest"),".csv")
+ dependent <- !artifacts %in% paste0("outcomes/",c("competition_topology","stage_slots","outcomes_manifest"),".csv")
+ manifest <- data.frame(artifact_path=artifacts,parent_paths=ifelse(dependent,"audit/state_manifest.csv",""),
+   parent_sha256=ifelse(dependent,f$state$state_manifest_sha256,""),source_bundle_sha256=f$source$source_bundle_sha256,
+   generated_at_utc=meta$generated_at_utc,stringsAsFactors=FALSE)
+ manifest$parent_paths[1:2] <- "data/competition/accepted/uefa_nations_league_2026_27/source_bundle_manifest.csv"
+ manifest$parent_sha256[1:2] <- f$source$source_bundle_sha256
+ out <- list(manifest=manifest,artifacts=list("outcomes/simulation_metadata.csv"=meta))
  expect_silent(api$nl_elo_validate_projection(f$state,out,f$source))
- bad <- out;bad$manifest$state_manifest_sha256 <- paste(rep("c",64),collapse="")
+ expect_false("state_manifest_sha256" %in% names(out$manifest))
+ stored <- tempfile(fileext=".csv");utils::write.csv(manifest,stored,row.names=FALSE,na="")
+ restored <- out;restored$manifest <- utils::read.csv(stored,stringsAsFactors=FALSE,na.strings="")
+ expect_silent(api$nl_elo_validate_projection(f$state,restored,f$source));unlink(stored)
+ for(i in which(dependent)) {
+   bad <- out;bad$manifest$parent_sha256[[i]] <- paste(rep("c",64),collapse="")
+   expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"actual current forecast state")
+ }
+ bad <- out;bad$artifacts[[1]]$state_manifest_sha256 <- paste(rep("c",64),collapse="")
  expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"actual current forecast state")
+ bad <- out;bad$manifest$parent_paths[[3]] <- "";bad$manifest$parent_sha256[[3]] <- ""
+ expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"actual current forecast state")
+ bad <- out;bad$manifest$parent_paths[[3]] <- "audit/state_manifest.csv|";bad$manifest$parent_sha256[[3]] <- paste0(f$state$state_manifest_sha256,"|")
+ expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"malformed")
+ bad <- out;bad$manifest <- bad$manifest[-3,]
+ expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"inventory is incomplete")
+ bad <- out;bad$manifest$source_bundle_sha256[[3]] <- paste(rep("c",64),collapse="")
+ expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"actual current accepted source")
  bad <- out;bad$manifest$generated_at_utc <- "";bad$artifacts[[1]]$generated_at_utc <- ""
  expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"valid UTC")
- bad <- out;bad$manifest$generated_at_utc <- "2026-06-10T00:00:00Z";bad$artifacts[[1]]$generated_at_utc <- bad$manifest$generated_at_utc
+ bad <- out;bad$manifest$generated_at_utc <- "2026-06-10T00:00:00Z";bad$artifacts[[1]]$generated_at_utc <- bad$manifest$generated_at_utc[[1L]]
  expect_error(api$nl_elo_validate_projection(f$state,bad,f$source),"predates")
 })
 

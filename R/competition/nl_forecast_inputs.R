@@ -284,10 +284,40 @@ nl_elo_validate_projection <- function(state, outcomes, source) {
   simulation <- artifacts[["outcomes/simulation_metadata.csv"]]
   if (!is.data.frame(manifest) || !nrow(manifest) || !is.data.frame(simulation) || nrow(simulation) != 1L)
     stop("NL projection computation receipt is unavailable", call. = FALSE)
-  for (table in list(manifest, simulation)) {
-    if (!"state_manifest_sha256" %in% names(table) || anyNA(table$state_manifest_sha256) ||
-        !all(as.character(table$state_manifest_sha256) == as.character(state$state_manifest_sha256)))
+  expected_state <- as.character(state$state_manifest_sha256)
+  if (length(expected_state) != 1L || is.na(expected_state) || !grepl("^[0-9a-f]{64}$", expected_state) ||
+      !"state_manifest_sha256" %in% names(simulation) || anyNA(simulation$state_manifest_sha256) ||
+      !all(as.character(simulation$state_manifest_sha256) == expected_state))
+    stop("NL projection does not consume the actual current forecast state", call. = FALSE)
+  # The durable outcome manifest records state lineage in aligned parent lists,
+  # not a state_manifest_sha256 column. Require every state-dependent artifact's
+  # actual edge; topology/stage-source/self rows have different parent sets.
+  state_artifacts <- paste0("outcomes/", c("projected_standings", "projected_rankings", "transition_outcomes",
+    "team_path_probabilities", "fixture_forecast_form", "euro_priority_queue", "simulation_metadata"), ".csv")
+  inventory <- c(state_artifacts, "outcomes/competition_topology.csv", "outcomes/stage_slots.csv", "outcomes/outcomes_manifest.csv")
+  if (!all(c("artifact_path", "parent_paths", "parent_sha256") %in% names(manifest)) ||
+      anyNA(manifest$artifact_path) ||
+      anyDuplicated(manifest$artifact_path) || nrow(manifest) != length(inventory) ||
+      !setequal(as.character(manifest$artifact_path), inventory))
+    stop("NL projection state-parent inventory is incomplete", call. = FALSE)
+  for (i in seq_len(nrow(manifest))) {
+    paths <- as.character(manifest$parent_paths[[i]]); hashes <- as.character(manifest$parent_sha256[[i]])
+    # The durable reader restores blank CSV cells as NA. Only the self row has
+    # no parents; an absent required state edge still fails below.
+    if (is.na(paths)) paths <- ""
+    if (is.na(hashes)) hashes <- ""
+    if (any(grepl("(^\\||\\|$|\\|\\|)", c(paths, hashes))))
+      stop("NL projection state-parent edges are malformed", call. = FALSE)
+    paths <- if (nzchar(paths)) strsplit(paths, "|", fixed = TRUE)[[1L]] else character()
+    hashes <- if (nzchar(hashes)) strsplit(hashes, "|", fixed = TRUE)[[1L]] else character()
+    at <- which(paths == "audit/state_manifest.csv")
+    required <- as.character(manifest$artifact_path[[i]]) %in% state_artifacts
+    if ((!length(paths) && as.character(manifest$artifact_path[[i]]) != "outcomes/outcomes_manifest.csv") ||
+        length(paths) != length(hashes) || anyDuplicated(paths) || length(at) > 1L ||
+        (required && length(at) != 1L) || (length(at) && !identical(hashes[[at]], expected_state)))
       stop("NL projection does not consume the actual current forecast state", call. = FALSE)
+  }
+  for (table in list(manifest, simulation)) {
     if (!"source_bundle_sha256" %in% names(table) || anyNA(table$source_bundle_sha256) ||
         !all(as.character(table$source_bundle_sha256) == context$source_bundle_sha256))
       stop("NL projection does not consume the actual current accepted source", call. = FALSE)

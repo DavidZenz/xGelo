@@ -5,8 +5,8 @@ milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
-stopped_at: Original calendar publication verified; NL predictor correction installed and tested; genuine new-input refresh next; exact CL replacement review pending
-last_updated: "2026-11-06T00:29:00Z"
+stopped_at: Corrected NL source/state/1k+10k complete; staging parent-schema guard repaired/tested; retained-workspace recovery next; CL review pending
+last_updated: "2026-11-06T01:20:21Z"
 last_activity: 2026-11-06
 last_activity_desc: Verified real scheduled/public release and installed tested NL local Elo, state, timestamp and publication repair
 progress:
@@ -49,9 +49,16 @@ repair is now installed: edition-local Elo replay from pre-edition seeds and
 all104 accepted completed results, actual per-team evidence times, durable
 standings/form, semantic state validity, real generation timestamps, and strict
 source/state/input/outcome publication checks. Global ratings and national model
-release bytes are preserved. New forecast probabilities require genuine new
-1k/10k simulations; no old outcomes may be rebound. This full corrected refresh
-and another real calendar verification remain required.
+release bytes are preserved. New forecast probabilities required genuine new
+1k/10k simulations; no old outcomes may be rebound. Run43260883 completed fresh
+source/state and both simulations (243.194/2115.445seconds), all966events
+resolved. Independent rating/count/interval/rank/knockout checks pass. Its valid
+outcome bundle was retained after staging rejected a new validator that expected
+a state-hash column instead of the durable manifest parent-edge schema. The
+validator now checks all seven state-dependent artifact edges and the simulation
+metadata, including CSV blank/null restoration; the actual retained bundle and
+focused tests pass. Public pages stayed unchanged. Recovery/restaging/publication
+and another real corrected calendar verification remain required.
 
 Installed checks passed:121 R assertions across local inputs, state reporting,
 CL roster scoping and cold startup; all87 operational tests on actual scheduler
