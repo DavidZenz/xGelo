@@ -1,0 +1,47 @@
+{
+  "observed_at_utc": "2026-11-06T03:40:39.701653+00:00",
+  "status": "passed",
+  "owned_files": {
+    "R/competition/ucl_live_outcome_reader.R": "7412d8734c4a9160ff687faaa009a2b748c1292b14308e26df79c2315ba3fcf3",
+    "R/dashboard/ucl_persisted_outcome_payload.R": "446eb0994e23e4248d7835381b66c56244e8ac4a93e0693c0fc92fd88ea213b7",
+    "R/dashboard/non_wc_publication.R": "231eab52e96f8978f0bbbe11b8f3e8f17be2bca3ba8c50e47832bf03c0546590",
+    "scripts/render_ucl_live_dashboard.R": "ad766cc696a543135d1d18cd961ddff8d324f87dc58404bbd7c5102a5b419b22",
+    "tests/testthat/test_non_wc_dashboard_readiness.R": "93554fd9215a6315cdeb16fd1766021317f8e4f7070f7049a4d50e26b1e53eaa",
+    "tests/testthat/test_ucl_clock_lifecycle.R": "27b2f0cd805f8d4378a629afd547ae30dd267ad8de34ea96c706bcbe868179cd",
+    "scripts/competition_refresh.py": "ea944001553f579b1d15981a84dc0dea2e166d33fcb2d10b58ae55ac9d41627a",
+    "scripts/ucl_public_count_qa.py": "4a8a8ee3cc794c1e7dbfa73ca3ff9bc91dc4ab1a747d6e169390896b00089553",
+    "tests/operations/test_refresh_review.py": "ce0ab673ead1665c51ee0828ce8aacfe90929447307219c7617f6b25a2434fb5",
+    "tests/operations/test_ucl_public_count_qa.py": "2270e6d96f36bd15051ba2ad7e05ba4a77d37e84e21681d9b1849d738319986a",
+    "tests/operations/test_ucl_publication_integration.py": "876604084c6e85db70a893732eb8441f911ebc4403ad6775549dbfe919b92aee",
+    "tests/testthat/test_ucl_publication_wiring.R": "31f9a5e9a92e13c2d0e1303a065b190aa17385ef545ca4a359f62aecc7bc3dbb"
+  },
+  "unchanged_core_count": 18,
+  "unchanged_club_data_release_count": 4501,
+  "protected_count": 34,
+  "public_file_count": 14,
+  "r_counts": {
+    "cases": 33,
+    "assertions": 232,
+    "failed": 0,
+    "errors": 0,
+    "warnings": 0,
+    "skipped": 0
+  },
+  "python": [
+    {
+      "version": "Python 3.9.6",
+      "cases": 98,
+      "status": "passed",
+      "log_sha256": "78daf1ce8d4c057334530c31629288b0c126305a339d4351e62a8abfb82d0312"
+    },
+    {
+      "version": "Python 3.15.2",
+      "cases": 98,
+      "status": "passed",
+      "log_sha256": "bcbeebbce6146a6b1c3328a0c6a79aa773fcf8f6f697cfb0ba8b0e369f1941a4"
+    }
+  ],
+  "actual_current_public_authority": "NON_WC_PUBLICATION validated=true batch=phase21-4b26fbad383457fa09414ce3 files=14",
+  "model_or_review_activation": false,
+  "production_eligible_positive_verified": false
+}

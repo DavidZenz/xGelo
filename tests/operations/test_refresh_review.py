@@ -113,6 +113,9 @@ def review_batch(root, now):
         payload = dict(schema_version=SCHEMA, edition_id=edition, metadata=meta, sections=sections, credits={})
         if route == "nations-league":
             add_nl_forecast_input_evidence(payload, now)
+        elif route == "champions-league":
+            # Facts-only CL must not carry a fictitious tournament sample count.
+            meta.update(simulation_seed=None, simulation_count=None)
         write_json(folder / "payload.json", payload)
         (folder / "index.html").write_text("<!doctype html><title>Independent review " + route + "</title>")
     seal_review_batch(public, now)

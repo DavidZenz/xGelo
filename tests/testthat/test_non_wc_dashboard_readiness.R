@@ -12,6 +12,8 @@ non_wc_test_runtime <- function() {
 # Independent temporary publication inputs exercise presentation and readiness;
 # they never create source authority, model selectors or production artifacts.
 non_wc_test_payloads <- function(env, now = "2026-11-05T12:00:00Z") {
+  # Declared fixture clock only; this namespace never resolves real authority.
+  env$phase21_non_wc_now <- function() now
   registry <- env$phase21_default_edition_registry()
   legacy <- list(
     uefa_nations_league_2026_27 = env$phase17_payload_nations_league(env$phase17_fixture_bundle("uefa_nations_league_2026_27")),

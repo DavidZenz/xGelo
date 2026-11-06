@@ -97,6 +97,14 @@ approved release and all forecast gates; the flag cannot grant authority.
 Tournament projections need their own connected model/rules/draw authority.
 EURO remains pre-draw until accepted official structure and fixtures exist.
 
+The installed CL presentation adapter reads persisted tournament outputs through
+the fixed production reader and rechecks their genuine authority at publication.
+The independent public-count audit checks arithmetic only. It cannot authorize a
+model or projection. Slow reads use fresh actual clocks; fixture rows are
+repartitioned before rendering, and match/tournament cutoffs remain separate.
+An unconfirmed league fixture reaching kickoff blocks its persisted production
+outlook. Default disabled mode does not invoke club inference or simulations.
+
 The installed R4.6.2 native `iconv` was observed producing different normalized
 keys for the same reviewed accented club name. This can fail the history
 identity audit and surface as `protocol_state_invalid` / `Runtime fold authority

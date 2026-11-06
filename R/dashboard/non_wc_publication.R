@@ -7,6 +7,7 @@ phase21_non_wc_time <- function(value) {
   if (!grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$", value)) return(NA_real_)
   as.numeric(as.POSIXct(value, format = "%Y-%m-%dT%H:%M:%OSZ", tz = "UTC"))
 }
+phase21_non_wc_now <- function() format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
 phase21_non_wc_validate_ready <- function(payloads, now_utc) {
   expected <- phase21_enabled_edition_ids()
@@ -142,6 +143,49 @@ phase21_non_wc_assert_rows <- function(actual, expected, edition_id, section_ids
   invisible(TRUE)
 }
 
+# Both match and tournament predictions must resolve their current fixed
+# authorities. These checks never fit a model or construct an outcome bundle.
+phase21_non_wc_validate_cl_predictions <- function(cl, now_utc) {
+  ids <- c("structure", "rank_distributions", "qualification_bands", "knockout_paths",
+    "progression_probabilities", "projected_outcomes")
+  fields <- c("projection_run_id", "simulation_seed", "simulation_count",
+    "tournament_publication_sha256", "forecast_scope", "monte_carlo_coverage_scope")
+  outlook <- identical(cl$metadata$tournament_status, "available") ||
+    !is.null(cl$cl_tournament_evidence) ||
+    any(vapply(cl$sections[ids], function(section)
+      length(section$rows) > 0L || identical(section$status, "available"), logical(1))) ||
+    any(vapply(cl$metadata[fields], function(value)
+      nzchar(phase21_safe_scalar(value)), logical(1)))
+  if (outlook && (!identical(cl$metadata$tournament_status, "available") ||
+      !exists("phase21_validate_ucl_persisted_outcome_payload", mode = "function", inherits = TRUE) ||
+      !isTRUE(phase21_validate_ucl_persisted_outcome_payload(cl))))
+    stop("Public CL tournament projections have no connected accepted tournament authority", call. = FALSE)
+  matches <- length(cl$sections$match_forecasts$rows) > 0L
+  model_fields <- c("model_release_id", "model_sha256", "calibrator_sha256")
+  if (matches || outlook || any(vapply(cl$metadata[model_fields], function(value)
+      nzchar(phase21_safe_scalar(value)), logical(1)))) {
+    release <- phase19_resolve_production_club_release()
+    contract <- release$model_contract
+    contract$model_release_id <- release$release_id
+    phase21_non_wc_assert_lineage(cl$metadata, contract, model_fields, "ucl_2026_27 model")
+  }
+  if (matches) {
+    phase21_non_wc_assert_lineage(cl$metadata$forecast_provenance, cl$metadata,
+      c("source_bundle_sha256", "model_release_id", "model_sha256", "calibrator_sha256"), "ucl_2026_27 forecast")
+    cutoff <- phase21_non_wc_time(cl$metadata$match_information_cutoff_utc)
+    if (!is.finite(cutoff) || cutoff > phase21_non_wc_time(now_utc) ||
+        !identical(phase21_safe_scalar(cl$metadata$forecast_provenance$information_cutoff_utc),
+          phase21_safe_scalar(cl$metadata$match_information_cutoff_utc)))
+      stop("Public CL match forecast cutoff differs from its accepted provenance", call. = FALSE)
+    if (!isTRUE(cl$metadata$production_eligible) || !identical(cl$metadata$forecast_status, "available"))
+      stop("Public CL match forecasts must be an eligible accepted production release", call. = FALSE)
+  } else if (!identical(cl$metadata$forecast_status, "unavailable") ||
+      (!outlook && isTRUE(cl$metadata$production_eligible))) {
+    stop("Public CL facts without accepted match predictions must explicitly disable match forecasts", call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
 # Read-only publication QA: accepted source/release/outcome authorities are
 # resolved afresh. It recomputes the causal local Elo input parents read-only;
 # it never fits a model, generates forecasts
@@ -179,24 +223,8 @@ phase21_non_wc_validate_production_publication <- function(public_root, project_
   phase21_non_wc_assert_lineage(cl$metadata, facts$metadata,
     c("source_bundle_id", "source_bundle_sha256", "source_as_of_utc", "last_refresh_at_utc", "lifecycle_state"), "ucl_2026_27")
   phase21_non_wc_assert_rows(cl, facts, "ucl_2026_27", c("standings", "fixtures", "results", "form"))
-  unsupported <- c("structure", "rank_distributions", "qualification_bands", "knockout_paths",
-    "progression_probabilities", "projected_outcomes")
-  if (any(vapply(cl$sections[unsupported], function(s) length(s$rows) > 0L, logical(1))))
-    stop("Public CL tournament projections have no connected accepted tournament authority", call. = FALSE)
-  model_fields <- c("model_release_id", "model_sha256", "calibrator_sha256")
-  if (length(cl$sections$match_forecasts$rows) || any(vapply(cl$metadata[model_fields], function(x) nzchar(phase21_safe_scalar(x)), logical(1)))) {
-    release <- phase19_resolve_production_club_release()
-    contract <- release$model_contract
-    contract$model_release_id <- release$release_id
-    phase21_non_wc_assert_lineage(cl$metadata, contract, model_fields, "ucl_2026_27 model")
-    phase21_non_wc_assert_lineage(cl$metadata$forecast_provenance, cl$metadata,
-      c("source_bundle_sha256", "model_release_id", "model_sha256", "calibrator_sha256"), "ucl_2026_27 forecast")
-    if (length(cl$sections$match_forecasts$rows) &&
-        (!isTRUE(cl$metadata$production_eligible) || !identical(cl$metadata$forecast_status, "available")))
-      stop("Public CL match forecasts must be an eligible accepted production release", call. = FALSE)
-  } else if (isTRUE(cl$metadata$production_eligible) || !identical(cl$metadata$forecast_status, "unavailable")) {
-    stop("Public CL facts without an accepted model must explicitly disable forecasts", call. = FALSE)
-  }
+  phase21_non_wc_validate_cl_predictions(cl, now_utc)
+  phase21_non_wc_validate_ready(validated$payloads, phase21_non_wc_now())
   validated$production_authority_valid <- TRUE
   validated
 }
@@ -212,6 +240,13 @@ phase21_non_wc_build <- function(stage_root, project_root = getwd(), publish = F
   if (!is.finite(nl_checked) || phase21_non_wc_time(now_utc) - nl_checked > 48 * 3600)
     stop("Nations League source checks are stale; no dashboard candidate was installed")
   payloads$ucl_2026_27 <- render_ucl_live_dashboard(forecast_mode = cl_forecasts, now_utc = now_utc, write_output = FALSE)
+  if (identical(cl_forecasts, "approved")) {
+    now_utc <- phase21_non_wc_now()
+    for (id in names(payloads)) {
+      payloads[[id]]$metadata$generated_at_utc <- now_utc
+      payloads[[id]]$metadata$freshness_as_of_utc <- now_utc
+    }
+  }
   phase21_non_wc_stage_payloads(payloads, national$legacy, stage_root, now_utc, publish,
     public_root = file.path(project_root, "docs/competitions"))
 }

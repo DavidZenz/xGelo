@@ -12,7 +12,8 @@ dependencies <- c("R/common/phase18_canonical_hash.R", "R/competition/source_con
   "R/club/history_contract.R", "R/competition/football_data_org_adapter.R",
   "R/club/model_contract.R", "R/evaluation/proper_scores.R", "R/evaluation/benchmark_scores.R",
   "R/club/evaluation_protocol.R", "R/club/rating.R", "R/club/goal_model.R",
-  "R/club/calibration.R", "R/club/evaluation.R", "R/club/release.R", "R/club/live_predictions.R")
+  "R/club/calibration.R", "R/club/evaluation.R", "R/club/release.R", "R/club/live_predictions.R",
+  "R/dashboard/ucl_persisted_outcome_payload.R")
 for (path in dependencies) source(file.path(root, path), local = TRUE)
 render_ucl_live_dashboard <- function(forecast_mode = "approved",
     now_utc = format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"), write_output = TRUE) {
@@ -25,7 +26,15 @@ batch <- paste0("ucl-live-", substr(current$pointer$accepted_generation_sha256, 
 forecasts <- if (identical(forecast_mode, "approved")) phase19_forecast_current_ucl(now_utc) else
   phase19_live_club_absence("team_strength_calibration_not_accepted",
     "Team-strength predictions have not passed calibration checks. Match predictions are disabled.")
-payload <- phase21_payload_ucl_live_source(current, row, batch, now_utc, forecasts)
+facts_time <- if (identical(forecast_mode, "approved")) .phase21_cl_now() else now_utc
+payload <- phase21_payload_ucl_live_source(current, row, batch, facts_time, forecasts)
+if (identical(forecast_mode, "approved")) {
+  presented <- phase21_ucl_attach_persisted_outcomes(payload)
+  # Repartition accepted facts and the already computed forecast envelope after
+  # expensive reads. No inference or simulation is repeated here.
+  facts <- phase21_payload_ucl_live_source(current, row, batch, .phase21_cl_now(), forecasts)
+  payload <- .phase21_cl_rebase_facts(facts, presented)
+}
 if (identical(forecast_mode, "disabled")) payload$metadata$forecast_model_quality <-
   "Disabled pending team-strength model calibration QA"
 if (!isTRUE(write_output)) return(payload)

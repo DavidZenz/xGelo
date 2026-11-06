@@ -6,9 +6,9 @@ current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
 stopped_at: Corrected ordinary scheduled/public release verified; CL exact review and final technical integration remain open
-last_updated: "2026-11-06T03:21:31Z"
+last_updated: "2026-11-06T03:40:39Z"
 last_activity: 2026-11-06
-last_activity_desc: Verified ordinary corrected scheduled publication, independent 10k replay, all public/local views and WC preservation
+last_activity_desc: Installed CL publication/current-clock repairs; current public authority and protected bytes verified
 progress:
   total_phases: 5
   completed_phases: 2
@@ -51,7 +51,7 @@ Nations League is now synchronized end to end. Edition-local Elo replays all104
 accepted completed results for54 teams, preserving global/WC ratings and model
 releases. All52 forecasts cite actual October evidence; corrected probabilities
 differ from the old July inputs.
-all11 durable state rows are valid, and standings/form tables are populated.
+All11 durable state rows are valid, and standings/form tables are populated.
 The corrected manual1k/10k simulations took243.194/2115.445seconds; the genuine
 scheduled stages took266.297/3390.636seconds with966events all resolved. Both
 1k and10k event-probability CSVs reproduce the corrected manual computation
@@ -103,9 +103,18 @@ count-QA and approved-mode scheduler packages now
 pass111 operational cases on each Python runtime. A combined code-only future
 normalization/CLI/targets/runtime/consumer/clock overlay passes56cases/412assertions
 through ordinary test_dir, including the real14-node/14-edge scoped target run.
-The clock follow-through preserves current-time guards and repartitions fixtures
-after slow work; it is private and uninstalled. Genuine eligible validation,
-performance, final coordinated installation and observed conditioning remain
+The compatible publication/current-clock subset is now installed against actual
+main as12 exact files, without the private normalization/CLI/targets/scheduler
+overlays. Candidate and installed normal test_dir pass33cases/232assertions;
+all98operational cases pass on Python3.9.6 and3.15.2. The real read-only R
+publication validator accepts the current14-file batch. All18core dependencies,
+4501club data/release files,34protected files and14public files stayed identical.
+The77-change/12-core normalization preflight still passes. Details and exact
+installed hashes are in .planning/operations/cl-publication-integration-2026-11-06.md
+and cl-publication-installed-2026-11-06.json. The installed clock follow-through
+preserves current-time guards and repartitions fixtures after slow work.
+Genuine eligible validation, performance, final coordinated model/policy release
+and observed conditioning remain
 unfinished. No predictions or pending CL9 policy inventory are activated.
 
 EURO remains a truthful pre-draw placeholder with its actual August source

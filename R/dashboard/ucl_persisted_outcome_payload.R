@@ -37,6 +37,33 @@
 .phase21_cl_stage_labels <- function() c(direct_round_of_16 = "Direct round of 16", knockout_play_off = "Knockout play-off",
   eliminated = "Eliminated after league phase", round_of_16 = "Round of 16", quarter_final = "Quarter-final",
   semi_final = "Semi-final", final = "Final", champion = "Winner")
+.phase21_cl_now <- function() format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
+# Pure presentation seam. The fixed reader separately authenticates the ledger.
+.phase21_cl_format_match_rows <- function(ledger, clubs, generated_at_utc) {
+  fields <- c("fixture_id", "home_club_id", "away_club_id", "kickoff_utc", "forecast_status",
+    "prob_home", "prob_draw", "prob_away", "xg_home", "xg_away", "likely_score")
+  if (!is.data.frame(ledger) || !all(fields %in% names(ledger)) || anyNA(ledger$forecast_status) ||
+      !is.character(generated_at_utc) || length(generated_at_utc) != 1L || is.na(generated_at_utc) ||
+      !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", generated_at_utc))
+    stop("CL match presentation requires a complete ledger and UTC page time", call. = FALSE)
+  x <- ledger[ledger$forecast_status == "available", fields, drop = FALSE]
+  if (anyNA(x) || anyDuplicated(x$fixture_id) ||
+      any(!grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", x$kickoff_utc)))
+    stop("CL match presentation has incomplete identities or values", call. = FALSE)
+  x <- x[x$kickoff_utc > generated_at_utc, , drop = FALSE]
+  x <- x[order(x$kickoff_utc, x$fixture_id), , drop = FALSE]
+  labels <- stats::setNames(as.character(clubs$display_name), as.character(clubs$club_id))
+  if (any(!c(x$home_club_id, x$away_club_id) %in% names(labels)))
+    stop("CL match presentation has unknown clubs", call. = FALSE)
+  data.frame(`Kickoff (UTC)` = x$kickoff_utc,
+    Home = unname(labels[x$home_club_id]), Away = unname(labels[x$away_club_id]),
+    `Home win` = sprintf("%.1f%%", 100*x$prob_home), Draw = sprintf("%.1f%%", 100*x$prob_draw),
+    `Away win` = sprintf("%.1f%%", 100*x$prob_away),
+    `Expected home goals` = round(x$xg_home, 2), `Expected away goals` = round(x$xg_away, 2),
+    `Most likely score` = gsub("-", "–", x$likely_score, fixed = TRUE),
+    stringsAsFactors = FALSE, check.names = FALSE)
+}
 
 # Pure formatting/aggregation seam. It has no authority or publication flags.
 .phase21_cl_format_tables <- function(tables, clubs) {
@@ -84,11 +111,13 @@
   list(rows = rows, counts = list(simulation_count = n, rank_counts = rank_counts, stage_counts = stage_counts))
 }
 
-.phase21_cl_context <- function(now_utc) {
+.phase21_cl_context <- function(now_utc = NULL) {
+  # A page/as-of argument never drives authority. Each potentially slow boundary
+  # obtains its own real current clock through the fixed facade defaults.
   facade <- .phase21_cl_facade()
-  read <- facade$ucl_read_production_outcomes(now_utc)
+  read <- facade$ucl_read_production_outcomes()
   if (!identical(read$status, "available") || !isTRUE(read$production_eligible) ||
-      !isTRUE(facade$ucl_validate_production_outcome_read_result(read, now_utc)))
+      !isTRUE(facade$ucl_validate_production_outcome_read_result(read)))
     return(list(status = "blocked", reason_code = if (is.null(read$reason_code)) "accepted_outcomes_unavailable" else read$reason_code))
   namespace <- facade$.ucl_runtime_load()
   current <- facade$.ucl_runtime_in_project(function() namespace$phase20_ucl_runtime$.ucl_live_fixed_current())
@@ -107,7 +136,9 @@
   if (!is.finite(prior_bound) || prior_bound < 0 || prior_bound > 1) stop("CL tie-break sensitivity bound is invalid", call. = FALSE)
   metadata <- list(tournament_status = "available", tournament_reason_code = "none", forecast_scope = "unconditioned_regulations_prior",
     projection_run_id = read$publication$simulation_run_id, simulation_seed = table$seed[[1L]], simulation_count = n,
-    information_cutoff_utc = read$information_cutoff_utc, model_release_id = table$model_release_id[[1L]],
+    information_cutoff_utc = read$information_cutoff_utc,
+    tournament_information_cutoff_utc = read$information_cutoff_utc,
+    model_release_id = table$model_release_id[[1L]],
     model_sha256 = table$model_sha256[[1L]], calibrator_sha256 = table$calibrator_sha256[[1L]],
     ruleset_version = table$ruleset_version[[1L]], ruleset_sha256 = table$ruleset_sha256[[1L]],
     draw_artifact_sha256 = table$draw_artifact_sha256[[1L]],
@@ -123,6 +154,13 @@
 phase21_ucl_attach_persisted_outcomes <- function(payload, now_utc = NULL) {
   if (!identical(payload$edition_id, "ucl_2026_27")) stop("CL persisted adapter requires a CL facts payload", call. = FALSE)
   if (is.null(now_utc)) now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  # Match inference and an earlier persisted tournament run can have different
+  # cutoffs. Preserve the match cutoff even when tournament reads are blocked.
+  match_cutoff <- if (length(payload$sections$match_forecasts$rows)) {
+    prior <- payload$metadata$match_information_cutoff_utc
+    if (is.character(prior) && length(prior) == 1L && !is.na(prior) && nzchar(prior)) prior else
+      payload$metadata$information_cutoff_utc
+  } else NA_character_
   values <- tryCatch({
     context <- .phase21_cl_context(now_utc)
     if (context$status != "available") context else {
@@ -147,8 +185,15 @@ phase21_ucl_attach_persisted_outcomes <- function(payload, now_utc = NULL) {
   payload$cl_tournament_evidence <- NULL
   for (field in c("tournament_publication_sha256", "projection_run_id", "simulation_seed", "simulation_count",
       "forecast_scope", "monte_carlo_coverage_scope", "late_tie_prior_probability_change_bound",
-      "information_cutoff_utc", "ruleset_version", "ruleset_sha256", "draw_artifact_sha256"))
+      "information_cutoff_utc", "tournament_information_cutoff_utc", "ruleset_version", "ruleset_sha256", "draw_artifact_sha256"))
     payload$metadata[[field]] <- NA_character_
+  payload$metadata$match_information_cutoff_utc <- match_cutoff
+  if (length(payload$sections$match_forecasts$rows)) {
+    payload$metadata$information_cutoff_utc <- match_cutoff
+    disclosure <- paste0("Match forecast information cutoff: ", match_cutoff, ".")
+    if (!grepl(disclosure, payload$sections$match_forecasts$reason, fixed = TRUE))
+      payload$sections$match_forecasts$reason <- paste(payload$sections$match_forecasts$reason, disclosure)
+  }
   payload$metadata$tournament_status <- "unavailable"
   payload$metadata$tournament_reason_code <- values$reason_code
   if (values$status != "available") return(payload)
@@ -170,6 +215,49 @@ phase21_ucl_attach_persisted_outcomes <- function(payload, now_utc = NULL) {
   payload
 }
 
+# Pure presentation merge after slow validation. It grants no authority: the
+# resulting public claims still require the fixed publication validator below.
+.phase21_cl_rebase_facts <- function(facts, presented) {
+  if (!identical(facts$edition_id, "ucl_2026_27") || !identical(presented$edition_id, "ucl_2026_27") ||
+      !identical(facts$metadata$source_bundle_sha256, presented$metadata$source_bundle_sha256))
+    stop("CL factual refresh and outlook presentation have different sources", call. = FALSE)
+  available <- identical(presented$metadata$tournament_status, "available")
+  for (id in .phase21_cl_tournament_sections()) facts$sections[[id]] <- presented$sections[[id]]
+  projection_fields <- c("tournament_status", "tournament_reason_code", "tournament_publication_sha256",
+    "projection_run_id", "simulation_seed", "simulation_count", "forecast_scope", "monte_carlo_coverage_scope",
+    "late_tie_prior_probability_change_bound", "tournament_information_cutoff_utc",
+    "ruleset_version", "ruleset_sha256", "draw_artifact_sha256")
+  for (field in projection_fields) facts$metadata[[field]] <- presented$metadata[[field]]
+  if (available) {
+    for (field in c("model_release_id", "model_sha256", "calibrator_sha256")) {
+      value <- facts$metadata[[field]]
+      if (length(value) == 1L && !is.na(value) && nzchar(as.character(value)) &&
+          !identical(as.character(value), as.character(presented$metadata[[field]])))
+        stop("CL refreshed facts and tournament models differ", call. = FALSE)
+      facts$metadata[[field]] <- presented$metadata[[field]]
+    }
+    facts$metadata$information_cutoff_utc <- presented$metadata$tournament_information_cutoff_utc
+    warnings <- as.character(facts$metadata$warnings)
+    warnings <- warnings[warnings != "Club match and tournament projections are unavailable until model and tournament readiness checks pass."]
+    facts$metadata$warnings <- unique(c(warnings, presented$sections$progression_probabilities$reason))
+    facts$metadata$production_eligible <- isTRUE(facts$metadata$production_eligible) ||
+      isTRUE(presented$metadata$production_eligible)
+    facts$sections$overview$reason <- "Accepted competition facts and validated tournament outlooks are available."
+    facts$cl_tournament_evidence <- presented$cl_tournament_evidence
+  } else facts$cl_tournament_evidence <- NULL
+  cutoff <- if (length(facts$sections$match_forecasts$rows))
+    facts$metadata$forecast_provenance$information_cutoff_utc else NA_character_
+  facts$metadata$match_information_cutoff_utc <- cutoff
+  if (length(facts$sections$match_forecasts$rows)) {
+    if (!available) facts$metadata$information_cutoff_utc <- cutoff
+    disclosure <- paste0("Match forecast information cutoff: ", cutoff, ".")
+    if (!grepl(disclosure, facts$sections$match_forecasts$reason, fixed = TRUE))
+      facts$sections$match_forecasts$reason <- paste(facts$sections$match_forecasts$reason, disclosure)
+  }
+  phase21_validate_payload(facts)
+  facts
+}
+
 # Publication re-resolves the fixed reader; no serialized receipt or public
 # eligibility/hash flags can substitute for current genuine authority.
 phase21_validate_ucl_persisted_outcome_payload <- function(payload, now_utc = NULL) {
@@ -182,17 +270,20 @@ phase21_validate_ucl_persisted_outcome_payload <- function(payload, now_utc = NU
       !is.null(payload$cl_tournament_evidence)
     if (!claimed) return(TRUE)
     if (!isTRUE(payload$metadata$production_eligible)) return(FALSE)
-    if (is.null(now_utc)) now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
-    context <- .phase21_cl_context(now_utc)
-    if (context$status != "available" ||
-        !identical(payload$metadata$source_bundle_sha256, context$receipt$publication$source_bundle_sha256)) return(FALSE)
     timestamp <- function(value) {
       if (!is.character(value) || length(value) != 1L || is.na(value) ||
           !grepl("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$", value)) return(NA_real_)
       as.numeric(as.POSIXct(value, format = "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"))
     }
+    if (!is.null(now_utc)) {
+      requested <- timestamp(now_utc)
+      if (!is.finite(requested) || abs(requested - as.numeric(Sys.time())) > 60) return(FALSE)
+    }
+    context <- .phase21_cl_context()
+    if (context$status != "available" ||
+        !identical(payload$metadata$source_bundle_sha256, context$receipt$publication$source_bundle_sha256)) return(FALSE)
     generated <- timestamp(payload$metadata$generated_at_utc)
-    now <- timestamp(now_utc); cutoff <- timestamp(context$receipt$information_cutoff_utc)
+    now <- as.numeric(Sys.time()); cutoff <- timestamp(context$receipt$information_cutoff_utc)
     if (any(!is.finite(c(generated, now, cutoff))) || generated < cutoff ||
         generated > now + 300 || now - generated > 48*3600) return(FALSE)
     values <- .phase21_cl_projection_values(context)
@@ -207,6 +298,11 @@ phase21_validate_ucl_persisted_outcome_payload <- function(payload, now_utc = NU
         "One sampled legal bracket for illustration. These pairings have not been drawn or scheduled." else values$reason
       if (!identical(section$status, "available") || !identical(section$reason, reason) ||
           !identical(canonical(section$rows), canonical(phase21_rows(values$rows[[id]])))) return(FALSE)
+    }
+    if (length(payload$sections$match_forecasts$rows)) {
+      expected_matches <- .phase21_cl_format_match_rows(context$receipt$tables$fixture_forecast_ledger,
+        context$clubs, payload$metadata$generated_at_utc)
+      if (!identical(canonical(payload$sections$match_forecasts$rows), canonical(phase21_rows(expected_matches)))) return(FALSE)
     }
     identical(canonical(payload$cl_tournament_evidence), canonical(values$counts))
   }, error = function(error) FALSE)

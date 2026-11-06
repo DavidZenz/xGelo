@@ -334,6 +334,15 @@
 .ucl_read_binding <- function(result).ucl_future_hash(list(result$information_cutoff_utc,result$publication,
   result$context_sha256,result$.controls,result$.storage,result$.root,result$.policy_package,result$.pre_round_limit,
   vapply(result$tables,.ucl_out_artifact_hash,character(1))),"ucl-persisted-read-receipt-v1")
+.ucl_read_current_fixture_window <- function(bundle, now) {
+  ledger <- bundle$tables$fixture_forecast_ledger
+  .ucl_read_need(is.data.frame(ledger) && all(c("forecast_status", "kickoff_utc") %in% names(ledger)) &&
+    !anyNA(ledger$forecast_status), "current_fixture_window_invalid")
+  open <- ledger$forecast_status == "available"
+  kickoff <- vapply(as.character(ledger$kickoff_utc[open]), .ucl_read_time, numeric(1))
+  .ucl_read_need(all(kickoff > .ucl_read_time(now)), "past_unconfirmed_league_fixture")
+  TRUE
+}
 .ucl_read_production <- function(now) {
   project<-.ucl_read_project_root();old<-getwd();on.exit(setwd(old),add=TRUE);setwd(project)
   root<-file.path(project,"outputs/competition/ucl_2026_27")
@@ -342,6 +351,7 @@
   .ucl_read_need(isTRUE(m$production_eligible)&&identical(t$simulation_metadata$authority_mode,"production")&&isTRUE(t$simulation_metadata$production_eligible)&&
     all(t$outcomes_manifest$authority_mode=="production")&&all(t$outcomes_manifest$production_eligible)&&
     all(!t$future_matchup_provenance$fixture_authority)&&all(t$future_matchup_provenance$authority_mode=="production"),"fixture_publication_forbidden")
+  .ucl_read_current_fixture_window(bundle, now)
   policy<-ucl_future_policy_status();.ucl_read_need(identical(policy$status,"approved"),"current_policy_not_approved")
   reviewed<-utils::read.csv(file.path(policy$package,"review_manifest.csv"),stringsAsFactors=FALSE)
   own<-"R/competition/ucl_live_outcome_reader.R";at<-which(reviewed$artifact_path==own)

@@ -8,6 +8,7 @@ import ctypes
 import datetime as dt
 import fcntl
 import hashlib
+import importlib.util
 import json
 import math
 import os
@@ -22,6 +23,14 @@ import time
 import uuid
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
+# Bind the arithmetic checker to this installed sibling, including when the
+# controller is imported by absolute path in crash/recovery probes.
+_cl_public_qa_spec = importlib.util.spec_from_file_location(
+    "xgelo_cl_public_count_qa", Path(__file__).resolve().with_name("ucl_public_count_qa.py"))
+_cl_public_qa = importlib.util.module_from_spec(_cl_public_qa_spec)
+_cl_public_qa_spec.loader.exec_module(_cl_public_qa)
+UCLPublicCountError = _cl_public_qa.UCLPublicCountError
+validate_ucl_public_counts = _cl_public_qa.validate_ucl_public_counts
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = Path("docs/competitions")
@@ -499,6 +508,11 @@ def validate_payloads(public, now=None):
         if route != "euro-qualifying" and meta.get("source_status") != "accepted":
             raise RefreshError("Public quantitative route has no accepted source: "+route)
         if route == "champions-league":
+            try:
+                count_check = validate_ucl_public_counts(p)
+            except UCLPublicCountError as error:
+                raise RefreshError(str(error)) from error
+            dates[route]["tournament_count_qa"] = count_check
             rows = sections.get("fixtures", {}).get("rows", []) + sections.get("match_forecasts", {}).get("rows", [])
             for row in rows:
                 instant = row.get("Kickoff (UTC)", row.get("kickoff_utc"))
