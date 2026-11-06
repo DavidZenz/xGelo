@@ -1312,12 +1312,13 @@ ucl_resolve_final <- function(match, rules = NULL, penalty_winner = NULL) {
   if (status %in% c("completed", "accepted_draw")) status <- "resolved"
   venue <- scalar("venue_id", scalar("second_leg_venue_id", NA_character_))
   leg_1 <- scalar("leg_1_venue_id", venue); leg_2 <- scalar("leg_2_venue_id", venue)
-  if (identical(as.character(stage_id), "final")) { leg_1 <- venue; leg_2 <- NA_character_ }
+  single_neutral <- as.character(stage_id) %in% c("final", "champion")
+  if (single_neutral) { leg_1 <- venue; leg_2 <- NA_character_ }
   out <- data.frame(
     edition_id = scalar("edition_id", if (exists(".ucl_rule_contract", mode = "function")) .ucl_rule_contract()$edition_id else "ucl_2026_27"),
     path_id = as.character(stage_event_id), stage_event_id = as.character(stage_event_id), stage_id = as.character(stage_id), seed_slot_id = as.character(seed_slot_id),
     participant_a = as.character(scalar("participant_a", scalar("home_club_id", NA_character_))), participant_b = as.character(scalar("participant_b", scalar("away_club_id", NA_character_))),
-    leg_order = as.character(scalar("leg_order", if (identical(as.character(stage_id), "final")) "single_neutral" else "seeded_return_leg")),
+    leg_order = if (single_neutral) "single_neutral" else as.character(scalar("leg_order", "seeded_return_leg")),
     leg_1_venue_id = as.character(leg_1), leg_2_venue_id = as.character(leg_2),
     aggregate_regulation_home = as.integer(aggregate_regulation_home), aggregate_regulation_away = as.integer(aggregate_regulation_away), aggregate_final_home = as.integer(aggregate_final_home), aggregate_final_away = as.integer(aggregate_final_away),
     extra_time_applied = isTRUE(scalar("extra_time_applied", FALSE)), extra_time_home = as.integer(scalar("extra_time_home", NA_integer_)), extra_time_away = as.integer(scalar("extra_time_away", NA_integer_)), penalty_applied = isTRUE(scalar("penalty_applied", FALSE)), penalty_home = as.integer(scalar("penalty_home", NA_integer_)), penalty_away = as.integer(scalar("penalty_away", NA_integer_)),

@@ -1,0 +1,61 @@
+{
+  "applied_at_utc": "2026-11-06T01:42:15.684559+00:00",
+  "files": {
+    "R/competition/ucl_live_outcome_reader.R": "207c1adeb518ff7edfa1d342543f81709d0430881578f089e6fbe0fcc970d060",
+    "tests/testthat/ucl_live_outcome_reader_fixture_helper.R": "f5ca1da9491fc06b33a1e593c56ced980929c3fda2ce7b078eec7d0ecd83f2ef",
+    "tests/testthat/test_ucl_live_outcome_reader.R": "7fface634e88161cf527850096963de7992961ed6a2d487063482a363f09c84b",
+    "R/competition/ucl_live_outcomes.R": "c3ad23ad3884e01e43c7d1a2f9c614d2e8feca174f80f7c57c402dd330de114b",
+    "R/competition/uefa_champions_league_simulation.R": "c0d2cec6364c7f4bf7330ca64f0c5c2d762b77b908c120e0c1320db60f94013e",
+    "tests/testthat/test_ucl_live_producer_roundtrip.R": "8d34dd45a4bc4696a84498aa51864d596ffef3e47f0ede563ffb95ca321eefa2",
+    "R/competition/ucl_production_runtime.R": "4c646d90d9cd684a41b30fa0a404dbbe509c34d074419c2be2ca0ebb9c6c78ef",
+    "tests/testthat/test_ucl_production_runtime.R": "e68cce02de9f50dc18b397b0ba94ae1f839928b8d5cefb77c421d39eac7e2a3e",
+    "R/dashboard/ucl_persisted_outcome_payload.R": "4b3f17882ce82e81e111e6f36e57c2fb815ac4c34b7181ed9e29daed8498b8f8",
+    "tests/testthat/test_ucl_persisted_outcome_payload.R": "197052509ed5b35efc007351ef57e52a162041eedecbc90f2b245189e82b1928",
+    "tests/testthat/ucl_sparse_runtime_test_helper.R": "0964bbba1f5d9bd9f36cfc5f78c25742c10fa1c7fffcafeb64b8c0f95ea7e9f8"
+  },
+  "protected_files_unchanged": 34,
+  "club_source_files_unchanged": 16,
+  "model_or_forecast_activation": false,
+  "owner_or_model_or_source_changes": false,
+  "renderer_publisher_scheduler_wiring_changed": false,
+  "cli_and_targets_applied": false,
+  "verification": "Combined normal test_dir33cases/205assertions; installed source/root checks next",
+  "installed_test_reports": {
+    "installed-cl-runtime-20261106.json": {
+      "cases": 6,
+      "passed": 45,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skipped": 0
+    },
+    "installed-cl-consumer-20261106.json": {
+      "cases": 5,
+      "passed": 38,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skipped": 0
+    },
+    "installed-test_ucl_live_outcomes.R.json": {
+      "cases": 6,
+      "passed": 39,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skipped": 0
+    },
+    "installed-test_ucl_future_integration.R.json": {
+      "cases": 2,
+      "passed": 17,
+      "failed": 0,
+      "errors": 0,
+      "warnings": 0,
+      "skipped": 0
+    }
+  },
+  "installed_fixed_reader_negative": "blocked=publication_missing, production_eligible=FALSE, cwd restored",
+  "normalization_preflight": "77byte-bound changes/12baselinecore PASS; pending19943review unchanged",
+  "head_before_commit": "dee80d1",
+  "recorded_at_utc": "2026-11-06T01:48:21.357711+00:00"
+}

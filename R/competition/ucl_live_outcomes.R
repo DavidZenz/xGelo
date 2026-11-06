@@ -244,12 +244,46 @@ ucl20_build_live_outcomes <- function(simulations = 1000L, seed = 20260921L, inf
   result
 }
 
+# Code-bound version of the existing typed-CSV double representation.  The
+# durable descriptor remains v1: its declared `double` parser accepts C99 hex
+# literals. No old generation is rewritten and no new manifest field is implied.
+.ucl_live_csv_encoding_version <- "ucl-typed-csv-hex-double-v1"
+.ucl_live_write_csv_lossless_v1 <- function(table, path) {
+  if (!is.data.frame(table) || anyDuplicated(names(table)) ||
+      any(!vapply(table, function(column) !is.object(column) && is.null(dim(column)) &&
+        (is.character(column) || is.integer(column) || is.logical(column) || is.double(column)), logical(1))))
+    stop("Unsupported CL durable table type", call. = FALSE)
+  encoded <- as.data.frame(lapply(table, function(column) {
+    if (is.double(column)) {
+      if (any(is.nan(column) | (!is.na(column) & !is.finite(column))))
+        stop("CL durable doubles must be finite or explicit NA", call. = FALSE)
+      value <- sprintf("%a", column)
+      # R 4.6.2's parser underflows normalized subnormal literals such as
+      # 0x1p-1074. A fixed minimum-normal exponent retains all 52 mantissa
+      # bits and is exactly parsed by the unchanged typed-CSV reader.
+      subnormal <- which(!is.na(column) & column != 0 & abs(column) < .Machine$double.xmin)
+      for (i in subnormal) {
+        bytes <- writeBin(abs(column[[i]]), raw(), size = 8L, endian = "big")
+        mantissa <- substring(paste(sprintf("%02x", as.integer(bytes)), collapse = ""), 4L, 16L)
+        value[[i]] <- paste0(if (column[[i]] < 0) "-" else "", "0x0.", mantissa, "p-1022")
+      }
+      if (any(!is.na(column) & !grepl("^-?0x[0-9a-f]+(\\.[0-9a-f]+)?p[+-]?[0-9]+$", value)))
+        stop("CL hexadecimal double encoding is unavailable", call. = FALSE)
+    } else value <- as.character(column)
+    value[is.na(column)] <- ""
+    value
+  }), stringsAsFactors = FALSE, check.names = FALSE)
+  dir.create(dirname(path), recursive = TRUE, showWarnings = FALSE)
+  utils::write.csv(encoded, path, row.names = FALSE, na = "", quote = TRUE, fileEncoding = "UTF-8")
+  invisible(list(path = path, encoding_version = .ucl_live_csv_encoding_version))
+}
+
 .ucl_live_write_tables <- function(tables, directory) {
   files <- lapply(names(tables), function(name) {
     table <- tables[[name]]
     if (!is.data.frame(table) || !grepl("^[a-z_]+$", name)) stop("Invalid CL publication table", call. = FALSE)
     path <- file.path(directory, paste0(name, ".csv"))
-    phase18_ucl_write_csv(table, path)
+    .ucl_live_write_csv_lossless_v1(table, path)
     types <- phase18_ucl_column_types_json(table)
     nulls <- phase18_ucl_null_rows_json(table)
     restored <- phase18_ucl_read_typed_csv(path, types, nulls)

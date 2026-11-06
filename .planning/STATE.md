@@ -6,7 +6,7 @@ current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
 stopped_at: Corrected NL public release and health verified; ordinary03:00 corrected scheduled verification next; CL exact review and downstream integration pending
-last_updated: "2026-11-06T01:32:05Z"
+last_updated: "2026-11-06T01:48:21Z"
 last_activity: 2026-11-06
 last_activity_desc: Verified real scheduled/public release and installed tested NL local Elo, state, timestamp and publication repair
 progress:
@@ -80,8 +80,16 @@ The deterministic club-name repair preserves407raw mappings,343club IDs,
 19943dc9… still awaits the real owner decision requested in this chat. Its
 read-only77-change/12-core-file preflight still passes after the NL integration.
 No core activation or new fitting has occurred. The CL current-roster scope
-fix is installed; durable tournament reading/writing and downstream integration
-remain unfinished. No pending CL9 policy inventory is treated as approved.
+fix is installed. Reader, lossless writer/final semantics, fixed runtime and
+persisted-outcome presentation/validator repairs are now installed after33cases/
+205assertions through normal test_dir, plus installed runtime/consumer83 and
+existing live-outcome/future-integration regression checks. Tests use code-only
+temporary roots; no source/model/fitting/production MC or owner decision changes.
+All16R/club sources and34protected files are unchanged. The exact77-change/12-core
+normalization preflight still passes. CLI replay and targets remain private
+pending their exact post-normalization prerequisites. Renderer/publisher/scheduler
+wiring, genuine eligible validation/performance and observed conditioning remain
+unfinished; no predictions are activated. No pending CL9 policy inventory is treated as approved.
 
 EURO remains a truthful pre-draw placeholder with its actual August source
 timestamp. It cannot infer groups, schedules or predictions before accepted
