@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+"""Byte-guarded migration utility. Default: read-only preflight, never fitting.
+
+Run only after the coordinator releases every refresh/install freeze. This
+utility cannot accept the pending fold review or modify a model selector.
+"""
+import argparse,hashlib,json,os,shutil,tempfile
+from pathlib import Path
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--project',type=Path,required=True)
+parser.add_argument('--apply',action='store_true')
+parser.add_argument('--backup',type=Path)
+parser.add_argument('--rollback',type=Path,metavar='BACKUP_DIRECTORY')
+args=parser.parse_args();project=args.project.resolve();package=Path(__file__).resolve().parent
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+def state(path):
+    if path.is_symlink():raise RuntimeError(f'Symlink is not an authority file: {path}')
+    if path.exists() and not path.is_file():raise RuntimeError(f'Authority path is not a regular file: {path}')
+    return sha(path) if path.is_file() else None
+def target(relative):
+    path=project/relative
+    if not path.resolve().is_relative_to(project):raise RuntimeError('Path escaped project')
+    for parent in (path,*path.parents):
+        if parent==project.parent:break
+        if parent.is_symlink():raise RuntimeError('Symlink in migration path')
+    return path
+def immutable(relative):return relative.startswith('data/club/history_generations/') or '/generations/' in relative
+def write_json(path,value):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    temp=path.with_suffix(path.suffix+'.tmp');temp.write_text(json.dumps(value,indent=2)+'\n');os.replace(temp,path)
+def atomic_copy(source,dest):
+    dest.parent.mkdir(parents=True,exist_ok=True)
+    fd,name=tempfile.mkstemp(prefix='.normalization-',dir=dest.parent);os.close(fd)
+    try:shutil.copy2(source,name);os.replace(name,dest)
+    finally:
+        if Path(name).exists():Path(name).unlink()
+
+if args.rollback:
+    if args.apply or args.backup:parser.error('Rollback is a separate operation')
+    backup=args.rollback.resolve();journal=json.loads((backup/'journal.json').read_text())
+    if Path(journal['project']).resolve()!=project:raise RuntimeError('Backup belongs to another project')
+    # Refuse to undo another writer or a later accepted fold transition.
+    for item in journal['files']:
+        if state(target(item['path'])) not in (item['old_sha256'],item['new_sha256']):
+            raise RuntimeError(f"Later change blocks rollback: {item['path']}")
+    for item in reversed(journal['files']):
+        path=target(item['path'])
+        if state(path) not in (item['old_sha256'],item['new_sha256']):raise RuntimeError(f"Concurrent rollback change: {item['path']}")
+        if item['old_sha256'] is not None:atomic_copy(backup/'files'/item['path'],path)
+        elif path.exists() and not immutable(item['path']):path.unlink()
+    journal['status']='rolled_back_new_immutable_generations_retained';write_json(backup/'journal.json',journal)
+    print('ROLLBACK PASS: previous files/pointers restored; new immutable generations retained');raise SystemExit(0)
+
+files=package/'deployment/files';plan=json.loads((package/'deployment/preconditions.json').read_text())
+manifest=json.loads((files/'data/club/production_protocol/review/review_manifest.json').read_text())
+assert manifest['decision']=='pending'
+for item in manifest['files']:
+    if sha(files/item['path'])!=item['sha256']:raise RuntimeError(f"Payload changed: {item['path']}")
+bound_utility=files/'data/club/production_protocol/review/normalization_repair/proof_code/apply_staged_repair.py.txt'
+if sha(Path(__file__).resolve())!=sha(bound_utility):raise RuntimeError('Application utility differs from the review-bound code snapshot')
+expected=json.loads((package/'FINAL_IDENTITIES.json').read_text())
+if sha(files/'data/club/production_protocol/review/review_manifest.json')!=expected['replacement_review_manifest_file_sha256']:
+    raise RuntimeError('Pending review manifest changed')
+for item in json.loads((package/'evidence/code_file_identities.json').read_text())['files']:
+    if state(target(item['path']))!=item['baseline_file_sha256']:raise RuntimeError(f"Baseline core changed: {item['path']}")
+entries=[]
+for item in plan['files']:
+    relative=item['path'];current=state(target(relative));old=item['expected_existing_sha256'];new=item['proposed_sha256']
+    if current!=old and not (old is None and immutable(relative) and current==new):
+        raise RuntimeError(f'Migration precondition changed: {relative}')
+    if sha(files/relative)!=new:raise RuntimeError(f'Proposed bytes changed: {relative}')
+    entries.append({'path':relative,'old_sha256':current,'new_sha256':new})
+receipt='data/club/production_protocol/review/accepted_owner_decision.json'
+old_receipt=package/'baseline_authority/previous_fold_review/accepted_owner_decision.json'
+receipt_sha=state(old_receipt)
+if state(target(receipt))!=receipt_sha:raise RuntimeError('Previous owner receipt changed')
+if receipt_sha:entries.append({'path':receipt,'old_sha256':receipt_sha,'new_sha256':None})
+print(f'CHECK PASS: {len(entries)} byte-bound changes; 12 baseline core files; no source/model selector changes')
+if not args.apply:raise SystemExit(0)
+if not args.backup:parser.error('--apply requires a new --backup directory')
+backup=args.backup.resolve()
+if backup.exists() or backup.is_relative_to(package):raise RuntimeError('Choose a new backup directory outside the sealed package')
+lock=project/'data/club/.normalization-repair.lock';lock.mkdir()
+try:
+    backup.mkdir(parents=True)
+    for item in entries:
+        if item['old_sha256'] is not None:
+            dest=backup/'files'/item['path'];dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(target(item['path']),dest)
+    pointers={'data/club/registries/current.json','data/club/history_current.json','data/club/fold_protocol_runtime/protocol_current.json'}
+    entries.sort(key=lambda item:(2 if item['path'] in pointers else 0 if immutable(item['path']) else 1,item['path']))
+    journal={'project':str(project),'status':'applying','review_manifest_sha256':expected['replacement_review_manifest_file_sha256'],'files':entries}
+    write_json(backup/'journal.json',journal)
+    for item in entries:
+        path=target(item['path'])
+        # Repeat immediately before mutation; do not overwrite another worker.
+        if state(path)!=item['old_sha256']:raise RuntimeError(f"Concurrent change: {item['path']}")
+        if item['new_sha256'] is None:path.unlink()
+        elif item['old_sha256']!=item['new_sha256']:atomic_copy(files/item['path'],path)
+    journal['status']='installed_pending_review_no_model_fit';write_json(backup/'journal.json',journal)
+    print(f'INSTALL PASS: pending only; previous owner receipt archived; rollback journal: {backup}/journal.json')
+finally:lock.rmdir()

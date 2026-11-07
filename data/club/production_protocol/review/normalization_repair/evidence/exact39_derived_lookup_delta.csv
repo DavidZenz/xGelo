@@ -1,0 +1,40 @@
+review_row,raw_name,club_id,association_code,valid_from_utc,valid_to_utc,resolved_club_id,identity_preserved,existing_literal_source_id,proposed_derived_source_id
+46,Standard Liège,club_bel_standard_li_ege,BEL,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_bel_standard_li_ege,TRUE,name:standard_li_ege,name:standard_liege
+50,RAAL La Louviére,club_bel_raal_la_louvi_ere,BEL,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_bel_raal_la_louvi_ere,TRUE,name:raal_la_louvi_ere,name:raal_la_louviere
+53,MFK Karviná,club_cze_mfk_karvin_a,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_mfk_karvin_a,TRUE,name:mfk_karvin_a,name:mfk_karvina
+54,FC Zlín,club_cze_zl_in,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_zl_in,TRUE,name:fc_zl_in,name:fc_zlin
+55,FC Hradec Králové,club_cze_hradec_kr_alov_e,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_hradec_kr_alov_e,TRUE,name:fc_hradec_kr_alov_e,name:fc_hradec_kralove
+60,FK Mladá Boleslav,club_cze_mlad_a_boleslav,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_mlad_a_boleslav,TRUE,name:fk_mlad_a_boleslav,name:fk_mlada_boleslav
+62,Baník Ostrava,club_cze_ban_ik_ostrava,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_ban_ik_ostrava,TRUE,name:ban_ik_ostrava,name:banik_ostrava
+65,1. FC Slovácko,club_cze_slov_acko,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_slov_acko,TRUE,name:1_fc_slov_acko,name:1_fc_slovacko
+66,Dynamo České Budějovice,club_cze_dynamo_cesk_e_bud_jovice,CZE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_cze_dynamo_cesk_e_bud_jovice,TRUE,name:dynamo_cesk_e_bud_jovice,name:dynamo_ceske_budejovice
+126,Bayern München,club_fd_5,DEU,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_fd_5,TRUE,name:bayern_m_unchen,name:bayern_munchen
+127,Bor. Mönchengladbach,club_deu_borussia_m_onchengladbach,DEU,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_deu_borussia_m_onchengladbach,TRUE,name:bor_m_onchengladbach,name:bor_monchengladbach
+132,SpVgg Greuther Fürth,club_deu_spvgg_greuther_f_urth,DEU,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_deu_spvgg_greuther_f_urth,TRUE,name:spvgg_greuther_f_urth,name:spvgg_greuther_furth
+143,1. FC Köln,club_deu_k_oln,DEU,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_deu_k_oln,TRUE,name:1_fc_k_oln,name:1_fc_koln
+153,Borussia Mönchengladbach,club_deu_borussia_m_onchengladbach,DEU,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_deu_borussia_m_onchengladbach,TRUE,name:borussia_m_onchengladbach,name:borussia_monchengladbach
+172,AE Lárissa,club_grc_ae_l_arissa,GRC,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_grc_ae_l_arissa,TRUE,name:ae_l_arissa,name:ae_larissa
+256,FC Famalicão,club_por_famalic_ao,POR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_por_famalic_ao,TRUE,name:fc_famalic_ao,name:fc_famalicao
+266,Vitória de Guimarães,club_por_vit_oria_guimar_aes,POR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_por_vit_oria_guimar_aes,TRUE,name:vit_oria_de_guimar_aes,name:vitoria_de_guimaraes
+278,Vitória Guimarães,club_por_vit_oria_guimar_aes,POR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_por_vit_oria_guimar_aes,TRUE,name:vit_oria_guimar_aes,name:vitoria_guimaraes
+281,FK Železiarne Podbrezová,club_svk_zeleziarne_podbrezov_a,SVK,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_svk_zeleziarne_podbrezov_a,TRUE,name:fk_zeleziarne_podbrezov_a,name:fk_zeleziarne_podbrezova
+282,Dukla Banská Bystrica,club_svk_dukla_bansk_a_bystrica,SVK,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_svk_dukla_bansk_a_bystrica,TRUE,name:dukla_bansk_a_bystrica,name:dukla_banska_bystrica
+284,MFK Zemplín Michalovce,club_svk_mfk_zempl_in_michalovce,SVK,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_svk_mfk_zempl_in_michalovce,TRUE,name:mfk_zempl_in_michalovce,name:mfk_zemplin_michalovce
+287,Zlaté Moravce,club_svk_zlat_e_moravce,SVK,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_svk_zlat_e_moravce,TRUE,name:zlat_e_moravce,name:zlate_moravce
+291,AS Trenčín,club_svk_trenc_in,SVK,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_svk_trenc_in,TRUE,name:as_trenc_in,name:as_trencin
+293,KFC Komárno,club_svk_kfc_kom_arno,SVK,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_svk_kfc_kom_arno,TRUE,name:kfc_kom_arno,name:kfc_komarno
+299,Cádiz CF,club_esp_c_adiz,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_esp_c_adiz,TRUE,name:c_adiz_cf,name:cadiz_cf
+300,Deportivo Alavés,club_esp_deportivo_alav_es,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_esp_deportivo_alav_es,TRUE,name:deportivo_alav_es,name:deportivo_alaves
+304,Atlético Madrid,club_fd_78,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_fd_78,TRUE,name:atl_etico_madrid,name:atletico_madrid
+316,UD Almería,club_esp_ud_almer_ia,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_esp_ud_almer_ia,TRUE,name:ud_almer_ia,name:ud_almeria
+322,Real Betis Balompié,club_fd_90,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_fd_90,TRUE,name:real_betis_balompi_e,name:real_betis_balompie
+323,CD Leganés,club_esp_cd_legan_es,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_esp_cd_legan_es,TRUE,name:cd_legan_es,name:cd_leganes
+334,MKE Ankaragücü,club_tur_mke_ankarag_uc_u,TUR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_tur_mke_ankarag_uc_u,TRUE,name:mke_ankarag_uc_u,name:mke_ankaragucu
+342,Fatih Karagümrük,club_tur_fatih_karag_umr_uk,TUR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_tur_fatih_karag_umr_uk,TRUE,name:fatih_karag_umr_uk,name:fatih_karagumruk
+343,İstanbul Başakşehir,club_tur_istanbul_basas_ehir,TUR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_tur_istanbul_basas_ehir,TRUE,name:istanbul_basas_ehir,name:istanbul_basaksehir
+345,Göztepe,club_tur_g_oztepe,TUR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_tur_g_oztepe,TRUE,name:g_oztepe,name:goztepe
+346,Eyüpspor,club_tur_ey_upspor,TUR,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_tur_ey_upspor,TRUE,name:ey_upspor,name:eyupspor
+354,FC Bayern München,club_fd_5,DEU,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_fd_5,TRUE,name:fc_bayern_m_unchen,name:fc_bayern_munchen
+357,Malmö FF,club_swe_malm_o_ff,SWE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_swe_malm_o_ff,TRUE,name:malm_o_ff,name:malmo_ff
+365,Club Atlético de Madrid,club_fd_78,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_fd_78,TRUE,name:club_atl_etico_de_madrid,name:club_atletico_de_madrid
+379,Real Sociedad de Fútbol,club_esp_real_sociedad_de_f_utbol,ESP,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z,club_esp_real_sociedad_de_f_utbol,TRUE,name:real_sociedad_de_f_utbol,name:real_sociedad_de_futbol

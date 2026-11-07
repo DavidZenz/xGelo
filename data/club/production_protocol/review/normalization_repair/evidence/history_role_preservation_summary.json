@@ -1,0 +1,17 @@
+{
+  "status": "private_fixture_diagnostic_not_production_authority",
+  "matches": 16277,
+  "match_ids_unchanged": true,
+  "club_ids_dates_scores_labels_unchanged": true,
+  "raw_review_rows_preserved_byte_for_byte": true,
+  "canonical_clubs": 343,
+  "folds": 26,
+  "role_sets": 104,
+  "all_role_memberships_unchanged": true,
+  "changed_home_resolution_methods": 1327,
+  "changed_away_resolution_methods": 1330,
+  "new_registry_sha256": "a7eece9307151d40e00b296a13f6d03bfc6ac03508756f7f4a9056ba9870b836",
+  "allowed_changed_match_fields": ["identity_registry_sha256", "home_resolution_method", "away_resolution_method", "row_sha256"],
+  "old_owner_review_sha256": "d3c8bbd60af2b9fcaa77e6c61283bbfa016e92e95864e521eac7b11e3c9bd82f",
+  "proposed_history_matches_file_sha256": "346341256c5d5dbe5ccfe85e3173d1fc5e65b832424ad752015a6954e9914d7d"
+}

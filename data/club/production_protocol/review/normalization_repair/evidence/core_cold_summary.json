@@ -1,0 +1,17 @@
+{
+  "processes": 10,
+  "czech_scalar_calls": 10000,
+  "all_czech_outputs": "dynamo ceske budejovice",
+  "all442_scalar_vector_equal": true,
+  "all442_key_vector_sha256": "8bf1a5942645670b7947083b988e447b1d36c26d33a4857966ada5d505b067ba",
+  "contract": {
+    "version": "phase18-club-normalization-v3-icu-latin-ascii",
+    "unicode_form": "NFC",
+    "transform": "Latin-ASCII; Lower",
+    "unmapped_non_ascii": "discard",
+    "separators": "non_ascii_alnum_to_single_space",
+    "stringi_version": "1.8.7",
+    "icu_version": "74.1"
+  },
+  "production_authority": false
+}

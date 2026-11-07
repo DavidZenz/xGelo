@@ -1,0 +1,30 @@
+{
+  "status": "pass",
+  "relocated_package": true,
+  "runners": [
+    {
+      "runner": "test_normalization_v3.R",
+      "exit_code": 0,
+      "stdout": "club_normalization_v3: ..............................\n\n\u2550\u2550 DONE \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\ud83d\ude00\nASSERTIONS 30 FAIL 0 ERROR 0 \n",
+      "stderr": ""
+    },
+    {
+      "runner": "verify_repair.R",
+      "exit_code": 0,
+      "stdout": "PASS:actual core;407identities/343clubs;16277match semantics;26folds/104exact role memberships;no fitting or authority activation\nclub_registry_sha256=a7eece9307151d40e00b296a13f6d03bfc6ac03508756f7f4a9056ba9870b836\n",
+      "stderr": ""
+    },
+    {
+      "runner": "verify_manifest.py",
+      "exit_code": 0,
+      "stdout": "PASS: 65 exact review artifacts; pending only; distinct named hashes; no activation\n",
+      "stderr": ""
+    },
+    {
+      "runner": "run_cold_probes.py",
+      "exit_code": 0,
+      "stdout": "/var/folders/1l/t8mktk5j58g75tthg0q79qhw0000gn/T/club-normalizer-cold-tbg29n4r/summary.json\n",
+      "stderr": ""
+    }
+  ]
+}

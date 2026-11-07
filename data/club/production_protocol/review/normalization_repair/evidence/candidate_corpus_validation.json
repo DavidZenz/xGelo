@@ -1,0 +1,73 @@
+{
+  "status": "private_candidate_semantic_audit_only_no_active_generation_or_approval",
+  "owner_review_rows_copied_unchanged": true,
+  "pending_technical_review": true,
+  "production_model_fits_run": false,
+  "normalizer_contract": {
+    "version": "phase18-club-normalization-v3-icu-latin-ascii",
+    "unicode_form": "NFC",
+    "transform": "Latin-ASCII; Lower",
+    "unmapped_non_ascii": "discard",
+    "separators": "non_ascii_alnum_to_single_space",
+    "stringi_version": "1.8.7",
+    "icu_version": "74.1"
+  },
+  "normalizer_code_sha256": "459461abcedd2793b229e1c89ac7c07c21e7e110e3873412ace5ec9f657a8772",
+  "base_git_commit": "bcaafa0eaf89ae125822cb420b4e6f3d6d1c6b18",
+  "working_tree_patch_sha256": "1db1046648a1bad79837e149aa56b86feb15067945a3f4d91d7c8b5518a08400",
+  "corpus_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+  "files": [
+    {
+      "path": "corpus_manifest.csv",
+      "sha256": "7e4333398b041af46d8892ed22bdd3ee78658b2c90d53503730cd0aea502236d"
+    },
+    {
+      "path": "coverage_audit.csv",
+      "sha256": "b728bb9b43fd5cdb3836106ca691aaa55158725436641ff585aa8d4c8da2644f"
+    },
+    {
+      "path": "duplicate_audit.csv",
+      "sha256": "f5c9066200cc02579670a37e3c6f0cc4317d49514ec1f14b959cfaf51e99911a"
+    },
+    {
+      "path": "identity_audit.csv",
+      "sha256": "a270035027823253bb1e2b551fc69ff3e26053f80d17400b35aaa804998dc8a1"
+    },
+    {
+      "path": "identity_review.csv",
+      "sha256": "d3c8bbd60af2b9fcaa77e6c61283bbfa016e92e95864e521eac7b11e3c9bd82f"
+    },
+    {
+      "path": "matches.csv",
+      "sha256": "346341256c5d5dbe5ccfe85e3173d1fc5e65b832424ad752015a6954e9914d7d"
+    },
+    {
+      "path": "registry_aliases.csv",
+      "sha256": "a17b7936d7d90307f9effb08e8d57f7f22ff4d43d3f0e66c265c4946327b0331"
+    },
+    {
+      "path": "registry_clubs.csv",
+      "sha256": "9dc9453cd97e125fdd8da5711814a0877251420d70e079ae78d308103d5cafbb"
+    },
+    {
+      "path": "registry_source_ids.csv",
+      "sha256": "e14a1f43cda4be4b02a866809439674273cc4c4c1ef62cad71496d18819cfa2e"
+    },
+    {
+      "path": "score_semantics_audit.csv",
+      "sha256": "d4716fd1f68f7309f0e9d69ef51ba921c4fdb9f45f5ae40375be67292faa3ed7"
+    },
+    {
+      "path": "source_manifest.csv",
+      "sha256": "bb2bc1b908b10a990dc0a19d741aca861b94f9f40441227a32a5a5a89fef3be3"
+    },
+    {
+      "path": "temporal_audit.csv",
+      "sha256": "bf6294fd1039cf8ceb5cd98c010b3923384cd4fd2b81a0a80b2394d1c303defd"
+    },
+    {
+      "path": "unresolved_identity.csv",
+      "sha256": "f27621d009b68809c015a27b065e315c06abfabcef333749ebbaacc0d473225d"
+    }
+  ]
+}

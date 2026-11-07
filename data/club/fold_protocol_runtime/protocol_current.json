@@ -3,7 +3,7 @@
   "hash_encoding_version": "phase18-canonical-v2",
   "authority_mode": "production",
   "fixture_authority": false,
-  "generation_id": "club-folds-867e300dccc09fa3f4f9d688",
-  "protocol_state_sha256": "0a43599d5d0837e747605da227e6104541682da2621b20b6c6bba6ac9ce53650",
-  "pointer_sha256": "8c5edf19554e9d7eb6fcca370119d5f9db2add5e1cf086f4264d6d8de069c58a"
+  "generation_id": "club-folds-da91b492da31bc8ee4ad8ab6",
+  "protocol_state_sha256": "52d4245b717089fdc2711611fb6da3a933528426e34efba5fc9a6a9bb5828437",
+  "pointer_sha256": "e9314b08daa7afbc61e67a8ae759f8d0ba1a3e0ae4453ac33afe92f44256f390"
 }

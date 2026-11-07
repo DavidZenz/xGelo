@@ -1,0 +1,37 @@
+#!/usr/bin/env Rscript
+# Re-run the genuine fixed-root readers in a disposable, self-contained copy.
+# It never refreshes a pointer, accepts a review, evaluates or fits a model.
+args<-commandArgs(FALSE);script<-sub("^--file=","",args[grepl("^--file=",args)])
+if(length(script)!=1L)stop("Run with Rscript --vanilla",call.=FALSE)
+package<-normalizePath(dirname(script),mustWork=TRUE)
+if(!identical(commandArgs(TRUE),"--full")){
+ cat("Usage: Rscript --vanilla verify_candidate_readers.R --full\n")
+ cat("Read-only full corpus/fold audit in a disposable copy; several minutes; no fits.\n")
+ quit(status=0L)
+}
+project<-tempfile("club-normalization-readers-");dir.create(project)
+copy_tree<-function(from,to){
+ dir.create(to,recursive=TRUE,showWarnings=FALSE)
+ files<-list.files(from,recursive=TRUE,all.files=TRUE,no..=TRUE,full.names=TRUE)
+ for(file in files[!dir.exists(files)]){
+  relative<-substring(file,nchar(from)+2L);target<-file.path(to,relative)
+  dir.create(dirname(target),recursive=TRUE,showWarnings=FALSE)
+  if(!file.copy(file,target,overwrite=TRUE))stop("Could not stage reader input")
+ }
+}
+copy_tree(file.path(package,"snapshots/R"),file.path(project,"R"))
+copy_tree(file.path(package,"snapshots/data"),file.path(project,"data"))
+copy_tree(file.path(package,"deployment/files"),project)
+dir.create(file.path(project,".planning"));dir.create(file.path(project,"scripts"),showWarnings=FALSE)
+stopifnot(file.copy(file.path(package,"snapshots/scripts/prepare_club_model_review.R"),file.path(project,"scripts/prepare_club_model_review.R")))
+setwd(project)
+sys.source("scripts/prepare_club_model_review.R",envir=.GlobalEnv)
+snapshot<-phase19_load_club_training_snapshot()
+expected<-jsonlite::read_json(file.path(package,"FINAL_IDENTITIES.json"),simplifyVector=TRUE)
+stopifnot(identical(snapshot$status,"ready"),identical(snapshot$snapshot_sha256,expected$history_snapshot_sha256),nrow(snapshot$matches)==16277L)
+folds<-phase19_load_club_fold_protocol()
+stopifnot(identical(folds$reason_code,"fold_inventory_not_approved"),identical(folds$protocol_state$state,"pending_review"),
+ identical(folds$fold_registry_sha256,expected$replacement_fold_registry_sha256),nrow(folds$fold_registry)==26L,
+ identical(phase19_production_code_identity(),expected$production_code_sha256),!isTRUE(folds$production_eligible))
+cat("PASS: genuine fixed-root readers; validated 16,277 matches and exact pending 26 folds; no acceptance or fits\n")
+setwd(package);unlink(project,recursive=TRUE)

@@ -1,0 +1,39 @@
+--- a/R/club/identity.R
++++ b/R/club/identity.R
+@@ -30,15 +30,32 @@
+   stop(condition)
+ }
+ 
++phase18_club_normalization_contract <- function() list(
++  version = "phase18-club-normalization-v3-icu-latin-ascii",
++  unicode_form = "NFC", transform = "Latin-ASCII; Lower",
++  unmapped_non_ascii = "discard", separators = "non_ascii_alnum_to_single_space",
++  stringi_version = "1.8.7", icu_version = "74.1")
++
+ phase18_normalize_club_name <- function(value) {
++  contract <- phase18_club_normalization_contract()
++  if (!requireNamespace("stringi", quietly = TRUE)) {
++    phase18_club_abort("club_normalizer_runtime_unavailable", "Deterministic club normalization requires stringi; native iconv fallback is forbidden")
++  }
++  if (!identical(as.character(utils::packageVersion("stringi")), contract$stringi_version) ||
++      !identical(as.character(stringi::stri_info()$ICU.version), contract$icu_version)) {
++    phase18_club_abort("club_normalizer_runtime_unvalidated", "Club normalization runtime differs from the reviewed stringi/ICU version")
++  }
+   value <- as.character(value)
+   output <- rep(NA_character_, length(value))
+   present <- !is.na(value)
+   if (any(present)) {
+-    normalized <- iconv(trimws(value[present]), from = "", to = "ASCII//TRANSLIT", sub = "")
+-    normalized <- tolower(normalized)
+-    normalized <- gsub("[^a-z0-9]+", " ", normalized)
+-    output[present] <- trimws(gsub("[[:space:]]+", " ", normalized))
++    text <- enc2utf8(value[present])
++    if (any(!stringi::stri_enc_isutf8(text))) phase18_club_abort("invalid_club_name_utf8", "Club names must be valid UTF-8")
++    text <- stringi::stri_trans_nfc(trimws(text))
++    text <- stringi::stri_trans_general(text, "Latin-ASCII; Lower")
++    text <- stringi::stri_replace_all_regex(text, "[^\\p{ASCII}]", "")
++    text <- gsub("[^a-z0-9]+", " ", text)
++    output[present] <- trimws(gsub("[[:space:]]+", " ", text))
+   }
+   output
+ }

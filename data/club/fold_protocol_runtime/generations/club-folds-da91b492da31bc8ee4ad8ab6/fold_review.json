@@ -1,0 +1,21 @@
+{
+  "schema_version": "phase19-club-fold-review-v1",
+  "hash_encoding_version": "phase18-canonical-v2",
+  "forecast_domain": "club",
+  "authority_mode": "production",
+  "fixture_authority": false,
+  "reviewer": "David Zenz",
+  "reviewed_at_utc": "2026-11-07T10:23:50Z",
+  "decision": "accepted",
+  "accepted_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+  "corpus_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+  "snapshot_sha256": "32d68c27764a7e783425ec8e2547830736f7283a7f5982196278e21afb177aba",
+  "policy_review_sha256": "de4f280c1757551034bc08439e880ad7bf5de5b6480b10e797f78d0af8273fab",
+  "protocol_sha256": "34e084ab9e88de48ac26d57477a8d9ad03ca36972eac9245a13ddf8da719f9a2",
+  "calibration_recipe_sha256": "40f36e7fe70ff326c067ac88f3d79d54bf9e68b499d7d3640f40765b98ffb583",
+  "fold_registry_sha256": "3c614607cdd7a7bce1a4a660c4ae57cab51ae9571db476ea17e316db8810d505",
+  "final_cutoff_utc": "2026-10-27T00:00:00Z",
+  "code_commit": "bcaafa0eaf89ae125822cb420b4e6f3d6d1c6b18",
+  "rationale_code": "production_recipe_v2:c9817163a8b43f7cabbecb48201ce0ae0d35d65790060f7a7cc76574bf6a2482;owner_package:19943dc932e0ae29d3bfa89425139b899eeecdd86024b065efe1f955ac0b1af6",
+  "review_sha256": "d875ed8c69ca72807e61376799544522355f022b487fd21ff9b01b2e7f16b7ed"
+}

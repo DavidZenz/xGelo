@@ -1,0 +1,22 @@
+{
+  "status": "exact_replacement_fold_review_pending_not_approved",
+  "folds": 26,
+  "role_sets": 104,
+  "old_fold_registry_sha256": "2f49f0873fa855775dcd911cf2b1183d09091ac2422452f4d467611a5cf2a8fd",
+  "new_fold_registry_sha256": "3c614607cdd7a7bce1a4a660c4ae57cab51ae9571db476ea17e316db8810d505",
+  "changed_fold_fields": [
+    "accepted_generation_id",
+    "corpus_manifest_sha256",
+    "snapshot_sha256",
+    "row_sha256"
+  ],
+  "all_other_fold_fields_identical": true,
+  "role_inventory_bytes_identical": true,
+  "history_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+  "history_snapshot_sha256": "32d68c27764a7e783425ec8e2547830736f7283a7f5982196278e21afb177aba",
+  "code_sha256": "43324c7af1c60804f252a80266fef146092d32838b801c4633d34b5cfe652c05",
+  "production_fits_run": false,
+  "club_registry_sha256": "a7eece9307151d40e00b296a13f6d03bfc6ac03508756f7f4a9056ba9870b836",
+  "history_corpus_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+  "review_owner_decision": "pending_no_receipt"
+}

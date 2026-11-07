@@ -1,0 +1,12 @@
+{
+  "status": "pass",
+  "scope": "genuine fixed-root training snapshot and pending fold readers in an independently relocated disposable project",
+  "matches": 16277,
+  "folds": 26,
+  "pending_review": true,
+  "snapshot_sha256": "32d68c27764a7e783425ec8e2547830736f7283a7f5982196278e21afb177aba",
+  "fold_registry_sha256": "3c614607cdd7a7bce1a4a660c4ae57cab51ae9571db476ea17e316db8810d505",
+  "production_code_sha256": "43324c7af1c60804f252a80266fef146092d32838b801c4633d34b5cfe652c05",
+  "model_fits_run": false,
+  "main_managed_roots_changed": false
+}

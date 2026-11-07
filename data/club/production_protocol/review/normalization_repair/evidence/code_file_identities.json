@@ -1,0 +1,64 @@
+{
+  "files": [
+    {
+      "path": "R/common/phase18_canonical_hash.R",
+      "baseline_file_sha256": "ccfb66a5753449df96f1d3157c1cec29adb4ea68e5796c5489094d536be4c098",
+      "proposed_file_sha256": "ccfb66a5753449df96f1d3157c1cec29adb4ea68e5796c5489094d536be4c098"
+    },
+    {
+      "path": "R/club/identity.R",
+      "baseline_file_sha256": "cec2f10630760ce76bcd304c71ee41867eb109fb9f140c6b8ceb564a62e1e6ec",
+      "proposed_file_sha256": "459461abcedd2793b229e1c89ac7c07c21e7e110e3873412ace5ec9f657a8772"
+    },
+    {
+      "path": "R/club/identity_bootstrap.R",
+      "baseline_file_sha256": "2cfcd0ed5ad1e788b64329056b8a91b808564d32915a57257dc23f81356d3e76",
+      "proposed_file_sha256": "2cfcd0ed5ad1e788b64329056b8a91b808564d32915a57257dc23f81356d3e76"
+    },
+    {
+      "path": "R/club/history_contract.R",
+      "baseline_file_sha256": "e9cf29d3bb841afa94da3cb51e20007f63d372ae45fa1ee276857863486ad453",
+      "proposed_file_sha256": "e9cf29d3bb841afa94da3cb51e20007f63d372ae45fa1ee276857863486ad453"
+    },
+    {
+      "path": "R/club/model_contract.R",
+      "baseline_file_sha256": "05af826b6fe61b39539b4cae9b5edf9338cfa7d2457ed6c3740fa62fb72a5cd5",
+      "proposed_file_sha256": "05af826b6fe61b39539b4cae9b5edf9338cfa7d2457ed6c3740fa62fb72a5cd5"
+    },
+    {
+      "path": "R/club/production_runner.R",
+      "baseline_file_sha256": "285e7f5200ca4a9f87dd0d449d512256d228fc708ac478ba78c9777b5e0ffe48",
+      "proposed_file_sha256": "285e7f5200ca4a9f87dd0d449d512256d228fc708ac478ba78c9777b5e0ffe48"
+    },
+    {
+      "path": "R/club/goal_model.R",
+      "baseline_file_sha256": "ce831e815de54fe9b568cd93eb38672584de5b0239a5b84d192d0322d9db916c",
+      "proposed_file_sha256": "ce831e815de54fe9b568cd93eb38672584de5b0239a5b84d192d0322d9db916c"
+    },
+    {
+      "path": "R/club/rating.R",
+      "baseline_file_sha256": "89afb012e0c0aad394436ff0e3b52b778116675600294d82c8975e88c6593419",
+      "proposed_file_sha256": "89afb012e0c0aad394436ff0e3b52b778116675600294d82c8975e88c6593419"
+    },
+    {
+      "path": "R/club/calibration.R",
+      "baseline_file_sha256": "233b53493b059396187e2486493370222c7eb54d9cc8566883e6d78eb49c3e1a",
+      "proposed_file_sha256": "233b53493b059396187e2486493370222c7eb54d9cc8566883e6d78eb49c3e1a"
+    },
+    {
+      "path": "R/club/evaluation_protocol.R",
+      "baseline_file_sha256": "cb1865a155d971714d46937e6e2cb26053d770cf6c7b49f66feb830ea5a17ee5",
+      "proposed_file_sha256": "cb1865a155d971714d46937e6e2cb26053d770cf6c7b49f66feb830ea5a17ee5"
+    },
+    {
+      "path": "R/club/evaluation.R",
+      "baseline_file_sha256": "9dbbab400001d1c44b29e1ef4078e641dd6ad7ec80a768ee4ef2d2f78e4248b5",
+      "proposed_file_sha256": "9dbbab400001d1c44b29e1ef4078e641dd6ad7ec80a768ee4ef2d2f78e4248b5"
+    },
+    {
+      "path": "R/club/release.R",
+      "baseline_file_sha256": "ea3552f168fbc4bd88da1edda20ef53f8c93eaa9b21fb58366f82701f5d0c178",
+      "proposed_file_sha256": "ea3552f168fbc4bd88da1edda20ef53f8c93eaa9b21fb58366f82701f5d0c178"
+    }
+  ]
+}

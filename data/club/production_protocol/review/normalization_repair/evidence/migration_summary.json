@@ -1,0 +1,12 @@
+{
+  "status": "fixture_diagnostic_not_approved_or_active",
+  "review_entries": 407,
+  "canonical_clubs": 343,
+  "raw_names_and_ids_associations_validity_preserved": true,
+  "accepted_alias_rows": 442,
+  "proposed_alias_rows": 442,
+  "equivalent_alias_rows_collapsed": 0,
+  "cross_club_lookup_collisions": 0,
+  "changed_alias_rows": 42,
+  "changed_historical_derived_source_keys": 39
+}

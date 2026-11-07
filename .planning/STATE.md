@@ -4,11 +4,11 @@ milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
-status: blocked
-stopped_at: Awaiting exact replacement normalization/fold review; live publication is verified and CL statistical gates remain enforced
-last_updated: "2026-11-06T03:54:03Z"
-last_activity: 2026-11-06
-last_activity_desc: Audited the pending exact owner decision and downstream model/tournament gates; independent publication work is complete
+status: executing
+stopped_at: Normalization repair installed and replacement fold decision accepted. Refresh the current CL source and rerun production evaluation.
+last_updated: "2026-11-07T10:36:03Z"
+last_activity: 2026-11-07
+last_activity_desc: Installed the approved normalization repair and recovered the scheduled dashboard publication
 progress:
   total_phases: 5
   completed_phases: 2
@@ -28,22 +28,27 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 
 ## Current Position
 
-Further CL production work is blocked on the pending exact replacement
-normalization/fold owner decision19943dc9…, distinct from the accepted original
-4ac07347… review. The actual fixed runtime still reports
-future_matchup_policy_not_approved and publication_missing; the selected venue
-baseline remains retained after Elo calibration0.026158>0.01. All independent
-publication work is installed and verified. The complete goal is not achieved.
-The current blocker audit is
-.planning/operations/cl-production-blocker-audit-2026-11-06.md. Resume the exact
-production evaluation and coordinated integration when the real decision arrives;
-do not transfer earlier approvals or apply stale proposal preconditions.
+On 7 November the owner accepted normalization/fold package 19943dc9…. The
+exact 77-file migration was installed with a backup and passed the installed
+normalization tests. Production readers verified 16,277 historical matches,
+26 folds and 104 byte-identical role sets. The existing review command applied
+the owner's package-bound decision and selected the ready production fold
+generation `club-folds-da91b492da31bc8ee4ad8ab6`.
+Evidence is in `logs/club-model-runs/20261107T102350Z-normalization/`.
+
+The latest three-dashboard batch is `phase21-525f8f17f35d0955184709aa`, public
+commit `20c877a9bb1086ea9b7896976343a53196f63b24`. Recovery run
+`20261107T103146Z-211cd77d` restored 40 exact dependencies in a new private
+workspace and reused the completed 7 November scheduled simulations. All ten
+installed NL outcome artifacts match the retained run, all 14 public files
+verified, and the refresh monitor reports healthy. Commit `74060f8` moves new
+staging workspaces out of system temporary storage.
 
 Active user goal (5 November): repair the shared non-WC refresh and public
 Nations League / CL / EURO dashboards. The complete acceptance ledger is
 `.planning/operations/non-wc-refresh-2026-11-05-PLAN.md`; formal milestone
 completion below is not inferred from implementation or fixture tests.
-The three public routes now serve batch phase21-7c5d428f81d9cc8f3c8d8fe8,
+The three public routes previously served batch phase21-7c5d428f81d9cc8f3c8d8fe8,
 commit6ba71fd708ff3eac69836a5e33fc6fb1ce2db1a1, verified03:45:41UTC6November.
 Code commitd04604f installs the compatible guarded CL publication/current-clock
 repairs. Restage24154d77 and publish-only8114e911 reused accepted numerical
@@ -112,18 +117,15 @@ CL has36clubs,72completed/72future fixtures and explicit disabled predictions.
 The corrected genuine26-fold evaluation retained venue release
 `club-v2-626fedd0dd54b8309923855e`; Elo23/24 gates pass but calibration
 delta0.026158 exceeds0.01. Tournament production remains incomplete/gated.
-The deterministic club-name repair preserves407raw mappings,343club IDs,
-16277match semantics and26/104 exact roles. Replacement fold review manifest
-19943dc9… still awaits the real owner decision requested in this chat. Its
-read-only77-change/12-core-file preflight still passes after the NL integration.
-No core activation or new fitting has occurred. The CL current-roster scope
+The installed deterministic club-name repair preserves 407 raw mappings, 343
+club IDs, 16,277 match results and all 104 role sets across 26 folds. The CL current-roster scope
 fix is installed. Reader, lossless writer/final semantics, fixed runtime and
 persisted-outcome presentation/validator repairs are now installed after33cases/
 205assertions through normal test_dir, plus installed runtime/consumer83 and
 existing live-outcome/future-integration regression checks. These CL tests use code-only
 temporary roots; no source/model/fitting/production MC or owner decision changes.
-All16R/club sources and34protected files are unchanged. The exact77-change/12-core
-normalization preflight still passes. CLI replay and targets remain private
+The original publication integration preserved all 16 R/club sources and 34
+protected files. CLI replay and targets remain private
 pending their exact post-normalization prerequisites. The private approved-mode
 scheduler package now
 pass111 operational cases on each Python runtime. A combined code-only future
@@ -135,7 +137,7 @@ overlays. Candidate and installed normal test_dir pass33cases/232assertions;
 all98operational cases pass on Python3.9.6 and3.15.2. The real read-only R
 publication validator accepts the current14-file batch. All18core dependencies,
 4501club data/release files,34protected files and14public files stayed identical.
-The77-change/12-core normalization preflight still passes. Details and exact
+Publication integration details and exact
 installed hashes are in .planning/operations/cl-publication-integration-2026-11-06.md
 and cl-publication-installed-2026-11-06.json. The installed clock follow-through
 preserves current-time guards and repartitions fixtures after slow work.
@@ -150,10 +152,10 @@ complete official inputs. All three public routes were rechecked HTTP200 at
 release evidence remains in
 `.planning/operations/non-wc-release-acceptance-2026-11-05.md`.
 
-Phase: 19 (independent-club-forecast-authority) — VENUE BASELINE RETAINED; RUNTIME REPAIR PENDING
+Phase: 19 (independent-club-forecast-authority) — NORMALIZATION REPAIR INSTALLED; EVALUATION PENDING
 Plan: 10 of 10
-Status: Plans 01-10 implemented; venue baseline retained; deterministic identity repair awaits exact replacement review; public facts verified
-Last activity: 2026-11-06 — CL publication integration and public release verified; exact model review remains open
+Status: Normalization repair and replacement review applied. Production evaluation follows a fresh CL source capture.
+Last activity: 2026-11-07 — Verified installed history and replacement folds and recovered the public dashboards.
 
 Progress: [██████████] 100%
 
@@ -162,7 +164,7 @@ Progress: [██████████] 100%
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Accepted live and historical sources; audits passed (6/6) |
-| 19 | Independent Club Forecast Authority | 5 | Venue baseline retained (10/10 plans; Elo calibration failed; deterministic identity repair pending) |
+| 19 | Independent Club Forecast Authority | 5 | Owner-approved normalization repair installed and validated. Production evaluation pending. |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Mechanics under QA; genuine tournament production incomplete/gated |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Three-route factual release published; full milestone verification pending |
 | 22 | Automated Refresh and Release Hardening | 4 | Corrected manual and ordinary scheduled publication verified; full CL milestone hardening remains gated |

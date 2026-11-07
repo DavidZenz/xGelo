@@ -1,0 +1,43 @@
+scope,club_id,source_system,raw_alias,stored_normalized_alias,proposed_normalized_alias,changed,valid_from_utc,valid_to_utc
+accepted_aliases,club_fd_78,football_data_org_v4,Club Atlético de Madrid,club atl etico de madrid,club atletico de madrid,TRUE,2026-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_5,football_data_org_v4,FC Bayern München,fc bayern m unchen,fc bayern munchen,TRUE,2026-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_90,football_data_org_v4,Real Betis Balompié,real betis balompi e,real betis balompie,TRUE,2026-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_deu_k_oln,openfootball,1. FC Köln,1 fc k oln,1 fc koln,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_slov_acko,openfootball,1. FC Slovácko,1 fc slov acko,1 fc slovacko,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_grc_ae_l_arissa,openfootball,AE Lárissa,ae l arissa,ae larissa,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_svk_trenc_in,openfootball,AS Trenčín,as trenc in,as trencin,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_78,openfootball,Atlético Madrid,atl etico madrid,atletico madrid,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_ban_ik_ostrava,openfootball,Baník Ostrava,ban ik ostrava,banik ostrava,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_5,openfootball,Bayern München,bayern m unchen,bayern munchen,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_deu_borussia_m_onchengladbach,openfootball,Bor. Mönchengladbach,bor m onchengladbach,bor monchengladbach,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_deu_borussia_m_onchengladbach,openfootball,Borussia Mönchengladbach,borussia m onchengladbach,borussia monchengladbach,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_esp_c_adiz,openfootball,Cádiz CF,c adiz cf,cadiz cf,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_esp_cd_legan_es,openfootball,CD Leganés,cd legan es,cd leganes,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_78,openfootball,Club Atlético de Madrid,club atl etico de madrid,club atletico de madrid,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_esp_deportivo_alav_es,openfootball,Deportivo Alavés,deportivo alav es,deportivo alaves,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_svk_dukla_bansk_a_bystrica,openfootball,Dukla Banská Bystrica,dukla bansk a bystrica,dukla banska bystrica,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_dynamo_cesk_e_bud_jovice,openfootball,Dynamo České Budějovice,dynamo cesk e bud jovice,dynamo ceske budejovice,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_tur_ey_upspor,openfootball,Eyüpspor,ey upspor,eyupspor,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_tur_fatih_karag_umr_uk,openfootball,Fatih Karagümrük,fatih karag umr uk,fatih karagumruk,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_5,openfootball,FC Bayern München,fc bayern m unchen,fc bayern munchen,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_por_famalic_ao,openfootball,FC Famalicão,fc famalic ao,fc famalicao,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_hradec_kr_alov_e,openfootball,FC Hradec Králové,fc hradec kr alov e,fc hradec kralove,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_zl_in,openfootball,FC Zlín,fc zl in,fc zlin,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_mlad_a_boleslav,openfootball,FK Mladá Boleslav,fk mlad a boleslav,fk mlada boleslav,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_svk_zeleziarne_podbrezov_a,openfootball,FK Železiarne Podbrezová,fk zeleziarne podbrezov a,fk zeleziarne podbrezova,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_tur_g_oztepe,openfootball,Göztepe,g oztepe,goztepe,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_tur_istanbul_basas_ehir,openfootball,İstanbul Başakşehir,istanbul basas ehir,istanbul basaksehir,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_svk_kfc_kom_arno,openfootball,KFC Komárno,kfc kom arno,kfc komarno,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_swe_malm_o_ff,openfootball,Malmö FF,malm o ff,malmo ff,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_cze_mfk_karvin_a,openfootball,MFK Karviná,mfk karvin a,mfk karvina,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_svk_mfk_zempl_in_michalovce,openfootball,MFK Zemplín Michalovce,mfk zempl in michalovce,mfk zemplin michalovce,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_tur_mke_ankarag_uc_u,openfootball,MKE Ankaragücü,mke ankarag uc u,mke ankaragucu,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_bel_raal_la_louvi_ere,openfootball,RAAL La Louviére,raal la louvi ere,raal la louviere,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_fd_90,openfootball,Real Betis Balompié,real betis balompi e,real betis balompie,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_esp_real_sociedad_de_f_utbol,openfootball,Real Sociedad de Fútbol,real sociedad de f utbol,real sociedad de futbol,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_deu_spvgg_greuther_f_urth,openfootball,SpVgg Greuther Fürth,spvgg greuther f urth,spvgg greuther furth,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_bel_standard_li_ege,openfootball,Standard Liège,standard li ege,standard liege,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_esp_ud_almer_ia,openfootball,UD Almería,ud almer ia,ud almeria,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_por_vit_oria_guimar_aes,openfootball,Vitória de Guimarães,vit oria de guimar aes,vitoria de guimaraes,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_por_vit_oria_guimar_aes,openfootball,Vitória Guimarães,vit oria guimar aes,vitoria guimaraes,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z
+accepted_aliases,club_svk_zlat_e_moravce,openfootball,Zlaté Moravce,zlat e moravce,zlate moravce,TRUE,2021-01-01T00:00:00Z,2027-07-01T00:00:00Z

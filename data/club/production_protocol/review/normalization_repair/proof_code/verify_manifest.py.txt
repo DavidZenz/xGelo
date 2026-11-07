@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""Read-only byte verification; never installs or accepts the pending review."""
+import argparse, hashlib, json
+from pathlib import Path
+
+parser=argparse.ArgumentParser()
+parser.add_argument('--main-preconditions',type=Path,metavar='REPOSITORY')
+args=parser.parse_args()
+package=Path(__file__).resolve().parent
+files=package/'deployment/files'
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest()
+review=files/'data/club/production_protocol/review/review_manifest.json'
+manifest=json.loads(review.read_text())
+assert manifest['decision']=='pending'
+assert not (review.parent/'accepted_owner_decision.json').exists()
+for item in manifest['files']:
+    path=files/item['path']
+    assert path.is_file() and sha(path)==item['sha256'],item['path']
+identities=json.loads((package/'FINAL_IDENTITIES.json').read_text())
+assert sha(review)==identities['replacement_review_manifest_file_sha256']
+assert sha(package/'replacement_fold_review/review_manifest.json')==sha(review)
+preconditions=json.loads((package/'deployment/preconditions.json').read_text())
+for item in preconditions['files']:
+    assert sha(files/item['path'])==item['proposed_sha256'],item['path']
+    if args.main_preconditions:
+        current=args.main_preconditions/item['path']
+        actual=sha(current) if current.is_file() else None
+        assert actual==item['expected_existing_sha256'],f"main precondition changed: {item['path']}"
+print(f"PASS: {len(manifest['files'])} exact review artifacts; pending only; distinct named hashes; no activation")
+if args.main_preconditions:print('PASS: all main-file migration preconditions unchanged')

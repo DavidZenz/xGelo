@@ -1,0 +1,13 @@
+{
+  "status": "pass",
+  "scope": "real staged application utility in disposable baseline clone",
+  "read_only_preflight": true,
+  "concurrent_edit_rejected": true,
+  "payload_exact_after_install": true,
+  "prior_owner_receipt_archived": true,
+  "later_owner_receipt_blocks_rollback": true,
+  "baseline_restored": true,
+  "new_immutable_generations_retained": true,
+  "main_preflight_passed": true,
+  "main_managed_roots_changed": false
+}

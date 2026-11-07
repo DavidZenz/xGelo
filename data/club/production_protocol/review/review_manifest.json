@@ -1,29 +1,309 @@
 {
   "schema_version": "club-model-fold-review-package-v1",
   "decision": "pending",
-  "fold_registry_sha256": "2f49f0873fa855775dcd911cf2b1183d09091ac2422452f4d467611a5cf2a8fd",
-  "code_sha256": "b4d4e3168ec5cc88668c1af13b4164fa0c73d1d278b562af34cf0ebc9147a93e",
+  "fold_registry_sha256": "3c614607cdd7a7bce1a4a660c4ae57cab51ae9571db476ea17e316db8810d505",
+  "code_sha256": "43324c7af1c60804f252a80266fef146092d32838b801c4633d34b5cfe652c05",
   "recipe_sha256": "c9817163a8b43f7cabbecb48201ce0ae0d35d65790060f7a7cc76574bf6a2482",
   "files": [
     {
+      "path": "R/club/identity.R",
+      "sha256": "459461abcedd2793b229e1c89ac7c07c21e7e110e3873412ace5ec9f657a8772"
+    },
+    {
+      "path": "data/club/fold_protocol_runtime/generations/club-folds-da161afbd90c469bcd021196/calibration_recipe.json",
+      "sha256": "082608e2b39541e2bcd465b972d42a8760ce61f7cd8186e588734aaa395670d7"
+    },
+    {
+      "path": "data/club/fold_protocol_runtime/generations/club-folds-da161afbd90c469bcd021196/fold_registry.csv",
+      "sha256": "6f19cd3d673cb9ba3ac23917a6e9e47be1f1294c0a6f26cc7ff9e8ef7850e88b"
+    },
+    {
+      "path": "data/club/fold_protocol_runtime/generations/club-folds-da161afbd90c469bcd021196/fold_review.json",
+      "sha256": "5215a6f640e98cd2f6799eca64a4837c0513c0150985207f6db713cab48b8006"
+    },
+    {
+      "path": "data/club/fold_protocol_runtime/generations/club-folds-da161afbd90c469bcd021196/protocol_state.json",
+      "sha256": "495b959cd2930f37bb13a632a9694604789491e4f8c721a2a114e333245c05e7"
+    },
+    {
+      "path": "data/club/fold_protocol_runtime/protocol_current.json",
+      "sha256": "c014043a308ba569a39db5ba14d3cfc604fca4f17843089003913d08a37b77d6"
+    },
+    {
+      "path": "data/club/history_current.json",
+      "sha256": "502aa9987f3e8a12602c019cbff7fb69133a894025a30a1af270d78a563baeda"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/corpus_manifest.csv",
+      "sha256": "7e4333398b041af46d8892ed22bdd3ee78658b2c90d53503730cd0aea502236d"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/coverage_audit.csv",
+      "sha256": "b728bb9b43fd5cdb3836106ca691aaa55158725436641ff585aa8d4c8da2644f"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/duplicate_audit.csv",
+      "sha256": "f5c9066200cc02579670a37e3c6f0cc4317d49514ec1f14b959cfaf51e99911a"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/identity_audit.csv",
+      "sha256": "a270035027823253bb1e2b551fc69ff3e26053f80d17400b35aaa804998dc8a1"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/identity_review.csv",
+      "sha256": "d3c8bbd60af2b9fcaa77e6c61283bbfa016e92e95864e521eac7b11e3c9bd82f"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/matches.csv",
+      "sha256": "346341256c5d5dbe5ccfe85e3173d1fc5e65b832424ad752015a6954e9914d7d"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/registry_aliases.csv",
+      "sha256": "a17b7936d7d90307f9effb08e8d57f7f22ff4d43d3f0e66c265c4946327b0331"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/registry_clubs.csv",
+      "sha256": "9dc9453cd97e125fdd8da5711814a0877251420d70e079ae78d308103d5cafbb"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/registry_source_ids.csv",
+      "sha256": "e14a1f43cda4be4b02a866809439674273cc4c4c1ef62cad71496d18819cfa2e"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/score_semantics_audit.csv",
+      "sha256": "d4716fd1f68f7309f0e9d69ef51ba921c4fdb9f45f5ae40375be67292faa3ed7"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/source_manifest.csv",
+      "sha256": "bb2bc1b908b10a990dc0a19d741aca861b94f9f40441227a32a5a5a89fef3be3"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/temporal_audit.csv",
+      "sha256": "bf6294fd1039cf8ceb5cd98c010b3923384cd4fd2b81a0a80b2394d1c303defd"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/accepted/unresolved_identity.csv",
+      "sha256": "f27621d009b68809c015a27b065e315c06abfabcef333749ebbaacc0d473225d"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/corpus_manifest.csv",
+      "sha256": "7e4333398b041af46d8892ed22bdd3ee78658b2c90d53503730cd0aea502236d"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/coverage_audit.csv",
+      "sha256": "b728bb9b43fd5cdb3836106ca691aaa55158725436641ff585aa8d4c8da2644f"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/duplicate_audit.csv",
+      "sha256": "f5c9066200cc02579670a37e3c6f0cc4317d49514ec1f14b959cfaf51e99911a"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/identity_audit.csv",
+      "sha256": "a270035027823253bb1e2b551fc69ff3e26053f80d17400b35aaa804998dc8a1"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/identity_review.csv",
+      "sha256": "d3c8bbd60af2b9fcaa77e6c61283bbfa016e92e95864e521eac7b11e3c9bd82f"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/matches.csv",
+      "sha256": "346341256c5d5dbe5ccfe85e3173d1fc5e65b832424ad752015a6954e9914d7d"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/registry_aliases.csv",
+      "sha256": "a17b7936d7d90307f9effb08e8d57f7f22ff4d43d3f0e66c265c4946327b0331"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/registry_clubs.csv",
+      "sha256": "9dc9453cd97e125fdd8da5711814a0877251420d70e079ae78d308103d5cafbb"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/registry_source_ids.csv",
+      "sha256": "e14a1f43cda4be4b02a866809439674273cc4c4c1ef62cad71496d18819cfa2e"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/score_semantics_audit.csv",
+      "sha256": "d4716fd1f68f7309f0e9d69ef51ba921c4fdb9f45f5ae40375be67292faa3ed7"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/source_manifest.csv",
+      "sha256": "bb2bc1b908b10a990dc0a19d741aca861b94f9f40441227a32a5a5a89fef3be3"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/temporal_audit.csv",
+      "sha256": "bf6294fd1039cf8ceb5cd98c010b3923384cd4fd2b81a0a80b2394d1c303defd"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/audit/unresolved_identity.csv",
+      "sha256": "f27621d009b68809c015a27b065e315c06abfabcef333749ebbaacc0d473225d"
+    },
+    {
+      "path": "data/club/history_generations/club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd/generation_manifest.csv",
+      "sha256": "7c164b3d10aafed7fe69174faca469c99a950ed6512b8b7a32254a7a0a2816b7"
+    },
+    {
+      "path": "data/club/production_protocol/review/README.md",
+      "sha256": "7393f31cc8666e85ea9caadc34c4afed35494005a5f302621bf24f8649a6a625"
+    },
+    {
       "path": "data/club/production_protocol/review/fold_registry.csv",
-      "sha256": "840b75c9e911b7741b76649b3036ed19df5ba7bbbd6ff5d8e7b08b393ca9f02f"
+      "sha256": "6f19cd3d673cb9ba3ac23917a6e9e47be1f1294c0a6f26cc7ff9e8ef7850e88b"
     },
     {
       "path": "data/club/production_protocol/review/fold_review.json",
-      "sha256": "f92785b8674065c1b3ee7b426412d52aed44bff7c705697df4ad0309f094d097"
+      "sha256": "5215a6f640e98cd2f6799eca64a4837c0513c0150985207f6db713cab48b8006"
     },
     {
-      "path": "data/club/production_protocol/review/role_inventory.csv",
-      "sha256": "401a52aa9011eac8d352c889f41fcc51b415b132079580821657640cb156de26"
+      "path": "data/club/production_protocol/review/normalization_repair/APPROVAL_GATES.md",
+      "sha256": "98864ba35af6c16212aeece7333c4f808ecbb27b6f36fa34fd930b3b964f8c1a"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/README.md",
+      "sha256": "5a57ab26889a3d96f159fc1e6b609fb0881e2fb4e77c62c848d69869f108ee72"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/RUNBOOK.md",
+      "sha256": "714723ab278cde2917f225eb4930183cceb51ee4c8782dd7d1baa2c52e02f0c3"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/alias_impact_summary.csv",
+      "sha256": "33bc66b4df2cb9b9ef4a01409c8a9dc872cc1e353153c4613e3d9c7ae0c1fe95"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/all104_role_preservation.csv",
+      "sha256": "214dde8dc7ef88e648835db06f709a4f640cfb8bdc52e079719e9361ff06a75c"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/all36_history_preserved.json",
+      "sha256": "ee5ca9be1e652cb306af2cfa164b94aff439225625a62fc314356ca8450330f1"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/all407_identity_preservation.csv",
+      "sha256": "4ccd91d4dcc575b9ceb9068ad83566bc1b27791357779acc66e6d19e5a67d432"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/candidate_corpus_validation.json",
+      "sha256": "ea3a9b3aa83fcc80ca9cfd45c3fa97d98fc36923092ab22050bd0af1d6b36e1a"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/code_file_identities.json",
+      "sha256": "0f2e52d24e74da95800a981c15eb5b52001346e07f6d996e24ca6d78cfca6bf6"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/core_cold_summary.json",
+      "sha256": "9c1546475ee4b4d129755bf5584704962aeab2d83dc9019e95db084ec4739d43"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/current_source_independence.json",
+      "sha256": "87c4e265b9c982e3c799e164352d337d7dea226d58108d6296f71f6cfe92c910"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/exact39_derived_lookup_delta.csv",
+      "sha256": "9ee2f643e5a47fa8e925636b37f0f0d16fcbd46dad1f921b207b5e6146e16e7d"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/exact42_alias_delta.csv",
+      "sha256": "0ef848662373581f2ee457da7851eb692919e45f92a398f683b097839c993daf"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/history_role_preservation_summary.json",
+      "sha256": "823d6112f4cf48a126313091e5854ea7a7c5a58e5865568bd351140922d9bd5c"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/independent_variant_summary.json",
+      "sha256": "97cc55940332a37b9e94fc14e8d687975e2b82b6f2d657e2782ea2b7cd2533ae"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/migration_summary.json",
+      "sha256": "86f156b78873dde7db71959666de3a57df75e593a624a3d75f0f513806db0433"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/portable_cold_smoke.json",
+      "sha256": "6952fc34bde448f57d673d4ab64395eeff4a21230398ea9b0559d2140fe5b614"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/portable_reader_verification.json",
+      "sha256": "b93fea23c8fdeccc698eb1be2f9f5d1009fe6e9cca02459e3df386f430759743"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/portable_verification.json",
+      "sha256": "2dc36626deabbd1f399e94e4d9759d4b3d3a765b43b9e27411c31e9fc6c8e4a0"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/replacement_fold_summary.json",
+      "sha256": "3c8c0f7a7e403aad2048cd1adf2e13d350eb35393ac4085a5f8a62880c948da5"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/staged_application_verification.json",
+      "sha256": "6e9ac104916210be713f081e8db45e00c46a1bc4f58a83ac1d3f26e3f05c3398"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/staged_generation_summary.json",
+      "sha256": "d2d3f65547666e8ff697fcdadde1c39b59a73ffd3ac468690b2717e3fb9988ca"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/evidence/stringi_runtime.json",
+      "sha256": "53b4bb87fc324d9839e2fad99a9005ca1039eb7b08ee9582eafd898352663859"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/patches/cli-scope.patch",
+      "sha256": "58269c77e4272b5fe358321c4767d7b57f7386a63e4d39b1c243c34421255526"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/patches/identity-normalization-v3.patch",
+      "sha256": "1db1046648a1bad79837e149aa56b86feb15067945a3f4d91d7c8b5518a08400"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/proof_code/apply_staged_repair.py.txt",
+      "sha256": "03a267edde0eaaad025ff77433b5642bf09c9f2999c5f70a218bece27a659559"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/proof_code/test_staged_apply.py.txt",
+      "sha256": "614ae329f6ce39b1a73d097ac90857cc24a16f1a708552791035192984cca6dc"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/proof_code/verify_candidate_readers.R.txt",
+      "sha256": "1e507be3764b264e16e865dfb543be9147cf76c1956c48b88743907af0d6a614"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/proof_code/verify_manifest.py.txt",
+      "sha256": "f9867a89fbaafa62660667c374d8d1dc8ec689aaecd2d16dae10655e5111383b"
+    },
+    {
+      "path": "data/club/production_protocol/review/normalization_repair/proof_code/verify_repair.R.txt",
+      "sha256": "206abae5d5ce4a2fa34abbcb2b0dda278a4f704186d14c9058f8157497ce98cf"
     },
     {
       "path": "data/club/production_protocol/review/production_recipe_v2.json",
       "sha256": "d5426c03c30d955ccad4c5f4e29a188cf4590efccc68cee078c84a61dd092fdd"
     },
     {
-      "path": "data/club/production_protocol/review/README.md",
-      "sha256": "8665b2f2c6ab3bc8486d715dd514b53d437f34583fa964fb9bfc2401e99dfda9"
+      "path": "data/club/production_protocol/review/role_inventory.csv",
+      "sha256": "401a52aa9011eac8d352c889f41fcc51b415b132079580821657640cb156de26"
+    },
+    {
+      "path": "data/club/registries/current.json",
+      "sha256": "62bd15b2ebb0fbc8a53ef7014d0dce7ac2663c2cc08db6e20b2f47f2032f3428"
+    },
+    {
+      "path": "data/club/registries/generations/g-a7eece9307151d40e00b296a/club_aliases.csv",
+      "sha256": "a17b7936d7d90307f9effb08e8d57f7f22ff4d43d3f0e66c265c4946327b0331"
+    },
+    {
+      "path": "data/club/registries/generations/g-a7eece9307151d40e00b296a/club_source_ids.csv",
+      "sha256": "e14a1f43cda4be4b02a866809439674273cc4c4c1ef62cad71496d18819cfa2e"
+    },
+    {
+      "path": "data/club/registries/generations/g-a7eece9307151d40e00b296a/clubs.csv",
+      "sha256": "9dc9453cd97e125fdd8da5711814a0877251420d70e079ae78d308103d5cafbb"
+    },
+    {
+      "path": "scripts/build_uefa_champions_league_outcomes.R",
+      "sha256": "6e9c44f5f51c301c7bd4c7d3e4c389abb9d36e84909f71d757a456ac50dd39d6"
+    },
+    {
+      "path": "tests/testthat/test_club_normalization_v3.R",
+      "sha256": "35887706e825a3b7e70c2d3039f2904ef7a017f92c1ae3ace211be922ab42000"
     }
   ]
 }

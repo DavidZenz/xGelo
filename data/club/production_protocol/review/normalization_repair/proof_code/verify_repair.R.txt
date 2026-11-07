@@ -1,0 +1,52 @@
+#!/usr/bin/env Rscript
+# Read-only, portable verification. It never installs data, accepts a review,
+# calls a production release writer or fits a model.
+script<-sub("^--file=","",commandArgs(FALSE)[grepl("^--file=",commandArgs(FALSE))])
+if(length(script)!=1L)stop("Run this file with Rscript --vanilla",call.=FALSE)
+package<-normalizePath(dirname(script),mustWork=TRUE);snapshot_root<-file.path(package,"snapshots")
+setwd(snapshot_root);loader<-new.env(parent=globalenv())
+sys.source(file.path(snapshot_root,"scripts/build_uefa_champions_league_outcomes.R"),envir=loader)
+r<-loader$phase20_ucl_runtime
+read<-function(path)utils::read.csv(path,colClasses="character",na.strings=character(),check.names=FALSE,stringsAsFactors=FALSE)
+baseline<-file.path(package,"baseline_inputs");candidate<-file.path(package,"candidate_inputs")
+old<-read(file.path(baseline,"matches.csv"));new<-read(file.path(candidate,"proposed_history_matches.csv"))
+allowed<-c("identity_registry_sha256","home_resolution_method","away_resolution_method","row_sha256")
+stopifnot(nrow(old)==16277L,identical(old[setdiff(names(old),allowed)],new[setdiff(names(new),allowed)]))
+review<-read(file.path(candidate,"preserved_approved_identity_review.csv"))
+stopifnot(identical(review,read(file.path(baseline,"identity_review.csv"))),nrow(review)==407L,length(unique(review$club_id))==343L)
+registries<-list(clubs=read(file.path(baseline,"registry_clubs.csv")),source_ids=read(file.path(baseline,"registry_source_ids.csv")),aliases=read(file.path(candidate,"proposed_registry_aliases.csv")))
+r$phase18_validate_club_registries(registries)
+club_registry_sha256<-r$phase18_club_registry_hash(registries)
+stopifnot(identical(unique(new$identity_registry_sha256),club_registry_sha256))
+map<-list()
+for(i in seq_len(nrow(review))){
+ a<-review[i,];key<-paste0("name:",gsub(" ","_",r$phase18_normalize_club_name(a$display_value),fixed=TRUE))
+ value<-r$phase18_resolve_club_identity(registries,a$source_system,key,a$display_value,a$valid_from_utc,.validated=TRUE,.registry_sha256=club_registry_sha256)
+ stopifnot(identical(value$club_id[[1L]],a$club_id))
+ map[[a$display_value]]<-list(club_id=a$club_id,method=value$resolution_method[[1L]],from=a$valid_from_utc,to=a$valid_to_utc)
+}
+for(side in c("home","away")){
+ names<-new[[paste0(side,"_display_name")]]
+ ids<-vapply(names,function(name)map[[name]]$club_id,character(1))
+ methods<-vapply(names,function(name)map[[name]]$method,character(1))
+ dates<-ifelse(nzchar(new$kickoff_utc),new$kickoff_utc,paste0(new$event_date,"T00:00:00Z"))
+ starts<-vapply(names,function(name)map[[name]]$from,character(1));ends<-vapply(names,function(name)map[[name]]$to,character(1))
+ stopifnot(identical(unname(ids),new[[paste0(side,"_club_id")]]),identical(unname(methods),new[[paste0(side,"_resolution_method")]]),all(dates>=starts & dates<ends))
+}
+folds<-read(file.path(baseline,"fold_registry.csv"));expected<-read(file.path(baseline,"role_inventory.csv"))
+fixture<-structure(list(status="ready",authority_mode="fixture",fixture_authority=TRUE,production_eligible=FALSE,matches=new),class=c("phase19_club_authority_result","list"))
+role_count<-0L
+for(i in seq_len(nrow(folds))){
+ f<-folds[i,,drop=FALSE];roles<-r$phase19_production_role_inventory(fixture,f)
+ for(role in c("fit","temperature","selection","assessment")){
+  rows<-roles[[role]];ids<-sort(as.character(rows$match_id),method="radix")
+  original<-expected[expected$fold_id==f$fold_id & expected$role==role,,drop=FALSE]
+  stopifnot(nrow(original)==1L,identical(paste(ids,collapse="|"),original$fixture_ids[[1L]]),length(ids)==as.integer(original$fixture_count))
+  semantic<-c("match_id","home_club_id","away_club_id","event_date","kickoff_utc","completion_not_before_utc","evidence_available_at_utc","competition_id","season_id","regulation_home_goals","regulation_away_goals","final_home_goals","final_away_goals","counts_for_model")
+  stopifnot(identical(old[match(ids,old$match_id),semantic],new[match(ids,new$match_id),semantic]));role_count<-role_count+1L
+ }
+}
+stopifnot(nrow(folds)==26L,role_count==104L)
+if("--full-hash"%in%commandArgs(TRUE))stopifnot(identical(new$row_sha256,r$phase18_history_row_sha256(new)))
+cat("PASS:actual core;407identities/343clubs;16277match semantics;26folds/104exact role memberships;no fitting or authority activation\n")
+cat("club_registry_sha256=",club_registry_sha256,"\n",sep="")

@@ -1,7 +1,7 @@
 {
   "schema_version": "phase18-club-registry-pointer-v2",
   "hash_encoding_version": "phase18-canonical-v2",
-  "generation": "g-9a2175755ab7ea68c38cfff7",
-  "registry_sha256": "9a2175755ab7ea68c38cfff73bfe7ce2dbb05470785d857ad023d762bd830e21",
-  "pointer_sha256": "8f016b0213c4d1572b455437124062d550f4ad75dc90e0cff95967c986b27da7"
+  "generation": "g-a7eece9307151d40e00b296a",
+  "registry_sha256": "a7eece9307151d40e00b296a13f6d03bfc6ac03508756f7f4a9056ba9870b836",
+  "pointer_sha256": "e5fb3d0ea1c9640e4310ef50718e3f2e7224eea6b3590d8545685c4cdbd73229"
 }

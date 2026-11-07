@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+"""Exercise the real migration and rollback payload entirely in a temp tree."""
+import hashlib,json,shutil,subprocess,sys,tempfile
+from pathlib import Path
+package=Path(__file__).resolve().parent.parent
+work=Path(tempfile.mkdtemp(prefix='club-repair-apply-test-'));project=work/'project'
+shutil.copytree(package/'baseline_authority/pre_install_files',project)
+receipt='data/club/production_protocol/review/accepted_owner_decision.json'
+source=package/'baseline_authority/previous_fold_review/accepted_owner_decision.json'
+if source.exists():shutil.copy2(source,project/receipt)
+def sha(path):return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+def call(*args,ok=True):
+    result=subprocess.run([sys.executable,str(package/'apply_staged_repair.py'),'--project',str(project),*args],text=True,capture_output=True)
+    assert (result.returncode==0)==ok,result.stdout+result.stderr
+    return result
+plan=json.loads((package/'deployment/preconditions.json').read_text())['files']
+initial={item['path']:sha(project/item['path']) for item in plan};old_receipt=sha(project/receipt)
+call()
+assert all(sha(project/path)==value for path,value in initial.items())
+cli=project/'scripts/build_uefa_champions_league_outcomes.R';old=cli.read_bytes();cli.write_bytes(old+b'\n# concurrent writer\n')
+call(ok=False);cli.write_bytes(old)
+backup=work/'backup';call('--apply','--backup',str(backup))
+assert all(sha(project/item['path'])==item['proposed_sha256'] for item in plan)
+assert not (project/receipt).exists()
+assert sha(backup/'files'/receipt)==old_receipt
+# A later owner receipt or other writer must stop rollback.
+(project/receipt).write_text('fixture-only later owner receipt bytes\n')
+call('--rollback',str(backup),ok=False);(project/receipt).unlink()
+call('--rollback',str(backup))
+for path,value in initial.items():
+    if value is not None:assert sha(project/path)==value,path
+    elif '/generations/' in path or path.startswith('data/club/history_generations/'):
+        assert sha(project/path)==next(x['proposed_sha256'] for x in plan if x['path']==path)
+    else:assert not (project/path).exists(),path
+assert sha(project/receipt)==old_receipt
+print('PASS: read-only preflight; concurrent-byte rejection; exact install; receipt archive; later-review rollback rejection; exact rollback; immutable generations retained')
+shutil.rmtree(work)

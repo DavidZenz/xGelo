@@ -1,0 +1,7 @@
+{
+  "review_binds_data_competition_paths": false,
+  "review_binds_current_provider_generation_or_retrieval_time": false,
+  "history_fold_cutoff": "2026-10-27T00:00:00Z",
+  "production_evaluation_will_independently_bind_fresh_current_source": true,
+  "current_roster_requirement_unchanged": 36
+}

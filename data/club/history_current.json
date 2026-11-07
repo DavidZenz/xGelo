@@ -1,12 +1,12 @@
 {
   "schema_version": "phase18-club-history-pointer-v2",
   "hash_encoding_version": "phase18-canonical-v2",
-  "audit_generation_id": "club-history-2026-10-27-b212f524034b31e7f0e1",
-  "accepted_generation_id": "club-history-2026-10-27-b212f524034b31e7f0e1",
-  "audit_manifest_sha256": "fd1804a0f81b511ae3d86f6e05fb2bb4ae4ded5c5ab6ae950212e83424793c79",
-  "accepted_manifest_sha256": "fd1804a0f81b511ae3d86f6e05fb2bb4ae4ded5c5ab6ae950212e83424793c79",
+  "audit_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+  "accepted_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+  "audit_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+  "accepted_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
   "acceptance_state": "accepted",
   "blocked_reasons": "",
-  "generation_manifest_sha256": "9671588d7fadda5ecd33cb25b11fab17004102488e626d29c9cd588df365f6ee",
-  "pointer_sha256": "7de54e9025b22e93fb44dcf6c8120addbf0192db8c3db03a8de70e50d22d7d80"
+  "generation_manifest_sha256": "875e37c02914ed56a45e123295430251e262b58cdf80b93204068e1c70a45d7b",
+  "pointer_sha256": "5ec0f96c594599daefc1ee8eb051819544cc04b585fb11d7dc4b172be77c9201"
 }

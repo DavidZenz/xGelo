@@ -1,0 +1,54 @@
+[
+  {
+    "variant": "native_current",
+    "fresh_processes": 1,
+    "calls": 128,
+    "outputs": {
+      "dynamo cesk e budejovice": 128
+    },
+    "varying_scalar_processes": 0,
+    "raw_control_outputs": 100,
+    "raw_hex_examples": [
+      "44796e616d6f204365736b2765204275641b016a6f76696365"
+    ]
+  },
+  {
+    "variant": "explicit_utf8",
+    "fresh_processes": 1,
+    "calls": 128,
+    "outputs": {
+      "dynamo cesk e bud jovice": 126,
+      "dynamo cesk e budejovice": 2
+    },
+    "varying_scalar_processes": 1,
+    "raw_control_outputs": 100,
+    "raw_hex_examples": [
+      "44796e616d6f204365736b2765204275641b016a6f76696365"
+    ]
+  },
+  {
+    "variant": "nfc_explicit_utf8",
+    "fresh_processes": 1,
+    "calls": 128,
+    "outputs": {
+      "dynamo cesk e bud jovice": 126,
+      "dynamo cesk e budejovice": 2
+    },
+    "varying_scalar_processes": 1,
+    "raw_control_outputs": 100,
+    "raw_hex_examples": [
+      "44796e616d6f204365736b2765204275641b016a6f76696365"
+    ]
+  },
+  {
+    "variant": "icu_v3",
+    "fresh_processes": 1,
+    "calls": 128,
+    "outputs": {
+      "dynamo ceske budejovice": 128
+    },
+    "varying_scalar_processes": 0,
+    "raw_control_outputs": 0,
+    "raw_hex_examples": []
+  }
+]

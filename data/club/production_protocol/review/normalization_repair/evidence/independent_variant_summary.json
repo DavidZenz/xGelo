@@ -1,0 +1,67 @@
+[
+  {
+    "variant": "native_current",
+    "fresh_processes": 10,
+    "calls": 10000,
+    "outputs": {
+      "dynamo cesk e bud jovice": 9981,
+      "dynamo cesk e budejovice": 19
+    },
+    "varying_scalar_processes": 10,
+    "raw_control_outputs": 1000,
+    "all442_changed_row_counts": [
+      0
+    ],
+    "raw_hex_examples": [
+      "44796e616d6f204365736b2765204275641b016a6f76696365"
+    ]
+  },
+  {
+    "variant": "explicit_utf8",
+    "fresh_processes": 10,
+    "calls": 10000,
+    "outputs": {
+      "dynamo cesk e bud jovice": 9981,
+      "dynamo cesk e budejovice": 19
+    },
+    "varying_scalar_processes": 10,
+    "raw_control_outputs": 1000,
+    "all442_changed_row_counts": [
+      0
+    ],
+    "raw_hex_examples": [
+      "44796e616d6f204365736b2765204275641b016a6f76696365"
+    ]
+  },
+  {
+    "variant": "nfc_explicit_utf8",
+    "fresh_processes": 10,
+    "calls": 10000,
+    "outputs": {
+      "dynamo cesk e bud jovice": 9981,
+      "dynamo cesk e budejovice": 19
+    },
+    "varying_scalar_processes": 10,
+    "raw_control_outputs": 1000,
+    "all442_changed_row_counts": [
+      0
+    ],
+    "raw_hex_examples": [
+      "44796e616d6f204365736b2765204275641b016a6f76696365"
+    ]
+  },
+  {
+    "variant": "icu_v3",
+    "fresh_processes": 10,
+    "calls": 10000,
+    "outputs": {
+      "dynamo ceske budejovice": 10000
+    },
+    "varying_scalar_processes": 0,
+    "raw_control_outputs": 0,
+    "all442_changed_row_counts": [
+      42
+    ],
+    "raw_hex_examples": []
+  }
+]

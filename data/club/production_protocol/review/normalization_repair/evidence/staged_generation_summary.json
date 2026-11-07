@@ -1,0 +1,19 @@
+{
+  "status": "private_staging_only_main_unchanged_no_new_owner_decision",
+  "generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+  "history_pointer": {
+    "schema_version": "phase18-club-history-pointer-v2",
+    "hash_encoding_version": "phase18-canonical-v2",
+    "audit_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+    "accepted_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+    "audit_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+    "accepted_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+    "acceptance_state": "accepted",
+    "blocked_reasons": "",
+    "generation_manifest_sha256": "875e37c02914ed56a45e123295430251e262b58cdf80b93204068e1c70a45d7b",
+    "pointer_sha256": "5ec0f96c594599daefc1ee8eb051819544cc04b585fb11d7dc4b172be77c9201"
+  },
+  "registry_sha256": "a7eece9307151d40e00b296a13f6d03bfc6ac03508756f7f4a9056ba9870b836",
+  "original_review_rows_unchanged": true,
+  "production_fits_run": false
+}

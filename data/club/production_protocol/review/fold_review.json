@@ -7,15 +7,15 @@
   "reviewer": "",
   "reviewed_at_utc": "",
   "decision": "pending",
-  "accepted_generation_id": "club-history-2026-10-27-b212f524034b31e7f0e1",
-  "corpus_manifest_sha256": "fd1804a0f81b511ae3d86f6e05fb2bb4ae4ded5c5ab6ae950212e83424793c79",
-  "snapshot_sha256": "29020732eb297e1694e58b801f6d4e8c6a5eafca236aad9d47d1bd9062afd81b",
+  "accepted_generation_id": "club-history-normalization-v3-candidate-2026-11-05-fcb46e04bfb9730dd1fd",
+  "corpus_manifest_sha256": "2a04a1fd656eabd3c9e02cd4e6b3bb3453077de491290d0dd93534cc991d86a1",
+  "snapshot_sha256": "32d68c27764a7e783425ec8e2547830736f7283a7f5982196278e21afb177aba",
   "policy_review_sha256": "de4f280c1757551034bc08439e880ad7bf5de5b6480b10e797f78d0af8273fab",
   "protocol_sha256": "34e084ab9e88de48ac26d57477a8d9ad03ca36972eac9245a13ddf8da719f9a2",
   "calibration_recipe_sha256": "40f36e7fe70ff326c067ac88f3d79d54bf9e68b499d7d3640f40765b98ffb583",
-  "fold_registry_sha256": "2f49f0873fa855775dcd911cf2b1183d09091ac2422452f4d467611a5cf2a8fd",
+  "fold_registry_sha256": "3c614607cdd7a7bce1a4a660c4ae57cab51ae9571db476ea17e316db8810d505",
   "final_cutoff_utc": "2026-10-27T00:00:00Z",
-  "code_commit": "1e3587427a1202537446113eb4a857b0e93814eb",
+  "code_commit": "bcaafa0eaf89ae125822cb420b4e6f3d6d1c6b18",
   "rationale_code": "pending_owner_review",
-  "review_sha256": "cf58cd7ab0c16fcf1c26b302a0eb380bb53243807512d2169e60d3458ca76491"
+  "review_sha256": "480e0bb395a1bb43dfa63d4818070925b910e7a9cd0c837dfbcb39948260c33c"
 }
