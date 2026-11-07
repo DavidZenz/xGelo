@@ -1,0 +1,2 @@
+"schema_version","hash_encoding_version","edition_id","provider_id","provider_competition_id","provider_season_id","code","name","type","start_date","end_date","current_matchday","last_updated_utc","source_raw_sha256","row_sha256"
+"phase18-fd-competition-v2","phase18-canonical-v2","ucl_2026_27","football_data_org_v4","2001","2557","CL","UEFA Champions League","CUP","2026-09-08","2027-01-27",5,"2026-05-31T11:41:29Z","96fd0df58e015d2f42f233771dfcf061e5a9ce5d67fe0118674a78571ccf871a","8055db77ec5d763ca9a3dc5d0861a3ad35c21d15f928456f7681d545dd8ebb48"

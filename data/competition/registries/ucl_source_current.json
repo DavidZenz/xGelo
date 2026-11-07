@@ -1,13 +1,13 @@
 {
   "schema_version": "phase18-ucl-source-current-v2",
   "hash_encoding_version": "phase18-canonical-v2",
-  "committed_at_utc": "2026-11-05T18:55:32Z",
-  "transaction_generation_id": "ucl-refresh-20261105185532-01ac9e6ff29dc7bc7084",
-  "transaction_generation_path": "transactions/ucl-refresh-20261105185532-01ac9e6ff29dc7bc7084",
-  "transaction_generation_sha256": "3a1e3997d9c0c4666670629942ee71cfdaab70341fc50f562ed3ca5870c86b5a",
+  "committed_at_utc": "2026-11-07T10:40:52Z",
+  "transaction_generation_id": "ucl-refresh-20261107104052-07447caf9955882c29a8",
+  "transaction_generation_path": "transactions/ucl-refresh-20261107104052-07447caf9955882c29a8",
+  "transaction_generation_sha256": "4e0ccf66f957d8093d0673ebd7b2a01eb55ba25e234b098fb17efdd4939cd71e",
   "accepted_status": "accepted",
-  "accepted_generation_id": "ucl-refresh-20261105185532-01ac9e6ff29dc7bc7084-accepted",
-  "accepted_generation_path": "accepted/ucl-refresh-20261105185532-01ac9e6ff29dc7bc7084-accepted",
-  "accepted_generation_sha256": "2a99f6594c93398d12d1adcb13642b5c6578f477b2c5b4f2d3a06871fa631909",
-  "pointer_sha256": "273276df5653bf125825d3f0154d50efdb52ede2234a97173fb223d8bca6c266"
+  "accepted_generation_id": "ucl-refresh-20261107104052-07447caf9955882c29a8-accepted",
+  "accepted_generation_path": "accepted/ucl-refresh-20261107104052-07447caf9955882c29a8-accepted",
+  "accepted_generation_sha256": "442d4811e2f74e8508cd371e9b98881f2db31f4d22376161d6e8eabc08814a0e",
+  "pointer_sha256": "438ac69ed9abfce59f9d761d70edff4976d0a7235395a569b60be5d09d8985b0"
 }

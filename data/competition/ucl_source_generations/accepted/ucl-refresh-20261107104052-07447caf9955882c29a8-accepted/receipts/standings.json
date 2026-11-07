@@ -1,0 +1,11 @@
+{
+  "schema_version": "phase18-ucl-raw-receipt-v1",
+  "resource": "standings",
+  "bundle_id": "ucl-live-20261107104025",
+  "raw_retained": false,
+  "bytes": 28518,
+  "raw_sha256": "6f1fe151b134d780f22ea9ee54e0c11116486ef787081976d38dd396022761b3",
+  "aggregate_raw_sha256": "e1880bf7a2ec7d40300c1a8f32cd795009ab72ec413e0a7ed6267dca8c44131c",
+  "canonical_content_sha256": "605903acdf987e8b75c68b0ceeaaae472f49347a0a09e11da5ec1d13d1a68541",
+  "schema_fingerprint_sha256": "bf57a40386c2d3106347c3750da3637e32ae065a9ffb176766e137d40914eebe"
+}

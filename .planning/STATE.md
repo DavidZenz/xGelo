@@ -4,11 +4,11 @@ milestone: v4.0
 milestone_name: UEFA Champions League Forecast Dashboard
 current_phase: 19
 current_phase_name: independent-club-forecast-authority
-status: executing
-stopped_at: Normalization repair installed and replacement fold decision accepted. Refresh the current CL source and rerun production evaluation.
-last_updated: "2026-11-07T10:36:03Z"
+status: blocked
+stopped_at: Approved normalization and production rerun complete. Elo calibration failed and the refit venue baseline was retained.
+last_updated: "2026-11-07T11:15:17Z"
 last_activity: 2026-11-07
-last_activity_desc: Installed the approved normalization repair and recovered the scheduled dashboard publication
+last_activity_desc: Verified both production evaluation passes and the selected refit venue release
 progress:
   total_phases: 5
   completed_phases: 2
@@ -35,6 +35,15 @@ normalization tests. Production readers verified 16,277 historical matches,
 the owner's package-bound decision and selected the ready production fold
 generation `club-folds-da91b492da31bc8ee4ad8ab6`.
 Evidence is in `logs/club-model-runs/20261107T102350Z-normalization/`.
+
+The production rerun completed in 33 minutes 13 seconds against accepted source
+`ucl-live-20261107104025`. Both fresh 26-fold passes produced the same execution
+hash. Fold metrics and gate reports matched the previous run byte for byte.
+Elo passed 23 of 24 promotion gates. Its fixed-bin calibration error delta was
+0.0261580183363702 against the 0.01 maximum. The controller refit and selected
+the venue baseline in `club-v2-722003eeacbcc4875c4fc8dd`. All seven release
+artifacts and 34 protected files passed independent hash verification. Public
+CL predictions remain unavailable because team-strength calibration failed.
 
 The latest three-dashboard batch is `phase21-525f8f17f35d0955184709aa`, public
 commit `20c877a9bb1086ea9b7896976343a53196f63b24`. Recovery run
@@ -152,10 +161,10 @@ complete official inputs. All three public routes were rechecked HTTP200 at
 release evidence remains in
 `.planning/operations/non-wc-release-acceptance-2026-11-05.md`.
 
-Phase: 19 (independent-club-forecast-authority) — NORMALIZATION REPAIR INSTALLED; EVALUATION PENDING
+Phase: 19 (independent-club-forecast-authority) — NORMALIZATION REPAIR VERIFIED; VENUE BASELINE RETAINED
 Plan: 10 of 10
-Status: Normalization repair and replacement review applied. Production evaluation follows a fresh CL source capture.
-Last activity: 2026-11-07 — Verified installed history and replacement folds and recovered the public dashboards.
+Status: Normalization and replacement folds are active. The production rerun reproduced the calibration failure and verified the refit venue release.
+Last activity: 2026-11-07 — Verified production evaluation, release selection and recovered public publication.
 
 Progress: [██████████] 100%
 
@@ -164,7 +173,7 @@ Progress: [██████████] 100%
 | Phase | Name | Requirements | Status |
 |-------|------|--------------|--------|
 | 18 | Club and UCL Source Contracts | 6 | Accepted live and historical sources; audits passed (6/6) |
-| 19 | Independent Club Forecast Authority | 5 | Owner-approved normalization repair installed and validated. Production evaluation pending. |
+| 19 | Independent Club Forecast Authority | 5 | Approved normalization and dual 26-fold rerun verified. Elo calibration failed and the refit venue baseline was retained. |
 | 20 | UCL Rules, State, and Tournament Outcomes | 9 | Mechanics under QA; genuine tournament production incomplete/gated |
 | 21 | N-Edition Dashboard and Atomic Publication | 5 | Three-route factual release published; full milestone verification pending |
 | 22 | Automated Refresh and Release Hardening | 4 | Corrected manual and ordinary scheduled publication verified; full CL milestone hardening remains gated |
