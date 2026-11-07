@@ -13,6 +13,13 @@ exact inputs; failed model gates must not be weakened after seeing assessments.
 
 ## Ordered execution
 
+The 7 November scheduled run completed both simulations but lost staged files
+before rendering. Move new private workspaces outside the operating system's
+temporary directory. Recover the retained run by restoring only missing
+archived raw inputs and release dependencies with their recorded original hashes
+in a new workspace. Exercise the existing publication validators and prove
+the saved simulation outputs were reused.
+
 1. Audit the real launchd job, environment, logs, Git/publication topology and
    executable discovery. Implement configurable, probed Rscript discovery,
    failure status, locking, atomic run records, freshness monitoring, alerts and

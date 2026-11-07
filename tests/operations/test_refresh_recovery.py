@@ -117,6 +117,7 @@ else:raise SystemExit("Unexpected mechanical R dispatch: "+script)
         record,workspace=self.failed()
         self.assertTrue(any(x["phase"]=="nations_league_outcomes" and x["exit_code"]==0 for x in record["stages"]))
         self.assertEqual(workspace.parent.stat().st_mode & 0o777,0o700)
+        self.assertEqual(workspace.parent.parent, self.root/"logs/competition-refresh/workspaces")
 
     def test_resume_reuses_outcomes_with_current_code_preserving_original_failed_snapshot(self):
         failed,original=self.failed()
@@ -147,6 +148,37 @@ else:raise SystemExit("Unexpected mechanical R dispatch: "+script)
                 self.assertFalse(record.get("workspace_installed",False));self.assertTrue(record["workspace_retained"])
                 self.assertEqual(refresh.file_inventory(self.root,refresh.managed_paths(self.root)),before)
         self.assertTrue(original.exists())
+
+    def test_resume_restores_exact_missing_archive_and_release_in_recovery_copy(self):
+        raw = "data/competition/local_raw/archive/results.json"
+        release = "outputs/releases/approved_release.csv"
+        archive = self.root/raw
+        archive.parent.mkdir(parents=True)
+        archive.write_text("archived source bytes")
+        seed = "data/processed/elo_ratings.csv"
+        seed_file = self.root/seed
+        seed_file.parent.mkdir(parents=True)
+        seed_file.write_text("original Elo seed")
+        refresh.atomic_json(self.root/"outputs/competition/uefa_nations_league_2026_27/forecast_inputs/elo_provenance.json",
+                            {"seed_sha256": refresh.sha(seed_file)})
+        failed, original = self.failed()
+        missing = (raw, release, seed)
+        for relative in missing:
+            (original/relative).unlink()
+        result, record, _ = self.run_refresh(resume=failed["run_id"])
+        self.assertEqual(result, 0)
+        self.assertCountEqual(record["restored_recovery_inputs"], missing)
+        self.assertEqual(archive.read_text(), "archived source bytes")
+        self.assertTrue(all(not (original/relative).exists() for relative in missing))
+
+    def test_resume_cannot_replace_a_missing_managed_output_with_the_old_version(self):
+        failed, original = self.failed()
+        missing = "outputs/competition/uefa_nations_league_2026_27/mechanical-incumbent.txt"
+        (original/missing).unlink()
+        result, record, _ = self.run_refresh(resume=failed["run_id"])
+        self.assertEqual(result, 1)
+        self.assertIn("missing a required artifact", record["error"])
+        self.assertEqual((self.root/missing).read_text(), "original")
 
     def test_changed_main_managed_inputs_prevent_resume(self):
         failed,original=self.failed()

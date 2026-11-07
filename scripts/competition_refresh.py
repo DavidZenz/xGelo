@@ -276,7 +276,11 @@ def approved_release_inventory(root, include_club=False):
 
 @contextlib.contextmanager
 def retained_workspace(run):
-    parent = Path(tempfile.mkdtemp(prefix="xgelo-refresh-"+run.id+"-"))
+    staging = run.base / "workspaces"
+    staging.mkdir(mode=0o700, exist_ok=True)
+    if staging.is_symlink() or staging.stat().st_uid != os.getuid() or staging.stat().st_mode & 0o077:
+        raise RefreshError("Refresh workspace directory must be private and owned by the operator")
+    parent = Path(tempfile.mkdtemp(prefix="xgelo-refresh-"+run.id+"-", dir=staging))
     parent.chmod(0o700)
     workspace = parent/"project"
     workspace.mkdir()
@@ -311,14 +315,49 @@ def resolve_failed_workspace(root, run_id, before, releases):
         raise RefreshError("No retained failed computation with completed production outcomes exists for that run")
     workspace = Path(record.get("private_workspace_path", ""))
     temporary = Path(tempfile.gettempdir()).resolve()
+    staging = root/"logs/competition-refresh/workspaces"
+    allowed_roots = {temporary}
+    if staging.is_dir() and not staging.is_symlink() and staging.stat().st_uid == os.getuid() and not staging.stat().st_mode & 0o077:
+        allowed_roots.add(staging.resolve())
+    workspace_base = workspace.parent.parent.resolve()
     if (not workspace.is_absolute() or workspace.is_symlink() or workspace.parent.is_symlink() or not workspace.is_dir() or
         workspace.name!="project" or not workspace.parent.name.startswith("xgelo-refresh-"+run_id+"-") or
-        workspace.parent.parent.resolve()!=temporary or not workspace.resolve().is_relative_to(temporary) or
+        workspace_base not in allowed_roots or not workspace.resolve().is_relative_to(workspace_base) or
         workspace.stat().st_uid!=os.getuid()):
         raise RefreshError("Retained workspace path/ownership is invalid; no recovery attempted")
     if record.get("managed_inputs_before") != before or record.get("approved_releases_before") != releases:
         raise RefreshError("Accepted inputs or approved releases changed after that failed run; recovery would overwrite newer state")
     return workspace
+
+
+def restore_missing_recovery_inputs(root, workspace, before, releases):
+    """Restore recorded dependencies in the recovery copy only."""
+    dependencies = dict(releases)
+    seed = "data/processed/elo_ratings.csv"
+    # Older run receipts did not inventory this read-only input. The saved
+    # forecast provenance pins its bytes, and R independently validates and
+    # replays that provenance before allowing installation.
+    if not (workspace / seed).is_file():
+        provenance = read_json(workspace / "outputs/competition/uefa_nations_league_2026_27/forecast_inputs/elo_provenance.json")
+        seed_digest = provenance.get("seed_sha256")
+        if isinstance(seed_digest, str) and re.fullmatch(r"[0-9a-f]{64}", seed_digest):
+            dependencies[seed] = seed_digest
+    restored = []
+    for relative, digest in {**before, **dependencies}.items():
+        target = workspace / relative
+        if target.is_file() or relative.startswith("docs/competitions/"):
+            continue
+        if relative not in dependencies and not relative.startswith("data/competition/local_raw/"):
+            raise RefreshError("Retained workspace is missing a required artifact: " + relative)
+        source = root / relative
+        if not source.is_file() or sha(source) != digest:
+            raise RefreshError("Original recovery dependency is unavailable: " + relative)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        if sha(target) != digest:
+            raise RefreshError("Restored recovery dependency differs from its recorded hash: " + relative)
+        restored.append(relative)
+    return restored
 
 
 def validate_nl_forecast_input_evidence(payload, now):
@@ -776,9 +815,12 @@ def refresh(args, root=ROOT):
                     # current tested runtime while retaining exact source times,
                     # model/outcome identities and real completed MC evidence.
                     for relative in ("R", "scripts"):
-                        shutil.rmtree(workspace/relative)
+                        if (workspace/relative).exists():
+                            shutil.rmtree(workspace/relative)
                         shutil.copytree(root/relative, workspace/relative,
                                         ignore=shutil.ignore_patterns("__pycache__"))
+                    run.record["restored_recovery_inputs"] = restore_missing_recovery_inputs(
+                        root, workspace, before, releases_before)
                     run.record["resumed_failed_run_id"] = args.resume_failed
                 normal_env = os.environ.copy()
                 # Acquisition records a genuine immutable parser Git commit;

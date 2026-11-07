@@ -80,7 +80,8 @@ ready; the public three-route directory is installed last as one batch.
 Approved release bytes are also checked for concurrent changes. When CL
 predictions are disabled, unrelated club-release work cannot invalidate an
 otherwise unchanged national-team refresh. Failed private workspaces are
-retained in owner-only temporary directories; their exact paths appear in run
+retained in owner-only directories under `logs/competition-refresh/workspaces/`;
+their exact paths appear in run
 records. After installation, accepted data/outcomes are durable in the operator
 checkout and the temporary copy is removed. Cleanup errors are recorded
 separately and do not prevent valid publication.
