@@ -44,3 +44,31 @@ The failure began after durable workspaces moved beneath `logs/`.
   does not claim those legacy suites pass.
 - Recorded 86 protected WC/global/release/LaunchAgent file hashes before the
   production retry in `logs/competition-refresh/workspace-root-repair-20261113-protected-before.json`.
+
+## Production recovery — complete
+
+Normal guarded run `20261113T093821Z-0455ecf2` completed successfully at
+2026-11-13T10:29:05Z (11:29 Vienna). State now binds the private source hash
+`26a9c33f…`; its local Elo evidence includes 112 completed results, with 44
+upcoming fixture forecasts. The genuine source cutoff is 09:38:30 UTC and
+latest completed-result evidence is 12 November 21:41:05 UTC.
+
+The 1,000/10,000-draw passes took 230.597/2130.443 seconds. Both resolve all
+966 events, with probability bounds, rank/group mass, knockout participant mass
+and nested paths passing. The selected count meets the existing pointwise
+sampling-precision policy. No model, approval, simulation or hash gate was relaxed.
+
+All candidate authority/schema gates passed. The isolated publisher committed
+only the scoped competition dashboard batch as
+`522e32fdc085586fb70120585605ce7e5d8cb7d0`; all 14 HTTPS files matched the
+validated inventory at 10:29:05 UTC. Health observation at 10:29:41 UTC is
+`healthy`, publication `verified`, problems empty, controller terminal.
+
+All 86 protected WC/global/release/LaunchAgent files remain byte-identical,
+with no extra files in those inventories. Both scheduler plists are unchanged.
+Evidence is under `logs/competition-refresh/workspace-root-repair-20261113-*`
+and `logs/competition-refresh/benchmarks/20261113T093821Z-0455ecf2/`.
+
+Repair commit `7598061` is pushed to `codex/fix-non-wc-workspace-root`.
+The older failed runs remain recorded as failures. The recurring monitor stays
+read-only; the normal daily 03:00 local launchd job uses the repaired runtime.
