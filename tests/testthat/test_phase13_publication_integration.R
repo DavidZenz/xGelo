@@ -8,6 +8,7 @@ phase13_integration_test_project_root <- normalizePath(
   file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
   winslash = "/"
 )
+sys.source(file.path(phase13_integration_test_project_root, "tests/testthat/phase13_fixture_helper.R"), envir = environment())
 
 phase13_integration_test_load_api <- function() {
   environment <- new.env(parent = globalenv())
@@ -21,20 +22,12 @@ phase13_integration_test_load_api <- function() {
   environment
 }
 
-phase13_integration_test_copy_tree <- function(source, target) {
-  dir.create(target, recursive = TRUE, showWarnings = FALSE)
-  for (path in list.files(source, full.names = TRUE, all.files = FALSE)) {
-    destination <- file.path(target, basename(path))
-    if (dir.exists(path)) {
-      phase13_integration_test_copy_tree(path, destination)
-    } else {
-      stopifnot(file.copy(path, destination, overwrite = TRUE))
-    }
-  }
-  invisible(target)
-}
-
 phase13_integration_test_snapshot <- function(root) {
+  if (file.exists(root) && !dir.exists(root)) {
+    bytes <- readBin(root, what = "raw", n = file.info(root)$size)
+    return(setNames(list(list(bytes = bytes,
+      sha256 = digest::digest(bytes, algo = "sha256", serialize = FALSE))), basename(root)))
+  }
   if (!dir.exists(root)) return(list())
   files <- list.files(root, recursive = TRUE, full.names = TRUE, all.files = FALSE, no.. = TRUE)
   files <- files[!file.info(files)$isdir]
@@ -67,27 +60,11 @@ phase13_integration_test_candidate <- function(acquire, bundle_id = "nl-2026-27-
 }
 
 phase13_integration_test_copy_sandbox <- function() {
-  root <- tempfile("phase13-publication-integration-", tmpdir = phase13_integration_test_project_root)
-  accepted_root <- file.path(root, "accepted")
-  registry_root <- file.path(root, "registries")
-  raw_root <- file.path(root, "local_raw")
-  phase13_integration_test_copy_tree(
-    file.path(phase13_integration_test_project_root, "data/competition/accepted"),
-    accepted_root
-  )
-  phase13_integration_test_copy_tree(
-    file.path(phase13_integration_test_project_root, "data/competition/local_raw"),
-    raw_root
-  )
-  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
-  registry_files <- file.path(
-    phase13_integration_test_project_root,
-    "data/competition/registries",
-    c("competition_editions.csv", "source_artifacts.csv", "source_bundles.csv", "team_identity.csv")
-  )
-  stopifnot(all(file.copy(registry_files, registry_root, overwrite = TRUE)))
+  sandbox <- phase13_fixture_sandbox(phase13_integration_test_project_root)
+  # Capture each loop iteration's sandbox in this call frame for cleanup.
+  withr::defer(unlink(sandbox$root, recursive = TRUE), envir = parent.frame())
   refresh_marker <- file.path(
-    registry_root,
+    sandbox$registry_root,
     "refresh_batches",
     "uefa_nations_league_2026_27",
     "refresh-keep",
@@ -95,13 +72,8 @@ phase13_integration_test_copy_sandbox <- function() {
   )
   dir.create(dirname(refresh_marker), recursive = TRUE, showWarnings = FALSE)
   writeBin(charToRaw("pre-existing registry-side refresh record"), refresh_marker)
-  list(
-    root = root,
-    accepted_root = accepted_root,
-    registry_root = registry_root,
-    raw_root = raw_root,
-    refresh_marker = refresh_marker
-  )
+  sandbox$refresh_marker <- refresh_marker
+  sandbox
 }
 
 phase13_integration_test_assert_source_handoff <- function(acquire, handoff_set) {

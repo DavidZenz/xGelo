@@ -5,6 +5,8 @@ phase13_manifest_test_project_root <- normalizePath(
   winslash = "/"
 )
 
+sys.source(file.path(phase13_manifest_test_project_root, "tests/testthat/phase13_fixture_helper.R"), envir = environment())
+
 phase13_manifest_test_load_apis <- function() {
   source(file.path(phase13_manifest_test_project_root, "R/competition/source_contracts.R"), local = .GlobalEnv)
   source(file.path(phase13_manifest_test_project_root, "R/competition/team_identity.R"), local = .GlobalEnv)
@@ -43,144 +45,18 @@ phase13_manifest_test_bytes <- function(path) {
   readBin(path, what = "raw", n = file.info(path)$size)
 }
 
-phase13_manifest_test_source_fixture_rows <- function(normalized) {
-  normalized <- as.data.frame(normalized, stringsAsFactors = FALSE, check.names = FALSE)
-  if (!nrow(normalized)) {
-    return(data.frame(
-      source_fixture_id = character(0),
-      home_uefa_source_team_id = character(0),
-      away_uefa_source_team_id = character(0),
-      home_display_name = character(0),
-      away_display_name = character(0),
-      scheduled_at_utc = character(0),
-      status = character(0),
-      stringsAsFactors = FALSE
-    ))
-  }
-  data.frame(
-    source_fixture_id = as.character(normalized$uefa_source_fixture_id),
-    home_uefa_source_team_id = as.character(normalized$home_uefa_source_team_id),
-    away_uefa_source_team_id = as.character(normalized$away_uefa_source_team_id),
-    home_display_name = as.character(normalized$home_display_name),
-    away_display_name = as.character(normalized$away_display_name),
-    scheduled_at_utc = as.character(normalized$scheduled_at_utc),
-    status = as.character(normalized$status),
-    stringsAsFactors = FALSE,
-    check.names = FALSE
-  )
-}
-
-phase13_manifest_test_source_result_rows <- function(normalized) {
-  normalized <- as.data.frame(normalized, stringsAsFactors = FALSE, check.names = FALSE)
-  if (!nrow(normalized)) {
-    return(data.frame(
-      source_fixture_id = character(0),
-      status = character(0),
-      home_goals = integer(0),
-      away_goals = integer(0),
-      stringsAsFactors = FALSE
-    ))
-  }
-  data.frame(
-    source_fixture_id = as.character(normalized$uefa_source_fixture_id),
-    status = as.character(normalized$status),
-    home_goals = normalized$home_goals,
-    away_goals = normalized$away_goals,
-    stringsAsFactors = FALSE,
-    check.names = FALSE
-  )
-}
-
 phase13_manifest_test_seed <- function() {
   phase13_manifest_test_load_apis()
-  phase13_manifest_test_require_api(c(
-    "phase13_normalized_resource_targets",
-    "phase13_refresh_canonical_table_hashes",
-    "phase13_refresh_accepted_manifest_hashes"
-  ))
-
-  root <- tempfile("phase13-publication-manifests-")
-  dir.create(root, recursive = TRUE, showWarnings = FALSE)
-  accepted_root <- file.path(root, "data/competition/accepted")
-  registry_root <- file.path(root, "data/competition/registries")
-  dir.create(accepted_root, recursive = TRUE, showWarnings = FALSE)
-  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
-
-  source_accepted_root <- file.path(phase13_manifest_test_project_root, "data/competition/accepted")
-  editions <- c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying")
-  for (edition_id in editions) {
-    file.copy(
-      file.path(source_accepted_root, edition_id),
-      accepted_root,
-      recursive = TRUE,
-      copy.date = TRUE
-    )
-  }
-  for (name in c("source_artifacts.csv", "source_bundles.csv")) {
-    file.copy(file.path(phase13_manifest_test_project_root, "data/competition/registries", name), registry_root)
-  }
-
-  artifacts <- phase13_manifest_test_read_csv(file.path(registry_root, "source_artifacts.csv"))
-  identity_map <- phase13_manifest_test_read_csv(
-    file.path(phase13_manifest_test_project_root, "data/competition/registries/team_identity.csv")
-  )
-  identity_map <- identity_map[, phase13_team_identity_required_columns(), drop = FALSE]
-
-  nl <- "uefa_nations_league_2026_27"
-  nl_fixture_artifact <- artifacts$source_artifact_id[
-    artifacts$edition_id == nl & artifacts$artifact_type == "fixtures"
-  ][[1L]]
-  nl_result_artifact <- artifacts$source_artifact_id[
-    artifacts$edition_id == nl & artifacts$artifact_type == "results"
-  ][[1L]]
-  normalized_fixture_seed <- phase13_manifest_test_read_csv(file.path(accepted_root, nl, "fixtures.csv"))
-  normalized_fixtures <- phase13_normalize_fixture_rows(
-    phase13_manifest_test_source_fixture_rows(normalized_fixture_seed),
-    identity_map = identity_map,
-    edition_id = nl,
-    source_artifact_id = nl_fixture_artifact,
-    lifecycle_state = "scheduled"
-  )
-  normalized_result_seed <- phase13_manifest_test_read_csv(file.path(accepted_root, nl, "results.csv"))
-  normalized_results <- phase13_normalize_accepted_result_rows(
-    phase13_manifest_test_source_result_rows(normalized_result_seed),
-    normalized_fixtures = normalized_fixtures,
-    edition_id = nl,
-    source_artifact_id = nl_result_artifact,
-    lifecycle_state = "scheduled"
-  )
-  phase13_manifest_test_write_csv(normalized_fixtures, file.path(accepted_root, nl, "fixtures.csv"))
-  phase13_manifest_test_write_csv(normalized_results, file.path(accepted_root, nl, "results.csv"))
-
-  euro <- "uefa_euro_2028_qualifying"
-  phase13_manifest_test_write_csv(
-    phase13_empty_normalized_fixture_rows(),
-    file.path(accepted_root, euro, "fixtures.csv")
-  )
-  phase13_manifest_test_write_csv(
-    phase13_empty_normalized_result_rows(),
-    file.path(accepted_root, euro, "results.csv")
-  )
-
-  targets <- phase13_normalized_resource_targets(root)
-  canonical <- phase13_refresh_canonical_table_hashes(
-    staged_root = root,
-    table_targets = targets,
-    source_artifacts = artifacts
-  )
-  bundles <- phase13_manifest_test_read_csv(file.path(registry_root, "source_bundles.csv"))
-  list(
-    root = root,
-    accepted_root = accepted_root,
-    registry_root = registry_root,
-    actual_root = phase13_manifest_test_project_root,
-    targets = targets,
-    canonical = canonical,
+  sandbox <- phase13_fixture_sandbox(phase13_manifest_test_project_root)
+  withr::defer(unlink(sandbox$root, recursive = TRUE), envir = parent.frame())
+  targets <- phase13_normalized_resource_targets(sandbox$root)
+  artifacts <- phase13_manifest_test_read_csv(file.path(sandbox$registry_root, "source_artifacts.csv"))
+  canonical <- phase13_refresh_canonical_table_hashes(sandbox$root, targets, artifacts)
+  list(root = sandbox$root, accepted_root = sandbox$accepted_root, registry_root = sandbox$registry_root,
+    actual_root = phase13_manifest_test_project_root, targets = targets, canonical = canonical,
     source_artifacts = canonical$source_artifacts,
-    source_bundles = bundles,
-    editions = editions,
-    resource_types = phase13_source_required_resource_types()
-  )
+    source_bundles = phase13_manifest_test_read_csv(file.path(sandbox$registry_root, "source_bundles.csv")),
+    editions = sandbox$editions, resource_types = phase13_source_required_resource_types())
 }
 
 phase13_manifest_test_refresh <- function(fixture, ...) {

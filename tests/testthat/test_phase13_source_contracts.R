@@ -9,6 +9,8 @@ phase13_source_test_project_root <- normalizePath(
   winslash = "/"
 )
 
+sys.source(file.path(phase13_source_test_project_root, "tests/testthat/phase13_fixture_helper.R"), envir = environment())
+
 phase13_source_test_load_apis <- function() {
   source_paths <- file.path(
     phase13_source_test_project_root,
@@ -449,9 +451,10 @@ test_that("explicit empty compact tables retain schema while null schemas fail",
 
 phase13_source_test_run_acquire <- function(args) {
   script <- file.path(phase13_source_test_project_root, "scripts/acquire_uefa_snapshot.R")
+  executable <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
   output <- system2(
-    "Rscript",
-    c("--vanilla", script, args),
+    executable,
+    shQuote(c("--vanilla", script, args)),
     stdout = TRUE,
     stderr = TRUE
   )
@@ -630,9 +633,11 @@ test_that("live input reports missing optional status evidence instead of guessi
 
 test_that("bounded acquisition replays compact structured fixtures into an accepted edition", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
-  output_root <- tempfile("phase13-accepted-")
-  registry_root <- tempfile("phase13-registries-")
-  raw_root <- tempfile("phase13-raw-")
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  output_root <- sandbox$accepted_root
+  registry_root <- sandbox$registry_root
+  raw_root <- sandbox$raw_root
   result <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
@@ -652,9 +657,11 @@ test_that("bounded acquisition replays compact structured fixtures into an accep
 
 test_that("accepted fixture publication uses the durable identity registry and preserves source values", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
-  output_root <- tempfile("phase13-normalized-fixture-output-")
-  registry_root <- tempfile("phase13-normalized-fixture-registries-")
-  raw_root <- tempfile("phase13-normalized-fixture-raw-")
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  output_root <- sandbox$accepted_root
+  registry_root <- sandbox$registry_root
+  raw_root <- sandbox$raw_root
   result <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
@@ -674,7 +681,7 @@ test_that("accepted fixture publication uses the durable identity registry and p
     na.strings = ""
   )
   phase13_source_test_load_apis()
-  expect_identical(names(fixtures), phase13_normalized_fixture_schema())
+  expect_identical(names(fixtures), phase14_normalized_fixture_schema())
   expect_identical(fixtures$edition_id, "uefa_nations_league_2026_27")
   expect_identical(fixtures$home_team_id, "team_aut")
   expect_identical(fixtures$away_team_id, "team_deu")
@@ -690,9 +697,11 @@ test_that("accepted fixture publication uses the durable identity registry and p
 
 test_that("accepted publication normalizes result identity and emits empty EURO result schema", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
-  output_root <- tempfile("phase13-normalized-result-output-")
-  registry_root <- tempfile("phase13-normalized-result-registries-")
-  raw_root <- tempfile("phase13-normalized-result-raw-")
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  output_root <- sandbox$accepted_root
+  registry_root <- sandbox$registry_root
+  raw_root <- sandbox$raw_root
   result <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
@@ -716,7 +725,7 @@ test_that("accepted publication normalizes result identity and emits empty EURO 
     check.names = FALSE,
     na.strings = ""
   )
-  expect_identical(names(results), phase13_normalized_result_schema())
+  expect_identical(names(results), phase14_normalized_result_schema())
   expect_identical(results$edition_id, "uefa_nations_league_2026_27")
   expect_identical(results$fixture_id, fixtures$fixture_id)
   expect_identical(results$uefa_source_fixture_id, fixtures$uefa_source_fixture_id)
@@ -724,15 +733,17 @@ test_that("accepted publication normalizes result identity and emits empty EURO 
   expect_identical(results$away_team_id, fixtures$away_team_id)
   expect_identical(results$home_display_name, "Austria")
   expect_identical(results$away_display_name, "Germany")
-  expect_identical(results$status, "scheduled")
+  expect_identical(results$match_status, "scheduled")
   expect_true(is.na(results$home_goals[[1L]]) && is.na(results$away_goals[[1L]]))
   expect_identical(results$source_artifact_id, "nl-2026-27-official-sample-v1-results")
   expect_identical(results$fixture_source_artifact_id, "nl-2026-27-official-sample-v1-fixtures")
   expect_silent(phase13_source_validate_hash_column(results, "row_sha256", "accepted normalized results"))
 
-  euro_output_root <- tempfile("phase13-normalized-euro-output-")
-  euro_registry_root <- tempfile("phase13-normalized-euro-registries-")
-  euro_raw_root <- tempfile("phase13-normalized-euro-raw-")
+  euro_sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root)
+  on.exit(unlink(euro_sandbox$root, recursive = TRUE), add = TRUE)
+  euro_output_root <- euro_sandbox$accepted_root
+  euro_registry_root <- euro_sandbox$registry_root
+  euro_raw_root <- euro_sandbox$raw_root
   euro_result <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_euro_2028_qualifying",
@@ -755,8 +766,8 @@ test_that("accepted publication normalizes result identity and emits empty EURO 
     check.names = FALSE,
     na.strings = ""
   )
-  expect_identical(names(euro_fixtures), phase13_normalized_fixture_schema())
-  expect_identical(names(euro_results), phase13_normalized_result_schema())
+  expect_identical(names(euro_fixtures), phase14_normalized_fixture_schema())
+  expect_identical(names(euro_results), phase14_normalized_result_schema())
   expect_equal(nrow(euro_fixtures), 0L)
   expect_equal(nrow(euro_results), 0L)
 })
@@ -778,9 +789,11 @@ test_that("unresolved accepted fixture identity fails before replacing the accep
     pretty = FALSE
   )
 
-  output_root <- tempfile("phase13-unresolved-output-")
-  registry_root <- tempfile("phase13-unresolved-registries-")
-  raw_root <- tempfile("phase13-unresolved-raw-")
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  output_root <- sandbox$accepted_root
+  registry_root <- sandbox$registry_root
+  raw_root <- sandbox$raw_root
   accepted <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
@@ -841,9 +854,11 @@ test_that("reviewed fallback acceptance is complete and never mixes provenance",
 
 test_that("blocked candidate retains the prior accepted bundle when no edition registry exists", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
-  output_root <- tempfile("phase13-blocked-accepted-")
-  registry_root <- tempfile("phase13-blocked-registries-")
-  raw_root <- tempfile("phase13-blocked-raw-")
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  output_root <- sandbox$accepted_root
+  registry_root <- sandbox$registry_root
+  raw_root <- sandbox$raw_root
   accepted <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
@@ -855,6 +870,8 @@ test_that("blocked candidate retains the prior accepted bundle when no edition r
   expect_equal(accepted$status, 0L, info = paste(accepted$output, collapse = "\n"))
   accepted_manifest <- file.path(output_root, "uefa_nations_league_2026_27", "source_bundle_manifest.csv")
   before <- readLines(accepted_manifest, warn = FALSE)
+  unlink(file.path(registry_root, "competition_editions.csv"))
+  expect_false(file.exists(file.path(registry_root, "competition_editions.csv")))
 
   invalid_fixture_dir <- tempfile("phase13-invalid-fixture-")
   dir.create(invalid_fixture_dir, recursive = TRUE)
@@ -888,6 +905,8 @@ test_that("blocked candidate retains the prior accepted bundle when no edition r
 
 test_that("accepted publication validates the complete staged directory and protects registry-side refresh records", {
   acquire <- phase13_source_test_load_acquire()
+  context <- phase13_fixture_sandbox(phase13_source_test_project_root, publish = FALSE)
+  on.exit(unlink(context$root, recursive = TRUE), add = TRUE)
   fixture <- phase13_source_test_derived_fixture()
   fixture_file <- tempfile("phase13-publish-derived-", fileext = ".json")
   jsonlite::write_json(fixture, fixture_file, auto_unbox = TRUE, pretty = FALSE)
@@ -963,7 +982,8 @@ test_that("accepted publication validates the complete staged directory and prot
       output_root = output_root,
       edition_id = edition_id,
       raw_root = raw_root,
-      registry_root = registry_root
+      registry_root = registry_root,
+      registry_context_root = context$registry_root
     )
   })
   accepted_root <- file.path(output_root, edition_id)
@@ -1007,7 +1027,8 @@ test_that("accepted publication validates the complete staged directory and prot
       output_root = output_root,
       edition_id = edition_id,
       raw_root = raw_root,
-      registry_root = registry_root
+      registry_root = registry_root,
+      registry_context_root = context$registry_root
     ),
     "manifest|bundle|hash|provenance"
   )
@@ -1020,9 +1041,12 @@ test_that("accepted publication validates the complete staged directory and prot
 
 test_that("dry-run validates a candidate without publishing accepted output or registries", {
   fixture_dir <- file.path(phase13_source_test_project_root, "tests/fixtures/phase13")
-  output_root <- tempfile("phase13-dry-run-output-")
-  registry_root <- tempfile("phase13-dry-run-registries-")
-  raw_root <- tempfile("phase13-dry-run-raw-")
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root, publish = FALSE)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  output_root <- sandbox$accepted_root
+  registry_root <- sandbox$registry_root
+  raw_root <- sandbox$raw_root
+  registry_before <- phase13_fixture_inventory(registry_root)
   result <- phase13_source_test_run_acquire(c(
     "--fixture-dir", fixture_dir,
     "--edition-id", "uefa_nations_league_2026_27",
@@ -1033,8 +1057,33 @@ test_that("dry-run validates a candidate without publishing accepted output or r
   ))
   expect_equal(result$status, 0L, info = paste(result$output, collapse = "\n"))
   expect_false(dir.exists(file.path(output_root, "uefa_nations_league_2026_27")))
-  expect_false(file.exists(file.path(registry_root, "source_bundles.csv")))
+  expect_identical(phase13_fixture_inventory(registry_root), registry_before)
   expect_false(dir.exists(file.path(raw_root, "uefa_nations_league_2026_27")))
+})
+
+test_that("accepted CLI refuses missing edition authority without publishing accepted output", {
+  sandbox <- phase13_fixture_sandbox(phase13_source_test_project_root, publish = FALSE)
+  on.exit(unlink(sandbox$root, recursive = TRUE), add = TRUE)
+  unlink(file.path(sandbox$registry_root, "competition_editions.csv"))
+  before <- phase13_fixture_inventory(sandbox$registry_root)
+  result <- suppressWarnings(phase13_source_test_run_acquire(c(
+    "--fixture-dir", file.path(phase13_source_test_project_root, "tests/fixtures/phase13"),
+    "--edition-id", "uefa_nations_league_2026_27", "--output-root", sandbox$accepted_root,
+    "--registry-root", sandbox$registry_root, "--raw-root", sandbox$raw_root, "--publish-accepted"
+  )))
+  expect_gt(result$status, 0L)
+  expect_match(paste(result$output, collapse = "\n"), "requires complete source registries", fixed = TRUE)
+  expect_identical(phase13_fixture_inventory(sandbox$registry_root), before)
+  expect_false(dir.exists(sandbox$accepted_root))
+  # A rejected accepted-publication request may retain the exact candidate
+  # capture for review, but it must never install accepted tables or registries.
+  candidate <- sandbox$api$phase13_acquire_candidate(list(
+    `fixture-dir` = file.path(phase13_source_test_project_root, "tests/fixtures/phase13"),
+    `fixture-file` = NULL, `fallback-file` = NULL, `bundle-id` = NULL
+  ), "uefa_nations_league_2026_27", project_root = phase13_source_test_project_root)
+  expect_silent(sandbox$api$phase13_acquire_validate_raw_store(
+    candidate, sandbox$raw_root, "uefa_nations_league_2026_27"
+  ))
 })
 
 test_that("capture-only registries retain exact raw bytes and canonical source hashes", {

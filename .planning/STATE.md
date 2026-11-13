@@ -6,9 +6,9 @@ current_phase: 19
 current_phase_name: independent-club-forecast-authority
 status: executing
 stopped_at: Phase 20 context gathered
-last_updated: "2026-09-21T09:00:19.763Z"
-last_activity: 2026-09-21
-last_activity_desc: Plan 10 aggregate adversarial gate complete; production remains human_needed and national regression awaits a pre-existing model artifact
+last_updated: "2026-11-13T11:18:15Z"
+last_activity: 2026-11-13
+last_activity_desc: Repaired legacy Phase 13 regressions and isolated accepted-root recovery
 progress:
   total_phases: 5
   completed_phases: 2
@@ -27,6 +27,24 @@ See: `.planning/PROJECT.md` (updated 2026-09-19)
 **Current focus:** Phase 19 — independent club forecast authority
 
 ## Current Position
+
+On 13 November the legacy Phase 13 regression repair passed all seven suites:
+82 cases and 852 assertions with zero failures, errors, warnings or skips.
+Publication fixtures now use fixed synthetic captures and the genuine approved
+selector. Registry hash migration also honors the explicit accepted-data root
+through blocked recovery and capture-only updates. All 609 managed files and
+86 protected WC/global/release/LaunchAgent files stayed unchanged. Verification:
+`.planning/operations/phase13-legacy-tests-2026-11-13-PLAN.md`.
+
+On 13 November the nested refresh workspace root leak was repaired in commit
+`7598061`. Normal run `20261113T093821Z-0455ecf2` rebuilt NL local state from
+112 completed results and completed genuine 1k/10k simulations. All authority,
+precision and publication gates passed; all 14 HTTPS files verified at
+10:29:05 UTC, public commit `522e32fdc085586fb70120585605ce7e5d8cb7d0`.
+Health is healthy/verified with no problems. The 86-file protected inventory,
+including WC/global/releases and both scheduler plists, stayed unchanged. Recovery details and historical test
+baselines are in
+`.planning/operations/non-wc-workspace-root-2026-11-13-PLAN.md`.
 
 Phase: 19 (independent-club-forecast-authority) — EXECUTING
 Plan: 10 of 10

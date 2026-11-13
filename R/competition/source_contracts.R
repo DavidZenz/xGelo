@@ -99,6 +99,11 @@ phase13_source_find_project_root <- function(path = ".") {
   candidate <- normalizePath(path, winslash = "/", mustWork = FALSE)
   if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
   repeat {
+    # A refresh snapshot has a complete code tree but deliberately no .git.
+    # Stop here before reaching an enclosing operator checkout under logs/.
+    if (dir.exists(file.path(candidate, "R/competition")) && dir.exists(file.path(candidate, "scripts"))) {
+      return(candidate)
+    }
     if (dir.exists(file.path(candidate, ".git")) || file.exists(file.path(candidate, ".git"))) {
       return(candidate)
     }
