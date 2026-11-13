@@ -24,6 +24,9 @@ uefa_nl_rules_project_root <- function(project_root = ".") {
   candidate <- normalizePath(project_root, winslash = "/", mustWork = FALSE)
   if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
   repeat {
+    if (dir.exists(file.path(candidate, "R/competition")) && dir.exists(file.path(candidate, "scripts"))) {
+      return(candidate)
+    }
     if (dir.exists(file.path(candidate, ".git")) || file.exists(file.path(candidate, ".git"))) {
       return(candidate)
     }
