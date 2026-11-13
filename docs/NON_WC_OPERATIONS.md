@@ -82,7 +82,10 @@ predictions are disabled, unrelated club-release work cannot invalidate an
 otherwise unchanged national-team refresh. Failed private workspaces are
 retained in owner-only directories under `logs/competition-refresh/workspaces/`;
 their exact paths appear in run
-records. After installation, accepted data/outcomes are durable in the operator
+records. Nations League dependency readers stop at the nearest code root
+containing `R/competition` and `scripts`, even without `.git`. They must not
+climb out of a private snapshot to read an enclosing operator checkout's source
+hashes, rules or forecast inputs. After installation, accepted data/outcomes are durable in the operator
 checkout and the temporary copy is removed. Cleanup errors are recorded
 separately and do not prevent valid publication.
 

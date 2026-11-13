@@ -7,6 +7,8 @@
 if (!exists("phase14_build_fixture_forecasts", mode = "function")) {
   phase14_state_bundle_bootstrap_root <- normalizePath(".", winslash = "/", mustWork = FALSE)
   repeat {
+    if (dir.exists(file.path(phase14_state_bundle_bootstrap_root, "R/competition")) &&
+        dir.exists(file.path(phase14_state_bundle_bootstrap_root, "scripts"))) break
     if (dir.exists(file.path(phase14_state_bundle_bootstrap_root, ".git")) ||
         file.exists(file.path(phase14_state_bundle_bootstrap_root, ".git"))) {
       break
@@ -28,6 +30,9 @@ phase14_state_bundle_project_root <- function(path = ".") {
   candidate <- normalizePath(path, winslash = "/", mustWork = FALSE)
   if (file.exists(candidate) && !dir.exists(candidate)) candidate <- dirname(candidate)
   repeat {
+    if (dir.exists(file.path(candidate, "R/competition")) && dir.exists(file.path(candidate, "scripts"))) {
+      return(normalizePath(candidate, winslash = "/", mustWork = TRUE))
+    }
     if (dir.exists(file.path(candidate, ".git")) || file.exists(file.path(candidate, ".git"))) {
       return(normalizePath(candidate, winslash = "/", mustWork = TRUE))
     }
