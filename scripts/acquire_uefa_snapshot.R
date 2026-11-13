@@ -2522,7 +2522,11 @@ phase13_acquire_align_registry_columns <- function(data, columns) {
   data[, columns, drop = FALSE]
 }
 
-phase13_acquire_normalize_registry_artifacts <- function(artifacts, project_root) {
+phase13_acquire_normalize_registry_artifacts <- function(
+    artifacts, project_root,
+    accepted_root = file.path(project_root, "data/competition/accepted")) {
+  # Recovery and capture-only callers may keep accepted data outside the
+  # checkout's default tree; canonical hashes must follow that explicit root.
   artifacts <- as.data.frame(artifacts, stringsAsFactors = FALSE, check.names = FALSE)
   artifacts$source_artifact_id <- if ("source_artifact_id" %in% names(artifacts)) {
     as.character(artifacts$source_artifact_id)
@@ -2542,8 +2546,7 @@ phase13_acquire_normalize_registry_artifacts <- function(artifacts, project_root
   canonical <- character(nrow(artifacts))
   for (index in seq_len(nrow(artifacts))) {
     accepted_path <- file.path(
-      project_root,
-      "data/competition/accepted",
+      accepted_root,
       as.character(artifacts$edition_id[[index]]),
       paste0(as.character(artifacts$artifact_type[[index]]), ".csv")
     )
@@ -2591,7 +2594,9 @@ phase13_acquire_validate_registry_tables <- function(bundles, artifacts) {
   invisible(TRUE)
 }
 
-phase13_acquire_update_registries <- function(candidate, registry_root, project_root = phase13_acquire_project_root) {
+phase13_acquire_update_registries <- function(
+    candidate, registry_root, project_root = phase13_acquire_project_root,
+    accepted_root = file.path(project_root, "data/competition/accepted")) {
   dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
   bundle_path <- file.path(registry_root, "source_bundles.csv")
   artifact_path <- file.path(registry_root, "source_artifacts.csv")
@@ -2604,7 +2609,8 @@ phase13_acquire_update_registries <- function(candidate, registry_root, project_
     bundles <- candidate$bundle
     artifacts <- candidate$artifacts
   } else {
-    old_artifacts <- phase13_acquire_normalize_registry_artifacts(old_artifacts, project_root)
+    old_artifacts <- phase13_acquire_normalize_registry_artifacts(old_artifacts, project_root,
+      accepted_root = accepted_root)
     old_bundle_rows <- lapply(unique(as.character(old_bundles$bundle_id)), function(bundle_id) {
       bundle <- old_bundles[as.character(old_bundles$bundle_id) == bundle_id, , drop = FALSE]
       bundle_artifacts <- old_artifacts[as.character(old_artifacts$bundle_id) == bundle_id, , drop = FALSE]
@@ -3364,7 +3370,8 @@ phase13_acquire_publish_refresh <- function(
       registry_context_root = registry_context_root,
       failure_injector = failure_injector
     )
-    phase13_acquire_update_registries(candidate, resolved_registry_root)
+    phase13_acquire_update_registries(candidate, resolved_registry_root,
+      project_root = project_root, accepted_root = resolved_output_root)
     candidate$edition_registry <- phase13_acquire_update_edition_after_acceptance(
       candidate = candidate,
       edition_id = edition_id,
@@ -3394,7 +3401,8 @@ phase13_acquire_publish_refresh <- function(
       registry_root = resolved_registry_root,
       registry_context_root = registry_context_root
     )
-    phase13_acquire_update_registries(candidate, resolved_registry_root)
+    phase13_acquire_update_registries(candidate, resolved_registry_root,
+      project_root = project_root, accepted_root = resolved_output_root)
     candidate$edition_registry <- phase13_acquire_update_edition_after_acceptance(
       candidate = candidate,
       edition_id = edition_id,
@@ -3510,7 +3518,7 @@ phase13_acquire_main <- function(
       )
     } else {
       phase13_acquire_write_raw_store(candidate, raw_root, edition_id, candidate$bundle$bundle_id[[1L]])
-      phase13_acquire_update_registries(candidate, registry_root)
+      phase13_acquire_update_registries(candidate, registry_root, accepted_root = output_root)
     }
     message(sprintf(
       "Phase 13 %s %s source bundle: %s",
