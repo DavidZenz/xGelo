@@ -8,6 +8,15 @@ phase13_registry_test_project_root <- normalizePath(
   file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
   winslash = "/"
 )
+sys.source(file.path(phase13_registry_test_project_root, "tests/testthat/phase13_fixture_helper.R"), envir = environment())
+
+phase13_registry_test_selector <- function() {
+  file.path(phase13_registry_test_project_root, "outputs/releases/approved_release.csv")
+}
+
+phase13_registry_test_release_id <- function() {
+  utils::read.csv(phase13_registry_test_selector(), stringsAsFactors = FALSE)$release_id[[1L]]
+}
 
 phase13_registry_test_load_apis <- function() {
   source_paths <- file.path(
@@ -73,37 +82,17 @@ phase13_registry_test_predraw_fixture <- function() {
 }
 
 phase13_registry_test_copy_normalized_sandbox <- function() {
-  root <- tempfile("phase13-registry-copy-", tmpdir = phase13_registry_test_project_root)
-  accepted_root <- file.path(root, "accepted")
-  registry_root <- file.path(root, "registries")
-  source_accepted_root <- file.path(phase13_registry_test_project_root, "data/competition/accepted")
-  source_registry_root <- file.path(phase13_registry_test_project_root, "data/competition/registries")
-  editions <- c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying")
-  dir.create(accepted_root, recursive = TRUE, showWarnings = FALSE)
-  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
-  for (edition_id in editions) {
-    target <- file.path(accepted_root, edition_id)
-    dir.create(target, recursive = TRUE, showWarnings = FALSE)
-    source_files <- list.files(
-      file.path(source_accepted_root, edition_id),
-      full.names = TRUE,
-      all.files = FALSE
-    )
-    stopifnot(all(file.copy(source_files, target, overwrite = TRUE)))
-  }
-  registry_files <- file.path(
-    source_registry_root,
-    c("competition_editions.csv", "source_artifacts.csv", "source_bundles.csv", "team_identity.csv")
-  )
-  stopifnot(all(file.copy(registry_files, registry_root, overwrite = TRUE)))
-  list(root = root, accepted_root = accepted_root, registry_root = registry_root)
+  sandbox <- phase13_fixture_sandbox(phase13_registry_test_project_root)
+  withr::defer(unlink(sandbox$root, recursive = TRUE), envir = parent.frame())
+  sandbox
 }
 
 phase13_registry_test_load_sandbox <- function(sandbox) {
   load_competition_edition_registries(
     sandbox$registry_root,
     project_root = phase13_registry_test_project_root,
-    accepted_root = sandbox$accepted_root
+    accepted_root = sandbox$accepted_root,
+    raw_root = sandbox$raw_root
   )
 }
 
@@ -148,7 +137,7 @@ test_that("direct UEFA source IDs resolve stable xGelo team IDs while preserving
   expect_true(grepl("^[0-9a-f]{64}$", normalized$row_sha256))
 })
 
-test_that("accepted source bundle links to the approved Phase 12 model release in the edition registry", {
+test_that("accepted source bundle links to the selected approved model release in the edition registry", {
   phase13_registry_test_load_apis()
   phase13_registry_test_require_api(c(
     "phase13_build_competition_edition_row",
@@ -168,17 +157,19 @@ test_that("accepted source bundle links to the approved Phase 12 model release i
     lifecycle_state = "scheduled",
     ruleset_version = "uefa-nations-league-2026-27-v1",
     source_bundle_id = source_bundle$bundle_id,
-    model_release_id = "phase12-wc2026-incumbent-retained-v1",
+    model_release_id = phase13_registry_test_release_id(),
     output_bundle_target = "outputs/competition/uefa_nations_league_2026_27",
     active_output_bundle_id = "nl-2026-27-official-sample-v1"
   )
 
   expect_silent(validate_phase13_competition_edition_registries(
     registry,
-    source_bundles = source_bundle
+    source_bundles = source_bundle,
+    selector_path = phase13_registry_test_selector(),
+    project_root = phase13_registry_test_project_root
   ))
   expect_identical(registry$source_bundle_id, source_bundle$bundle_id)
-  expect_identical(registry$model_release_id, "phase12-wc2026-incumbent-retained-v1")
+  expect_identical(registry$model_release_id, phase13_registry_test_release_id())
 })
 
 test_that("normalized display-name fallback is visible and ambiguity fails closed", {
@@ -417,8 +408,10 @@ test_that("accepted result identity is stable under later-row append, reorder, a
   row.names(baseline_identity) <- NULL
   row.names(reordered_identity) <- NULL
   expect_identical(baseline_identity, reordered_identity)
+  changed_scores <- reordered_normalized[reordered_normalized$uefa_source_fixture_id == "nl-2026-0002", c("home_goals", "away_goals")]
+  row.names(changed_scores) <- NULL
   expect_identical(
-    reordered_normalized[reordered_normalized$uefa_source_fixture_id == "nl-2026-0002", c("home_goals", "away_goals")],
+    changed_scores,
     data.frame(home_goals = 5L, away_goals = 4L, stringsAsFactors = FALSE)
   )
 })
@@ -548,16 +541,22 @@ test_that("EURO qualifying remains an explicit pre-draw row without fabricated s
     lifecycle_state = fixture$lifecycle_state,
     ruleset_version = "uefa-euro-2028-qualifying-v1",
     source_bundle_id = source_bundle$bundle_id,
-    model_release_id = "phase12-wc2026-incumbent-retained-v1",
+    model_release_id = phase13_registry_test_release_id(),
     output_bundle_target = fixture$output_bundle_target,
     active_output_bundle_id = "euro-2028-pre-draw-v1"
   )
-  expect_silent(validate_phase13_competition_edition_registries(registry, source_bundle))
+  expect_silent(validate_phase13_competition_edition_registries(
+    registry, source_bundle, selector_path = phase13_registry_test_selector(),
+    project_root = phase13_registry_test_project_root
+  ))
   expect_identical(registry$lifecycle_state, "pre_draw")
   expect_false(any(c("group_count", "fixture_count", "standings_hash") %in% names(registry)))
   fabricated <- registry
   fabricated$fixture_count <- 1L
-  expect_error(validate_phase13_competition_edition_registries(fabricated, source_bundle), "fabricate|pre-draw")
+  expect_error(validate_phase13_competition_edition_registries(
+    fabricated, source_bundle, selector_path = phase13_registry_test_selector(),
+    project_root = phase13_registry_test_project_root
+  ), "fabricate|pre-draw")
   expect_identical(fixture$published_resource_classes, list())
 })
 
@@ -778,7 +777,10 @@ test_that("production loading returns normalized accepted snapshots and truthful
     as.character(nations$results$fixture_source_artifact_id),
     as.character(nations$fixtures$source_artifact_id)
   )
-  expect_identical(as.character(nations$status$competition_status), "scheduled")
+  # The live source advances through the season; its accepted lifecycle must
+  # agree with the checked edition registry rather than a pre-season literal.
+  expect_identical(as.character(nations$status$competition_status),
+    as.character(registries$lifecycle_state[registries$edition_id == "uefa_nations_league_2026_27"]))
 
   euro <- snapshots[["uefa_euro_2028_qualifying"]]
   expect_named(euro$fixtures, phase14_normalized_fixture_schema())
@@ -890,9 +892,11 @@ test_that("edition validation preflights the approved release and handles serial
     "phase13_transition_competition_edition"
   ))
   preflight <- phase13_preflight_approved_model_release(
-    file.path(phase13_registry_test_project_root, "outputs/releases")
+    file.path(phase13_registry_test_project_root, "outputs/releases"),
+    selector_path = phase13_registry_test_selector(),
+    project_root = phase13_registry_test_project_root
   )
-  expect_identical(preflight$metadata$release_id, "phase12-wc2026-incumbent-retained-v1")
+  expect_identical(preflight$release_identity$release_id, phase13_registry_test_release_id())
 
   row <- phase13_build_competition_edition_row(
     edition_id = "uefa_nations_league_2026_27",

@@ -4,6 +4,7 @@ phase13_refresh_test_project_root <- normalizePath(
   file.path(getwd(), if (basename(getwd()) == "testthat") "../.." else "."),
   winslash = "/"
 )
+sys.source(file.path(phase13_refresh_test_project_root, "tests/testthat/phase13_fixture_helper.R"), envir = environment())
 
 phase13_refresh_test_load_acquire <- function() {
   environment <- new.env(parent = globalenv())
@@ -17,51 +18,10 @@ phase13_refresh_test_load_acquire <- function() {
   environment
 }
 
-phase13_refresh_test_copy_tree <- function(source, target) {
-  dir.create(target, recursive = TRUE, showWarnings = FALSE)
-  files <- list.files(source, full.names = TRUE, all.files = FALSE)
-  for (path in files) {
-    destination <- file.path(target, basename(path))
-    if (dir.exists(path)) {
-      phase13_refresh_test_copy_tree(path, destination)
-    } else {
-      stopifnot(file.copy(path, destination, overwrite = TRUE))
-    }
-  }
-  invisible(target)
-}
-
 phase13_refresh_test_copy_sandbox <- function() {
-  root <- tempfile("phase13-refresh-copy-", tmpdir = phase13_refresh_test_project_root)
-  accepted_root <- file.path(root, "accepted")
-  registry_root <- file.path(root, "registries")
-  raw_root <- file.path(root, "local_raw")
-  source_accepted_root <- file.path(phase13_refresh_test_project_root, "data/competition/accepted")
-  source_registry_root <- file.path(phase13_refresh_test_project_root, "data/competition/registries")
-  source_raw_root <- file.path(phase13_refresh_test_project_root, "data/competition/local_raw")
-  editions <- c("uefa_nations_league_2026_27", "uefa_euro_2028_qualifying")
-
-  dir.create(accepted_root, recursive = TRUE, showWarnings = FALSE)
-  dir.create(registry_root, recursive = TRUE, showWarnings = FALSE)
-  for (edition_id in editions) {
-    phase13_refresh_test_copy_tree(
-      file.path(source_accepted_root, edition_id),
-      file.path(accepted_root, edition_id)
-    )
-  }
-  phase13_refresh_test_copy_tree(source_raw_root, raw_root)
-  registry_files <- file.path(
-    source_registry_root,
-    c("competition_editions.csv", "source_artifacts.csv", "source_bundles.csv", "team_identity.csv")
-  )
-  stopifnot(all(file.copy(registry_files, registry_root, overwrite = TRUE)))
-
-  list(
-    root = root,
-    accepted_root = accepted_root,
-    registry_root = registry_root,
-    raw_root = raw_root
-  )
+  sandbox <- phase13_fixture_sandbox(phase13_refresh_test_project_root)
+  withr::defer(unlink(sandbox$root, recursive = TRUE), envir = parent.frame())
+  sandbox
 }
 
 phase13_refresh_test_file_snapshot <- function(root) {
@@ -78,7 +38,8 @@ phase13_refresh_test_file_snapshot <- function(root) {
 
 phase13_refresh_test_run_acquire <- function(args) {
   script <- file.path(phase13_refresh_test_project_root, "scripts/acquire_uefa_snapshot.R")
-  output <- system2("Rscript", c("--vanilla", script, args), stdout = TRUE, stderr = TRUE)
+  executable <- file.path(R.home("bin"), if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+  output <- system2(executable, shQuote(c("--vanilla", script, args)), stdout = TRUE, stderr = TRUE)
   list(
     output = output,
     status = if (is.null(attr(output, "status"))) 0L else as.integer(attr(output, "status"))
@@ -115,6 +76,26 @@ phase13_refresh_test_valid_candidate <- function(acquire, sandbox, bundle_id) {
     project_root = phase13_refresh_test_project_root
   )
 }
+
+test_that("registry hash migration reads the explicit accepted root instead of checkout data", {
+  acquire <- phase13_refresh_test_load_acquire()
+  sandbox <- phase13_refresh_test_copy_sandbox()
+  artifacts <- utils::read.csv(file.path(sandbox$registry_root, "source_artifacts.csv"),
+    stringsAsFactors = FALSE, check.names = FALSE, na.strings = "")
+  decoy_root <- tempfile("phase13-decoy-project-")
+  on.exit(unlink(decoy_root, recursive = TRUE), add = TRUE)
+  decoy_path <- file.path(decoy_root, "data/competition/accepted",
+    artifacts$edition_id[[1L]], paste0(artifacts$artifact_type[[1L]], ".csv"))
+  dir.create(dirname(decoy_path), recursive = TRUE)
+  writeLines("unrelated checkout bytes", decoy_path)
+  normalized <- acquire$phase13_acquire_normalize_registry_artifacts(artifacts,
+    project_root = decoy_root, accepted_root = sandbox$accepted_root)
+  expected <- vapply(seq_len(nrow(artifacts)), function(i) acquire$phase13_acquire_file_sha256(
+    file.path(sandbox$accepted_root, artifacts$edition_id[[i]], paste0(artifacts$artifact_type[[i]], ".csv"))
+  ), character(1))
+  expect_identical(as.character(normalized$canonical_content_sha256), expected)
+  expect_false(identical(normalized$canonical_content_sha256[[1L]], acquire$phase13_acquire_file_sha256(decoy_path)))
+})
 
 test_that("invalid refresh durably blocks one edition without changing accepted/source artifacts", {
   acquire <- phase13_refresh_test_load_acquire()
