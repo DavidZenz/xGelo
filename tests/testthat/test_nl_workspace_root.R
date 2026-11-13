@@ -7,12 +7,21 @@ nl_workspace_fixture <- function() {
   sys.source(file.path(nl_workspace_test_root, "scripts/refresh_nations_league_state.R"), envir = api)
   api$phase14_refresh_nl_root <- nl_workspace_test_root
   backend <- api$phase14_refresh_nl_load()
+  # Exercise each reader independently of which modules the CLI bootstrap
+  # happens to load on this branch.
+  for (relative in c("R/competition/form.R", "R/competition/uefa_nations_league_rules.R")) {
+    sys.source(file.path(nl_workspace_test_root, relative), envir = backend)
+  }
   parent <- tempfile("nl-parent-checkout-")
   child <- file.path(parent, "logs/competition-refresh/workspaces/test/project")
   dir.create(file.path(parent, ".git"), recursive = TRUE)
   for (root in c(parent, child)) {
     dir.create(file.path(root, "R/competition"), recursive = TRUE)
     dir.create(file.path(root, "scripts"), recursive = TRUE)
+    # The adapter loads the rules from its selected code root. Both nested
+    # projects must contain that dependency, just like a real refresh snapshot.
+    stopifnot(file.copy(file.path(nl_workspace_test_root, "R/competition/uefa_nations_league_rules.R"),
+      file.path(root, "R/competition/uefa_nations_league_rules.R")))
   }
   old_hash <- strrep("a", 64L)
   new_hash <- strrep("b", 64L)
